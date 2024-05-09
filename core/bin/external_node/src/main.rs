@@ -3,7 +3,6 @@ use std::{collections::HashSet, net::Ipv4Addr, str::FromStr, sync::Arc, time::Du
 use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
-use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
@@ -63,7 +62,7 @@ use zksync_web3_decl::{
 
 use crate::{
     config::{
-        observability::observability_config_from_env, ExternalNodeConfig, OptionalENConfig,
+        observability::ObservabilityENConfig, ExternalNodeConfig, OptionalENConfig,
         RequiredENConfig,
     },
     helpers::{EthClientHealthCheck, MainNodeHealthCheck, ValidateChainIdsTask},
@@ -691,15 +690,15 @@ async fn init_tasks(
         .await?;
     }
 
-    if let Some(port) = config.optional.prometheus_port {
+    if let Some(prometheus) = config.observability.prometheus() {
+        tracing::info!("Starting Prometheus exporter with configuration: {prometheus:?}");
+
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
         app_health.insert_component(prometheus_health_check)?;
         task_handles.push(tokio::spawn(async move {
             prometheus_health_updater.update(HealthStatus::Ready.into());
-            let result = PrometheusExporterConfig::pull(port)
-                .run(stop_receiver)
-                .await;
+            let result = prometheus.run(stop_receiver).await;
             drop(prometheus_health_updater);
             result
         }));
@@ -793,28 +792,8 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     let observability_config =
-        observability_config_from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
-
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &observability_config.sentry_url {
-        builder = builder
-            .with_sentry_url(sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(observability_config.sentry_environment);
-    }
-    let _guard = builder.build();
-
-    // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = observability_config.sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}");
-    } else {
-        tracing::info!("No sentry URL was provided");
-    }
-
+        ObservabilityENConfig::from_env().context("ObservabilityENConfig::from_env()")?;
+    let _guard = observability_config.build_observability()?;
     let required_config = RequiredENConfig::from_env()?;
     let optional_config = OptionalENConfig::from_env()?;
 
@@ -830,9 +809,14 @@ async fn main() -> anyhow::Result<()> {
     let eth_client_url = &required_config.eth_client_url;
     let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
 
-    let mut config = ExternalNodeConfig::new(required_config, optional_config, &main_node_client)
-        .await
-        .context("Failed to load external node config")?;
+    let mut config = ExternalNodeConfig::new(
+        required_config,
+        optional_config,
+        observability_config,
+        &main_node_client,
+    )
+    .await
+    .context("Failed to load external node config")?;
     if !opt.enable_consensus {
         config.consensus = None;
     }

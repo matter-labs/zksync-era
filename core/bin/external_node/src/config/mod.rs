@@ -1,5 +1,6 @@
 use std::{
     env,
+    ffi::OsString,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     time::Duration,
 };
@@ -34,11 +35,37 @@ use zksync_web3_decl::{
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
+use crate::config::observability::ObservabilityENConfig;
+
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
 
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
+
+/// Encapsulation of configuration source with a mock implementation used in tests.
+trait ConfigurationSource: 'static {
+    type Vars<'a>: Iterator<Item = (OsString, OsString)> + 'a;
+
+    fn vars(&self) -> Self::Vars<'_>;
+
+    fn var(&self, name: &str) -> Option<String>;
+}
+
+#[derive(Debug)]
+struct Environment;
+
+impl ConfigurationSource for Environment {
+    type Vars<'a> = env::VarsOs;
+
+    fn vars(&self) -> Self::Vars<'_> {
+        env::vars_os()
+    }
+
+    fn var(&self, name: &str) -> Option<String> {
+        env::var(name).ok()
+    }
+}
 
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -315,8 +342,6 @@ pub(crate) struct OptionalENConfig {
     database_slow_query_threshold_ms: Option<u64>,
 
     // Other config settings
-    /// Port on which the Prometheus exporter server is listening.
-    pub prometheus_port: Option<u16>,
     /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
     /// sealing will block until some of the miniblocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
@@ -787,6 +812,7 @@ pub(crate) struct ExternalNodeConfig {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
+    pub observability: ObservabilityENConfig,
     pub remote: RemoteENConfig,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
@@ -799,6 +825,7 @@ impl ExternalNodeConfig {
     pub async fn new(
         required: RequiredENConfig,
         optional: OptionalENConfig,
+        observability: ObservabilityENConfig,
         main_node_client: &BoxedL2Client,
     ) -> anyhow::Result<Self> {
         let experimental = envy::prefixed("EN_EXPERIMENTAL_")
@@ -823,6 +850,7 @@ impl ExternalNodeConfig {
             required,
             optional,
             experimental,
+            observability,
             consensus: read_consensus_config().context("read_consensus_config()")?,
             tree_component: tree_component_config,
             api_component: api_component_config,
@@ -836,6 +864,7 @@ impl ExternalNodeConfig {
             postgres: PostgresConfig::mock(test_pool),
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
+            observability: ObservabilityENConfig::default(),
             experimental: ExperimentalENConfig::mock(),
             consensus: None,
             api_component: ApiComponentConfig {
