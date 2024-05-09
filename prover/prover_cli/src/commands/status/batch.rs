@@ -11,11 +11,12 @@ use zksync_types::{
         NodeWitnessGeneratorJobInfo, ProofCompressionJobInfo, ProverJobFriInfo, ProverJobStatus,
         RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, WitnessJobStatus,
     },
+    url::SensitiveUrl,
     L1BatchNumber,
 };
 
-use super::utils::{BatchData, StageInfo};
-use crate::commands::status::utils::{postgres_config, Status};
+use super::utils::{BatchData, StageInfo, Status};
+use crate::cli::ProverCLIConfig;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -25,7 +26,7 @@ pub struct Args {
     verbose: bool,
 }
 
-pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
+pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
     ensure!(
         !args.batches.is_empty(),
         "At least one batch number should be provided"

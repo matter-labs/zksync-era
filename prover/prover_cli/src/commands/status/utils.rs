@@ -1,8 +1,6 @@
 use std::fmt::Debug;
 
 use strum::{Display, EnumString};
-use zksync_config::PostgresConfig;
-use zksync_env_config::FromEnv;
 use zksync_types::{
     basic_fri_types::AggregationRound,
     prover_dal::{
