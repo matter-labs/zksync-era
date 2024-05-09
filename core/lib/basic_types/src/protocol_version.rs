@@ -5,9 +5,13 @@ use std::{
 
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
-use web3::contract::{tokens::Detokenize, Error};
 
-use crate::{ethabi::Token, vm_version::VmVersion, H256, U256};
+use crate::{
+    ethabi::Token,
+    vm_version::VmVersion,
+    web3::contract::{Detokenize, Error},
+    H256, U256,
+};
 
 #[repr(u16)]
 #[derive(
@@ -187,12 +191,18 @@ pub struct VerifierParams {
 impl Detokenize for VerifierParams {
     fn from_tokens(tokens: Vec<Token>) -> Result<Self, Error> {
         if tokens.len() != 1 {
-            return Err(Error::Abi(crate::ethabi::Error::InvalidData));
+            return Err(Error::InvalidOutputType(format!(
+                "expected single token, got {tokens:?}"
+            )));
         }
 
         let tokens = match tokens[0].clone() {
             Token::Tuple(tokens) => tokens,
-            _ => return Err(Error::Abi(crate::ethabi::Error::InvalidData)),
+            other => {
+                return Err(Error::InvalidOutputType(format!(
+                    "expected a tuple, got {other:?}"
+                )))
+            }
         };
 
         let vks_vec: Vec<H256> = tokens
