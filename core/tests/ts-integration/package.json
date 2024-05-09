@@ -13,7 +13,7 @@
     "build-yul": "hardhat run scripts/compile-yul.ts"
   },
   "devDependencies": {
-    "@matterlabs/hardhat-zksync-deploy":  "^0.6.5",
+    "@matterlabs/hardhat-zksync-deploy": "^0.6.5",
     "@matterlabs/hardhat-zksync-solc": "0.4.2",
     "@matterlabs/hardhat-zksync-vyper": "^1.0.0",
     "@nomiclabs/hardhat-vyper": "^3.0.5",
@@ -23,7 +23,7 @@
     "chalk": "^4.0.0",
     "ethereumjs-abi": "^0.6.8",
     "ethers": "~5.7.0",
-    "hardhat": "=2.16.0",
+    "hardhat": "=2.22.2",
     "jest": "^29.0.3",
     "jest-matcher-utils": "^29.0.3",
     "node-fetch": "^2.6.1",
