@@ -136,14 +136,6 @@ pub struct LoadtestConfig {
     /// in an eventual test failure anyway (e.g., a failure processing transactions).
     #[serde(default)]
     pub fail_fast: bool,
-
-    /// Use Era's legacy interface, instead of the shared bridge.
-    #[serde(default)]
-    pub legacy: bool,
-
-    /// Base token address for non-ETH based chains.
-    #[serde(default)]
-    pub base_token: Option<Address>,
 }
 
 fn default_max_inflight_txs() -> usize {

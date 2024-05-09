@@ -26,7 +26,7 @@ use crate::{
         web3::TransactionReceipt,
         EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
     },
-    utils::format_eth,
+    utils::format,
 };
 
 /// Executor is the entity capable of running the loadtest flow.
@@ -44,6 +44,7 @@ pub struct Executor {
     config: LoadtestConfig,
     execution_config: ExecutionConfig,
     l2_main_token: Address,
+    base_token: Option<Address>,
     pool: AccountPool,
 }
 
@@ -56,6 +57,19 @@ impl Executor {
         execution_config: ExecutionConfig,
     ) -> anyhow::Result<Self> {
         let pool = AccountPool::new(&config).await?;
+
+        let base_token = {
+            let token = pool
+                .master_wallet
+                .provider
+                .get_base_token_l1_address()
+                .await?;
+            if token == Address::from_low_u64_be(1) {
+                None // ETH
+            } else {
+                Some(token)
+            }
+        };
 
         // derive L2 main token address
         let l2_shared_bridge = pool
@@ -77,6 +91,7 @@ impl Executor {
             execution_config,
             pool,
             l2_main_token,
+            base_token,
         })
     }
 
@@ -94,7 +109,7 @@ impl Executor {
         tracing::info!("Initializing accounts");
         tracing::info!("Running for MASTER {:?}", self.pool.master_wallet.address());
 
-        if let Some(base_token) = self.config.base_token {
+        if let Some(base_token) = self.base_token {
             anyhow::ensure!(
                 base_token != self.config.main_token,
                 "Main testing token and chain's base token should be different"
@@ -103,8 +118,7 @@ impl Executor {
 
         tracing::info!(
             "Running for chain based on {:?}",
-            self.config
-                .base_token
+            self.base_token
                 .map(|token| token.to_string())
                 .unwrap_or("ETH".to_string())
         );
@@ -113,11 +127,11 @@ impl Executor {
 
         tracing::info!("Master Account: Minting Test ERC20 token...");
         self.mint(self.config.main_token).await?;
-        if let Some(base_token) = self.config.base_token {
+        if let Some(base_token) = self.base_token {
             tracing::info!("Master Account: Minting Base ERC20 token...");
             self.mint(base_token).await?;
         }
-        self.deposit_base_token_to_paymaster(self.config.base_token)
+        self.deposit_base_token_to_paymaster(self.base_token)
             .await?;
         self.deposit_to_master().await?;
 
@@ -135,14 +149,14 @@ impl Executor {
             anyhow::bail!(
                 "ETH balance on {:x} is too low to safely perform the loadtest: {} - at least {} is required",
                 ethereum.client().sender_account(),
-                format_eth(eth_balance),
-                format_eth(U256::from(MIN_MASTER_ACCOUNT_BALANCE))
+                format(eth_balance),
+                format(U256::from(MIN_MASTER_ACCOUNT_BALANCE))
             );
         }
         tracing::info!(
             "Master Account {} L1 balance is {}",
             self.pool.master_wallet.address(),
-            format_eth(eth_balance)
+            format(eth_balance)
         );
         metrics::gauge!(
             "loadtest.master_account_balance",
@@ -313,8 +327,8 @@ impl Executor {
         // TODO: decimals may differ from eth
         tracing::info!(
             "Paymaster balance is {}. Minimum amount {}",
-            format_eth(paymaster_balance),
-            format_eth(U256::from(MIN_PAYMASTER_BALANCE))
+            format(paymaster_balance),
+            format(U256::from(MIN_PAYMASTER_BALANCE))
         );
 
         if paymaster_balance >= U256::from(MIN_PAYMASTER_BALANCE) {
@@ -372,7 +386,7 @@ impl Executor {
 
         tracing::info!(
             "Paymaster deposit complete. New balance: {}",
-            format_eth(paymaster_balance)
+            format(paymaster_balance)
         );
 
         Ok(())

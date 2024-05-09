@@ -118,9 +118,7 @@ impl AccountPool {
             let address = eth_private_key.address();
             let eth_signer = PrivateKeySigner::new(eth_private_key);
             let signer = Signer::new(eth_signer, address, l2_chain_id);
-            Arc::new(
-                Wallet::with_http_client(&config.l2_rpc_address, signer, config.legacy).unwrap(),
-            )
+            Arc::new(Wallet::with_http_client(&config.l2_rpc_address, signer).unwrap())
         };
 
         let mut rng = LoadtestRng::new_generic(config.seed.clone());
@@ -151,15 +149,9 @@ impl AccountPool {
                 let corrupted_eth_signer = CorruptedSigner::new(address);
                 let corrupted_signer = Signer::new(corrupted_eth_signer, address, l2_chain_id);
 
-                let wallet =
-                    Wallet::with_http_client(&config.l2_rpc_address, signer, config.legacy)
-                        .unwrap();
-                let corrupted_wallet = Wallet::with_http_client(
-                    &config.l2_rpc_address,
-                    corrupted_signer,
-                    config.legacy,
-                )
-                .unwrap();
+                let wallet = Wallet::with_http_client(&config.l2_rpc_address, signer).unwrap();
+                let corrupted_wallet =
+                    Wallet::with_http_client(&config.l2_rpc_address, corrupted_signer).unwrap();
 
                 addresses.push(wallet.address());
                 let account = TestWallet {

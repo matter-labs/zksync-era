@@ -69,7 +69,6 @@ pub struct EthereumProvider<S: EthereumSigner> {
     confirmation_timeout: Duration,
     polling_interval: Duration,
     l2_chain_id: u64,
-    use_legacy: bool,
     base_token: Option<Address>,
 }
 
@@ -84,7 +83,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         eth_web3_url: impl AsRef<str>,
         eth_signer: S,
         eth_addr: H160,
-        use_legacy: bool,
     ) -> Result<Self, ClientError>
     where
         P: ZksNamespaceClient + Sync,
@@ -144,7 +142,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             bridgehub_address,
             confirmation_timeout: Duration::from_secs(10),
             polling_interval: Duration::from_secs(1),
-            use_legacy,
             base_token,
         })
     }
@@ -228,11 +225,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         erc20_approve_threshold: U256,
         bridge: Option<Address>,
     ) -> Result<bool, ClientError> {
-        let default_bridge = if self.use_legacy {
-            self.default_bridges.l1_erc20_default_bridge
-        } else {
-            self.default_bridges.l1_shared_default_bridge
-        };
+        let default_bridge = self.default_bridges.l1_shared_default_bridge;
         let bridge = bridge.unwrap_or(default_bridge.unwrap());
         let current_allowance = self
             .client()
@@ -260,11 +253,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         max_erc20_approve_amount: U256,
         bridge: Option<Address>,
     ) -> Result<H256, ClientError> {
-        let default_bridge = if self.use_legacy {
-            self.default_bridges.l1_erc20_default_bridge
-        } else {
-            self.default_bridges.l1_shared_default_bridge
-        };
+        let default_bridge = self.default_bridges.l1_shared_default_bridge;
         let bridge = bridge.unwrap_or(default_bridge.unwrap());
         let contract_function = self
             .erc20_abi
@@ -434,70 +423,44 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|e| ClientError::NetworkError(e.to_string()))?;
         let value = base_cost + operator_tip + l2_value;
 
-        let tx = if self.use_legacy {
-            let tx_data = self.client().encode_tx_data(
-                "requestL2Transaction",
-                (
-                    contract_address,
-                    l2_value,
-                    calldata,
-                    gas_limit,
-                    U256::from(L1_TO_L2_GAS_PER_PUBDATA),
-                    factory_deps,
-                    refund_recipient,
-                )
-                    .into_tokens(),
-            );
-            self.client()
-                .sign_prepared_tx(
-                    tx_data,
-                    Options::with(|f| {
-                        f.gas = Some(U256::from(300000));
-                        f.value = Some(value);
-                        f.gas_price = Some(gas_price)
-                    }),
-                )
-                .await
-                .map_err(|e| ClientError::NetworkError(e.to_string()))?
-        } else {
-            let bridgehub_address = self.bridgehub_address.unwrap();
-            let contract_function = self
-                .bridgehub_abi
-                .function("requestL2TransactionDirect")
-                .expect("failed to get function");
+        let bridgehub_address = self.bridgehub_address.unwrap();
+        let contract_function = self
+            .bridgehub_abi
+            .function("requestL2TransactionDirect")
+            .expect("failed to get function");
 
-            let params = (
-                U256::from(self.l2_chain_id),
-                value,
-                contract_address,
-                l2_value,
-                calldata,
-                gas_limit,
-                U256::from(L1_TO_L2_GAS_PER_PUBDATA),
-                factory_deps,
-                refund_recipient,
-            );
+        let params = (
+            U256::from(self.l2_chain_id),
+            value,
+            contract_address,
+            l2_value,
+            calldata,
+            gas_limit,
+            U256::from(L1_TO_L2_GAS_PER_PUBDATA),
+            factory_deps,
+            refund_recipient,
+        );
 
-            let data = contract_function
-                .encode_input(&[ethabi::Token::Tuple(params.into_tokens())])
-                .expect("failed to encode parameters");
+        let data = contract_function
+            .encode_input(&[ethabi::Token::Tuple(params.into_tokens())])
+            .expect("failed to encode parameters");
 
-            self.client()
-                .sign_prepared_tx_for_addr(
-                    data,
-                    bridgehub_address,
-                    Options::with(|f| {
-                        f.gas = Some(U256::from(300000));
-                        f.value = match self.base_token {
-                            Some(_) => Some(0.into()),
-                            None => Some(value),
-                        };
-                        f.gas_price = Some(gas_price)
-                    }),
-                )
-                .await
-                .map_err(|_| ClientError::IncorrectCredentials)?
-        };
+        let tx = self
+            .client()
+            .sign_prepared_tx_for_addr(
+                data,
+                bridgehub_address,
+                Options::with(|f| {
+                    f.gas = Some(U256::from(300000));
+                    f.value = match self.base_token {
+                        Some(_) => Some(0.into()),
+                        None => Some(value),
+                    };
+                    f.gas_price = Some(gas_price)
+                }),
+            )
+            .await
+            .map_err(|_| ClientError::IncorrectCredentials)?;
 
         let tx_hash = self
             .query_client()
@@ -603,65 +566,42 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             )
             .await?
         } else {
-            let signed_tx = if self.use_legacy {
-                let bridge_address =
-                    bridge_address.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
-                let contract_function = self
-                    .l1_erc20_bridge_abi
-                    .function("deposit")
-                    .expect("failed to get function parameters");
-                let params = (
-                    to,
-                    l1_token_address,
-                    amount,
-                    l2_gas_limit,
-                    U256::from(L1_TO_L2_GAS_PER_PUBDATA),
-                );
-                let data = contract_function
-                    .encode_input(&params.into_tokens())
-                    .expect("failed to encode parameters");
+            let bridge_address =
+                bridge_address.unwrap_or(self.default_bridges.l1_shared_default_bridge.unwrap());
+            let bridgehub_address = self.bridgehub_address.unwrap();
 
-                self.client()
-                    .sign_prepared_tx_for_addr(data, bridge_address, options)
-                    .await
-                    .map_err(|_| ClientError::IncorrectCredentials)?
-            } else {
-                let bridge_address = bridge_address
-                    .unwrap_or(self.default_bridges.l1_shared_default_bridge.unwrap());
-                let bridgehub_address = self.bridgehub_address.unwrap();
+            let bridge_calldata = ethabi::encode(&(l1_token_address, amount, to).into_tokens());
 
-                let bridge_calldata = ethabi::encode(&(l1_token_address, amount, to).into_tokens());
+            let contract_function = self
+                .bridgehub_abi
+                .function("requestL2TransactionTwoBridges")
+                .expect("failed to get function");
 
-                let contract_function = self
-                    .bridgehub_abi
-                    .function("requestL2TransactionTwoBridges")
-                    .expect("failed to get function");
+            let params = (
+                U256::from(self.l2_chain_id),
+                base_cost + operator_tip,
+                U256::zero(),
+                l2_gas_limit,
+                U256::from(L1_TO_L2_GAS_PER_PUBDATA),
+                Address::default(),
+                bridge_address,
+                U256::zero(),
+                bridge_calldata,
+            );
 
-                let params = (
-                    U256::from(self.l2_chain_id),
-                    base_cost + operator_tip,
-                    U256::zero(),
-                    l2_gas_limit,
-                    U256::from(L1_TO_L2_GAS_PER_PUBDATA),
-                    Address::default(),
-                    bridge_address,
-                    U256::zero(),
-                    bridge_calldata,
-                );
+            let data = contract_function
+                .encode_input(&[ethabi::Token::Tuple(params.into_tokens())])
+                .expect("failed to encode parameters");
 
-                let data = contract_function
-                    .encode_input(&[ethabi::Token::Tuple(params.into_tokens())])
-                    .expect("failed to encode parameters");
+            if self.base_token.is_some() {
+                options.value = Some(0.into());
+            }
 
-                if self.base_token.is_some() {
-                    options.value = Some(0.into());
-                }
-
-                self.client()
-                    .sign_prepared_tx_for_addr(data, bridgehub_address, options)
-                    .await
-                    .map_err(|_| ClientError::IncorrectCredentials)?
-            };
+            let signed_tx = self
+                .client()
+                .sign_prepared_tx_for_addr(data, bridgehub_address, options)
+                .await
+                .map_err(|_| ClientError::IncorrectCredentials)?;
 
             self.query_client()
                 .send_raw_tx(signed_tx.raw_tx)
