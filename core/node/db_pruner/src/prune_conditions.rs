@@ -82,7 +82,8 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
             .await?;
         // That old l1 batches must have been processed and those old batches are problematic
         // as they have metadata that is not easily retrievable(misses some fields in db)
-        if protocol_version.is_none() || !protocol_version.unwrap().is_post_1_4_1() {
+        let old_protocol_version = protocol_version.map_or(true, |ver| ver.is_pre_1_4_1());
+        if old_protocol_version {
             return Ok(true);
         }
         let l1_batch_metadata = storage
