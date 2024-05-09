@@ -52,21 +52,27 @@ read_value_from_config() {
     local parameter="$2"
     local pattern_toml="^${parameter} =.*$"
     local pattern_env="^${parameter}=.*$"
+    local res=""
 
     # Check if the parameter exists in the file
     if grep -q "$pattern_toml" "$file"; then
       # The parameter exists in the .toml file, so extract its value
-      local value=$(grep "$pattern_toml" "$file" | sed "s/${parameter} = //; s/\"//g")
-      echo "$value"
+      res=$(grep "$pattern_toml" "$file" | sed "s/${parameter} = //; s/\"//g")
     elif grep -q "$pattern_env" "$file"; then
       # The parameter exists in the .env file, so extract its value
-      local value=$(grep "$pattern_env" "$file" | sed "s/${parameter}=//; s/\"//g")
-      echo "$value"
+      res=$(grep "$pattern_env" "$file" | sed "s/${parameter}=//; s/\"//g")
     else
       # The parameter does not exist in the file, output error message and return non-zero status
       echo "Error: '$parameter' not found in $file."
       return 1  # Return with an error status
     fi
+
+    if [ -z "$res" ]; then
+        echo "ERROR: $parameter is not set in $file."
+        exit 1
+    fi
+
+    echo $res
 }
 
 # wait till db service is ready
@@ -109,16 +115,7 @@ else
 
     if [ "$LEGACY_BRIDGE_TESTING" = "true" ]; then
       # making era chain id same as current chain id for legacy bridge testing
-      FILE_PATH="/etc/env/base/chain.toml"
-      PARAM_NAME="zksync_network_id"
-
-      CHAIN_ETH_ZKSYNC_NETWORK_ID=$(read_value_from_config "$FILE_PATH" "$PARAM_NAME")
-
-      if [ -z "$CHAIN_ETH_ZKSYNC_NETWORK_ID" ]; then
-        echo "ERROR: $PARAM_NAME is not set in $FILE_PATH."
-        exit 1
-      fi
-
+      CHAIN_ETH_ZKSYNC_NETWORK_ID=$(read_value_from_config "/etc/env/base/chain.toml" "zksync_network_id")
       update_config "/etc/env/base/contracts.toml" "ERA_CHAIN_ID" "$CHAIN_ETH_ZKSYNC_NETWORK_ID"
     fi
     
@@ -159,16 +156,7 @@ else
 
     if [ "$LEGACY_BRIDGE_TESTING" = "true" ]; then
       # making era address same as current address for legacy bridge testing
-      FILE_PATH="/etc/env/target/dev.env"
-      PARAM_NAME="CONTRACTS_DIAMOND_PROXY_ADDR"
-
-      CONTRACTS_DIAMOND_PROXY_ADDR=$(read_value_from_config "$FILE_PATH" "$PARAM_NAME")
-
-      if [ -z "$CONTRACTS_DIAMOND_PROXY_ADDR" ]; then
-        echo "ERROR: $PARAM_NAME is not set in $FILE_PATH."
-        exit 1
-      fi
-
+      CONTRACTS_DIAMOND_PROXY_ADDR=$(read_value_from_config "/etc/env/target/dev.env" "CONTRACTS_DIAMOND_PROXY_ADDR")
       update_config "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$CONTRACTS_DIAMOND_PROXY_ADDR"
     fi
   
