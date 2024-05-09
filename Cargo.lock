@@ -3042,21 +3042,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jsonrpc-core"
-version = "18.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14f7f76aef2d054868398427f6c54943cf3d1caa9a7ec7d0c38d69df97a965eb"
-dependencies = [
- "futures 0.3.28",
- "futures-executor",
- "futures-util",
- "log",
- "serde",
- "serde_derive",
- "serde_json",
-]
-
-[[package]]
 name = "jsonrpsee"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8532,14 +8517,7 @@ name = "zksync_eth_signer"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "axum",
- "futures 0.3.28",
- "hex",
- "jsonrpc-core",
- "reqwest",
  "rlp",
- "serde",
- "serde_json",
  "thiserror",
  "tokio",
  "zksync_types",
