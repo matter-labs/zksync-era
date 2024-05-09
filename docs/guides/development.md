@@ -108,23 +108,6 @@ Options:
 --use-cspell: Utilize cspell.
 ```
 
-## Link Checking
-
-To maintain the integrity and reliability of our documentation, we make use of a link checking process using the
-`markdown-link-check` tool. This ensures that all links in our markdown files are valid and accessible. The following
-section describes how to use this tool and configure it for specific needs.
-
-### Using the Link Check Command
-
-The link check command `zk linkcheck` is designed to verify the integrity of links in our markdown files. To execute the
-link check, use the following command:
-
-```
-zk linkcheck
-Options:
---config <config>: Path to the markdown-link-check configuration file. Default is './checks-config/links.json'.
-```
-
 ### General Rules
 
 **Code References in Comments**: When referring to code elements within development comments, they should be wrapped in

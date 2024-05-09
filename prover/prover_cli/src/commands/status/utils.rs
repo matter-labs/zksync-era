@@ -2,17 +2,11 @@ use std::fmt::Debug;
 
 use colored::*;
 use strum::{Display, EnumString};
-use zksync_config::PostgresConfig;
-use zksync_env_config::FromEnv;
 use zksync_types::{
     basic_fri_types::AggregationRound,
     prover_dal::{ProofCompressionJobStatus, ProverJobFriInfo, ProverJobStatus, WitnessJobStatus},
     L1BatchNumber,
 };
-
-pub fn postgres_config() -> anyhow::Result<PostgresConfig> {
-    PostgresConfig::from_env()
-}
 
 /// Represents the proving data of a batch.
 pub struct BatchData {
@@ -120,7 +114,7 @@ pub enum TaskStatus {
     JobsNotFound,
 }
 
-// This implementation will change to From<Vec<ProverJobFriInfo>> for AggregationRoundInfo
+// This implementation will change to From<Vec<ProverJobFriInfo>> for `AggregationRoundInfo`
 // once the --verbose flag is implemented.
 impl From<Vec<ProverJobFriInfo>> for TaskStatus {
     fn from(jobs_vector: Vec<ProverJobFriInfo>) -> Self {
