@@ -4523,6 +4523,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "circuit_definitions",
  "clap 4.4.6",
  "colored",
  "hex",
