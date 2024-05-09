@@ -13,15 +13,15 @@ use zksync_types::{
         compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    zk_evm_types::{LogQuery, Timestamp},
-    AccountTreeId, StorageKey, StorageLogQuery, BOOTLOADER_ADDRESS, H160,
-    KNOWN_CODES_STORAGE_ADDRESS, L2_ETH_TOKEN_ADDRESS, U256,
+    AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS,
+    L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
+    glue::storage_log_query_from_change,
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
@@ -41,7 +41,7 @@ use crate::{
             VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
         },
         BootloaderMemory, CurrentExecutionState, ExecutionResult, HistoryEnabled, L1BatchEnv,
-        L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
+        L2BlockEnv, Refunds, SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
         VmExecutionStatistics,
     },
 };
@@ -50,7 +50,6 @@ pub struct Vm<S: ReadStorage> {
     pub(crate) inner: VirtualMachine,
     suspended_at: u16,
     gas_for_account_validation: u32,
-    last_tx_result: Option<ExecutionResult>,
 
     bootloader_state: BootloaderState,
     pub(crate) storage: StoragePtr<S>,
@@ -64,8 +63,18 @@ pub struct Vm<S: ReadStorage> {
 }
 
 impl<S: ReadStorage + 'static> Vm<S> {
-    fn run(&mut self, execution_mode: VmExecutionMode) -> ExecutionResult {
-        loop {
+    fn run(
+        &mut self,
+        execution_mode: VmExecutionMode,
+        track_refunds: bool,
+    ) -> (ExecutionResult, Refunds) {
+        let mut refund = Refunds {
+            gas_refunded: 0,
+            operator_suggested_refund: 0,
+        };
+        let mut last_tx_result = None;
+
+        let result = loop {
             let hook = match self.inner.resume_from(self.suspended_at) {
                 ExecutionEnd::SuspendedOnHook {
                     hook,
@@ -74,17 +83,15 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     self.suspended_at = pc_to_resume_from;
                     hook
                 }
-                ExecutionEnd::ProgramFinished(output) => {
-                    return ExecutionResult::Success { output }
-                }
+                ExecutionEnd::ProgramFinished(output) => break ExecutionResult::Success { output },
                 ExecutionEnd::Reverted(output) => {
-                    return match TxRevertReason::parse_error(&output) {
+                    break match TxRevertReason::parse_error(&output) {
                         TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
                         TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
                     }
                 }
                 ExecutionEnd::Panicked => {
-                    return ExecutionResult::Halt {
+                    break ExecutionResult::Halt {
                         reason: if self.gas_remaining() == 0 {
                             Halt::BootloaderOutOfGas
                         } else {
@@ -104,7 +111,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
                 ValidationStepEnded => {}
                 TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
-                        return self.last_tx_result.take().unwrap();
+                        break last_tx_result.take().unwrap();
                     }
                 }
                 DebugLog => {}
@@ -113,42 +120,45 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     todo!("NearCallCatch")
                 }
                 AskOperatorForRefund => {
-                    let [bootloader_refund, gas_spent_on_pubdata, gas_per_pubdata_byte] =
-                        self.get_hook_params();
-                    let current_tx_index = self.bootloader_state.current_tx();
-                    let tx_description_offset = self
-                        .bootloader_state
-                        .get_tx_description_offset(current_tx_index);
-                    let tx_gas_limit = self
-                        .read_heap_word(tx_description_offset + TX_GAS_LIMIT_OFFSET)
-                        .as_u64();
+                    if track_refunds {
+                        let [bootloader_refund, gas_spent_on_pubdata, gas_per_pubdata_byte] =
+                            self.get_hook_params();
+                        let current_tx_index = self.bootloader_state.current_tx();
+                        let tx_description_offset = self
+                            .bootloader_state
+                            .get_tx_description_offset(current_tx_index);
+                        let tx_gas_limit = self
+                            .read_heap_word(tx_description_offset + TX_GAS_LIMIT_OFFSET)
+                            .as_u64();
 
-                    let pubdata_published =
-                        self.inner.state.current_frame.total_pubdata_spent as u32;
+                        let pubdata_published =
+                            self.inner.state.current_frame.total_pubdata_spent as u32;
 
-                    let refund = compute_refund(
-                        &self.batch_env,
-                        bootloader_refund.as_u64(),
-                        gas_spent_on_pubdata.as_u64(),
-                        tx_gas_limit,
-                        gas_per_pubdata_byte.low_u32(),
-                        pubdata_published,
-                        self.bootloader_state
-                            .last_l2_block()
-                            .txs
-                            .last()
-                            .unwrap()
-                            .hash,
-                    );
+                        refund.operator_suggested_refund = compute_refund(
+                            &self.batch_env,
+                            bootloader_refund.as_u64(),
+                            gas_spent_on_pubdata.as_u64(),
+                            tx_gas_limit,
+                            gas_per_pubdata_byte.low_u32(),
+                            pubdata_published,
+                            self.bootloader_state
+                                .last_l2_block()
+                                .txs
+                                .last()
+                                .unwrap()
+                                .hash,
+                        );
 
-                    self.write_to_bootloader_heap([(
-                        OPERATOR_REFUNDS_OFFSET + current_tx_index,
-                        refund.into(),
-                    )]);
+                        self.write_to_bootloader_heap([(
+                            OPERATOR_REFUNDS_OFFSET + current_tx_index,
+                            refund.operator_suggested_refund.into(),
+                        )]);
+                    }
                 }
                 NotifyAboutRefund => {
-                    let refund = self.get_hook_params()[0];
-                    dbg!(refund);
+                    if track_refunds {
+                        refund.gas_refunded = self.get_hook_params()[0].low_u64()
+                    }
                 }
                 PostResult => {
                     let result = self.get_hook_params()[0];
@@ -156,7 +166,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     // TODO get latest return data
                     let return_data = vec![];
 
-                    self.last_tx_result = Some(if result.is_zero() {
+                    last_tx_result = Some(if result.is_zero() {
                         ExecutionResult::Revert {
                             output: VmRevertReason::from(return_data.as_slice()),
                         }
@@ -199,7 +209,9 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     self.write_to_bootloader_heap(memory_to_apply);
                 }
             }
-        }
+        };
+
+        (result, refund)
     }
 
     fn run_account_validation(&mut self) {
@@ -281,11 +293,12 @@ impl<S: ReadStorage + 'static> Vm<S> {
     #[cfg(test)]
     /// Returns the current state of the VM in a format that can be compared for equality.
     pub(crate) fn dump_state(&self) -> (vm2::State, Vec<((H160, U256), U256)>, Box<[vm2::Event]>) {
+        // TODO this doesn't include all the state of ModifiedWorld
         (
             self.inner.state.clone(),
             self.inner
                 .world
-                .get_storage_changes()
+                .get_storage_state()
                 .iter()
                 .map(|(k, v)| (*k, *v))
                 .collect(),
@@ -306,7 +319,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
             compress_bytecodes(&tx.factory_deps, |hash| {
                 self.inner
                     .world
-                    .get_storage_changes()
+                    .get_storage_state()
                     .get(&(KNOWN_CODES_STORAGE_ADDRESS.into(), h256_to_u256(hash)))
                     .map(|x| !x.is_zero())
                     .unwrap_or_else(|| self.storage.borrow_mut().is_bytecode_known(&hash))
@@ -332,7 +345,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
 
         self.inner
             .world
-            .get_storage_changes()
+            .get_storage_state()
             .iter()
             .map(|(&(address, key), value)| {
                 let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
@@ -406,7 +419,6 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             inner,
             suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
-            last_tx_result: None,
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
                 bootloader_memory.clone(),
@@ -433,17 +445,17 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         _dispatcher: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        let mut enable_refund_tracer = false;
+        let mut track_refunds = false;
         if let VmExecutionMode::OneTx = execution_mode {
             // Move the pointer to the next transaction
             self.bootloader_state.move_tx_to_execute_pointer();
-            enable_refund_tracer = true;
+            track_refunds = true;
         }
 
         let start = self.inner.world.snapshot();
         let pubdata_before = self.inner.state.current_frame.total_pubdata_spent;
 
-        let result = self.run(execution_mode);
+        let (result, refunds) = self.run(execution_mode, track_refunds);
 
         let events = merge_events(self.inner.world.events_after(&start), self.batch_env.number);
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
@@ -461,22 +473,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .world
                     .get_storage_changes_after(&start)
                     .into_iter()
-                    .map(|((address, key), (before, after))| StorageLogQuery {
-                        log_query: LogQuery {
-                            timestamp: Timestamp(0),
-                            tx_number_in_block: 0, // incorrect and hopefully unused
-                            aux_byte: 0,           // incorrect and hopefully unused
-                            shard_id: 0,
-                            address,
-                            key,
-                            read_value: before.unwrap_or_default(),
-                            written_value: after,
-                            rw_flag: true,
-                            rollback: false,
-                            is_service: false, // incorrect and hopefully unused
-                        },
-                        log_type: zksync_types::StorageLogQueryType::RepeatedWrite, // incorrect and hopefully unused
-                    })
+                    .map(storage_log_query_from_change)
                     .collect(),
                 events,
                 user_l2_to_l1_logs,
@@ -499,7 +496,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
                 circuit_statistic: Default::default(), // TODO
             },
-            refunds: Default::default(),
+            refunds,
         }
     }
 
@@ -531,13 +528,34 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
         // TODO fill all fields
+        let events = merge_events(self.inner.world.events(), self.batch_env.number);
+
+        let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
+            .into_iter()
+            .map(Into::into)
+            .map(UserL2ToL1Log)
+            .collect();
+
         CurrentExecutionState {
-            events: vec![],
-            storage_log_queries: vec![],
+            events,
+            storage_log_queries: self
+                .inner
+                .world
+                .get_storage_changes()
+                .iter()
+                .map(|(&a, &b)| (a, b))
+                .map(storage_log_query_from_change)
+                .collect(),
             deduplicated_storage_log_queries: vec![],
             used_contract_hashes: vec![],
-            system_logs: vec![],
-            user_l2_to_l1_logs: vec![],
+            system_logs: self
+                .inner
+                .world
+                .l2_to_l1_logs()
+                .iter()
+                .map(|x| x.glue_into())
+                .collect(),
+            user_l2_to_l1_logs,
             total_log_queries: 0,
             cycles_used: 0,
             deduplicated_events_logs: vec![],
