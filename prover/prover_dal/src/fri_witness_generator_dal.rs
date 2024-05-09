@@ -8,7 +8,8 @@ use zksync_basic_types::{
     prover_dal::{
         BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafAggregationJobMetadata,
         LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo,
-        SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
+        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, StuckJobs,
+        WitnessJobStatus,
     },
     L1BatchNumber,
 };
@@ -1539,6 +1540,39 @@ impl FriWitnessGeneratorDal<'_, '_> {
             created_at: row.created_at,
             updated_at: row.updated_at,
             attempts: row.attempts as u32,
+            protocol_version: row.protocol_version,
+            picked_by: row.picked_by.clone(),
+        })
+    }
+
+    pub async fn get_recursion_tip_witness_generator_jobs_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<RecursionTipWitnessGeneratorJobInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                recursion_tip_witness_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| RecursionTipWitnessGeneratorJobInfo {
+            l1_batch_number,
+            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            attempts: row.attempts as u32,
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            error: row.error.clone(),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            number_of_final_node_jobs: row.number_of_final_node_jobs,
             protocol_version: row.protocol_version,
             picked_by: row.picked_by.clone(),
         })

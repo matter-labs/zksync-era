@@ -315,7 +315,17 @@ pub struct NodeWitnessGeneratorJobInfo {
 
 #[derive(Debug, Clone)]
 pub struct RecursionTipWitnessGeneratorJobInfo {
+    pub l1_batch_number: L1BatchNumber,
     pub status: WitnessJobStatus,
+    pub attempts: u32,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub number_of_final_node_jobs: Option<i32>,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
 }
 
 #[derive(Debug, Clone)]
