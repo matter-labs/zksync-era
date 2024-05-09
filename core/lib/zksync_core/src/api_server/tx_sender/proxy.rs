@@ -74,7 +74,7 @@ impl TxCache {
         tracing::info!(
             "Waiting for at least one L1 batch in Postgres to start TxCache::run_updates"
         );
-        // Starting the server before L1 batches are present in Postgres can lead to some invariants the server logic
+        // Starting the updater before L1 batches are present in Postgres can lead to some invariants the server logic
         // implicitly assumes not being upheld. The only case when we'll actually wait here is immediately after snapshot recovery.
         let earliest_l1_batch_number =
             wait_for_l1_batch(&pool, UPDATE_INTERVAL, &mut stop_receiver)

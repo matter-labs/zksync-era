@@ -1,10 +1,7 @@
 //! This module is a source-of-truth on what is expected to be done when sealing a block.
 //! It contains the logic of the block sealing, which is used by both the mempool-based and external node IO.
 
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use itertools::Itertools;
@@ -66,8 +63,13 @@ impl UpdatesManager {
             l2_shared_bridge_addr,
             false, // fictive L2 blocks don't have txs, so it's fine to pass `false` here.
         );
+
+        let mut connection = pool.connection_tagged("state_keeper").await?;
+        let mut transaction = connection.start_transaction().await?;
+
+        // We rely on the fact that fictive L2 block and L1 batch data is saved in the same transaction.
         l2_block_command
-            .seal_inner(pool.clone(), true)
+            .seal_inner(SealStrategy::Sequential(&mut transaction), true)
             .await
             .context("failed persisting fictive L2 block")?;
         progress.observe(None);
@@ -134,8 +136,6 @@ impl UpdatesManager {
             .clone()
             .unwrap_or_default();
 
-        let mut connection = pool.connection_tagged("state_keeper").await?;
-        let mut transaction = connection.start_transaction().await?;
         transaction
             .blocks_dal()
             .insert_l1_batch(
@@ -269,10 +269,16 @@ impl UpdatesManager {
     }
 }
 
+#[derive(Debug)]
+pub(crate) enum SealStrategy<'a, 'b> {
+    Sequential(&'a mut Connection<'b, Core>),
+    Parallel(ConnectionPool<Core>),
+}
+
 impl L2BlockSealCommand {
-    pub(super) async fn seal(self, pool: ConnectionPool<Core>) -> anyhow::Result<()> {
+    pub(super) async fn seal(&self, pool: ConnectionPool<Core>) -> anyhow::Result<()> {
         let l2_block_number = self.l2_block.number;
-        self.seal_inner(pool, false)
+        self.seal_inner(SealStrategy::Parallel(pool), false)
             .await
             .with_context(|| format!("failed sealing L2 block #{l2_block_number}"))
     }
@@ -331,71 +337,88 @@ impl L2BlockSealCommand {
     /// one for sending fees to the operator).
     ///
     /// `l2_shared_bridge_addr` is required to extract the information on newly added tokens.
-    async fn seal_inner(self, pool: ConnectionPool<Core>, is_fictive: bool) -> anyhow::Result<()> {
+    async fn seal_inner(
+        &self,
+        mut strategy: SealStrategy<'_, '_>,
+        is_fictive: bool,
+    ) -> anyhow::Result<()> {
         let started_at = Instant::now();
-        let this = Arc::new(self);
-        this.ensure_valid_l2_block(is_fictive)
+        self.ensure_valid_l2_block(is_fictive)
             .context("L2 block is invalid")?;
 
-        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&this.l2_block.executed_transactions);
+        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l2_block.executed_transactions);
         tracing::info!(
             "Sealing L2 block {l2_block_number} with timestamp {ts} (L1 batch {l1_batch_number}) \
              with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events",
-            l2_block_number = this.l2_block.number,
-            l1_batch_number = this.l1_batch_number,
-            ts = display_timestamp(this.l2_block.timestamp),
+            l2_block_number = self.l2_block.number,
+            l1_batch_number = self.l1_batch_number,
+            ts = display_timestamp(self.l2_block.timestamp),
             total_tx_count = l1_tx_count + l2_tx_count,
-            event_count = this.l2_block.events.len()
+            event_count = self.l2_block.events.len()
         );
 
-        if this.pre_insert_txs {
-            let mut connection = pool.connection_tagged("state_keeper").await?;
+        if self.pre_insert_txs {
             let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::PreInsertTxs, is_fictive);
-            this.insert_transactions(&mut connection)
-                .await
-                .context("failed persisting transactions in L2 block")?;
-            progress.observe(Some(this.l2_block.executed_transactions.len()));
+            match &mut strategy {
+                SealStrategy::Sequential(connection) => self.insert_transactions(connection).await,
+                SealStrategy::Parallel(pool) => {
+                    let mut connection = pool.connection_tagged("state_keeper").await?;
+                    self.insert_transactions(&mut connection).await
+                }
+            }
+            .context("failed persisting transactions in L2 block")?;
+            progress.observe(Some(self.l2_block.executed_transactions.len()));
         }
 
         // Run sub-tasks in parallel.
-        L2BlockSealProcess::run_subtasks(this.clone(), pool.clone()).await?;
+        L2BlockSealProcess::run_subtasks(self, &mut strategy).await?;
 
         // Seal block header at the last step.
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
-        let definite_vm_version = this
+        let definite_vm_version = self
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
             .into();
 
         let l2_block_header = L2BlockHeader {
-            number: this.l2_block.number,
-            timestamp: this.l2_block.timestamp,
-            hash: this.l2_block.get_l2_block_hash(),
+            number: self.l2_block.number,
+            timestamp: self.l2_block.timestamp,
+            hash: self.l2_block.get_l2_block_hash(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
-            fee_account_address: this.fee_account_address,
-            base_fee_per_gas: this.base_fee_per_gas,
-            batch_fee_input: this.fee_input,
-            base_system_contracts_hashes: this.base_system_contracts_hashes,
-            protocol_version: this.protocol_version,
+            fee_account_address: self.fee_account_address,
+            base_fee_per_gas: self.base_fee_per_gas,
+            batch_fee_input: self.fee_input,
+            base_system_contracts_hashes: self.base_system_contracts_hashes,
+            protocol_version: self.protocol_version,
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
-            virtual_blocks: this.l2_block.virtual_blocks,
+            virtual_blocks: self.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
         };
 
-        let mut connection = pool.connection_tagged("state_keeper").await?;
-        connection
-            .blocks_dal()
-            .insert_l2_block(&l2_block_header)
-            .await?;
+        match &mut strategy {
+            SealStrategy::Sequential(connection) => {
+                (*connection)
+                    .blocks_dal()
+                    .insert_l2_block(&l2_block_header)
+                    .await
+            }
+            SealStrategy::Parallel(pool) => {
+                let mut connection = pool.connection_tagged("state_keeper").await?;
+                connection
+                    .blocks_dal()
+                    .insert_l2_block(&l2_block_header)
+                    .await
+            }
+        }?;
         progress.observe(None);
 
         // Report metrics.
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ReportTxMetrics, is_fictive);
-        this.report_transaction_metrics();
-        progress.observe(Some(this.l2_block.executed_transactions.len()));
+        self.report_transaction_metrics();
+        progress.observe(Some(self.l2_block.executed_transactions.len()));
 
-        this.report_l2_block_metrics(started_at);
+        self.report_l2_block_metrics(started_at);
         Ok(())
     }
 
