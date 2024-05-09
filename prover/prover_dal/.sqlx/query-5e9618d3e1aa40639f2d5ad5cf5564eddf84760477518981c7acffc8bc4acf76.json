@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE witness_inputs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $3\n            WHERE\n                l1_batch_number = (\n                    SELECT\n                        l1_batch_number\n                    FROM\n                        witness_inputs_fri\n                    WHERE\n                        l1_batch_number <= $1\n                        AND status = 'queued'\n                        AND protocol_version = ANY ($2)\n                    ORDER BY\n                        l1_batch_number ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                witness_inputs_fri.*\n            ",
+  "query": "\n            UPDATE witness_inputs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $3\n            WHERE\n                l1_batch_number = (\n                    SELECT\n                        l1_batch_number\n                    FROM\n                        witness_inputs_fri\n                    WHERE\n                        l1_batch_number <= $1\n                        AND status = 'queued'\n                        AND protocol_version = $2\n                    ORDER BY\n                        l1_batch_number ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                witness_inputs_fri.*\n            ",
   "describe": {
     "columns": [
       {
@@ -72,7 +72,7 @@
     "parameters": {
       "Left": [
         "Int8",
-        "Int4Array",
+        "Int4",
         "Text"
       ]
     },
@@ -92,5 +92,5 @@
       true
     ]
   },
-  "hash": "75f6eaa518e7840374c4e44b0788bf92c7f2c55386c8208e3a82b30456abd5b4"
+  "hash": "5e9618d3e1aa40639f2d5ad5cf5564eddf84760477518981c7acffc8bc4acf76"
 }
