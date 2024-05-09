@@ -10,7 +10,9 @@ use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::Address;
 
 use crate::state_keeper::{
-    io::{common::clear_pending_l2_block, IoCursor, StateKeeperOutputHandler},
+    io::{
+        seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, IoCursor, StateKeeperOutputHandler,
+    },
     metrics::{L2BlockQueueStage, L2_BLOCK_METRICS},
     updates::{L2BlockSealCommand, UpdatesManager},
 };
@@ -150,7 +152,7 @@ impl StateKeeperPersistence {
 impl StateKeeperOutputHandler for StateKeeperPersistence {
     async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
         let mut connection = self.pool.connection_tagged("state_keeper").await?;
-        clear_pending_l2_block(&mut connection, cursor.next_l2_block - 1).await
+        L2BlockSealProcess::clear_pending_l2_block(&mut connection, cursor.next_l2_block - 1).await
     }
 
     async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {

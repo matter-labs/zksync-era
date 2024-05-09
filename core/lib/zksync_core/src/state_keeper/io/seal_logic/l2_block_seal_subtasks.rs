@@ -65,6 +65,19 @@ impl L2BlockSealProcess {
 
         Ok(())
     }
+
+    /// Clears pending l2 block data from the database.
+    pub async fn clear_pending_l2_block(
+        connection: &mut Connection<'_, Core>,
+        last_sealed_l2_block: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        let seal_subtasks = L2BlockSealProcess::all_subtasks();
+        for subtask in seal_subtasks {
+            subtask.rollback(connection, last_sealed_l2_block).await?;
+        }
+
+        Ok(())
+    }
 }
 
 /// An abstraction that represents l2 block seal sub-task that can be run in parallel with other sub-tasks.
@@ -373,7 +386,7 @@ mod tests {
     use zksync_utils::h256_to_u256;
 
     use super::*;
-    use crate::state_keeper::{io::common::clear_pending_l2_block, updates::L2BlockUpdates};
+    use crate::state_keeper::updates::L2BlockUpdates;
 
     #[tokio::test]
     async fn rollback_pending_l2_block() {
@@ -481,7 +494,7 @@ mod tests {
         assert!(factory_deps.contains_key(&h256_to_u256(bytecode_hash)));
 
         // Rollback.
-        clear_pending_l2_block(&mut connection, L2BlockNumber(0))
+        L2BlockSealProcess::clear_pending_l2_block(&mut connection, L2BlockNumber(0))
             .await
             .unwrap();
 
