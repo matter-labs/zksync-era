@@ -27,8 +27,8 @@ pub(super) struct Runnables {
 
 impl fmt::Debug for Runnables {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Macro that iterates over a `Vec`, invokes `.name()` method and collects the results into a Vec<String>.
-        // Returns a reference to created Vec to satisfy the `.field` method signature.
+        // Macro that iterates over a `Vec`, invokes `.name()` method and collects the results into a `Vec<String>`.
+        // Returns a reference to created `Vec` to satisfy the `.field` method signature.
         macro_rules! names {
             ($vec:expr) => {
                 &$vec.iter().map(|x| x.name()).collect::<Vec<_>>()

@@ -28,7 +28,6 @@ zksync_eth_client.workspace = true
 zksync_eth_signer.workspace = true
 zksync_l1_contract_interface.workspace = true
 zksync_mempool.workspace = true
-zksync_queued_job_processor.workspace = true
 zksync_circuit_breaker.workspace = true
 zksync_storage.workspace = true
 zksync_merkle_tree.workspace = true

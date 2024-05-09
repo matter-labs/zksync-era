@@ -5,7 +5,8 @@ use std::convert::TryFrom;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     ethabi::{decode, ParamType, Token},
-    Address, L1BlockNumber, Log, PriorityOpId, H160, H256, U256,
+    web3::Log,
+    Address, L1BlockNumber, PriorityOpId, H160, H256, U256,
 };
 use zksync_utils::u256_to_account_address;
 

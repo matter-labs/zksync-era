@@ -102,8 +102,8 @@ impl EthSenderTester {
                     .collect(),
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
-            .with_call_handler(move |call| {
-                assert_eq!(call.contract_address(), contracts_config.l1_multicall3_addr);
+            .with_call_handler(move |call, _| {
+                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
                 mock_multicall_response()
             });
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);

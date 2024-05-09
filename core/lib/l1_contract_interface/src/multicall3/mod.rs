@@ -2,7 +2,7 @@ use std::mem;
 
 use zksync_types::{
     ethabi::Token,
-    web3::contract::{tokens::Tokenizable, Error},
+    web3::contract::{Error as ContractError, Tokenizable},
     Address,
 };
 
@@ -21,7 +21,7 @@ impl Tokenizable for Multicall3Call {
             self.calldata.into_token(),
         ])
     }
-    fn from_token(token: Token) -> Result<Self, Error> {
+    fn from_token(token: Token) -> Result<Self, ContractError> {
         let Token::Tuple(mut result_token) = token else {
             return Err(error(&[token], "Multicall3Call"));
         };
@@ -46,7 +46,7 @@ pub struct Multicall3Result {
 }
 
 impl Tokenizable for Multicall3Result {
-    fn from_token(token: Token) -> Result<Multicall3Result, Error> {
+    fn from_token(token: Token) -> Result<Multicall3Result, ContractError> {
         let Token::Tuple(mut result_token) = token else {
             return Err(error(&[token], "Multicall3Result"));
         };
@@ -68,8 +68,7 @@ impl Tokenizable for Multicall3Result {
     }
 }
 
-fn error(token: &[Token], result_struct_name: &str) -> Error {
-    Error::InvalidOutputType(format!(
-        "Expected `{result_struct_name}` token, got token: {token:?}"
-    ))
+fn error(token: &[Token], result_struct_name: &str) -> ContractError {
+    let message = format!("expected `{result_struct_name}` token, got token: {token:?}");
+    ContractError::InvalidOutputType(message)
 }

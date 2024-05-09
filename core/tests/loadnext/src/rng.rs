@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use rand::{rngs::SmallRng, seq::SliceRandom, thread_rng, RngCore, SeedableRng};
 
-use crate::{all::AllWeighted, sdk::web3::signing::keccak256};
+use crate::{all::AllWeighted, sdk::web3::keccak256};
 
 // SmallRng seed type is [u8; 32].
 const SEED_SIZE: usize = 32;

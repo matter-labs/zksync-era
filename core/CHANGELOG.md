@@ -1,5 +1,35 @@
 # Changelog
 
+## [24.1.0](https://github.com/matter-labs/zksync-era/compare/core-v24.0.0...core-v24.1.0) (2024-05-08)
+
+
+### Features
+
+* add `sendRawTransactionWithDetailedOutput` API ([#1806](https://github.com/matter-labs/zksync-era/issues/1806)) ([6a30a31](https://github.com/matter-labs/zksync-era/commit/6a30a3161972461cb707ec5549aed6e837933a27))
+* add getGasPerPubdataByte endpoint ([#1778](https://github.com/matter-labs/zksync-era/issues/1778)) ([d62dd08](https://github.com/matter-labs/zksync-era/commit/d62dd0801faae5442dc72e93a2c746769351cee0))
+* **config:** Wrap sensitive urls ([#1828](https://github.com/matter-labs/zksync-era/issues/1828)) ([c8ee740](https://github.com/matter-labs/zksync-era/commit/c8ee740a4cc7dc9196d4223397e0bfc9fd8198cf))
+* **db:** Implement weak references to RocksDB ([e0d4daa](https://github.com/matter-labs/zksync-era/commit/e0d4daa990c2563d2bd9a048d7350a545f136f00))
+* **en:** Add pruning health checks and rework pruning config ([#1790](https://github.com/matter-labs/zksync-era/issues/1790)) ([e0d4daa](https://github.com/matter-labs/zksync-era/commit/e0d4daa990c2563d2bd9a048d7350a545f136f00))
+* Extract proof_data_handler into separate crate ([#1677](https://github.com/matter-labs/zksync-era/issues/1677)) ([f4facee](https://github.com/matter-labs/zksync-era/commit/f4faceef1cb2f155dad37a61be3823a96b96c2ab))
+* Extract several crates from zksync_core ([#1859](https://github.com/matter-labs/zksync-era/issues/1859)) ([7dcf796](https://github.com/matter-labs/zksync-era/commit/7dcf79606e0f37b468c82b6bdcb374149bc30f34))
+* **node:** Extract genesis into separate crate ([#1797](https://github.com/matter-labs/zksync-era/issues/1797)) ([a8c4599](https://github.com/matter-labs/zksync-era/commit/a8c459951cea4692a7d7c9bdf3dc8323d2ad86ba))
+* **Prover CLI:** `status batch` command ([#1638](https://github.com/matter-labs/zksync-era/issues/1638)) ([3fd6d65](https://github.com/matter-labs/zksync-era/commit/3fd6d653cad1e783f7a52eead13b322d4c6639a9))
+* prover components versioning ([#1660](https://github.com/matter-labs/zksync-era/issues/1660)) ([29a4ffc](https://github.com/matter-labs/zksync-era/commit/29a4ffc6b9420590f32a9e1d1585ebffb95eeb6c))
+* Update provers current version ([#1872](https://github.com/matter-labs/zksync-era/issues/1872)) ([bb5f129](https://github.com/matter-labs/zksync-era/commit/bb5f129deb75f9dad029da55ec8e2c0defefbe6e))
+
+
+### Bug Fixes
+
+* **basic_types:** bincode deserialization for `L2ChainId` ([#1835](https://github.com/matter-labs/zksync-era/issues/1835)) ([fde85f4](https://github.com/matter-labs/zksync-era/commit/fde85f4e182b38322d766fdd697a70f13d10ffac))
+* **contract-verifier:** YUL system-mode verification ([#1863](https://github.com/matter-labs/zksync-era/issues/1863)) ([5aa7d41](https://github.com/matter-labs/zksync-era/commit/5aa7d415d4b03efd0d9c52d36cf1a1818e23efcf))
+* **loadtest:** Do not initiate transactions with 0 amount ([#1847](https://github.com/matter-labs/zksync-era/issues/1847)) ([1bbe108](https://github.com/matter-labs/zksync-era/commit/1bbe108ae4f864f9d257a09d38e4baf22ea0b2c0))
+
+
+### Performance Improvements
+
+* **db:** Fine-tune state keeper cache performance / RAM usage ([#1804](https://github.com/matter-labs/zksync-era/issues/1804)) ([82bf40e](https://github.com/matter-labs/zksync-era/commit/82bf40e414e11b40c4ba4bad20f5d421a62d2e2f))
+* **state-keeper:** Improve `FilterWrittenSlots` l1 batch seal stage ([#1854](https://github.com/matter-labs/zksync-era/issues/1854)) ([4cf235f](https://github.com/matter-labs/zksync-era/commit/4cf235f807932ac53fec1403005dcd7ffc0fb539))
+
 ## [24.0.0](https://github.com/matter-labs/zksync-era/compare/core-v23.1.0...core-v24.0.0) (2024-04-30)
 
 

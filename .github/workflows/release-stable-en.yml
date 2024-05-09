@@ -1,7 +1,7 @@
-name: Workflow to push stable EN image
+name: Release stable EN image
 
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       tag_name:
         description: "Tag of an image"

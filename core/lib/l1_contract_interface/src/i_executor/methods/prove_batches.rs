@@ -1,10 +1,8 @@
 use crypto_codegen::serialize_proof;
 use zksync_prover_interface::outputs::L1BatchProofForL1;
-use zksync_types::{
-    commitment::L1BatchWithMetadata, ethabi::Token, web3::contract::tokens::Tokenizable, U256,
-};
+use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, U256};
 
-use crate::{i_executor::structures::StoredBatchInfo, Tokenize};
+use crate::{i_executor::structures::StoredBatchInfo, Tokenizable, Tokenize};
 
 /// Input required to encode `proveBatches` call.
 #[derive(Debug, Clone)]

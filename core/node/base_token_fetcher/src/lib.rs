@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use hex::ToHex;
 use metrics::atomics::AtomicU64;
 use tokio::sync::Mutex;
-use zksync_config::configs::base_token_fetcher::BaseTokenFetcherConfig;
+use zksync_config::configs::BaseTokenFetcherConfig;
 
 /// Trait used to query the stack's native token conversion rate. Used to properly
 /// determine gas prices, as they partially depend on L1 gas prices, denominated in `eth`.

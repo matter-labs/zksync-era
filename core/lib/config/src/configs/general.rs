@@ -1,10 +1,9 @@
-use super::BaseTokenFetcherConfig;
 use crate::{
     configs::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
+        BaseTokenFetcherConfig, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig,
     },
