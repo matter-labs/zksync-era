@@ -17,10 +17,6 @@ if [ -z "$ETH_CLIENT_WEB3_URL" ]; then
   exit 1
 fi
 
-if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-  echo "LEGACY_BRIDGE_TESTING is set."
-fi
-
 # Updates the value in the .toml config or .env file.
 update_config() {
     # Assigning arguments to readable variable names
@@ -92,6 +88,15 @@ else
   done
 fi
 
+if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
+  if [ -z "$MASTER_URL" ]; then
+    echo "Running in legacy bridge testing mode"
+  else
+    # LEGACY_BRIDGE_TESTING flag is for the master only
+    unset LEGACY_BRIDGE_TESTING
+  fi
+fi
+
 # Normally, the /etc/env and /var/lib/zksync/data should be mapped to volumes
 # so that they are persisted between docker restarts - which would allow even faster starts.
 
@@ -118,7 +123,7 @@ else
       CHAIN_ETH_ZKSYNC_NETWORK_ID=$(read_value_from_config "/etc/env/base/chain.toml" "zksync_network_id")
       update_config "/etc/env/base/contracts.toml" "ERA_CHAIN_ID" "$CHAIN_ETH_ZKSYNC_NETWORK_ID"
     fi
-    
+
     if [ -z "$MASTER_URL" ]; then
       echo "Starting with hyperchain"
     else
@@ -153,25 +158,23 @@ else
     fi
 
     zk contract deploy-l2-through-l1 $DEPLOY_L2_PARAMS
-
-    if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-      # making era address same as current address for legacy bridge testing
-      CONTRACTS_DIAMOND_PROXY_ADDR=$(read_value_from_config "/etc/env/target/dev.env" "CONTRACTS_DIAMOND_PROXY_ADDR")
-      update_config "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$CONTRACTS_DIAMOND_PROXY_ADDR"
-    fi
   
     if [ -z "$MASTER_URL" ]; then
       zk f yarn --cwd /infrastructure/local-setup-preparation start
     fi
 
+    if [ -n "$LEGACY_BRIDGE_TESTING" ] ; then
+      # making era address same as current address for legacy bridge testing
+      CONTRACTS_DIAMOND_PROXY_ADDR=$(read_value_from_config "/etc/env/target/dev.env" "CONTRACTS_DIAMOND_PROXY_ADDR")
+      update_config "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$CONTRACTS_DIAMOND_PROXY_ADDR"
+      
+      # setup-legacy-bridge-era waits for the server to be ready, so starting it in the background
+      zk contract setup-legacy-bridge-era &
+    fi
+
     # Create init file.
     echo "System initialized. Please remove this file if you want to reset the system" > $INIT_FILE
 
-fi
-
-if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-  # setup-legacy-bridge-era waits for the server to be ready, so starting it in the background
-  zk contract setup-legacy-bridge-era &
 fi
 
 # start server
