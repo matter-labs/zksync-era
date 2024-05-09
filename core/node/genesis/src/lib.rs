@@ -19,7 +19,7 @@ use zksync_types::{
     protocol_upgrade::decode_set_chain_id_event,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    web3::types::{BlockNumber, FilterBuilder},
+    web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, H256,
 };

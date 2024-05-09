@@ -7,8 +7,8 @@ use zksync_types::{
     api,
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
-    web3::types::{BlockHeader, U64},
-    Bytes, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H2048, H256, U256,
+    web3::{BlockHeader, Bytes},
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H2048, H256, U256, U64,
 };
 use zksync_utils::bigdecimal_to_u256;
 

@@ -372,10 +372,8 @@ mod tests {
     use zksync_utils::h256_to_u256;
 
     use super::*;
-    use crate::{
-        state_keeper::{io::common::clear_pending_l2_block, updates::L2BlockUpdates},
-        utils::testonly::create_l2_transaction,
-    };
+    use crate::state_keeper::{io::common::clear_pending_l2_block, updates::L2BlockUpdates};
+    use zksync_node_test_utils::create_l2_transaction;
 
     #[tokio::test]
     async fn rollback_pending_l2_block() {

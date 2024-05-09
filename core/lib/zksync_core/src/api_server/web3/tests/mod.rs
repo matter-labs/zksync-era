@@ -27,6 +27,10 @@ use zksync_config::{
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
 use zksync_health_check::CheckHealth;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_test_utils::{
+    create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
+    l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
+};
 use zksync_types::{
     api,
     block::L2BlockHeader,
@@ -50,15 +54,8 @@ use zksync_web3_decl::{
 };
 
 use super::{metrics::ApiTransportLabel, *};
-use crate::{
-    api_server::{
-        execution_sandbox::testonly::MockTransactionExecutor,
-        tx_sender::tests::create_test_tx_sender,
-    },
-    utils::testonly::{
-        create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
-        l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
-    },
+use crate::api_server::{
+    execution_sandbox::testonly::MockTransactionExecutor, tx_sender::tests::create_test_tx_sender,
 };
 
 mod debug;

@@ -14,6 +14,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_storage::RocksDB;
@@ -26,7 +27,6 @@ use zksync_utils::u32_to_h256;
 use super::{
     helpers::L1BatchWithLogs, GenericAsyncTree, MetadataCalculator, MetadataCalculatorConfig,
 };
-use crate::utils::testonly::{create_l1_batch, create_l2_block};
 
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -482,11 +482,6 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool<Core>, num_batches: usi
     storage
         .blocks_dal()
         .delete_initial_writes(L1BatchNumber(0))
-        .await
-        .unwrap();
-    storage
-        .basic_witness_input_producer_dal()
-        .delete_all_jobs()
         .await
         .unwrap();
 

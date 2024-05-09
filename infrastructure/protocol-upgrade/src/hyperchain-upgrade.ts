@@ -6,16 +6,17 @@ import { ethers } from 'ethers';
 import { updateContractsEnv } from 'zk/build/contract';
 import * as env from 'zk/build/env';
 import { setupForDal, DalPath } from 'zk/build/database';
-import { getFacetsFileName, getCryptoFileName } from './utils';
-import { getPostUpgradeCalldataFileName } from './utils';
+import { getFacetsFileName, getCryptoFileName, getPostUpgradeCalldataFileName, getUpgradePath } from './utils';
 import { IZkSyncHyperchainFactory } from 'l1-contracts/typechain/IZkSyncHyperchainFactory';
 import { getWallet } from './transaction';
+
+const privateKey = '';
 
 async function hyperchainUpgrade1() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
 
-    await spawn(`yarn hyperchain-upgrade-1 | tee deployHyperchainUpgradeContracts.log`);
+    await spawn(`yarn hyperchain-upgrade-1 --private-key ${privateKey} | tee deployHyperchainUpgradeContracts.log`);
     process.chdir(cwd);
 
     const deployLog = fs
@@ -65,8 +66,8 @@ async function hyperchainUpgrade1() {
     );
 }
 
-async function insertAddresses() {
-    const facetsFile = getFacetsFileName(undefined);
+async function insertAddresses(environment?: string) {
+    const facetsFile = getFacetsFileName(environment);
     const facets = JSON.parse(fs.readFileSync(facetsFile).toString());
     facets.ExecutorFacet.address = process.env.CONTRACTS_EXECUTOR_FACET_ADDR;
     facets.AdminFacet.address = process.env.CONTRACTS_ADMIN_FACET_ADDR;
@@ -74,7 +75,7 @@ async function insertAddresses() {
     facets.MailboxFacet.address = process.env.CONTRACTS_MAILBOX_FACET_ADDR;
     fs.writeFileSync(facetsFile, JSON.stringify(facets, null, 4));
 
-    const verifierFile = getCryptoFileName(undefined);
+    const verifierFile = getCryptoFileName(environment);
     const verifier = JSON.parse(fs.readFileSync(verifierFile).toString());
     verifier.verifier.address = process.env.CONTRACTS_VERIFIER_ADDR;
     fs.writeFileSync(verifierFile, JSON.stringify(verifier, null, 4));
@@ -83,30 +84,52 @@ async function insertAddresses() {
 async function hyperchainUpgrade2() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
+    const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
+    await spawn(
+        `yarn hyperchain-upgrade-2 --print-file-path ${getUpgradePath(
+            environment
+        )} --private-key  ${privateKey} --gas-price 200 | tee deploydeployHyperchainUpgrade2.log`
+    );
+    process.chdir(cwd);
+}
 
-    await spawn(`yarn hyperchain-upgrade-2 | tee deploydeployHyperchainUpgrade2.log`);
+async function hyperchainUpgradeValidators() {
+    const cwd = process.cwd();
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
+    const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
+    await spawn(
+        `yarn hyperchain-upgrade-validator --print-file-path ${getUpgradePath(
+            environment
+        )} --private-key  ${privateKey} | tee deploydeployHyperchainUpgradeValidator.log`
+    );
     process.chdir(cwd);
 }
 
 async function hyperchainUpgrade3() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
-
-    await spawn(`yarn hyperchain-upgrade-3 | tee deploydeployHyperchainUpgrade3.log`);
+    const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
+    await spawn(
+        `yarn hyperchain-upgrade-3 --print-file-path ${getUpgradePath(
+            environment
+        )} --private-key  ${privateKey} | tee deploydeployHyperchainUpgrade3.log`
+    );
     process.chdir(cwd);
 }
 
-async function preparePostUpgradeCalldata() {
+async function preparePostUpgradeCalldata(environment?: string) {
     let calldata = new ethers.utils.AbiCoder().encode(
-        ['uint256', 'address', 'address', 'address'],
+        ['uint256', 'address', 'address', 'address', 'address', 'address'],
         [
             process.env.CONTRACTS_ERA_CHAIN_ID,
             process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR,
             process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR,
-            process.env.CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR
+            process.env.CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR,
+            process.env.CONTRACTS_GOVERNANCE_ADDR,
+            process.env.CONTRACTS_VALIDATOR_TIMELOCK_ADDR
         ]
     );
-    let postUpgradeCalldataFileName = getPostUpgradeCalldataFileName(undefined);
+    let postUpgradeCalldataFileName = getPostUpgradeCalldataFileName(environment);
 
     fs.writeFileSync(postUpgradeCalldataFileName, JSON.stringify(calldata, null, 2));
 }
@@ -115,7 +138,9 @@ async function deploySharedBridgeL2Implementation() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/`);
 
-    await spawn(`yarn deploy-shared-bridge-l2-implementation | tee deploySharedBridgeImplementation.log`);
+    await spawn(
+        `yarn deploy-shared-bridge-l2-implementation  --private-key ${privateKey} | tee deploySharedBridgeImplementation.log`
+    );
     process.chdir(cwd);
 
     const deployLog = fs
@@ -128,53 +153,22 @@ async function deploySharedBridgeL2Implementation() {
 }
 
 async function hyperchainFullUpgrade() {
-    process.chdir(`${process.env.ZKSYNC_HOME}`);
+    await insertAddresses('mainnet');
+    env.reload('mainnet');
 
+    await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment mainnet ');
     await spawn(
-        'cp etc/env/.init.env etc/env/l1-inits/.init.env && rm ./etc/env/l2-inits/zksync_local.init.env && rm ./etc/env/target/zksync_local.env'
-    );
-    await spawn('zk env zksync_local');
-    env.reload('zksync_local');
-    env.modify(
-        'CONTRACTS_ERA_DIAMOND_PROXY_ADDR',
-        process.env.CONTRACTS_DIAMOND_PROXY_ADDR,
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-    );
-    env.modify(
-        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
-        process.env.CONTRACTS_L2_ERC20_BRIDGE_ADDR,
-        `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`
-    );
-    env.modify(
-        'CONTRACTS_BASE_TOKEN_ADDR',
-        '0x0000000000000000000000000000000000000001',
-        `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`
-    );
-
-    await deploySharedBridgeL2Implementation();
-
-    process.chdir(`${process.env.ZKSYNC_HOME}`);
-    await spawn('zk config compile zksync_local');
-    env.reload('zksync_local');
-    // process.chdir(`${process.env.ZKSYNC_HOME}/infrastructure/protocol-upgrade`);
-    await hyperchainUpgrade1();
-    env.reload('zksync_local');
-
-    await insertAddresses();
-    env.reload('zksync_local');
-
-    await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts');
-    await spawn('zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all');
-    await spawn(
-        'zk f yarn  workspace protocol-upgrade-tool start l2-transaction complex-upgrader-calldata --use-forced-deployments --use-contract-deployer'
-    );
-    await spawn('zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params');
-    await preparePostUpgradeCalldata();
-    await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --use-new-governance --upgrade-address ${process.env.CONTRACTS_HYPERCHAIN_UPGRADE_ADDR} --post-upgrade-calldata`
+        `zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all  --environment mainnet --private-key ${privateKey}`
     );
     await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start transactions propose-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
+        'zk f yarn  workspace protocol-upgrade-tool start l2-transaction complex-upgrader-calldata --use-forced-deployments --use-contract-deployer --environment mainnet'
+    );
+    await spawn(
+        'zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment mainnet'
+    );
+    await preparePostUpgradeCalldata('mainnet');
+    await spawn(
+        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --use-new-governance --upgrade-address ${process.env.CONTRACTS_HYPERCHAIN_UPGRADE_ADDR} --post-upgrade-calldata --environment mainnet`
     );
 }
 
@@ -198,6 +192,7 @@ command
     .option('--full-start')
     .option('--post-propose')
     .option('--execute-upgrade')
+    .option('--add-validators')
     .action(async (options) => {
         if (options.phase1) {
             await hyperchainUpgrade1();
@@ -230,23 +225,7 @@ command
             await spawn(
                 `zk f yarn workspace protocol-upgrade-tool start transactions execute-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
             );
-            // note we have to set 3 variables manually
-
-            // setEraPostDiamondUpgradeFirstBatch
-            // What we care about for withdrawals is the executed batch number at the moment of the diamond upgrade,
-            // since we are storing isWithdrawalFinalized flag, for some valid executed txs.
-            // this is printed out as part of the execute upgrade script for local testing
-            // for the mainnet upgrade we will have to manually check executedBatchNumber after the upgrade, since governance is signing the txs
-
-            // setEraPostLegacyBridgeUpgradeFirstBatch
-            // this is the first batchNumber after the L1ERC20Bridge has been upgraded
-            // What we care about for withdrawals is the executed batch number, since we are storing isWithdrawalFinalized flag, for some valid executed txs.
-            // this is printed out as part of the phase 2 script for local testing
-
-            // setEraLegacyBridgeLastDepositTime
-            // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
-            // this is the batch number that the last deposit is processed in ( this is tied to a tx, so commit vs executed is not relevant)
-            // we will print the priority tx queue id as part of phase 2 script for local testing, and we can use that to find the batch number
-            // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
+        } else if (options.addValidators) {
+            await hyperchainUpgradeValidators();
         }
     });

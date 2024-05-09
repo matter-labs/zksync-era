@@ -5,6 +5,7 @@ use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_node_test_utils::{prepare_recovery_snapshot, DeploymentMode};
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
     fee::TransactionExecutionMetrics,
@@ -16,15 +17,12 @@ use zksync_types::{
 use zksync_utils::time::seconds_since_epoch;
 
 use self::tester::Tester;
-use crate::{
-    state_keeper::{
-        io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperIO},
-        mempool_actor::l2_tx_filter,
-        tests::{create_execution_result, create_transaction, Query, BASE_SYSTEM_CONTRACTS},
-        updates::{L2BlockSealCommand, L2BlockUpdates, UpdatesManager},
-        StateKeeperOutputHandler, StateKeeperPersistence,
-    },
-    utils::testonly::{prepare_recovery_snapshot, DeploymentMode},
+use crate::state_keeper::{
+    io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperIO},
+    mempool_actor::l2_tx_filter,
+    tests::{create_execution_result, create_transaction, Query, BASE_SYSTEM_CONTRACTS},
+    updates::{L2BlockSealCommand, L2BlockUpdates, UpdatesManager},
+    StateKeeperOutputHandler, StateKeeperPersistence,
 };
 
 mod tester;

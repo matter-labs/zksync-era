@@ -10,7 +10,6 @@ use zksync_types::{
     snapshots::{
         SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
-    storage::witness_block_state::WitnessBlockState,
     L1BatchNumber,
 };
 
@@ -118,17 +117,6 @@ impl StoredObject for SnapshotStorageLogsChunk {
     }
 }
 
-impl StoredObject for WitnessBlockState {
-    const BUCKET: Bucket = Bucket::WitnessInput;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("witness_block_state_for_l1_batch_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
 impl dyn ObjectStore + '_ {
     /// Fetches the value for the given key if it exists.
     ///
@@ -178,7 +166,8 @@ impl dyn ObjectStore + '_ {
 mod tests {
     use zksync_types::{
         snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
-        AccountTreeId, Bytes, StorageKey, H160, H256,
+        web3::Bytes,
+        AccountTreeId, StorageKey, H160, H256,
     };
 
     use super::*;
