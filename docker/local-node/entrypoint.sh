@@ -75,6 +75,16 @@ until psql ${DATABASE_URL%/*} -c '\q'; do
   sleep 5
 done
 
+if [ -z "$MASTER_URL" ]; then
+  echo "Running as zksync master"
+else
+  # If running in slave mode - wait for the master to be up and running.
+  echo "Waiting for zksync master to init hyperchain"
+  until curl --fail ${MASTER_HEALTH_URL}; do
+    >&2 echo "Master zksync not ready yet, sleeping"
+    sleep 5
+  done
+fi
 
 # Normally, the /etc/env and /var/lib/zksync/data should be mapped to volumes
 # so that they are persisted between docker restarts - which would allow even faster starts.
@@ -111,20 +121,28 @@ else
 
       update_config "/etc/env/base/contracts.toml" "ERA_CHAIN_ID" "$CHAIN_ETH_ZKSYNC_NETWORK_ID"
     fi
+    
+    if [ -z "$MASTER_URL" ]; then
+      echo "Starting with hyperchain"
+    else
+      # Updates all the stuff (from the '/etc/master_env') - it assumes that it is mapped via docker compose.
+      zk f yarn --cwd /infrastructure/local-setup-preparation join
+    fi
 
     zk config compile
   
     zk db reset
     
-    # Perform initialization
+    # Perform initialization (things needed to be done only if you're running in the master mode)
+    if [ -z "$MASTER_URL" ]; then
+      zk contract deploy-verifier
+      zk run deploy-erc20 dev # (created etc/tokens/localhost)
 
-    zk contract deploy-verifier
-    zk run deploy-erc20 dev # (created etc/tokens/localhost)
-
-    ## init bridgehub state transition
-    zk contract deploy # (deploy L1)
-    zk contract initialize-governance
-    zk contract initialize-validator
+      ## init bridgehub state transition
+      zk contract deploy # (deploy L1)
+      zk contract initialize-governance
+      zk contract initialize-validator
+    fi
 
     ## init hyperchain
     zk contract register-hyperchain
@@ -154,7 +172,9 @@ else
       update_config "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$CONTRACTS_DIAMOND_PROXY_ADDR"
     fi
   
-    zk f yarn --cwd /infrastructure/local-setup-preparation start
+    if [ -z "$MASTER_URL" ]; then
+      zk f yarn --cwd /infrastructure/local-setup-preparation start
+    fi
 
     # Create init file.
     echo "System initialized. Please remove this file if you want to reset the system" > $INIT_FILE
