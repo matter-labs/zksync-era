@@ -36,7 +36,7 @@ async fn run_main_node(
         pool.connection(ctx)
             .await
             .wrap("connection()")?
-            .try_init_genesis(ctx, chain_id, &validator_key.public())
+            .try_init_genesis(ctx, chain_id, validator_key.public(), vec![])
             .await
             .wrap("try_init_genesis()")?;
         let (store, runner) = Store::new(ctx, pool, None).await.wrap("Store::new()")?;

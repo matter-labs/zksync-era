@@ -324,6 +324,98 @@ async fn test_full_nodes(from_snapshot: bool) {
     .unwrap();
 }
 
+// Test running external node (non-leader) validators. 
+#[test_casing(2, [false, true])]
+#[tokio::test(flavor = "multi_thread")]
+async fn test_en_validators(from_snapshot: bool) {
+    const NODES: usize = 3;
+
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
+    let rng = &mut ctx.rng();
+    let setup = Setup::new(rng, NODES);
+    let cfgs = new_configs(rng, &setup, 1);
+
+    // Run all nodes in parallel.
+    scope::run!(ctx, |ctx, s| async {
+        let main_node_pool = new_pool(from_snapshot).await;
+        let (mut main_node, runner) =
+            testonly::StateKeeper::new(ctx, main_node_pool.clone()).await?;
+        s.spawn_bg(async {
+            runner
+                .run(ctx)
+                .instrument(tracing::info_span!("main_node"))
+                .await
+                .context("main_node")
+        });
+        tracing::info!("Generate a couple of blocks, before initializing consensus genesis.");
+        main_node.push_random_blocks(rng, 5).await;
+        // API server needs at least 1 L1 batch to start.
+        main_node.seal_batch().await;
+        main_node_pool
+            .wait_for_payload(ctx, main_node.last_block())
+            .await
+            .unwrap();
+
+        tracing::info!("Initialize genesis");
+        // TODO: this won't work, because main node does regenesis.
+        main_node_pool
+            .connection(ctx).await.unwrap()
+            .try_init_genesis(
+                ctx, 
+                CHAIN_ID,
+                setup.keys[0].public(),
+                setup.keys[1..].iter().map(|k|k.public()).collect(),
+            ).await.unwrap();
+
+        tracing::info!("Run main node.");
+        let (cfg, secrets) = testonly::config(&cfgs[0]);
+        s.spawn_bg(run_main_node(
+            ctx,
+            cfg,
+            secrets,
+            main_node_pool.clone(),
+            CHAIN_ID,
+        ));
+
+        tracing::info!("Run external nodes.");
+        let mut ext_node_pools = vec![];
+        for (i, cfg) in cfgs[1..].iter().enumerate() {
+            let i = ctx::NoCopy(i);
+            let pool = new_pool(from_snapshot).await;
+            let (ext_node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
+            ext_node_pools.push(pool.clone());
+            s.spawn_bg(async {
+                let i = i;
+                runner
+                    .run(ctx)
+                    .instrument(tracing::info_span!("en", i = *i))
+                    .await
+                    .with_context(|| format!("en{}", *i))
+            });
+            s.spawn_bg(ext_node.run_consensus(ctx, main_node.connect(ctx).await?, cfg));
+        }
+
+        tracing::info!("Make the main node produce blocks and wait for consensus to finalize them");
+        main_node.push_random_blocks(rng, 5).await;
+        let want_last = main_node.last_block();
+        let want = main_node_pool
+            .wait_for_certificates_and_verify(ctx, want_last)
+            .await?;
+        for pool in &ext_node_pools {
+            assert_eq!(
+                want,
+                pool.wait_for_certificates_and_verify(ctx, want_last)
+                    .await?
+            );
+        }
+        Ok(())
+    })
+    .await
+    .unwrap();
+}
+
+
 // Test fetcher back filling missing certs.
 #[test_casing(2, [false, true])]
 #[tokio::test(flavor = "multi_thread")]

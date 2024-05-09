@@ -244,26 +244,27 @@ impl<'a> Connection<'a> {
         })
     }
 
-    /// Initializes consensus genesis (with 1 validator) to start at the last L2 block in storage.
-    /// No-op if db already contains a genesis.
+    /// (Re)initializes consensus genesis (with main node as the only leader) to start at the last L2 block in storage.
+    /// No-op if genesis is already present in DB and matches the expected genesis.
     pub(super) async fn try_init_genesis(
         &mut self,
         ctx: &ctx::Ctx,
         chain_id: validator::ChainId,
-        validator_key: &validator::PublicKey,
+        main_node: validator::PublicKey,
+        ext_nodes: Vec<validator::PublicKey>,
     ) -> ctx::Result<()> {
         let block_range = self.block_range(ctx).await.wrap("block_range()")?;
         let mut txn = self
             .start_transaction(ctx)
             .await
             .wrap("start_transaction()")?;
-        // `Committee::new()` with a single validator should never fail.
-        let committee = validator::Committee::new([validator::WeightedValidator {
-            key: validator_key.clone(),
+        let mut committee = vec![validator::WeightedValidator{
+            key: main_node.clone(),
             weight: 1,
-        }])
-        .unwrap();
-        let leader_selection = validator::LeaderSelectionMode::Sticky(validator_key.clone());
+        }];
+        committee.extend(ext_nodes.into_iter().map(|key|validator::WeightedValidator { key, weight: 1 }));
+        let committee = validator::Committee::new(committee).context("Committee::new()")?;
+        let leader_selection = validator::LeaderSelectionMode::Sticky(main_node.clone());
         let old = txn.genesis(ctx).await.wrap("genesis()")?;
         // Check if the current config of the main node is compatible with the stored genesis.
         if old.as_ref().map_or(false, |old| {
