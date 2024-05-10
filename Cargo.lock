@@ -8611,7 +8611,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "metrics",
  "prover_dal",
  "tokio",
  "tracing",
