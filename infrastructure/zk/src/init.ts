@@ -140,6 +140,7 @@ const makeEraAddressSameAsCurrent = async () => {
 // ########################### Command Actions ###########################
 type InitDevCmdActionOptions = InitSetupOptions & {
     skipTestTokenDeployment?: boolean;
+    skipVerifier?: boolean;
     testTokenOptions?: DeployTestTokensOptions;
     baseTokenName?: string;
     validiumMode?: boolean;
@@ -148,6 +149,7 @@ type InitDevCmdActionOptions = InitSetupOptions & {
 export const initDevCmdAction = async ({
     skipEnvSetup,
     skipSubmodulesCheckout,
+    skipVerifier,
     skipTestTokenDeployment,
     testTokenOptions,
     baseTokenName,
@@ -160,7 +162,9 @@ export const initDevCmdAction = async ({
     }
     let deploymentMode = validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, deploymentMode });
-    await deployVerifier();
+    if (!skipVerifier) {
+        await deployVerifier();
+    }
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
     }
