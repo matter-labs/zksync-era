@@ -6974,6 +6974,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry-semantic-conventions",
  "sentry",
+ "serde",
  "serde_json",
  "tracing",
  "tracing-opentelemetry",
