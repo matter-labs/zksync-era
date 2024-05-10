@@ -26,71 +26,78 @@ impl ToRpcParams for RawParams {
     }
 }
 
-/// Object-safe version of [`ClientT`] + [`Clone`].
-///
-/// The implementation is fairly straightforward: [`RawParams`] is used as a catch-all params type,
-/// and `serde_json::Value` is used as a catch-all response type.
-#[doc(hidden)]
-// ^ The internals of this trait are considered implementation details; it's only exposed via `DynClient` type alias
+/// Object-safe version of [`ClientT`] + [`Clone`]. Should generally be used via [`DynClient`] type alias.
+// The implementation is fairly straightforward: [`RawParams`] is used as a catch-all params type,
+// and `serde_json::Value` is used as a catch-all response type.
 #[async_trait]
 pub trait ObjectSafeClient: 'static + Send + Sync + fmt::Debug + ForNetwork {
-    fn clone_boxed(&self) -> Box<dyn ObjectSafeClient<Net = Self::Net>>;
+    /// Tags this client as working for a specific component. The component name can be used in logging,
+    /// metrics etc.
+    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<DynClient<Self::Net>>;
 
-    fn for_component(
-        self: Box<Self>,
-        component_name: &'static str,
-    ) -> Box<dyn ObjectSafeClient<Net = Self::Net>>;
-
+    /// Returns the component tag previously set with [`Self::for_component()`].
     fn component(&self) -> &'static str;
 
-    async fn notification(&self, method: &str, params: RawParams) -> Result<(), Error>;
+    #[doc(hidden)] // implementation detail
+    fn clone_boxed(&self) -> Box<DynClient<Self::Net>>;
 
-    async fn request(&self, method: &str, params: RawParams) -> Result<serde_json::Value, Error>;
+    #[doc(hidden)] // implementation detail
+    async fn generic_notification(&self, method: &str, params: RawParams) -> Result<(), Error>;
 
-    async fn batch_request<'a>(
+    #[doc(hidden)] // implementation detail
+    async fn generic_request(
+        &self,
+        method: &str,
+        params: RawParams,
+    ) -> Result<serde_json::Value, Error>;
+
+    #[doc(hidden)] // implementation detail
+    async fn generic_batch_request<'a>(
         &self,
         batch: BatchRequestBuilder<'a>,
     ) -> Result<BatchResponse<'a, serde_json::Value>, Error>;
 }
+
+/// Dynamically typed RPC client for a certain [`Network`].
+pub type DynClient<Net> = dyn ObjectSafeClient<Net = Net>;
 
 #[async_trait]
 impl<C> ObjectSafeClient for C
 where
     C: 'static + Send + Sync + Clone + fmt::Debug + ClientT + TaggedClient,
 {
-    fn clone_boxed(&self) -> Box<dyn ObjectSafeClient<Net = <C as ForNetwork>::Net>> {
+    fn clone_boxed(&self) -> Box<DynClient<C::Net>> {
         Box::new(<C as Clone>::clone(self))
     }
 
-    fn for_component(
-        self: Box<Self>,
-        component_name: &'static str,
-    ) -> Box<dyn ObjectSafeClient<Net = <C as ForNetwork>::Net>> {
-        Box::new(TaggedClient::for_component(*self, component_name))
+    fn for_component(mut self: Box<Self>, component_name: &'static str) -> Box<DynClient<C::Net>> {
+        self.set_component(component_name);
+        self
     }
 
     fn component(&self) -> &'static str {
         TaggedClient::component(self)
     }
 
-    async fn notification(&self, method: &str, params: RawParams) -> Result<(), Error> {
+    async fn generic_notification(&self, method: &str, params: RawParams) -> Result<(), Error> {
         <C as ClientT>::notification(self, method, params).await
     }
 
-    async fn request(&self, method: &str, params: RawParams) -> Result<serde_json::Value, Error> {
+    async fn generic_request(
+        &self,
+        method: &str,
+        params: RawParams,
+    ) -> Result<serde_json::Value, Error> {
         <C as ClientT>::request(self, method, params).await
     }
 
-    async fn batch_request<'a>(
+    async fn generic_batch_request<'a>(
         &self,
         batch: BatchRequestBuilder<'a>,
     ) -> Result<BatchResponse<'a, serde_json::Value>, Error> {
         <C as ClientT>::batch_request(self, batch).await
     }
 }
-
-/// Dynamically typed RPC client for a certain [`Network`].
-pub type DynClient<Net> = dyn ObjectSafeClient<Net = Net>;
 
 impl<Net: Network> Clone for Box<DynClient<Net>> {
     fn clone(&self) -> Self {
@@ -104,7 +111,9 @@ impl<Net: Network> ClientT for &DynClient<Net> {
     where
         Params: ToRpcParams + Send,
     {
-        (**self).notification(method, RawParams::new(params)?).await
+        (**self)
+            .generic_notification(method, RawParams::new(params)?)
+            .await
     }
 
     async fn request<R, Params>(&self, method: &str, params: Params) -> Result<R, Error>
@@ -112,7 +121,9 @@ impl<Net: Network> ClientT for &DynClient<Net> {
         R: DeserializeOwned,
         Params: ToRpcParams + Send,
     {
-        let raw_response = (**self).request(method, RawParams::new(params)?).await?;
+        let raw_response = (**self)
+            .generic_request(method, RawParams::new(params)?)
+            .await?;
         serde_json::from_value(raw_response).map_err(Error::ParseError)
     }
 
@@ -123,7 +134,7 @@ impl<Net: Network> ClientT for &DynClient<Net> {
     where
         R: DeserializeOwned + fmt::Debug + 'a,
     {
-        let raw_responses = (**self).batch_request(batch).await?;
+        let raw_responses = (**self).generic_batch_request(batch).await?;
         let mut successful_calls = 0;
         let mut failed_calls = 0;
         let mut responses = Vec::with_capacity(raw_responses.len());
@@ -176,16 +187,6 @@ impl<Net: Network> ClientT for Box<DynClient<Net>> {
     }
 }
 
-impl<Net: Network> TaggedClient for Box<DynClient<Net>> {
-    fn for_component(self, component_name: &'static str) -> Self {
-        ObjectSafeClient::for_component(self, component_name)
-    }
-
-    fn component(&self) -> &'static str {
-        (**self).component()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,7 +224,7 @@ mod tests {
         assert_eq!(block_number, 0x42.into());
 
         let client_with_label = client.for_component("test");
-        assert_eq!(TaggedClient::component(&client_with_label), "test");
+        assert_eq!(client_with_label.component(), "test");
         let block_number = client_with_label.get_block_number().await.unwrap();
         assert_eq!(block_number, 0x42.into());
     }

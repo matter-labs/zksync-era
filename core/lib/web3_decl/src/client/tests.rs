@@ -219,8 +219,8 @@ async fn wrapping_mock_client() {
     let mut client = ClientBuilder::<L2, _>::new(client, "http://localhost".parse().unwrap())
         .for_network(L2ChainId::default().into())
         .with_allowed_requests_per_second(NonZeroUsize::new(100).unwrap())
-        .build()
-        .for_component("test");
+        .build();
+    client.set_component("test");
 
     let metrics = &*Box::leak(Box::default());
     client.metrics = metrics;

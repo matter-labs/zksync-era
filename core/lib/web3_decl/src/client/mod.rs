@@ -36,7 +36,7 @@ use zksync_types::url::SensitiveUrl;
 
 use self::metrics::{L2ClientMetrics, METRICS};
 pub use self::{
-    boxed::DynClient,
+    boxed::{DynClient, ObjectSafeClient},
     mock::MockClient,
     network::{ForNetwork, Network, TaggedClient, L1, L2},
     shared::Shared,
@@ -224,16 +224,19 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
 
 impl<Net: Network, C: ClientBase> ForNetwork for Client<Net, C> {
     type Net = Net;
+
+    fn network(&self) -> Self::Net {
+        self.network
+    }
 }
 
 impl<Net: Network, C: ClientBase> TaggedClient for Client<Net, C> {
-    fn for_component(mut self, component_name: &'static str) -> Self {
-        self.component_name = component_name;
-        self
-    }
-
     fn component(&self) -> &'static str {
         self.component_name
+    }
+
+    fn set_component(&mut self, component_name: &'static str) {
+        self.component_name = component_name;
     }
 }
 

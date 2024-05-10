@@ -23,8 +23,9 @@ where
         Box::new(self.clone())
     }
 
-    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn EthInterface> {
-        Box::new(TaggedClient::for_component(*self, component_name))
+    fn for_component(mut self: Box<Self>, component_name: &'static str) -> Box<dyn EthInterface> {
+        self.set_component(component_name);
+        self
     }
 
     async fn fetch_chain_id(&self) -> Result<L1ChainId, Error> {

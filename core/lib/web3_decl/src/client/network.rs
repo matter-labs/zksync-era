@@ -52,27 +52,38 @@ impl From<L2ChainId> for L2 {
     }
 }
 
-/// Associates a type with a particular RPC network, such as Ethereum or zkSync Era. RPC traits created using `jsonrpseee::rpc`
+/// Associates a type with a particular type of RPC networks, such as Ethereum or zkSync Era. RPC traits created using `jsonrpsee::rpc`
 /// can use `ForNetwork` as a client boundary to restrict which implementations can call their methods.
 pub trait ForNetwork {
     /// Network that the type is associated with.
     type Net: Network;
+
+    /// Returns a network for this type instance.
+    fn network(&self) -> Self::Net;
 }
 
 impl<T: ?Sized + ForNetwork> ForNetwork for &T {
     type Net = T::Net;
+
+    fn network(&self) -> Self::Net {
+        (**self).network()
+    }
 }
 
 impl<T: ?Sized + ForNetwork> ForNetwork for Box<T> {
     type Net = T::Net;
+
+    fn network(&self) -> Self::Net {
+        self.as_ref().network()
+    }
 }
 
 /// Client that can be tagged with the component using it.
 pub trait TaggedClient: ForNetwork {
-    /// Tags this client as working for a specific component. The component name can be used in logging,
-    /// metrics etc. The component name should be copied to the clones of this client, but should not be passed upstream.
-    fn for_component(self, component_name: &'static str) -> Self;
-
     /// Returns the component tag.
     fn component(&self) -> &'static str;
+
+    /// Tags this client as working for a specific component. The component name can be used in logging,
+    /// metrics etc. The component name should be copied to the clones of this client, but should not be passed upstream.
+    fn set_component(&mut self, component_name: &'static str);
 }

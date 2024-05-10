@@ -64,16 +64,19 @@ impl<Net: Network> MockClient<Net> {
 
 impl<Net: Network> ForNetwork for MockClient<Net> {
     type Net = Net;
+
+    fn network(&self) -> Self::Net {
+        Net::default()
+    }
 }
 
 impl<Net: Network> TaggedClient for MockClient<Net> {
-    fn for_component(mut self, component_name: &'static str) -> Self {
-        self.component_name = component_name;
-        self
-    }
-
     fn component(&self) -> &'static str {
         self.component_name
+    }
+
+    fn set_component(&mut self, component_name: &'static str) {
+        self.component_name = component_name;
     }
 }
 
