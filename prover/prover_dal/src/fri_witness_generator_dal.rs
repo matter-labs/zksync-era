@@ -1558,12 +1558,37 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
-        self.requeue_stuck_jobs_for_batch_in_aggregation_round(
-            AggregationRound::BasicCircuits,
-            block_number,
-            max_attempts,
-        )
-        .await
+        let query = format!(
+            r#"
+            UPDATE witness_inputs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = {}
+                AND attempts >= {}
+                AND (status = 'in_progress' OR status = 'failed')
+            RETURNING
+                l1_batch_number,
+                status,
+                attempts
+            "#,
+            i64::from(block_number.0),
+            max_attempts
+        );
+        sqlx::query(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.get::<i64, &str>("l1_batch_number") as u64,
+                status: row.get("status"),
+                attempts: row.get::<i16, &str>("attempts") as u64,
+                circuit_id: None,
+            })
+            .collect()
     }
 
     pub async fn requeue_stuck_leaf_aggregation_jobs_for_batch(
