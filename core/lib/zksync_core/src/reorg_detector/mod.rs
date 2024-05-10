@@ -78,6 +78,13 @@ impl From<EnrichedClientError> for Error {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum StateHash {
+    MissingBatch,
+    MissingHash,
+    Some(H256),
+}
+
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn sealed_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber>;
@@ -86,8 +93,7 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 
     async fn l2_block_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>>;
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber)
-        -> EnrichedClientResult<Option<H256>>;
+    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> EnrichedClientResult<StateHash>;
 }
 
 #[async_trait]
@@ -123,16 +129,20 @@ impl MainNodeClient for BoxedL2Client {
             .map(|block| block.hash))
     }
 
-    async fn l1_batch_root_hash(
-        &self,
-        number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<H256>> {
-        Ok(self
+    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> EnrichedClientResult<StateHash> {
+        let Some(batch) = self
             .get_l1_batch_details(number)
             .rpc_context("l1_batch_root_hash")
             .with_arg("number", &number)
             .await?
-            .and_then(|batch| batch.base.root_hash))
+        else {
+            return Ok(StateHash::MissingBatch);
+        };
+
+        Ok(match batch.base.root_hash {
+            Some(hash) => StateHash::Some(hash),
+            None => StateHash::MissingHash,
+        })
     }
 }
 
@@ -346,9 +356,19 @@ impl ReorgDetector {
             .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 
-        let Some(remote_hash) = self.client.l1_batch_root_hash(l1_batch).await? else {
-            tracing::info!("Remote L1 batch #{l1_batch} is missing");
-            return Err(HashMatchError::RemoteHashMissing);
+        let remote_hash = loop {
+            match self.client.l1_batch_root_hash(l1_batch).await? {
+                StateHash::MissingHash => {
+                    // May happen if the main node has an L1 batch, but its state root hash is not computed yet.
+                    tracing::debug!("Last L1 batch number on the main node has not changed; waiting until its state hash is computed");
+                    tokio::time::sleep(self.sleep_interval / 10).await;
+                }
+                StateHash::MissingBatch => {
+                    tracing::info!("Remote L1 batch #{l1_batch} is missing");
+                    return Err(HashMatchError::RemoteHashMissing);
+                }
+                StateHash::Some(hash) => break hash,
+            }
         };
 
         if remote_hash != local_hash {
