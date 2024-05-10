@@ -1,4 +1,5 @@
 mod batch_data;
+mod eth_wallet;
 mod l1_tx_data;
 mod tx_kind;
 mod tx_type;
@@ -7,13 +8,14 @@ use std::{str::FromStr, sync::Arc, time::Duration};
 
 pub use batch_data::BatchData;
 use colored::Colorize;
+pub use eth_wallet::EthWallet;
 use ethers::{
     abi::{Abi, Address, Hash},
     contract::ContractFactory,
     core::k256::ecdsa::SigningKey,
-    middleware::SignerMiddleware,
+    middleware::{MiddlewareBuilder, SignerMiddleware},
     providers::Http,
-    types::TransactionReceipt,
+    types::{Block, BlockId, BlockNumber, TransactionReceipt},
     utils::parse_units,
 };
 pub use l1_tx_data::L1TxData;
@@ -61,6 +63,131 @@ pub async fn zks_wallet(
         Some(l1_provider.clone()),
     )
     .unwrap()
+}
+
+pub async fn eth_wallet(l1_provider: &Provider<Http>) -> EthWallet<Provider<Http>, SigningKey> {
+    let chain_id = l1_provider.get_chainid().await.unwrap();
+    let l1_wallet = LocalWallet::from_str(constants::PRIVATE_KEY)
+        .unwrap()
+        .with_chain_id(chain_id.as_u64());
+
+    EthWallet::new(l1_wallet, Some(l1_provider.clone())).unwrap()
+}
+
+pub async fn create_funded_account_eth(
+    l1_provider: &Provider<Http>,
+    main_wallet: Arc<EthWallet<Provider<Http>, SigningKey>>,
+) -> Arc<EthWallet<Provider<Http>, SigningKey>> {
+    let to = create_account_eth(l1_provider).await;
+    let _ = deposit_eth_eth(main_wallet, to.clone()).await;
+    to
+}
+
+pub async fn create_account_eth(
+    l1_provider: &Provider<Http>,
+) -> Arc<EthWallet<Provider<Http>, SigningKey>> {
+    let chain_id = l1_provider.get_chainid().await.unwrap().as_u64();
+    Arc::new(
+        EthWallet::new(
+            LocalWallet::new(&mut ethers::core::rand::thread_rng()).with_chain_id(chain_id),
+            Some(l1_provider.clone()),
+        )
+        .unwrap(),
+    )
+}
+
+pub async fn deposit_eth_eth(
+    from: Arc<EthWallet<Provider<Http>, SigningKey>>,
+    to: Arc<EthWallet<Provider<Http>, SigningKey>>,
+) {
+    println!(
+        "{}",
+        format!("Depositing in {:?}", to.l1_address()).bright_yellow()
+    );
+    let amount = parse_units("11", "ether").unwrap();
+    let mut request = DepositRequest::new(amount.into());
+    request.to = Some(to.l1_address());
+    from.deposit(&request)
+        .await
+        .expect("Failed to perform deposit transaction");
+}
+
+pub async fn deploy_erc20_evm_compatible_eth(
+    eth_wallet: Arc<EthWallet<Provider<Http>, SigningKey>>,
+) -> TransactionReceipt {
+    // Read both files from disk:
+    let abi = Abi::load(constants::ERC20_ABI.as_bytes()).unwrap();
+    let contract_bin = hex::decode(constants::ERC20_BIN_EVM).unwrap().to_vec();
+
+    let factory = ContractFactory::new(
+        abi,
+        contract_bin.into(),
+        eth_wallet.as_ref().eth_provider.clone().unwrap(),
+    );
+
+    let mut deployer = factory
+        .deploy(("ToniToken".to_owned(), "teth".to_owned()))
+        .unwrap();
+
+    let (_, receipt) = deployer.send_with_receipt().await.expect("send");
+    receipt
+}
+
+pub async fn mint_erc20_eth(
+    eth_wallet: Arc<EthWallet<Provider<Http>, SigningKey>>,
+    erc20_address: H160,
+) -> TransactionReceipt {
+    eth_wallet
+        .get_eth_provider()
+        .unwrap()
+        .clone()
+        .send_eip712(
+            &eth_wallet.l1_wallet,
+            erc20_address,
+            "_mint(address, uint256)",
+            Some(
+                [
+                    "CD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826".into(),
+                    "10000000000".into(),
+                ]
+                .into(),
+            ),
+            None,
+        )
+        .await
+        .unwrap()
+        .await
+        .unwrap()
+        .unwrap()
+}
+
+pub async fn transfer_erc20_eth(
+    eth_wallet: Arc<EthWallet<Provider<Http>, SigningKey>>,
+    erc20_address: H160,
+) -> TransactionReceipt {
+    eth_wallet
+        .get_eth_provider()
+        .unwrap()
+        .clone()
+        .send_eip712(
+            &eth_wallet.l1_wallet,
+            erc20_address,
+            "_transfer(address, address, uint256)",
+            Some(
+                [
+                    "CD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826".into(),
+                    "bBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB".into(),
+                    "100".into(),
+                ]
+                .into(),
+            ),
+            None,
+        )
+        .await
+        .unwrap()
+        .await
+        .unwrap()
+        .unwrap()
 }
 
 pub async fn deposit_eth(

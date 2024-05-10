@@ -3,7 +3,7 @@ use std::{collections::HashMap, env, sync::Arc};
 use colored::Colorize;
 use ethers::{
     abi::Hash,
-    providers::{Http, Provider},
+    providers::{Http, Middleware, Provider},
 };
 use zksync_types::U64;
 use zksync_web3_rs::zks_provider::ZKSProvider;
@@ -256,6 +256,53 @@ pub async fn transfer_erc20(n_accounts: usize, txs_per_account: usize) {
     }
 }
 
+pub async fn basic_eth() {
+    println!(
+        "{}",
+        format!("Running basic scenario\n").bright_red().bold()
+    );
+
+    let l1_provider = helpers::l1_provider();
+    let account = Arc::new(helpers::eth_wallet(&l1_provider).await);
+
+    let balance = l1_provider.get_balance(account.l1_address(), None);
+    println!(
+        "{}",
+        format!(
+            "Account balance: {}",
+            balance.await.unwrap().to_string().bright_yellow()
+        )
+    );
+
+    let deploy_receipt = helpers::deploy_erc20_evm_compatible_eth(account.clone()).await;
+    println!("deployed");
+
+    let erc20_address = deploy_receipt.contract_address.unwrap();
+    let mint_receipt = helpers::mint_erc20_eth(account.clone(), erc20_address).await;
+    let transfer_receipt = helpers::transfer_erc20_eth(account.clone(), erc20_address).await;
+
+    println!(
+        "{}",
+        format!(
+            "Deploy L2 tx gas used: {}",
+            deploy_receipt.gas_used.unwrap()
+        )
+        .bright_yellow()
+    );
+    println!(
+        "{}",
+        format!("Mint L2 tx gas used: {}", mint_receipt.gas_used.unwrap()).bright_yellow()
+    );
+    println!(
+        "{}",
+        format!(
+            "Transfer L2 tx gas used: {}",
+            transfer_receipt.gas_used.unwrap()
+        )
+        .bright_yellow()
+    );
+    print!("");
+}
 pub async fn basic() {
     println!(
         "{}",
