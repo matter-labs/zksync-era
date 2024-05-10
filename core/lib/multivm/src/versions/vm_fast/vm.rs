@@ -51,9 +51,9 @@ pub struct Vm<S: ReadStorage> {
     suspended_at: u16,
     gas_for_account_validation: u32,
 
-    bootloader_state: BootloaderState,
+    pub(crate) bootloader_state: BootloaderState,
     pub(crate) storage: StoragePtr<S>,
-    program_cache: Rc<RefCell<HashMap<U256, Program>>>,
+    pub(crate) program_cache: Rc<RefCell<HashMap<U256, Program>>>,
 
     // these two are only needed for tests so far
     pub(crate) batch_env: L1BatchEnv,
@@ -263,13 +263,16 @@ impl<S: ReadStorage + 'static> Vm<S> {
 
     /// Typically used to read the bootloader heap. We know that we're in the bootloader
     /// when a hook occurs, as they are only enabled when preprocessing bootloader code.
-    fn read_heap_word(&self, word: usize) -> U256 {
+    pub(crate) fn read_heap_word(&self, word: usize) -> U256 {
         self.inner.state.heaps[self.inner.state.current_frame.heap]
             [word as usize * 32..(word as usize + 1) * 32]
             .into()
     }
 
-    fn write_to_bootloader_heap(&mut self, memory: impl IntoIterator<Item = (usize, U256)>) {
+    pub(crate) fn write_to_bootloader_heap(
+        &mut self,
+        memory: impl IntoIterator<Item = (usize, U256)>,
+    ) {
         assert!(self.inner.state.previous_frames.is_empty());
         let heap = &mut self.inner.state.heaps[self.inner.state.current_frame.heap];
         for (slot, value) in memory {
@@ -364,6 +367,10 @@ impl<S: ReadStorage + 'static> Vm<S> {
                 }
             })
             .collect()
+    }
+
+    pub(crate) fn get_decommitted_hashes(&self) -> impl Iterator<Item = &U256> + '_ {
+        self.inner.world.get_decommitted_hashes().keys()
     }
 }
 

@@ -8,13 +8,12 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_fast::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
             utils::{get_balance, read_test_contract, verify_required_storage},
         },
         utils::fee::get_batch_base_fee,
-        HistoryEnabled,
     },
 };
 
@@ -22,7 +21,7 @@ use crate::{
 fn test_default_aa_interaction() {
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)

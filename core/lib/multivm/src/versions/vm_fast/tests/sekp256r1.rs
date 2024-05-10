@@ -5,14 +5,15 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{tests::tester::VmTesterBuilder, ExecutionResult, HistoryEnabled},
+    vm_fast::tests::tester::VmTesterBuilder,
+    vm_latest::ExecutionResult,
 };
 
 #[test]
 fn test_sekp256r1() {
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_execution_mode(TxExecutionMode::EthCall)

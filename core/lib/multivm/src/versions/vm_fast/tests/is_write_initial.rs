@@ -3,12 +3,9 @@ use zksync_types::get_nonce_key;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
-        tests::{
-            tester::{Account, TxType, VmTesterBuilder},
-            utils::read_test_contract,
-        },
-        HistoryDisabled,
+    vm_fast::tests::{
+        tester::{Account, TxType, VmTesterBuilder},
+        utils::read_test_contract,
     },
 };
 
@@ -19,7 +16,7 @@ fn test_is_write_initial_behaviour() {
     // messed up it with the repeated writes during the one batch execution.
 
     let mut account = Account::random();
-    let mut vm = VmTesterBuilder::new(HistoryDisabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(vec![account.clone()])

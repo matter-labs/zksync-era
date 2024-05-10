@@ -1,4 +1,3 @@
-use zk_evm_1_5_0::aux_structures::Timestamp;
 use zksync_contracts::{deployer_contract, load_sys_contract, read_bytecode};
 use zksync_state::WriteStorage;
 use zksync_test_account::TxType;
@@ -18,12 +17,9 @@ use crate::{
         ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
         VmInterfaceHistoryEnabled,
     },
-    vm_latest::{
-        tests::{
-            tester::VmTesterBuilder,
-            utils::{read_complex_upgrade, verify_required_storage},
-        },
-        HistoryEnabled,
+    vm_fast::tests::{
+        tester::VmTesterBuilder,
+        utils::{read_complex_upgrade, verify_required_storage},
     },
 };
 
@@ -32,7 +28,7 @@ use crate::{
 /// - If present, this transaction must be the first one in block
 #[test]
 fn test_protocol_upgrade_is_first() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -123,7 +119,7 @@ fn test_protocol_upgrade_is_first() {
 /// In this test we try to test how force deployments could be done via protocol upgrade transactions.
 #[test]
 fn test_force_deploy_upgrade() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -171,7 +167,7 @@ fn test_force_deploy_upgrade() {
 /// Here we show how the work with the complex upgrader could be done
 #[test]
 fn test_complex_upgrader() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -199,19 +195,16 @@ fn test_complex_upgrader() {
         .set_value(account_code_key, bytecode_hash);
     drop(storage_view);
 
-    vm.vm.state.decommittment_processor.populate(
-        vec![
-            (
-                h256_to_u256(bytecode_hash),
-                bytes_to_be_words(read_complex_upgrade()),
-            ),
-            (
-                h256_to_u256(msg_sender_test_hash),
-                bytes_to_be_words(read_msg_sender_test()),
-            ),
-        ],
-        Timestamp(0),
-    );
+    vm.vm.state.decommittment_processor.populate(vec![
+        (
+            h256_to_u256(bytecode_hash),
+            bytes_to_be_words(read_complex_upgrade()),
+        ),
+        (
+            h256_to_u256(msg_sender_test_hash),
+            bytes_to_be_words(read_msg_sender_test()),
+        ),
+    ]);
 
     let address_to_deploy1 = H160::random();
     let address_to_deploy2 = H160::random();

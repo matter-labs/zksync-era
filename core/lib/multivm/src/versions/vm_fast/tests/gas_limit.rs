@@ -2,17 +2,14 @@ use zksync_types::{fee::Fee, Execute};
 
 use crate::{
     interface::{TxExecutionMode, VmInterface},
-    vm_latest::{
-        constants::{BOOTLOADER_HEAP_PAGE, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET},
-        tests::tester::VmTesterBuilder,
-        HistoryDisabled,
-    },
+    vm_fast::tests::tester::VmTesterBuilder,
+    vm_latest::constants::{TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET},
 };
 
 /// Checks that `TX_GAS_LIMIT_OFFSET` constant is correct.
 #[test]
 fn test_tx_gas_limit_offset() {
-    let mut vm = VmTesterBuilder::new(HistoryDisabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -34,14 +31,10 @@ fn test_tx_gas_limit_offset() {
 
     vm.vm.push_transaction(tx);
 
+    assert!(vm.vm.inner.state.previous_frames.is_empty());
     let gas_limit_from_memory = vm
         .vm
-        .state
-        .memory
-        .read_slot(
-            BOOTLOADER_HEAP_PAGE as usize,
-            TX_DESCRIPTION_OFFSET + TX_GAS_LIMIT_OFFSET,
-        )
-        .value;
+        .read_heap_word(TX_DESCRIPTION_OFFSET + TX_GAS_LIMIT_OFFSET);
+
     assert_eq!(gas_limit_from_memory, gas_limit);
 }

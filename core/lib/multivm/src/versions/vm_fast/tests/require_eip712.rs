@@ -2,35 +2,33 @@ use std::convert::TryInto;
 
 use ethabi::Token;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
+use zksync_state::ReadStorage;
 use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::TransactionRequest,
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Eip712Domain, Execute,
     L2ChainId, Nonce, Transaction, U256,
 };
+use zksync_utils::h256_to_u256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
-        tests::{
-            tester::{Account, VmTester, VmTesterBuilder},
-            utils::read_many_owners_custom_account_contract,
-        },
-        HistoryDisabled,
+    vm_fast::tests::{
+        tester::{Account, VmTester, VmTesterBuilder},
+        utils::read_many_owners_custom_account_contract,
     },
 };
 
-impl VmTester<HistoryDisabled> {
+impl VmTester {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {
         let key = storage_key_for_standard_token_balance(
             AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
             &address,
         );
-        self.vm.state.storage.storage.read_from_storage(&key)
+        h256_to_u256(self.vm.storage.borrow_mut().read_value(&key))
     }
 }
 
-// TODO refactor this test it use too much internal details of the VM
 #[tokio::test]
 /// This test deploys 'buggy' account abstraction code, and then tries accessing it both with legacy
 /// and EIP712 transactions.
@@ -45,7 +43,7 @@ async fn test_require_eip712() {
     let beneficiary = Account::random();
 
     let (bytecode, contract) = read_many_owners_custom_account_contract();
-    let mut vm = VmTesterBuilder::new(HistoryDisabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_custom_contracts(vec![(bytecode, account_abstraction.address, true)])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
