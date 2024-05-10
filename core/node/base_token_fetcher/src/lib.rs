@@ -1,11 +1,13 @@
-use std::{cmp::min, sync::Arc};
+use std::{cmp::min, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use async_trait::async_trait;
 use hex::ToHex;
 use metrics::atomics::AtomicU64;
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::sleep};
 use zksync_config::configs::BaseTokenFetcherConfig;
+
+const MAX_CONVERSION_RATE_FETCH_RETRIES: u8 = 10;
 
 /// Trait used to query the stack's native token conversion rate. Used to properly
 /// determine gas prices, as they partially depend on L1 gas prices, denominated in `eth`.
@@ -67,6 +69,45 @@ impl BaseTokenFetcher {
 
         let error_reporter = Arc::new(Mutex::new(ErrorReporter::new()));
 
+        Ok(Self {
+            config,
+            latest_to_eth_conversion_rate: AtomicU64::new(conversion_rate),
+            http_client,
+            error_reporter,
+        })
+    }
+
+    /// Attemps to create a new `BaseTokenFetcher` instance with a timeout for getting the initial conversion rate
+    pub async fn new_with_timeout(config: BaseTokenFetcherConfig) -> anyhow::Result<Self> {
+        let http_client = reqwest::Client::new();
+
+        let mut conversion_rate = None;
+        let mut tries = 0;
+        while conversion_rate.is_none() && tries < MAX_CONVERSION_RATE_FETCH_RETRIES {
+            match http_client
+                .get(format!(
+                    "{}/conversion_rate/0x{}",
+                    config.host,
+                    config.token_address.encode_hex::<String>()
+                ))
+                .send()
+                .await
+            {
+                Ok(res) => {
+                    conversion_rate = Some(res.json::<u64>().await.context(
+                        "Unable to parse the response of the native token conversion rate server",
+                    )?);
+                }
+                Err(_err) => {
+                    tries += 1;
+                    sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
+
+        let conversion_rate = conversion_rate
+            .ok_or_else(|| anyhow::anyhow!("Failed to fetch the native token conversion rate"))?;
+        let error_reporter = Arc::new(Mutex::new(ErrorReporter::new()));
         Ok(Self {
             config,
             latest_to_eth_conversion_rate: AtomicU64::new(conversion_rate),
