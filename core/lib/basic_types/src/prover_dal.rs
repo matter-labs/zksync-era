@@ -5,7 +5,7 @@ use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use strum::{Display, EnumString};
 
 use crate::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
+    basic_fri_types::{AggregationRound, CircuitIdRoundTuple, Eip4844Blobs},
     protocol_version::ProtocolVersionId,
     L1BatchNumber,
 };
@@ -372,4 +372,16 @@ pub struct ProofCompressionJobInfo {
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
     pub picked_by: Option<String>,
+}
+
+// This function corrects circuit IDs for the node witness generator.
+//
+// - Circuit IDs in the node witness generator are 2 higher than in other rounds.
+// - The EIP4844Repack circuit (ID 255) is an exception and is set to 18.
+pub fn correct_circuit_id(circuit_id: i16, aggregation_round: AggregationRound) -> u32 {
+    match (circuit_id, aggregation_round) {
+        (18, AggregationRound::NodeAggregation) => 255,
+        (circuit_id, AggregationRound::NodeAggregation) => (circuit_id as u32) - 2,
+        _ => circuit_id as u32,
+    }
 }
