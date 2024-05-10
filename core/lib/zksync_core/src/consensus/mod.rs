@@ -7,8 +7,8 @@ use storage::{ConnectionPool, Store};
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor as executor;
-use zksync_consensus_storage::BlockStore;
 use zksync_consensus_roles::validator;
+use zksync_consensus_storage::BlockStore;
 
 mod config;
 mod en;
@@ -34,8 +34,12 @@ async fn run_main_node(
     scope::run!(&ctx, |ctx, s| async {
         if let Some(spec) = &cfg.genesis_spec {
             let spec = config::GenesisSpec::parse(spec).context("GenesisSpec::parse()")?;
-            pool.connection(ctx).await.wrap("connection()")?
-                .adjust_genesis(ctx,&spec).await.wrap("adjust_genesis()")?;
+            pool.connection(ctx)
+                .await
+                .wrap("connection()")?
+                .adjust_genesis(ctx, &spec)
+                .await
+                .wrap("adjust_genesis()")?;
         }
         let (store, runner) = Store::new(ctx, pool, None).await.wrap("Store::new()")?;
         s.spawn_bg(runner.run(ctx));
@@ -44,8 +48,8 @@ async fn run_main_node(
             .wrap("BlockStore::new()")?;
         s.spawn_bg(runner.run(ctx));
         anyhow::ensure!(
-            block_store.genesis().leader_selection == 
-            validator::LeaderSelectionMode::Sticky(validator_key.public()),
+            block_store.genesis().leader_selection
+                == validator::LeaderSelectionMode::Sticky(validator_key.public()),
             "unsupported leader selection mode - main node has to be the leader"
         );
 

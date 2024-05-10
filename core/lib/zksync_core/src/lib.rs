@@ -570,12 +570,7 @@ pub async fn initialize_components(
             // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let root_ctx = ctx::root();
             scope::run!(&root_ctx, |ctx, s| async move {
-                s.spawn_bg(consensus::era::run_main_node(
-                    ctx,
-                    cfg,
-                    secrets,
-                    pool,
-                ));
+                s.spawn_bg(consensus::era::run_main_node(ctx, cfg, secrets, pool));
                 let _ = stop_receiver.wait_for(|stop| *stop).await?;
                 Ok(())
             })

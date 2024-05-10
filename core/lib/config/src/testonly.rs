@@ -708,7 +708,7 @@ impl Distribution<configs::EcosystemContracts> for EncodeDist {
 
 impl Distribution<configs::consensus::WeightedValidator> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::WeightedValidator {
-        use configs::consensus::{WeightedValidator,ValidatorPublicKey};
+        use configs::consensus::{ValidatorPublicKey, WeightedValidator};
         WeightedValidator {
             key: ValidatorPublicKey(self.sample(rng)),
             weight: self.sample(rng),
@@ -718,7 +718,7 @@ impl Distribution<configs::consensus::WeightedValidator> for EncodeDist {
 
 impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::GenesisSpec {
-        use configs::consensus::{ProtocolVersion,GenesisSpec,ValidatorPublicKey};
+        use configs::consensus::{GenesisSpec, ProtocolVersion, ValidatorPublicKey};
         GenesisSpec {
             chain_id: L2ChainId::default(),
             protocol_version: ProtocolVersion(self.sample(rng)),

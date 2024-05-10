@@ -1,13 +1,12 @@
 use anyhow::Context as _;
-use zksync_config::configs::consensus::{
-    GenesisSpec, WeightedValidator, ProtocolVersion,
-    ConsensusConfig, ConsensusSecrets, Host, NodePublicKey, NodeSecretKey, ValidatorPublicKey, ValidatorSecretKey,
-};
-use crate::read_optional_repr;
-use zksync_protobuf::{repr::{ProtoRepr}, required};
 use zksync_basic_types::L2ChainId;
+use zksync_config::configs::consensus::{
+    ConsensusConfig, ConsensusSecrets, GenesisSpec, Host, NodePublicKey, NodeSecretKey,
+    ProtocolVersion, ValidatorPublicKey, ValidatorSecretKey, WeightedValidator,
+};
+use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto::consensus as proto;
+use crate::{proto::consensus as proto, read_optional_repr};
 
 impl ProtoRepr for proto::WeightedValidator {
     type Type = WeightedValidator;
@@ -32,13 +31,15 @@ impl ProtoRepr for proto::GenesisSpec {
             chain_id: required(&self.chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
                 .context("chain_id")?,
-            protocol_version: ProtocolVersion(*required(&self.protocol_version).context("protocol_version")?),
+            protocol_version: ProtocolVersion(
+                *required(&self.protocol_version).context("protocol_version")?,
+            ),
             validators: self
                 .validators
                 .iter()
                 .enumerate()
-                .map(|(i,x)| x.read().context(i))
-                .collect::<Result<_,_>>()
+                .map(|(i, x)| x.read().context(i))
+                .collect::<Result<_, _>>()
                 .context("validators")?,
             leader: ValidatorPublicKey(required(&self.leader).context("leader")?.clone()),
         })
@@ -47,11 +48,7 @@ impl ProtoRepr for proto::GenesisSpec {
         Self {
             chain_id: Some(this.chain_id.as_u64()),
             protocol_version: Some(this.protocol_version.0),
-            validators: this
-                .validators
-                .iter()
-                .map(ProtoRepr::build)
-                .collect(),
+            validators: this.validators.iter().map(ProtoRepr::build).collect(),
             leader: Some(this.leader.0.clone()),
         }
     }

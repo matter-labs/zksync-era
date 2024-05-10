@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use rand::Rng;
-use zksync_concurrency::{ctx, time, error::Wrap as _, scope, sync};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_config::{configs, configs::consensus as config, GenesisConfig};
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
@@ -184,18 +184,15 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                 .iter()
                 .map(|(k, v)| (config::NodePublicKey(k.encode()), config::Host(v.0.clone())))
                 .collect(),
-            genesis_spec: cfg
-                .validator_key
-                .as_ref()
-                .map(|key| config::GenesisSpec {
-                    chain_id: L2ChainId::default(),
-                    protocol_version: config::ProtocolVersion(validator::ProtocolVersion::CURRENT.0),
-                    validators: vec![config::WeightedValidator{
-                        key: config::ValidatorPublicKey(key.public().encode()),
-                        weight: 1,
-                    }],
-                    leader: config::ValidatorPublicKey(key.public().encode()),
-                }),
+            genesis_spec: cfg.validator_key.as_ref().map(|key| config::GenesisSpec {
+                chain_id: L2ChainId::default(),
+                protocol_version: config::ProtocolVersion(validator::ProtocolVersion::CURRENT.0),
+                validators: vec![config::WeightedValidator {
+                    key: config::ValidatorPublicKey(key.public().encode()),
+                    weight: 1,
+                }],
+                leader: config::ValidatorPublicKey(key.public().encode()),
+            }),
         },
         config::ConsensusSecrets {
             node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode())),

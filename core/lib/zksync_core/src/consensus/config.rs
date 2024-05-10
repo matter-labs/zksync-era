@@ -3,8 +3,10 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use zksync_concurrency::net;
-use zksync_config::configs;
-use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey};
+use zksync_config::{
+    configs,
+    configs::consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey},
+};
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
@@ -28,7 +30,7 @@ pub(super) fn validator_key(
 #[derive(Debug, PartialEq)]
 pub(super) struct GenesisSpec {
     pub(super) chain_id: validator::ChainId,
-    pub(super) protocol_version: validator::ProtocolVersion, 
+    pub(super) protocol_version: validator::ProtocolVersion,
     pub(super) validators: validator::Committee,
     pub(super) leader_selection: validator::LeaderSelectionMode,
 }
@@ -44,17 +46,23 @@ impl GenesisSpec {
     }
 
     pub(super) fn parse(x: &configs::consensus::GenesisSpec) -> anyhow::Result<Self> {
-        let validators : Vec<_> = x.validators.iter().enumerate()
-            .map(|(i,v)|Ok(validator::WeightedValidator {
-                key: Text::new(&v.key.0).decode().context("key").context(i)?,
-                weight: v.weight,
-            }))
-            .collect::<anyhow::Result<_>>().context("validators")?;
+        let validators: Vec<_> = x
+            .validators
+            .iter()
+            .enumerate()
+            .map(|(i, v)| {
+                Ok(validator::WeightedValidator {
+                    key: Text::new(&v.key.0).decode().context("key").context(i)?,
+                    weight: v.weight,
+                })
+            })
+            .collect::<anyhow::Result<_>>()
+            .context("validators")?;
         Ok(Self {
             chain_id: validator::ChainId(x.chain_id.as_u64()),
             protocol_version: validator::ProtocolVersion(x.protocol_version.0),
             leader_selection: validator::LeaderSelectionMode::Sticky(
-                Text::new(&x.leader.0).decode().context("leader")?
+                Text::new(&x.leader.0).decode().context("leader")?,
             ),
             validators: validator::Committee::new(validators).context("validators")?,
         })

@@ -2,12 +2,14 @@ use anyhow::Context as _;
 use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
-use zksync_config::configs::consensus::{ValidatorPublicKey,WeightedValidator};
-use zksync_consensus_network::testonly::{new_configs, new_fullnode};
-use zksync_consensus_roles::validator::testonly::{Setup, SetupSpec};
-use zksync_types::{L1BatchNumber, L2BlockNumber};
-use zksync_consensus_roles::validator;
+use zksync_config::configs::consensus::{ValidatorPublicKey, WeightedValidator};
 use zksync_consensus_crypto::TextFmt as _;
+use zksync_consensus_network::testonly::{new_configs, new_fullnode};
+use zksync_consensus_roles::{
+    validator,
+    validator::testonly::{Setup, SetupSpec},
+};
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::*;
 use crate::utils::testonly::Snapshot;
@@ -166,12 +168,7 @@ async fn test_nodes_from_various_snapshots() {
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
         let (cfg, secrets) = testonly::config(&validator_cfg);
-        s.spawn_bg(run_main_node(
-            ctx,
-            cfg,
-            secrets,
-            validator_pool.clone(),
-        ));
+        s.spawn_bg(run_main_node(ctx, cfg, secrets, validator_pool.clone()));
 
         tracing::info!("produce some batches");
         validator.push_random_blocks(rng, 5).await;
@@ -278,12 +275,7 @@ async fn test_full_nodes(from_snapshot: bool) {
 
         tracing::info!("Run validator.");
         let (cfg, secrets) = testonly::config(&validator_cfgs[0]);
-        s.spawn_bg(run_main_node(
-            ctx,
-            cfg,
-            secrets,
-            validator_pool.clone(),
-        ));
+        s.spawn_bg(run_main_node(ctx, cfg, secrets, validator_pool.clone()));
 
         tracing::info!("Run nodes.");
         let mut node_pools = vec![];
@@ -323,7 +315,7 @@ async fn test_full_nodes(from_snapshot: bool) {
     .unwrap();
 }
 
-// Test running external node (non-leader) validators. 
+// Test running external node (non-leader) validators.
 #[test_casing(2, [false, true])]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_en_validators(from_snapshot: bool) {
@@ -362,17 +354,15 @@ async fn test_en_validators(from_snapshot: bool) {
 
         tracing::info!("Run main node with all nodes being validators.");
         let (mut cfg, secrets) = testonly::config(&cfgs[0]);
-        cfg.genesis_spec.as_mut().unwrap().validators =
-            setup.keys.iter().map(|k|WeightedValidator {
+        cfg.genesis_spec.as_mut().unwrap().validators = setup
+            .keys
+            .iter()
+            .map(|k| WeightedValidator {
                 key: ValidatorPublicKey(k.public().encode()),
-                weight: 1
-            }).collect();
-        s.spawn_bg(run_main_node(
-            ctx,
-            cfg,
-            secrets,
-            main_node_pool.clone(),
-        ));
+                weight: 1,
+            })
+            .collect();
+        s.spawn_bg(run_main_node(ctx, cfg, secrets, main_node_pool.clone()));
 
         tracing::info!("Run external nodes.");
         let mut ext_node_pools = vec![];
@@ -429,12 +419,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx));
         let (cfg, secrets) = testonly::config(&validator_cfg);
-        s.spawn_bg(run_main_node(
-            ctx,
-            cfg,
-            secrets,
-            validator_pool.clone(),
-        ));
+        s.spawn_bg(run_main_node(ctx, cfg, secrets, validator_pool.clone()));
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;
         let client = validator.connect(ctx).await?;

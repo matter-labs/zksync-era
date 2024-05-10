@@ -8,8 +8,8 @@ use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_dal::{consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_types::L2BlockNumber;
-use super::config;
 
+use super::config;
 use crate::{
     state_keeper::io::common::IoCursor,
     sync_layer::{
@@ -262,7 +262,7 @@ impl<'a> Connection<'a> {
         let old = txn.genesis(ctx).await.wrap("genesis()")?;
         if let Some(old) = &old {
             if &config::GenesisSpec::from_genesis(old) == spec {
-                // Hard fork is not needed. 
+                // Hard fork is not needed.
                 return Ok(());
             }
         }
@@ -276,7 +276,7 @@ impl<'a> Connection<'a> {
 
             protocol_version: spec.protocol_version,
             committee: spec.validators.clone(),
-            leader_selection: spec.leader_selection.clone(), 
+            leader_selection: spec.leader_selection.clone(),
         }
         .with_hash();
         txn.try_update_genesis(ctx, &genesis)
@@ -562,16 +562,14 @@ impl PayloadManager for Store {
         if let Some(payloads) = &mut *payloads {
             let block = to_fetched_block(block_number, &payload).context("to_fetched_block")?;
             let n = block.number;
-            payloads
-                .send(block)
-                .await
-                .context("payload_queue.send()")?;
+            payloads.send(block).await.context("payload_queue.send()")?;
             // Wait for the block to be processed, without waiting for it to be stored.
             // TODO: this is not ideal, because we don't check here whether the
             // processed block is the same as `payload`. It will work correctly
             // with the current implementation of EN, but we should make it more
             // precise when block reverting support is implemented.
-            ctx.wait(payloads.sync_state.wait_for_local_block(n)).await?;
+            ctx.wait(payloads.sync_state.wait_for_local_block(n))
+                .await?;
         } else {
             let want = self.pool.wait_for_payload(ctx, block_number).await?;
             let got = Payload::decode(payload).context("Payload::decode(got)")?;

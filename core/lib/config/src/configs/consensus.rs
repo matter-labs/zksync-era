@@ -2,8 +2,9 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
-use zksync_basic_types::L2ChainId;
+
 use zeroize::ZeroizeOnDrop;
+use zksync_basic_types::L2ChainId;
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -42,7 +43,7 @@ pub struct WeightedValidator {
     pub weight: u64,
 }
 
-/// Copy-paste of `zksync_concurrency::net::Host`. 
+/// Copy-paste of `zksync_concurrency::net::Host`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Host(pub String);
 
