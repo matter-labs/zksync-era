@@ -8012,6 +8012,7 @@ dependencies = [
  "num_enum 0.7.2",
  "serde",
  "serde_json",
+ "sqlx",
  "strum",
  "thiserror",
  "tiny-keccak 2.0.2",
