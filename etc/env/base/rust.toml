@@ -6,6 +6,17 @@
 # Here we use TOML multiline strings: newlines will be trimmed.
 RUST_LOG="""\
 zksync_node_framework=info,\
+zksync_block_reverter=info,\
+zksync_commitment_generator=info,\
+zksync_node_db_pruner=info,\
+zksync_eth_sender=info,\
+zksync_node_fee_model=info,\
+zksync_node_genesis=info,\
+zksync_house_keeper=info,\
+zksync_proof_data_handler=info,\
+zksync_shared_metrics=info,\
+zksync_node_test_utils=info,\
+zksync_vm_runner=info,\
 zksync_consensus_bft=info,\
 zksync_consensus_network=info,\
 zksync_consensus_storage=info,\
