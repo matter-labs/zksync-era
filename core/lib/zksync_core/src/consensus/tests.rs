@@ -356,6 +356,10 @@ async fn test_en_validators(from_snapshot: bool) {
             .await
             .unwrap();
 
+        tracing::info!("wait until the API server is actually available");
+        // as otherwise waiting for view synchronization will take a while.
+        main_node.connect(ctx).await?;
+
         tracing::info!("Run main node with all nodes being validators.");
         let (mut cfg, secrets) = testonly::config(&cfgs[0]);
         cfg.genesis_spec.as_mut().unwrap().validators =

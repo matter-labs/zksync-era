@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use rand::Rng;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, sync};
+use zksync_concurrency::{ctx, time, error::Wrap as _, scope, sync};
 use zksync_config::{configs, configs::consensus as config, GenesisConfig};
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
@@ -332,7 +332,20 @@ impl StateKeeper {
         let client = L2Client::http(format!("http://{addr}/").parse().context("url")?)
             .context("json_rpc()")?
             .build();
-        Ok(BoxedL2Client::new(client))
+        let client = BoxedL2Client::new(client);
+        // Wait until the server is actually available.
+        loop {
+            let res = ctx.wait(client.fetch_l2_block_number()).await?;
+            match res {
+                Ok(_) => return Ok(client),
+                Err(err) if err.is_transient() => {
+                    ctx.sleep(time::Duration::seconds(5)).await?;
+                }
+                Err(err) => {
+                    return Err(anyhow::format_err!("{err}").into());
+                }
+            }
+        }
     }
 
     /// Runs the centralized fetcher.
