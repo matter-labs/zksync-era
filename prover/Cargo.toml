@@ -31,8 +31,10 @@ categories = ["cryptography"]
 anyhow = "1.0"
 async-trait = "0.1"
 bincode = "1"
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
-circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
+# circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
+circuit_definitions = { path = "../../era-zkevm_test_harness/circuit_definitions" }
+# circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
+circuit_sequencer_api = { path = "../../era-zkevm_test_harness/circuit_sequencer_api" }
 clap = "4.4.6"
 colored = "2.0"
 const-decoder = "0.3.0"
@@ -70,7 +72,8 @@ vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev
 vk_setup_data_generator_server_fri = { path = "vk_setup_data_generator_server_fri" }
 vlog = { path = "../core/lib/vlog" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
+# zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
+zkevm_test_harness = { path = "../../era-zkevm_test_harness" }
 zkevm_test_harness_1_3_3 = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3", package = "zkevm_test_harness" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_config = { path = "../core/lib/config" }
