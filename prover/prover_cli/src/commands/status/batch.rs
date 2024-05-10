@@ -21,18 +21,13 @@ use crate::cli::ProverCLIConfig;
 
 #[derive(ClapArgs)]
 pub struct Args {
-    #[clap(short = 'n', num_args = 1..)]
+    #[clap(short = 'n', num_args = 1.., required = true)]
     batches: Vec<L1BatchNumber>,
     #[clap(short, long, default_value("false"))]
     verbose: bool,
 }
 
 pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
-    ensure!(
-        !args.batches.is_empty(),
-        "At least one batch number should be provided"
-    );
-
     let batches_data = get_batches_data(args.batches, config.db_url).await?;
 
     for batch_data in batches_data {
