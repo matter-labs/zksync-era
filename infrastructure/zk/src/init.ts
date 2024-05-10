@@ -63,7 +63,7 @@ const initSetup = async ({
     await announced('Compiling JS packages', run.yarn());
 
     await Promise.all([
-        announced('Building L1 L2 contracts', contract.build()),
+        announced('Building L1 L2 contracts', contract.build(false)),
         announced('Compile L2 system contracts', compiler.compileAll())
     ]);
 };

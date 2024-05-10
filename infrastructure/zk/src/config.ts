@@ -5,6 +5,9 @@ import deepExtend from 'deep-extend';
 import * as env from './env';
 import path from 'path';
 import dotenv from 'dotenv';
+import { ethers } from 'ethers';
+import * as utils from './utils';
+import { getTestAccounts } from './run';
 
 function loadConfigFile(configPath: string, stack: string[] = []) {
     if (stack.includes(configPath)) {
@@ -217,4 +220,53 @@ command
 
         diff = diff ? diff : '0';
         pushConfig(environment, diff);
+    });
+
+command
+    .command('prepare-l1-hyperchain [envName] [chainId] [diff]')
+    .description('prepare the config for the next hyperchain deployment')
+    .option('-n,--env-name', 'envName')
+    .option('-c,--chain-id', 'chainId')
+    .option('-d,--diff', 'diff')
+    .action(async (envName: string, chainId: string, diff: string) => {
+        if (!utils.isNetworkLocalL1(process.env.CHAIN_ETH_NETWORK!)) {
+            console.error('This command is only for local networks');
+            process.exit(1);
+        }
+
+        const template = fs
+            .readFileSync(path.join(process.env.ZKSYNC_HOME!, 'etc/env/configs/l1-hyperchain.template.toml'))
+            .toString()
+            .replace(
+                '__imports__ = ["base", "l1-inits/.init.env", "l2-inits/dev2.init.env" ]',
+                `__imports__ = ["base", "l1-inits/.init.env", "l2-inits/${envName}.init.env" ]`
+            );
+
+        const configFile = `etc/env/configs/${envName}.toml`;
+
+        fs.writeFileSync(configFile, template);
+
+        env.modify('CHAIN_ETH_ZKSYNC_NETWORK_ID', chainId, configFile, false);
+
+        const l1Provider = new ethers.providers.JsonRpcProvider(process.env.ETH_CLIENT_WEB3_URL);
+        console.log('Supplying operators...');
+
+        const operators = [ethers.Wallet.createRandom(), ethers.Wallet.createRandom()];
+
+        const richAccount = (await getTestAccounts())[0];
+        const richWallet = new ethers.Wallet(richAccount.privateKey, l1Provider);
+
+        for (const account of operators) {
+            await (
+                await richWallet.sendTransaction({
+                    to: account.address,
+                    value: ethers.utils.parseEther('1000.0')
+                })
+            ).wait();
+        }
+
+        env.modify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', `"${operators[0].privateKey}"`, configFile, false);
+        env.modify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', `"${operators[0].address}"`, configFile, false);
+        env.modify('ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY', `"${operators[1].privateKey}"`, configFile, false);
+        env.modify('ETH_SENDER_SENDER_OPERATOR_BLOBS_ETH_ADDR', `"${operators[1].address}"`, configFile, false);
     });

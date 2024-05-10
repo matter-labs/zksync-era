@@ -1,4 +1,7 @@
-__imports__ = ["base", "l1-inits/.init.env", "l2-inits/dev2.init.env" ]
+__imports__ = ["base", "l1-inits/dev2.init.env", "l2-inits/dev2.init.env" ]
+
+L1_ENV_NAME="dev2"
+
 ZKSYNC_DEBUG_LOGS=true
 
 CONTRACTS_SHARED_BRIDGE_UPGRADE_STORAGE_SWITCH="0"

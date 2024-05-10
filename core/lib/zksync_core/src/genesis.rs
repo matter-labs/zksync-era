@@ -599,6 +599,11 @@ pub async fn save_set_chain_id_tx(
     let eth_client = QueryClient::new(eth_client_url)?;
     let to = eth_client.block_number("fetch_chain_id_tx").await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
+
+    println!(
+        "used address {} ",
+        hex::encode(diamond_proxy_address.as_bytes())
+    );
     let filter = FilterBuilder::default()
         .address(vec![diamond_proxy_address])
         .topics(

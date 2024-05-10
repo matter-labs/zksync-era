@@ -3,9 +3,84 @@ import * as utils from './utils';
 import * as env from './env';
 import fs from 'fs';
 
-export async function build(): Promise<void> {
-    await utils.spawn('yarn l1-contracts build');
+export async function build(zkSyncNetwork: boolean): Promise<void> {
+    const additionalParams = zkSyncNetwork ? `CONTRACTS_BASE_NETWORK_ZKSYNC=true` : '';
+    await utils.spawn(`${additionalParams} yarn l1-contracts build`);
     await utils.spawn('yarn l2-contracts build');
+}
+
+export async function prepareSyncLayer(): Promise<void> {
+    await utils.confirmAction();
+
+    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    const args = [privateKey ? `--private-key ${privateKey}` : ''];
+    await utils.spawn(
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer deploy-sync-layer-contracts ${args} | tee sync-layer-prep.log`
+    );
+
+    const paramsFromEnv = [
+        `SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL=${process.env.API_WEB3_JSON_RPC_HTTP_URL}`,
+        `SYNC_LAYER_CHAIN_ID=${process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID}`
+    ].join('\n');
+
+    const deployLog =
+        fs
+            .readFileSync('sync-layer-prep.log')
+            .toString()
+            .replace(/CONTRACTS/g, 'SYNC_LAYER') +
+        '\n' +
+        paramsFromEnv;
+    const syncLayerEnvVars = [
+        'SYNC_LAYER_CREATE2_FACTORY_ADDR',
+
+        'SYNC_LAYER_STATE_TRANSITION_PROXY_ADDR',
+        'SYNC_LAYER_STATE_TRANSITION_IMPL_ADDR',
+
+        'SYNC_LAYER_DIAMOND_INIT_ADDR',
+        'SYNC_LAYER_DEFAULT_UPGRADE_ADDR',
+        'SYNC_LAYER_GENESIS_UPGRADE_ADDR',
+        'SYNC_LAYER_GOVERNANCE_ADDR',
+        'SYNC_LAYER_ADMIN_FACET_ADDR',
+        'SYNC_LAYER_EXECUTOR_FACET_ADDR',
+        'SYNC_LAYER_GETTERS_FACET_ADDR',
+        'SYNC_LAYER_MAILBOX_FACET_ADDR',
+
+        'SYNC_LAYER_VERIFIER_ADDR',
+        'SYNC_LAYER_VALIDATOR_TIMELOCK_ADDR',
+
+        'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
+
+        'SYNC_LAYER_L1_MULTICALL3_ADDR',
+        'SYNC_LAYER_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
+
+        'SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL',
+        'SYNC_LAYER_CHAIN_ID'
+    ];
+
+    const envFile = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
+
+    console.log('Writing to', envFile);
+
+    const updatedContracts = updateContractsEnv(envFile, deployLog, syncLayerEnvVars);
+
+    // Write updated contract addresses and tx hashes to the separate file
+    // Currently it's used by loadtest github action to update deployment configmap.
+    // FIXME: either use it the same way as above or remove it
+    fs.writeFileSync('deployed_sync_layer_contracts.log', updatedContracts);
+}
+
+async function registerSyncLayer() {
+    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer register-sync-layer`);
+}
+
+async function migrateToSyncLayer() {
+    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer migrate-to-sync-layer`);
+}
+
+async function recoverFromFailedMigrationToSyncLayer(failedTxSLHash: string) {
+    await utils.spawn(
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer recover-from-failed-migration --failed-tx-l2-hash ${failedTxSLHash}`
+    );
 }
 
 export async function verifyL1Contracts(): Promise<void> {
@@ -291,7 +366,39 @@ command
     .description('redeploy contracts')
     .action(redeployL1);
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
-command.command('build').description('build contracts').action(build);
+command
+    .command('build')
+    .description('build contracts')
+    .option('--zkSync', 'compile for zksync network')
+    .action((cmd) => build(cmd.zkSync === true));
+
+command
+    .command('prepare-sync-layer')
+    .description('prepare the network to server as a synclayer')
+    .action(prepareSyncLayer);
+
+command
+    .command('register-sync-layer-counterpart')
+    .description('prepare the network to server as a synclayer')
+    .action(registerSyncLayer);
+
+// zk contract migrate-to-sync-layer --sync-layer-chain-id 270 --sync-layer-url http://127.0.0.1:3050 --sync-layer-stm 0x0040D8c968E3d5C95B9b0C3A4F098A3Ce82929C9
+command
+    .command('migrate-to-sync-layer')
+    .description('prepare the network to server as a synclayer')
+    .action(async (cmd) => {
+        await migrateToSyncLayer();
+    });
+
+// zk contract recover-from-migration --sync-layer-chain-id 270 --sync-layer-url http://127.0.0.1:3050 --failed-tx-l2-hash 0xcd23ebda8c3805a3ff8fba846a34218cb987cae3402f4150544b74032c9213e2
+command
+    .command('recover-from-migration')
+    .description('recover from failed migration to sync layer')
+    .option('--failed-tx-l2-hash <failedTxL2Hash>', 'the hash of the failed tx on the SL')
+    .action(async (cmd) => {
+        console.log('input params : ', cmd.failedTxL2Hash);
+        await recoverFromFailedMigrationToSyncLayer(cmd.failedTxL2Hash);
+    });
 
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);
 command

@@ -65,3 +65,15 @@ command
     .allowUnknownOption(true)
     .description('deposit from rich wallets to the current active chain')
     .action(supplyRichWallets);
+
+// command
+//     .command('prepare-to-be-sync-layer')
+//     .allowUnknownOption(true)
+//     .description('deposit from rich wallets to the current active chain')
+//     .action(async () => {
+//         const currentRpc = process.env.API_WEB3_JSON_RPC_HTTP_URL;
+//         // for this script, we will use the l2 rpc
+//         // process.env.ETH_CLIENT_WEB3_URL = currentRpc;
+//         // process.env.BASE
+//         await utils.spawn('yarn l1-contracts prepare-sync-layer');
+//     });;
