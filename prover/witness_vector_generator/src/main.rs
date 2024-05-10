@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     let aggregation_round = 0.into();
 
     let circuit_key = FriCircuitKey {
-        block_number: L1BatchNumber(8853),
+        block_number: L1BatchNumber(8854),
         sequence_number: 1670,
         circuit_id,
         aggregation_round,
