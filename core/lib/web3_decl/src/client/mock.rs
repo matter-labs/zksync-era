@@ -65,7 +65,7 @@ where
 }
 
 /// Request handler for [`MockClient`]. Implemented automatically for sync and async closures
-/// taking zero to 3 deserializable args (you might want to specify their types explicitly)
+/// taking zero to 3 de-serializable args (you might want to specify their types explicitly)
 /// and returning `Result<Resp, Error>`, where `Resp` is serializable.
 pub trait Handler<Req, const ASYNC: bool>: Send + Sync + 'static {
     /// Successful response.
