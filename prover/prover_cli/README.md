@@ -75,19 +75,29 @@ EIP 4844 - proofs: 0
 Set of commands to inspect the status of the Prover. This could be the status of the proof for some batch or the status
 of the proving in the L1.
 
-#### `prover_cli status batch`
-
-Displays the proof status for a given batch or a set of batches.
-
 ```
 Usage: prover_cli status <COMMAND>
 
 Commands:
   batch
+  l1
   help   Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help  Print help
+```
+
+#### `prover_cli status batch`
+
+Displays the proof status for a given batch or a set of batches.
+
+```
+Usage: prover_cli status batch [OPTIONS]
+
+Options:
+  -n <BATCHES>...
+  -v, --verbose
+  -h, --help           Print help
 ```
 
 #### Example Output
@@ -124,6 +134,13 @@ Scheduler: In progress ⌛️
 Retrieve information about the state of the batches sent to L1 and compare the contract hashes in L1 with those stored
 in the prover database.
 
+```
+Usage: prover_cli status l1
+
+Options:
+  -h, --help  Print help
+```
+
 #### Example Output
 
 ```
@@ -151,11 +168,29 @@ DB hash: 0x0000000000000000000000000000000000000000000000000000000000000000
 
 ### `prover_cli requeue`
 
-TODO
+Re-queues a stuck batch.
+
+```
+Usage: prover_cli requeue [OPTIONS] --batch <BATCH>
+
+Options:
+  -b, --batch <BATCH>
+      --max-attempts <MAX_ATTEMPTS>  Maximum number of attempts to re-queue a job. Default value is 10. NOTE: this argument is temporary and will be deprecated once the `config` command is implemented [default: 10]
+  -h, --help                         Print help
+```
 
 ### `prover_cli delete`
 
-TODO
+Deletes data from the prover database. It can delete data from all batches or specific batches.
+
+```
+Usage: prover_cli delete [OPTIONS]
+
+Options:
+  -a, --all            Delete data from all batches
+  -b, --batch <BATCH>  Batch number to delete [default: 0]
+  -h, --help           Print help
+```
 
 ### `prover_cli config`
 
