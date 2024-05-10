@@ -183,6 +183,18 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                 .iter()
                 .map(|(k, v)| (config::NodePublicKey(k.encode()), config::Host(v.0.clone())))
                 .collect(),
+            genesis_spec: cfg
+                .validator_key
+                .as_ref()
+                .map(|key| config::GenesisSpec {
+                    chain_id: L2ChainId::default(),
+                    protocol_version: config::ProtocolVersion(validator::ProtocolVersion::CURRENT.0),
+                    validators: vec![config::WeightedValidator{
+                        key: config::ValidatorPublicKey(key.public().encode()),
+                        weight: 1,
+                    }],
+                    leader: config::ValidatorPublicKey(key.public().encode()),
+                }),
         },
         config::ConsensusSecrets {
             node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode())),

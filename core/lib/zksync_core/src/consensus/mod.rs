@@ -7,8 +7,8 @@ use storage::{ConnectionPool, Store};
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor as executor;
-use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
+use zksync_consensus_roles::validator;
 
 mod config;
 mod en;
@@ -27,24 +27,28 @@ async fn run_main_node(
     cfg: ConsensusConfig,
     secrets: ConsensusSecrets,
     pool: ConnectionPool,
-    chain_id: validator::ChainId,
 ) -> anyhow::Result<()> {
     let validator_key = config::validator_key(&secrets)
         .context("validator_key")?
         .context("missing validator_key")?;
     scope::run!(&ctx, |ctx, s| async {
-        pool.connection(ctx)
-            .await
-            .wrap("connection()")?
-            .try_init_genesis(ctx, chain_id, validator_key.public(), vec![])
-            .await
-            .wrap("try_init_genesis()")?;
+        if let Some(spec) = &cfg.genesis_spec {
+            let spec = config::GenesisSpec::parse(spec).context("GenesisSpec::parse()")?;
+            pool.connection(ctx).await.wrap("connection()")?
+                .adjust_genesis(ctx,&spec).await.wrap("adjust_genesis()")?;
+        }
         let (store, runner) = Store::new(ctx, pool, None).await.wrap("Store::new()")?;
         s.spawn_bg(runner.run(ctx));
         let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
             .await
             .wrap("BlockStore::new()")?;
         s.spawn_bg(runner.run(ctx));
+        anyhow::ensure!(
+            block_store.genesis().leader_selection == 
+            validator::LeaderSelectionMode::Sticky(validator_key.public()),
+            "unsupported leader selection mode - main node has to be the leader"
+        );
+
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets)?,
             block_store,

@@ -575,7 +575,6 @@ pub async fn initialize_components(
                     cfg,
                     secrets,
                     pool,
-                    l2_chain_id,
                 ));
                 let _ = stop_receiver.wait_for(|stop| *stop).await?;
                 Ok(())

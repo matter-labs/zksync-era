@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use zksync_concurrency::net;
+use zksync_config::configs;
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey};
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
@@ -18,6 +19,46 @@ pub(super) fn validator_key(
     secrets: &ConsensusSecrets,
 ) -> anyhow::Result<Option<validator::SecretKey>> {
     read_secret_text(secrets.validator_key.as_ref().map(|x| &x.0))
+}
+
+/// Consensus genesis specification.
+/// It is a digest of the `validator::Genesis`,
+/// which allows to initialize genesis (if not present)
+/// decide whether a hard fork is necessary (if present).
+#[derive(Debug, PartialEq)]
+pub(super) struct GenesisSpec {
+    pub(super) chain_id: validator::ChainId,
+    pub(super) protocol_version: validator::ProtocolVersion, 
+    pub(super) validators: validator::Committee,
+    pub(super) leader_selection: validator::LeaderSelectionMode,
+}
+
+impl GenesisSpec {
+    pub(super) fn from_genesis(g: &validator::Genesis) -> Self {
+        Self {
+            chain_id: g.chain_id,
+            protocol_version: g.protocol_version,
+            validators: g.committee.clone(),
+            leader_selection: g.leader_selection.clone(),
+        }
+    }
+
+    pub(super) fn parse(x: &configs::consensus::GenesisSpec) -> anyhow::Result<Self> {
+        let validators : Vec<_> = x.validators.iter().enumerate()
+            .map(|(i,v)|Ok(validator::WeightedValidator {
+                key: Text::new(&v.key.0).decode().context("key").context(i)?,
+                weight: v.weight,
+            }))
+            .collect::<anyhow::Result<_>>().context("validators")?;
+        Ok(Self {
+            chain_id: validator::ChainId(x.chain_id.as_u64()),
+            protocol_version: validator::ProtocolVersion(x.protocol_version.0),
+            leader_selection: validator::LeaderSelectionMode::Sticky(
+                Text::new(&x.leader.0).decode().context("leader")?
+            ),
+            validators: validator::Committee::new(validators).context("validators")?,
+        })
+    }
 }
 
 pub(super) fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node::SecretKey>> {

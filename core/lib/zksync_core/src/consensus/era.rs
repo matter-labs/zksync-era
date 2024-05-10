@@ -6,9 +6,7 @@
 
 use zksync_concurrency::ctx;
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_consensus_roles::validator;
 use zksync_dal::Core;
-use zksync_types::L2ChainId;
 use zksync_web3_decl::client::BoxedL2Client;
 
 use super::{en, storage::ConnectionPool};
@@ -20,7 +18,6 @@ pub async fn run_main_node(
     cfg: ConsensusConfig,
     secrets: ConsensusSecrets,
     pool: zksync_dal::ConnectionPool<Core>,
-    chain_id: L2ChainId,
 ) -> anyhow::Result<()> {
     // Consensus is a new component.
     // For now in case of error we just log it and allow the server
@@ -30,7 +27,6 @@ pub async fn run_main_node(
         cfg,
         secrets,
         ConnectionPool(pool),
-        validator::ChainId(chain_id.as_u64()),
     )
     .await
     {

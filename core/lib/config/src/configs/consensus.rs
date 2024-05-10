@@ -2,22 +2,22 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
-
+use zksync_basic_types::L2ChainId;
 use zeroize::ZeroizeOnDrop;
 
-/// Public key of the validator (consensus participant) of the form "validator:public:<signature scheme>:<hex encoded key material>"
+/// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValidatorPublicKey(pub String);
 
-// Secret key of the validator (consensus participant) of the form "validator:secret:<signature scheme>:<hex encoded key material>"
+/// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::SecretKey`.
 #[derive(PartialEq, Clone, ZeroizeOnDrop)]
 pub struct ValidatorSecretKey(pub String);
 
-/// Public key of the node (gossip network participant) of the form "node:public:<signature scheme>:<hex encoded key material>"
+/// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodePublicKey(pub String);
 
-// Secret key of the node (gossip network participant) of the form "node:secret:<signature scheme>:<hex encoded key material>"
+/// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::SecretKey`.
 #[derive(PartialEq, Clone, ZeroizeOnDrop)]
 pub struct NodeSecretKey(pub String);
 
@@ -33,9 +33,39 @@ impl fmt::Debug for NodeSecretKey {
     }
 }
 
-/// Network address in the `<domain/ip>:port` format.
+/// Copy-paste of `zksync_consensus_roles::validator::WeightedValidator`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WeightedValidator {
+    /// Validator key
+    pub key: ValidatorPublicKey,
+    /// Validator weight inside the Committee.
+    pub weight: u64,
+}
+
+/// Copy-paste of `zksync_concurrency::net::Host`. 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Host(pub String);
+
+/// Copy-paste of `zksync_consensus_roles::validator::ProtocolVersion`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProtocolVersion(pub u32);
+
+/// Consensus genesis specification.
+/// It is a digest of the `validator::Genesis`,
+/// which allows to initialize genesis (if not present)
+/// decide whether a hard fork is necessary (if present).
+#[derive(Clone, Debug, PartialEq)]
+pub struct GenesisSpec {
+    /// Chain ID.
+    pub chain_id: L2ChainId,
+    /// Consensus protocol version.
+    pub protocol_version: ProtocolVersion,
+    /// The validator committee. Represents `zksync_consensus_roles::validator::Committee`.
+    pub validators: Vec<WeightedValidator>,
+    /// Leader of the committee. Represents
+    /// `zksync_consensus_roles::validator::LeaderSelectionMode::Sticky`.
+    pub leader: ValidatorPublicKey,
+}
 
 /// Config (shared between main node and external node).
 #[derive(Clone, Debug, PartialEq)]
@@ -58,6 +88,11 @@ pub struct ConsensusConfig {
     /// Outbound gossip connections that the node should actively try to
     /// establish and maintain.
     pub gossip_static_outbound: BTreeMap<NodePublicKey, Host>,
+
+    /// MAIN NODE ONLY: consensus genesis specification.
+    /// Used to (re)initialize genesis if needed.
+    /// External nodes fetch the genesis from the main node.
+    pub genesis_spec: Option<GenesisSpec>,
 }
 
 /// Secrets need for consensus.

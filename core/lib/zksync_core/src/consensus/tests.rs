@@ -2,14 +2,15 @@ use anyhow::Context as _;
 use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
+use zksync_config::configs::consensus::{ValidatorPublicKey,WeightedValidator};
 use zksync_consensus_network::testonly::{new_configs, new_fullnode};
 use zksync_consensus_roles::validator::testonly::{Setup, SetupSpec};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_consensus_roles::validator;
+use zksync_consensus_crypto::TextFmt as _;
 
 use super::*;
 use crate::utils::testonly::Snapshot;
-
-const CHAIN_ID: validator::ChainId = validator::ChainId(1337);
 
 async fn new_pool(from_snapshot: bool) -> ConnectionPool {
     match from_snapshot {
@@ -115,7 +116,7 @@ async fn test_validator(from_snapshot: bool) {
                 tracing::info!("Start consensus actor");
                 // In the first iteration it will initialize genesis.
                 let (cfg,secrets) = testonly::config(&cfgs[0]);
-                s.spawn_bg(run_main_node(ctx, cfg, secrets, pool.clone(), CHAIN_ID));
+                s.spawn_bg(run_main_node(ctx, cfg, secrets, pool.clone()));
 
                 tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
                 sk.push_random_blocks(rng, 3).await;
@@ -170,7 +171,6 @@ async fn test_nodes_from_various_snapshots() {
             cfg,
             secrets,
             validator_pool.clone(),
-            CHAIN_ID,
         ));
 
         tracing::info!("produce some batches");
@@ -283,7 +283,6 @@ async fn test_full_nodes(from_snapshot: bool) {
             cfg,
             secrets,
             validator_pool.clone(),
-            CHAIN_ID,
         ));
 
         tracing::info!("Run nodes.");
@@ -357,25 +356,18 @@ async fn test_en_validators(from_snapshot: bool) {
             .await
             .unwrap();
 
-        tracing::info!("Initialize genesis");
-        // TODO: this won't work, because main node does regenesis.
-        main_node_pool
-            .connection(ctx).await.unwrap()
-            .try_init_genesis(
-                ctx, 
-                CHAIN_ID,
-                setup.keys[0].public(),
-                setup.keys[1..].iter().map(|k|k.public()).collect(),
-            ).await.unwrap();
-
-        tracing::info!("Run main node.");
-        let (cfg, secrets) = testonly::config(&cfgs[0]);
+        tracing::info!("Run main node with all nodes being validators.");
+        let (mut cfg, secrets) = testonly::config(&cfgs[0]);
+        cfg.genesis_spec.as_mut().unwrap().validators =
+            setup.keys.iter().map(|k|WeightedValidator {
+                key: ValidatorPublicKey(k.public().encode()),
+                weight: 1
+            }).collect();
         s.spawn_bg(run_main_node(
             ctx,
             cfg,
             secrets,
             main_node_pool.clone(),
-            CHAIN_ID,
         ));
 
         tracing::info!("Run external nodes.");
@@ -415,7 +407,6 @@ async fn test_en_validators(from_snapshot: bool) {
     .unwrap();
 }
 
-
 // Test fetcher back filling missing certs.
 #[test_casing(2, [false, true])]
 #[tokio::test(flavor = "multi_thread")]
@@ -439,7 +430,6 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
             cfg,
             secrets,
             validator_pool.clone(),
-            CHAIN_ID,
         ));
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;

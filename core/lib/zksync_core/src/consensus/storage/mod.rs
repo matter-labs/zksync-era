@@ -9,6 +9,7 @@ use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_dal::{consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_types::L2BlockNumber;
+use super::config;
 
 #[cfg(test)]
 mod testonly;
@@ -244,49 +245,36 @@ impl<'a> Connection<'a> {
         })
     }
 
-    /// (Re)initializes consensus genesis (with main node as the only leader) to start at the last L2 block in storage.
-    /// No-op if genesis is already present in DB and matches the expected genesis.
-    pub(super) async fn try_init_genesis(
+    /// (Re)initializes consensus genesis to start at the last L2 block in storage.
+    /// Noop if `spec` matches the current genesis.
+    pub(super) async fn adjust_genesis(
         &mut self,
         ctx: &ctx::Ctx,
-        chain_id: validator::ChainId,
-        main_node: validator::PublicKey,
-        ext_nodes: Vec<validator::PublicKey>,
+        spec: &config::GenesisSpec,
     ) -> ctx::Result<()> {
         let block_range = self.block_range(ctx).await.wrap("block_range()")?;
         let mut txn = self
             .start_transaction(ctx)
             .await
             .wrap("start_transaction()")?;
-        let mut committee = vec![validator::WeightedValidator{
-            key: main_node.clone(),
-            weight: 1,
-        }];
-        committee.extend(ext_nodes.into_iter().map(|key|validator::WeightedValidator { key, weight: 1 }));
-        let committee = validator::Committee::new(committee).context("Committee::new()")?;
-        let leader_selection = validator::LeaderSelectionMode::Sticky(main_node.clone());
         let old = txn.genesis(ctx).await.wrap("genesis()")?;
-        // Check if the current config of the main node is compatible with the stored genesis.
-        if old.as_ref().map_or(false, |old| {
-            old.chain_id == chain_id
-                && old.protocol_version == validator::ProtocolVersion::CURRENT
-                && old.committee == committee
-                && old.leader_selection == leader_selection
-        }) {
-            return Ok(());
+        if let Some(old) = &old {
+            if &config::GenesisSpec::from_genesis(old) == spec {
+                // Hard fork is not needed. 
+                return Ok(());
+            }
         }
-        // If not, perform a hard fork.
         tracing::info!("Performing a hard fork of consensus.");
         let genesis = validator::GenesisRaw {
-            chain_id,
+            chain_id: spec.chain_id,
             fork_number: old
                 .as_ref()
                 .map_or(validator::ForkNumber(0), |old| old.fork_number.next()),
             first_block: block_range.end,
 
-            protocol_version: validator::ProtocolVersion::CURRENT,
-            committee,
-            leader_selection,
+            protocol_version: spec.protocol_version,
+            committee: spec.validators.clone(),
+            leader_selection: spec.leader_selection.clone(), 
         }
         .with_hash();
         txn.try_update_genesis(ctx, &genesis)
