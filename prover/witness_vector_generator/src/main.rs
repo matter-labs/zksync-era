@@ -84,9 +84,9 @@ async fn main() -> anyhow::Result<()> {
     let circuit_ids_for_round_to_be_proven =
         get_all_circuit_id_round_tuples_for(circuit_ids_for_round_to_be_proven);
     let fri_prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
-    let zone_url = &fri_prover_config.zone_read_url;
-    let zone = get_zone(zone_url).await.context("get_zone()")?;
-
+    // let zone_url = &fri_prover_config.zone_read_url;
+    // let zone = get_zone(zone_url).await.context("get_zone()")?;
+    let zone = String::from("home");
     let protocol_version = ProtocolVersionId::current_prover_version();
 
     let witness_vector_generator = WitnessVectorGenerator::new(

@@ -117,13 +117,14 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| {
             (
                 L1BatchNumber(row.l1_batch_number as u32),
-                Eip4844Blobs::decode(&row.eip_4844_blobs.unwrap_or_else(|| {
-                    panic!(
-                        "missing eip 4844 blobs from the database for batch {}",
-                        row.l1_batch_number
-                    )
-                }))
-                .expect("failed to decode EIP4844 blobs"),
+                Eip4844Blobs::empty(),
+                // Eip4844Blobs::decode(&row.eip_4844_blobs.unwrap_or_else(|| {
+                //     panic!(
+                //         "missing eip 4844 blobs from the database for batch {}",
+                //         row.l1_batch_number
+                //     )
+                // }))
+                // .expect("failed to decode EIP4844 blobs"),
             )
         })
     }

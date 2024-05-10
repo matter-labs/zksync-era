@@ -39,6 +39,12 @@ impl Eip4844Blobs {
 }
 
 impl Eip4844Blobs {
+    pub fn empty() -> Self {
+        Self {
+            blobs: Default::default(),
+        }
+    }
+
     pub fn encode(self) -> Vec<u8> {
         self.blobs().into_iter().flatten().flatten().collect()
     }
