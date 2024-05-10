@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{ensure, Context as _};
+use anyhow::Context as _;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use clap::Args as ClapArgs;
 use colored::*;
@@ -31,6 +31,10 @@ pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<(
     let batches_data = get_batches_data(args.batches, config.db_url).await?;
 
     for batch_data in batches_data {
+        println!(
+            "== {} ==",
+            format!("Batch {} Status", batch_data.batch_number).bold()
+        );
         if !args.verbose {
             display_batch_status(batch_data);
         } else {
@@ -176,10 +180,6 @@ async fn get_proof_compression_job_info_for_batch<'a>(
 }
 
 fn display_batch_status(batch_data: BatchData) {
-    println!(
-        "== {} ==",
-        format!("Batch {} Status", batch_data.batch_number)
-    );
     display_status_for_stage(batch_data.basic_witness_generator);
     display_status_for_stage(batch_data.leaf_witness_generator);
     display_status_for_stage(batch_data.node_witness_generator);
@@ -219,10 +219,6 @@ fn display_status_for_stage(stage_info: StageInfo) {
 }
 
 fn display_batch_info(batch_data: BatchData) {
-    println!(
-        "== {} ==",
-        format!("Batch {} Status", batch_data.batch_number).bold()
-    );
     display_info_for_stage(batch_data.basic_witness_generator);
     display_info_for_stage(batch_data.leaf_witness_generator);
     display_info_for_stage(batch_data.node_witness_generator);
@@ -270,9 +266,7 @@ fn display_info_for_stage(stage_info: StageInfo) {
                     display_node_witness_generator_jobs_info(witness_generator_jobs_info);
                     display_prover_jobs_info(prover_jobs_info);
                 }
-                StageInfo::RecursionTipWitnessGenerator(_)
-                | StageInfo::SchedulerWitnessGenerator(_)
-                | StageInfo::Compressor(_) => (),
+                _ => (),
             }
         }
         Status::Successful => {
@@ -291,9 +285,7 @@ fn display_info_for_stage(stage_info: StageInfo) {
                 | StageInfo::NodeWitnessGenerator {
                     prover_jobs_info, ..
                 } => display_prover_jobs_info(prover_jobs_info),
-                StageInfo::RecursionTipWitnessGenerator(_)
-                | StageInfo::SchedulerWitnessGenerator(_)
-                | StageInfo::Compressor(_) => (),
+                _ => (),
             }
         }
     }
@@ -356,7 +348,7 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
     prover_jobs_info.iter().for_each(|job| {
         jobs_by_circuit_id
             .entry(job.circuit_id)
-            .or_insert(Vec::new())
+            .or_default()
             .push(job.clone())
     });
 
@@ -420,6 +412,6 @@ fn display_aggregation_round(stage_info: &StageInfo) {
             format!("Aggregation Round {}", aggregation_round as u8).bold()
         );
     } else {
-        println!("\n-- {} --", format!("Compression").bold());
+        println!("\n-- {} --", "Proof Compression".to_owned().bold());
     };
 }
