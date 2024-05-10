@@ -409,6 +409,7 @@ fn display_job_status_count(jobs: Vec<ProverJobFriInfo>) {
         ProverJobStatus::Successful(_) => jobs_counts.successful += 1,
         ProverJobStatus::Failed(_) => jobs_counts.failed += 1,
         ProverJobStatus::Skipped | ProverJobStatus::Ignored => (),
+        ProverJobStatus::InGPUProof => (), // TODO
     });
 
     println!("     - Total jobs: {}", total_jobs);

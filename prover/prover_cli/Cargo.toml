@@ -1,5 +1,5 @@
 [package]
-name = "prover_cli"
+name = "pli"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

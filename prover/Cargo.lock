@@ -4249,6 +4249,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "626dec3cac7cc0e1577a2ec3fc496277ec2baa084bebad95bb6fdbfae235f84c"
 
 [[package]]
+name = "pli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "circuit_definitions",
+ "clap 4.4.6",
+ "colored",
+ "dialoguer",
+ "hex",
+ "prover_dal",
+ "sqlx",
+ "strum",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_db_connection",
+ "zksync_env_config",
+ "zksync_eth_client",
+ "zksync_prover_fri_types",
+ "zksync_prover_interface",
+ "zksync_types",
+]
+
+[[package]]
 name = "portable-atomic"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4547,35 +4576,6 @@ dependencies = [
  "miette",
  "prost-types",
  "thiserror",
-]
-
-[[package]]
-name = "prover_cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "circuit_definitions",
- "clap 4.4.6",
- "colored",
- "dialoguer",
- "hex",
- "prover_dal",
- "sqlx",
- "strum",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "zksync_basic_types",
- "zksync_config",
- "zksync_contracts",
- "zksync_dal",
- "zksync_db_connection",
- "zksync_env_config",
- "zksync_eth_client",
- "zksync_prover_fri_types",
- "zksync_prover_interface",
- "zksync_types",
 ]
 
 [[package]]
