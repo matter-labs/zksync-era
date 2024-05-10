@@ -2,6 +2,7 @@ use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use futures::Future;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -12,8 +13,6 @@ use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
-
-use crate::utils::binary_search_with;
 
 #[cfg(test)]
 mod tests;
@@ -407,4 +406,42 @@ impl ReorgDetector {
         tracing::info!("Shutting down reorg detector");
         Ok(())
     }
+}
+
+/// Fallible and async predicate for binary search.
+#[async_trait]
+trait BinarySearchPredicate: Send {
+    type Error;
+
+    async fn eval(&mut self, argument: u32) -> Result<bool, Self::Error>;
+}
+
+#[async_trait]
+impl<F, Fut, E> BinarySearchPredicate for F
+where
+    F: Send + FnMut(u32) -> Fut,
+    Fut: Send + Future<Output = Result<bool, E>>,
+{
+    type Error = E;
+
+    async fn eval(&mut self, argument: u32) -> Result<bool, Self::Error> {
+        self(argument).await
+    }
+}
+
+/// Finds the greatest `u32` value for which `f` returns `true`.
+async fn binary_search_with<P: BinarySearchPredicate>(
+    mut left: u32,
+    mut right: u32,
+    mut predicate: P,
+) -> Result<u32, P::Error> {
+    while left + 1 < right {
+        let middle = (left + right) / 2;
+        if predicate.eval(middle).await? {
+            left = middle;
+        } else {
+            right = middle;
+        }
+    }
+    Ok(left)
 }

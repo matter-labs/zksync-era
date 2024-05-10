@@ -19,6 +19,15 @@ use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 use super::*;
 
+#[tokio::test]
+async fn test_binary_search() {
+    for divergence_point in [1, 50, 51, 100] {
+        let mut f = |x| async move { Ok::<_, ()>(x < divergence_point) };
+        let result = binary_search_with(0, 100, &mut f).await;
+        assert_eq!(result, Ok(divergence_point - 1));
+    }
+}
+
 async fn store_l2_block(storage: &mut Connection<'_, Core>, number: u32, hash: H256) {
     let header = L2BlockHeader {
         hash,
