@@ -157,6 +157,11 @@ impl From<Vec<ProverJobFriInfo>> for Status {
             Status::JobsNotFound
         } else if jobs_vector
             .iter()
+            .all(|job| matches!(job.status, ProverJobStatus::InGPUProof))
+        {
+            Status::Custom("In GPU Proof ⚡️".to_owned())
+        } else if jobs_vector
+            .iter()
             .all(|job| matches!(job.status, ProverJobStatus::Queued))
         {
             Status::Queued
@@ -171,6 +176,7 @@ impl From<Vec<ProverJobFriInfo>> for Status {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(EnumString, Clone, Display)]
 pub enum StageInfo {
     #[strum(to_string = "Basic Witness Generator")]
