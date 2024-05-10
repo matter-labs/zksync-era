@@ -11,12 +11,8 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
-use zksync_l1_contract_interface::Detokenize;
-use zksync_types::{
-    ethabi::{self, Address},
-    L1BatchNumber, ProtocolVersionId,
-};
+use zksync_eth_client::{CallFunctionArgs, ClientError, Error as EthClientError, EthInterface};
+use zksync_types::{Address, L1BatchNumber, ProtocolVersionId};
 
 /// Fallible and async predicate for binary search.
 #[async_trait]
@@ -166,12 +162,14 @@ pub(crate) async fn pending_protocol_version(
 async fn get_pubdata_pricing_mode(
     diamond_proxy_address: Address,
     eth_client: &dyn EthInterface,
-) -> Result<Vec<ethabi::Token>, EthClientError> {
-    let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
-        diamond_proxy_address,
-        zksync_contracts::hyperchain_contract(),
-    );
-    eth_client.call_contract_function(args).await
+) -> Result<L1BatchCommitDataGeneratorMode, EthClientError> {
+    CallFunctionArgs::new("getPubdataPricingMode", ())
+        .for_contract(
+            diamond_proxy_address,
+            &zksync_contracts::hyperchain_contract(),
+        )
+        .call(eth_client)
+        .await
 }
 
 pub async fn ensure_l1_batch_commit_data_generation_mode(
@@ -181,14 +179,7 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
 ) -> anyhow::Result<()> {
     match get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await {
         // Getters contract support getPubdataPricingMode method
-        Ok(l1_contract_pubdata_pricing_mode) => {
-            let l1_contract_batch_commitment_mode =
-                L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)
-                    .context(
-                        "Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract",
-                    )?;
-
-            // contracts mode == server mode
+        Ok(l1_contract_batch_commitment_mode) => {
             anyhow::ensure!(
                 l1_contract_batch_commitment_mode == selected_l1_batch_commit_data_generator_mode,
                 "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
@@ -201,8 +192,8 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
         // Getters contract does not support getPubdataPricingMode method.
         // This case is accepted for backwards compatibility with older contracts, but emits a
         // warning in case the wrong contract address was passed by the caller.
-        Err(EthClientError::Contract(_)) => {
-            tracing::warn!("Getters contract does not support getPubdataPricingMode method");
+        Err(err @ EthClientError::EthereumGateway(ClientError::Call(_))) => {
+            tracing::warn!("Getters contract does not support getPubdataPricingMode method: {err}");
             Ok(())
         }
         Err(err) => anyhow::bail!(err),
@@ -213,9 +204,10 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
 mod tests {
     use std::{mem, sync::Mutex};
 
-    use zksync_eth_client::clients::MockEthereum;
+    use jsonrpsee::types::ErrorObject;
+    use zksync_eth_client::{clients::MockEthereum, ClientError};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-    use zksync_types::U256;
+    use zksync_types::{ethabi, U256};
 
     use super::*;
 
@@ -266,7 +258,7 @@ mod tests {
 
     fn mock_ethereum(token: ethabi::Token, err: Option<EthClientError>) -> MockEthereum {
         let err_mutex = Mutex::new(err);
-        MockEthereum::default().with_fallible_call_handler(move |_call| {
+        MockEthereum::default().with_fallible_call_handler(move |_, _| {
             let err = mem::take(&mut *err_mutex.lock().unwrap());
             if let Some(err) = err {
                 Err(err)
@@ -277,13 +269,14 @@ mod tests {
     }
 
     fn mock_ethereum_with_legacy_contract() -> MockEthereum {
-        let err =
-            EthClientError::Contract(zksync_types::web3::contract::Error::InterfaceUnsupported);
+        let call_err = ErrorObject::owned(3, "execution reverted: F", None::<()>);
+        let err = EthClientError::EthereumGateway(ClientError::Call(call_err));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 
-    fn mock_ethereum_with_tx_error() -> MockEthereum {
-        let err = EthClientError::EthereumGateway(zksync_types::web3::Error::Unreachable);
+    fn mock_ethereum_with_transport_error() -> MockEthereum {
+        let err =
+            EthClientError::EthereumGateway(ClientError::Transport(anyhow::anyhow!("unreachable")));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 
@@ -365,14 +358,13 @@ mod tests {
         let err = ensure_l1_batch_commit_data_generation_mode(
             L1BatchCommitDataGeneratorMode::Rollup,
             addr,
-            &mock_ethereum_with_tx_error(),
+            &mock_ethereum_with_transport_error(),
         )
         .await
         .unwrap_err();
 
         assert!(
-            err.chain()
-                .any(|cause| cause.is::<zksync_types::web3::Error>()),
+            err.chain().any(|cause| cause.is::<ClientError>()),
             "{err:?}"
         );
     }
@@ -391,7 +383,7 @@ mod tests {
         .to_string();
 
         assert!(
-            err.contains("Unable to parse L1BatchCommitDataGeneratorMode"),
+            err.contains("L1BatchCommitDataGeneratorMode::from_tokens"),
             "{err}",
         );
     }
