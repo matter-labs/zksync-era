@@ -191,11 +191,11 @@ impl PruningDal<'_, '_> {
             HardPruningStats {
                 deleted_l1_batches,
                 deleted_l2_blocks,
+                deleted_storage_logs_from_past_batches,
+                deleted_storage_logs_from_pruned_batches,
                 deleted_events,
                 deleted_l2_to_l1_logs,
                 deleted_call_traces,
-                deleted_storage_logs_from_past_batches,
-                deleted_storage_logs_from_pruned_batches,
             }
         } else {
             HardPruningStats::default()
