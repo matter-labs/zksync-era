@@ -1,5 +1,4 @@
-use prover_cli::cli;
-use prover_cli::config;
+use prover_cli::{cli, config};
 
 #[tokio::main]
 async fn main() {
