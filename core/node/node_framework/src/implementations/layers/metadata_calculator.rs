@@ -149,6 +149,7 @@ impl Task for TreeApiTask {
         self.tree_reader
             .wait()
             .await
+            .context("Cannot initialize tree reader")?
             .run_api_server(self.bind_addr, stop_receiver.0)
             .await
     }
