@@ -212,13 +212,9 @@ fn display_status_for_stage(stage_info: StageInfo) {
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             );
-            println!(
-                "> {}: {}",
-                "Prover Jobs".to_owned().bold(),
-                stage_info
-                    .prover_jobs_status()
-                    .expect("Unable to check status")
-            );
+            if let Some(job_status) = stage_info.prover_jobs_status() {
+                println!("> {}: {}", "Prover Jobs".to_owned().bold(), job_status);
+            }
         }
     }
 }
