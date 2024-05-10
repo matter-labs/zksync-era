@@ -2,7 +2,10 @@
 
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
 };
 
 use assert_matches::assert_matches;
@@ -144,7 +147,10 @@ impl HandleReorgDetectorEvent for mpsc::UnboundedSender<(L2BlockNumber, L1BatchN
     }
 }
 
-fn create_mock_detector(client: MockMainNodeClient, pool: ConnectionPool<Core>) -> ReorgDetector {
+fn create_mock_detector(
+    client: impl MainNodeClient + 'static,
+    pool: ConnectionPool<Core>,
+) -> ReorgDetector {
     let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
     ReorgDetector {
         client: Box::new(client),
@@ -559,4 +565,72 @@ async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
         detector.check_consistency().await,
         Err(Error::ReorgDetected(L1BatchNumber(2)))
     );
+}
+
+#[derive(Debug)]
+struct SlowMainNode {
+    l1_batch_root_hash_call_count: Arc<AtomicUsize>,
+    delay_call_count: usize,
+    genesis_root_hash: H256,
+}
+
+impl SlowMainNode {
+    fn new(genesis_root_hash: H256, delay_call_count: usize) -> Self {
+        Self {
+            l1_batch_root_hash_call_count: Arc::default(),
+            delay_call_count,
+            genesis_root_hash,
+        }
+    }
+}
+
+#[async_trait]
+impl MainNodeClient for SlowMainNode {
+    async fn sealed_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber> {
+        Ok(L2BlockNumber(0))
+    }
+
+    async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber> {
+        Ok(L1BatchNumber(0))
+    }
+
+    async fn l2_block_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>> {
+        Ok(if number == L2BlockNumber(0) {
+            Some(L2BlockHasher::legacy_hash(L2BlockNumber(0)))
+        } else {
+            None
+        })
+    }
+
+    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> EnrichedClientResult<StateHash> {
+        if number > L1BatchNumber(0) {
+            return Ok(StateHash::MissingBatch);
+        }
+        let count = self
+            .l1_batch_root_hash_call_count
+            .fetch_add(1, Ordering::Relaxed);
+        Ok(if count >= self.delay_call_count {
+            StateHash::Some(self.genesis_root_hash)
+        } else {
+            StateHash::MissingHash
+        })
+    }
+}
+
+#[tokio::test]
+async fn detector_waits_for_state_hash_on_main_node() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+    drop(storage);
+
+    let client = SlowMainNode::new(genesis_batch.root_hash, 5);
+    let l1_batch_root_hash_call_count = client.l1_batch_root_hash_call_count.clone();
+    let mut detector = create_mock_detector(client, pool);
+    detector.check_consistency().await.unwrap();
+
+    let call_count = l1_batch_root_hash_call_count.load(Ordering::Relaxed);
+    assert!(call_count >= 5, "{call_count}");
 }
