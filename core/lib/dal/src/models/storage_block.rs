@@ -148,8 +148,6 @@ pub struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
-
-    pub da_inclusion_data: Option<Vec<u8>>,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {

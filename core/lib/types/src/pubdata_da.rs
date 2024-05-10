@@ -9,6 +9,11 @@ use zksync_config::configs::eth_sender::PubdataSendingMode;
 pub enum PubdataDA {
     Calldata = 0,
     Blobs,
+    NoDA,
+    GCS,
+    Celestia,
+    EigenDA,
+    Avail,
 }
 
 impl From<PubdataSendingMode> for PubdataDA {
@@ -16,6 +21,11 @@ impl From<PubdataSendingMode> for PubdataDA {
         match value {
             PubdataSendingMode::Calldata => PubdataDA::Calldata,
             PubdataSendingMode::Blobs => PubdataDA::Blobs,
+            PubdataSendingMode::NoDA => PubdataDA::NoDA,
+            PubdataSendingMode::GCS => PubdataDA::GCS,
+            PubdataSendingMode::Celestia => PubdataDA::Celestia,
+            PubdataSendingMode::EigenDA => PubdataDA::EigenDA,
+            PubdataSendingMode::Avail => PubdataDA::Avail,
         }
     }
 }

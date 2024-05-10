@@ -3,6 +3,8 @@ pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod contract_verification_api;
+mod da_client;
+mod da_dispatcher;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod healtcheck_server;

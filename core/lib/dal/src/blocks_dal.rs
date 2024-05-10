@@ -289,8 +289,7 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                da_inclusion_data
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1035,8 +1034,7 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                da_inclusion_data
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1220,8 +1218,7 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                da_inclusion_data
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1305,8 +1302,7 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                da_inclusion_data
+                pubdata_input
             FROM
                 (
                     SELECT
@@ -1383,8 +1379,7 @@ impl BlocksDal<'_, '_> {
                         system_logs,
                         events_queue_commitment,
                         bootloader_initial_content_commitment,
-                        pubdata_input,
-                        da_inclusion_data
+                        pubdata_input
                     FROM
                         l1_batches
                         LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1513,8 +1508,7 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     events_queue_commitment,
                     bootloader_initial_content_commitment,
-                    pubdata_input,
-                    da_inclusion_data
+                    pubdata_input
                 FROM
                     l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1582,8 +1576,7 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                da_inclusion_data
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1661,11 +1654,11 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                da_inclusion_data
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
                 JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
             WHERE
                 eth_commit_tx_id IS NULL
@@ -1679,7 +1672,8 @@ impl BlocksDal<'_, '_> {
                 )
                 AND events_queue_commitment IS NOT NULL
                 AND bootloader_initial_content_commitment IS NOT NULL
-                AND da_inclusion_data IS NOT NULL
+                AND data_availability.blob_id IS NOT NULL
+                AND data_availability.inclusion_data IS NOT NULL
             ORDER BY
                 number
             LIMIT

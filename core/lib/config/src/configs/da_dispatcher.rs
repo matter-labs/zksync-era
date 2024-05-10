@@ -1,17 +1,29 @@
-use serde::Deserialize;
+use crate::ObjectStoreConfig;
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Default)]
-pub enum ValidiumDAMode {
-    #[default]
-    NoDA,
-    Celestia,
-    EigenDA,
-    Avail,
-    GCS,
+#[derive(Clone, Debug)]
+pub struct DALayerInfo {
+    pub url: String,
+    pub private_key: Vec<u8>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug)]
+pub enum DACredentials {
+    DALayer(DALayerInfo),
+    GCS(ObjectStoreConfig),
+}
+
+#[derive(Debug, Clone)]
 pub struct DADispatcherConfig {
-    pub mode: ValidiumDAMode,
-    pub da_api_url: String,
+    pub credentials: DACredentials,
+}
+
+impl DADispatcherConfig {
+    pub fn for_tests() -> Self {
+        Self {
+            credentials: DACredentials::DALayer(DALayerInfo {
+                url: "http://localhost:1234".to_string(),
+                private_key: vec![1, 2, 3],
+            }),
+        }
+    }
 }

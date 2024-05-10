@@ -655,9 +655,7 @@ pub async fn initialize_components(
                     Arc::new(RollupModeL1BatchCommitDataGenerator {})
                 }
                 L1BatchCommitDataGeneratorMode::Validium => {
-                    Arc::new(ValidiumModeL1BatchCommitDataGenerator {
-                        validium_da_mode: configs.da_dispatcher_config?.mode,
-                    })
+                    Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
                 }
             };
 

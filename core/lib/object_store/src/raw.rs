@@ -189,7 +189,7 @@ impl ObjectStoreFactory {
         }
     }
 
-    async fn create_from_config(config: &ObjectStoreConfig) -> Arc<dyn ObjectStore> {
+    pub async fn create_from_config(config: &ObjectStoreConfig) -> Arc<dyn ObjectStore> {
         match &config.mode {
             ObjectStoreMode::GCS { bucket_base_url } => {
                 tracing::trace!(

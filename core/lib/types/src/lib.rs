@@ -49,7 +49,6 @@ pub mod vm_trace;
 pub mod zk_evm_types;
 
 pub mod api;
-pub mod data_availability;
 pub mod eth_sender;
 pub mod helpers;
 pub mod proto;

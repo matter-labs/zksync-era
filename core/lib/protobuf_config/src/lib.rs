@@ -10,6 +10,7 @@ mod circuit_breaker;
 mod consensus;
 mod contract_verifier;
 mod contracts;
+mod da_dispatcher;
 mod database;
 mod eth;
 mod experimental;

@@ -16,7 +16,6 @@ members = [
     "core/node/block_reverter",
     "core/node/commitment_generator",
     "core/node/house_keeper",
-    "core/node/da_dispatcher",
     "core/node/genesis",
     "core/node/shared_metrics",
     "core/node/db_pruner",
@@ -36,6 +35,7 @@ members = [
     "core/lib/dal",
     "core/lib/env_config",
     "core/lib/eth_client",
+    "core/lib/da_client",
     "core/lib/eth_signer",
     "core/lib/l1_contract_interface",
     "core/lib/mempool",
@@ -208,6 +208,7 @@ zksync_dal = { path = "core/lib/dal" }
 zksync_db_connection = { path = "core/lib/db_connection" }
 zksync_env_config = { path = "core/lib/env_config" }
 zksync_eth_client = { path = "core/lib/eth_client" }
+zksync_da_client = { path = "core/lib/da_client" }
 zksync_eth_signer = { path = "core/lib/eth_signer" }
 zksync_health_check = { path = "core/lib/health_check" }
 zksync_l1_contract_interface = { path = "core/lib/l1_contract_interface" }

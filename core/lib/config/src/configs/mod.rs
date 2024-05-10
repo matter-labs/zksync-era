@@ -3,7 +3,6 @@ pub use self::{
     api::ApiConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, EcosystemContracts},
-    da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
     eth_sender::{EthConfig, GasAdjusterConfig},
     eth_watch::EthWatchConfig,

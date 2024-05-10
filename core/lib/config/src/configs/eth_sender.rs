@@ -84,6 +84,11 @@ pub enum PubdataSendingMode {
     #[default]
     Calldata,
     Blobs,
+    NoDA,
+    GCS,
+    Celestia,
+    EigenDA,
+    Avail,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -120,7 +125,7 @@ pub struct SenderConfig {
     /// The mode in which proofs are loaded, either from DB/GCS for FRI/Old proof.
     pub proof_loading_mode: ProofLoadingMode,
 
-    /// The mode in which we send pubdata, either Calldata or Blobs
+    /// The mode in which we send pubdata
     pub pubdata_sending_mode: PubdataSendingMode,
 }
 
