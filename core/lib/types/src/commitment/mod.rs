@@ -357,7 +357,7 @@ impl L1BatchAuxiliaryOutput {
                 let state_diffs_compressed = compress_state_diffs(state_diffs);
 
                 let blob_linear_hashes =
-                    parse_system_logs_for_blob_hashes(&common_input.protocol_version, &system_logs);
+                    vec![H256::zero(); num_blobs_required(&common_input.protocol_version)];
 
                 // Sanity checks. System logs are empty for the genesis batch, so we can't do checks for it.
                 if !system_logs.is_empty() {
