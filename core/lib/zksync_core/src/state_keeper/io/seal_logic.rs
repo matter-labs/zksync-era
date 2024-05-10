@@ -24,7 +24,7 @@ use zksync_types::{
     utils::display_timestamp,
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, Transaction, VmEvent, H256, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
+    StorageLog, Transaction, VmEvent, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -101,11 +101,6 @@ impl UpdatesManager {
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let l2_to_l1_messages =
             extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
-        let mut system_logs = finished_batch.final_execution_state.system_logs.clone();
-        system_logs
-            .iter_mut()
-            .filter(|log| log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS)
-            .for_each(|log| log.0.value = H256::default());
         let l1_batch = L1BatchHeader {
             number: self.l1_batch.number,
             timestamp: self.batch_timestamp(),
@@ -124,7 +119,7 @@ impl UpdatesManager {
                 .clone(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
-            system_logs,
+            system_logs: finished_batch.final_execution_state.system_logs.clone(),
             pubdata_input: finished_batch.pubdata_input.clone(),
         };
 

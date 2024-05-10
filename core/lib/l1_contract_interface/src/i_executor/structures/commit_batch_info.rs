@@ -3,7 +3,7 @@ use zksync_types::{
     ethabi::Token,
     pubdata_da::PubdataDA,
     web3::contract::Error as ContractError,
-    ProtocolVersionId, H256, PUBDATA_CHUNK_PUBLISHER_ADDRESS, U256,
+    ProtocolVersionId, U256,
 };
 
 use crate::{
@@ -307,11 +307,6 @@ impl<'a> CommitBatchInfoValidium<'a> {
                 ),
             ]
         } else {
-            let mut system_logs = self.l1_batch_with_metadata.header.system_logs.clone();
-            system_logs
-                .iter_mut()
-                .filter(|log| log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS)
-                .for_each(|log| log.0.value = H256::default());
             vec![
                 // `batchNumber`
                 Token::Uint(U256::from(self.l1_batch_with_metadata.header.number.0)),
@@ -358,7 +353,9 @@ impl<'a> CommitBatchInfoValidium<'a> {
                         .to_vec(),
                 ),
                 // `systemLogs`
-                Token::Bytes(serialize_commitments(&system_logs)),
+                Token::Bytes(serialize_commitments(
+                    &self.l1_batch_with_metadata.header.system_logs,
+                )),
             ]
         }
     }
