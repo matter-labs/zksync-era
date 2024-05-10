@@ -377,7 +377,7 @@ pub struct ProofCompressionJobInfo {
 // This function corrects circuit IDs for the node witness generator.
 //
 // - Circuit IDs in the node witness generator are 2 higher than in other rounds.
-// - The EIP4844Repack circuit (ID 255) is an exception and is set to 18.
+// - The `EIP4844Repack` circuit (ID 255) is an exception and is set to 18.
 pub fn correct_circuit_id(circuit_id: i16, aggregation_round: AggregationRound) -> u32 {
     match (circuit_id, aggregation_round) {
         (18, AggregationRound::NodeAggregation) => 255,
