@@ -3,4 +3,5 @@ pub(crate) mod get_file_info;
 pub(crate) mod restart;
 pub(crate) mod status;
 
+pub(crate) use restart::RestartCommand;
 pub(crate) use status::StatusCommand;

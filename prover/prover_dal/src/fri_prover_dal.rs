@@ -754,6 +754,27 @@ impl FriProverDal<'_, '_> {
             .await
     }
 
+    pub async fn delete_batch_data_for_aggregation_round(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        aggregation_round: AggregationRound,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND aggregation_round = $2;
+
+            "#,
+            i64::from(l1_batch_number.0),
+            aggregation_round as i16
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
     pub async fn delete_prover_jobs_fri(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!("DELETE FROM prover_jobs_fri")
             .execute(self.storage.conn())
