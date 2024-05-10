@@ -1,5 +1,6 @@
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
+use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 use zksync_types::{
     api::en::SyncBlock, block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms,
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
@@ -9,12 +10,11 @@ use super::{
     metrics::{L1BatchStage, FETCHER_METRICS},
     sync_action::SyncAction,
 };
-use crate::state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 
 /// Same as [`zksync_types::Transaction`], just with additional guarantees that the "received at" timestamp was set locally.
 /// We cannot transfer `Transaction`s without these timestamps, because this would break backward compatibility.
 #[derive(Debug, Clone)]
-pub(crate) struct FetchedTransaction(zksync_types::Transaction);
+pub struct FetchedTransaction(zksync_types::Transaction);
 
 impl FetchedTransaction {
     pub fn new(mut tx: zksync_types::Transaction) -> Self {
@@ -38,7 +38,7 @@ impl From<FetchedTransaction> for zksync_types::Transaction {
 
 /// Common denominator for blocks fetched by an external node.
 #[derive(Debug)]
-pub(crate) struct FetchedBlock {
+pub struct FetchedBlock {
     pub number: L2BlockNumber,
     pub l1_batch_number: L1BatchNumber,
     pub last_in_batch: bool,
@@ -97,9 +97,20 @@ impl TryFrom<SyncBlock> for FetchedBlock {
     }
 }
 
-impl IoCursor {
+/// Helper method for `IoCursor` for needs of sync layer.
+#[async_trait::async_trait]
+pub trait IoCursorExt: Sized {
     /// Loads this cursor from storage and modifies it to account for the pending L1 batch if necessary.
-    pub(crate) async fn for_fetcher(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+    async fn for_fetcher(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self>;
+
+    /// Advances the cursor according to the provided fetched block and returns a sequence of `SyncAction`
+    /// objects to process.
+    fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction>;
+}
+
+#[async_trait::async_trait]
+impl IoCursorExt for IoCursor {
+    async fn for_fetcher(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let mut this = Self::new(storage).await?;
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
         // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
@@ -110,7 +121,7 @@ impl IoCursor {
         Ok(this)
     }
 
-    pub(crate) fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
+    fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
         assert_eq!(block.number, self.next_l2_block);
         let local_block_hash = block.compute_hash(self.prev_l2_block_hash);
         if let Some(reference_hash) = block.reference_hash {

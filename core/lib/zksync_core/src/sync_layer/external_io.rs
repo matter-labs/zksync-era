@@ -5,6 +5,15 @@ use async_trait::async_trait;
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_state_keeper::{
+    io::{
+        common::{load_pending_batch, IoCursor},
+        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
+    },
+    metrics::KEEPER_METRICS,
+    seal_criteria::IoSealCriteria,
+    updates::UpdatesManager,
+};
 use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, Transaction, H256,
@@ -14,15 +23,6 @@ use zksync_utils::bytes_to_be_words;
 use super::{
     client::MainNodeClient,
     sync_action::{ActionQueue, SyncAction},
-};
-use crate::state_keeper::{
-    io::{
-        common::{load_pending_batch, IoCursor},
-        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
-    },
-    metrics::KEEPER_METRICS,
-    seal_criteria::IoSealCriteria,
-    updates::UpdatesManager,
 };
 
 /// ExternalIO is the IO abstraction for the state keeper that is used in the external node.

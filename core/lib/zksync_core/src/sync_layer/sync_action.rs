@@ -1,8 +1,8 @@
 use tokio::sync::mpsc;
+use zksync_state_keeper::io::{L1BatchParams, L2BlockParams};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::{fetcher::FetchedTransaction, metrics::QUEUE_METRICS};
-use crate::state_keeper::io::{L1BatchParams, L2BlockParams};
 
 #[derive(Debug)]
 pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
@@ -136,7 +136,7 @@ impl ActionQueue {
 
 /// An instruction for the ExternalIO to request a certain action from the state keeper.
 #[derive(Debug, Clone)]
-pub(crate) enum SyncAction {
+pub enum SyncAction {
     OpenBatch {
         params: L1BatchParams,
         // Additional parameters used only for sanity checks

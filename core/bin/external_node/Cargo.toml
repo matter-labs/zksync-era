@@ -36,6 +36,7 @@ zksync_node_genesis.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_node_db_pruner.workspace = true
 zksync_eth_sender.workspace = true
+zksync_state_keeper.workspace = true
 vlog.workspace = true
 
 zksync_concurrency.workspace = true

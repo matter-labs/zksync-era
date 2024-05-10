@@ -30,10 +30,6 @@ use zksync_core::{
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector::{self, ReorgDetector},
     setup_sigint_handler,
-    state_keeper::{
-        seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
-        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
-    },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
@@ -52,6 +48,10 @@ use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
+use zksync_state_keeper::{
+    seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
+    StateKeeperPersistence, ZkSyncStateKeeper,
+};
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;

@@ -8,17 +8,15 @@ use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_dal::{consensus_dal::Payload, ConnectionPool, Core, CoreDal, DalError};
+use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::L2BlockNumber;
 
 #[cfg(test)]
 mod testonly;
 
-use crate::{
-    state_keeper::io::common::IoCursor,
-    sync_layer::{
-        fetcher::{FetchedBlock, FetchedTransaction},
-        sync_action::ActionQueueSender,
-    },
+use crate::sync_layer::{
+    fetcher::{FetchedBlock, FetchedTransaction, IoCursorExt as _},
+    sync_action::ActionQueueSender,
 };
 
 /// Context-aware `zksync_dal::Connection<Core>` wrapper.

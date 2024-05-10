@@ -34,6 +34,7 @@ zksync_commitment_generator.workspace = true
 zksync_house_keeper.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_eth_sender.workspace = true
+zksync_state_keeper.workspace = true
 
 tracing.workspace = true
 thiserror.workspace = true

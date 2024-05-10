@@ -19,6 +19,7 @@ use zksync_dal::{
 };
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_state::PostgresStorageCaches;
+use zksync_state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData};
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
@@ -33,16 +34,12 @@ use zksync_utils::h256_to_u256;
 
 pub(super) use self::result::SubmitTxError;
 use self::tx_sink::TxSink;
-use crate::{
-    api_server::{
-        execution_sandbox::{
-            BlockArgs, SubmitTxStage, TransactionExecutor, TxExecutionArgs, TxSharedArgs,
-            VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
-        },
-        tx_sender::result::ApiCallResult,
+use crate::api_server::{
+    execution_sandbox::{
+        BlockArgs, SubmitTxStage, TransactionExecutor, TxExecutionArgs, TxSharedArgs,
+        VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
     },
-    state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
-    utils::pending_protocol_version,
+    tx_sender::result::ApiCallResult,
 };
 
 pub mod master_pool_sink;
@@ -320,7 +317,7 @@ impl TxSender {
         let tx_hash = tx.hash();
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
         let mut connection = self.acquire_replica_connection().await?;
-        let protocol_version = pending_protocol_version(&mut connection).await?;
+        let protocol_version = connection.blocks_dal().pending_protocol_version().await?;
         drop(connection);
         self.validate_tx(&tx, protocol_version).await?;
         stage_latency.observe();
@@ -697,7 +694,9 @@ impl TxSender {
 
         let mut connection = self.acquire_replica_connection().await?;
         let block_args = BlockArgs::pending(&mut connection).await?;
-        let protocol_version = pending_protocol_version(&mut connection)
+        let protocol_version = connection
+            .blocks_dal()
+            .pending_protocol_version()
             .await
             .context("failed getting pending protocol version")?;
         let max_gas_limit = get_max_batch_gas_limit(protocol_version.into());
@@ -951,7 +950,9 @@ impl TxSender {
 
     pub async fn gas_price(&self) -> anyhow::Result<u64> {
         let mut connection = self.acquire_replica_connection().await?;
-        let protocol_version = pending_protocol_version(&mut connection)
+        let protocol_version = connection
+            .blocks_dal()
+            .pending_protocol_version()
             .await
             .context("failed obtaining pending protocol version")?;
         drop(connection);

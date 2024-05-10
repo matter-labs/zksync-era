@@ -11,6 +11,12 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{CoreDal, DalError};
 use zksync_node_genesis::{mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch_metadata, create_l2_transaction};
+use zksync_state_keeper::{
+    io::{IoCursor, L1BatchParams, L2BlockParams},
+    seal_criteria::NoopSealer,
+    testonly::MockBatchExecutor,
+    OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
+};
 use zksync_types::{
     api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, H256,
@@ -23,14 +29,8 @@ use zksync_web3_decl::{
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    state_keeper::{
-        io::{IoCursor, L1BatchParams, L2BlockParams},
-        seal_criteria::NoopSealer,
-        tests::MockBatchExecutor,
-        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
-    },
     sync_layer::{
-        fetcher::FetchedTransaction,
+        fetcher::{FetchedTransaction, IoCursorExt as _},
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },

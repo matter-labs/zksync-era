@@ -10,6 +10,12 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot,
 };
+use zksync_state_keeper::{
+    io::{L1BatchParams, L2BlockParams},
+    seal_criteria::NoopSealer,
+    testonly::test_batch_executor::TestBatchExecutorBuilder,
+    OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
+};
 use zksync_types::{
     api,
     block::L2BlockHasher,
@@ -19,15 +25,7 @@ use zksync_types::{
 };
 
 use super::{fetcher::FetchedTransaction, sync_action::SyncAction, *};
-use crate::{
-    consensus::testonly::MockMainNodeClient,
-    state_keeper::{
-        io::{L1BatchParams, L2BlockParams},
-        seal_criteria::NoopSealer,
-        tests::TestBatchExecutorBuilder,
-        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
-    },
-};
+use crate::consensus::testonly::MockMainNodeClient;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);

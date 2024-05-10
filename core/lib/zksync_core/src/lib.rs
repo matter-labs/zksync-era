@@ -78,6 +78,10 @@ use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
+use zksync_state_keeper::{
+    create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
+    SequencerSealer, StateKeeperPersistence,
+};
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 
 use crate::{
@@ -90,10 +94,6 @@ use crate::{
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
-    state_keeper::{
-        create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
-        SequencerSealer, StateKeeperPersistence,
-    },
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
 
@@ -103,7 +103,6 @@ pub mod consistency_checker;
 pub mod metadata_calculator;
 pub mod proto;
 pub mod reorg_detector;
-pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
 pub mod utils;
