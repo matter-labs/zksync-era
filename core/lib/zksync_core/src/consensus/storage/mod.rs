@@ -1,5 +1,4 @@
 //! Storage implementation based on DAL.
-
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -11,16 +10,17 @@ use zksync_dal::{consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_types::L2BlockNumber;
 use super::config;
 
-#[cfg(test)]
-mod testonly;
-
 use crate::{
     state_keeper::io::common::IoCursor,
     sync_layer::{
         fetcher::{FetchedBlock, FetchedTransaction},
         sync_action::ActionQueueSender,
+        SyncState,
     },
 };
+
+#[cfg(test)]
+mod testonly;
 
 /// Context-aware `zksync_dal::ConnectionPool<Core>` wrapper.
 #[derive(Debug, Clone)]
@@ -173,10 +173,12 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         actions: ActionQueueSender,
+        sync_state: SyncState,
     ) -> ctx::Result<PayloadQueue> {
         Ok(PayloadQueue {
             inner: ctx.wait(IoCursor::for_fetcher(&mut self.0)).await??,
             actions,
+            sync_state,
         })
     }
 
@@ -308,6 +310,7 @@ impl<'a> Connection<'a> {
 pub(super) struct PayloadQueue {
     inner: IoCursor,
     actions: ActionQueueSender,
+    sync_state: SyncState,
 }
 
 impl PayloadQueue {
@@ -557,19 +560,26 @@ impl PayloadManager for Store {
     ) -> ctx::Result<()> {
         let mut payloads = sync::lock(ctx, &self.payloads).await?.into_async();
         if let Some(payloads) = &mut *payloads {
+            let block = to_fetched_block(block_number, &payload).context("to_fetched_block")?;
+            let n = block.number;
             payloads
-                .send(to_fetched_block(block_number, &payload).context("to_fetched_block")?)
+                .send(block)
                 .await
                 .context("payload_queue.send()")?;
-        }
-        // TODO: this is too inefficient - instead wait for the block to get processed,
-        // but not necessarily stored.
-        let want = self.pool.wait_for_payload(ctx, block_number).await?;
-        let got = Payload::decode(payload).context("Payload::decode(got)")?;
-        if got != want {
-            return Err(
-                anyhow::format_err!("unexpected payload: got {got:?} want {want:?}").into(),
-            );
+            // Wait for the block to be processed, without waiting for it to be stored.
+            // TODO: this is not ideal, because we don't check here whether the
+            // processed block is the same as `payload`. It will work correctly
+            // with the current implementation of EN, but we should make it more
+            // precise when block reverting support is implemented.
+            ctx.wait(payloads.sync_state.wait_for_local_block(n)).await?;
+        } else {
+            let want = self.pool.wait_for_payload(ctx, block_number).await?;
+            let got = Payload::decode(payload).context("Payload::decode(got)")?;
+            if got != want {
+                return Err(
+                    anyhow::format_err!("unexpected payload: got {got:?} want {want:?}").into(),
+                );
+            }
         }
         Ok(())
     }

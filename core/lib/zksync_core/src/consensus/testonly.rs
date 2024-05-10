@@ -160,6 +160,7 @@ pub(super) struct StateKeeper {
     gas_per_pubdata: u64,
 
     actions_sender: ActionQueueSender,
+    sync_state: SyncState,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
     pool: ConnectionPool,
 }
@@ -209,6 +210,7 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
 /// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
+    sync_state: SyncState,
     pool: ConnectionPool,
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
 }
@@ -231,6 +233,7 @@ impl StateKeeper {
             .context("pending_batch_exists()")?;
         let (actions_sender, actions_queue) = ActionQueue::new();
         let addr = sync::watch::channel(None).0;
+        let sync_state = SyncState::default();
         Ok((
             Self {
                 last_batch: cursor.l1_batch,
@@ -240,11 +243,13 @@ impl StateKeeper {
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
                 actions_sender,
+                sync_state: sync_state.clone(),
                 addr: addr.subscribe(),
                 pool: pool.clone(),
             },
             StateKeeperRunner {
                 actions_queue,
+                sync_state,
                 pool: pool.clone(),
                 addr,
             },
@@ -353,7 +358,7 @@ impl StateKeeper {
         en::EN {
             pool: self.pool,
             client,
-            sync_state: SyncState::default(),
+            sync_state: self.sync_state.clone(),
         }
         .run_fetcher(ctx, self.actions_sender)
         .await
@@ -370,7 +375,7 @@ impl StateKeeper {
         en::EN {
             pool: self.pool,
             client,
-            sync_state: SyncState::default(),
+            sync_state: self.sync_state.clone(),
         }
         .run(ctx, self.actions_sender, cfg, secrets)
         .await
@@ -448,7 +453,8 @@ impl StateKeeperRunner {
                         stop_recv,
                         Box::new(io),
                         Box::new(MockBatchExecutor),
-                        OutputHandler::new(Box::new(persistence.with_tx_insertion())),
+                        OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+                            .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
                     )
                     .run()

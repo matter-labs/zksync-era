@@ -40,7 +40,6 @@ impl SyncState {
         self.0.borrow().local_block.unwrap_or_default()
     }
 
-    #[cfg(test)]
     pub(crate) async fn wait_for_local_block(&self, want: L2BlockNumber) {
         self.0
             .subscribe()

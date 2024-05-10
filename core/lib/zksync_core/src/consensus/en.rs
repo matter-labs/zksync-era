@@ -45,7 +45,7 @@ impl EN {
                 .await
                 .wrap("set_genesis()")?;
             let mut payload_queue = conn
-                .new_payload_queue(ctx, actions)
+                .new_payload_queue(ctx, actions, self.sync_state.clone())
                 .await
                 .wrap("new_payload_queue()")?;
             drop(conn);
@@ -114,7 +114,7 @@ impl EN {
                 .connection(ctx)
                 .await
                 .wrap("connection()")?
-                .new_payload_queue(ctx, actions)
+                .new_payload_queue(ctx, actions, self.sync_state.clone())
                 .await
                 .wrap("new_fetcher_cursor()")?;
             self.fetch_blocks(ctx, &mut payload_queue, None).await
