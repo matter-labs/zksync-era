@@ -16,7 +16,7 @@ impl StatusCommand {
     pub(crate) async fn run(self, config: ProverCLIConfig) -> anyhow::Result<()> {
         match self {
             StatusCommand::Batch(args) => batch::run(args, config).await,
-            StatusCommand::L1 => l1::run().await,
+            StatusCommand::L1 => l1::run(config).await,
         }
     }
 }

@@ -3,9 +3,9 @@ use clap::Args as ClapArgs;
 use prover_dal::{
     fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
 };
-use zksync_config::PostgresConfig;
-use zksync_env_config::FromEnv;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
+
+use crate::cli::ProverCLIConfig;
 
 #[derive(ClapArgs)]
 pub(crate) struct Args {
@@ -22,9 +22,8 @@ pub(crate) struct Args {
     prover_job: Option<u32>,
 }
 
-pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
-    let config = PostgresConfig::from_env()?;
-    let prover_connection_pool = ConnectionPool::<Prover>::singleton(config.prover_url()?)
+pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
+    let prover_connection_pool = ConnectionPool::<Prover>::singleton(config.db_url)
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;

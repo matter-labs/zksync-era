@@ -9,7 +9,9 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_eth_client::{clients::QueryClient, CallFunctionArgs};
 
-pub(crate) async fn run() -> anyhow::Result<()> {
+use crate::cli::ProverCLIConfig;
+
+pub(crate) async fn run(_config: ProverCLIConfig) -> anyhow::Result<()> {
     println!(" ====== L1 Status ====== ");
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env")?;
     let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
