@@ -1495,7 +1495,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| NodeWitnessGeneratorJobInfo {
             id: row.id as u32,
             l1_batch_number,
-            circuit_id: row.circuit_id as u32,
+            // The circuit ID in the node witness generator is 2 higher than it should be.
+            circuit_id: row.circuit_id as u32 - 2,
             depth: row.depth as u32,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             attempts: row.attempts as u32,

@@ -668,7 +668,12 @@ impl FriProverDal<'_, '_> {
         .map(|row| ProverJobFriInfo {
             id: row.id as u32,
             l1_batch_number,
-            circuit_id: row.circuit_id as u32,
+            // The circuit ID in the node witness generator is 2 higher than it should be.
+            circuit_id: if matches!(aggregation_round, AggregationRound::NodeAggregation) {
+                row.circuit_id as u32 - 2
+            } else {
+                row.circuit_id as u32
+            },
             circuit_blob_url: row.circuit_blob_url.clone(),
             aggregation_round,
             sequence_number: row.sequence_number as u32,
