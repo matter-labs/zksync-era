@@ -1,6 +1,5 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use crate::blob_processor::BlobProcessor;
 use anyhow::Context as _;
 use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
@@ -9,7 +8,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 
-use crate::request_processor::RequestProcessor;
+use crate::{blob_processor::BlobProcessor, request_processor::RequestProcessor};
 
 pub mod blob_processor;
 mod request_processor;
