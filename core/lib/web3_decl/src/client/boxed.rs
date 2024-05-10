@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 use super::{ForNetwork, Network, TaggedClient};
 
 #[derive(Debug)]
-pub struct RawParams(Option<Box<JsonRawValue>>);
+pub struct RawParams(pub(super) Option<Box<JsonRawValue>>);
 
 impl RawParams {
     fn new(params: impl ToRpcParams) -> Result<Self, serde_json::Error> {
@@ -189,6 +189,8 @@ impl<Net: Network> ClientT for Box<DynClient<Net>> {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::U64;
+
     use super::*;
     use crate::{
         client::{MockClient, L2},
@@ -197,11 +199,9 @@ mod tests {
 
     #[tokio::test]
     async fn boxing_mock_client() {
-        let client = MockClient::new(|method, params| {
-            assert_eq!(method, "eth_blockNumber");
-            assert_eq!(params, serde_json::Value::Null);
-            Ok(serde_json::json!("0x42"))
-        });
+        let client = MockClient::builder(L2::default())
+            .method("eth_blockNumber", || Ok(U64::from(0x42)))
+            .build();
         let client = Box::new(client) as Box<DynClient<L2>>;
 
         let block_number = client.get_block_number().await.unwrap();
@@ -212,11 +212,9 @@ mod tests {
 
     #[tokio::test]
     async fn client_can_be_cloned() {
-        let client = MockClient::new(|method, params| {
-            assert_eq!(method, "eth_blockNumber");
-            assert_eq!(params, serde_json::Value::Null);
-            Ok(serde_json::json!("0x42"))
-        });
+        let client = MockClient::builder(L2::default())
+            .method("eth_blockNumber", || Ok(U64::from(0x42)))
+            .build();
         let client = Box::new(client) as Box<DynClient<L2>>;
 
         let cloned_client = client.clone();

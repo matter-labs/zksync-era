@@ -226,11 +226,10 @@ mod tests {
 
     #[tokio::test]
     async fn validating_chain_ids_errors() {
-        let main_node_client = MockClient::<L2>::new(|method, _| match method {
-            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
-            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(3))),
-            _ => panic!("unexpected L2 call: {method}"),
-        });
+        let main_node_client = MockClient::builder(L2::default())
+            .method("eth_chainId", || Ok(U64::from(270)))
+            .method("zks_L1ChainId", || Ok(U64::from(3)))
+            .build();
 
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(3), // << mismatch with the Ethereum client
@@ -265,11 +264,10 @@ mod tests {
             "{err}"
         );
 
-        let main_node_client = MockClient::<L2>::new(|method, _| match method {
-            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
-            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(9))),
-            _ => panic!("unexpected L2 call: {method}"),
-        });
+        let main_node_client = MockClient::builder(L2::default())
+            .method("eth_chainId", || Ok(U64::from(270)))
+            .method("zks_L1ChainId", || Ok(U64::from(9)))
+            .build();
 
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(9),
@@ -290,11 +288,10 @@ mod tests {
 
     #[tokio::test]
     async fn validating_chain_ids_success() {
-        let main_node_client = MockClient::<L2>::new(|method, _| match method {
-            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
-            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(9))),
-            _ => panic!("unexpected L2 call: {method}"),
-        });
+        let main_node_client = MockClient::builder(L2::default())
+            .method("eth_chainId", || Ok(U64::from(270)))
+            .method("zks_L1ChainId", || Ok(U64::from(9)))
+            .build();
 
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(9),
