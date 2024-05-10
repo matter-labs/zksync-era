@@ -1,7 +1,7 @@
 use clap::{command, Args, Parser, Subcommand};
 use zksync_types::url::SensitiveUrl;
 
-use crate::commands::{self, delete, get_file_info, restart};
+use crate::commands::{self, delete, get_file_info, requeue, restart};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -33,6 +33,7 @@ enum ProverCommand {
     #[command(subcommand)]
     Status(commands::StatusCommand),
     Restart(restart::Args),
+    Requeue(requeue::Args),
 }
 
 pub async fn start() -> anyhow::Result<()> {
@@ -42,6 +43,7 @@ pub async fn start() -> anyhow::Result<()> {
         ProverCommand::Delete(args) => delete::run(args).await?,
         ProverCommand::Status(cmd) => cmd.run(config).await?,
         ProverCommand::Restart(args) => restart::run(args).await?,
+        ProverCommand::Requeue(args) => requeue::run(args).await?,
     };
 
     Ok(())
