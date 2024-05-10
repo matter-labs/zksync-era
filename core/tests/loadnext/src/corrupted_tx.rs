@@ -1,7 +1,5 @@
 use async_trait::async_trait;
-use zksync_eth_signer::{
-    error::SignerError, raw_ethereum_tx::TransactionParameters, EthereumSigner,
-};
+use zksync_eth_signer::{EthereumSigner, SignerError, TransactionParameters};
 use zksync_types::{
     fee::Fee, l2::L2Tx, Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature,
 };

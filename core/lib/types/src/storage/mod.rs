@@ -2,12 +2,11 @@ use core::fmt::Debug;
 
 use blake2::{Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{web3::signing::keccak256, L2ChainId};
+use zksync_basic_types::{web3::keccak256, L2ChainId};
 
 use crate::{AccountTreeId, Address, H160, H256, U256};
 
 pub mod log;
-pub mod witness_block_state;
 pub mod writes;
 
 pub use log::*;

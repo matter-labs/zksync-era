@@ -9,10 +9,11 @@ use zksync_consensus_roles::{
     validator,
     validator::testonly::{Setup, SetupSpec},
 };
+use zksync_consensus_roles::validator::testonly::{Setup, SetupSpec};
+use zksync_node_test_utils::Snapshot;
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::*;
-use crate::utils::testonly::Snapshot;
 
 async fn new_pool(from_snapshot: bool) -> ConnectionPool {
     match from_snapshot {

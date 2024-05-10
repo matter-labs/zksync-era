@@ -27,7 +27,6 @@ mod storage_factory;
 mod storage_view;
 #[cfg(test)]
 mod test_utils;
-mod witness;
 
 pub use self::{
     cache::sequential_cache::SequentialCache,
@@ -42,7 +41,6 @@ pub use self::{
     shadow_storage::ShadowStorage,
     storage_factory::{BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbWithMemory},
     storage_view::{StorageView, StorageViewMetrics},
-    witness::WitnessStorage,
 };
 
 /// Functionality to read from the VM storage.

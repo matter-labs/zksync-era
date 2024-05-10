@@ -11,7 +11,6 @@ pub struct ObservabilityConfig {
     /// Format of the logs as expected by the `vlog` crate.
     /// Currently must be either `plain` or `json`.
     pub log_format: String,
-    pub sporadic_crypto_errors_substrs: Vec<String>,
     // Log directives in format that is used in `RUST_LOG`
     pub log_directives: Option<String>,
 }

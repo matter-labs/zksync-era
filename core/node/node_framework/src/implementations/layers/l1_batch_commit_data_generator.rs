@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
-use zksync_core::eth_sender::l1_batch_commit_data_generator::{
+use zksync_eth_sender::l1_batch_commit_data_generator::{
     L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
     ValidiumModeL1BatchCommitDataGenerator,
 };
