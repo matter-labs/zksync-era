@@ -1,6 +1,6 @@
 use std::fmt;
 
-use zksync_types::{commitment::CommitmentInput, H256};
+use zksync_types::{commitment::CommitmentInput, H256, PUBDATA_CHUNK_PUBLISHER_ADDRESS};
 
 #[derive(Debug)]
 pub struct ValidiumInputGenerator;
@@ -24,13 +24,20 @@ impl InputGenerator for ValidiumInputGenerator {
                 state_diffs,
                 aux_commitments,
                 blob_commitments,
-            } => CommitmentInput::PostBoojum {
-                common,
-                system_logs,
-                state_diffs,
-                aux_commitments,
-                blob_commitments: vec![H256::zero(); blob_commitments.len()],
-            },
+            } => {
+                let mut system_logs = system_logs.clone();
+                system_logs
+                    .iter_mut()
+                    .filter(|log| log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS)
+                    .for_each(|log| log.0.value = H256::default());
+                CommitmentInput::PostBoojum {
+                    common,
+                    system_logs,
+                    state_diffs,
+                    aux_commitments,
+                    blob_commitments: vec![H256::zero(); blob_commitments.len()],
+                }
+            }
             _ => input,
         }
     }
