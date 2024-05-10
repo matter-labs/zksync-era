@@ -6,7 +6,6 @@ use zksync_core::{
     sync_layer::{ActionQueueSender, SyncState},
 };
 use zksync_dal::{ConnectionPool, Core};
-use zksync_types::L2ChainId;
 use zksync_web3_decl::client::BoxedL2Client;
 
 use crate::{
@@ -32,7 +31,6 @@ pub struct ConsensusLayer {
     pub mode: Mode,
     pub config: Option<ConsensusConfig>,
     pub secrets: Option<ConsensusSecrets>,
-    pub chain_id: L2ChainId,
 }
 
 #[async_trait::async_trait]
@@ -60,7 +58,6 @@ impl WiringLayer for ConsensusLayer {
                     config,
                     secrets,
                     pool,
-                    chain_id: self.chain_id,
                 };
                 context.add_task(Box::new(task));
             }
@@ -110,7 +107,6 @@ impl WiringLayer for ConsensusLayer {
 pub struct MainNodeConsensusTask {
     config: ConsensusConfig,
     secrets: ConsensusSecrets,
-    chain_id: L2ChainId,
     pool: ConnectionPool<Core>,
 }
 
@@ -134,7 +130,6 @@ impl Task for MainNodeConsensusTask {
                 self.config,
                 self.secrets,
                 self.pool,
-                self.chain_id,
             ));
             let _ = stop_receiver.0.wait_for(|stop| *stop).await?;
             Ok(())
@@ -167,7 +162,7 @@ impl Task for FetcherTask {
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async {
-            s.spawn_bg(zksync_core::consensus::era::run_fetcher(
+            s.spawn_bg(zksync_core::consensus::era::run_en(
                 &root_ctx,
                 self.config,
                 self.pool,

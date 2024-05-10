@@ -9,7 +9,6 @@ use zksync_consensus_roles::{
     validator,
     validator::testonly::{Setup, SetupSpec},
 };
-use zksync_consensus_roles::validator::testonly::{Setup, SetupSpec};
 use zksync_node_test_utils::Snapshot;
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 

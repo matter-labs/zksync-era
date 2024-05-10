@@ -153,7 +153,7 @@ impl ConsensusDal<'_, '_> {
             fork_number: old.fork_number.next(),
             first_block,
 
-            protocol_version: validator::ProtocolVersion::CURRENT,
+            protocol_version: old.protocol_version,
             committee: old.committee.clone(),
             leader_selection: old.leader_selection.clone(),
         }
