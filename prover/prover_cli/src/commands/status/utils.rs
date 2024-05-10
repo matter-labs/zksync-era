@@ -157,6 +157,11 @@ impl From<Vec<ProverJobFriInfo>> for Status {
             Status::JobsNotFound
         } else if jobs_vector
             .iter()
+            .all(|job| matches!(job.status, ProverJobStatus::InGPUProof))
+        {
+            Status::Custom("In GPU ⚡️".to_owned())
+        } else if jobs_vector
+            .iter()
             .all(|job| matches!(job.status, ProverJobStatus::Queued))
         {
             Status::Queued
