@@ -560,7 +560,7 @@ impl PayloadManager for Store {
     ) -> ctx::Result<()> {
         let mut payloads = sync::lock(ctx, &self.payloads).await?.into_async();
         if let Some(payloads) = &mut *payloads {
-            let block = to_fetched_block(block_number, &payload).context("to_fetched_block")?;
+            let block = to_fetched_block(block_number, payload).context("to_fetched_block")?;
             let n = block.number;
             payloads.send(block).await.context("payload_queue.send()")?;
             // Wait for the block to be processed, without waiting for it to be stored.
