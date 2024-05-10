@@ -3,6 +3,7 @@ use std::sync::Arc;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
+use zksync_proof_data_handler::blob_processor::BlobProcessor;
 
 use crate::{
     implementations::resources::{
@@ -24,12 +25,17 @@ use crate::{
 #[derive(Debug)]
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
+    blob_processor: Arc<dyn BlobProcessor>,
 }
 
 impl ProofDataHandlerLayer {
-    pub fn new(proof_data_handler_config: ProofDataHandlerConfig) -> Self {
+    pub fn new(
+        proof_data_handler_config: ProofDataHandlerConfig,
+        blob_processor: Arc<dyn BlobProcessor>,
+    ) -> Self {
         Self {
             proof_data_handler_config,
+            blob_processor,
         }
     }
 }
@@ -50,6 +56,7 @@ impl WiringLayer for ProofDataHandlerLayer {
             proof_data_handler_config: self.proof_data_handler_config,
             blob_store: object_store.0,
             main_pool,
+            blob_processor: self.blob_processor,
         }));
 
         Ok(())
@@ -61,6 +68,7 @@ struct ProofDataHandlerTask {
     proof_data_handler_config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
+    blob_processor: Arc<dyn BlobProcessor>,
 }
 
 #[async_trait::async_trait]
@@ -74,6 +82,7 @@ impl Task for ProofDataHandlerTask {
             self.proof_data_handler_config,
             self.blob_store,
             self.main_pool,
+            self.blob_processor,
             stop_receiver.0,
         )
         .await

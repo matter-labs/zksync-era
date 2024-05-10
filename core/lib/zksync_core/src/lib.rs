@@ -21,6 +21,9 @@ use zksync_circuit_breaker::{
     CircuitBreakerChecker, CircuitBreakers,
 };
 use zksync_commitment_generator::{
+    commitment_post_processor::{
+        CommitmentPostProcessor, RollupCommitmentPostProcessor, ValidiumCommitmentPostProcessor,
+    },
     input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
     CommitmentGenerator,
 };
@@ -76,6 +79,9 @@ use zksync_node_fee_model::{
 };
 use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_proof_data_handler::blob_processor::{
+    BlobProcessor, RollupBlobProcessor, ValidiumBlobProcessor,
+};
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
@@ -605,13 +611,24 @@ pub async fn initialize_components(
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
-    let input_generator: Box<dyn InputGenerator> = if genesis_config
-        .l1_batch_commit_data_generator_mode
+    let (input_generator, commitment_post_processor, blob_processor): (
+        Box<dyn InputGenerator>,
+        Box<dyn CommitmentPostProcessor>,
+        Arc<dyn BlobProcessor>,
+    ) = if genesis_config.l1_batch_commit_data_generator_mode
         == L1BatchCommitDataGeneratorMode::Validium
     {
-        Box::new(ValidiumInputGenerator)
+        (
+            Box::new(ValidiumInputGenerator),
+            Box::new(ValidiumCommitmentPostProcessor),
+            Arc::new(ValidiumBlobProcessor),
+        )
     } else {
-        Box::new(RollupInputGenerator)
+        (
+            Box::new(RollupInputGenerator),
+            Box::new(RollupCommitmentPostProcessor),
+            Arc::new(RollupBlobProcessor),
+        )
     };
 
     if components.contains(&Component::EthTxAggregator) {
@@ -771,6 +788,7 @@ pub async fn initialize_components(
                 .context("proof_data_handler_config")?,
             store_factory.create_store().await,
             connection_pool.clone(),
+            blob_processor,
             stop_receiver.clone(),
         )));
     }
@@ -781,8 +799,11 @@ pub async fn initialize_components(
                 .build()
                 .await
                 .context("failed to build commitment_generator_pool")?;
-        let commitment_generator =
-            CommitmentGenerator::new(commitment_generator_pool, input_generator);
+        let commitment_generator = CommitmentGenerator::new(
+            commitment_generator_pool,
+            input_generator,
+            commitment_post_processor,
+        );
         app_health.insert_component(commitment_generator.health_check())?;
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
