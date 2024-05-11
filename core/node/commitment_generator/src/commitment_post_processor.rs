@@ -11,7 +11,7 @@ pub struct ValidiumCommitmentPostProcessor;
 #[derive(Debug)]
 pub struct RollupCommitmentPostProcessor;
 
-/// Definition of trait handling post processing the L1BatchCommitment depending on the DA solution
+/// Definition of trait handling post processing the `L1BatchCommitment` depending on the DA solution
 /// being utilized.
 pub trait CommitmentPostProcessor: 'static + fmt::Debug + Send + Sync {
     fn post_process_commitment(&self, commitment: L1BatchCommitment) -> L1BatchCommitment;

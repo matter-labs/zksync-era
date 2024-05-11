@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::configs::{chain::L1BatchCommitDataGeneratorMode, ProofDataHandlerConfig};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_proof_data_handler::blob_processor::BlobProcessor;
+use zksync_proof_data_handler::blob_processor::{
+    BlobProcessor, RollupBlobProcessor, ValidiumBlobProcessor,
+};
 
 use crate::{
     implementations::resources::{
@@ -31,8 +33,14 @@ pub struct ProofDataHandlerLayer {
 impl ProofDataHandlerLayer {
     pub fn new(
         proof_data_handler_config: ProofDataHandlerConfig,
-        blob_processor: Arc<dyn BlobProcessor>,
+        data_generator_mode: L1BatchCommitDataGeneratorMode,
     ) -> Self {
+        let blob_processor: Arc<dyn BlobProcessor> =
+            if data_generator_mode == L1BatchCommitDataGeneratorMode::Validium {
+                Arc::new(ValidiumBlobProcessor)
+            } else {
+                Arc::new(RollupBlobProcessor)
+            };
         Self {
             proof_data_handler_config,
             blob_processor,
