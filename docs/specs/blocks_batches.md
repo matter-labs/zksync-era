@@ -137,7 +137,7 @@ will return values for L2 blocks.
 
 At the time of this writing, the migration has been complete on testnet, i.e. there we already have only the L2 block
 information returned. However, the [migration](https://github.com/zkSync-Community-Hub/zksync-developers/discussions/87)
-on mainnet is still ongoing and most likely will end on late October / early November.
+on mainnet is still ongoing and most likely will end in late October / early November.
 
 ## Blocks’ processing and consistency checks
 
