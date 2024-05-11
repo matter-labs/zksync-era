@@ -140,29 +140,29 @@ else
     zk contract deploy-verifier
     zk run deploy-erc20 dev # (created etc/tokens/localhost)
 
-      ## init bridgehub state transition
-      zk contract deploy # (deploy L1)
-      zk contract initialize-governance
-      zk contract initialize-validator
-    fi
+    ## init bridgehub state transition
+    zk contract deploy # (deploy L1)
+    zk contract initialize-governance
+    zk contract initialize-validator
+  fi
 
 
-    if [ -z "$CUSTOM_BASE_TOKEN" ]; then
-      echo "Starting chain with ETH"
+  if [ -z "$CUSTOM_BASE_TOKEN" ]; then
+    echo "Starting chain with ETH"
 
-      if [ -z "$VALIDIUM_MODE" ]; then
-        ## init hyperchain in rollup mode
-        zk contract register-hyperchain
-      else
-        zk contract register-hyperchain --deployment-mode 1
-      fi
+    if [ -z "$VALIDIUM_MODE" ]; then
+      ## init hyperchain in rollup mode
+      zk contract register-hyperchain
     else
-      echo "Starting chain with custom token $CUSTOM_BASE_TOKEN"
-      zk contract register-hyperchain --base-token-name $CUSTOM_BASE_TOKEN
+      zk contract register-hyperchain --deployment-mode 1
     fi
-    
-    
-    zk f zksync_server --genesis
+  else
+    echo "Starting chain with custom token $CUSTOM_BASE_TOKEN"
+    zk contract register-hyperchain --base-token-name $CUSTOM_BASE_TOKEN
+  fi
+  
+  
+  zk f zksync_server --genesis
 
   deploy_l2_args=""
   if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
@@ -172,9 +172,6 @@ else
 
   zk contract deploy-l2-through-l1 $deploy_l2_args
 
-    if [ -z "$MASTER_URL" ]; then
-      zk f yarn --cwd /infrastructure/local-setup-preparation start
-    fi
   if [ -z "$MASTER_URL" ]; then
     zk f yarn --cwd /infrastructure/local-setup-preparation start
   fi
