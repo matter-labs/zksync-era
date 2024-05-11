@@ -11,16 +11,9 @@ categories.workspace = true
 
 [dependencies]
 zksync_types.workspace = true
-serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
-hex.workspace = true
 rlp.workspace = true
-reqwest = { workspace = true, features = ["json", "blocking"] }
 thiserror.workspace = true
-jsonrpc-core.workspace = true
 async-trait.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
-axum.workspace = true
-futures.workspace = true
