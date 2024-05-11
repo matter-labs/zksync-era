@@ -15,7 +15,7 @@ the efficient compression of keys and values separately.
 Keys will be packed in the same way as they were before. The only change is that we’ll avoid using the 8-byte
 enumeration index and will pack it to the minimal necessary number of bytes. This number will be part of the pubdata.
 Once a key has been used, it can already use the 4 or 5 byte enumeration index and it is very hard to have something
-cheaper for keys that has been used already. The opportunity comes when remembering the ids for accounts to spare some
+cheaper for keys that have been used already. The opportunity comes when remembering the ids for accounts to spare some
 bytes on nonce/balance key, but ultimately the complexity may not be worth it.
 
 There is some room for optimization of the keys that are being written for the first time, however, optimizing those is
