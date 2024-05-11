@@ -18,4 +18,4 @@ cargo test basic_test  --release -- --nocapture
 
 ```
 
-This test may take several minutes to run, but you will see lot’s of information along the way!
+This test may take several minutes to run, but you will see lots of information along the way!
