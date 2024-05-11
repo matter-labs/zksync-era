@@ -359,7 +359,7 @@ impl TryFrom<Call> for ProtocolUpgrade {
         let data = call
             .data
             .into_iter()
-            .skip(230)
+            .skip(260)
             .chain(encode(&[Token::FixedBytes(H256::zero().0.to_vec())]))
             .collect::<Vec<u8>>()
             .into();
