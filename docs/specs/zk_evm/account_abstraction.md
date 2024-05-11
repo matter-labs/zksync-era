@@ -6,7 +6,7 @@ the documentation on our AA protocol here:
 
 ### Account versioning
 
-Each account can also specify which version of the account abstraction protocol do they support. This is needed to allow
+Each account can also specify which version of the account abstraction protocol it supports. This is needed to allow
 breaking changes of the protocol in the future.
 
 Currently, two versions are supported: `None` (i.e. it is a simple contract and it should never be used as `from` field
@@ -36,5 +36,5 @@ are paid as part of the execution and so they need to be estimated as part of th
 costs.
 
 Generally, the accounts are recommended to perform as many operations as during normal validation, but only return the
-invalid magic in the end of the validation. This will allow to correctly (or at least as correctly as possible) estimate
+invalid magic at the end of the validation. This will allow to correctly (or at least as correctly as possible) estimate
 the price for the validation of the account.
