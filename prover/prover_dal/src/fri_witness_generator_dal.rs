@@ -115,17 +115,19 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| {
-            (
-                L1BatchNumber(row.l1_batch_number as u32),
-                Eip4844Blobs::empty(),
-                // Eip4844Blobs::decode(&row.eip_4844_blobs.unwrap_or_else(|| {
-                //     panic!(
-                //         "missing eip 4844 blobs from the database for batch {}",
-                //         row.l1_batch_number
-                //     )
-                // }))
-                // .expect("failed to decode EIP4844 blobs"),
-            )
+            // Blobs can be `None` if we are using an `off-chain DA`
+            let blobs = if row.eip_4844_blobs.is_none() {
+                Eip4844Blobs::empty()
+            } else {
+                Eip4844Blobs::decode(&row.eip_4844_blobs.unwrap_or_else(|| {
+                    panic!(
+                        "missing eip 4844 blobs from the database for batch {}",
+                        row.l1_batch_number
+                    )
+                }))
+                .expect("failed to decode EIP4844 blobs")
+            };
+            (L1BatchNumber(row.l1_batch_number as u32), blobs)
         })
     }
 
