@@ -300,6 +300,8 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         stmScheduleOperationDirect,
         stmExecuteOperationDirect,
         governanceOperation,
+        stmDirectGovernanceOperation,
+        stmGovernanceOperation,
         diamondCut
     };
 }
@@ -374,7 +376,7 @@ export function buildDefaultUpgradeTx(
     let postUpgradeCalldataFileName = getPostUpgradeCalldataFileName(environment);
     if (postUpgradeCalldataFlag) {
         if (fs.existsSync(postUpgradeCalldataFileName)) {
-            console.log(`Found facet cuts file ${postUpgradeCalldataFileName}`);
+            console.log(`Found post upgrade calldata file ${postUpgradeCalldataFileName}`);
             postUpgradeCalldata = JSON.parse(fs.readFileSync(postUpgradeCalldataFileName).toString());
         } else {
             throw new Error(`Post upgrade calldata file ${postUpgradeCalldataFileName} not found`);
@@ -690,9 +692,13 @@ command
     .option('--diamond-upgrade-proposal-id <diamondUpgradeProposalId>')
     .option('--l1rpc <l1prc>')
     .option('--zksync-address <zksyncAddress>')
+    .option('--stm-address <stmAddress>')
     .option('--chain-id <chainId>')
     .option('--use-new-governance')
     .option('--post-upgrade-calldata')
+    .option('--old-protocol-version <oldProtocolVersion>')
+    .option('--old-protocol-version-deadline <oldProtocolVersionDeadline>')
+    .option('--new-protocol-version <newProtocolVersion>')
     .action(async (options) => {
         if (!options.useNewGovernance) {
             // TODO(X): remove old governance functionality from the protocol upgrade tool
