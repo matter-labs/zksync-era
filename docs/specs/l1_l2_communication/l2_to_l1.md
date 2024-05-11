@@ -63,10 +63,10 @@ log and prove its presence.
 
 ## Priority operations
 
-Also, for each priority operation, we would send its hash and it status via an L2→L1 log. On L1 we would then
+Also, for each priority operation, we would send its hash and it's status via an L2→L1 log. On L1 we would then
 reconstruct the rolling hash of the processed priority transactions, allowing to correctly verify during the
 `executeBatches` method that indeed the batch contained the correct priority operations.
 
-Importantly, the fact that both hash and status were sent, it made it possible to
+Importantly, the fact that both hash and status were sent, made it possible to
 [prove](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/bridge/L1ERC20Bridge.sol#L255)
 that the L2 part of a deposit has failed and ask the bridge to release funds.
