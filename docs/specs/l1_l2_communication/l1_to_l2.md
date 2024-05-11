@@ -39,7 +39,7 @@ two variables:
 
 Whenever a priority transaction is processed, the `numberOfPriorityTransactions` gets incremented by 1, while
 `priorityOperationsRollingHash` is assigned to `keccak256(priorityOperationsRollingHash, processedPriorityOpHash)`,
-where `processedPriorityOpHash` is the hash of the priority operations that has been just processed.
+where `processedPriorityOpHash` is the hash of the priority operations that have been just processed.
 
 Also, for each priority transaction, we
 [emit](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L966)
@@ -84,7 +84,7 @@ been complete.
 
 ### Bootloader
 
-The upgrade transactions are processed just like with priority transactions, with only the following differences:
+The upgrade transactions are processed just like priority transactions, with only the following differences:
 
 - We can have only one upgrade transaction per batch & this transaction must be the first transaction in the batch.
 - The system contracts upgrade transaction is not appended to `priorityOperationsRollingHash` and doesn't increment
