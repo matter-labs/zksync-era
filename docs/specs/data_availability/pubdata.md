@@ -47,7 +47,7 @@ failed deposits for bridges.
   possible (in practice, a maximum of 2048 would likely be enough for the foreseeable future).
 - Extending the tree in the circuits will be hard to do and hard to maintain.
 - The hash of the contents of the L2→L1 messages needs to be rehashed to support the danksharding blobs, so we want to
-  keep only the essential logs as parts of calldata and the rest should be separated so that they could be moved the
+  keep only the essential logs as parts of calldata and the rest should be separated so that they could be moved to the
   EIP4844 blob in the future.
 
 #### Solution
@@ -63,7 +63,7 @@ natively by VM _system_ logs. Here is a short comparison table for better unders
 | System logs                                                                                                     | User logs                                                                                                                                                                                                                           |
 | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Emitted by VM via an opcode.                                                                                    | VM knows nothing about them.                                                                                                                                                                                                        |
-| Consistency and correctness is enforced by the verifier on L1 (i.e. their hash is part of the block commitment. | Consistency and correctness is enforced by the L1Messenger system contract. The correctness of the behavior of the L1Messenger is enforced implicitly by prover in a sense that it proves the correctness of the execution overall. |
+| Consistency and correctness are enforced by the verifier on L1 (i.e. their hash is part of the block commitment. | Consistency and correctness are enforced by the L1Messenger system contract. The correctness of the behavior of the L1Messenger is enforced implicitly by prover in a sense that it proves the correctness of the execution overall. |
 | We don’t calculate their Merkle root.                                                                           | We calculate their Merkle root on the L1Messenger system contract.                                                                                                                                                                  |
 | We have constant small number of those.                                                                         | We can have as much as possible as long as the commitBatches function on L1 remains executable (it is the job of the operator to ensure that only such transactions are selected)                                                   |
 | In EIP4844 they will remain part of the calldata.                                                               | In EIP4844 they will become part of the blobs.                                                                                                                                                                                      |
@@ -133,7 +133,7 @@ to the message’s rolling hash too `chainedMessagesHash = keccak256(chainedMess
 A very similar approach for bytecodes is used, where their rolling hash is calculated and then the preimages are
 provided at the end of the batch to form the full pubdata for the batch.
 
-Note, that in for backward compatibility, just like before any long message or bytecode is accompanied by the
+Note, that for backward compatibility, just like before any long message or bytecode is accompanied by the
 corresponding user L2→L1 log.
 
 #### Using system L2→L1 logs vs the user logs
@@ -298,7 +298,7 @@ for potential shards in the future, we currently have only one shard and it is i
 We call this `H(S,A)` _derived key_, because it is derived from the address and the actual key in the storage of the
 account. Since our tree is flat, whenever a change happens, we can publish a pair `DK, V`, where `DK=H(S,A)`.
 
-However, these is an optimization that could be done:
+However, this is an optimization that could be done:
 
 - Whenever a change to a key is used for the first time, we publish a pair of `DK,V` and we assign some sequential id to
   this derived key. This is called an _initial write_. It happens for the first time and that’s why we must publish the
@@ -402,7 +402,7 @@ following three values via system logs:
 
 - The root of the L2→L1 log Merkle tree. It will be stored and used for proving withdrawals.
 - The hash of the `totalPubdata` (i.e. the pubdata that contains the preimages above as well as packed state diffs).
-- The hash of the state diffs provided by the operator (it later on be included in the block commitment and its will be
+- The hash of the state diffs provided by the operator (it later on be included in the block commitment and it will be
   enforced by the circuits).
 
 The `totalPubdata` has the following structure:
