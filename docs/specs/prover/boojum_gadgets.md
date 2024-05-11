@@ -127,7 +127,7 @@ In gadgets we have a lot of hash implementation:
 - poseidon/poseidon2
 - sha256
 
-Each of them perform different functions in our proof system.
+Each of them performs different functions in our proof system.
 
 ## Queues
 
@@ -147,7 +147,7 @@ The structure consists of `head` and `tail` commitments that basically are rolli
 the queue. These three fields are allocated inside the constraint system. Also, there is a `witness`, that keeps actual
 values that are now stored in the queue.
 
-And here is the main functions:
+And here are the main functions:
 
 ```rust
 fn push(&mut self, value: Element) {
