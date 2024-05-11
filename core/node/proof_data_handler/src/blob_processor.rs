@@ -25,9 +25,9 @@ impl BlobProcessor for RollupBlobProcessor {
         l1_batch_number: L1BatchNumber,
         blobs: Option<Vec<u8>>,
     ) -> Eip4844Blobs {
-        let blobs = &blobs.expect(&format!(
-            "expected pubdata, but it is not available for batch {l1_batch_number:?}"
-        ));
+        let blobs = &blobs.unwrap_or_else(|| {
+            panic!("expected pubdata, but it is not available for batch {l1_batch_number:?}")
+        });
         Eip4844Blobs::decode(blobs).expect("failed to decode EIP-4844 blobs")
     }
 }
