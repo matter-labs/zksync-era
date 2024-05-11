@@ -77,6 +77,10 @@ async function migrateToSyncLayer() {
     await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer migrate-to-sync-layer`);
 }
 
+async function prepareValidatorsOnSyncLayer() {
+    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer prepare-validators`);
+}
+
 async function recoverFromFailedMigrationToSyncLayer(failedTxSLHash: string) {
     await utils.spawn(
         `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer recover-from-failed-migration --failed-tx-l2-hash ${failedTxSLHash}`
@@ -398,6 +402,14 @@ command
     .action(async (cmd) => {
         console.log('input params : ', cmd.failedTxL2Hash);
         await recoverFromFailedMigrationToSyncLayer(cmd.failedTxL2Hash);
+    });
+
+
+command
+    .command('prepare-sync-layer-validators')
+    .description('register hyperchain')
+    .action(async () => {
+        await prepareValidatorsOnSyncLayer();
     });
 
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);
