@@ -124,7 +124,7 @@ be able to leverage them when available).
   bridges are the `WETH` and `ERC20` bridges.
 
   - The pair on L2 is deployed from L1. The hash of the factory dependencies is stored on L1, and when a hyperchain
-    wants to register, it can passes it in for deployment, it is verified, and the contract is deployed on L2. The
+    wants to register, it can pass it in for deployment, it is verified, and the contract is deployed on L2. The
     actual token contracts on L2 are deployed by the L2 bridge.
 
   ```
@@ -159,7 +159,7 @@ This topic is now covered more thoroughly by the Custom native token discussion.
     for all chains. Registration is not permissionless but happens based on the registrations in the bridgehub’s
     `Registry`. At registration a `DiamondProxy` is deployed and initialized with the appropriate `Facets` for each
     Hyperchain.
-  - `Facets` and `Verifier` are shared across chains that relies on the same ST: `Base`, `Executor` , `Getters`, `Admin`
+  - `Facets` and `Verifier` are shared across chains that rely on the same ST: `Base`, `Executor` , `Getters`, `Admin`
     , `Mailbox.`The `Verifier` is the contract that actually verifies the proof, and is called by the `Executor`.
   - Upgrade Mechanism The system requires all chains to be up-to-date with the latest implementation, so whenever an
     update is needed, we have to “force” each chain to update, but due to decentralization, we have to give each chain a
@@ -210,7 +210,7 @@ corresponding bridge and ERC20 contract. This is deployed from L1, but the L2 ad
 #### Deposit WETH
 
 The user can deposit WETH into the ecosystem using the WETH bridge on L1. The destination chain ID has to be specified.
-The Bridgehub unwraps the WETH, and keeps the ETH, and send a message to the destination L2 to mint WETH to the
+The Bridgehub unwraps the WETH, and keeps the ETH, and sends a message to the destination L2 to mint WETH to the
 specified address.
 
 ![depositWeth.png](./img/depositWeth.png)
