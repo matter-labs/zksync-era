@@ -5,9 +5,7 @@ use sqlx::Row;
 use strum::{Display, EnumString};
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId,
-    prover_dal::{
-        JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
-    },
+    prover_dal::{JobCountStatistics, StuckJobs},
     L1BatchNumber,
 };
 use zksync_db_connection::connection::Connection;
