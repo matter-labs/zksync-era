@@ -36,7 +36,7 @@ when a specific L2 block or L1 batch should be sealed. On the other hand, the zk
 the queue populated by the Fetcher and seals the corresponding blocks/batches based on the data obtained from the
 Fetcher queue.
 
-The actual execution of batches takes place within the VM, which is identical in both the Main and ZkSync nodes.
+The actual execution of batches takes place within the VM, which is identical in both the Main and zkSync nodes.
 
 ## Reorg Detector
 

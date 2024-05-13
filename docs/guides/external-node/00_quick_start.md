@@ -4,7 +4,7 @@
 
 Install `docker compose` and `Docker`
 
-## Running ZkSync node locally
+## Running zkSync node locally
 
 To start a mainnet instance, run:
 
@@ -37,7 +37,7 @@ docker compose --file testnet-external-node-docker-compose.yml down --volumes
 You can see the status of the node (after recovery) in
 [local grafana dashboard](http://localhost:3000/d/0/external-node).
 
-Those commands start ZkSync node locally inside docker.
+Those commands start zkSync node locally inside docker.
 
 The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be accessed on port `3061`.
 
