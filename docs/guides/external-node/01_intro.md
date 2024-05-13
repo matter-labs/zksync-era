@@ -1,18 +1,18 @@
-# External Node Documentation
+# ZkSync Node Documentation
 
-This documentation explains the basics of the zkSync Era External Node.
+This documentation explains the basics of the zkSync Node.
 
 ## Disclaimers
 
-- The external node is in the alpha phase, and should be used with caution.
-- The EN is a read-only replica of the main node. We are currently working on decentralizing our infrastructure by
-  creating a consensus node. The EN is not going to be the consensus node.
+- The zkSync node is in the alpha phase, and should be used with caution.
+- The zkSync node is a read-only replica of the main node. We are currently working on decentralizing our infrastructure by
+  creating a consensus node. The zkSync node is not going to be the consensus node.
 
-## What is the external node
+## What is the zkSync node
 
-The external node (herein EN) is a read-replica of the main (centralized) node that can be run by external parties. It
+The zkSync node is a read-replica of the main (centralized) node that can be run by external parties. It
 functions by fetching data from the zkSync API and re-applying transactions locally, starting from the genesis block.
-The EN shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so exactly
+The zkSync node shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so exactly
 as the main node did in the past.
 
 **It has two modes of initialization:**
@@ -23,12 +23,12 @@ as the main node did in the past.
 
 ## High-level overview
 
-At a high level, the EN can be seen as an application that has the following modules:
+At a high level, the zkSync node can be seen as an application that has the following modules:
 
 - API server that provides the publicly available Web3 interface.
 - Synchronization layer that interacts with the main node and retrieves transactions and blocks to re-execute.
 - Sequencer component that actually executes and persists transactions received from the synchronization layer.
-- Several checker modules that ensure the consistency of the EN state.
+- Several checker modules that ensure the consistency of the zkSync node state.
 
 With the EN, you are able to:
 
@@ -48,7 +48,7 @@ A more detailed overview of the EN's components is provided in the [components](
 
 ## API overview
 
-API exposed by the EN strives to be Web3-compliant. If some method is exposed but behaves differently compared to
+API exposed by the zkSync node strives to be Web3-compliant. If some method is exposed but behaves differently compared to
 Ethereum, it should be considered a bug. Please [report][contact_us] such cases.
 
 [contact_us]: https://zksync.io/contact
@@ -87,7 +87,7 @@ Available methods:
 | `eth_getTransactionReceipt`               |                                                                           |
 | `eth_protocolVersion`                     |                                                                           |
 | `eth_sendRawTransaction`                  |                                                                           |
-| `eth_syncing`                             | EN is considered synced if it's less than 11 blocks behind the main node. |
+| `eth_syncing`                             | zkSync node is considered synced if it's less than 11 blocks behind the main node. |
 | `eth_coinbase`                            | Always returns a zero address                                             |
 | `eth_accounts`                            | Always returns an empty list                                              |
 | `eth_getCompilers`                        | Always returns an empty list                                              |
@@ -154,5 +154,5 @@ Always refer to the documentation linked above to see the list of stabilized met
 
 ### `en` namespace
 
-This namespace contains methods that external nodes call on the main node while syncing. If this namespace is enabled,
+This namespace contains methods that zkSync nodes call on the main node while syncing. If this namespace is enabled,
 other ENs can sync from this node.
