@@ -60,6 +60,8 @@ members = [
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
     "core/tests/vm-benchmark/harness",
+
+    "validium_mode_example",
 ]
 resolver = "2"
 

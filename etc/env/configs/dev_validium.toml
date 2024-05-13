@@ -13,6 +13,7 @@ l1_batch_commit_data_generator_mode="Validium"
 # This override will be removed soon but it is needed for now.
 [eth_sender.gas_adjuster]
 max_blob_base_fee=0
+internal_enforced_l1_gas_price=45000000000
 
 [_metadata]
 base=['dev.toml']
