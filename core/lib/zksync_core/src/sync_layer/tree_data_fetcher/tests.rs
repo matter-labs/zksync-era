@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    ops,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
@@ -10,8 +11,8 @@ use assert_matches::assert_matches;
 use jsonrpsee::core::ClientError;
 use test_casing::test_casing;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_node_test_utils::create_l1_batch;
-use zksync_types::{AccountTreeId, Address, StorageKey, H256};
+use zksync_node_test_utils::{create_l1_batch, prepare_recovery_snapshot};
+use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, StorageLog, H256};
 
 use super::*;
 
@@ -120,7 +121,15 @@ async fn tree_data_fetcher_steps() {
     assert_matches!(step_outcome, StepOutcome::NoProgress);
 
     // Check tree data in updated batches.
-    for number in 1..=5 {
+    assert_batch_tree_data(&mut storage, 1..=5, genesis.rollup_last_leaf_index).await;
+}
+
+async fn assert_batch_tree_data(
+    storage: &mut Connection<'_, Core>,
+    batch_numbers: ops::RangeInclusive<u32>,
+    starting_rollup_last_leaf_index: u64,
+) {
+    for (i, number) in batch_numbers.enumerate() {
         let tree_data = storage
             .blocks_dal()
             .get_l1_batch_tree_data(L1BatchNumber(number))
@@ -132,12 +141,52 @@ async fn tree_data_fetcher_steps() {
         assert_eq!(tree_data.hash, H256::from_low_u64_be(number.into()));
         assert_eq!(
             tree_data.rollup_last_leaf_index,
-            genesis.rollup_last_leaf_index + u64::from(number)
+            starting_rollup_last_leaf_index + i as u64 + 1 // expecting 1 initial write per batch
         );
     }
 }
 
-// FIXME: test snapshot recovery
+#[tokio::test]
+async fn tree_data_fetcher_steps_after_snapshot_recovery() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let account = AccountTreeId::new(Address::zero());
+    let snapshot_storage_logs: Vec<_> = (0..20)
+        .map(|i| {
+            let key = StorageKey::new(account, H256::repeat_byte(i));
+            StorageLog::new_write_log(key, H256::repeat_byte(0xff))
+        })
+        .collect();
+    let snapshot = prepare_recovery_snapshot(
+        &mut storage,
+        L1BatchNumber(23),
+        L2BlockNumber(42),
+        &snapshot_storage_logs,
+    )
+    .await;
+
+    let mut client = MockMainNodeClient::default();
+    for i in 1..=5 {
+        let number = snapshot.l1_batch_number + i;
+        let details = mock_l1_batch_details(number, Some(H256::from_low_u64_be(number.0.into())));
+        client.batch_details_responses.insert(number, details);
+        seal_l1_batch(&mut storage, number).await;
+    }
+
+    let (fetcher, _) = create_tree_data_fetcher(client, pool.clone());
+    for i in 1..=5 {
+        let step_outcome = fetcher.step().await.unwrap();
+        assert_matches!(
+            step_outcome,
+            StepOutcome::UpdatedBatch(updated_number) if updated_number == snapshot.l1_batch_number + i
+        );
+    }
+    let step_outcome = fetcher.step().await.unwrap();
+    assert_matches!(step_outcome, StepOutcome::NoProgress);
+
+    let batch_numbers = (snapshot.l1_batch_number.0 + 1)..=(snapshot.l1_batch_number.0 + 5);
+    assert_batch_tree_data(&mut storage, batch_numbers, 21).await;
+}
 
 #[tokio::test]
 async fn tree_data_fetcher_recovers_from_transient_errors() {

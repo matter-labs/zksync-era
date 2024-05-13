@@ -179,6 +179,7 @@ impl TreeDataFetcher {
             .blocks_dal()
             .save_l1_batch_tree_data(l1_batch_to_fetch, &tree_data)
             .await?;
+        tracing::debug!("Updated L1 batch #{l1_batch_to_fetch} with tree data: {tree_data:?}");
         Ok(StepOutcome::UpdatedBatch(l1_batch_to_fetch))
     }
 
