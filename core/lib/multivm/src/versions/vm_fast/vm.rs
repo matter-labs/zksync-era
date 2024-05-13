@@ -121,9 +121,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
                 }
                 DebugLog => {}
                 DebugReturnData => {}
-                NearCallCatch => {
-                    todo!("NearCallCatch")
-                }
+                NearCallCatch => {}
                 AskOperatorForRefund => {
                     if track_refunds {
                         let [bootloader_refund, gas_spent_on_pubdata, gas_per_pubdata_byte] =

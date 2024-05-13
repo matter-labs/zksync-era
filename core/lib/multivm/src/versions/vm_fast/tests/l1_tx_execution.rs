@@ -1,6 +1,5 @@
 use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
-use zksync_state::ReadStorage;
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
 use zksync_types::{
     get_code_key, get_known_code_key,
@@ -8,7 +7,7 @@ use zksync_types::{
     storage_writes_deduplicator::StorageWritesDeduplicator,
     Execute, ExecuteTransactionCommon, U256,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
@@ -78,12 +77,15 @@ fn test_l1_tx_execution() {
     assert!(!res.result.is_failed());
 
     for (expected_value, storage_location) in [
-        (u256_to_h256(U256::from(1u32)), known_codes_key),
-        (deploy_tx.bytecode_hash, account_code_key),
+        (U256::from(1u32), known_codes_key),
+        (h256_to_u256(deploy_tx.bytecode_hash), account_code_key),
     ] {
         assert_eq!(
             expected_value,
-            vm.vm.storage.borrow_mut().read_value(&storage_location)
+            vm.vm.inner.world.get_storage_state()[&(
+                *storage_location.address(),
+                h256_to_u256(*storage_location.key())
+            )]
         );
     }
 
@@ -102,7 +104,7 @@ fn test_l1_tx_execution() {
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
 
     // Tx panicked
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 0);
+    assert_eq!(res.initial_storage_writes, basic_initial_writes);
 
     let tx = account.get_test_contract_transaction(
         deploy_tx.address,
@@ -117,7 +119,7 @@ fn test_l1_tx_execution() {
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
     // We changed one slot inside contract. However, the rewrite of the `basePubdataSpent` didn't happen, since it was the same
     // as the start of the previous tx. Thus we have `+1` slot for the changed counter and `-1` slot for base pubdata spent
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 0);
+    assert_eq!(res.initial_storage_writes, basic_initial_writes);
 
     // No repeated writes
     let repeated_writes = res.repeated_storage_writes;
@@ -128,7 +130,7 @@ fn test_l1_tx_execution() {
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
     // We do the same storage write, it will be deduplicated, so still 4 initial write and 0 repeated.
     // But now the base pubdata spent has changed too.
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 1);
+    assert_eq!(res.initial_storage_writes, basic_initial_writes + 1);
     assert_eq!(res.repeated_storage_writes, repeated_writes);
 
     let tx = account.get_test_contract_transaction(
@@ -145,7 +147,7 @@ fn test_l1_tx_execution() {
 
     let res = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
     // There are only basic initial writes
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 1);
+    assert_eq!(res.initial_storage_writes, basic_initial_writes + 1);
 }
 
 #[test]
