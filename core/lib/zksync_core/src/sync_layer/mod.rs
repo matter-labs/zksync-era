@@ -8,6 +8,7 @@ pub(crate) mod sync_action;
 mod sync_state;
 #[cfg(test)]
 mod tests;
+pub mod tree_data_fetcher;
 
 pub use self::{
     client::MainNodeClient,
