@@ -6,10 +6,10 @@ use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafAggregationJobMetadata,
-        LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo,
-        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, StuckJobs,
-        WitnessJobStatus,
+        correct_circuit_id, BasicWitnessGeneratorJobInfo, JobCountStatistics,
+        LeafAggregationJobMetadata, LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata,
+        NodeWitnessGeneratorJobInfo, RecursionTipWitnessGeneratorJobInfo,
+        SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
     },
     L1BatchNumber,
 };
@@ -1502,7 +1502,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| NodeWitnessGeneratorJobInfo {
             id: row.id as u32,
             l1_batch_number,
-            circuit_id: row.circuit_id as u32,
+            // It is necessary to correct the circuit IDs due to the discrepancy between different aggregation rounds.
+            circuit_id: correct_circuit_id(row.circuit_id, AggregationRound::NodeAggregation),
             depth: row.depth as u32,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             attempts: row.attempts as u32,
