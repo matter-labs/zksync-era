@@ -20,10 +20,28 @@ RUN git submodule update --init --recursive
 
 # Build Solidity
 WORKDIR /solidity/build
-RUN cmake ..
+# The default compilation is Release with Debug symbols, which is quite large.
+RUN cmake .. -DCMAKE_BUILD_TYPE="Release"
 RUN make
 
-FROM debian:bookworm as rust-lightweight
+# Rust binaries - with a separate builder.
+FROM rust:slim-bookworm as rust-builder
+
+ARG ARCH=amd64
+RUN apt-get update && apt-get install -y \
+    libssl-dev \
+    pkg-config \
+    libclang-15-dev \
+    g++
+
+RUN cargo install --version=0.7.3 sqlx-cli
+RUN cargo install cargo-nextest
+RUN cargo install cargo-spellcheck
+RUN cargo install sccache
+
+
+# Main builder.
+FROM debian:bookworm as rust-lightweight-base
 
 ARG ARCH=amd64
 
@@ -100,13 +118,13 @@ RUN echo "deb [arch=${ARCH}] http://packages.cloud.google.com/apt cloud-sdk main
     gcloud config set component_manager/disable_update_check true && \
     gcloud config set metrics/environment github_docker_image
 
-RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y && \
-    rustup default stable
 
-RUN cargo install --version=0.7.3 sqlx-cli
-RUN cargo install cargo-nextest
-RUN cargo install cargo-spellcheck
-
+COPY --from=rust-builder /usr/local/cargo/bin/sqlx \
+    /usr/local/cargo/bin/cargo-sqlx \
+    /usr/local/cargo/bin/cargo-nextest \
+    /usr/local/cargo/bin/cargo-spellcheck \
+    /usr/local/cargo/bin/sccache /usr/local/cargo/bin/
+    
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
 COPY --from=solidity-builder /solidity/build/solc/solc /usr/bin/
@@ -129,10 +147,11 @@ RUN wget -c https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 && \
 ENV ZKSYNC_HOME=/usr/src/zksync
 ENV PATH="${ZKSYNC_HOME}/bin:${PATH}"
 ENV CI=1
-RUN cargo install sccache
 ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 
-FROM rust-lightweight as rust-lightweight-nightly
+FROM rust-lightweight-base as rust-lightweight
+RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
 
-RUN rustup install nightly-2023-08-21 && \
-    rustup default nightly-2023-08-21
+
+FROM rust-lightweight-base as rust-lightweight-nightly
+RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2023-08-21
