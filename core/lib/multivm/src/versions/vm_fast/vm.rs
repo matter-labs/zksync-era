@@ -480,7 +480,12 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .world
                     .get_storage_changes_after(&start)
                     .into_iter()
-                    .map(storage_log_query_from_change)
+                    .map(|((address, key), change)| {
+                        let is_initial = self.storage.borrow_mut().is_write_initial(
+                            &StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                        );
+                        storage_log_query_from_change(((address, key), change), is_initial)
+                    })
                     .collect(),
                 events,
                 user_l2_to_l1_logs,
@@ -551,7 +556,13 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 .get_storage_changes()
                 .iter()
                 .map(|(&a, &b)| (a, b))
-                .map(storage_log_query_from_change)
+                .map(|((address, key), change)| {
+                    let is_initial = self.storage.borrow_mut().is_write_initial(&StorageKey::new(
+                        AccountTreeId::new(address),
+                        u256_to_h256(key),
+                    ));
+                    storage_log_query_from_change(((address, key), change), is_initial)
+                })
                 .collect(),
             deduplicated_storage_log_queries: vec![],
             used_contract_hashes: vec![],

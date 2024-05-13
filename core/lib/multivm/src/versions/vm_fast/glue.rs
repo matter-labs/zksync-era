@@ -1,7 +1,7 @@
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log},
     zk_evm_types::{LogQuery, Timestamp},
-    StorageLogQuery, H160, U256,
+    StorageLogQuery, StorageLogQueryType, H160, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -31,6 +31,7 @@ impl GlueFrom<&vm2::L2ToL1Log> for SystemL2ToL1Log {
 
 pub(crate) fn storage_log_query_from_change(
     ((address, key), (before, after)): ((H160, U256), (Option<U256>, U256)),
+    is_initial: bool,
 ) -> StorageLogQuery {
     StorageLogQuery {
         log_query: LogQuery {
@@ -46,6 +47,10 @@ pub(crate) fn storage_log_query_from_change(
             rollback: false,
             is_service: false, // incorrect and hopefully unused
         },
-        log_type: zksync_types::StorageLogQueryType::RepeatedWrite, // incorrect and hopefully unused
+        log_type: if is_initial {
+            StorageLogQueryType::InitialWrite
+        } else {
+            StorageLogQueryType::RepeatedWrite
+        },
     }
 }
