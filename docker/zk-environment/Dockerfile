@@ -82,7 +82,7 @@ RUN apt-get update && \
     lldb-15 \
     lld-15 \
     liburing-dev \
-    libclang-dev
+    libclang-15-dev
 
 # Install Docker
 RUN apt-get update && \
@@ -149,9 +149,11 @@ ENV PATH="${ZKSYNC_HOME}/bin:${PATH}"
 ENV CI=1
 ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 
+# If target is 'main' - then install default rust.
 FROM rust-lightweight-base as rust-lightweight
 RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
 
 
+# If target is nightly - then install only nightly rust.
 FROM rust-lightweight-base as rust-lightweight-nightly
 RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2023-08-21
