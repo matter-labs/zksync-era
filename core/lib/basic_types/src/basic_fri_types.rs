@@ -29,8 +29,8 @@ type Eip4844BlobsInner = [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK];
 ///
 /// Note: blobs are padded to fit the correct size.
 // TODO: PLA-932
-/// Note2: this becomes a rather leaky abstraction post Validium.
-/// It will be reworked once BWIP is introduced.
+/// Note 2: this becomes a rather leaky abstraction.
+/// It will be reworked once `BWIP` is introduced.
 /// Provers shouldn't need to decide between loading data from database or making it empty.
 /// Data should just be available
 #[derive(Debug, Serialize, Deserialize, Clone)]
