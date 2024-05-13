@@ -16,7 +16,15 @@ on:
 jobs:
   build-images:
     name: Local Node - Build and Push Docker Image
-    runs-on: [matterlabs-ci-runner]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: matterlabs-ci-runner
+            arch: amd64
+          - runner: matterlabs-ci-runner-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
