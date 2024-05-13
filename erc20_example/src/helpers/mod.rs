@@ -11,7 +11,7 @@ use colored::Colorize;
 pub use eth_wallet::EthWallet;
 use ethers::{
     abi::{Abi, Address, Hash},
-    contract::ContractFactory,
+    contract::{abigen, ContractFactory},
     core::k256::ecdsa::SigningKey,
     middleware::{MiddlewareBuilder, SignerMiddleware},
     providers::Http,
@@ -137,57 +137,63 @@ pub async fn mint_erc20_eth(
     eth_wallet: Arc<EthWallet<Provider<Http>, SigningKey>>,
     erc20_address: H160,
 ) -> TransactionReceipt {
-    eth_wallet
-        .get_eth_provider()
-        .unwrap()
-        .clone()
-        .send_eip712(
-            &eth_wallet.l1_wallet,
-            erc20_address,
-            "_mint(address, uint256)",
-            Some(
-                [
-                    "CD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826".into(),
-                    "10000000000".into(),
-                ]
-                .into(),
-            ),
-            None,
-        )
-        .await
-        .unwrap()
-        .await
-        .unwrap()
-        .unwrap()
+    abigen!(
+        ERC20Contract,
+        r#"[
+            function balanceOf(address account) external view returns (uint256)
+            function decimals() external view returns (uint8)
+            function symbol() external view returns (string memory)
+            function _mint(address account, uint256 amount) public /*internal*/ virtual
+            function _transfer(address sender,address recipient,uint256 amount) public /*internal*/ virtual
+            event Transfer(address indexed from, address indexed to, uint256 value)
+        ]"#,
+    );
+    let signer = Arc::new(SignerMiddleware::new(
+        eth_wallet.get_eth_provider().unwrap(),
+        eth_wallet.l1_wallet.clone(),
+    ));
+    let contract = ERC20Contract::new(erc20_address, signer);
+
+    let tx = contract.mint(
+        H160::from_str("CD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826").unwrap(),
+        U256::from_dec_str("10000000000").unwrap(),
+    );
+    let pending_tx = tx.send().await.unwrap();
+    let _mined_tx = pending_tx.await.unwrap().unwrap();
+
+    _mined_tx
 }
 
 pub async fn transfer_erc20_eth(
     eth_wallet: Arc<EthWallet<Provider<Http>, SigningKey>>,
     erc20_address: H160,
 ) -> TransactionReceipt {
-    eth_wallet
-        .get_eth_provider()
-        .unwrap()
-        .clone()
-        .send_eip712(
-            &eth_wallet.l1_wallet,
-            erc20_address,
-            "_transfer(address, address, uint256)",
-            Some(
-                [
-                    "CD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826".into(),
-                    "bBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB".into(),
-                    "100".into(),
-                ]
-                .into(),
-            ),
-            None,
-        )
-        .await
-        .unwrap()
-        .await
-        .unwrap()
-        .unwrap()
+    abigen!(
+        ERC20Contract,
+        r#"[
+            function balanceOf(address account) external view returns (uint256)
+            function decimals() external view returns (uint8)
+            function symbol() external view returns (string memory)
+            function _mint(address account, uint256 amount) public /*internal*/ virtual
+            function _transfer(address sender,address recipient,uint256 amount) public /*internal*/ virtual
+            event Transfer(address indexed from, address indexed to, uint256 value)
+        ]"#,
+    );
+    let signer = Arc::new(SignerMiddleware::new(
+        eth_wallet.get_eth_provider().unwrap(),
+        eth_wallet.l1_wallet.clone(),
+    ));
+    let contract = ERC20Contract::new(erc20_address, signer);
+    let tx = contract.transfer(
+        H160::from_str("CD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826").unwrap(),
+        H160::from_str("bBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB").unwrap(),
+        U256::from_dec_str("100").unwrap(),
+    );
+
+    let pending_tx = tx.send().await.unwrap();
+    let _mined_tx = pending_tx.await.unwrap().unwrap();
+
+    _mined_tx
 }
 
 pub async fn deposit_eth(
