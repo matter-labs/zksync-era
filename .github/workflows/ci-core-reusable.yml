@@ -132,7 +132,7 @@ jobs:
       matrix:
         consensus: [false, true]
         base_token: ["Eth", "Custom"]
-        deployment_mode: ["Rollup", "Validium"]
+        deployment_mode: ["Rollup"] #, "Validium"] - Temporary disable validium until PR/1910.
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
@@ -278,7 +278,7 @@ jobs:
       matrix:
         consensus: [false, true]
         base_token: ["Eth", "Custom"]
-        deployment_mode: ["Rollup", "Validium"]
+        deployment_mode: ["Rollup"] # "Validium"] - Temporary disable validium until PR/1910.
     runs-on: [matterlabs-ci-runner]
 
     env:
