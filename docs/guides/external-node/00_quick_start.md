@@ -54,8 +54,10 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 
 > [!NOTE]
 >
-> This configuration is only for nodes that use snapshots recovery, for requirements for nodes running from DB dump, see
-> [03_running.md](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/03_running.md)
+> This configuration is only for nodes that use snapshots recovery (the default for docker-compose setup), for
+> requirements for nodes running from DB dump see
+> [03_running.md](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/03_running.md). DB dumps
+> are a way to start zkSync node with full historical transactions history
 
 > [!NOTE]
 >
