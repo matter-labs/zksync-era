@@ -36,7 +36,7 @@ impl FriWitnessGeneratorJobRetryManager {
         for stuck_job in stuck_jobs {
             tracing::info!("re-queuing {:?} {:?}", witness_type, stuck_job);
         }
-        SERVER_METRICS.requeued_job[&WitnessType::from(witness_type)]
+        SERVER_METRICS.requeued_jobs[&WitnessType::from(witness_type)]
             .inc_by(stuck_jobs.len() as u64);
     }
 

@@ -85,7 +85,7 @@ impl WaitingToQueuedFriWitnessJobMover {
             );
         }
         SERVER_METRICS
-            .recursion_tip_fri_witness_generator_waiting_to_queued_jobs_transitions
+            .recursion_tip_witness_generator_waiting_to_queued_jobs_transitions
             .inc_by(l1_batch_numbers.len() as u64);
     }
 
@@ -104,7 +104,7 @@ impl WaitingToQueuedFriWitnessJobMover {
             );
         }
         SERVER_METRICS
-            .scheduler_fri_witness_generator_waiting_to_queued_jobs_transitions
+            .scheduler_witness_generator_waiting_to_queued_jobs_transitions
             .inc_by(l1_batch_numbers.len() as u64);
     }
 }

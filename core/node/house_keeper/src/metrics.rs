@@ -12,6 +12,7 @@ pub(crate) static HOUSE_KEEPER_METRICS: vise::Global<HouseKeeperMetrics> = vise:
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "type", rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum JobStatus {
     Queued,
     InProgress,
@@ -34,18 +35,19 @@ pub(crate) static PROVER_FRI_METRICS: vise::Global<ProverFriMetrics> = vise::Glo
 
 const PROVER_JOBS_LABELS: [&str; 4] =
     ["type", "circuit_id", "aggregation_round", "prover_group_id"];
-type ProverJobsLabels = (&'static str, &'static str, &'static str, &'static str);
+type ProverJobsLabels = (&'static str, String, String, String);
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "fri_prover")]
 pub(crate) struct FriProverMetrics {
     #[metrics(labels = PROVER_JOBS_LABELS)]
-    pub prover_jobs: LabeledFamily<ProverJobsLabels, Gauge<u64>>,
+    pub prover_jobs: LabeledFamily<ProverJobsLabels, Gauge<u64>, 4>,
     #[metrics(labels = ["circuit_id", "aggregation_round"])]
-    pub block_number: LabeledFamily<(&'static str, &'static str), Gauge<u64>>,
+    pub block_number: LabeledFamily<(String, String), Gauge<u64>, 2>,
     pub oldest_unpicked_batch: Gauge<u64>,
     pub oldest_not_generated_batch: Gauge<u64>,
-    pub oldest_unprocessed_block_by_round: LabeledFamily<&'static str, Gauge<u64>>,
+    #[metrics(labels = ["round"])]
+    pub oldest_unprocessed_block_by_round: LabeledFamily<String, Gauge<u64>>,
 }
 
 impl FriProverMetrics {
@@ -59,9 +61,9 @@ impl FriProverMetrics {
     ) {
         self.prover_jobs[&(
             status,
-            &circuit_id.to_string(),
-            &aggregation_round.to_string(),
-            &prover_group_id.to_string(),
+            circuit_id.to_string(),
+            aggregation_round.to_string(),
+            prover_group_id.to_string(),
         )]
             .set(amount);
     }
@@ -99,9 +101,9 @@ pub(crate) struct ServerMetrics {
     pub prover_fri_requeued_jobs: Counter<u64>,
     pub requeued_jobs: Family<WitnessType, Counter<u64>>,
     #[metrics(labels = ["type", "round"])]
-    pub witness_generator_jobs_by_round: LabeledFamily<(&'static str, &'static str), Gauge>,
+    pub witness_generator_jobs_by_round: LabeledFamily<(&'static str, String), Gauge<u64>, 2>,
     #[metrics(labels = ["type"])]
-    pub witness_generator_jobs: LabeledFamily<(&'static str), Gauge>,
+    pub witness_generator_jobs: LabeledFamily<&'static str, Gauge<u64>>,
     pub leaf_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
     pub node_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
     pub recursion_tip_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,

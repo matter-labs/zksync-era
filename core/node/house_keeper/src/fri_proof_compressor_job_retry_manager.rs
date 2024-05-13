@@ -49,7 +49,7 @@ impl PeriodicJob for FriProofCompressorJobRetryManager {
             tracing::info!("re-queuing fri proof compressor job {:?}", stuck_job);
         }
         PROVER_FRI_METRICS
-            .prover_fri_requeued_jobs
+            .proof_compressor_requeued_jobs
             .inc_by(job_len as u64);
         Ok(())
     }

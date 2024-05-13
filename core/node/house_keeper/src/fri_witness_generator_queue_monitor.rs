@@ -5,12 +5,7 @@ use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
 
-use crate::{
-    metrics::{ServerMetrics, SERVER_METRICS},
-    periodic_job::PeriodicJob,
-};
-
-const FRI_WITNESS_GENERATOR_SERVICE_NAME: &str = "fri_witness_generator";
+use crate::{metrics::SERVER_METRICS, periodic_job::PeriodicJob};
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorStatsReporter {

@@ -3,10 +3,7 @@ use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 
-use crate::{
-    metrics::{JobStatus, WitnessType, FRI_PROVER_METRICS},
-    periodic_job::PeriodicJob,
-};
+use crate::{metrics::FRI_PROVER_METRICS, periodic_job::PeriodicJob};
 
 #[derive(Debug)]
 pub struct FriProverStatsReporter {
@@ -83,7 +80,7 @@ impl PeriodicJob for FriProverStatsReporter {
 
         for ((circuit_id, aggregation_round), l1_batch_number) in lag_by_circuit_type {
             FRI_PROVER_METRICS.block_number
-                [&(&circuit_id.to_string(), &aggregation_round.to_string())]
+                [&(circuit_id.to_string(), aggregation_round.to_string())]
                 .set(l1_batch_number.0 as u64);
         }
 
@@ -108,7 +105,9 @@ impl PeriodicJob for FriProverStatsReporter {
                     .0 as u64
             }
         };
-        FRI_PROVER_METRICS.set_oldest_unpicked_batch(oldest_unpicked_batch);
+        FRI_PROVER_METRICS
+            .oldest_unpicked_batch
+            .set(oldest_unpicked_batch);
 
         if let Some(l1_batch_number) = db_conn
             .proof_generation_dal()
@@ -116,7 +115,7 @@ impl PeriodicJob for FriProverStatsReporter {
             .await
         {
             FRI_PROVER_METRICS
-                .oldest_not_generateed_batch
+                .oldest_not_generated_batch
                 .set(l1_batch_number.0 as u64);
         }
 
