@@ -2,15 +2,9 @@ use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
 use zksync_contracts::hyperchain_contract;
-use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
+use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_types::{
-    web3::{
-        self,
-        contract::tokens::Detokenize,
-        ethabi,
-        types::{Address, H160, U256},
-    },
-    K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE,
+    ethabi, web3, Address, K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE, H160, U256,
 };
 
 use super::{Method, LATENCIES};
@@ -28,7 +22,7 @@ impl PKSigningClient {
         diamond_proxy_addr: Address,
         default_priority_fee_per_gas: u64,
         l1_chain_id: L1ChainId,
-        query_client: Arc<dyn EthInterface>,
+        query_client: Box<dyn EthInterface>,
     ) -> Self {
         let operator_address = operator_private_key.address();
         let signer = PrivateKeySigner::new(operator_private_key);
@@ -55,7 +49,7 @@ const FALLBACK_GAS_LIMIT: u64 = 3_000_000;
 #[derive(Clone)]
 pub struct SigningClient<S: EthereumSigner> {
     inner: Arc<EthDirectClientInner<S>>,
-    query_client: Arc<dyn EthInterface>,
+    query_client: Box<dyn EthInterface>,
 }
 
 struct EthDirectClientInner<S: EthereumSigner> {
@@ -87,6 +81,17 @@ impl<S: EthereumSigner> AsRef<dyn EthInterface> for SigningClient<S> {
 
 #[async_trait]
 impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
+    fn clone_boxed(&self) -> Box<dyn BoundEthInterface> {
+        Box::new(self.clone())
+    }
+
+    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn BoundEthInterface> {
+        Box::new(Self {
+            query_client: self.query_client.for_component(component_name),
+            ..*self
+        })
+    }
+
     fn contract(&self) -> &ethabi::Contract {
         &self.inner.contract
     }
@@ -108,7 +113,6 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
-        component: &'static str,
     ) -> Result<SignedCallResult, Error> {
         let latency = LATENCIES.direct[&Method::SignPreparedTx].start();
         // Fetch current max priority fee per gas
@@ -130,10 +134,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         let max_fee_per_gas = match options.max_fee_per_gas {
             Some(max_fee_per_gas) => max_fee_per_gas,
             None => {
-                self.as_ref()
-                    .get_pending_block_base_fee_per_gas(component)
-                    .await?
-                    + max_priority_fee_per_gas
+                self.as_ref().get_pending_block_base_fee_per_gas().await? + max_priority_fee_per_gas
             }
         };
 
@@ -146,18 +147,14 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
 
         let nonce = match options.nonce {
             Some(nonce) => nonce,
-            None => self.pending_nonce(component).await?,
+            None => <dyn BoundEthInterface>::pending_nonce(self).await?,
         };
 
         let gas = options.gas.unwrap_or_else(|| {
             // Verbosity level is set to `error`, since we expect all the transactions to have
             // a set limit, but don't want to crаsh the application if for some reason in some
             // place limit was not set.
-            tracing::error!(
-                "No gas limit was set for transaction, using the default limit: {}",
-                FALLBACK_GAS_LIMIT
-            );
-
+            tracing::error!("No gas limit was set for transaction, using the default limit: {FALLBACK_GAS_LIMIT}");
             U256::from(FALLBACK_GAS_LIMIT)
         });
 
@@ -178,7 +175,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         };
 
         let mut signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
-        let hash = web3::signing::keccak256(&signed_tx).into();
+        let hash = web3::keccak256(&signed_tx).into();
         latency.observe();
 
         if let Some(sidecar) = options.blob_tx_sidecar {
@@ -198,20 +195,22 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         &self,
         token_address: Address,
         address: Address,
-        erc20_abi: ethabi::Contract,
+        erc20_abi: &ethabi::Contract,
     ) -> Result<U256, Error> {
         let latency = LATENCIES.direct[&Method::Allowance].start();
-        let args = CallFunctionArgs::new("allowance", (self.inner.sender_account, address))
-            .for_contract(token_address, erc20_abi);
-        let res = self.as_ref().call_contract_function(args).await?;
+        let allowance: U256 =
+            CallFunctionArgs::new("allowance", (self.inner.sender_account, address))
+                .for_contract(token_address, erc20_abi)
+                .call(self.as_ref())
+                .await?;
         latency.observe();
-        Ok(U256::from_tokens(res)?)
+        Ok(allowance)
     }
 }
 
 impl<S: EthereumSigner> SigningClient<S> {
     pub fn new(
-        query_client: Arc<dyn EthInterface>,
+        query_client: Box<dyn EthInterface>,
         contract: ethabi::Contract,
         operator_eth_addr: H160,
         eth_signer: S,

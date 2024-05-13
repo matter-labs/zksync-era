@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::web3::types::{Bytes, U256};
+use zksync_basic_types::{web3::Bytes, U256};
 
 use crate::{
     api::{DebugCall, DebugCallType, ResultDebugCall},

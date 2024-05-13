@@ -17,10 +17,12 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
+    input_generation::InputGenerator,
     metrics::{CommitmentStage, METRICS},
     utils::{bootloader_initial_content_commitment, events_queue_commitment},
 };
 
+pub mod input_generation;
 mod metrics;
 mod utils;
 
@@ -30,13 +32,18 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 pub struct CommitmentGenerator {
     connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
+    input_generator: Box<dyn InputGenerator>,
 }
 
 impl CommitmentGenerator {
-    pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
+    pub fn new(
+        connection_pool: ConnectionPool<Core>,
+        input_generator: Box<dyn InputGenerator>,
+    ) -> Self {
         Self {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
+            input_generator,
         }
     }
 
@@ -248,6 +255,8 @@ impl CommitmentGenerator {
                 blob_commitments,
             }
         };
+
+        let input = self.input_generator.compute_input(input);
 
         Ok(input)
     }

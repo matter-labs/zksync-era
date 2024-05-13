@@ -78,7 +78,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 
 // for testnet and development purposes it is ok to deploy contracts form L1.
 export async function deployL2ThroughL1({
-    includePaymaster,
+    includePaymaster = true,
     localLegacyBridgeTesting
 }: {
     includePaymaster: boolean;
@@ -130,15 +130,11 @@ export async function deployL2ThroughL1({
     );
 }
 
-async function _deployL1(onlyVerifier: boolean, deploymentMode: DeploymentMode): Promise<void> {
+async function _deployL1(onlyVerifier: boolean): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    const args = [
-        privateKey ? `--private-key ${privateKey}` : '',
-        onlyVerifier ? '--only-verifier' : '',
-        deploymentMode == DeploymentMode.Validium ? '--validium' : ''
-    ];
+    const args = [privateKey ? `--private-key ${privateKey}` : '', onlyVerifier ? '--only-verifier' : ''];
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
@@ -200,8 +196,8 @@ export enum DeploymentMode {
     Validium = 1
 }
 
-export async function redeployL1(verifierOnly: boolean, deploymentMode: DeploymentMode) {
-    await _deployL1(verifierOnly, deploymentMode);
+export async function redeployL1(verifierOnly: boolean) {
+    await _deployL1(verifierOnly);
     await verifyL1Contracts();
 }
 
@@ -215,13 +211,20 @@ export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
     await utils.spawn(`yarn l1-contracts erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 }
 
-export async function registerHyperchain({ baseTokenName }: { baseTokenName?: string }): Promise<void> {
+export async function registerHyperchain({
+    baseTokenName,
+    deploymentMode
+}: {
+    baseTokenName?: string;
+    deploymentMode?: DeploymentMode;
+}): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
-        baseTokenName ? `--base-token-name ${baseTokenName}` : ''
+        baseTokenName ? `--base-token-name ${baseTokenName}` : '',
+        deploymentMode === DeploymentMode.Validium ? '--validium-mode' : ''
     ];
 
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
@@ -242,18 +245,11 @@ export async function registerHyperchain({ baseTokenName }: { baseTokenName?: st
 }
 
 export async function deployVerifier(): Promise<void> {
-    // Deploy mode doesn't matter here
-    await _deployL1(true, DeploymentMode.Rollup);
+    await _deployL1(true);
 }
 
-export async function deployL1(args: [string]): Promise<void> {
-    let mode;
-    if (args.includes('validium')) {
-        mode = DeploymentMode.Validium;
-    } else {
-        mode = DeploymentMode.Rollup;
-    }
-    await _deployL1(false, mode);
+export async function deployL1(): Promise<void> {
+    await _deployL1(false);
 }
 
 async function setupLegacyBridgeEra(): Promise<void> {
@@ -322,7 +318,9 @@ command
 command
     .command('deploy-l2-through-l1')
     .description('deploy l2 through l1')
-    .action(() => {
-        deployL2ThroughL1({ includePaymaster: true });
-    });
+    .option(
+        '--local-legacy-bridge-testing',
+        'used to test LegacyBridge compatibility. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
+    )
+    .action(deployL2ThroughL1);
 command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);

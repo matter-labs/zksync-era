@@ -142,6 +142,10 @@ impl StateDiffRecord {
 
         comp_state_diff
     }
+
+    pub fn is_write_initial(&self) -> bool {
+        self.enumeration_index == 0
+    }
 }
 
 /// Compresses a vector of state diff records according to the following:
