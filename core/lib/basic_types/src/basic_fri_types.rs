@@ -24,9 +24,15 @@ type Eip4844BlobsInner = [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK];
 /// Current invariants:
 ///   - there are between [1, 16] blobs
 ///   - all blobs are of the same size [`EIP_4844_BLOB_SIZE`]
+///   - there may be no blobs in case of Validium
 /// Creating a structure violating these constraints will panic.
 ///
 /// Note: blobs are padded to fit the correct size.
+// TODO: PLA-932
+/// Note2: this becomes a rather leaky abstraction.
+/// It will be reworked once BWIP is introduced.
+/// Provers shouldn't need to decide between loading data from database or making it empty.
+/// Data should just be available
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Eip4844Blobs {
     blobs: Eip4844BlobsInner,
