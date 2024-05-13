@@ -148,7 +148,7 @@ else
 
 
   if [ -z "$CUSTOM_BASE_TOKEN" ]; then
-    echo "Starting chain with ETH"
+    echo "Starting chain with ETH as gas token"
 
     if [ -z "$VALIDIUM_MODE" ]; then
       ## init hyperchain in rollup mode
@@ -157,7 +157,7 @@ else
       zk contract register-hyperchain --deployment-mode 1
     fi
   else
-    echo "Starting chain with custom token $CUSTOM_BASE_TOKEN"
+    echo "Starting chain with custom gas token $CUSTOM_BASE_TOKEN"
     zk contract register-hyperchain --base-token-name $CUSTOM_BASE_TOKEN
   fi
   
