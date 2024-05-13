@@ -224,9 +224,8 @@ export async function registerHyperchain({
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
-        deploymentMode === DeploymentMode.Validium ? '--validium-mode' : ''
+        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''
     ];
-
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();
 
@@ -312,9 +311,9 @@ command
 command
     .command('register-hyperchain')
     .description('register hyperchain')
-    .action(() => {
-        registerHyperchain({});
-    });
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
+    .action(registerHyperchain);
 command
     .command('deploy-l2-through-l1')
     .description('deploy l2 through l1')
