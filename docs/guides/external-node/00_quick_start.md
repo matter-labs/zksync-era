@@ -52,14 +52,14 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 
 ### System Requirements
 
-> [!NOTE] 
-> 
-> This configuration is only for nodes that use snapshots recovery, for requirements for nodes running from DB dump, see [03_running.md](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/03_running.md)
+> [!NOTE]
+>
+> This configuration is only for nodes that use snapshots recovery, for requirements for nodes running from DB dump, see
+> [03_running.md](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/03_running.md)
 
 > [!NOTE]
 >
 > Those are requirements for a freshly started node and the the state grows about 1TB per month for mainnet
-
 
 - 32 GB of RAM and a relatively modern CPU
 - 30 GB of storage for testnet nodes
@@ -68,5 +68,5 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 
 ## Advanced setup
 
-If you need monitoring, backups, to recover from DB dump or a more customized PostgreSQL settings, etc, please
-see: [ansible-en-role repo](https://github.com/matter-labs/ansible-en-role)
+If you need monitoring, backups, to recover from DB dump or a more customized PostgreSQL settings, etc, please see:
+[ansible-en-role repo](https://github.com/matter-labs/ansible-en-role)

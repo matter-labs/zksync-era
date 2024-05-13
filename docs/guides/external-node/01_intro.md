@@ -5,15 +5,15 @@ This documentation explains the basics of the zkSync Node.
 ## Disclaimers
 
 - The zkSync node is in the alpha phase, and should be used with caution.
-- The zkSync node is a read-only replica of the main node. We are currently working on decentralizing our infrastructure by
-  creating a consensus node. The zkSync node is not going to be the consensus node.
+- The zkSync node is a read-only replica of the main node. We are currently working on decentralizing our infrastructure
+  by creating a consensus node. The zkSync node is not going to be the consensus node.
 
 ## What is the zkSync node
 
-The zkSync node is a read-replica of the main (centralized) node that can be run by external parties. It
-functions by fetching data from the zkSync API and re-applying transactions locally, starting from the genesis block.
-The zkSync node shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so exactly
-as the main node did in the past.
+The zkSync node is a read-replica of the main (centralized) node that can be run by external parties. It functions by
+fetching data from the zkSync API and re-applying transactions locally, starting from the genesis block. The zkSync node
+shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so exactly as the
+main node did in the past.
 
 **It has two modes of initialization:**
 
@@ -48,8 +48,8 @@ A more detailed overview of the EN's components is provided in the [components](
 
 ## API overview
 
-API exposed by the zkSync node strives to be Web3-compliant. If some method is exposed but behaves differently compared to
-Ethereum, it should be considered a bug. Please [report][contact_us] such cases.
+API exposed by the zkSync node strives to be Web3-compliant. If some method is exposed but behaves differently compared
+to Ethereum, it should be considered a bug. Please [report][contact_us] such cases.
 
 [contact_us]: https://zksync.io/contact
 
@@ -59,42 +59,42 @@ Data getters in this namespace operate in the L2 space: require/return L2 block 
 
 Available methods:
 
-| Method                                    | Notes                                                                     |
-| ----------------------------------------- | ------------------------------------------------------------------------- |
-| `eth_blockNumber`                         |                                                                           |
-| `eth_chainId`                             |                                                                           |
-| `eth_call`                                |                                                                           |
-| `eth_estimateGas`                         |                                                                           |
-| `eth_gasPrice`                            |                                                                           |
-| `eth_newFilter`                           | Maximum amount of installed filters is configurable                       |
-| `eth_newBlockFilter`                      | Same as above                                                             |
-| `eth_newPendingTransactionsFilter`        | Same as above                                                             |
-| `eth_uninstallFilter`                     |                                                                           |
-| `eth_getLogs`                             | Maximum amount of returned entities can be configured                     |
-| `eth_getFilterLogs`                       | Same as above                                                             |
-| `eth_getFilterChanges`                    | Same as above                                                             |
-| `eth_getBalance`                          |                                                                           |
-| `eth_getBlockByNumber`                    |                                                                           |
-| `eth_getBlockByHash`                      |                                                                           |
-| `eth_getBlockTransactionCountByNumber`    |                                                                           |
-| `eth_getBlockTransactionCountByHash`      |                                                                           |
-| `eth_getCode`                             |                                                                           |
-| `eth_getStorageAt`                        |                                                                           |
-| `eth_getTransactionCount`                 |                                                                           |
-| `eth_getTransactionByHash`                |                                                                           |
-| `eth_getTransactionByBlockHashAndIndex`   |                                                                           |
-| `eth_getTransactionByBlockNumberAndIndex` |                                                                           |
-| `eth_getTransactionReceipt`               |                                                                           |
-| `eth_protocolVersion`                     |                                                                           |
-| `eth_sendRawTransaction`                  |                                                                           |
+| Method                                    | Notes                                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------------- |
+| `eth_blockNumber`                         |                                                                                    |
+| `eth_chainId`                             |                                                                                    |
+| `eth_call`                                |                                                                                    |
+| `eth_estimateGas`                         |                                                                                    |
+| `eth_gasPrice`                            |                                                                                    |
+| `eth_newFilter`                           | Maximum amount of installed filters is configurable                                |
+| `eth_newBlockFilter`                      | Same as above                                                                      |
+| `eth_newPendingTransactionsFilter`        | Same as above                                                                      |
+| `eth_uninstallFilter`                     |                                                                                    |
+| `eth_getLogs`                             | Maximum amount of returned entities can be configured                              |
+| `eth_getFilterLogs`                       | Same as above                                                                      |
+| `eth_getFilterChanges`                    | Same as above                                                                      |
+| `eth_getBalance`                          |                                                                                    |
+| `eth_getBlockByNumber`                    |                                                                                    |
+| `eth_getBlockByHash`                      |                                                                                    |
+| `eth_getBlockTransactionCountByNumber`    |                                                                                    |
+| `eth_getBlockTransactionCountByHash`      |                                                                                    |
+| `eth_getCode`                             |                                                                                    |
+| `eth_getStorageAt`                        |                                                                                    |
+| `eth_getTransactionCount`                 |                                                                                    |
+| `eth_getTransactionByHash`                |                                                                                    |
+| `eth_getTransactionByBlockHashAndIndex`   |                                                                                    |
+| `eth_getTransactionByBlockNumberAndIndex` |                                                                                    |
+| `eth_getTransactionReceipt`               |                                                                                    |
+| `eth_protocolVersion`                     |                                                                                    |
+| `eth_sendRawTransaction`                  |                                                                                    |
 | `eth_syncing`                             | zkSync node is considered synced if it's less than 11 blocks behind the main node. |
-| `eth_coinbase`                            | Always returns a zero address                                             |
-| `eth_accounts`                            | Always returns an empty list                                              |
-| `eth_getCompilers`                        | Always returns an empty list                                              |
-| `eth_hashrate`                            | Always returns zero                                                       |
-| `eth_getUncleCountByBlockHash`            | Always returns zero                                                       |
-| `eth_getUncleCountByBlockNumber`          | Always returns zero                                                       |
-| `eth_mining`                              | Always returns false                                                      |
+| `eth_coinbase`                            | Always returns a zero address                                                      |
+| `eth_accounts`                            | Always returns an empty list                                                       |
+| `eth_getCompilers`                        | Always returns an empty list                                                       |
+| `eth_hashrate`                            | Always returns zero                                                                |
+| `eth_getUncleCountByBlockHash`            | Always returns zero                                                                |
+| `eth_getUncleCountByBlockNumber`          | Always returns zero                                                                |
+| `eth_mining`                              | Always returns false                                                               |
 
 ### PubSub
 
