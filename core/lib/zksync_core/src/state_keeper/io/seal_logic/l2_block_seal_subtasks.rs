@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_dal::{Core, CoreDal};
@@ -34,7 +32,7 @@ impl L2BlockSealProcess {
 
     pub async fn run_subtasks(
         command: &L2BlockSealCommand,
-        strategy: &mut SealStrategy<'_, '_>,
+        strategy: &mut SealStrategy<'_>,
     ) -> anyhow::Result<()> {
         let subtasks = Self::all_subtasks();
         match strategy {
@@ -48,7 +46,7 @@ impl L2BlockSealProcess {
                 }
             }
             SealStrategy::Parallel(pool) => {
-                let pool = pool.deref();
+                let pool = &*pool;
                 let handles = subtasks.into_iter().map(|subtask| {
                     let subtask_name = subtask.name();
                     async move {
@@ -480,7 +478,7 @@ mod tests {
         };
 
         // Run.
-        let mut strategy = SealStrategy::Parallel(pool.clone());
+        let mut strategy = SealStrategy::Parallel(&pool);
         L2BlockSealProcess::run_subtasks(&l2_block_seal_command, &mut strategy)
             .await
             .unwrap();
@@ -507,7 +505,7 @@ mod tests {
         drop(connection);
 
         // Run again.
-        let mut strategy = SealStrategy::Parallel(pool.clone());
+        let mut strategy = SealStrategy::Parallel(&pool);
         L2BlockSealProcess::run_subtasks(&l2_block_seal_command, &mut strategy)
             .await
             .unwrap();

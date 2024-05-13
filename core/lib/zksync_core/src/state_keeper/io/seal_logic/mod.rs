@@ -1,7 +1,10 @@
 //! This module is a source-of-truth on what is expected to be done when sealing a block.
 //! It contains the logic of the block sealing, which is used by both the mempool-based and external node IO.
 
-use std::time::{Duration, Instant};
+use std::{
+    ops,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use itertools::Itertools;
@@ -65,13 +68,17 @@ impl UpdatesManager {
         );
 
         let mut connection = pool.connection_tagged("state_keeper").await?;
-        let mut transaction = connection.start_transaction().await?;
+        let transaction = connection.start_transaction().await?;
 
         // We rely on the fact that fictive L2 block and L1 batch data is saved in the same transaction.
+        let mut strategy = SealStrategy::Sequential(transaction);
         l2_block_command
-            .seal_inner(SealStrategy::Sequential(&mut transaction), true)
+            .seal_inner(&mut strategy, true)
             .await
             .context("failed persisting fictive L2 block")?;
+        let SealStrategy::Sequential(mut transaction) = strategy else {
+            panic!("Sealing L2 block should not mutate type of strategy");
+        };
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::LogDeduplication);
@@ -270,15 +277,50 @@ impl UpdatesManager {
 }
 
 #[derive(Debug)]
-pub(crate) enum SealStrategy<'a, 'b> {
-    Sequential(&'a mut Connection<'b, Core>),
-    Parallel(ConnectionPool<Core>),
+pub(crate) enum SealStrategy<'pool> {
+    Sequential(Connection<'pool, Core>),
+    Parallel(&'pool ConnectionPool<Core>),
+}
+
+// As opposed to `Cow` from `std`; a union of an owned type and a mutable ref to it
+enum Goat<'a, T> {
+    Owned(T),
+    Borrowed(&'a mut T),
+}
+
+impl<T> ops::Deref for Goat<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Owned(value) => value,
+            Self::Borrowed(value) => value,
+        }
+    }
+}
+
+impl<T> ops::DerefMut for Goat<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Owned(value) => value,
+            Self::Borrowed(value) => value,
+        }
+    }
+}
+
+impl<'pool> SealStrategy<'pool> {
+    async fn connection(&mut self) -> anyhow::Result<Goat<'_, Connection<'pool, Core>>> {
+        Ok(match self {
+            Self::Parallel(pool) => Goat::Owned(pool.connection_tagged("state_keeper").await?),
+            Self::Sequential(conn) => Goat::Borrowed(conn),
+        })
+    }
 }
 
 impl L2BlockSealCommand {
     pub(super) async fn seal(&self, pool: ConnectionPool<Core>) -> anyhow::Result<()> {
         let l2_block_number = self.l2_block.number;
-        self.seal_inner(SealStrategy::Parallel(pool), false)
+        self.seal_inner(&mut SealStrategy::Parallel(&pool), false)
             .await
             .with_context(|| format!("failed sealing L2 block #{l2_block_number}"))
     }
@@ -339,7 +381,7 @@ impl L2BlockSealCommand {
     /// `l2_shared_bridge_addr` is required to extract the information on newly added tokens.
     async fn seal_inner(
         &self,
-        mut strategy: SealStrategy<'_, '_>,
+        strategy: &mut SealStrategy<'_>,
         is_fictive: bool,
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
@@ -359,19 +401,15 @@ impl L2BlockSealCommand {
 
         if self.pre_insert_txs {
             let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::PreInsertTxs, is_fictive);
-            match &mut strategy {
-                SealStrategy::Sequential(connection) => self.insert_transactions(connection).await,
-                SealStrategy::Parallel(pool) => {
-                    let mut connection = pool.connection_tagged("state_keeper").await?;
-                    self.insert_transactions(&mut connection).await
-                }
-            }
-            .context("failed persisting transactions in L2 block")?;
+            let mut connection = strategy.connection().await?;
+            self.insert_transactions(&mut connection)
+                .await
+                .context("failed persisting transactions in L2 block")?;
             progress.observe(Some(self.l2_block.executed_transactions.len()));
         }
 
         // Run sub-tasks in parallel.
-        L2BlockSealProcess::run_subtasks(self, &mut strategy).await?;
+        L2BlockSealProcess::run_subtasks(self, strategy).await?;
 
         // Seal block header at the last step.
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
@@ -396,21 +434,11 @@ impl L2BlockSealCommand {
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
         };
 
-        match &mut strategy {
-            SealStrategy::Sequential(connection) => {
-                (*connection)
-                    .blocks_dal()
-                    .insert_l2_block(&l2_block_header)
-                    .await
-            }
-            SealStrategy::Parallel(pool) => {
-                let mut connection = pool.connection_tagged("state_keeper").await?;
-                connection
-                    .blocks_dal()
-                    .insert_l2_block(&l2_block_header)
-                    .await
-            }
-        }?;
+        let mut connection = strategy.connection().await?;
+        connection
+            .blocks_dal()
+            .insert_l2_block(&l2_block_header)
+            .await?;
         progress.observe(None);
 
         // Report metrics.
