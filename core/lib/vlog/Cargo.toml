@@ -21,6 +21,7 @@ tracing-subscriber = { workspace = true, features = [
 ] }
 tracing-opentelemetry.workspace = true
 sentry.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 opentelemetry = { workspace = true, features = ["rt-tokio", "trace"] }
 opentelemetry-otlp = { workspace = true, features = [
