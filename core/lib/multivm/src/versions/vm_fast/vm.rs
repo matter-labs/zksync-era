@@ -5,7 +5,10 @@ use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCA
 use zksync_contracts::SystemContractCode;
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
-    event::{extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages},
+    event::{
+        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
+        L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
+    },
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
     utils::key_for_eth_balance,
@@ -14,7 +17,7 @@ use zksync_types::{
         BYTES_PER_ENUMERATION_INDEX,
     },
     AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, U256,
+    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -53,7 +56,9 @@ pub struct Vm<S: ReadStorage> {
 
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) storage: StoragePtr<S>,
+
     pub(crate) program_cache: Rc<RefCell<HashMap<U256, Program>>>,
+    bytecode_cache: HashMap<U256, Vec<u8>>,
 
     // these two are only needed for tests so far
     pub(crate) batch_env: L1BatchEnv,
@@ -191,10 +196,29 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     }
 
                     let events = merge_events(self.inner.world.events(), self.batch_env.number);
+
+                    let published_bytecodes = events
+                        .iter()
+                        .filter(|event| {
+                            // Filter events from the l1 messenger contract that match the expected signature.
+                            event.address == L1_MESSENGER_ADDRESS
+                                && !event.indexed_topics.is_empty()
+                                && event.indexed_topics[0]
+                                    == *L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
+                        })
+                        .map(|event| {
+                            let hash = U256::from_big_endian(&event.value[..32]);
+                            self.bytecode_cache
+                                .get(&hash)
+                                .expect("published unknown bytecode")
+                                .clone()
+                        })
+                        .collect();
+
                     let pubdata_input = PubdataInput {
                         user_logs: extract_l2tol1logs_from_l1_messenger(&events),
                         l2_to_l1_messages: extract_long_l2_to_l1_messages(&events),
-                        published_bytecodes: vec![], // TODO
+                        published_bytecodes,
                         state_diffs: self.compute_state_diffs(),
                     };
 
@@ -286,10 +310,11 @@ impl<S: ReadStorage + 'static> Vm<S> {
 
     pub(crate) fn insert_bytecodes<'a>(&mut self, bytecodes: impl IntoIterator<Item = &'a [u8]>) {
         for code in bytecodes {
-            self.program_cache.borrow_mut().insert(
-                U256::from_big_endian(hash_bytecode(code).as_bytes()),
-                bytecode_to_program(code),
-            );
+            let hash = h256_to_u256(hash_bytecode(code));
+            self.program_cache
+                .borrow_mut()
+                .insert(hash, bytecode_to_program(code));
+            self.bytecode_cache.insert(hash, code.to_vec());
         }
     }
 
@@ -435,6 +460,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             system_env,
             batch_env,
             program_cache,
+            bytecode_cache: HashMap::new(),
             snapshots: vec![],
         };
 
