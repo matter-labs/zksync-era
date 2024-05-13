@@ -117,17 +117,6 @@ async function hyperchainUpgrade3() {
     process.chdir(cwd);
 }
 
-async function whatever() {
-    const cwd = process.cwd();
-    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
-    const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
-    await spawn(
-        `yarn whatever --print-file-path ${getUpgradePath(
-            environment
-        )} --private-key  ${privateKey} | tee deployWhatever.log`
-    );
-    process.chdir(cwd);
-}
 
 async function preparePostUpgradeCalldata(environment?: string) {
     let calldata = new ethers.utils.AbiCoder().encode(
@@ -185,13 +174,13 @@ async function hyperchainFullUpgrade() {
 }
 
 async function hyperchainProverFixUpgrade() {
-    // await insertAddresses('stage-proofs-fix');
-    // await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment stage-proofs-fix ');
-    // await spawn(
-    //     'zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment stage-proofs-fix'
-    // );
+    await insertAddresses('testnet-fix');
+    await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment testnet-fix ');
     await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --chain-id ${process.env.CONTRACTS_ERA_CHAIN_ID} --stm-address ${process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR} --old-protocol-version 24 --old-protocol-version-deadline 0 --new-protocol-version 24 --use-new-governance --environment stage-proofs-fix`
+        'zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment testnet-fix'
+    );
+    await spawn(
+        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --chain-id ${process.env.CONTRACTS_ERA_CHAIN_ID} --stm-address ${process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR} --old-protocol-version 24 --old-protocol-version-deadline 0 --new-protocol-version 24 --use-new-governance --environment testnet-fix`
     );
 }
 
@@ -254,7 +243,5 @@ command
             await hyperchainUpgradeValidators();
         } else if (options.hyperchainProverFixUpgrade) {
             await hyperchainProverFixUpgrade();
-        } else if (options.whatever) {
-            await whatever();
-        }
+        } 
     });
