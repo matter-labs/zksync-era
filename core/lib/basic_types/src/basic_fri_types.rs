@@ -29,7 +29,7 @@ type Eip4844BlobsInner = [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK];
 ///
 /// Note: blobs are padded to fit the correct size.
 // TODO: PLA-932
-/// Note2: this becomes a rather leaky abstraction.
+/// Note2: this becomes a rather leaky abstraction post Validium.
 /// It will be reworked once BWIP is introduced.
 /// Provers shouldn't need to decide between loading data from database or making it empty.
 /// Data should just be available
@@ -56,18 +56,16 @@ impl Eip4844Blobs {
     }
 
     pub fn decode(blobs: &[u8]) -> anyhow::Result<Self> {
+        // Validium case
+        if blobs.is_empty() {
+            return Ok(Self::empty());
+        }
         let mut chunks: Vec<Blob> = blobs
             .chunks(EIP_4844_BLOB_SIZE)
             .map(|chunk| chunk.into())
             .collect();
-
-        if let Some(last_chunk) = chunks.last_mut() {
-            last_chunk.resize(EIP_4844_BLOB_SIZE, 0u8);
-        } else {
-            return Err(anyhow::anyhow!(
-                "cannot create Eip4844Blobs, received empty pubdata"
-            ));
-        }
+        // Unwrapping here is safe because of check on first line of the function.
+        chunks.last_mut().unwrap().resize(EIP_4844_BLOB_SIZE, 0u8);
 
         if chunks.len() > MAX_4844_BLOBS_PER_BLOCK {
             return Err(anyhow::anyhow!(
