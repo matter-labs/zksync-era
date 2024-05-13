@@ -165,7 +165,7 @@ pub enum Error {
     Contract(#[from] ContractError),
     /// Problem with transaction signer.
     #[error("Transaction signing failed: {0}")]
-    Signer(#[from] zksync_eth_signer::error::SignerError),
+    Signer(#[from] zksync_eth_signer::SignerError),
     /// Incorrect fee provided for a transaction.
     #[error("Max fee {0} less than priority fee {1}")]
     WrongFeeProvided(U256, U256),

@@ -1,4 +1,4 @@
-use zksync_eth_signer::error::SignerError;
+use zksync_eth_signer::SignerError;
 pub use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 #[derive(Debug, thiserror::Error)]
