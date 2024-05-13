@@ -233,6 +233,7 @@ pub async fn initialize_components(
     HealthCheckHandle,
 )> {
     tracing::info!("Starting the components: {components:?}");
+    tracing::info!("Sanity check");
     let l2_chain_id = genesis_config.l2_chain_id;
     let db_config = configs.db_config.clone().context("db_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
