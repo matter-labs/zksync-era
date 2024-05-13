@@ -6,4 +6,4 @@ pub static ERC20_BIN_NATIVE: &str = include_str!("../ERC20_zk.bin");
 pub static ERC20_BIN_EVM: &str = include_str!("../ERC20.bin");
 pub static ERC20_ABI: &str = include_str!("../ERC20.abi");
 
-pub static L1_URL: &str = "http://localhost:8552";
+pub static L1_URL: &str = "http://localhost:8545";
