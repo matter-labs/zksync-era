@@ -1,6 +1,70 @@
 //! Tests for EN configuration.
 
+use std::collections::HashMap;
+
+use assert_matches::assert_matches;
+
 use super::*;
+
+#[derive(Debug)]
+struct MockEnvironment(HashMap<&'static str, &'static str>);
+
+impl MockEnvironment {
+    pub fn new(vars: &[(&'static str, &'static str)]) -> Self {
+        Self(vars.iter().copied().collect())
+    }
+}
+
+impl ConfigurationSource for MockEnvironment {
+    type Vars<'a> = Box<dyn Iterator<Item = (OsString, OsString)> + 'a>;
+
+    fn vars(&self) -> Self::Vars<'_> {
+        Box::new(
+            self.0
+                .iter()
+                .map(|(&name, &value)| (OsString::from(name), OsString::from(value))),
+        )
+    }
+
+    fn var(&self, name: &str) -> Option<String> {
+        self.0.get(name).copied().map(str::to_owned)
+    }
+}
+
+#[test]
+fn parsing_observability_config() {
+    let mut env_vars = MockEnvironment::new(&[
+        ("EN_PROMETHEUS_PORT", "3322"),
+        ("MISC_SENTRY_URL", "https://example.com/"),
+        ("EN_SENTRY_ENVIRONMENT", "mainnet - mainnet2"),
+    ]);
+    let config = ObservabilityENConfig::new(&env_vars).unwrap();
+    assert_eq!(config.prometheus_port, Some(3322));
+    assert_eq!(config.sentry_url.unwrap(), "https://example.com/");
+    assert_eq!(config.sentry_environment.unwrap(), "mainnet - mainnet2");
+    assert_matches!(config.log_format, vlog::LogFormat::Plain);
+    assert_eq!(config.prometheus_push_interval_ms, 10_000);
+
+    env_vars.0.insert("MISC_LOG_FORMAT", "json");
+    let config = ObservabilityENConfig::new(&env_vars).unwrap();
+    assert_matches!(config.log_format, vlog::LogFormat::Json);
+
+    // If both the canonical and obsolete vars are specified, the canonical one should prevail.
+    env_vars.0.insert("EN_LOG_FORMAT", "plain");
+    env_vars
+        .0
+        .insert("EN_SENTRY_URL", "https://example.com/new");
+    let config = ObservabilityENConfig::new(&env_vars).unwrap();
+    assert_matches!(config.log_format, vlog::LogFormat::Plain);
+    assert_eq!(config.sentry_url.unwrap(), "https://example.com/new");
+}
+
+#[test]
+fn using_unset_sentry_url() {
+    let env_vars = MockEnvironment::new(&[("MISC_SENTRY_URL", "unset")]);
+    let config = ObservabilityENConfig::new(&env_vars).unwrap();
+    config.build_observability().unwrap();
+}
 
 #[test]
 fn parsing_optional_config_from_empty_env() {
