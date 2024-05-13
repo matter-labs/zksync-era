@@ -1,0 +1,29 @@
+[package]
+name = "zksync_job_queue_playground"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+tracing-log = "0.2"
+tracing-subscriber.workspace = true
+tracing.workspace = true
+zksync_config.workspace = true
+zksync_object_store.workspace = true
+zksync_tee_verifier.workspace = true
+zksync_types.workspace = true
+google-cloud-pubsub = "0.24"
+google-cloud-googleapis = "0.12"
+google-cloud-gax = "0.17"
+tokio-util = "0.7"
+google-cloud-auth.workspace = true
+google-cloud-storage.workspace = true
