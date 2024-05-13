@@ -8306,7 +8306,6 @@ dependencies = [
  "itertools 0.10.5",
  "jsonrpsee",
  "lru",
- "metrics",
  "multivm",
  "once_cell",
  "pin-project-lite",

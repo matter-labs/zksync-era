@@ -87,8 +87,8 @@ impl From<&str> for WitnessType {
     fn from(s: &str) -> Self {
         match s {
             "witness_inputs_fri" => Self::WitnessInputsFri,
-            "leaf_aggregation_jobs_fri" => Self::LeafAggregationJobsFri,
-            "node_aggregation_jobs_fri" => Self::NodeAggregationJobsFri,
+            "leaf_aggregations_jobs_fri" => Self::LeafAggregationJobsFri,
+            "node_aggregations_jobs_fri" => Self::NodeAggregationJobsFri,
             "recursion_tip_jobs_fri" => Self::RecursionTipJobsFri,
             "scheduler_jobs_fri" => Self::SchedulerJobsFri,
             _ => panic!("Invalid witness type"),
