@@ -30,7 +30,7 @@ impl L1BatchMetricsReporter {
 
         let last_l1_batch_with_metadata = conn
             .blocks_dal()
-            .get_last_l1_batch_number_with_metadata()
+            .get_last_l1_batch_number_with_tree_data()
             .await?;
         if let Some(number) = last_l1_batch_with_metadata {
             block_metrics.push((number, BlockStage::MetadataCalculated));

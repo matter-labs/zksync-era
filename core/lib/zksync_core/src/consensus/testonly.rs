@@ -330,7 +330,11 @@ async fn calculate_mock_metadata(ctx: &ctx::Ctx, store: &Store) -> ctx::Result<(
         return Ok(());
     };
     let prev = ctx
-        .wait(conn.0.blocks_dal().get_last_l1_batch_number_with_metadata())
+        .wait(
+            conn.0
+                .blocks_dal()
+                .get_last_l1_batch_number_with_tree_data(),
+        )
         .await?
         .map_err(DalError::generalize)?;
     let mut first = match prev {

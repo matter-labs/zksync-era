@@ -226,28 +226,28 @@ impl TreeUpdater {
         let mut next_l1_batch_to_seal = tree.next_l1_batch_number();
 
         let current_db_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
-        let last_l1_batch_with_metadata = storage
+        let last_l1_batch_with_tree_data = storage
             .blocks_dal()
-            .get_last_l1_batch_number_with_metadata()
+            .get_last_l1_batch_number_with_tree_data()
             .await?;
         drop(storage);
 
         tracing::info!(
             "Initialized metadata calculator with {max_batches_per_iter} max L1 batches per iteration. \
              Next L1 batch for Merkle tree: {next_l1_batch_to_seal}, current Postgres L1 batch: {current_db_batch:?}, \
-             last L1 batch with metadata: {last_l1_batch_with_metadata:?}",
+             last L1 batch with metadata: {last_l1_batch_with_tree_data:?}",
             max_batches_per_iter = self.max_l1_batches_per_iter
         );
 
         // It may be the case that we don't have any L1 batches with metadata in Postgres, e.g. after
         // recovering from a snapshot. We cannot wait for such a batch to appear (*this* is the component
         // responsible for their appearance!), but fortunately most of the updater doesn't depend on it.
-        if let Some(last_l1_batch_with_metadata) = last_l1_batch_with_metadata {
+        if let Some(last_l1_batch_with_tree_data) = last_l1_batch_with_tree_data {
             let backup_lag =
-                (last_l1_batch_with_metadata.0 + 1).saturating_sub(next_l1_batch_to_seal.0);
+                (last_l1_batch_with_tree_data.0 + 1).saturating_sub(next_l1_batch_to_seal.0);
             METRICS.backup_lag.set(backup_lag.into());
 
-            if next_l1_batch_to_seal > last_l1_batch_with_metadata + 1 {
+            if next_l1_batch_to_seal > last_l1_batch_with_tree_data + 1 {
                 // Check stop signal before proceeding with a potentially time-consuming operation.
                 if *stop_receiver.borrow_and_update() {
                     tracing::info!("Stop signal received, metadata_calculator is shutting down");
@@ -256,10 +256,10 @@ impl TreeUpdater {
 
                 tracing::warn!(
                     "Next L1 batch of the tree ({next_l1_batch_to_seal}) is greater than last L1 batch with metadata in Postgres \
-                     ({last_l1_batch_with_metadata}); this may be a result of restoring Postgres from a snapshot. \
+                     ({last_l1_batch_with_tree_data}); this may be a result of restoring Postgres from a snapshot. \
                      Truncating Merkle tree versions so that this mismatch is fixed..."
                 );
-                tree.revert_logs(last_l1_batch_with_metadata);
+                tree.revert_logs(last_l1_batch_with_tree_data);
                 tree.save().await?;
                 next_l1_batch_to_seal = tree.next_l1_batch_number();
                 tracing::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");
