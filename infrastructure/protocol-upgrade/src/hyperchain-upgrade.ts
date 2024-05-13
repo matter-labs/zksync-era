@@ -117,7 +117,6 @@ async function hyperchainUpgrade3() {
     process.chdir(cwd);
 }
 
-
 async function preparePostUpgradeCalldata(environment?: string) {
     let calldata = new ethers.utils.AbiCoder().encode(
         ['uint256', 'address', 'address', 'address', 'address', 'address'],
@@ -175,7 +174,9 @@ async function hyperchainFullUpgrade() {
 
 async function hyperchainProverFixUpgrade() {
     await insertAddresses('testnet-fix');
-    await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment testnet-fix ');
+    await spawn(
+        'zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment testnet-fix '
+    );
     await spawn(
         'zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment testnet-fix'
     );
@@ -243,5 +244,5 @@ command
             await hyperchainUpgradeValidators();
         } else if (options.hyperchainProverFixUpgrade) {
             await hyperchainProverFixUpgrade();
-        } 
+        }
     });
