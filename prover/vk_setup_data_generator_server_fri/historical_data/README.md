@@ -9,3 +9,4 @@ version.
 - 21 - blobs - 1.4.2
 - 22 - fix - 1.4.2
 - 23 - 16 blobs + AA hashes + shared bridge - 1.5.0
+- 24 - 23 + fixes
