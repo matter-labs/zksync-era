@@ -4,6 +4,8 @@ use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+#[cfg(test)]
+use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -14,8 +16,11 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
+#[cfg(test)]
+mod tests;
+
 #[async_trait]
-pub trait MainNodeClient: fmt::Debug + Send + Sync {
+trait MainNodeClient: fmt::Debug + Send + Sync + 'static {
     async fn batch_details(
         &self,
         number: L1BatchNumber,
@@ -71,6 +76,8 @@ pub struct TreeDataFetcher {
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     sleep_interval: Duration,
+    #[cfg(test)]
+    updates_sender: mpsc::UnboundedSender<L1BatchNumber>,
 }
 
 impl TreeDataFetcher {
@@ -82,6 +89,8 @@ impl TreeDataFetcher {
             pool,
             health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
+            #[cfg(test)]
+            updates_sender: mpsc::unbounded_channel().0,
         }
     }
 
@@ -188,6 +197,9 @@ impl TreeDataFetcher {
         while !*stop_receiver.borrow_and_update() {
             let need_to_sleep = match self.step().await {
                 Ok(StepOutcome::UpdatedBatch(batch_number)) => {
+                    #[cfg(test)]
+                    self.updates_sender.send(batch_number).ok();
+
                     last_updated_l1_batch = Some(batch_number);
                     self.update_health(last_updated_l1_batch);
                     false
