@@ -33,7 +33,7 @@ type Eip4844BlobsInner = [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK];
 /// It will be reworked once `BWIP` is introduced.
 /// Provers shouldn't need to decide between loading data from database or making it empty.
 /// Data should just be available
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Eip4844Blobs {
     blobs: Eip4844BlobsInner,
 }
@@ -191,15 +191,8 @@ mod tests {
     #[test]
     fn test_eip_4844_blobs_empty_pubdata() {
         let payload = vec![];
-        match Eip4844Blobs::decode(&payload) {
-            Ok(_) => panic!("expected error, got Ok"),
-            Err(e) => {
-                assert_eq!(
-                    e.to_string(),
-                    "cannot create Eip4844Blobs, received empty pubdata"
-                );
-            }
-        }
+        let blobs = Eip4844Blobs::decode(&payload).unwrap();
+        assert_eq!(blobs, Eip4844Blobs::empty());
     }
 
     #[test]
