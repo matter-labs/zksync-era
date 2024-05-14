@@ -3388,7 +3388,6 @@ dependencies = [
  "envy",
  "futures 0.3.28",
  "hex",
- "metrics",
  "num",
  "once_cell",
  "prometheus_exporter",
@@ -3401,6 +3400,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "vise",
  "vlog",
  "zksync_config",
  "zksync_contracts",
@@ -7311,9 +7311,9 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "iai",
- "metrics",
  "metrics-exporter-prometheus",
  "tokio",
+ "vise",
  "vm-benchmark-harness",
 ]
 
@@ -8257,7 +8257,6 @@ dependencies = [
  "futures 0.3.28",
  "hex",
  "lazy_static",
- "metrics",
  "prometheus_exporter",
  "regex",
  "serde",
@@ -8267,6 +8266,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "vise",
  "vlog",
  "zksync_config",
  "zksync_contracts",
@@ -8307,7 +8307,6 @@ dependencies = [
  "itertools 0.10.5",
  "jsonrpsee",
  "lru",
- "metrics",
  "multivm",
  "once_cell",
  "pin-project-lite",
@@ -8613,7 +8612,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "metrics",
  "prover_dal",
  "tokio",
  "tracing",
