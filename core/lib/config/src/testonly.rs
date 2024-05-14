@@ -384,6 +384,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             max_acceptable_priority_fee_in_gwei: self.sample(rng),
             proof_loading_mode: self.sample(rng),
             pubdata_sending_mode: PubdataSendingMode::Calldata,
+            ignore_db_nonce: None,
         }
     }
 }

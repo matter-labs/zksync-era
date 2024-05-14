@@ -179,6 +179,27 @@ export function pushConfig(environment?: string, diff?: string) {
             l2InitFile,
             false
         );
+    } else {
+        env.modify('DATABASE_URL', `postgres://postgres:notsecurepassword@postgres/${environment}`, l2InitFile, false);
+        env.modify(
+            'TEST_DATABASE_URL',
+            `postgres://postgres:notsecurepassword@postgres/${environment}_test`,
+            l2InitFile,
+            false
+        );
+
+        env.modify(
+            'DATABASE_PROVER_URL',
+            `postgres://postgres:notsecurepassword@postgres/prover_${environment}`,
+            l2InitFile,
+            false
+        );
+        env.modify(
+            'TEST_DATABASE_PROVER_URL',
+            `postgres://postgres:notsecurepassword@postgres/prover_${environment}_test`,
+            l2InitFile,
+            false
+        );
     }
 
     env.modify('DATABASE_STATE_KEEPER_DB_PATH', `./db/${environment}/state_keeper`, l2InitFile, false);

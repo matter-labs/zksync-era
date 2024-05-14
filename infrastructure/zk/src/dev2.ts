@@ -43,7 +43,7 @@ async function supplyRichWallets() {
         return await (
             await wallet.deposit({
                 token: zkUtils.ETH_ADDRESS_IN_CONTRACTS,
-                amount: ethers.utils.parseEther('1000')
+                amount: ethers.utils.parseEther('100000')
             })
         ).wait();
     });

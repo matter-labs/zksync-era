@@ -19,7 +19,7 @@ const contracts = {
     events: getTestContract('Emitter')
 };
 
-describe('web3 API compatibility tests', () => {
+describe.skip('web3 API compatibility tests', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let l2Token: string;

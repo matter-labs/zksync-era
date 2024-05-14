@@ -7,6 +7,7 @@ on:
     branches:
       - staging
       - trying
+      - sync-layer-main # adding this branch here to run CI on it regardless of the conflicts
       - '!release-please--branches--**'
 
 concurrency:

@@ -9,6 +9,43 @@ export async function build(zkSyncNetwork: boolean): Promise<void> {
     await utils.spawn('yarn l2-contracts build');
 }
 
+const syncLayerEnvVars = [
+    'SYNC_LAYER_CREATE2_FACTORY_ADDR',
+
+    'SYNC_LAYER_STATE_TRANSITION_PROXY_ADDR',
+    'SYNC_LAYER_STATE_TRANSITION_IMPL_ADDR',
+
+    'SYNC_LAYER_DIAMOND_INIT_ADDR',
+    'SYNC_LAYER_DEFAULT_UPGRADE_ADDR',
+    'SYNC_LAYER_GENESIS_UPGRADE_ADDR',
+    'SYNC_LAYER_GOVERNANCE_ADDR',
+    'SYNC_LAYER_ADMIN_FACET_ADDR',
+    'SYNC_LAYER_EXECUTOR_FACET_ADDR',
+    'SYNC_LAYER_GETTERS_FACET_ADDR',
+    'SYNC_LAYER_MAILBOX_FACET_ADDR',
+
+    'SYNC_LAYER_VERIFIER_ADDR',
+    'SYNC_LAYER_VALIDATOR_TIMELOCK_ADDR',
+
+    'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
+
+    'SYNC_LAYER_L1_MULTICALL3_ADDR',
+    'SYNC_LAYER_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
+
+    'SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL',
+    'SYNC_LAYER_CHAIN_ID',
+
+    'SYNC_LAYER_BRIDGEHUB_IMPL_ADDR',
+    'SYNC_LAYER_BRIDGEHUB_PROXY_ADDR',
+
+    'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
+
+    'SYNC_LAYER_L1_SHARED_BRIDGE_IMPL_ADDR',
+    'SYNC_LAYER_L1_SHARED_BRIDGE_PROXY_ADDR',
+    'SYNC_LAYER_L1_ERC20_BRIDGE_IMPL_ADDR',
+    'SYNC_LAYER_L1_ERC20_BRIDGE_PROXY_ADDR'
+];
+
 export async function prepareSyncLayer(): Promise<void> {
     await utils.confirmAction();
 
@@ -30,32 +67,6 @@ export async function prepareSyncLayer(): Promise<void> {
             .replace(/CONTRACTS/g, 'SYNC_LAYER') +
         '\n' +
         paramsFromEnv;
-    const syncLayerEnvVars = [
-        'SYNC_LAYER_CREATE2_FACTORY_ADDR',
-
-        'SYNC_LAYER_STATE_TRANSITION_PROXY_ADDR',
-        'SYNC_LAYER_STATE_TRANSITION_IMPL_ADDR',
-
-        'SYNC_LAYER_DIAMOND_INIT_ADDR',
-        'SYNC_LAYER_DEFAULT_UPGRADE_ADDR',
-        'SYNC_LAYER_GENESIS_UPGRADE_ADDR',
-        'SYNC_LAYER_GOVERNANCE_ADDR',
-        'SYNC_LAYER_ADMIN_FACET_ADDR',
-        'SYNC_LAYER_EXECUTOR_FACET_ADDR',
-        'SYNC_LAYER_GETTERS_FACET_ADDR',
-        'SYNC_LAYER_MAILBOX_FACET_ADDR',
-
-        'SYNC_LAYER_VERIFIER_ADDR',
-        'SYNC_LAYER_VALIDATOR_TIMELOCK_ADDR',
-
-        'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
-
-        'SYNC_LAYER_L1_MULTICALL3_ADDR',
-        'SYNC_LAYER_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
-
-        'SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL',
-        'SYNC_LAYER_CHAIN_ID'
-    ];
 
     const envFile = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
 
@@ -74,7 +85,17 @@ async function registerSyncLayer() {
 }
 
 async function migrateToSyncLayer() {
-    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer migrate-to-sync-layer`);
+    await utils.confirmAction();
+
+    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer migrate-to-sync-layer | tee sync-layer-migration.log`);
+
+    const migrationLog = fs.readFileSync('sync-layer-migration.log').toString();
+
+    const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
+    console.log('Writing to', envFile);
+
+    // FIXME: consider creating new sync_layer_* variable.
+    updateContractsEnv(envFile, migrationLog, ['CONTRACTS_DIAMOND_PROXY_ADDR']);
 }
 
 async function prepareValidatorsOnSyncLayer() {
@@ -85,6 +106,36 @@ async function recoverFromFailedMigrationToSyncLayer(failedTxSLHash: string) {
     await utils.spawn(
         `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer recover-from-failed-migration --failed-tx-l2-hash ${failedTxSLHash}`
     );
+}
+
+/// FIXME: generally we should use a different approach for config maintaining within sync layer 
+/// the chain should retain both "sync_layer" and "contracts_" contracts and be able to switch between them
+async function updateConfigOnSyncLayer() {
+    const specialParams = [
+        'SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL',
+        'SYNC_LAYER_CHAIN_ID',
+    ];
+
+    const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
+    for (const envVar of syncLayerEnvVars) {
+        if(specialParams.includes(envVar)) {
+            continue;
+        }
+        const contractsVar = envVar.replace(/SYNC_LAYER/g, 'CONTRACTS');
+        env.modify(contractsVar, process.env[envVar]!, envFile, false);
+    }
+    env.modify('ETH_CLIENT_WEB3_URL', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    env.modify('ETH_CLIENT_CHAIN_ID', process.env.SYNC_LAYER_CHAIN_ID!, envFile, false);
+    
+    env.modify('CHAIN_ETH_NETWORK', 'localhostL2', envFile, false);
+
+    env.modify(`ETH_SENDER_SENDER_IGNORE_DB_NONCE`, 'true', envFile, false);
+    env.modify('CONTRACTS_BASE_NETWORK_ZKSYNC', 'true' , envFile, false);
+
+    // FIXME: while logically incorrect, it is temporarily needed to make the synclayer start
+    fs.copyFileSync(`${process.env.ZKSYNC_HOME}/etc/tokens/localhost.json`, `${process.env.ZKSYNC_HOME}/etc/tokens/localhostL2.json`);
+
+    env.reload();
 }
 
 export async function verifyL1Contracts(): Promise<void> {
@@ -410,6 +461,13 @@ command
     .description('register hyperchain')
     .action(async () => {
         await prepareValidatorsOnSyncLayer();
+    });
+
+command
+    .command('update-config-for-sync-layer')
+    .description('updates config to include the new contracts for sync layer')
+    .action(async () => {
+        await updateConfigOnSyncLayer();
     });
 
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);

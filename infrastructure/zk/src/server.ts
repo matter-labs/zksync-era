@@ -5,8 +5,9 @@ import fs from 'fs';
 import * as path from 'path';
 import * as db from './database';
 import * as env from './env';
+import { time } from 'console';
 
-export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
+export async function server(rebuildTree: boolean, uring: boolean, components?: string, timeToLive?: string) {
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
@@ -21,7 +22,27 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     if (components) {
         options += ` --components=${components}`;
     }
-    await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
+
+    if(!timeToLive) {    
+        await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
+    } else {
+        const child = utils.background(`cargo run --bin zksync_server --release ${options}`);
+
+        const promise = new Promise((resolve, reject) => {
+            child.on('error', reject);
+            child.on('close', (code) => {
+                code == 0 ? resolve(code) : reject(`Child process exited with code ${code}`);
+            });
+        });
+
+        await utils.sleep(+timeToLive);
+
+        // Kill the server after the time to live.
+        child.kill();
+
+        // Now waiting for the graceful shutdown of the server.
+        await promise;
+    }
 }
 
 export async function externalNode(reinit: boolean = false, args: string[]) {
@@ -68,6 +89,13 @@ export async function genesisFromSources() {
     await create_genesis('cargo run --bin zksync_server --release -- --genesis');
 }
 
+// FIXME: remove this option once it is removed from the server
+async function clearL1TxsHistory() {
+    // Note that that all the chains have the same chainId at genesis. It will be changed
+    // via an upgrade transaction during the registration of the chain.
+    await create_genesis('cargo run --bin zksync_server --release -- --clear-l1-txs-history');
+}
+
 export async function genesisFromBinary() {
     await create_genesis('zksync_server --genesis');
 }
@@ -76,15 +104,20 @@ export const serverCommand = new Command('server')
     .description('start zksync server')
     .option('--genesis', 'generate genesis data via server')
     .option('--rebuild-tree', 'rebuilds merkle tree from database logs', 'rebuild_tree')
+    // FIXME: remove this option once it is removed from the server
+    .option('--clear-l1-txs-history', 'clear l1 txs history')
     .option('--uring', 'enables uring support for RocksDB')
     .option('--components <components>', 'comma-separated list of components to run')
     .option('--chain-name <chain-name>', 'environment name')
+    .option('--time-to-live <time-to-live>', 'time to live for the server')
     .action(async (cmd: Command) => {
         cmd.chainName ? env.reload(cmd.chainName) : env.load();
         if (cmd.genesis) {
             await genesisFromSources();
+        } else if (cmd.clearL1TxsHistory) {
+            await clearL1TxsHistory();
         } else {
-            await server(cmd.rebuildTree, cmd.uring, cmd.components);
+            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.timeToLive);
         }
     });
 

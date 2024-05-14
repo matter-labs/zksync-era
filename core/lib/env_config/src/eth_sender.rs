@@ -61,6 +61,7 @@ mod tests {
                 max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                 proof_loading_mode: ProofLoadingMode::OldProofFromDb,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
+                ignore_db_nonce: None,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,

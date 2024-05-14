@@ -133,6 +133,7 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
                 .context("proof_loading_mode")?
                 .parse(),
+            ignore_db_nonce: None,
         })
     }
 
