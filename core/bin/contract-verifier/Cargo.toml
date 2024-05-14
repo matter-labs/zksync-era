@@ -1,39 +1,39 @@
 [package]
 name = "zksync_contract_verifier"
-version = "0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
 description = "The zkEVM contract verifier"
-publish = false # We don't want to publish our binaries.
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
 
 [dependencies]
-zksync_types = { path = "../../lib/types" }
-zksync_dal = { path = "../../lib/dal" }
-zksync_env_config = { path = "../../lib/env_config" }
-zksync_config = { path = "../../lib/config" }
-zksync_contracts = { path = "../../lib/contracts" }
-zksync_queued_job_processor = { path = "../../lib/queued_job_processor" }
-zksync_utils = { path = "../../lib/utils" }
-prometheus_exporter = { path = "../../lib/prometheus_exporter" }
-vlog = { path = "../../lib/vlog" }
+zksync_types.workspace = true
+zksync_dal.workspace = true
+zksync_env_config.workspace = true
+zksync_config.workspace = true
+zksync_contracts.workspace = true
+zksync_queued_job_processor.workspace = true
+zksync_utils.workspace = true
+prometheus_exporter.workspace = true
+vlog.workspace = true
 
-anyhow = "1.0"
-tokio = { version = "1", features = ["full"] }
-futures = { version = "0.3", features = ["compat"] }
-ctrlc = { version = "3.1", features = ["termination"] }
-thiserror = "1.0"
-chrono = "0.4"
-serde_json = "1.0"
-ethabi = "18.0.0"
-metrics = "0.21"
-hex = "0.4"
-serde = { version = "1.0", features = ["derive"] }
-structopt = "0.3.20"
-lazy_static = "1.4"
-tempfile = "3.0.2"
-regex = "1"
-tracing = "0.1"
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+futures.workspace = true
+ctrlc.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
+ethabi.workspace = true
+metrics.workspace = true
+hex.workspace = true
+serde = { workspace = true, features = ["derive"] }
+structopt.workspace = true
+lazy_static.workspace = true
+tempfile.workspace = true
+regex.workspace = true
+tracing.workspace = true

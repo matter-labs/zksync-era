@@ -10,6 +10,15 @@ mod sync_state;
 mod tests;
 
 pub use self::{
-    client::MainNodeClient, external_io::ExternalIO, sync_action::ActionQueue,
+    client::MainNodeClient,
+    external_io::ExternalIO,
+    sync_action::{ActionQueue, ActionQueueSender},
     sync_state::SyncState,
 };
+
+/// Validation gas limit used by the external node.
+// This config value is used on the main node, and depending on these values certain transactions can
+// be *rejected* (that is, not included into the block). However, external node only mirrors what the main
+// node has already executed, so we can safely set this value to the maximum possible values – if the main
+// node has already executed the transaction, then the external node must execute it too.
+const VALIDATION_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;

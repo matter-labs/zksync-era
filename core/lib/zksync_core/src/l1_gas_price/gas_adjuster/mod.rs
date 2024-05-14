@@ -10,12 +10,11 @@ use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_dal::BigDecimal;
 use zksync_eth_client::{Error, EthInterface};
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{U256, U64};
 
 use self::metrics::METRICS;
-use super::L1TxParamsProvider;
-use crate::{native_token_fetcher::ConversionRateFetcher, state_keeper::metrics::KEEPER_METRICS};
+use super::{L1TxParamsProvider, PubdataPricing};
+use crate::{base_token_fetcher::ConversionRateFetcher, state_keeper::metrics::KEEPER_METRICS};
 
 mod metrics;
 #[cfg(test)]
@@ -34,7 +33,8 @@ pub struct GasAdjuster {
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
     eth_client: Arc<dyn EthInterface>,
-    native_token_fetcher: Arc<dyn ConversionRateFetcher>,
+    base_token_fetcher: Arc<dyn ConversionRateFetcher>,
+    pubdata_pricing: Arc<dyn PubdataPricing>,
 }
 
 impl GasAdjuster {
@@ -42,7 +42,8 @@ impl GasAdjuster {
         eth_client: Arc<dyn EthInterface>,
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
-        native_token_fetcher: Arc<dyn ConversionRateFetcher>,
+        base_token_fetcher: Arc<dyn ConversionRateFetcher>,
+        pubdata_pricing: Arc<dyn PubdataPricing>,
     ) -> Result<Self, Error> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
@@ -73,9 +74,10 @@ impl GasAdjuster {
                 &last_block_blob_base_fee,
             ),
             config,
-            native_token_fetcher,
+            base_token_fetcher,
             pubdata_sending_mode,
             eth_client,
+            pubdata_pricing,
         })
     }
 
@@ -101,9 +103,12 @@ impl GasAdjuster {
             )
             .await?;
 
-            METRICS
-                .current_base_fee_per_gas
-                .set(*base_fee_history.last().unwrap());
+            // We shouldn't rely on L1 provider to return consistent results, so we check that we have at least one new sample.
+            if let Some(current_base_fee_per_gas) = base_fee_history.last() {
+                METRICS
+                    .current_base_fee_per_gas
+                    .set(*current_base_fee_per_gas);
+            }
             self.base_fee_statistics.add_samples(&base_fee_history);
 
             if let Some(current_blob_base_fee) = blob_base_fee_history.last() {
@@ -137,16 +142,6 @@ impl GasAdjuster {
         gas_price
     }
 
-    fn bound_blob_base_fee(&self, blob_base_fee: f64) -> u64 {
-        let max_blob_base_fee = self.config.max_blob_base_fee();
-        if blob_base_fee > max_blob_base_fee as f64 {
-            tracing::error!("Blob base fee is too high: {blob_base_fee}, using max allowed: {max_blob_base_fee}");
-            KEEPER_METRICS.gas_price_too_high.inc();
-            return max_blob_base_fee;
-        }
-        blob_base_fee as u64
-    }
-
     pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
@@ -158,7 +153,7 @@ impl GasAdjuster {
                 tracing::warn!("Cannot add the base fee to gas statistics: {}", err);
             }
 
-            if let Err(err) = self.native_token_fetcher.update().await {
+            if let Err(err) = self.base_token_fetcher.update().await {
                 tracing::warn!(
                     "Error when trying to fetch the native erc20 conversion rate: {}",
                     err
@@ -184,9 +179,9 @@ impl GasAdjuster {
 
         let gas_price = BigDecimal::from(self.bound_gas_price(calculated_price));
         let conversion_rate = self
-            .native_token_fetcher
+            .base_token_fetcher
             .conversion_rate()
-            .unwrap_or(BigDecimal::from(1));
+            .unwrap_or(BigDecimal::from(BigDecimal::from(1)));
 
         // Casting directly from BigDecimal to U256 is not possible,
         // so we first remove the fractional part, convert to string and then to U256.
@@ -201,6 +196,10 @@ impl GasAdjuster {
     }
 
     pub(crate) fn estimate_effective_pubdata_price(&self) -> U256 {
+        if let Some(price) = self.config.internal_enforced_pubdata_price {
+            return U256::from(price);
+        }
+
         match self.pubdata_sending_mode {
             PubdataSendingMode::Blobs => {
                 const BLOB_GAS_PER_BYTE: u64 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.
@@ -218,12 +217,15 @@ impl GasAdjuster {
                     .set(blob_base_fee_median.as_u64());
                 let calculated_price = blob_base_fee_median.as_u64() as f64
                     * BLOB_GAS_PER_BYTE as f64
-                    * self.config.internal_l1_pricing_multiplier;
+                    * self.config.internal_pubdata_pricing_multiplier;
 
-                U256::from(self.bound_blob_base_fee(calculated_price))
+                U256::from(
+                    self.pubdata_pricing
+                        .bound_blob_base_fee(calculated_price, self.config.max_blob_base_fee()),
+                )
             }
             PubdataSendingMode::Calldata => {
-                self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64
+                self.estimate_effective_gas_price() * self.pubdata_pricing.pubdata_byte_gas()
             }
         }
     }

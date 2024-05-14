@@ -7,24 +7,33 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::Context as _;
+use futures::TryFutureExt;
 use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
-use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_config::{
+    configs::{api::Web3JsonRpcConfig, chain::L1BatchCommitDataGeneratorMode, ContractsConfig},
+    GenesisConfig,
+};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_types::{
-    api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
-    MiniblockNumber, H256, U256, U64,
+    api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId,
+    L2BlockNumber, L2ChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
-use super::metrics::{FilterType, FILTER_METRICS};
+use super::{
+    backend_jsonrpsee::MethodTracer,
+    mempool_cache::MempoolCache,
+    metrics::{FilterType, FILTER_METRICS},
+    TypedFilter,
+};
 use crate::{
     api_server::{
         execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
-        tree::TreeApiHttpClient,
-        tx_sender::TxSender,
-        web3::{backend_jsonrpsee::internal_error, TypedFilter},
+        tree::TreeApiClient,
+        tx_sender::{tx_sink::TxSink, TxSender},
     },
     sync_layer::SyncState,
 };
@@ -41,8 +50,8 @@ impl From<api::BlockId> for PruneQuery {
     }
 }
 
-impl From<MiniblockNumber> for PruneQuery {
-    fn from(number: MiniblockNumber) -> Self {
+impl From<L2BlockNumber> for PruneQuery {
+    fn from(number: L2BlockNumber) -> Self {
         Self::BlockId(api::BlockId::Number(number.0.into()))
     }
 }
@@ -53,15 +62,28 @@ impl From<L1BatchNumber> for PruneQuery {
     }
 }
 
+impl From<BlockArgsError> for Web3Error {
+    fn from(value: BlockArgsError) -> Self {
+        match value {
+            BlockArgsError::Pruned(l2_block) => Web3Error::PrunedBlock(l2_block),
+            BlockArgsError::Missing => Web3Error::NoBlock,
+            BlockArgsError::Database(error) => Web3Error::InternalError(error),
+        }
+    }
+}
+
 impl BlockStartInfo {
-    pub(super) fn ensure_not_pruned(&self, query: impl Into<PruneQuery>) -> Result<(), Web3Error> {
+    pub(super) async fn ensure_not_pruned(
+        &self,
+        query: impl Into<PruneQuery>,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<(), Web3Error> {
         match query.into() {
-            PruneQuery::BlockId(id) => self
-                .ensure_not_pruned_block(id)
-                .map_err(Web3Error::PrunedBlock),
+            PruneQuery::BlockId(id) => Ok(self.ensure_not_pruned_block(id, storage).await?),
             PruneQuery::L1Batch(number) => {
-                if number < self.first_l1_batch {
-                    return Err(Web3Error::PrunedL1Batch(self.first_l1_batch));
+                let first_l1_batch = self.first_l1_batch(storage).await?;
+                if number < first_l1_batch {
+                    return Err(Web3Error::PrunedL1Batch(first_l1_batch));
                 }
                 Ok(())
             }
@@ -82,54 +104,76 @@ pub struct InternalApiConfig {
     pub estimate_gas_acceptable_overestimation: u32,
     pub bridge_addresses: api::BridgeAddresses,
     pub bridgehub_proxy_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
+    pub base_token_address: Option<Address>,
     pub filters_disabled: bool,
+    pub dummy_verifier: bool,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl InternalApiConfig {
     pub fn new(
-        eth_config: &NetworkConfig,
         web3_config: &Web3JsonRpcConfig,
         contracts_config: &ContractsConfig,
+        genesis_config: &GenesisConfig,
     ) -> Self {
         Self {
-            l1_chain_id: eth_config.network.chain_id(),
-            l2_chain_id: eth_config.zksync_network_id,
+            l1_chain_id: genesis_config.l1_chain_id,
+            l2_chain_id: genesis_config.l2_chain_id,
             max_tx_size: web3_config.max_tx_size,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
                 .estimate_gas_acceptable_overestimation,
             bridge_addresses: api::BridgeAddresses {
-                l1_erc20_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
+                l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
+                l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
                 l1_shared_default_bridge: contracts_config.l1_shared_bridge_proxy_addr,
                 l2_shared_default_bridge: contracts_config.l2_shared_bridge_addr,
+                l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
+                l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
-            bridgehub_proxy_addr: contracts_config.bridgehub_proxy_addr,
+            bridgehub_proxy_addr: contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .map(|a| a.bridgehub_proxy_addr),
+            state_transition_proxy_addr: contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .map(|a| a.state_transition_proxy_addr),
+            transparent_proxy_admin_addr: contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .map(|a| a.transparent_proxy_admin_addr),
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
+            base_token_address: contracts_config.base_token_addr,
             filters_disabled: web3_config.filters_disabled,
+            dummy_verifier: genesis_config.dummy_verifier,
+            l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
         }
     }
 }
 
-/// Thread-safe updatable information about the last sealed miniblock number.
+/// Thread-safe updatable information about the last sealed L2 block number.
 ///
 /// The information may be temporarily outdated and thus should only be used where this is OK
 /// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`]
 /// and on an interval specified when creating an instance.
 #[derive(Debug, Clone)]
-pub(crate) struct SealedMiniblockNumber(Arc<AtomicU32>);
+pub(crate) struct SealedL2BlockNumber(Arc<AtomicU32>);
 
-impl SealedMiniblockNumber {
-    /// Creates a handle to the last sealed miniblock number together with a task that will update
+impl SealedL2BlockNumber {
+    /// Creates a handle to the last sealed L2 block number together with a task that will update
     /// it on a schedule.
     pub fn new(
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Core>,
         update_interval: Duration,
         stop_receiver: watch::Receiver<bool>,
     ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
@@ -139,22 +183,20 @@ impl SealedMiniblockNumber {
         let update_task = async move {
             loop {
                 if *stop_receiver.borrow() {
-                    tracing::debug!("Stopping latest sealed miniblock updates");
+                    tracing::debug!("Stopping latest sealed L2 block updates");
                     return Ok(());
                 }
 
-                let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
-                let Some(last_sealed_miniblock) = connection
-                    .blocks_dal()
-                    .get_sealed_miniblock_number()
-                    .await?
+                let mut connection = connection_pool.connection_tagged("api").await.unwrap();
+                let Some(last_sealed_l2_block) =
+                    connection.blocks_dal().get_sealed_l2_block_number().await?
                 else {
                     tokio::time::sleep(update_interval).await;
                     continue;
                 };
                 drop(connection);
 
-                number_updater.update(last_sealed_miniblock);
+                number_updater.update(last_sealed_l2_block);
                 tokio::time::sleep(update_interval).await;
             }
         };
@@ -162,29 +204,29 @@ impl SealedMiniblockNumber {
         (this, update_task)
     }
 
-    /// Potentially updates the last sealed miniblock number by comparing it to the provided
-    /// sealed miniblock number (not necessarily the last one).
+    /// Potentially updates the last sealed L2 block number by comparing it to the provided
+    /// sealed L2 block number (not necessarily the last one).
     ///
-    /// Returns the last sealed miniblock number after the update.
-    fn update(&self, maybe_newer_miniblock_number: MiniblockNumber) -> MiniblockNumber {
+    /// Returns the last sealed L2 block number after the update.
+    fn update(&self, maybe_newer_l2_block_number: L2BlockNumber) -> L2BlockNumber {
         let prev_value = self
             .0
-            .fetch_max(maybe_newer_miniblock_number.0, Ordering::Relaxed);
-        MiniblockNumber(prev_value).max(maybe_newer_miniblock_number)
+            .fetch_max(maybe_newer_l2_block_number.0, Ordering::Relaxed);
+        L2BlockNumber(prev_value).max(maybe_newer_l2_block_number)
     }
 
-    pub fn diff(&self, miniblock_number: MiniblockNumber) -> u32 {
-        let sealed_miniblock_number = self.update(miniblock_number);
-        sealed_miniblock_number.0.saturating_sub(miniblock_number.0)
+    pub fn diff(&self, l2_block_number: L2BlockNumber) -> u32 {
+        let sealed_l2_block_number = self.update(l2_block_number);
+        sealed_l2_block_number.0.saturating_sub(l2_block_number.0)
     }
 
-    /// Returns the difference between the latest miniblock number and the resolved miniblock number
+    /// Returns the difference between the latest L2 block number and the resolved L2 block number
     /// from `block_args`.
     pub fn diff_with_block_args(&self, block_args: &BlockArgs) -> u32 {
         // We compute the difference in any case, since it may update the stored value.
         let diff = self.diff(block_args.resolved_block_number());
 
-        if block_args.resolves_to_latest_sealed_miniblock() {
+        if block_args.resolves_to_latest_sealed_l2_block() {
             0 // Overwrite potentially inaccurate value
         } else {
             diff
@@ -194,17 +236,19 @@ impl SealedMiniblockNumber {
 
 /// Holder for the data required for the API to be functional.
 #[derive(Debug, Clone)]
-pub struct RpcState {
-    pub(crate) installed_filters: Option<Arc<Mutex<Filters>>>,
-    pub connection_pool: ConnectionPool,
-    pub tree_api: Option<TreeApiHttpClient>,
-    pub tx_sender: TxSender,
-    pub sync_state: Option<SyncState>,
+pub(crate) struct RpcState {
+    pub(super) current_method: Arc<MethodTracer>,
+    pub(super) installed_filters: Option<Arc<Mutex<Filters>>>,
+    pub(super) connection_pool: ConnectionPool<Core>,
+    pub(super) tree_api: Option<Arc<dyn TreeApiClient>>,
+    pub(super) tx_sender: TxSender,
+    pub(super) sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
-    /// Number of the first locally available miniblock / L1 batch. May differ from 0 if the node state was recovered
+    /// Number of the first locally available L2 block / L1 batch. May differ from 0 if the node state was recovered
     /// from a snapshot.
     pub(super) start_info: BlockStartInfo,
-    pub(super) last_sealed_miniblock: SealedMiniblockNumber,
+    pub(super) mempool_cache: Option<MempoolCache>,
+    pub(super) last_sealed_l2_block: SealedL2BlockNumber,
 }
 
 impl RpcState {
@@ -218,63 +262,97 @@ impl RpcState {
         ))
     }
 
-    pub fn u64_to_block_number(n: U64) -> MiniblockNumber {
+    pub fn u64_to_block_number(n: U64) -> L2BlockNumber {
         if n.as_u64() > u32::MAX as u64 {
-            MiniblockNumber(u32::MAX)
+            L2BlockNumber(u32::MAX)
         } else {
-            MiniblockNumber(n.as_u32())
+            L2BlockNumber(n.as_u32())
         }
     }
 
+    pub(crate) fn tx_sink(&self) -> &dyn TxSink {
+        self.tx_sender.0.tx_sink.as_ref()
+    }
+
+    /// Acquires a DB connection mapping possible errors.
+    // `track_caller` is necessary to correctly record call location. `async fn`s don't support it yet,
+    // thus manual de-sugaring.
+    #[track_caller]
+    pub(crate) fn acquire_connection(
+        &self,
+    ) -> impl Future<Output = Result<Connection<'_, Core>, Web3Error>> + '_ {
+        self.connection_pool
+            .connection_tagged("api")
+            .map_err(|err| err.generalize().into())
+    }
+
+    /// Resolves the specified block ID to a block number, which is guaranteed to be present in the node storage.
     pub(crate) async fn resolve_block(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         block: api::BlockId,
-        method_name: &'static str,
-    ) -> Result<MiniblockNumber, Web3Error> {
-        self.start_info.ensure_not_pruned(block)?;
-        let result = connection.blocks_web3_dal().resolve_block_id(block).await;
-        result
-            .map_err(|err| internal_error(method_name, err))?
+    ) -> Result<L2BlockNumber, Web3Error> {
+        self.start_info.ensure_not_pruned(block, connection).await?;
+        connection
+            .blocks_web3_dal()
+            .resolve_block_id(block)
+            .await
+            .map_err(DalError::generalize)?
             .ok_or(Web3Error::NoBlock)
+    }
+
+    /// Resolves the specified block ID to a block number, which is **not** guaranteed to be present in the node storage.
+    /// Returns `None` if the block is known to not be present in the storage (e.g., it's a "finalized" block ID and no blocks
+    /// were finalized yet).
+    ///
+    /// This method is more efficient than [`Self::resolve_block()`] (it doesn't query the storage if block ID maps to a known
+    /// block number), but is more difficult to reason about. You should use it only if the block number consumer correctly handles
+    /// non-existing blocks.
+    pub(crate) async fn resolve_block_unchecked(
+        &self,
+        connection: &mut Connection<'_, Core>,
+        block: api::BlockId,
+    ) -> Result<Option<L2BlockNumber>, Web3Error> {
+        self.start_info.ensure_not_pruned(block, connection).await?;
+        match block {
+            api::BlockId::Number(api::BlockNumber::Number(number)) => {
+                Ok(u32::try_from(number).ok().map(L2BlockNumber))
+            }
+            api::BlockId::Number(api::BlockNumber::Earliest) => Ok(Some(L2BlockNumber(0))),
+            _ => Ok(connection
+                .blocks_web3_dal()
+                .resolve_block_id(block)
+                .await
+                .map_err(DalError::generalize)?),
+        }
     }
 
     pub(crate) async fn resolve_block_args(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         block: api::BlockId,
-        method_name: &'static str,
     ) -> Result<BlockArgs, Web3Error> {
-        BlockArgs::new(connection, block, self.start_info)
+        BlockArgs::new(connection, block, &self.start_info)
             .await
             .map_err(|err| match err {
                 BlockArgsError::Pruned(number) => Web3Error::PrunedBlock(number),
                 BlockArgsError::Missing => Web3Error::NoBlock,
-                BlockArgsError::Database(err) => internal_error(method_name, err),
+                BlockArgsError::Database(err) => Web3Error::InternalError(err),
             })
     }
 
     pub async fn resolve_filter_block_number(
         &self,
         block_number: Option<api::BlockNumber>,
-    ) -> Result<MiniblockNumber, Web3Error> {
-        const METHOD_NAME: &str = "resolve_filter_block_number";
-
+    ) -> Result<L2BlockNumber, Web3Error> {
         if let Some(api::BlockNumber::Number(number)) = block_number {
             return Ok(Self::u64_to_block_number(number));
         }
 
         let block_number = block_number.unwrap_or(api::BlockNumber::Latest);
         let block_id = api::BlockId::Number(block_number);
-        let mut conn = self
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        Ok(self
-            .resolve_block(&mut conn, block_id, METHOD_NAME)
-            .await
-            .unwrap())
+        let mut conn = self.acquire_connection().await?;
+        Ok(self.resolve_block(&mut conn, block_id).await.unwrap())
         // ^ `unwrap()` is safe: `resolve_block_id(api::BlockId::Number(_))` can only return `None`
         // if called with an explicit number, and we've handled this case earlier.
     }
@@ -282,7 +360,7 @@ impl RpcState {
     pub async fn resolve_filter_block_range(
         &self,
         filter: &Filter,
-    ) -> Result<(MiniblockNumber, MiniblockNumber), Web3Error> {
+    ) -> Result<(L2BlockNumber, L2BlockNumber), Web3Error> {
         let from_block = self.resolve_filter_block_number(filter.from_block).await?;
         let to_block = self.resolve_filter_block_number(filter.to_block).await?;
         Ok((from_block, to_block))
@@ -292,17 +370,10 @@ impl RpcState {
     pub async fn resolve_filter_block_hash(&self, filter: &mut Filter) -> Result<(), Web3Error> {
         match (filter.block_hash, filter.from_block, filter.to_block) {
             (Some(block_hash), None, None) => {
+                let mut storage = self.acquire_connection().await?;
                 let block_number = self
-                    .connection_pool
-                    .access_storage_tagged("api")
-                    .await
-                    .unwrap()
-                    .blocks_web3_dal()
-                    .resolve_block_id(api::BlockId::Hash(block_hash))
-                    .await
-                    .map_err(|err| internal_error("resolve_filter_block_hash", err))?
-                    .ok_or(Web3Error::NoBlock)?;
-
+                    .resolve_block(&mut storage, api::BlockId::Hash(block_hash))
+                    .await?;
                 filter.from_block = Some(api::BlockNumber::Number(block_number.0.into()));
                 filter.to_block = Some(api::BlockNumber::Number(block_number.0.into()));
                 Ok(())
@@ -314,22 +385,15 @@ impl RpcState {
 
     /// Returns initial `from_block` for filter.
     /// It is equal to max(filter.from_block, PENDING_BLOCK).
-    pub async fn get_filter_from_block(
-        &self,
-        filter: &Filter,
-    ) -> Result<MiniblockNumber, Web3Error> {
-        const METHOD_NAME: &str = "get_filter_from_block";
-
+    pub async fn get_filter_from_block(&self, filter: &Filter) -> Result<L2BlockNumber, Web3Error> {
+        let mut connection = self.acquire_connection().await?;
         let pending_block = self
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?
-            .expect("Pending block number shouldn't be None");
+            .resolve_block_unchecked(
+                &mut connection,
+                api::BlockId::Number(api::BlockNumber::Pending),
+            )
+            .await?
+            .context("Pending block number shouldn't be None")?;
         let block_number = match filter.from_block {
             Some(api::BlockNumber::Number(number)) => {
                 let block_number = Self::u64_to_block_number(number);
@@ -344,34 +408,25 @@ impl RpcState {
         &self,
         call_request: &mut CallRequest,
     ) -> Result<(), Web3Error> {
-        const METHOD_NAME: &str = "set_nonce_for_call_request";
-
         if call_request.nonce.is_some() {
             return Ok(());
         }
-        let mut connection = self
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-
+        let mut connection = self.acquire_connection().await?;
         let latest_block_id = api::BlockId::Number(api::BlockNumber::Latest);
-        let latest_block_number = self
-            .resolve_block(&mut connection, latest_block_id, METHOD_NAME)
-            .await?;
+        let latest_block_number = self.resolve_block(&mut connection, latest_block_id).await?;
 
         let from = call_request.from.unwrap_or_default();
         let address_historical_nonce = connection
             .storage_web3_dal()
             .get_address_historical_nonce(from, latest_block_number)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(DalError::generalize)?;
         call_request.nonce = Some(address_historical_nonce);
         Ok(())
     }
 }
 
-/// Contains mapping from index to `Filter`x with optional location.
+/// Contains mapping from index to `Filter`s with optional location.
 #[derive(Debug)]
 pub(crate) struct Filters(LruCache<U256, InstalledFilter>);
 
@@ -475,8 +530,8 @@ mod tests {
 
         let mut filters = Filters::new(Some(2));
 
-        let filter1 = TypedFilter::Events(Filter::default(), MiniblockNumber::default());
-        let filter2 = TypedFilter::Blocks(MiniblockNumber::default());
+        let filter1 = TypedFilter::Events(Filter::default(), L2BlockNumber::default());
+        let filter2 = TypedFilter::Blocks(L2BlockNumber::default());
         let filter3 = TypedFilter::PendingTransactions(NaiveDateTime::default());
 
         let idx1 = filters.add(filter1.clone());

@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-package zksync.config;
-
-message Alerts {
-  repeated string sporadic_crypto_errors_substrs = 1;
-}

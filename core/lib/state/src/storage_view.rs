@@ -33,7 +33,7 @@ pub struct StorageViewMetrics {
 /// In order to commit transactions logs should be submitted to the underlying storage
 /// after a transaction is executed.
 ///
-/// When executing transactions as a part of miniblock / L1 batch creation,
+/// When executing transactions as a part of L2 block / L1 batch creation,
 /// a single `StorageView` is used for the entire L1 batch.
 /// One `StorageView` must not be used for multiple L1 batches;
 /// otherwise, [`Self::is_write_initial()`] will return incorrect values because of the caching.
@@ -59,6 +59,11 @@ impl<S> StorageView<S> {
             read_storage_key: self.read_storage_keys.clone(),
             is_write_initial: self.initial_writes_cache.clone(),
         }
+    }
+
+    /// Returns the modified storage keys
+    pub fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
+        &self.modified_storage_keys
     }
 }
 
@@ -175,6 +180,10 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
 }
 
 impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
+    fn read_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
+        &self.read_storage_keys
+    }
+
     fn set_value(&mut self, key: StorageKey, value: StorageValue) -> StorageValue {
         let started_at = Instant::now();
         self.metrics.set_value_storage_invocations += 1;

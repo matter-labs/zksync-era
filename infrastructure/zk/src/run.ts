@@ -55,43 +55,6 @@ export async function deployERC20AndWeth({
     }
 }
 
-export async function deployWeth({ envFile }: { envFile?: string }) {
-    const destinationFile = envFile || process.env.CHAIN_ETH_NETWORK!;
-    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    const args = [privateKey ? `--private-key ${privateKey}` : ''];
-    await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
-        [
-            { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
-        ]' ${args.join(' ')} > deployedTokens.log`);
-    let newlyDeployedTokens: Token[];
-    try {
-        newlyDeployedTokens = JSON.parse(
-            fs.readFileSync('deployedTokens.log', {
-                encoding: 'utf-8'
-            })
-        );
-    } catch (e) {
-        console.log('No new tokens deployed');
-        return;
-    }
-    const alreadyDeployedToken: Token[] = JSON.parse(
-        fs.readFileSync(`./etc/tokens/${destinationFile}.json`, {
-            encoding: 'utf-8'
-        })
-    );
-    const finalTokens: Token[] = alreadyDeployedToken
-        .filter((token) => newlyDeployedTokens.find((newToken) => newToken.symbol === token.symbol) === undefined)
-        .concat(newlyDeployedTokens);
-    fs.writeFileSync(`./etc/tokens/${destinationFile}.json`, JSON.stringify(finalTokens, null, 2));
-    const WETH = getTokens(destinationFile).find((token) => token.symbol === 'WETH')!;
-    env.modify(
-        'CONTRACTS_L1_WETH_TOKEN_ADDR',
-        `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`,
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-    );
-    return;
-}
-
 export type Token = {
     address: string | null;
     name: string;
@@ -123,7 +86,7 @@ export async function exitProof(...args: string[]) {
 export async function catLogs(exitCode?: number) {
     utils.allowFailSync(() => {
         console.log('\nSERVER LOGS:\n', fs.readFileSync('server.log').toString());
-        console.log('\nPROVER LOGS:\n', fs.readFileSync('dummy_prover.log').toString());
+        console.log('\nPROVER LOGS:\n', fs.readFileSync('dummy_verifier.log').toString());
     });
     if (exitCode !== undefined) {
         process.exit(exitCode);
@@ -149,6 +112,11 @@ export async function testAccounts() {
 export async function loadtest(...args: string[]) {
     console.log(args);
     await utils.spawn(`cargo run --release --bin loadnext -- ${args.join(' ')}`);
+}
+
+export async function genesisConfigGenerator(...args: string[]) {
+    console.log(args);
+    await utils.spawn(`cargo run --release --bin genesis_generator -- ${args.join(' ')}`);
 }
 
 export async function readVariable(address: string, contractName: string, variableName: string, file?: string) {
@@ -211,17 +179,11 @@ command
     .action(revertReason);
 
 command
-    .command('exit-proof')
-    .option('--account <id>')
-    .option('--token <id>')
-    .option('--help')
-    .description('generate exit proof')
-    .action(async (cmd: Command) => {
-        if (!cmd.account || !cmd.token) {
-            await exitProof('--help');
-        } else {
-            await exitProof('--account_id', cmd.account, '--token', cmd.token);
-        }
+    .command('genesis-config-generator [options...]')
+    .description('run the genesis-config-generator')
+    .allowUnknownOption()
+    .action(async (options: string[]) => {
+        await genesisConfigGenerator(...options);
     });
 
 command

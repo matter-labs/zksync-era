@@ -13,8 +13,8 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmTxExecutionResult> for VmExecutionRes
         }
 
         result.refunds = Refunds {
-            gas_refunded: value.gas_refunded,
-            operator_suggested_refund: value.operator_suggested_refund,
+            gas_refunded: value.gas_refunded as u64,
+            operator_suggested_refund: value.operator_suggested_refund as u64,
         };
         result
     }
@@ -28,8 +28,8 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmTxExecutionResult> for VmExecutionRes
         }
 
         result.refunds = Refunds {
-            gas_refunded: value.gas_refunded,
-            operator_suggested_refund: value.operator_suggested_refund,
+            gas_refunded: value.gas_refunded as u64,
+            operator_suggested_refund: value.operator_suggested_refund as u64,
         };
         result
     }
@@ -43,8 +43,8 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmTxExecutionResult> for VmExecution
         }
 
         result.refunds = Refunds {
-            gas_refunded: value.gas_refunded,
-            operator_suggested_refund: value.operator_suggested_refund,
+            gas_refunded: value.gas_refunded as u64,
+            operator_suggested_refund: value.operator_suggested_refund as u64,
         };
         result
     }

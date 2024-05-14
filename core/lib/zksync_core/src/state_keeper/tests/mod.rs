@@ -11,7 +11,7 @@ use multivm::{
         CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
         SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
     },
-    vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs},
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, VmExecutionLogs},
 };
 use once_cell::sync::Lazy;
 use tokio::sync::watch;
@@ -20,24 +20,25 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, MiniblockExecutionData, MiniblockHasher},
+    block::{BlockGasCount, L2BlockExecutionData, L2BlockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::tx_execution_info::ExecutionMetrics,
     zk_evm_types::{LogQuery, Timestamp},
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, StorageLogQuery,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageLogQuery,
     StorageLogQueryType, Transaction, H256, U256,
 };
 
 mod tester;
 
 use self::tester::{
-    bootloader_tip_out_of_gas, pending_batch_data, random_tx, random_upgrade_tx, rejected_exec,
-    successful_exec, successful_exec_with_metrics, TestIO, TestScenario,
+    pending_batch_data, random_tx, random_upgrade_tx, rejected_exec, successful_exec,
+    successful_exec_with_metrics, TestIO, TestScenario,
 };
 pub(crate) use self::tester::{MockBatchExecutor, TestBatchExecutorBuilder};
 use crate::{
     gas_tracker::l1_batch_base_cost,
     state_keeper::{
+        batch_executor::TxExecutionResult,
         keeper::POLL_WAIT_DURATION,
         seal_criteria::{
             criteria::{GasCriterion, SlotsCriterion},
@@ -58,9 +59,9 @@ pub(super) fn default_system_env() -> SystemEnv {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
         version: ProtocolVersionId::latest(),
         base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-        gas_limit: BLOCK_GAS_LIMIT,
+        bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
-        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::from(270),
     }
 }
@@ -79,7 +80,7 @@ pub(super) fn default_l1_batch_env(
         first_l2_block: L2BlockEnv {
             number,
             timestamp,
-            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(number - 1)),
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
             max_virtual_blocks_to_create: 1,
         },
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
@@ -90,7 +91,7 @@ pub(super) fn default_l1_batch_env(
     }
 }
 
-pub(super) fn default_vm_block_result() -> FinishedL1Batch {
+pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
     FinishedL1Batch {
         block_tip_execution_result: VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },
@@ -100,7 +101,6 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
         },
         final_execution_state: CurrentExecutionState {
             events: vec![],
-            storage_log_queries: vec![],
             deduplicated_storage_log_queries: vec![],
             used_contract_hashes: vec![],
             user_l2_to_l1_logs: vec![],
@@ -109,6 +109,7 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
             cycles_used: 0,
             deduplicated_events_logs: vec![],
             storage_refunds: Vec::new(),
+            pubdata_costs: Vec::new(),
         },
         final_bootloader_memory: Some(vec![]),
         pubdata_input: Some(vec![]),
@@ -120,7 +121,7 @@ pub(super) fn create_updates_manager() -> UpdatesManager {
     UpdatesManager::new(&l1_batch_env, &default_system_env())
 }
 
-pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> Transaction {
+pub(super) fn create_transaction(fee_per_gas: U256, gas_per_pubdata: U256) -> Transaction {
     create_l2_transaction(fee_per_gas, gas_per_pubdata).into()
 }
 
@@ -206,11 +207,11 @@ async fn sealed_by_number_of_txs() {
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     TestScenario::new()
-        .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
         .next_tx("First tx", random_tx(1), successful_exec())
-        .miniblock_sealed("Miniblock 1")
+        .l2_block_sealed("L2 block 1")
         .next_tx("Second tx", random_tx(2), successful_exec())
-        .miniblock_sealed("Miniblock 2")
+        .l2_block_sealed("L2 block 2")
         .batch_sealed("Batch 1")
         .run(sealer)
         .await;
@@ -237,20 +238,20 @@ async fn sealed_by_gas() {
     });
 
     TestScenario::new()
-        .seal_miniblock_when(|updates| {
-            updates.miniblock.executed_transactions.len() == 1
+        .seal_l2_block_when(|updates| {
+            updates.l2_block.executed_transactions.len() == 1
         })
         .next_tx("First tx", random_tx(1), execution_result.clone())
-        .miniblock_sealed_with("Miniblock with a single tx", move |updates| {
+        .l2_block_sealed_with("L2 block with a single tx", move |updates| {
             assert_eq!(
-                updates.miniblock.l1_gas_count,
+                updates.l2_block.l1_gas_count,
                 l1_gas_per_tx,
-                "L1 gas used by a miniblock should consist of the gas used by its txs"
+                "L1 gas used by a L2 block should consist of the gas used by its txs"
             );
         })
         .next_tx("Second tx", random_tx(1), execution_result)
-        .miniblock_sealed("Miniblock 2")
-        .batch_sealed_with("Batch sealed with both txs", |_, updates, _| {
+        .l2_block_sealed("L2 block 2")
+        .batch_sealed_with("Batch sealed with both txs", |updates| {
             assert_eq!(
                 updates.l1_batch.l1_gas_count,
                 BlockGasCount {
@@ -289,39 +290,39 @@ async fn sealed_by_gas_then_by_num_tx() {
 
     // 1st tx is sealed by gas sealer; 2nd, 3rd, & 4th are sealed by slots sealer.
     TestScenario::new()
-        .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
         .next_tx("First tx", random_tx(1), execution_result)
-        .miniblock_sealed("Miniblock 1")
+        .l2_block_sealed("L2 block 1")
         .batch_sealed("Batch 1")
         .next_tx("Second tx", random_tx(2), successful_exec())
-        .miniblock_sealed("Miniblock 2")
+        .l2_block_sealed("L2 block 2")
         .next_tx("Third tx", random_tx(3), successful_exec())
-        .miniblock_sealed("Miniblock 3")
+        .l2_block_sealed("L2 block 3")
         .next_tx("Fourth tx", random_tx(4), successful_exec())
-        .miniblock_sealed("Miniblock 4")
+        .l2_block_sealed("L2 block 4")
         .batch_sealed("Batch 2")
         .run(sealer)
         .await;
 }
 
 #[tokio::test]
-async fn batch_sealed_before_miniblock_does() {
+async fn batch_sealed_before_l2_block_does() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
-    // Miniblock sealer will not return true before the batch is sealed because the batch only has 2 txs.
+    // L2 block sealer will not return true before the batch is sealed because the batch only has 2 txs.
     TestScenario::new()
-        .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 3)
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 3)
         .next_tx("First tx", random_tx(1), successful_exec())
         .next_tx("Second tx", random_tx(2), successful_exec())
-        .miniblock_sealed_with("Miniblock with two txs", |updates| {
+        .l2_block_sealed_with("L2 block with two txs", |updates| {
             assert_eq!(
-                updates.miniblock.executed_transactions.len(),
+                updates.l2_block.executed_transactions.len(),
                 2,
-                "The miniblock should have 2 txs"
+                "The L2 block should have 2 txs"
             );
         })
         .batch_sealed("Batch 1")
@@ -339,13 +340,13 @@ async fn rejected_tx() {
 
     let rejected_tx = random_tx(1);
     TestScenario::new()
-        .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
         .next_tx("Rejected tx", rejected_tx.clone(), rejected_exec())
         .tx_rejected("Tx got rejected", rejected_tx, None)
         .next_tx("Successful tx", random_tx(2), successful_exec())
-        .miniblock_sealed("Miniblock with successful tx")
+        .l2_block_sealed("L2 block with successful tx")
         .next_tx("Second successful tx", random_tx(3), successful_exec())
-        .miniblock_sealed("Second miniblock")
+        .l2_block_sealed("Second L2 block")
         .batch_sealed("Batch with 2 successful txs")
         .run(sealer)
         .await;
@@ -363,13 +364,13 @@ async fn bootloader_tip_out_of_gas_flow() {
     let bootloader_out_of_gas_tx = random_tx(2);
     let third_tx = random_tx(3);
     TestScenario::new()
-        .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
         .next_tx("First tx", first_tx, successful_exec())
-        .miniblock_sealed("Miniblock with 1st tx")
+        .l2_block_sealed("L2 block with 1st tx")
         .next_tx(
             "Tx -> Bootloader tip out of gas",
             bootloader_out_of_gas_tx.clone(),
-            bootloader_tip_out_of_gas(),
+            TxExecutionResult::BootloaderOutOfGasForTx,
         )
         .tx_rollback(
             "Last tx rolled back to seal the block",
@@ -381,9 +382,9 @@ async fn bootloader_tip_out_of_gas_flow() {
             bootloader_out_of_gas_tx,
             successful_exec(),
         )
-        .miniblock_sealed("Miniblock with this tx sealed")
+        .l2_block_sealed("L2 block with this tx sealed")
         .next_tx("Second tx of the 2nd batch", third_tx, successful_exec())
-        .miniblock_sealed("Miniblock with 2nd tx")
+        .l2_block_sealed("L2 block with 2nd tx")
         .batch_sealed("2nd batch sealed")
         .run(sealer)
         .await;
@@ -398,18 +399,18 @@ async fn pending_batch_is_applied() {
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     let pending_batch = pending_batch_data(vec![
-        MiniblockExecutionData {
-            number: MiniblockNumber(1),
+        L2BlockExecutionData {
+            number: L2BlockNumber(1),
             timestamp: 1,
-            prev_block_hash: MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+            prev_block_hash: L2BlockHasher::new(L2BlockNumber(0), 0, H256::zero())
                 .finalize(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             txs: vec![random_tx(1)],
         },
-        MiniblockExecutionData {
-            number: MiniblockNumber(2),
+        L2BlockExecutionData {
+            number: L2BlockNumber(2),
             timestamp: 2,
-            prev_block_hash: MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+            prev_block_hash: L2BlockHasher::new(L2BlockNumber(1), 1, H256::zero())
                 .finalize(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             txs: vec![random_tx(2)],
@@ -418,17 +419,17 @@ async fn pending_batch_is_applied() {
 
     // We configured state keeper to use different system contract hashes, so it must seal the pending batch immediately.
     TestScenario::new()
-        .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
         .load_pending_batch(pending_batch)
         .next_tx("Final tx of batch", random_tx(3), successful_exec())
-        .miniblock_sealed_with("Miniblock with a single tx", |updates| {
+        .l2_block_sealed_with("L2 block with a single tx", |updates| {
             assert_eq!(
-                updates.miniblock.executed_transactions.len(),
+                updates.l2_block.executed_transactions.len(),
                 1,
-                "Only one transaction should be in miniblock"
+                "Only one transaction should be in L2 block"
             );
         })
-        .batch_sealed_with("Batch sealed with all 3 txs", |_, updates, _| {
+        .batch_sealed_with("Batch sealed with all 3 txs", |updates| {
             assert_eq!(
                 updates.l1_batch.executed_transactions.len(),
                 3,
@@ -447,7 +448,7 @@ async fn load_upgrade_tx() {
     let batch_executor_base = TestBatchExecutorBuilder::new(&scenario);
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let mut io = TestIO::new(stop_sender, scenario);
+    let (mut io, output_handler) = TestIO::new(stop_sender, scenario);
     io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
     io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
 
@@ -455,6 +456,7 @@ async fn load_upgrade_tx() {
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
+        output_handler,
         Arc::new(sealer),
     );
 
@@ -481,14 +483,15 @@ async fn load_upgrade_tx() {
 }
 
 /// Unconditionally seal the batch without triggering specific criteria.
+/// TODO(PLA-881): this test can be flaky if run under load.
 #[tokio::test]
 async fn unconditional_sealing() {
     // Trigger to know when to seal the batch.
-    // Once miniblock with one tx would be sealed, trigger would allow batch to be sealed as well.
+    // Once L2 block with one tx would be sealed, trigger would allow batch to be sealed as well.
     let batch_seal_trigger = Arc::new(AtomicBool::new(false));
     let batch_seal_trigger_checker = batch_seal_trigger.clone();
     let start = Instant::now();
-    let seal_miniblock_after = POLL_WAIT_DURATION; // Seal after 2 state keeper polling duration intervals.
+    let seal_l2_block_after = POLL_WAIT_DURATION; // Seal after 2 state keeper polling duration intervals.
 
     let config = StateKeeperConfig {
         transaction_slots: 2,
@@ -498,9 +501,9 @@ async fn unconditional_sealing() {
 
     TestScenario::new()
         .seal_l1_batch_when(move |_| batch_seal_trigger_checker.load(Ordering::Relaxed))
-        .seal_miniblock_when(move |manager| {
+        .seal_l2_block_when(move |manager| {
             if manager.pending_executed_transactions_len() != 0
-                && start.elapsed() >= seal_miniblock_after
+                && start.elapsed() >= seal_l2_block_after
             {
                 batch_seal_trigger.store(true, Ordering::Relaxed);
                 true
@@ -509,43 +512,43 @@ async fn unconditional_sealing() {
             }
         })
         .next_tx("The only tx", random_tx(1), successful_exec())
-        .no_txs_until_next_action("We don't give transaction to wait for miniblock to be sealed")
-        .miniblock_sealed("Miniblock is sealed with just one tx")
+        .no_txs_until_next_action("We don't give transaction to wait for L2 block to be sealed")
+        .l2_block_sealed("L2 block is sealed with just one tx")
         .no_txs_until_next_action("Still no tx")
         .batch_sealed("Batch is sealed with just one tx")
         .run(sealer)
         .await;
 }
 
-/// Checks the next miniblock sealed after pending batch has a correct timestamp
+/// Checks the next L2 block sealed after pending batch has a correct timestamp
 #[tokio::test]
-async fn miniblock_timestamp_after_pending_batch() {
+async fn l2_block_timestamp_after_pending_batch() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
-    let pending_batch = pending_batch_data(vec![MiniblockExecutionData {
-        number: MiniblockNumber(1),
+    let pending_batch = pending_batch_data(vec![L2BlockExecutionData {
+        number: L2BlockNumber(1),
         timestamp: 1,
-        prev_block_hash: MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+        prev_block_hash: L2BlockHasher::new(L2BlockNumber(0), 0, H256::zero())
             .finalize(ProtocolVersionId::latest()),
         virtual_blocks: 1,
         txs: vec![random_tx(1)],
     }]);
 
     TestScenario::new()
-        .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
         .load_pending_batch(pending_batch)
         .next_tx(
             "First tx after pending batch",
             random_tx(2),
             successful_exec(),
         )
-        .miniblock_sealed_with("Miniblock with a single tx", move |updates| {
-            assert!(
-                updates.miniblock.timestamp == 1,
+        .l2_block_sealed_with("L2 block with a single tx", move |updates| {
+            assert_eq!(
+                updates.l2_block.timestamp, 2,
                 "Timestamp for the new block must be taken from the test IO"
             );
         })
@@ -554,15 +557,15 @@ async fn miniblock_timestamp_after_pending_batch() {
         .await;
 }
 
-/// Makes sure that the timestamp doesn't decrease in consequent miniblocks.
+/// Makes sure that the timestamp doesn't decrease in consequent L2 blocks.
 ///
 /// Timestamps are faked in the IO layer, so this test mostly makes sure that the state keeper doesn't substitute
 /// any unexpected value on its own.
 #[tokio::test]
 async fn time_is_monotonic() {
-    let timestamp_first_miniblock = Arc::new(AtomicU64::new(0u64)); // Time is faked in tests.
-    let timestamp_second_miniblock = timestamp_first_miniblock.clone();
-    let timestamp_third_miniblock = timestamp_first_miniblock.clone();
+    let timestamp_first_l2_block = Arc::new(AtomicU64::new(0u64)); // Time is faked in tests.
+    let timestamp_second_l2_block = timestamp_first_l2_block.clone();
+    let timestamp_third_l2_block = timestamp_first_l2_block.clone();
 
     let config = StateKeeperConfig {
         transaction_slots: 2,
@@ -571,43 +574,43 @@ async fn time_is_monotonic() {
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     TestScenario::new()
-        .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
         .next_tx("First tx", random_tx(1), successful_exec())
-        .miniblock_sealed_with("Miniblock 1", move |updates| {
-            let min_expected = timestamp_first_miniblock.load(Ordering::Relaxed);
-            let actual = updates.miniblock.timestamp;
+        .l2_block_sealed_with("L2 block 1", move |updates| {
+            let min_expected = timestamp_first_l2_block.load(Ordering::Relaxed);
+            let actual = updates.l2_block.timestamp;
             assert!(
                 actual > min_expected,
-                "First miniblock: Timestamp cannot decrease. Expected at least {}, got {}",
+                "First L2 block: Timestamp cannot decrease. Expected at least {}, got {}",
                 min_expected,
                 actual
             );
-            timestamp_first_miniblock.store(updates.miniblock.timestamp, Ordering::Relaxed);
+            timestamp_first_l2_block.store(updates.l2_block.timestamp, Ordering::Relaxed);
         })
         .next_tx("Second tx", random_tx(2), successful_exec())
-        .miniblock_sealed_with("Miniblock 2", move |updates| {
-            let min_expected = timestamp_second_miniblock.load(Ordering::Relaxed);
-            let actual = updates.miniblock.timestamp;
+        .l2_block_sealed_with("L2 block 2", move |updates| {
+            let min_expected = timestamp_second_l2_block.load(Ordering::Relaxed);
+            let actual = updates.l2_block.timestamp;
             assert!(
                 actual > min_expected,
-                "Second miniblock: Timestamp cannot decrease. Expected at least {}, got {}",
+                "Second L2 block: Timestamp cannot decrease. Expected at least {}, got {}",
                 min_expected,
                 actual
             );
-            timestamp_second_miniblock.store(updates.miniblock.timestamp, Ordering::Relaxed);
+            timestamp_second_l2_block.store(updates.l2_block.timestamp, Ordering::Relaxed);
         })
-        .batch_sealed_with("Batch 1", move |_, updates, _| {
-            // Timestamp from the currently stored miniblock would be used in the fictive miniblock.
+        .batch_sealed_with("Batch 1", move |updates| {
+            // Timestamp from the currently stored L2 block would be used in the fictive L2 block.
             // It should be correct as well.
-            let min_expected = timestamp_third_miniblock.load(Ordering::Relaxed);
-            let actual = updates.miniblock.timestamp;
+            let min_expected = timestamp_third_l2_block.load(Ordering::Relaxed);
+            let actual = updates.l2_block.timestamp;
             assert!(
                 actual > min_expected,
-                "Fictive miniblock: Timestamp cannot decrease. Expected at least {}, got {}",
+                "Fictive L2 block: Timestamp cannot decrease. Expected at least {}, got {}",
                 min_expected,
                 actual
             );
-            timestamp_third_miniblock.store(updates.miniblock.timestamp, Ordering::Relaxed);
+            timestamp_third_l2_block.store(updates.l2_block.timestamp, Ordering::Relaxed);
         })
         .run(sealer)
         .await;
@@ -622,13 +625,13 @@ async fn protocol_upgrade() {
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     TestScenario::new()
-        .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
         .next_tx("First tx", random_tx(1), successful_exec())
-        .miniblock_sealed("Miniblock 1")
+        .l2_block_sealed("L2 block 1")
         .increment_protocol_version("Increment protocol version")
         .next_tx("Second tx", random_tx(2), successful_exec())
-        .miniblock_sealed("Miniblock 2")
-        .batch_sealed_with("Batch 1", move |_, updates, _| {
+        .l2_block_sealed("L2 block 2")
+        .batch_sealed_with("Batch 1", move |updates| {
             assert_eq!(
                 updates.protocol_version(),
                 ProtocolVersionId::latest(),
@@ -636,7 +639,7 @@ async fn protocol_upgrade() {
             )
         })
         .next_tx("Third tx", random_tx(3), successful_exec())
-        .miniblock_sealed_with("Miniblock 3", move |updates| {
+        .l2_block_sealed_with("L2 block 3", move |updates| {
             assert_eq!(
                 updates.protocol_version(),
                 ProtocolVersionId::next(),
@@ -644,7 +647,7 @@ async fn protocol_upgrade() {
             )
         })
         .next_tx("Fourth tx", random_tx(4), successful_exec())
-        .miniblock_sealed("Miniblock 4")
+        .l2_block_sealed("L2 block 4")
         .batch_sealed("Batch 2")
         .run(sealer)
         .await;

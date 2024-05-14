@@ -54,15 +54,6 @@ fn basic_workflow() {
 
     assert_eq!(metadata.root_hash, expected_root_hash);
     assert_eq!(metadata.rollup_last_leaf_index, 101);
-    assert_eq!(metadata.initial_writes.len(), logs.len());
-    for (write, log) in metadata.initial_writes.iter().zip(&logs) {
-        let expected_value = match log {
-            TreeInstruction::Write(entry) => entry.value,
-            TreeInstruction::Read(_) => unreachable!(),
-        };
-        assert_eq!(write.value, expected_value);
-    }
-    assert!(metadata.repeated_writes.is_empty());
 
     assert_eq!(
         expected_root_hash,
@@ -111,6 +102,33 @@ fn basic_workflow_multiblock() {
 }
 
 #[test]
+fn tree_with_single_leaf_works_correctly() {
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let storage_logs = gen_storage_logs();
+    let db = RocksDB::new(temp_dir.as_ref()).unwrap();
+    {
+        let mut tree = ZkSyncTree::new(db.clone().into());
+        tree.process_l1_batch(&storage_logs[0..1]);
+        tree.save();
+    }
+    let mut tree = ZkSyncTree::new(db.into());
+    tree.verify_consistency(L1BatchNumber(0));
+
+    // Add more logs to the tree.
+    for single_log_slice in storage_logs[1..].chunks(1) {
+        tree.process_l1_batch(single_log_slice);
+        tree.save();
+    }
+    assert_eq!(
+        tree.root_hash(),
+        H256([
+            125, 25, 107, 171, 182, 155, 32, 70, 138, 108, 238, 150, 140, 205, 193, 39, 90, 92,
+            122, 233, 118, 238, 248, 201, 160, 55, 58, 206, 244, 216, 188, 10
+        ]),
+    );
+}
+
+#[test]
 fn filtering_out_no_op_writes() {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let db = RocksDB::new(temp_dir.as_ref()).unwrap();
@@ -122,8 +140,6 @@ fn filtering_out_no_op_writes() {
     // All writes are no-op updates and thus must be filtered out.
     let new_metadata = tree.process_l1_batch(&logs);
     assert_eq!(new_metadata.root_hash, root_hash);
-    assert!(new_metadata.initial_writes.is_empty());
-    assert!(new_metadata.repeated_writes.is_empty());
     let merkle_paths = new_metadata.witness.unwrap().into_merkle_paths();
     assert_eq!(merkle_paths.len(), 0);
 
@@ -138,8 +154,6 @@ fn filtering_out_no_op_writes() {
     }
     let new_metadata = tree.process_l1_batch(&logs);
     assert_ne!(new_metadata.root_hash, root_hash);
-    assert!(new_metadata.initial_writes.is_empty());
-    assert_eq!(new_metadata.repeated_writes.len(), expected_writes_count);
     let merkle_paths = new_metadata.witness.unwrap().into_merkle_paths();
     assert_eq!(merkle_paths.len(), expected_writes_count);
     for merkle_path in merkle_paths {
@@ -179,7 +193,7 @@ fn revert_blocks() {
 
     let mirror_logs = logs.clone();
     let tree_metadata: Vec<_> = {
-        let mut tree = ZkSyncTree::new_lightweight(storage.into());
+        let mut tree = ZkSyncTree::new(storage.into());
         let metadata = logs.chunks(block_size).map(|chunk| {
             let metadata = tree.process_l1_batch(chunk);
             tree.save();
@@ -192,17 +206,20 @@ fn revert_blocks() {
     // 4 first blocks must contain only insert ops, while the last one must contain
     // only the update ops.
     for (i, metadata) in tree_metadata.iter().enumerate() {
+        let merkle_paths = metadata.witness.clone().unwrap().into_merkle_paths();
         let expected_leaf_index = if i == 4 {
-            assert!(metadata.initial_writes.is_empty());
-            assert_eq!(metadata.repeated_writes.len(), block_size);
-            for (write, idx) in metadata.repeated_writes.iter().zip(1_u64..) {
-                assert_eq!(write.index, idx);
-                assert_eq!(write.value, H256::from_low_u64_be(idx));
+            assert_eq!(merkle_paths.len(), block_size);
+            for (merkle_path, idx) in merkle_paths.into_iter().zip(1_u64..) {
+                assert!(!merkle_path.first_write);
+                assert_eq!(merkle_path.leaf_enumeration_index, idx);
+                assert_eq!(merkle_path.value_written, H256::from_low_u64_be(idx).0);
             }
             block_size * 4 + 1
         } else {
-            assert!(metadata.repeated_writes.is_empty());
-            assert_eq!(metadata.initial_writes.len(), block_size);
+            assert_eq!(merkle_paths.len(), block_size);
+            for merkle_path in merkle_paths {
+                assert!(merkle_path.first_write);
+            }
             block_size * (i + 1) + 1
         };
         assert_eq!(metadata.rollup_last_leaf_index, expected_leaf_index as u64);
@@ -213,7 +230,7 @@ fn revert_blocks() {
     {
         let mut tree = ZkSyncTree::new_lightweight(storage.into());
         assert_eq!(tree.root_hash(), tree_metadata.last().unwrap().root_hash);
-        tree.revert_logs(L1BatchNumber(3));
+        tree.roll_back_logs(L1BatchNumber(3));
         assert_eq!(tree.root_hash(), tree_metadata[3].root_hash);
         tree.save();
     }
@@ -222,7 +239,7 @@ fn revert_blocks() {
     let storage = RocksDB::new(temp_dir.as_ref()).unwrap();
     {
         let mut tree = ZkSyncTree::new_lightweight(storage.into());
-        tree.revert_logs(L1BatchNumber(1));
+        tree.roll_back_logs(L1BatchNumber(1));
         assert_eq!(tree.root_hash(), tree_metadata[1].root_hash);
         tree.save();
     }
@@ -231,7 +248,7 @@ fn revert_blocks() {
     let storage = RocksDB::new(temp_dir.as_ref()).unwrap();
     {
         let mut tree = ZkSyncTree::new_lightweight(storage.into());
-        tree.revert_logs(L1BatchNumber(1));
+        tree.roll_back_logs(L1BatchNumber(1));
         assert_eq!(tree.root_hash(), tree_metadata[1].root_hash);
         tree.save();
     }
@@ -381,12 +398,8 @@ fn process_block_idempotency_check() {
     let repeated_tree_metadata = tree.process_l1_batch(&logs);
     assert_eq!(repeated_tree_metadata.root_hash, tree_metadata.root_hash);
     assert_eq!(
-        repeated_tree_metadata.initial_writes,
-        tree_metadata.initial_writes
-    );
-    assert_eq!(
-        repeated_tree_metadata.repeated_writes,
-        tree_metadata.repeated_writes
+        repeated_tree_metadata.rollup_last_leaf_index,
+        tree_metadata.rollup_last_leaf_index
     );
 }
 

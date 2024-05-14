@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                PG_LAST_WAL_RECEIVE_LSN() = PG_LAST_WAL_REPLAY_LSN() AS synced,\n                EXTRACT(\n                    SECONDS\n                    FROM\n                        NOW() - PG_LAST_XACT_REPLAY_TIMESTAMP()\n                )::INT AS LAG\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "synced",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 1,
+        "name": "lag",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "f4e7e2dd109aab2714845b028eba780c75468aa36615bcfcf7f7d8ace23cd1aa"
+}

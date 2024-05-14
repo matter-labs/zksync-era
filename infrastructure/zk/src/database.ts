@@ -8,19 +8,19 @@ export async function reset(opts: DbOpts) {
     await setup(opts);
 }
 
-enum DalPath {
+export enum DalPath {
     CoreDal = 'core/lib/dal',
     ProverDal = 'prover/prover_dal'
 }
 
 export interface DbOpts {
-    server: boolean;
+    core: boolean;
     prover: boolean;
 }
 
 function getDals(opts: DbOpts): Map<DalPath, string> {
     let dals = new Map<DalPath, string>();
-    if (!opts.prover && !opts.server) {
+    if (!opts.prover && !opts.core) {
         dals.set(DalPath.CoreDal, process.env.DATABASE_URL!);
         if (process.env.DATABASE_PROVER_URL) {
             dals.set(DalPath.ProverDal, process.env.DATABASE_PROVER_URL);
@@ -29,7 +29,7 @@ function getDals(opts: DbOpts): Map<DalPath, string> {
     if (opts.prover && process.env.DATABASE_PROVER_URL) {
         dals.set(DalPath.ProverDal, process.env.DATABASE_PROVER_URL);
     }
-    if (opts.server) {
+    if (opts.core) {
         dals.set(DalPath.CoreDal, process.env.DATABASE_URL!);
     }
     return dals;
@@ -37,14 +37,14 @@ function getDals(opts: DbOpts): Map<DalPath, string> {
 
 function getTestDals(opts: DbOpts): Map<DalPath, string> {
     let dals = new Map<DalPath, string>();
-    if (!opts.prover && !opts.server) {
+    if (!opts.prover && !opts.core) {
         dals.set(DalPath.CoreDal, process.env.TEST_DATABASE_URL!);
         dals.set(DalPath.ProverDal, process.env.TEST_DATABASE_PROVER_URL!);
     }
     if (opts.prover) {
         dals.set(DalPath.ProverDal, process.env.TEST_DATABASE_PROVER_URL!);
     }
-    if (opts.server) {
+    if (opts.core) {
         dals.set(DalPath.CoreDal, process.env.TEST_DATABASE_URL!);
     }
     return dals;
@@ -130,7 +130,10 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string) {
     }
     await utils.spawn(`cargo sqlx database create --database-url ${dbUrl}`);
     await utils.spawn(`cargo sqlx migrate run --database-url ${dbUrl}`);
-    if (dbUrl.startsWith(localDbUrl)) {
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+
+    if (dbUrl.startsWith(localDbUrl) && !isLocalSetup) {
+        // Dont't do this preparation for local (docker) setup - as it requires full cargo compilation.
         await utils.spawn(
             `cargo sqlx prepare --check --database-url ${dbUrl} -- --tests || cargo sqlx prepare --database-url ${dbUrl} -- --tests`
         );
@@ -140,25 +143,6 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string) {
 }
 
 export async function setup(opts: DbOpts) {
-    if (process.env.TEMPLATE_DATABASE_URL) {
-        process.chdir(DalPath.CoreDal);
-
-        // Dump and restore from template database (simulate backup)
-        console.log(`Template DB URL provided. Creating a DB via dump from ${process.env.TEMPLATE_DATABASE_URL}`);
-        await utils.spawn('cargo sqlx database drop -y');
-        await utils.spawn('cargo sqlx database create');
-        await utils.spawn(
-            `pg_dump ${process.env.TEMPLATE_DATABASE_URL} -F c | pg_restore -d ${process.env.DATABASE_URL}`
-        );
-        // Remove `unconfirmed` rows from `eth_txs_history` table.
-        await utils.spawn(
-            `psql ${process.env.DATABASE_URL} -c "DELETE FROM eth_txs_history WHERE confirmed_at IS NULL"`
-        );
-
-        process.chdir(process.env.ZKSYNC_HOME as string);
-
-        return;
-    }
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
         await setupForDal(dalPath, dbUrl);
@@ -182,71 +166,85 @@ export async function wait(opts: DbOpts, tries: number = 4) {
     }
 }
 
-async function checkSqlxDataForDal(dalPath: DalPath, dbUrl: string) {
+async function prepareSqlxDataForDal(dalPath: DalPath, dbUrl: string, check: boolean) {
     process.chdir(dalPath);
-    await utils.spawn(`cargo sqlx prepare --check --database-url ${dbUrl} -- --tests`);
+    let check_string = '';
+    if (check) {
+        check_string = '--check';
+    }
+    await utils.spawn(`cargo sqlx prepare ${check_string} --database-url ${dbUrl} -- --tests`);
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
-export async function checkSqlxData(opts: DbOpts) {
+export async function prepareSqlxData(opts: DbOpts, check: boolean) {
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
-        await checkSqlxDataForDal(dalPath, dbUrl);
+        await prepareSqlxDataForDal(dalPath, dbUrl, check);
     }
 }
 
 interface DbGenerateMigrationOpts {
     prover: string | undefined;
-    server: string | undefined;
+    core: string | undefined;
 }
 
 export const command = new Command('db').description('database management');
 
-command.command('drop').description('drop the database').option('-p, --prover').option('-s, --server').action(drop);
-command.command('migrate').description('run migrations').option('-p, --prover').option('-s, --server').action(migrate);
+command.command('drop').description('drop the database').option('-p, --prover').option('-c, --core').action(drop);
+command.command('migrate').description('run migrations').option('-p, --prover').option('-c, --core').action(migrate);
 command
     .command('new-migration')
     .description('generate a new migration for a specific database')
     .option('-p, --prover <name>')
-    .option('-s, --server <name>')
+    .option('-c, --core <name>')
     .action((opts: DbGenerateMigrationOpts) => {
-        if ((!opts.prover && !opts.server) || (opts.prover && opts.server)) {
+        if ((!opts.prover && !opts.core) || (opts.prover && opts.core)) {
             throw new Error(
-                '[aborted] please specify a single database to generate migration for (i.e. to generate a migration for server `zk db new-migration --server name_of_migration`'
+                '[aborted] please specify a single database to generate migration for (i.e. to generate a migration for server `zk db new-migration --core name_of_migration`'
             );
         }
         if (opts.prover) {
             return generateMigration(DbType.Prover, opts.prover);
         }
-        return generateMigration(DbType.Core, opts.server!);
+        return generateMigration(DbType.Core, opts.core!);
     });
 command
     .command('setup')
     .description('initialize the database and perform migrations')
     .option('-p, --prover')
-    .option('-s, --server')
+    .option('-c, --core')
     .action(setup);
 command
     .command('wait')
     .description('wait for database to get ready for interaction')
     .option('-p, --prover')
-    .option('-s, --server')
+    .option('-c, --core')
     .action(wait);
 command
     .command('reset')
     .description('reinitialize the database')
     .option('-p, --prover')
-    .option('-s, --server')
+    .option('-c, --core')
     .action(reset);
 command
     .command('reset-test')
     .description('reinitialize the database for test')
     .option('-p, --prover')
-    .option('-s, --server')
+    .option('-c, --core')
     .action(resetTest);
 command
     .command('check-sqlx-data')
     .description('check sqlx-data.json is up to date')
     .option('-p, --prover')
-    .option('-s, --server')
-    .action(checkSqlxData);
+    .option('-c, --core')
+    .action(async (cmd) => {
+        await prepareSqlxData(cmd, true);
+    });
+command
+    .command('prepare')
+    .description('check sqlx-data.json is up to date')
+    .option('-p, --prover')
+    .option('-c, --core')
+    .action(async (cmd) => {
+        await prepareSqlxData(cmd, false);
+    });

@@ -3,18 +3,16 @@
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
-use zksync_types::{
-    writes::{InitialStorageWrite, RepeatedStorageWrite},
-    L1BatchNumber, StorageKey,
-};
+use zksync_types::{L1BatchNumber, StorageKey};
 
 use crate::{
+    consistency::ConsistencyError,
     storage::{PatchSet, Patched, RocksDBWrapper},
     types::{
         Key, Root, TreeEntry, TreeEntryWithProof, TreeInstruction, TreeLogEntry, ValueHash,
         TREE_DEPTH,
     },
-    BlockOutput, HashTree, MerkleTree, NoVersionError,
+    BlockOutput, HashTree, MerkleTree, MerkleTreePruner, MerkleTreePrunerHandle, NoVersionError,
 };
 
 /// Metadata for the current tree state.
@@ -24,11 +22,6 @@ pub struct TreeMetadata {
     pub root_hash: ValueHash,
     /// 1-based index of the next leaf to be inserted in the tree.
     pub rollup_last_leaf_index: u64,
-    /// Initial writes performed in the processed L1 batch in the order of provided `StorageLog`s.
-    pub initial_writes: Vec<InitialStorageWrite>,
-    /// Repeated writes performed in the processed L1 batch in the order of provided `StorageLog`s.
-    /// No-op writes (i.e., writing the same value as previously) will be omitted.
-    pub repeated_writes: Vec<RepeatedStorageWrite>,
     /// Witness information. As with `repeated_writes`, no-op updates will be omitted from Merkle paths.
     pub witness: Option<PrepareBasicCircuitsJob>,
 }
@@ -50,6 +43,7 @@ pub struct ZkSyncTree {
     tree: MerkleTree<Patched<RocksDBWrapper>>,
     thread_pool: Option<ThreadPool>,
     mode: TreeMode,
+    pruning_enabled: bool,
 }
 
 impl ZkSyncTree {
@@ -101,7 +95,24 @@ impl ZkSyncTree {
             tree: MerkleTree::new(Patched::new(db)),
             thread_pool: None,
             mode,
+            pruning_enabled: false,
         }
+    }
+
+    /// Returns tree pruner and a handle to stop it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this method was already called for the tree instance; it's logically unsound to run
+    /// multiple pruners for the same tree concurrently.
+    pub fn pruner(&mut self) -> (MerkleTreePruner<RocksDBWrapper>, MerkleTreePrunerHandle) {
+        assert!(
+            !self.pruning_enabled,
+            "pruner was already obtained for the tree"
+        );
+        self.pruning_enabled = true;
+        let db = self.tree.db.inner().clone();
+        MerkleTreePruner::new(db)
     }
 
     /// Returns a readonly handle to the tree. The handle **does not** see uncommitted changes to the tree,
@@ -256,68 +267,18 @@ impl ZkSyncTree {
         }
 
         let root_hash = output.root_hash().unwrap_or(starting_root_hash);
-        let logs = output
-            .logs
-            .into_iter()
-            .filter_map(|log| (!log.base.is_read()).then_some(log.base));
-        let kvs = instructions
-            .iter()
-            .filter_map(|instruction| match instruction {
-                TreeInstruction::Write(entry) => Some(*entry),
-                TreeInstruction::Read(_) => None,
-            });
-        let (initial_writes, repeated_writes) = Self::extract_writes(logs, kvs);
 
         tracing::info!(
             "Processed batch #{l1_batch_number}; root hash is {root_hash}, \
-             {leaf_count} leaves in total, \
-             {initial_writes} initial writes, {repeated_writes} repeated writes",
+             {leaf_count} leaves in total",
             leaf_count = output.leaf_count,
-            initial_writes = initial_writes.len(),
-            repeated_writes = repeated_writes.len()
         );
 
         TreeMetadata {
             root_hash,
             rollup_last_leaf_index: output.leaf_count + 1,
-            initial_writes,
-            repeated_writes,
             witness: Some(witness),
         }
-    }
-
-    fn extract_writes(
-        logs: impl Iterator<Item = TreeLogEntry>,
-        entries: impl Iterator<Item = TreeEntry<StorageKey>>,
-    ) -> (Vec<InitialStorageWrite>, Vec<RepeatedStorageWrite>) {
-        let mut initial_writes = vec![];
-        let mut repeated_writes = vec![];
-        for (log_entry, input_entry) in logs.zip(entries) {
-            let key = &input_entry.key;
-            match log_entry {
-                TreeLogEntry::Inserted => {
-                    initial_writes.push(InitialStorageWrite {
-                        index: input_entry.leaf_index,
-                        key: key.hashed_key_u256(),
-                        value: input_entry.value,
-                    });
-                }
-                TreeLogEntry::Updated {
-                    previous_value: prev_value_hash,
-                    ..
-                } => {
-                    if prev_value_hash != input_entry.value {
-                        repeated_writes.push(RepeatedStorageWrite {
-                            index: input_entry.leaf_index,
-                            value: input_entry.value,
-                        });
-                    }
-                    // Else we have a no-op update that must be omitted from `repeated_writes`.
-                }
-                TreeLogEntry::Read { .. } | TreeLogEntry::ReadMissingKey => {}
-            }
-        }
-        (initial_writes, repeated_writes)
     }
 
     fn process_l1_batch_lightweight(
@@ -342,24 +303,17 @@ impl ZkSyncTree {
         } else {
             self.tree.extend(kvs_with_derived_key.clone())
         };
-        let (initial_writes, repeated_writes) =
-            Self::extract_writes(output.logs.into_iter(), kvs.into_iter());
 
         tracing::info!(
             "Processed batch #{l1_batch_number}; root hash is {root_hash}, \
-             {leaf_count} leaves in total, \
-             {initial_writes} initial writes, {repeated_writes} repeated writes",
+             {leaf_count} leaves in total",
             root_hash = output.root_hash,
             leaf_count = output.leaf_count,
-            initial_writes = initial_writes.len(),
-            repeated_writes = repeated_writes.len()
         );
 
         TreeMetadata {
             root_hash: output.root_hash,
             rollup_last_leaf_index: output.leaf_count + 1,
-            initial_writes,
-            repeated_writes,
             witness: None,
         }
     }
@@ -376,10 +330,10 @@ impl ZkSyncTree {
         kvs.collect()
     }
 
-    /// Reverts the tree to a previous state.
+    /// Rolls back this tree to a previous state.
     ///
     /// This method will overwrite all unsaved changes in the tree.
-    pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
+    pub fn roll_back_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
         self.tree.db.reset();
         let retained_version_count = u64::from(last_l1_batch_to_keep.0 + 1);
         self.tree.truncate_recent_versions(retained_version_count);
@@ -411,6 +365,16 @@ impl Clone for ZkSyncTreeReader {
 }
 
 impl ZkSyncTreeReader {
+    /// Creates a tree reader based on the provided database.
+    pub fn new(db: RocksDBWrapper) -> Self {
+        Self(MerkleTree::new(db))
+    }
+
+    /// Returns a reference to the database this.
+    pub fn db(&self) -> &RocksDBWrapper {
+        &self.0.db
+    }
+
     /// Returns the current root hash of this tree.
     pub fn root_hash(&self) -> ValueHash {
         self.0.latest_root_hash()
@@ -423,6 +387,14 @@ impl ZkSyncTreeReader {
             u32::try_from(version + 1).expect("integer overflow for L1 batch number")
         });
         L1BatchNumber(number)
+    }
+
+    /// Returns the minimum L1 batch number retained by the tree.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn min_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        self.0.first_retained_version().map(|version| {
+            L1BatchNumber(u32::try_from(version).expect("integer overflow for L1 batch number"))
+        })
     }
 
     /// Returns the number of leaves in the tree.
@@ -443,5 +415,18 @@ impl ZkSyncTreeReader {
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
         let version = u64::from(l1_batch_number.0);
         self.0.entries_with_proofs(version, keys)
+    }
+
+    /// Verifies consistency of the tree at the specified L1 batch number.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first encountered verification error, should one occur.
+    pub fn verify_consistency(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<(), ConsistencyError> {
+        let version = l1_batch_number.0.into();
+        self.0.verify_consistency(version, true)
     }
 }

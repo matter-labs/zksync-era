@@ -7,7 +7,7 @@ use zksync_health_check::AppHealthCheck;
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::UnconstrainedTask,
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -39,7 +39,8 @@ impl WiringLayer for HealthCheckLayer {
             app_health_check,
         };
 
-        node.add_task(Box::new(task));
+        // Healthcheck server only exposes the state provided by other tasks, and also it has to start as soon as possible.
+        node.add_unconstrained_task(Box::new(task));
         Ok(())
     }
 }
@@ -51,12 +52,15 @@ struct HealthCheckTask {
 }
 
 #[async_trait::async_trait]
-impl Task for HealthCheckTask {
+impl UnconstrainedTask for HealthCheckTask {
     fn name(&self) -> &'static str {
         "healthcheck_server"
     }
 
-    async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run_unconstrained(
+        mut self: Box<Self>,
+        mut stop_receiver: StopReceiver,
+    ) -> anyhow::Result<()> {
         let handle =
             HealthCheckHandle::spawn_server(self.config.bind_addr(), self.app_health_check.clone());
         stop_receiver.0.changed().await?;

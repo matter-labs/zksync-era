@@ -11,7 +11,6 @@ use core::{
     marker::PhantomData,
 };
 
-use itertools::unfold;
 use rlp::Rlp;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 pub use zksync_types::{
@@ -154,13 +153,15 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for ValueOrArray<T> {
                     .map(|value| ValueOrArray(vec![value]))
             }
 
-            fn visit_seq<S>(self, visitor: S) -> Result<Self::Value, S::Error>
+            fn visit_seq<S>(self, mut visitor: S) -> Result<Self::Value, S::Error>
             where
                 S: de::SeqAccess<'de>,
             {
-                unfold(visitor, |vis| vis.next_element().transpose())
-                    .collect::<Result<_, _>>()
-                    .map(ValueOrArray)
+                let mut elements = Vec::with_capacity(visitor.size_hint().unwrap_or(1));
+                while let Some(element) = visitor.next_element()? {
+                    elements.push(element);
+                }
+                Ok(ValueOrArray(elements))
             }
         }
 

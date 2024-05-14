@@ -1,21 +1,30 @@
 use std::{
+    cell::Cell,
     collections::{HashMap, HashSet},
     ffi::CStr,
     fmt, iter,
     marker::PhantomData,
+    num::NonZeroU32,
     ops,
     path::Path,
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Condvar, Mutex, Weak,
+    },
     thread,
     time::{Duration, Instant},
 };
 
 use rocksdb::{
-    properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DBPinnableSlice,
-    Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
+    perf, properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor,
+    DBPinnableSlice, Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
 };
+use thread_local::ThreadLocal;
 
-use crate::metrics::{RocksdbLabels, RocksdbSizeMetrics, METRICS};
+use crate::metrics::{
+    BlockCacheKind, RocksdbBlockCacheLabels, RocksdbLabels, RocksdbProfilingLabels,
+    RocksdbSizeMetrics, METRICS, PROF_METRICS,
+};
 
 /// Number of active RocksDB instances used to determine if it's safe to exit current process.
 /// Not properly dropped RocksDB instances can lead to DB corruption.
@@ -103,6 +112,8 @@ pub(crate) struct RocksDBInner {
 
 impl RocksDBInner {
     pub(crate) fn collect_metrics(&self, metrics: &RocksdbSizeMetrics) {
+        const MAX_LEVEL: usize = 6;
+
         for &cf_name in &self.cf_names {
             let cf = self.db.cf_handle(cf_name).unwrap();
             // ^ `unwrap()` is safe (CF existence is checked during DB initialization)
@@ -155,6 +166,13 @@ impl RocksDBInner {
                 self.int_property(cf, properties::ESTIMATE_TABLE_READERS_MEM);
             if let Some(size) = index_and_filters_size {
                 metrics.index_and_filters_size[&labels].set(size);
+            }
+
+            for level in 0..=MAX_LEVEL {
+                let files_at_level = self.int_property(cf, &properties::num_files_at_level(level));
+                if let Some(files_at_level) = files_at_level {
+                    metrics.files_at_level[&labels.for_level(level)].set(files_at_level);
+                }
             }
         }
     }
@@ -266,6 +284,10 @@ pub struct RocksDBOptions {
     /// Byte capacity of the block cache (the main RocksDB cache for reads). If not set, default RocksDB
     /// cache options will be used.
     pub block_cache_capacity: Option<usize>,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    pub include_indices_and_filters_in_block_cache: bool,
     /// Byte capacity of memtables (recent, non-persisted changes to RocksDB) set for large CFs
     /// (as defined in [`NamedColumnFamily::requires_tuning()`]).
     /// Setting this to a reasonably large value (order of 512 MiB) is helpful for large DBs that experience
@@ -274,27 +296,42 @@ pub struct RocksDBOptions {
     /// Timeout to wait for the database to run compaction on stalled writes during startup or
     /// when the corresponding RocksDB error is encountered.
     pub stalled_writes_retries: StalledWritesRetries,
+    /// Number of open files that can be used by the DB. Default is None, for no limit.
+    pub max_open_files: Option<NonZeroU32>,
 }
 
 impl Default for RocksDBOptions {
     fn default() -> Self {
         Self {
             block_cache_capacity: None,
+            include_indices_and_filters_in_block_cache: false,
             large_memtable_capacity: None,
             stalled_writes_retries: StalledWritesRetries::new(Duration::from_secs(10)),
+            max_open_files: None,
         }
     }
 }
 
 /// Thin wrapper around a RocksDB instance.
 ///
-/// The wrapper is cheaply cloneable (internally, it wraps a DB instance in an [`Arc`]).
-#[derive(Debug, Clone)]
+/// The wrapper is cheaply cloneable; internally, it wraps a DB instance in an [`Arc`].
+#[derive(Debug)]
 pub struct RocksDB<CF> {
     inner: Arc<RocksDBInner>,
     sync_writes: bool,
     stalled_writes_retries: StalledWritesRetries,
     _cf: PhantomData<CF>,
+}
+
+impl<CF> Clone for RocksDB<CF> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        }
+    }
 }
 
 impl<CF: NamedColumnFamily> RocksDB<CF> {
@@ -304,7 +341,13 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
 
     pub fn with_options(path: &Path, options: RocksDBOptions) -> Result<Self, rocksdb::Error> {
         let caches = RocksDBCaches::new(options.block_cache_capacity);
-        let db_options = Self::rocksdb_options(None, None);
+        let mut db_options = Self::rocksdb_options(None, None);
+        let max_open_files = if let Some(non_zero) = options.max_open_files {
+            i32::try_from(non_zero.get()).unwrap_or(i32::MAX)
+        } else {
+            -1
+        };
+        db_options.set_max_open_files(max_open_files);
         let existing_cfs = DB::list_cf(&db_options, path).unwrap_or_else(|err| {
             tracing::warn!(
                 "Failed getting column families for RocksDB `{}` at `{}`, assuming CFs are empty; {err}",
@@ -349,6 +392,11 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             if let Some(cache) = &caches.shared {
                 block_based_options.set_block_cache(cache);
             }
+            if options.include_indices_and_filters_in_block_cache {
+                block_based_options.set_cache_index_and_filter_blocks(true);
+                block_based_options.set_pin_l0_filter_and_index_blocks_in_cache(true);
+            }
+
             let memtable_capacity = options.large_memtable_capacity.filter(|_| requires_tuning);
             let cf_options = Self::rocksdb_options(memtable_capacity, Some(block_based_options));
             ColumnFamilyDescriptor::new(cf_name, cf_options)
@@ -409,6 +457,15 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             options.set_block_based_table_factory(&block_based_options);
         }
         options
+    }
+
+    pub fn downgrade(&self) -> WeakRocksDB<CF> {
+        WeakRocksDB {
+            inner: Arc::downgrade(&self.inner),
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        }
     }
 
     pub fn estimated_number_of_entries(&self, cf: CF) -> u64 {
@@ -550,6 +607,27 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             .fuse()
         // ^ unwrap() is safe for the same reasons as in `prefix_iterator_cf()`.
     }
+
+    /// Creates a new profiled operation.
+    pub fn new_profiled_operation(&self, name: &'static str) -> ProfiledOperation {
+        ProfiledOperation {
+            db: CF::DB_NAME,
+            name,
+            is_profiling: ThreadLocal::new(),
+            user_key_comparisons: AtomicU64::new(0),
+            block_cache_hits: AtomicU64::new(0),
+            block_reads: AtomicU64::new(0),
+            index_block_cache_hits: AtomicU64::new(0),
+            index_block_reads: AtomicU64::new(0),
+            filter_block_cache_hits: AtomicU64::new(0),
+            filter_block_reads: AtomicU64::new(0),
+            gets_from_memtable: AtomicU64::new(0),
+            bloom_sst_hits: AtomicU64::new(0),
+            bloom_sst_misses: AtomicU64::new(0),
+            block_read_size: AtomicU64::new(0),
+            multiget_read_size: AtomicU64::new(0),
+        }
+    }
 }
 
 impl RocksDB<()> {
@@ -567,6 +645,229 @@ impl RocksDB<()> {
             num_instances = cvar.wait(num_instances).unwrap();
         }
         tracing::info!("All the RocksDB instances are dropped");
+    }
+}
+
+/// Weak reference to a RocksDB instance. Doesn't prevent dropping the underlying instance;
+/// to work with it, you should [upgrade](Self::upgrade()) the reference first.
+///
+/// The wrapper is cheaply cloneable; internally, it wraps a DB instance in a [`Weak`].
+#[derive(Debug)]
+pub struct WeakRocksDB<CF> {
+    inner: Weak<RocksDBInner>,
+    sync_writes: bool,
+    stalled_writes_retries: StalledWritesRetries,
+    _cf: PhantomData<CF>,
+}
+
+impl<CF: NamedColumnFamily> Clone for WeakRocksDB<CF> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        }
+    }
+}
+
+impl<CF: NamedColumnFamily> WeakRocksDB<CF> {
+    /// Tries to upgrade to a strong reference to RocksDB. If the RocksDB instance has been dropped, returns `None`.
+    pub fn upgrade(&self) -> Option<RocksDB<CF>> {
+        Some(RocksDB {
+            inner: self.inner.upgrade()?,
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        })
+    }
+}
+
+/// Profiling information for a logical I/O operation on RocksDB. Can be used to profile operations
+/// distributed in time, including on multiple threads.
+#[must_use = "`start_profiling()` should be called one or more times to actually perform profiling"]
+#[derive(Debug)]
+pub struct ProfiledOperation {
+    db: &'static str,
+    name: &'static str,
+    is_profiling: ThreadLocal<Cell<bool>>,
+    user_key_comparisons: AtomicU64,
+    block_cache_hits: AtomicU64,
+    block_reads: AtomicU64,
+    index_block_cache_hits: AtomicU64,
+    index_block_reads: AtomicU64,
+    filter_block_cache_hits: AtomicU64,
+    filter_block_reads: AtomicU64,
+    gets_from_memtable: AtomicU64,
+    bloom_sst_hits: AtomicU64,
+    bloom_sst_misses: AtomicU64,
+    block_read_size: AtomicU64,
+    multiget_read_size: AtomicU64,
+}
+
+impl ProfiledOperation {
+    /// Starts profiling RocksDB I/O operations until the returned guard is dropped.
+    ///
+    /// Returns `None` if operations are already being profiled for this operation on the current thread.
+    /// Not checking this would lead to logical errors, like the same operations being profiled multiple times.
+    pub fn start_profiling(self: &Arc<Self>) -> Option<ProfileGuard> {
+        if self.is_profiling.get_or_default().replace(true) {
+            // The profiling was already active on the current thread.
+            return None;
+        }
+
+        perf::set_perf_stats(perf::PerfStatsLevel::EnableCount);
+        let mut context = rocksdb::PerfContext::default();
+        context.reset();
+        Some(ProfileGuard {
+            operation: self.clone(),
+            context,
+        })
+    }
+
+    fn block_cache_hits_and_reads(&self, kind: BlockCacheKind) -> (u64, u64) {
+        let (hits, reads) = match kind {
+            BlockCacheKind::All => (&self.block_cache_hits, &self.block_reads),
+            BlockCacheKind::Filters => (&self.filter_block_cache_hits, &self.filter_block_reads),
+            BlockCacheKind::Indices => (&self.index_block_cache_hits, &self.index_block_reads),
+        };
+        (hits.load(Ordering::Relaxed), reads.load(Ordering::Relaxed))
+    }
+}
+
+impl Drop for ProfiledOperation {
+    fn drop(&mut self) {
+        tracing::debug!("Profiled operation finished: {self:?}");
+
+        let labels = RocksdbProfilingLabels {
+            db: self.db,
+            operation: self.name,
+        };
+        PROF_METRICS.user_key_comparisons[&labels]
+            .observe(self.user_key_comparisons.load(Ordering::Relaxed));
+        PROF_METRICS.gets_from_memtable[&labels]
+            .observe(self.gets_from_memtable.load(Ordering::Relaxed));
+        PROF_METRICS.bloom_sst_hits[&labels].observe(self.bloom_sst_hits.load(Ordering::Relaxed));
+        PROF_METRICS.bloom_sst_misses[&labels]
+            .observe(self.bloom_sst_misses.load(Ordering::Relaxed));
+        PROF_METRICS.block_read_size[&labels].observe(self.block_read_size.load(Ordering::Relaxed));
+        PROF_METRICS.multiget_read_size[&labels]
+            .observe(self.multiget_read_size.load(Ordering::Relaxed));
+
+        for kind in [
+            BlockCacheKind::All,
+            BlockCacheKind::Filters,
+            BlockCacheKind::Indices,
+        ] {
+            let (hits, reads) = self.block_cache_hits_and_reads(kind);
+            if hits > 0 || reads > 0 {
+                // Do not report trivial hit / miss stats.
+                let labels = RocksdbBlockCacheLabels {
+                    db: self.db,
+                    operation: self.name,
+                    kind,
+                };
+                PROF_METRICS.block_cache_hits[&labels].observe(hits);
+                PROF_METRICS.block_reads[&labels].observe(reads);
+            }
+        }
+    }
+}
+
+#[must_use = "Guard will report metrics on drop"]
+pub struct ProfileGuard {
+    context: perf::PerfContext,
+    operation: Arc<ProfiledOperation>,
+}
+
+impl ProfileGuard {
+    // Unfortunately, RocksDB doesn't expose all metrics via its C API, so we use this ugly hack to parse the missing metrics
+    // directly from the string representation.
+    fn parse_metrics_str(s: &str) -> HashMap<&str, u64> {
+        let metrics = s.split(',').filter_map(|part| {
+            let part = part.trim();
+            let (name, value) = part.split_once('=')?;
+            Some((name.trim(), value.trim().parse().ok()?))
+        });
+        metrics.collect()
+    }
+}
+
+impl fmt::Debug for ProfileGuard {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ProfileGuard")
+            .field("operation", &self.operation)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Drop for ProfileGuard {
+    fn drop(&mut self) {
+        let metrics_string = self.context.report(true);
+        tracing::trace!("Obtained metrics: {metrics_string}");
+        let parsed_metrics = Self::parse_metrics_str(&metrics_string);
+
+        let count = self
+            .context
+            .metric(perf::PerfMetric::UserKeyComparisonCount);
+        self.operation
+            .user_key_comparisons
+            .fetch_add(count, Ordering::Relaxed);
+
+        let count = self.context.metric(perf::PerfMetric::BlockReadCount);
+        self.operation
+            .block_reads
+            .fetch_add(count, Ordering::Relaxed);
+        let count = self.context.metric(perf::PerfMetric::BlockCacheHitCount);
+        self.operation
+            .block_cache_hits
+            .fetch_add(count, Ordering::Relaxed);
+
+        if let Some(&count) = parsed_metrics.get("block_cache_index_hit_count") {
+            self.operation
+                .index_block_cache_hits
+                .fetch_add(count, Ordering::Relaxed);
+        }
+        if let Some(&count) = parsed_metrics.get("index_block_read_count") {
+            self.operation
+                .index_block_reads
+                .fetch_add(count, Ordering::Relaxed);
+        }
+        if let Some(&count) = parsed_metrics.get("block_cache_filter_hit_count") {
+            self.operation
+                .filter_block_cache_hits
+                .fetch_add(count, Ordering::Relaxed);
+        }
+        if let Some(&count) = parsed_metrics.get("filter_block_read_count") {
+            self.operation
+                .filter_block_reads
+                .fetch_add(count, Ordering::Relaxed);
+        }
+
+        let count = self.context.metric(perf::PerfMetric::GetFromMemtableCount);
+        self.operation
+            .gets_from_memtable
+            .fetch_add(count, Ordering::Relaxed);
+        let count = self.context.metric(perf::PerfMetric::BloomSstHitCount);
+        self.operation
+            .bloom_sst_hits
+            .fetch_add(count, Ordering::Relaxed);
+        let count = self.context.metric(perf::PerfMetric::BloomSstMissCount);
+        self.operation
+            .bloom_sst_misses
+            .fetch_add(count, Ordering::Relaxed);
+
+        let size = self.context.metric(perf::PerfMetric::BlockReadByte);
+        self.operation
+            .block_read_size
+            .fetch_add(size, Ordering::Relaxed);
+        let size = self.context.metric(perf::PerfMetric::MultigetReadBytes);
+        self.operation
+            .multiget_read_size
+            .fetch_add(size, Ordering::Relaxed);
+
+        self.operation.is_profiling.get_or_default().set(false);
     }
 }
 
@@ -731,5 +1032,66 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(value, b"value2");
+    }
+
+    #[test]
+    fn profiling_basics() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path())
+            .unwrap()
+            .with_sync_writes();
+
+        let mut batch = db.new_write_batch();
+        batch.put_cf(NewColumnFamilies::Default, b"test", b"value");
+        batch.put_cf(NewColumnFamilies::Default, b"test2", b"value2");
+        db.write(batch).unwrap();
+
+        let profiled_op = Arc::new(db.new_profiled_operation("test"));
+        assert_eq!(profiled_op.is_profiling.get().map(Cell::get), None);
+
+        {
+            let _guard = profiled_op.start_profiling();
+            assert_eq!(profiled_op.is_profiling.get().map(Cell::get), Some(true));
+            db.get_cf(NewColumnFamilies::Default, b"test")
+                .unwrap()
+                .unwrap();
+        }
+        assert_eq!(profiled_op.is_profiling.get().map(Cell::get), Some(false));
+        let key_comparisons = profiled_op.user_key_comparisons.load(Ordering::Relaxed);
+        assert!(key_comparisons > 0, "{key_comparisons}");
+
+        // Check enabling profiling on another thread.
+        let profiled_op_clone = profiled_op.clone();
+        thread::spawn(move || {
+            let _guard = profiled_op_clone.start_profiling();
+            db.get_cf(NewColumnFamilies::Default, b"test2")
+                .unwrap()
+                .unwrap();
+        })
+        .join()
+        .unwrap();
+
+        assert_eq!(profiled_op.is_profiling.get().map(Cell::get), Some(false));
+        let new_key_comparisons = profiled_op.user_key_comparisons.load(Ordering::Relaxed);
+        assert!(
+            new_key_comparisons > key_comparisons,
+            "{key_comparisons}, {new_key_comparisons}"
+        );
+    }
+
+    #[test]
+    fn parsing_metrics_str() {
+        let metrics_str = "\
+            user_key_comparison_count = 3309113, block_cache_hit_count = 1625, block_read_count = 70834, \
+            block_read_byte = 6425766745, block_cache_index_hit_count = 180, index_block_read_count = 3978, \
+            block_cache_filter_hit_count = 105, filter_block_read_count = 8234, multiget_read_bytes = 30942097, \
+            get_from_memtable_count = 4300, bloom_sst_hit_count = 85326, bloom_sst_miss_count = 179904\
+        ";
+        let parsed = ProfileGuard::parse_metrics_str(metrics_str);
+
+        assert_eq!(parsed["block_cache_index_hit_count"], 180);
+        assert_eq!(parsed["index_block_read_count"], 3_978);
+        assert_eq!(parsed["block_cache_filter_hit_count"], 105);
+        assert_eq!(parsed["filter_block_read_count"], 8_234);
     }
 }

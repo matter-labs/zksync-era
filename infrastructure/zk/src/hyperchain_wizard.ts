@@ -48,28 +48,11 @@ export interface BasePromptOptions {
 let isLocalhost = false;
 
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain(envName: string) {
-    await announced('Initializing hyperchain creation', setupConfiguration(envName));
+async function initHyperchain(envName: string, runObservability: boolean, validiumMode: boolean) {
+    await announced('Initializing hyperchain creation', setupConfiguration(envName, runObservability));
+    await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true, runObservability, validiumMode });
 
-    await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true });
-
-    // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
-    // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
-    // TODO: Think about better implementation
-    // PLA:681
-    if (isLocalhost) {
-        env.modify(
-            'ETH_CLIENT_WEB3_URL',
-            'http://geth:8545',
-            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-        );
-        env.modify(
-            'DATABASE_URL',
-            'postgres://postgres:notsecurepassword@postgres:5432/zksync_local',
-            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-        );
-    }
-
+    // TODO: EVM:577 fix hyperchain wizard
     env.mergeInitToEnv();
 
     console.log(announce(`\nYour hyperchain configuration is available at ${process.env.ENV_FILE}\n`));
@@ -79,7 +62,7 @@ async function initHyperchain(envName: string) {
     await announced('Start server', startServer());
 }
 
-async function setupConfiguration(envName: string) {
+async function setupConfiguration(envName: string, runObservability: boolean) {
     if (!envName) {
         const CONFIGURE = 'Configure new chain';
         const USE_EXISTING = 'Use existing configuration';
@@ -95,7 +78,7 @@ async function setupConfiguration(envName: string) {
         const results: any = await enquirer.prompt(questions);
 
         if (results.config === CONFIGURE) {
-            await announced('Setting hyperchain configuration', setHyperchainMetadata());
+            await announced('Setting hyperchain configuration', setHyperchainMetadata(runObservability));
             await announced('Validating information and balances to deploy hyperchain', checkReadinessToDeploy());
         } else {
             const envName = await selectHyperchainConfiguration();
@@ -107,7 +90,7 @@ async function setupConfiguration(envName: string) {
     }
 }
 
-async function setHyperchainMetadata() {
+async function setHyperchainMetadata(runObservability: boolean) {
     const BASE_NETWORKS = [
         BaseNetwork.LOCALHOST,
         BaseNetwork.LOCALHOST_CUSTOM,
@@ -141,9 +124,9 @@ async function setHyperchainMetadata() {
     ];
 
     const results: any = await enquirer.prompt(questions);
-    // kl todo add random chainId generation here if user does not want to pick chainId.
+    // TODO(EVM-574): add random chainId generation here if user does not want to pick chainId.
 
-    let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
+    let deployer, governor, ethOperator, blobOperator, feeReceiver: ethers.Wallet | undefined;
     let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;
 
     if (results.l1Chain !== BaseNetwork.LOCALHOST || results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM) {
@@ -216,6 +199,7 @@ async function setHyperchainMetadata() {
             governor = ethers.Wallet.createRandom();
             ethOperator = ethers.Wallet.createRandom();
             feeReceiver = ethers.Wallet.createRandom();
+            blobOperator = ethers.Wallet.createRandom();
             feeReceiverAddress = feeReceiver.address;
         } else {
             console.log(warning('The private keys for these wallets must be different from each other!\n'));
@@ -235,6 +219,12 @@ async function setHyperchainMetadata() {
                 {
                     message: 'Private key of the L1 ETH Operator (the one that rolls up the batches)',
                     name: 'ethOperator',
+                    type: 'password',
+                    required: true
+                },
+                {
+                    message: 'Private key of the L1 blob Operator (the one that pays for blobs)',
+                    name: 'blobOperator',
                     type: 'password',
                     required: true
                 },
@@ -264,6 +254,12 @@ async function setHyperchainMetadata() {
                 ethOperator = new ethers.Wallet(keyResults.ethOperator);
             } catch (e) {
                 throw Error(error('ETH Operator private key is invalid'));
+            }
+
+            try {
+                blobOperator = new ethers.Wallet(keyResults.blobOperator);
+            } catch (e) {
+                throw Error(error('Blob Operator private key is invalid'));
             }
 
             if (!utils.isAddress(keyResults.feeReceiver)) {
@@ -298,21 +294,20 @@ async function setHyperchainMetadata() {
         deployer = new ethers.Wallet(richWallets[0].privateKey);
         governor = new ethers.Wallet(richWallets[1].privateKey);
         ethOperator = new ethers.Wallet(richWallets[2].privateKey);
+        blobOperator = new ethers.Wallet(richWallets[3].privateKey);
         feeReceiver = undefined;
-        feeReceiverAddress = richWallets[3].address;
+        feeReceiverAddress = richWallets[4].address;
 
-        await up('docker-compose-zkstack-common.yml');
-        await announced('Ensuring databases are up', db.wait({ server: true, prover: false }));
+        await up(runObservability);
+        await announced('Ensuring databases are up', db.wait({ core: true, prover: false }));
     }
-
-    // testTokens and weth will be done for the shared bridge.
-    // await initializeTestERC20s();
 
     console.log('\n');
 
     printAddressInfo('Deployer', deployer.address);
     printAddressInfo('Governor', governor.address);
     printAddressInfo('ETH Operator', ethOperator.address);
+    printAddressInfo('Blob Operator', blobOperator.address);
     printAddressInfo('Fee receiver', feeReceiverAddress);
 
     console.log(
@@ -374,6 +369,8 @@ async function setHyperchainMetadata() {
     env.modify('CHAIN_ETH_ZKSYNC_NETWORK_ID', results.chainId, process.env.ENV_FILE!);
     env.modify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', ethOperator.privateKey, process.env.ENV_FILE!);
     env.modify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', ethOperator.address, process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY', blobOperator.privateKey, process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_OPERATOR_BLOBS_ETH_ADDR', blobOperator.address, process.env.ENV_FILE!);
     env.modify('DEPLOYER_PRIVATE_KEY', deployer.privateKey, process.env.ENV_FILE!);
     env.modify('GOVERNOR_PRIVATE_KEY', governor.privateKey, process.env.ENV_FILE!);
     env.modify('GOVERNOR_ADDRESS', governor.address, process.env.ENV_FILE!);
@@ -427,31 +424,6 @@ function printAddressInfo(name: string, address: string) {
     console.log('');
 }
 
-// async function initializeTestERC20s() {
-//     // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
-//     // PLA-595
-//     const questions: BasePromptOptions[] = [
-//         {
-//             message:
-//                 'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
-//             name: 'deployERC20s',
-//             type: 'confirm'
-//         }
-//     ];
-
-//     const results: any = await enquirer.prompt(questions);
-
-//     if (results.deployERC20s) {
-//         env.modify('DEPLOY_TEST_TOKENS', 'true', 'etc/env/l1-inits/.init.env');
-//         console.log(
-//             warning(
-//                 `The addresses for the generated test ECR20 tokens will be available at the /etc/tokens/${getEnv(
-//                     process.env.CHAIN_ETH_NETWORK!
-//                 )}.json file.`
-//             )
-//         );
-//     }
-// }
 async function startServer() {
     const YES_DEFAULT = 'Yes (default components)';
     const YES_CUSTOM = 'Yes (custom components)';
@@ -761,12 +733,15 @@ async function configDemoHyperchain(cmd: Command) {
     env.load();
 
     if (!cmd.skipEnvSetup) {
-        await up();
+        await up(false);
     }
     await init.initDevCmdAction({
         skipEnvSetup: cmd.skipEnvSetup,
         skipSubmodulesCheckout: false,
-        testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! }
+        testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! },
+        // TODO(EVM-573): support Validium mode
+        runObservability: false,
+        validiumMode: false
     });
 
     env.mergeInitToEnv();
@@ -815,10 +790,12 @@ export const initHyperchainCommand = new Command('stack')
 
 initHyperchainCommand
     .command('init')
+    .option('--run-observability')
     .option('--env-name <env-name>', 'chain name to use for initialization')
     .description('Wizard for hyperchain creation/configuration')
+    .option('--validium-mode')
     .action(async (cmd: Command) => {
-        initHyperchain(cmd.envName);
+        await initHyperchain(cmd.envName, cmd.runObservability, cmd.validiumMode);
     });
 initHyperchainCommand
     .command('docker-setup')
@@ -833,5 +810,6 @@ initHyperchainCommand
     .command('demo')
     .option('--prover <value>', 'Add a cpu or gpu prover to the hyperchain')
     .option('--skip-env-setup', 'Run env setup automatically (pull docker containers, etc)')
+    .option('--validium-mode')
     .description('Spin up a demo hyperchain with default settings for testing purposes')
     .action(configDemoHyperchain);

@@ -4,16 +4,23 @@ use std::ops;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, StorageProcessor};
+use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, Connection, Core, CoreDal, DalError};
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
-    L1BatchNumber, MiniblockNumber, H256,
+    L1BatchNumber, L2BlockNumber, H256,
 };
 
 use super::{
     metrics::{ChunkRecoveryStage, RecoveryStage, RECOVERY_METRICS},
     RocksdbStorage, RocksdbSyncError, StateValue,
 };
+
+#[derive(Debug)]
+pub(super) enum Strategy {
+    Complete,
+    Recovery,
+    Genesis,
+}
 
 #[derive(Debug)]
 struct KeyChunk {
@@ -30,12 +37,12 @@ impl RocksdbStorage {
     /// Returns the next L1 batch that should be fed to the storage.
     pub(super) async fn ensure_ready(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         desired_log_chunk_size: u64,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<L1BatchNumber, RocksdbSyncError> {
+    ) -> Result<(Strategy, L1BatchNumber), RocksdbSyncError> {
         if let Some(number) = self.l1_batch_number().await {
-            return Ok(number);
+            return Ok((Strategy::Complete, number));
         }
 
         // Check whether we need to perform a snapshot migration.
@@ -43,7 +50,7 @@ impl RocksdbStorage {
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await
-            .context("failed getting snapshot recovery info")?;
+            .map_err(DalError::generalize)?;
         Ok(if let Some(snapshot_recovery) = snapshot_recovery {
             self.recover_from_snapshot(
                 storage,
@@ -52,10 +59,10 @@ impl RocksdbStorage {
                 stop_receiver,
             )
             .await?;
-            snapshot_recovery.l1_batch_number + 1
+            (Strategy::Recovery, snapshot_recovery.l1_batch_number + 1)
         } else {
             // No recovery snapshot; we're initializing the cache from the genesis
-            L1BatchNumber(0)
+            (Strategy::Genesis, L1BatchNumber(0))
         })
     }
 
@@ -65,7 +72,7 @@ impl RocksdbStorage {
     /// (it would be considered complete even if it failed in the middle).
     async fn recover_from_snapshot(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         snapshot_recovery: &SnapshotRecoveryStatus,
         desired_log_chunk_size: u64,
         stop_receiver: &watch::Receiver<bool>,
@@ -104,10 +111,10 @@ impl RocksdbStorage {
                     || state_value.enum_index != Some(chunk_start.leaf_index)
                 {
                     let err = anyhow::anyhow!(
-                        "Mismatch between entry for key {:?} in Postgres snapshot for miniblock #{} \
+                        "Mismatch between entry for key {:?} in Postgres snapshot for L2 block #{} \
                          ({chunk_start:?}) and RocksDB cache ({state_value:?}); the recovery procedure may be corrupted",
                         chunk_start.key,
-                        snapshot_recovery.miniblock_number
+                        snapshot_recovery.l2_block_number
                     );
                     return Err(err.into());
                 }
@@ -115,7 +122,7 @@ impl RocksdbStorage {
             } else {
                 self.recover_logs_chunk(
                     storage,
-                    snapshot_recovery.miniblock_number,
+                    snapshot_recovery.l2_block_number,
                     key_chunk.key_range.clone(),
                 )
                 .await
@@ -127,7 +134,7 @@ impl RocksdbStorage {
                 })?;
 
                 #[cfg(test)]
-                (self.listener.on_logs_chunk_recovered)(chunk_id);
+                (self.listener.on_logs_chunk_recovered.write().await)(chunk_id);
             }
             RECOVERY_METRICS.recovered_chunk_count.inc_by(1);
         }
@@ -140,16 +147,15 @@ impl RocksdbStorage {
 
     async fn recover_factory_deps(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         snapshot_recovery: &SnapshotRecoveryStatus,
     ) -> anyhow::Result<()> {
         // We don't expect that many factory deps; that's why we recover factory deps in any case.
         let latency = RECOVERY_METRICS.latency[&RecoveryStage::LoadFactoryDeps].start();
         let factory_deps = storage
             .snapshots_creator_dal()
-            .get_all_factory_deps(snapshot_recovery.miniblock_number)
-            .await
-            .context("Failed getting factory dependencies")?;
+            .get_all_factory_deps(snapshot_recovery.l2_block_number)
+            .await?;
         let latency = latency.observe();
         tracing::info!(
             "Loaded {} factory dependencies from the snapshot in {latency:?}",
@@ -169,17 +175,17 @@ impl RocksdbStorage {
     }
 
     async fn load_key_chunks(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         snapshot_recovery: &SnapshotRecoveryStatus,
         desired_log_chunk_size: u64,
     ) -> anyhow::Result<Vec<KeyChunk>> {
-        let snapshot_miniblock = snapshot_recovery.miniblock_number;
+        let snapshot_l2_block = snapshot_recovery.l2_block_number;
         let log_count = storage
             .storage_logs_dal()
-            .count_miniblock_storage_logs(snapshot_miniblock)
+            .get_storage_logs_row_count(snapshot_l2_block)
             .await
             .with_context(|| {
-                format!("Failed getting number of logs for miniblock #{snapshot_miniblock}")
+                format!("Failed getting number of logs for L2 block #{snapshot_l2_block}")
             })?;
         let chunk_count = log_count.div_ceil(desired_log_chunk_size);
         tracing::info!(
@@ -192,9 +198,8 @@ impl RocksdbStorage {
             .collect();
         let chunk_starts = storage
             .storage_logs_dal()
-            .get_chunk_starts_for_miniblock(snapshot_miniblock, &key_chunks)
-            .await
-            .context("Failed getting chunk starts")?;
+            .get_chunk_starts_for_l2_block(snapshot_l2_block, &key_chunks)
+            .await?;
         let latency = latency.observe();
         tracing::info!("Loaded {chunk_count} chunk starts in {latency:?}");
 
@@ -219,18 +224,15 @@ impl RocksdbStorage {
 
     async fn recover_logs_chunk(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
-        snapshot_miniblock: MiniblockNumber,
+        storage: &mut Connection<'_, Core>,
+        snapshot_l2_block: L2BlockNumber,
         key_chunk: ops::RangeInclusive<H256>,
     ) -> anyhow::Result<()> {
         let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
-            .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
-            .await
-            .with_context(|| {
-                format!("Failed getting entries for chunk {key_chunk:?} in snapshot for miniblock #{snapshot_miniblock}")
-            })?;
+            .get_tree_entries_for_l2_block(snapshot_l2_block, key_chunk.clone())
+            .await?;
         let latency = latency.observe();
         tracing::debug!(
             "Loaded {} log entries for chunk {key_chunk:?} in {latency:?}",

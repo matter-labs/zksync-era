@@ -1,4 +1,4 @@
-use zkevm_test_harness_1_4_0::witness::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api_1_4_0::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
@@ -112,10 +112,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         CurrentExecutionState {
             events,
-            storage_log_queries: storage_log_queries
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
             deduplicated_storage_log_queries: deduped_storage_log_queries
                 .into_iter()
                 .map(GlueInto::glue_into)
@@ -133,6 +129,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .map(GlueInto::glue_into)
                 .collect(),
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
+            pubdata_costs: Vec::new(),
         }
     }
 

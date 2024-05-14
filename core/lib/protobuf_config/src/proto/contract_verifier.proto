@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-package zksync.config;
-
-message ContractVerifier {
-  optional uint64 compilation_timeout = 1; // required; s
-  optional uint64 polling_interval = 2; // optional; ms
-  optional uint32 prometheus_port = 3; // required; u16
-}

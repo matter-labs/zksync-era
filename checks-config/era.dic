@@ -47,6 +47,7 @@ f64
 k
 M
 kb
+Gbps
 50M
 2M
 130µs
@@ -83,6 +84,9 @@ L2s
 L1
 json
 l1
+l2
+G1
+G2
 SystemConfig
 TODO
 se
@@ -122,6 +126,7 @@ stdout
 GCS
 websocket
 struct
+struct's
 localhost
 TOML
 config
@@ -140,6 +145,8 @@ merkle
 eth
 Ethereum
 deployer
+designator
+designators
 RPC
 tx
 txs
@@ -165,6 +172,7 @@ zkEVM
 src
 utils
 ptr
+recurse
 RefCell
 Rc
 StorageView
@@ -184,6 +192,7 @@ sorted_timestamps
 known_bytecodes
 returndata
 namespaces
+natively
 StateDiffRecord
 BYTES_PER_ENUMERATION_INDEX
 derived_key
@@ -201,7 +210,7 @@ Serde
 tokenize
 EOAs
 zeroized
-value
+cardinality
 
 // zkSync-related words
 matterlabs
@@ -269,6 +278,7 @@ metadata
 boojum
 deps
 Precalculated
+precalculated
 WASM
 DefaultPrecompilesProcessor
 LSB
@@ -418,6 +428,8 @@ SetChainId
 setChainId
 SetChainIdUpgrade
 state_transition_manager_contract
+prunable
+bytea
 
 // Names
 Vyper
@@ -532,6 +544,7 @@ swrite
 Devs
 insta
 NFTF
+yaml
 
 // ETC
 gitter
@@ -668,6 +681,7 @@ StateKeeper
 enum_index
 virtual_block_start_batch
 virtual_block_finish_l2_block
+base_token_address
 maxFeePerGas
 maxPriorityFeePerGas
 structs
@@ -676,6 +690,7 @@ OversizedData
 M5
 eth_sign
 geth
+reth
 ethers
 js
 recovery_id
@@ -790,6 +805,7 @@ threadpool
 IntrinsicGas
 InsufficientFundsForTransfer
 ChainId
+hyperchains
 eth_getLogs
 façade
 virtual_blocks_per_miniblock
@@ -908,4 +924,35 @@ shivini
 balancer
 lookups
 stateful
+getPubdataPricingMode
+Uint
+implementors
 WIP
+oneshot
+p2p
+StorageProcessor
+StorageMarker
+SIGINT
+opentelemetry
+PubdataSendingMode
+FriGpuProverArchiver
+vm
+demuxer
+2k
+4k
+superset
+80M
+780kb
+None
+Nones
+evm_simulator_code_hash
+pubdata_costs
+storage_refunds
+state_keeper's
+witness_generator
+arity
+recursion_tip
+RECURSION_TIP_ARITY
+empty_proof
+hyperchain
+storages

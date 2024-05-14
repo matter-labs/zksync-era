@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto;
+use crate::proto::object_store as proto;
 
 impl ProtoRepr for proto::ObjectStore {
     type Type = ObjectStoreConfig;

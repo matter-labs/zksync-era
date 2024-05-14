@@ -1,10 +1,8 @@
 use std::{convert::TryFrom, str::FromStr};
 
 use anyhow::Context as _;
-use sqlx::{
-    types::chrono::{DateTime, Utc},
-    Row,
-};
+use sqlx::types::chrono::{DateTime, Utc};
+use zksync_db_connection::{connection::Connection, interpolate_query, match_query_as};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
@@ -15,12 +13,12 @@ use crate::{
     models::storage_eth_tx::{
         L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
     },
-    StorageProcessor,
+    Core,
 };
 
 #[derive(Debug)]
 pub struct EthSenderDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl EthSenderDal<'_, '_> {
@@ -52,43 +50,53 @@ impl EthSenderDal<'_, '_> {
     }
 
     pub async fn get_eth_l1_batches(&mut self) -> sqlx::Result<L1BatchEthSenderStats> {
+        struct EthTxRow {
+            number: i64,
+            confirmed: bool,
+        }
+
+        const TX_TYPES: &[AggregatedActionType] = &[
+            AggregatedActionType::Commit,
+            AggregatedActionType::PublishProofOnchain,
+            AggregatedActionType::Execute,
+        ];
+
         let mut stats = L1BatchEthSenderStats::default();
-        for tx_type in ["execute_tx", "commit_tx", "prove_tx"] {
-            let mut records = sqlx::query(&format!(
-                "SELECT number as number, true as confirmed FROM l1_batches \
-                 INNER JOIN eth_txs_history ON (l1_batches.eth_{}_id = eth_txs_history.eth_tx_id) \
-                 WHERE eth_txs_history.confirmed_at IS NOT NULL \
-                 ORDER BY number DESC \
-                 LIMIT 1",
-                tx_type
-            ))
-            .fetch_all(self.storage.conn())
-            .await?;
+        for &tx_type in TX_TYPES {
+            let mut tx_rows = vec![];
+            for confirmed in [true, false] {
+                let query = match_query_as!(
+                    EthTxRow,
+                    [
+                        "SELECT number AS number, ", _, " AS \"confirmed!\" FROM l1_batches ",
+                        "INNER JOIN eth_txs_history ON l1_batches.", _, " = eth_txs_history.eth_tx_id ",
+                        _, // WHERE clause
+                        " ORDER BY number DESC LIMIT 1"
+                    ],
+                    match ((confirmed, tx_type)) {
+                        (false, AggregatedActionType::Commit) => ("false", "eth_commit_tx_id", "";),
+                        (true, AggregatedActionType::Commit) => (
+                            "true", "eth_commit_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
+                        ),
+                        (false, AggregatedActionType::PublishProofOnchain) => ("false", "eth_prove_tx_id", "";),
+                        (true, AggregatedActionType::PublishProofOnchain) => (
+                            "true", "eth_prove_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
+                        ),
+                        (false, AggregatedActionType::Execute) => ("false", "eth_execute_tx_id", "";),
+                        (true, AggregatedActionType::Execute) => (
+                            "true", "eth_execute_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
+                        ),
+                    }
+                );
+                tx_rows.extend(query.fetch_all(self.storage.conn()).await?);
+            }
 
-            records.extend(
-                sqlx::query(&format!(
-                    "SELECT number as number, false as confirmed FROM l1_batches \
-                     INNER JOIN eth_txs_history ON (l1_batches.eth_{}_id = eth_txs_history.eth_tx_id) \
-                     ORDER BY number DESC \
-                     LIMIT 1",
-                    tx_type
-                ))
-                .fetch_all(self.storage.conn())
-                .await?,
-            );
-
-            for record in records {
-                let batch_number = L1BatchNumber(record.get::<i64, &str>("number") as u32);
-                let aggregation_action = match tx_type {
-                    "execute_tx" => AggregatedActionType::Execute,
-                    "commit_tx" => AggregatedActionType::Commit,
-                    "prove_tx" => AggregatedActionType::PublishProofOnchain,
-                    _ => unreachable!(),
-                };
-                if record.get::<bool, &str>("confirmed") {
-                    stats.mined.push((aggregation_action, batch_number));
+            for row in tx_rows {
+                let batch_number = L1BatchNumber(row.number as u32);
+                if row.confirmed {
+                    stats.mined.push((tx_type, batch_number));
                 } else {
-                    stats.saved.push((aggregation_action, batch_number));
+                    stats.saved.push((tx_type, batch_number));
                 }
             }
         }
@@ -203,8 +211,8 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            predicted_gas_cost as i64,
-            from_address.map(|a| a.0.to_vec()),
+            i64::from(predicted_gas_cost),
+            from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
         )
@@ -289,7 +297,7 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            eth_txs_history_id as i64
+            eth_txs_history_id as i32
         )
         .execute(self.storage.conn())
         .await?;
@@ -356,7 +364,7 @@ impl EthSenderDal<'_, '_> {
                 eth_tx_id = $1
                 AND confirmed_at IS NOT NULL
             "#,
-            eth_tx_id as i64
+            eth_tx_id as i32
         )
         .fetch_optional(self.storage.conn())
         .await?;
@@ -536,31 +544,28 @@ impl EthSenderDal<'_, '_> {
         &mut self,
         from_address: Option<Address>,
     ) -> sqlx::Result<Option<u64>> {
-        let optional_where_clause = from_address
-            .map(|a| format!("WHERE from_addr = decode('{}', 'hex')", hex::encode(a.0)))
-            .unwrap_or("WHERE from_addr IS NULL".to_owned());
+        struct NonceRow {
+            nonce: i64,
+        }
 
-        let query = format!(
-            r#"
-            SELECT
-                nonce
-            FROM
-                eth_txs
-            {optional_where_clause}
-            ORDER BY
-                id DESC
-            LIMIT
-                1
-            "#,
+        let query = match_query_as!(
+            NonceRow,
+            [
+                "SELECT nonce FROM eth_txs WHERE ",
+                _, // WHERE condition
+                " ORDER BY id DESC LIMIT 1"
+            ],
+            match (from_address) {
+                Some(address) => ("from_addr = $1::bytea"; address.as_bytes()),
+                None => ("from_addr IS NULL";),
+            }
         );
-        let query = sqlx::query(&query);
 
-        let nonce: Option<i64> = query
+        let nonce = query
             .fetch_optional(self.storage.conn())
             .await?
-            .map(|row| row.get("nonce"));
-
-        Ok(nonce.map(|n| n as u64 + 1))
+            .map(|row| row.nonce as u64);
+        Ok(nonce.map(|n| n + 1))
     }
 
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {
@@ -650,7 +655,7 @@ impl EthSenderDal<'_, '_> {
                     )
                 )
             "#,
-            last_batch_to_keep.0 as i64
+            i64::from(last_batch_to_keep.0)
         )
         .execute(self.storage.conn())
         .await?;

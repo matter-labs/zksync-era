@@ -168,7 +168,14 @@ impl Root {
         })?;
         let node = match leaf_count {
             0 => return Ok(Self::Empty),
-            1 => Node::Leaf(LeafNode::deserialize(bytes)?),
+            1 => {
+                // Try both the leaf and internal node serialization; in some cases, a single leaf
+                // may still be persisted as an internal node. Since serialization of an internal node with a single child
+                // is always shorter than that a leaf, the order (first leaf, then internal node) is chosen intentionally.
+                LeafNode::deserialize(bytes)
+                    .map(Node::Leaf)
+                    .or_else(|_| InternalNode::deserialize(bytes).map(Node::Internal))?
+            }
             _ => Node::Internal(InternalNode::deserialize(bytes)?),
         };
         Ok(Self::new(leaf_count, node))

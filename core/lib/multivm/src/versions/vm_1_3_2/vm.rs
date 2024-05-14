@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
@@ -48,7 +48,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 block_properties,
                 system_env.execution_mode.glue_into(),
                 &system_env.base_system_smart_contracts.clone().glue_into(),
-                system_env.gas_limit,
+                system_env.bootloader_gas_limit,
             );
         Self {
             vm: inner_vm,
@@ -164,10 +164,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         CurrentExecutionState {
             events,
-            storage_log_queries: storage_log_queries
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
             deduplicated_storage_log_queries: deduped_storage_log_queries
                 .into_iter()
                 .map(GlueInto::glue_into)
@@ -180,6 +176,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             // It's not applicable for vm 1.3.2
             deduplicated_events_logs: vec![],
             storage_refunds: vec![],
+            pubdata_costs: Vec::new(),
         }
     }
 

@@ -4,11 +4,13 @@ use std::fmt;
 
 pub use gas_adjuster::GasAdjuster;
 pub use main_node_fetcher::MainNodeFeeParamsFetcher;
+pub use pubdata_pricing::{PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing};
 pub use singleton::GasAdjusterSingleton;
 use zksync_types::U256;
 
 mod gas_adjuster;
 mod main_node_fetcher;
+mod pubdata_pricing;
 pub mod singleton;
 
 /// Abstraction that provides information about the L1 gas price currently

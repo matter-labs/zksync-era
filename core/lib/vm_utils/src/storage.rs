@@ -3,25 +3,25 @@ use std::time::{Duration, Instant};
 use anyhow::Context;
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
-    vm_latest::constants::BLOCK_GAS_LIMIT,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
     zk_evm_latest::ethereum_types::H256,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    block::MiniblockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
-    L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, ZKPORTER_IS_AVAILABLE,
 };
 
-/// Typesafe wrapper around [`MiniblockHeader`] returned by [`L1BatchParamsProvider`].
+/// Typesafe wrapper around [`L2BlockHeader`] returned by [`L1BatchParamsProvider`].
 #[derive(Debug)]
-pub struct FirstMiniblockInBatch {
-    header: MiniblockHeader,
+pub struct FirstL2BlockInBatch {
+    header: L2BlockHeader,
     l1_batch_number: L1BatchNumber,
 }
 
-impl FirstMiniblockInBatch {
-    pub fn number(&self) -> MiniblockNumber {
+impl FirstL2BlockInBatch {
+    pub fn number(&self) -> L2BlockNumber {
         self.header.number
     }
 
@@ -46,8 +46,8 @@ pub fn l1_batch_params(
     l1_batch_timestamp: u64,
     previous_batch_hash: H256,
     fee_input: BatchFeeInput,
-    first_miniblock_number: MiniblockNumber,
-    prev_miniblock_hash: H256,
+    first_l2_block_number: L2BlockNumber,
+    prev_l2_block_hash: H256,
     base_system_contracts: BaseSystemContracts,
     validation_computational_gas_limit: u32,
     protocol_version: ProtocolVersionId,
@@ -59,7 +59,7 @@ pub fn l1_batch_params(
             zk_porter_available: ZKPORTER_IS_AVAILABLE,
             version: protocol_version,
             base_system_smart_contracts: base_system_contracts,
-            gas_limit: BLOCK_GAS_LIMIT,
+            bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
@@ -72,9 +72,9 @@ pub fn l1_batch_params(
             fee_account,
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
-                number: first_miniblock_number.0,
+                number: first_l2_block_number.0,
                 timestamp: l1_batch_timestamp,
-                prev_block_hash: prev_miniblock_hash,
+                prev_block_hash: prev_l2_block_hash,
                 max_virtual_blocks_to_create: virtual_blocks,
             },
         },
@@ -89,7 +89,7 @@ pub struct L1BatchParamsProvider {
 }
 
 impl L1BatchParamsProvider {
-    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let snapshot = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
@@ -101,7 +101,7 @@ impl L1BatchParamsProvider {
     /// if necessary.
     pub async fn wait_for_l1_batch_params(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         number: L1BatchNumber,
     ) -> anyhow::Result<(H256, u64)> {
         let first_l1_batch = if let Some(snapshot) = &self.snapshot {
@@ -122,7 +122,7 @@ impl L1BatchParamsProvider {
     }
 
     async fn wait_for_l1_batch_params_unchecked(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         number: L1BatchNumber,
     ) -> anyhow::Result<(H256, u64)> {
         // If the state root is not known yet, this duration will be used to back off in the while loops
@@ -148,7 +148,7 @@ impl L1BatchParamsProvider {
 
     pub async fn load_l1_batch_protocol_version(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<ProtocolVersionId>> {
         if let Some(snapshot) = &self.snapshot {
@@ -169,23 +169,22 @@ impl L1BatchParamsProvider {
             .map_err(Into::into)
     }
 
-    /// Returns a header of the first miniblock in the specified L1 batch regardless of whether the batch is sealed or not.
-    pub async fn load_first_miniblock_in_batch(
+    /// Returns a header of the first L2 block in the specified L1 batch regardless of whether the batch is sealed or not.
+    pub async fn load_first_l2_block_in_batch(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<FirstMiniblockInBatch>> {
-        let miniblock_number = self
-            .load_number_of_first_miniblock_in_batch(storage, l1_batch_number)
+    ) -> anyhow::Result<Option<FirstL2BlockInBatch>> {
+        let l2_block_number = self
+            .load_number_of_first_l2_block_in_batch(storage, l1_batch_number)
             .await
-            .context("failed getting first miniblock number")?;
-        Ok(match miniblock_number {
+            .context("failed getting first L2 block number")?;
+        Ok(match l2_block_number {
             Some(number) => storage
                 .blocks_dal()
-                .get_miniblock_header(number)
-                .await
-                .context("failed getting miniblock header")?
-                .map(|header| FirstMiniblockInBatch {
+                .get_l2_block_header(number)
+                .await?
+                .map(|header| FirstL2BlockInBatch {
                     header,
                     l1_batch_number,
                 }),
@@ -194,57 +193,54 @@ impl L1BatchParamsProvider {
     }
 
     #[doc(hidden)] // public for testing purposes
-    pub async fn load_number_of_first_miniblock_in_batch(
+    pub async fn load_number_of_first_l2_block_in_batch(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<MiniblockNumber>> {
+    ) -> anyhow::Result<Option<L2BlockNumber>> {
         if l1_batch_number == L1BatchNumber(0) {
-            return Ok(Some(MiniblockNumber(0)));
+            return Ok(Some(L2BlockNumber(0)));
         }
 
         if let Some(snapshot) = &self.snapshot {
             anyhow::ensure!(
                 l1_batch_number > snapshot.l1_batch_number,
-                "Cannot load miniblocks for pruned L1 batch #{l1_batch_number} (first retained batch: {})",
+                "Cannot load L2 blocks for pruned L1 batch #{l1_batch_number} (first retained batch: {})",
                 snapshot.l1_batch_number + 1
             );
             if l1_batch_number == snapshot.l1_batch_number + 1 {
-                return Ok(Some(snapshot.miniblock_number + 1));
+                return Ok(Some(snapshot.l2_block_number + 1));
             }
         }
 
         let prev_l1_batch = l1_batch_number - 1;
         // At this point, we have ensured that `prev_l1_batch` is not pruned.
-        let Some((_, last_miniblock_in_prev_l1_batch)) = storage
+        let Some((_, last_l2_block_in_prev_l1_batch)) = storage
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(prev_l1_batch)
-            .await
-            .with_context(|| {
-                format!("failed getting miniblock range for L1 batch #{prev_l1_batch}")
-            })?
+            .get_l2_block_range_of_l1_batch(prev_l1_batch)
+            .await?
         else {
             return Ok(None);
         };
-        Ok(Some(last_miniblock_in_prev_l1_batch + 1))
+        Ok(Some(last_l2_block_in_prev_l1_batch + 1))
     }
 
     /// Loads VM-related L1 batch parameters for the specified batch.
     pub async fn load_l1_batch_params(
         &self,
-        storage: &mut StorageProcessor<'_>,
-        first_miniblock_in_batch: &FirstMiniblockInBatch,
+        storage: &mut Connection<'_, Core>,
+        first_l2_block_in_batch: &FirstL2BlockInBatch,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
     ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
         anyhow::ensure!(
-            first_miniblock_in_batch.l1_batch_number > L1BatchNumber(0),
+            first_l2_block_in_batch.l1_batch_number > L1BatchNumber(0),
             "Loading params for genesis L1 batch not supported"
         );
-        // L1 batch timestamp is set to the timestamp of its first miniblock.
-        let l1_batch_timestamp = first_miniblock_in_batch.header.timestamp;
+        // L1 batch timestamp is set to the timestamp of its first L2 block.
+        let l1_batch_timestamp = first_l2_block_in_batch.header.timestamp;
 
-        let prev_l1_batch_number = first_miniblock_in_batch.l1_batch_number - 1;
+        let prev_l1_batch_number = first_l2_block_in_batch.l1_batch_number - 1;
         tracing::info!("Getting previous L1 batch hash for batch #{prev_l1_batch_number}");
         let (prev_l1_batch_hash, prev_l1_batch_timestamp) = self
             .wait_for_l1_batch_params(storage, prev_l1_batch_number)
@@ -257,29 +253,29 @@ impl L1BatchParamsProvider {
             "Invalid params for L1 batch #{}: Timestamp of previous L1 batch ({prev_l1_batch_timestamp}) >= \
              provisional L1 batch timestamp ({l1_batch_timestamp}), \
              meaning that L1 batch will be rejected by the bootloader",
-            first_miniblock_in_batch.l1_batch_number
+            first_l2_block_in_batch.l1_batch_number
         );
 
-        let prev_miniblock_number = first_miniblock_in_batch.header.number - 1;
-        tracing::info!("Getting previous miniblock hash for miniblock #{prev_miniblock_number}");
+        let prev_l2_block_number = first_l2_block_in_batch.header.number - 1;
+        tracing::info!("Getting previous L2 block hash for L2 block #{prev_l2_block_number}");
 
-        let prev_miniblock_hash = self.snapshot.as_ref().and_then(|snapshot| {
-            (snapshot.miniblock_number == prev_miniblock_number).then_some(snapshot.miniblock_hash)
+        let prev_l2_block_hash = self.snapshot.as_ref().and_then(|snapshot| {
+            (snapshot.l2_block_number == prev_l2_block_number).then_some(snapshot.l2_block_hash)
         });
-        let prev_miniblock_hash = match prev_miniblock_hash {
+        let prev_l2_block_hash = match prev_l2_block_hash {
             Some(hash) => hash,
             None => storage
                 .blocks_web3_dal()
-                .get_miniblock_hash(prev_miniblock_number)
+                .get_l2_block_hash(prev_l2_block_number)
                 .await
-                .context("failed getting hash for previous miniblock")?
-                .context("previous miniblock disappeared from storage")?,
+                .map_err(DalError::generalize)?
+                .context("previous L2 block disappeared from storage")?,
         };
         tracing::info!(
-            "Got hash for previous miniblock #{prev_miniblock_number}: {prev_miniblock_hash:?}"
+            "Got hash for previous L2 block #{prev_l2_block_number}: {prev_l2_block_hash:?}"
         );
 
-        let contract_hashes = first_miniblock_in_batch.header.base_system_contracts_hashes;
+        let contract_hashes = first_l2_block_in_batch.header.base_system_contracts_hashes;
         let base_system_contracts = storage
             .factory_deps_dal()
             .get_base_system_contracts(contract_hashes.bootloader, contract_hashes.default_aa)
@@ -287,20 +283,20 @@ impl L1BatchParamsProvider {
             .context("failed getting base system contracts")?;
 
         Ok(l1_batch_params(
-            first_miniblock_in_batch.l1_batch_number,
-            first_miniblock_in_batch.header.fee_account_address,
+            first_l2_block_in_batch.l1_batch_number,
+            first_l2_block_in_batch.header.fee_account_address,
             l1_batch_timestamp,
             prev_l1_batch_hash,
-            first_miniblock_in_batch.header.batch_fee_input,
-            first_miniblock_in_batch.header.number,
-            prev_miniblock_hash,
+            first_l2_block_in_batch.header.batch_fee_input,
+            first_l2_block_in_batch.header.number,
+            prev_l2_block_hash,
             base_system_contracts,
             validation_computational_gas_limit,
-            first_miniblock_in_batch
+            first_l2_block_in_batch
                 .header
                 .protocol_version
-                .context("`protocol_version` must be set for miniblock")?,
-            first_miniblock_in_batch.header.virtual_blocks,
+                .context("`protocol_version` must be set for L2 block")?,
+            first_l2_block_in_batch.header.virtual_blocks,
             chain_id,
         ))
     }

@@ -1,21 +1,21 @@
 [package]
 name = "vm_utils"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-multivm = { path = "../multivm" }
-zksync_types = { path = "../types" }
-zksync_dal = { path = "../dal" }
-zksync_state = { path = "../state" }
-tokio = { version = "1" }
-anyhow = "1.0"
-tracing = "0.1"
-zksync_utils = { path = "../utils" }
-zksync_contracts = { path = "../contracts" }
+multivm.workspace = true
+zksync_types.workspace = true
+zksync_dal.workspace = true
+zksync_state.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+zksync_utils.workspace = true
+zksync_contracts.workspace = true

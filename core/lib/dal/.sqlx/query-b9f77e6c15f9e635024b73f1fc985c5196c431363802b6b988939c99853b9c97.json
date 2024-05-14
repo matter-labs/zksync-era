@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(SUM(predicted_commit_gas_cost), 0) AS \"sum!\" FROM l1_batches WHERE number BETWEEN $1 AND $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sum!",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b9f77e6c15f9e635024b73f1fc985c5196c431363802b6b988939c99853b9c97"
+}

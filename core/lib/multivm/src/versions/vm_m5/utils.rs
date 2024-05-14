@@ -24,7 +24,7 @@ pub const ENTRY_POINT_PAGE: u32 = code_page_candidate_from_base(MemoryPage(INITI
 /// How many gas bootloader is allowed to spend within one block.
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
-pub const BLOCK_GAS_LIMIT: u32 =
+pub(crate) const BLOCK_GAS_LIMIT: u32 =
     zk_evm_1_3_1::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
 pub const ETH_CALL_GAS_LIMIT: u32 = MAX_L2_TX_GAS_LIMIT as u32;
 

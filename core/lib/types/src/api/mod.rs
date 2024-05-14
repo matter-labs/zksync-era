@@ -14,7 +14,7 @@ use crate::{
     protocol_version::L1VerifierConfig,
     vm_trace::{Call, CallType},
     web3::types::{AccessList, Index, H2048},
-    Address, MiniblockNumber, ProtocolVersionId,
+    Address, L2BlockNumber, ProtocolVersionId,
 };
 
 pub mod en;
@@ -193,9 +193,12 @@ pub struct L2ToL1LogProof {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BridgeAddresses {
-    pub l1_erc20_bridge: Address,
-    pub l1_shared_default_bridge: Address,
-    pub l2_shared_default_bridge: Address,
+    pub l1_shared_default_bridge: Option<Address>,
+    pub l2_shared_default_bridge: Option<Address>,
+    pub l1_erc20_default_bridge: Option<Address>,
+    pub l2_erc20_default_bridge: Option<Address>,
+    pub l1_weth_bridge: Option<Address>,
+    pub l2_weth_bridge: Option<Address>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -209,7 +212,7 @@ pub struct TransactionReceipt {
     /// Hash of the block this transaction was included within.
     #[serde(rename = "blockHash")]
     pub block_hash: H256,
-    /// Number of the miniblock this transaction was included within.
+    /// Number of the L2 block this transaction was included within.
     #[serde(rename = "blockNumber")]
     pub block_number: U64,
     /// Index of transaction in l1 batch
@@ -305,7 +308,7 @@ pub struct Block<TX> {
     pub logs_bloom: H2048,
     /// Timestamp
     pub timestamp: U256,
-    /// Timestamp of the l1 batch this miniblock was included within
+    /// Timestamp of the l1 batch this L2 block was included within
     #[serde(rename = "l1BatchTimestamp")]
     pub l1_batch_timestamp: Option<U256>,
     /// Difficulty
@@ -357,6 +360,37 @@ impl<TX> Default for Block<TX> {
             size: U256::default(),
             mix_hash: H256::default(),
             nonce: H64::default(),
+        }
+    }
+}
+
+impl<TX> Block<TX> {
+    pub fn with_transactions<U>(self, transactions: Vec<U>) -> Block<U> {
+        Block {
+            hash: self.hash,
+            parent_hash: self.parent_hash,
+            uncles_hash: self.uncles_hash,
+            author: self.author,
+            state_root: self.state_root,
+            transactions_root: self.transactions_root,
+            receipts_root: self.receipts_root,
+            number: self.number,
+            l1_batch_number: self.l1_batch_number,
+            gas_used: self.gas_used,
+            gas_limit: self.gas_limit,
+            base_fee_per_gas: self.base_fee_per_gas,
+            extra_data: self.extra_data,
+            logs_bloom: self.logs_bloom,
+            timestamp: self.timestamp,
+            l1_batch_timestamp: self.l1_batch_timestamp,
+            difficulty: self.difficulty,
+            total_difficulty: self.total_difficulty,
+            seal_fields: self.seal_fields,
+            uncles: self.uncles,
+            transactions,
+            size: self.size,
+            mix_hash: self.mix_hash,
+            nonce: self.nonce,
         }
     }
 }
@@ -547,8 +581,8 @@ pub struct TransactionDetails {
 
 #[derive(Debug, Clone)]
 pub struct GetLogsFilter {
-    pub from_block: MiniblockNumber,
-    pub to_block: MiniblockNumber,
+    pub from_block: L2BlockNumber,
+    pub to_block: L2BlockNumber,
     pub addresses: Vec<Address>,
     pub topics: Vec<(u32, Vec<H256>)>,
 }
@@ -654,6 +688,7 @@ pub struct BlockDetailsBase {
     pub timestamp: u64,
     pub l1_tx_count: usize,
     pub l2_tx_count: usize,
+    /// Hash for an L2 block, or the root hash (aka state hash) for an L1 batch.
     pub root_hash: Option<H256>,
     pub status: BlockStatus,
     pub commit_tx_hash: Option<H256>,
@@ -670,7 +705,7 @@ pub struct BlockDetailsBase {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockDetails {
-    pub number: MiniblockNumber,
+    pub number: L2BlockNumber,
     pub l1_batch_number: L1BatchNumber,
     #[serde(flatten)]
     pub base: BlockDetailsBase,
@@ -700,4 +735,20 @@ pub struct StorageProof {
 pub struct Proof {
     pub address: Address,
     pub storage_proof: Vec<StorageProof>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionDetailedResult {
+    pub transaction_hash: H256,
+    pub storage_logs: Vec<ApiStorageLog>,
+    pub events: Vec<Log>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiStorageLog {
+    pub address: Address,
+    pub key: U256,
+    pub written_value: U256,
 }

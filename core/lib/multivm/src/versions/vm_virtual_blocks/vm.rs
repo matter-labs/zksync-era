@@ -1,4 +1,4 @@
-use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
@@ -108,10 +108,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         CurrentExecutionState {
             events,
-            storage_log_queries: storage_log_queries
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
             deduplicated_storage_log_queries: deduped_storage_log_queries
                 .into_iter()
                 .map(GlueInto::glue_into)
@@ -126,6 +122,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .map(GlueInto::glue_into)
                 .collect(),
             storage_refunds: Vec::new(),
+            pubdata_costs: Vec::new(),
         }
     }
 

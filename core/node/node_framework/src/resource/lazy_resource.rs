@@ -3,7 +3,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::watch;
 
-use super::{Resource, ResourceId};
+use super::Resource;
 use crate::service::StopReceiver;
 
 /// A lazy resource represents a resource that isn't available at the time when the tasks start.
@@ -18,8 +18,8 @@ pub struct LazyResource<T: Resource> {
 }
 
 impl<T: Resource> Resource for LazyResource<T> {
-    fn resource_id() -> ResourceId {
-        ResourceId::new("lazy") + T::resource_id()
+    fn name() -> String {
+        format!("lazy {}", T::name())
     }
 }
 
@@ -64,7 +64,7 @@ impl<T: Resource + Clone> LazyResource<T> {
         };
 
         if result.is_ok() {
-            tracing::info!("Lazy resource {} has been resolved", T::resource_id());
+            tracing::info!("Lazy resource {} has been resolved", T::name());
         }
 
         result
@@ -85,7 +85,7 @@ impl<T: Resource + Clone> LazyResource<T> {
             return Err(LazyResourceError::ResourceAlreadyProvided);
         }
 
-        tracing::info!("Lazy resource {} has been provided", T::resource_id());
+        tracing::info!("Lazy resource {} has been provided", T::name());
 
         Ok(())
     }
@@ -107,8 +107,8 @@ mod tests {
     struct TestResource(Arc<u8>);
 
     impl Resource for TestResource {
-        fn resource_id() -> ResourceId {
-            ResourceId::new("test_resource")
+        fn name() -> String {
+            "test_resource".into()
         }
     }
 

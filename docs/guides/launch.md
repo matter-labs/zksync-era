@@ -38,6 +38,22 @@ launch:
 zk up
 ```
 
+### Run observability stack
+
+If you want to run [Dockprom](https://github.com/stefanprodan/dockprom/) stack (Prometheus, Grafana) alongside other
+containers - add `--run-observability` parameter during initialisation.
+
+```
+zk init --run-observability
+```
+
+That will also provision Grafana with
+[era-observability](https://github.com/matter-labs/era-observability/tree/main/dashboards) dashboards. You can then
+access it at `http://127.0.0.1:3000/` under credentials `admin/admin`.
+
+> If you don't see any data displayed on the Grafana dashboards - try setting the timeframe to "Last 30 minutes". You
+> will also have to have `jq` installed on your system.
+
 ## (Re)deploy db and contracts
 
 ```
@@ -77,6 +93,39 @@ template.
 
 Make sure you have environment variables set right, you can check it by running: `zk env`. You should see `* dev` in
 output.
+
+## Gas Price Oracle
+
+As prices in a custom base token setting need to be in the native currency of the chain. These prices are partially
+determined by l1 gas prices in L1, which are in eth, so a conversion is required.
+
+### Conversion rate API
+
+To use a conversion rate oracle, you will need to add the component to the command:
+
+```
+zk server --components "api,tree,eth,state_keeper,housekeeper,commitment_generator,base_token_fetcher"
+```
+
+In order to run the server with the conversion rate, you will need to configure the variables in the
+`etc/env/base/base_token_fetcher.toml` file, or you can export the variables in the environment:
+
+```
+export BASE_TOKEN_FETCHER_HOST=<Your host>
+# Poll interval is in seconds
+export BASE_TOKEN_FETCHER_POLL_INTERVAL=<Your poll interval>
+export BASE_TOKEN_FETCHER_TOKEN_ADDRESS=<Your token address>
+```
+
+Additionally, you can run the server with the `dev_conversion_rate_api` component to enable the development conversion
+rate API, this component is only meant for development purposes and should not be used in production and will provide a
+fixed conversion rate for all tokens:
+
+```
+zk server --components "api,tree,eth,state_keeper,housekeeper,commitment_generator,base_token_fetcher,dev_conversion_rate_api"
+```
+
+This server will use the host setted in the environment variable previously mentioned.
 
 ## Running server using Google cloud storage object store instead of default In memory store
 

@@ -102,12 +102,6 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
  */
 export async function scaledGasPrice(wallet: ethers.Wallet | zksync.Wallet): Promise<ethers.BigNumber> {
     const gasPrice = await wallet.getGasPrice();
-    // Increase by 40%.
-    // increase by x to scale
-    const additionalMultiplier = 100; // scale by another x% when tests need to be repeated due to failed txs
-    return gasPrice
-        .mul(140)
-        .div(100)
-        .mul(additionalMultiplier + 100)
-        .div(100);
+    // Increase by 40%
+    return gasPrice.mul(140).div(100);
 }

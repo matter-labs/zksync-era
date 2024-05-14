@@ -6,22 +6,22 @@ use chrono::TimeZone;
 use test_casing::{test_casing, Product};
 use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::{block::BlockGasCount, Address, L2ChainId, ProtocolVersionId, U256};
+use zksync_types::{Address, ProtocolVersionId, U256};
 
 use super::*;
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{insert_genesis_batch, GenesisParams},
     sync_layer::metrics::L1BatchStage,
-    utils::testonly::{create_l1_batch, create_miniblock, prepare_recovery_snapshot},
+    utils::testonly::{create_l1_batch, create_l2_block, prepare_recovery_snapshot},
 };
 
-async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: L1BatchNumber) {
+async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber) {
     let mut storage = storage.start_transaction().await.unwrap();
-    // Insert a mock miniblock so that `get_block_details()` will return values.
-    let miniblock = create_miniblock(number.0);
+    // Insert a mock L2 block so that `get_block_details()` will return values.
+    let l2_block = create_l2_block(number.0);
     storage
         .blocks_dal()
-        .insert_miniblock(&miniblock)
+        .insert_l2_block(&l2_block)
         .await
         .unwrap();
 
@@ -33,7 +33,7 @@ async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: L1BatchNumber
         .unwrap();
     storage
         .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(number)
+        .mark_l2_blocks_as_executed_in_l1_batch(number)
         .await
         .unwrap();
     storage.commit().await.unwrap();
@@ -104,11 +104,11 @@ impl L1BatchStagesMap {
         }
     }
 
-    async fn assert_storage(&self, storage: &mut StorageProcessor<'_>) {
+    async fn assert_storage(&self, storage: &mut Connection<'_, Core>) {
         for (number, stage) in self.iter() {
             let local_details = storage
                 .blocks_web3_dal()
-                .get_block_details(MiniblockNumber(number.0))
+                .get_block_details(L2BlockNumber(number.0))
                 .await
                 .unwrap()
                 .unwrap_or_else(|| panic!("no details for block #{number}"));
@@ -144,7 +144,7 @@ impl L1BatchStagesMap {
 
 fn mock_block_details(number: u32, stage: L1BatchStage) -> api::BlockDetails {
     api::BlockDetails {
-        number: MiniblockNumber(number),
+        number: L2BlockNumber(number),
         l1_batch_number: L1BatchNumber(number),
         base: api::BlockDetailsBase {
             timestamp: number.into(),
@@ -180,20 +180,17 @@ impl From<L1BatchStagesMap> for MockMainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
-    async fn resolve_l1_batch_to_miniblock(
+    async fn resolve_l1_batch_to_l2_block(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<MiniblockNumber>> {
+    ) -> EnrichedClientResult<Option<L2BlockNumber>> {
         let map = self.0.lock().await;
-        Ok(map
-            .get(number)
-            .is_some()
-            .then_some(MiniblockNumber(number.0)))
+        Ok(map.get(number).is_some().then_some(L2BlockNumber(number.0)))
     }
 
     async fn block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         let map = self.0.lock().await;
         let Some(stage) = map.get(L1BatchNumber(number.0)) else {
@@ -213,7 +210,7 @@ fn mock_change(number: L1BatchNumber) -> BatchStatusChange {
 
 fn mock_updater(
     client: MockMainNodeClient,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
 ) -> (BatchStatusUpdater, mpsc::UnboundedReceiver<StatusChanges>) {
     let (changes_sender, changes_receiver) = mpsc::unbounded_channel();
     let mut updater =
@@ -225,8 +222,8 @@ fn mock_updater(
 #[tokio::test]
 async fn updater_cursor_for_storage_with_genesis_block() {
     let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
     for number in [1, 2] {
@@ -259,9 +256,9 @@ async fn updater_cursor_for_storage_with_genesis_block() {
 
 #[tokio::test]
 async fn updater_cursor_after_snapshot_recovery() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
-    prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
     let cursor = UpdaterCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.last_committed_l1_batch, L1BatchNumber(23));
@@ -272,13 +269,13 @@ async fn updater_cursor_after_snapshot_recovery() {
 #[test_casing(4, Product(([false, true], [false, true])))]
 #[tokio::test]
 async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let first_batch_number = if snapshot_recovery {
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
         L1BatchNumber(24)
     } else {
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         L1BatchNumber(1)
@@ -315,7 +312,7 @@ async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) 
     let batches_task = if async_batches {
         let pool = pool.clone();
         tokio::spawn(async move {
-            let mut storage = pool.access_storage().await.unwrap();
+            let mut storage = pool.connection().await.unwrap();
             for &number in &batch_numbers {
                 seal_l1_batch(&mut storage, number).await;
                 tokio::time::sleep(Duration::from_millis(15)).await;
@@ -344,13 +341,13 @@ async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) 
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn updater_with_gradual_main_node_updates(snapshot_recovery: bool) {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let first_batch_number = if snapshot_recovery {
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
         L1BatchNumber(24)
     } else {
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         L1BatchNumber(1)
@@ -415,7 +412,7 @@ async fn updater_with_gradual_main_node_updates(snapshot_recovery: bool) {
     test_resuming_updater(pool, target_batch_stages).await;
 }
 
-async fn test_resuming_updater(pool: ConnectionPool, initial_batch_stages: L1BatchStagesMap) {
+async fn test_resuming_updater(pool: ConnectionPool<Core>, initial_batch_stages: L1BatchStagesMap) {
     let target_batch_stages = L1BatchStagesMap::new(
         initial_batch_stages.first_batch_number,
         vec![L1BatchStage::Executed; 6],
@@ -435,7 +432,7 @@ async fn test_resuming_updater(pool: ConnectionPool, initial_batch_stages: L1Bat
         }
     }
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     target_batch_stages.assert_storage(&mut storage).await;
     stop_sender.send_replace(true);
     updater_task.await.unwrap().expect("updater failed");

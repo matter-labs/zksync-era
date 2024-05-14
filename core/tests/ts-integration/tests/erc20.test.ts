@@ -10,23 +10,23 @@ import * as zksync from 'zksync-ethers';
 import { BigNumber, utils as etherUtils } from 'ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
-import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 describe('ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let tokenDetails: Token;
+    let baseTokenDetails: Token;
     let aliceErc20: zksync.Contract;
-    let chainId: ethers.BigNumberish;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
-        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         tokenDetails = testMaster.environment().erc20Token;
+        baseTokenDetails = testMaster.environment().baseToken;
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
     });
 
@@ -58,6 +58,7 @@ describe('ERC20 contract checks', () => {
                 token: tokenDetails.l1Address,
                 amount,
                 approveERC20: true,
+                approveBaseERC20: true,
                 approveOverrides: {
                     gasPrice
                 },
@@ -130,7 +131,7 @@ describe('ERC20 contract checks', () => {
 
         // Fund bob's account to perform a transaction from it.
         await alice
-            .transfer({ to: bob.address, amount: L2_ETH_PER_ACCOUNT.div(8), token: zksync.utils.ETH_ADDRESS })
+            .transfer({ to: bob.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(8), token: zksync.utils.ETH_ADDRESS })
             .then((tx) => tx.wait());
 
         await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.bnToBeEq(0);
@@ -175,11 +176,12 @@ describe('ERC20 contract checks', () => {
         const initialBalance = await alice.getBalanceL1(tokenDetails.l1Address);
         // Deposit to the zero address is forbidden and should fail with the current implementation.
         const depositHandle = await alice.deposit({
-            to: ethers.constants.AddressZero,
             token: tokenDetails.l1Address,
+            to: ethers.constants.AddressZero,
             amount,
-            l2GasLimit: 5_000_000, // Setting the limit manually to avoid estimation for L1->L2 transaction
-            approveERC20: true
+            approveERC20: true,
+            approveBaseERC20: true,
+            l2GasLimit: 5_000_000 // Setting the limit manually to avoid estimation for L1->L2 transaction
         });
         const l1Receipt = await depositHandle.waitL1Commit();
 
@@ -193,16 +195,17 @@ describe('ERC20 contract checks', () => {
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
         await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
-
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.bnToBeEq(initialBalance);
     });
 
     test('Can perform a deposit with precalculated max value', async () => {
+        const maxAmountBase = await alice.getBalanceL1(baseTokenDetails.l1Address);
         const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
 
         // Approving the needed allowance to ensure that the user has enough funds.
+        await (await alice.approveERC20(baseTokenDetails.l1Address, maxAmountBase)).wait();
         await (await alice.approveERC20(tokenDetails.l1Address, maxAmount)).wait();
 
         const depositFee = await alice.getFullRequiredDepositFee({

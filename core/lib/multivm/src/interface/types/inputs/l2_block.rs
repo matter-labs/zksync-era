@@ -1,4 +1,4 @@
-use zksync_types::{block::MiniblockExecutionData, H256};
+use zksync_types::{block::L2BlockExecutionData, H256};
 
 #[derive(Debug, Clone, Copy)]
 pub struct L2BlockEnv {
@@ -9,7 +9,7 @@ pub struct L2BlockEnv {
 }
 
 impl L2BlockEnv {
-    pub fn from_miniblock_data(miniblock_execution_data: &MiniblockExecutionData) -> Self {
+    pub fn from_l2_block_data(miniblock_execution_data: &L2BlockExecutionData) -> Self {
         Self {
             number: miniblock_execution_data.number.0,
             timestamp: miniblock_execution_data.timestamp,

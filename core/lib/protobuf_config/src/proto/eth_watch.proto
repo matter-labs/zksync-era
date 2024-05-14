@@ -1,8 +1,0 @@
-syntax = "proto3";
-
-package zksync.config;
-
-message ETHWatch {
-  optional uint64 confirmations_for_eth_event = 1; // optional
-  optional uint64 eth_node_poll_interval = 2; // required; ms
-}

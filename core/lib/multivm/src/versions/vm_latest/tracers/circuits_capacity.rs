@@ -1,4 +1,4 @@
-use zkevm_test_harness_1_4_2::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use zksync_types::circuit::{CircuitCycleStatistic, CircuitStatistic};
 
 // "Rich addressing" opcodes are opcodes that can write their return value/read the input onto the stack
@@ -14,6 +14,10 @@ pub(crate) const STORAGE_READ_LOG_DEMUXER_CYCLES: u32 = 1;
 pub(crate) const STORAGE_READ_STORAGE_SORTER_CYCLES: u32 = 1;
 pub(crate) const STORAGE_READ_STORAGE_APPLICATION_CYCLES: u32 = 1;
 
+pub(crate) const TRANSIENT_STORAGE_READ_RAM_CYCLES: u32 = 1;
+pub(crate) const TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES: u32 = 1;
+pub(crate) const TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES: u32 = 1;
+
 pub(crate) const EVENT_RAM_CYCLES: u32 = 1;
 pub(crate) const EVENT_LOG_DEMUXER_CYCLES: u32 = 2;
 pub(crate) const EVENT_EVENTS_SORTER_CYCLES: u32 = 2;
@@ -23,9 +27,14 @@ pub(crate) const STORAGE_WRITE_LOG_DEMUXER_CYCLES: u32 = 2;
 pub(crate) const STORAGE_WRITE_STORAGE_SORTER_CYCLES: u32 = 2;
 pub(crate) const STORAGE_WRITE_STORAGE_APPLICATION_CYCLES: u32 = 2;
 
+pub(crate) const TRANSIENT_STORAGE_WRITE_RAM_CYCLES: u32 = 1;
+pub(crate) const TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES: u32 = 2;
+pub(crate) const TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES: u32 = 2;
+
 pub(crate) const FAR_CALL_RAM_CYCLES: u32 = 1;
 pub(crate) const FAR_CALL_STORAGE_SORTER_CYCLES: u32 = 1;
 pub(crate) const FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES: u32 = 1;
+pub(crate) const FAR_CALL_LOG_DEMUXER_CYCLES: u32 = 1;
 
 // 5 RAM permutations, because: 1 to read opcode + 2 reads + 2 writes.
 // 2 reads and 2 writes are needed because unaligned access is implemented with
@@ -38,6 +47,9 @@ pub(crate) const UMA_READ_RAM_CYCLES: u32 = 3;
 
 pub(crate) const PRECOMPILE_RAM_CYCLES: u32 = 1;
 pub(crate) const PRECOMPILE_LOG_DEMUXER_CYCLES: u32 = 1;
+
+pub(crate) const LOG_DECOMMIT_RAM_CYCLES: u32 = 1;
+pub(crate) const LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES: u32 = 1;
 
 const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();
 
@@ -63,5 +75,9 @@ pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> Ci
         ecrecover: cycles.ecrecover_cycles as f32
             / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
         sha256: cycles.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
+        secp256k1_verify: cycles.secp256k1_verify_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
+        transient_storage_checker: cycles.transient_storage_checker_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
     }
 }

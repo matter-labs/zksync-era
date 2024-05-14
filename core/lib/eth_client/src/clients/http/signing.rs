@@ -1,8 +1,8 @@
 use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
-use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
-use zksync_contracts::state_transition_chain_contract;
+use zksync_config::{configs::ContractsConfig, EthConfig};
+use zksync_contracts::hyperchain_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{
     web3::{
@@ -15,7 +15,7 @@ use zksync_types::{
             H256, U256, U64,
         },
     },
-    L1ChainId, PackedEthSignature, EIP_4844_TX_TYPE,
+    K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE,
 };
 
 use super::{query::QueryClient, Method, LATENCIES};
@@ -30,68 +30,60 @@ pub type PKSigningClient = SigningClient<PrivateKeySigner>;
 
 impl PKSigningClient {
     pub fn from_config(
-        eth_sender: &ETHSenderConfig,
+        eth_sender: &EthConfig,
         contracts_config: &ContractsConfig,
-        eth_client: &ETHClientConfig,
+        l1_chain_id: L1ChainId,
+        operator_private_key: K256PrivateKey,
     ) -> Self {
-        // Gather required data from the config.
-        // It's done explicitly to simplify getting rid of this function later.
-        let operator_private_key = eth_sender
-            .sender
-            .private_key()
-            .expect("Operator private key is required for signing client");
-
         Self::from_config_inner(
             eth_sender,
             contracts_config,
-            eth_client,
+            l1_chain_id,
             operator_private_key,
         )
     }
 
-    /// Create an signing client for the blobs account
-    pub fn from_config_blobs(
-        eth_sender: &ETHSenderConfig,
-        contracts_config: &ContractsConfig,
-        eth_client: &ETHClientConfig,
-    ) -> Option<Self> {
-        // Gather required data from the config.
-        // It's done explicitly to simplify getting rid of this function later.
-        let operator_private_key = eth_sender.sender.private_key_blobs()?;
-
-        Some(Self::from_config_inner(
-            eth_sender,
-            contracts_config,
-            eth_client,
-            operator_private_key,
-        ))
+    pub fn new_raw(
+        operator_private_key: K256PrivateKey,
+        diamond_proxy_addr: Address,
+        default_priority_fee_per_gas: u64,
+        l1_chain_id: L1ChainId,
+        web3_url: &str,
+    ) -> Self {
+        let transport = Http::new(web3_url).expect("Failed to create transport");
+        let operator_address = operator_private_key.address();
+        let signer = PrivateKeySigner::new(operator_private_key);
+        tracing::info!("Operator address: {:?}", operator_address);
+        SigningClient::new(
+            transport,
+            hyperchain_contract(),
+            operator_address,
+            signer,
+            diamond_proxy_addr,
+            default_priority_fee_per_gas.into(),
+            l1_chain_id,
+        )
     }
 
     fn from_config_inner(
-        eth_sender: &ETHSenderConfig,
+        eth_sender: &EthConfig,
         contracts_config: &ContractsConfig,
-        eth_client: &ETHClientConfig,
-        operator_private_key: H256,
+        l1_chain_id: L1ChainId,
+        operator_private_key: K256PrivateKey,
     ) -> Self {
-        let main_node_url = &eth_client.web3_url;
         let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-        let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
-        let l1_chain_id = eth_client.chain_id;
+        let default_priority_fee_per_gas = eth_sender
+            .gas_adjuster
+            .expect("Gas adjuster")
+            .default_priority_fee_per_gas;
+        let main_node_url = &eth_sender.web3_url;
 
-        let transport = Http::new(main_node_url).expect("Failed to create transport");
-        let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
-            .expect("Failed to get address from private key");
-
-        tracing::info!("Operator address: {:?}", operator_address);
-
-        SigningClient::new(
-            transport,
-            state_transition_chain_contract(),
-            operator_address,
-            PrivateKeySigner::new(operator_private_key),
+        SigningClient::new_raw(
+            operator_private_key,
             diamond_proxy_addr,
-            default_priority_fee_per_gas.into(),
-            L1ChainId(l1_chain_id),
+            default_priority_fee_per_gas,
+            l1_chain_id,
+            main_node_url,
         )
     }
 }

@@ -2,20 +2,14 @@ use std::sync::Arc;
 
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
-use test_casing::test_casing;
+use test_casing::{test_casing, Product};
 use zksync_config::{
-    configs::{
-        eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
-        KzgConfig,
-    },
-    ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
+    configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
+    ContractsConfig, EthConfig, GasAdjusterConfig,
 };
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
-use zksync_l1_contract_interface::i_executor::{
-    commit::kzg::KzgSettings,
-    methods::{CommitBatches, ExecuteBatches, ProveBatches},
-};
+use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::L1BatchHeader,
@@ -24,17 +18,21 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     pubdata_da::PubdataDA,
     web3::contract::Error,
-    Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
+    Address, L1BatchNumber, L1BlockNumber, ProtocolVersion, ProtocolVersionId, H256,
 };
 
+use super::l1_batch_commit_data_generator::{
+    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+    ValidiumModeL1BatchCommitDataGenerator,
+};
 use crate::{
+    base_token_fetcher::{ConversionRateFetcher, NoOpConversionRateFetcher},
     eth_sender::{
         aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
         ETHSenderError, EthTxAggregator, EthTxManager,
     },
-    l1_gas_price::GasAdjuster,
-    native_token_fetcher::NoOpConversionRateFetcher,
-    utils::testonly::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts},
+    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
+    utils::testonly::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts, DeploymentMode},
 };
 
 // Alias to conveniently call static methods of `ETHSender`.
@@ -50,9 +48,26 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
     })
 });
 
+fn mock_multicall_response() -> Token {
+    Token::Array(vec![
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                    .0
+                    .to_vec(),
+            ),
+        ]),
+    ])
+}
+
 #[derive(Debug)]
 struct EthSenderTester {
-    conn: ConnectionPool,
+    conn: ConnectionPool<Core>,
     gateway: Arc<MockEthereum>,
     manager: MockEthTxManager,
     aggregator: EthTxAggregator,
@@ -64,32 +79,41 @@ impl EthSenderTester {
     const MAX_BASE_FEE_SAMPLES: usize = 3;
 
     async fn new(
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Core>,
         history: Vec<u64>,
         non_ordering_confirmations: bool,
         aggregator_operate_4844_mode: bool,
+        deployment_mode: &DeploymentMode,
     ) -> Self {
-        let eth_sender_config = ETHSenderConfig::for_tests();
+        let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],
-            ..eth_sender_config.sender.clone()
+            ..eth_sender_config.clone().sender.unwrap()
         };
 
-        let gateway = Arc::new(
-            MockEthereum::default()
-                .with_fee_history(
-                    std::iter::repeat(0)
-                        .take(Self::WAIT_CONFIRMATIONS as usize)
-                        .chain(history)
-                        .collect(),
-                )
-                .with_non_ordering_confirmation(non_ordering_confirmations)
-                .with_multicall_address(contracts_config.l1_multicall3_addr),
-        );
+        let gateway = MockEthereum::default()
+            .with_fee_history(
+                std::iter::repeat(0)
+                    .take(Self::WAIT_CONFIRMATIONS as usize)
+                    .chain(history)
+                    .collect(),
+            )
+            .with_non_ordering_confirmation(non_ordering_confirmations)
+            .with_call_handler(move |call| {
+                assert_eq!(call.contract_address(), contracts_config.l1_multicall3_addr);
+                mock_multicall_response()
+            });
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        let gateway = Arc::new(gateway);
 
-        let no_op_conversion_rate_fetcher = Arc::new(NoOpConversionRateFetcher::new());
+        let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
+            DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+            DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
+        };
+
+        let base_token_fetcher: Arc<dyn ConversionRateFetcher> =
+            Arc::new(NoOpConversionRateFetcher {});
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
                 gateway.clone(),
@@ -97,29 +121,37 @@ impl EthSenderTester {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
                     pricing_formula_parameter_b: 2.0,
-                    ..eth_sender_config.gas_adjuster
+                    ..eth_sender_config.gas_adjuster.unwrap()
                 },
                 PubdataSendingMode::Calldata,
-                no_op_conversion_rate_fetcher,
+                base_token_fetcher,
+                pubdata_pricing,
             )
             .await
             .unwrap(),
         );
         let store_factory = ObjectStoreFactory::mock();
 
-        let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
+        let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
+            match deployment_mode {
+                DeploymentMode::Validium => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+                DeploymentMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+            };
+
+        let eth_sender = eth_sender_config.sender.clone().unwrap();
         let aggregator = EthTxAggregator::new(
+            connection_pool.clone(),
             SenderConfig {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
-                ..eth_sender_config.sender.clone()
+                pubdata_sending_mode: PubdataSendingMode::Calldata,
+                ..eth_sender.clone()
             },
             // Aggregator - unused
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
                 aggregator_operate_4844_mode,
-                PubdataDA::Calldata,
-                Some(kzg_settings.clone()),
+                l1_batch_commit_data_generator.clone(),
             ),
             gateway.clone(),
             // zkSync contract address
@@ -127,13 +159,14 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             Address::random(),
             Default::default(),
-            Some(kzg_settings),
             None,
+            l1_batch_commit_data_generator,
         )
         .await;
 
         let manager = EthTxManager::new(
-            eth_sender_config.sender,
+            connection_pool.clone(),
+            eth_sender.clone(),
             gas_adjuster.clone(),
             gateway.clone(),
             None,
@@ -147,8 +180,8 @@ impl EthSenderTester {
         }
     }
 
-    async fn storage(&self) -> StorageProcessor<'_> {
-        self.conn.access_storage().await.unwrap()
+    async fn storage(&self) -> Connection<'_, Core> {
+        self.conn.connection().await.unwrap()
     }
 
     async fn get_block_numbers(&self) -> L1BlockNumbers {
@@ -162,16 +195,51 @@ impl EthSenderTester {
     }
 }
 
+fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
+    L1BatchWithMetadata {
+        header,
+        metadata: default_l1_batch_metadata(),
+        raw_published_factory_deps: vec![],
+    }
+}
+
+fn default_l1_batch_metadata() -> L1BatchMetadata {
+    L1BatchMetadata {
+        root_hash: Default::default(),
+        rollup_last_leaf_index: 0,
+        initial_writes_compressed: Some(vec![]),
+        repeated_writes_compressed: Some(vec![]),
+        commitment: Default::default(),
+        l2_l1_merkle_root: Default::default(),
+        block_meta_params: L1BatchMetaParameters {
+            zkporter_is_available: false,
+            bootloader_code_hash: Default::default(),
+            default_aa_code_hash: Default::default(),
+            protocol_version: Default::default(),
+        },
+        aux_data_hash: Default::default(),
+        meta_parameters_hash: Default::default(),
+        pass_through_data_hash: Default::default(),
+        events_queue_commitment: Some(H256::zero()),
+        bootloader_initial_content_commitment: Some(H256::zero()),
+        state_diffs_compressed: vec![],
+    }
+}
+
 // Tests that we send multiple transactions and confirm them all in one iteration.
-#[test_casing(2, [false, true])]
+#[test_casing(4, Product(([false, true], [DeploymentMode::Rollup, DeploymentMode::Validium])))]
 #[tokio::test]
-async fn confirm_many(aggregator_operate_4844_mode: bool) -> anyhow::Result<()> {
-    let connection_pool = ConnectionPool::test_pool().await;
+async fn confirm_many(
+    aggregator_operate_4844_mode: bool,
+    deployment_mode: DeploymentMode,
+) -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut tester = EthSenderTester::new(
         connection_pool,
         vec![10; 100],
         false,
         aggregator_operate_4844_mode,
+        &deployment_mode,
     )
     .await;
 
@@ -181,15 +249,15 @@ async fn confirm_many(aggregator_operate_4844_mode: bool) -> anyhow::Result<()> 
         let tx = tester
             .aggregator
             .save_eth_tx(
-                &mut tester.conn.access_storage().await.unwrap(),
+                &mut tester.conn.connection().await.unwrap(),
                 &DUMMY_OPERATION,
-                true,
+                false,
             )
             .await?;
         let hash = tester
             .manager
             .send_eth_tx(
-                &mut tester.conn.access_storage().await.unwrap(),
+                &mut tester.conn.connection().await.unwrap(),
                 &tx,
                 0,
                 L1BlockNumber(tester.gateway.block_number("").await?.as_u32()),
@@ -221,7 +289,7 @@ async fn confirm_many(aggregator_operate_4844_mode: bool) -> anyhow::Result<()> 
     let to_resend = tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
         )
         .await?;
@@ -246,11 +314,17 @@ async fn confirm_many(aggregator_operate_4844_mode: bool) -> anyhow::Result<()> 
 }
 
 // Tests that we resend first un-mined transaction every block with an increased gas price.
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn resend_each_block() -> anyhow::Result<()> {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester =
-        EthSenderTester::new(connection_pool, vec![7, 6, 5, 5, 5, 2, 1], false, false).await;
+async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![7, 6, 5, 5, 5, 2, 1],
+        false,
+        false,
+        &deployment_mode,
+    )
+    .await;
 
     // after this, median should be 6
     tester.gateway.advance_block_number(3);
@@ -260,20 +334,15 @@ async fn resend_each_block() -> anyhow::Result<()> {
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await?;
 
     let hash = tester
         .manager
-        .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
-            &tx,
-            0,
-            block,
-        )
+        .send_eth_tx(&mut tester.conn.connection().await.unwrap(), &tx, 0, block)
         .await?;
 
     // check that we sent something and stored it in the db
@@ -310,17 +379,14 @@ async fn resend_each_block() -> anyhow::Result<()> {
 
     let (to_resend, _) = tester
         .manager
-        .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
-            block_numbers,
-        )
+        .monitor_inflight_transactions(&mut tester.conn.connection().await.unwrap(), block_numbers)
         .await?
         .unwrap();
 
     let resent_hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             &to_resend,
             1,
             block_numbers.latest,
@@ -358,16 +424,24 @@ async fn resend_each_block() -> anyhow::Result<()> {
 
 // Tests that if transaction was mined, but not enough blocks has been mined since,
 // we won't mark it as confirmed but also won't resend it.
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn dont_resend_already_mined() -> anyhow::Result<()> {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false, false).await;
+async fn dont_resend_already_mined(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        false,
+        &deployment_mode,
+    )
+    .await;
+
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await
         .unwrap();
@@ -375,7 +449,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
     let hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
             L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -405,7 +479,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
     let to_resend = tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
         )
         .await?;
@@ -429,20 +503,27 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn three_scenarios() -> anyhow::Result<()> {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester =
-        EthSenderTester::new(connection_pool.clone(), vec![100; 100], false, false).await;
+async fn three_scenarios(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        false,
+        &deployment_mode,
+    )
+    .await;
+
     let mut hashes = vec![];
 
     for _ in 0..3 {
         let tx = tester
             .aggregator
             .save_eth_tx(
-                &mut tester.conn.access_storage().await.unwrap(),
+                &mut tester.conn.connection().await.unwrap(),
                 &DUMMY_OPERATION,
-                true,
+                false,
             )
             .await
             .unwrap();
@@ -450,7 +531,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
         let hash = tester
             .manager
             .send_eth_tx(
-                &mut tester.conn.access_storage().await.unwrap(),
+                &mut tester.conn.connection().await.unwrap(),
                 &tx,
                 0,
                 L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -476,7 +557,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
     let (to_resend, _) = tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
         )
         .await?
@@ -502,18 +583,24 @@ async fn three_scenarios() -> anyhow::Result<()> {
 }
 
 #[should_panic(expected = "We can't operate after tx fail")]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn failed_eth_tx() {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester =
-        EthSenderTester::new(connection_pool.clone(), vec![100; 100], false, false).await;
+async fn failed_eth_tx(deployment_mode: DeploymentMode) {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        false,
+        &deployment_mode,
+    )
+    .await;
 
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await
         .unwrap();
@@ -521,7 +608,7 @@ async fn failed_eth_tx() {
     let hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
             L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -536,61 +623,35 @@ async fn failed_eth_tx() {
     tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
         )
         .await
         .unwrap();
 }
 
-fn default_l1_batch_metadata() -> L1BatchMetadata {
-    L1BatchMetadata {
-        root_hash: Default::default(),
-        rollup_last_leaf_index: 0,
-        merkle_root_hash: Default::default(),
-        initial_writes_compressed: Some(vec![]),
-        repeated_writes_compressed: Some(vec![]),
-        commitment: Default::default(),
-        l2_l1_merkle_root: Default::default(),
-        block_meta_params: L1BatchMetaParameters {
-            zkporter_is_available: false,
-            bootloader_code_hash: Default::default(),
-            default_aa_code_hash: Default::default(),
-        },
-        aux_data_hash: Default::default(),
-        meta_parameters_hash: Default::default(),
-        pass_through_data_hash: Default::default(),
-        events_queue_commitment: Some(H256::zero()),
-        bootloader_initial_content_commitment: Some(H256::zero()),
-        state_diffs_compressed: vec![],
-    }
-}
-
-fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
-    L1BatchWithMetadata {
-        header,
-        metadata: default_l1_batch_metadata(),
-        raw_published_factory_deps: vec![],
-    }
-}
-
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn correct_order_for_confirmations() -> anyhow::Result<()> {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true, false).await;
+async fn correct_order_for_confirmations(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        true,
+        false,
+        &deployment_mode,
+    )
+    .await;
+
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
     let second_l1_batch = insert_l1_batch(&tester, L1BatchNumber(2)).await;
-
-    let kzg_settings = tester.aggregator.kzg_settings();
 
     commit_l1_batch(
         &mut tester,
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -606,7 +667,6 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -639,22 +699,28 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true, false).await;
+async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        true,
+        false,
+        &deployment_mode,
+    )
+    .await;
+
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
     let second_l1_batch = insert_l1_batch(&tester, L1BatchNumber(2)).await;
-    let kzg_settings = tester.aggregator.kzg_settings();
 
     commit_l1_batch(
         &mut tester,
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -670,7 +736,6 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -690,7 +755,6 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
-        kzg_settings.clone(),
     )
     .await;
 
@@ -706,7 +770,6 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -737,21 +800,27 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true, false).await;
+async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        true,
+        false,
+        &deployment_mode,
+    )
+    .await;
+
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
     let second_l1_batch = insert_l1_batch(&tester, L1BatchNumber(2)).await;
-    let kzg_settings = tester.aggregator.kzg_settings();
     commit_l1_batch(
         &mut tester,
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(&mut tester, genesis_l1_batch, first_l1_batch.clone(), true).await;
@@ -761,7 +830,6 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -780,7 +848,6 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
-        kzg_settings.clone(),
     )
     .await;
 
@@ -796,7 +863,6 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -829,29 +895,21 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn test_parse_multicall_data() {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let tester = EthSenderTester::new(connection_pool, vec![100; 100], false, false).await;
-
-    let original_correct_form_data = Token::Array(vec![
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
-        Token::Tuple(vec![
-            Token::Bool(true),
-            Token::Bytes(
-                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
-                    .0
-                    .to_vec(),
-            ),
-        ]),
-    ]);
+async fn test_parse_multicall_data(deployment_mode: DeploymentMode) {
+    let tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        false,
+        &deployment_mode,
+    )
+    .await;
 
     assert!(tester
         .aggregator
-        .parse_multicall_data(original_correct_form_data)
+        .parse_multicall_data(mock_multicall_response())
         .is_ok());
 
     let original_wrong_form_data = vec![
@@ -909,10 +967,17 @@ async fn test_parse_multicall_data() {
     }
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn get_multicall_data() {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false, false).await;
+async fn get_multicall_data(deployment_mode: DeploymentMode) {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        false,
+        &deployment_mode,
+    )
+    .await;
     let multicall_data = tester.aggregator.get_multicall_data().await;
     assert!(multicall_data.is_ok());
 }
@@ -922,8 +987,9 @@ async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
         .storage()
         .await
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(Default::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
 }
 
 async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
@@ -989,14 +1055,12 @@ async fn commit_l1_batch(
     last_committed_l1_batch: L1BatchHeader,
     l1_batch: L1BatchHeader,
     confirm: bool,
-    kzg_settings: Arc<KzgSettings>,
 ) -> H256 {
-    let operation = AggregatedOperation::Commit(CommitBatches {
-        last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
-        l1_batches: vec![l1_batch_with_metadata(l1_batch)],
-        pubdata_da: PubdataDA::Calldata,
-        kzg_settings: Some(kzg_settings),
-    });
+    let operation = AggregatedOperation::Commit(
+        l1_batch_with_metadata(last_committed_l1_batch),
+        vec![l1_batch_with_metadata(l1_batch)],
+        PubdataDA::Calldata,
+    );
     send_operation(tester, operation, confirm).await
 }
 
@@ -1008,9 +1072,9 @@ async fn send_operation(
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             &aggregated_operation,
-            true,
+            false,
         )
         .await
         .unwrap();
@@ -1018,7 +1082,7 @@ async fn send_operation(
     let hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
             L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -1039,7 +1103,7 @@ async fn confirm_tx(tester: &mut EthSenderTester, hash: H256) {
     tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
         )
         .await

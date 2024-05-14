@@ -1,31 +1,31 @@
 [package]
 name = "zksync_eth_client"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
-zksync_types = { path = "../types" }
-zksync_eth_signer = { path = "../eth_signer" }
-zksync_config = { path = "../config" }
-zksync_contracts = { path = "../contracts" }
+vise.workspace = true
+zksync_types.workspace = true
+zksync_eth_signer.workspace = true
+zksync_config.workspace = true
+zksync_contracts.workspace = true
 
-jsonrpc-core = "18"
-serde = "1.0.90"
-thiserror = "1"
-async-trait = "0.1"
-tracing = "0.1"
-rlp = "0.5"
+jsonrpc-core.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+rlp.workspace = true
 
 [dev-dependencies]
-static_assertions = "1.1.0"
-tokio = { version = "1", features = ["full"] }
-pretty_assertions = "1"
-hex = "0.4.2"
-serde_json = "1.0"
+static_assertions.workspace = true
+tokio = { workspace = true, features = ["full"] }
+pretty_assertions.workspace = true
+hex.workspace = true
+serde_json.workspace = true

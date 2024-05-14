@@ -1,5 +1,5 @@
 import * as ethers from 'ethers';
-import * as zkweb3 from 'zksync-web3';
+import * as zkweb3 from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 

@@ -2,15 +2,16 @@
 
 use std::time::Duration;
 
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_types::aggregated_operations::AggregatedActionType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum FetchStage {
-    GetMiniblockRange,
+    // uses legacy naming for L2 blocks for compatibility reasons
+    #[metrics(name = "get_miniblock_range")]
+    GetL2BlockRange,
     GetBlockDetails,
-    SyncL2Block,
 }
 
 #[derive(
@@ -34,12 +35,6 @@ impl From<AggregatedActionType> for L1BatchStage {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "method", rename_all = "snake_case")]
-pub(super) enum CachedMethod {
-    SyncL2Block,
-}
-
 /// Metrics for the fetcher.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "external_node_fetcher")]
@@ -47,16 +42,8 @@ pub(super) struct FetcherMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     pub requests: Family<FetchStage, Histogram<Duration>>,
     pub l1_batch: Family<L1BatchStage, Gauge<u64>>,
+    // uses legacy naming for L2 blocks for compatibility reasons
     pub miniblock: Gauge<u64>,
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub fetch_next_miniblock: Histogram<Duration>,
-
-    // Cache-related metrics.
-    pub cache_total: Family<CachedMethod, Counter>,
-    pub cache_hit: Family<CachedMethod, Counter>,
-    pub cache_errors: Counter,
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub cache_populate: Histogram<Duration>,
 }
 
 #[vise::register]

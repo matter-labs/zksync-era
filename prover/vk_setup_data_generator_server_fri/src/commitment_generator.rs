@@ -15,6 +15,8 @@ pub fn read_and_update_contract_toml(keystore: &Keystore, dryrun: bool) -> anyho
         get_toml_formatted_value(vk_commitments.node);
     contract_doc["contracts"]["FRI_RECURSION_SCHEDULER_LEVEL_VK_HASH"] =
         get_toml_formatted_value(vk_commitments.scheduler);
+    contract_doc["contracts"]["SNARK_WRAPPER_VK_HASH"] =
+        get_toml_formatted_value(vk_commitments.snark_wrapper);
     tracing::info!("Updated toml content: {:?}", contract_doc.to_string());
     if !dryrun {
         write_contract_toml(contract_doc).context("write_contract_toml")?;

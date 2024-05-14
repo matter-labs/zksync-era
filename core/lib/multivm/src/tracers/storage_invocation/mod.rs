@@ -1,6 +1,7 @@
 use crate::{glue::tracers::IntoOldVmTracer, tracers::old_tracers::OldTracers};
 
 pub mod vm_1_4_1;
+pub mod vm_1_4_2;
 pub mod vm_boojum_integration;
 pub mod vm_latest;
 pub mod vm_refunds_enhancement;

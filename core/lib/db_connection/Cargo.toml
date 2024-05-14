@@ -1,0 +1,39 @@
+[package]
+name = "zksync_db_connection"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_health_check.workspace = true
+
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sqlx = { workspace = true, features = [
+    "runtime-tokio",
+    "tls-native-tls",
+    "macros",
+    "postgres",
+    "bigdecimal",
+    "rust_decimal",
+    "chrono",
+    "json",
+    "migrate",
+    "ipnetwork",
+] }
+vise.workspace = true
+tokio = { workspace = true, features = ["full"] }
+anyhow.workspace = true
+url.workspace = true
+rand.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true
+zksync_basic_types.workspace = true

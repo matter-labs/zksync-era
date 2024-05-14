@@ -6,7 +6,7 @@ use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 #[cfg(test)]
 use zksync_types::H256;
@@ -21,21 +21,20 @@ use crate::{fee_model::BatchFeeModelInputProvider, utils::pending_protocol_versi
 pub async fn l2_tx_filter(
     batch_fee_input_provider: &dyn BatchFeeModelInputProvider,
     vm_version: VmVersion,
-) -> L2TxFilter {
-    let fee_input = batch_fee_input_provider.get_batch_fee_input().await;
-
+) -> anyhow::Result<L2TxFilter> {
+    let fee_input = batch_fee_input_provider.get_batch_fee_input().await?;
     let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
-    L2TxFilter {
+    Ok(L2TxFilter {
         fee_input,
         fee_per_gas: base_fee,
         gas_per_pubdata: gas_per_pubdata.as_u32(),
-    }
+    })
 }
 
 #[derive(Debug)]
 pub struct MempoolFetcher {
     mempool: MempoolGuard,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     sync_interval: Duration,
     sync_batch_size: usize,
@@ -49,7 +48,7 @@ impl MempoolFetcher {
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         config: &MempoolConfig,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
     ) -> Self {
         Self {
             mempool,
@@ -64,7 +63,7 @@ impl MempoolFetcher {
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         if let Some(stuck_tx_timeout) = self.stuck_tx_timeout {
             let removed_txs = storage
                 .transactions_dal()
@@ -73,11 +72,7 @@ impl MempoolFetcher {
                 .context("failed removing stuck transactions")?;
             tracing::info!("Number of stuck txs was removed: {removed_txs}");
         }
-        storage
-            .transactions_dal()
-            .reset_mempool()
-            .await
-            .context("failed resetting mempool")?;
+        storage.transactions_dal().reset_mempool().await?;
         drop(storage);
 
         loop {
@@ -86,7 +81,7 @@ impl MempoolFetcher {
                 break;
             }
             let latency = KEEPER_METRICS.mempool_sync.start();
-            let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+            let mut storage = self.pool.connection_tagged("state_keeper").await?;
             let mempool_info = self.mempool.get_mempool_info();
             let protocol_version = pending_protocol_version(&mut storage)
                 .await
@@ -96,7 +91,8 @@ impl MempoolFetcher {
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
             )
-            .await;
+            .await
+            .context("failed creating L2 transaction filter")?;
 
             let transactions = storage
                 .transactions_dal()
@@ -131,7 +127,7 @@ impl MempoolFetcher {
 
 /// Loads nonces for all distinct `transactions` initiators from the storage.
 async fn get_transaction_nonces(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     transactions: &[Transaction],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
     let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
@@ -161,14 +157,14 @@ async fn get_transaction_nonces(
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        fee::TransactionExecutionMetrics, L2ChainId, MiniblockNumber, PriorityOpId,
-        ProtocolVersionId, StorageLog, H256,
+        fee::TransactionExecutionMetrics, L2BlockNumber, PriorityOpId, ProtocolVersionId,
+        StorageLog, H256, U256,
     };
     use zksync_utils::u256_to_h256;
 
     use super::*;
     use crate::{
-        genesis::{ensure_genesis_state, GenesisParams},
+        genesis::{insert_genesis_batch, GenesisParams},
         utils::testonly::{create_l2_transaction, MockBatchFeeParamsProvider},
     };
 
@@ -183,20 +179,20 @@ mod tests {
 
     #[tokio::test]
     async fn getting_transaction_nonces() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
 
-        let transaction = create_l2_transaction(10, 100);
+        let transaction = create_l2_transaction(U256::from(10), U256::from(100));
         let transaction_initiator = transaction.initiator_account();
         let nonce_key = get_nonce_key(&transaction_initiator);
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])
+            .insert_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![nonce_log])])
             .await
             .unwrap();
 
-        let other_transaction = create_l2_transaction(10, 100);
+        let other_transaction = create_l2_transaction(U256::from(10), U256::from(100));
         let other_transaction_initiator = other_transaction.initiator_account();
         assert_ne!(other_transaction_initiator, transaction_initiator);
 
@@ -218,15 +214,16 @@ mod tests {
     #[tokio::test]
     async fn syncing_mempool_basics() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
-        let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
-        let fee_input = fee_params_provider.get_batch_fee_input().await;
+        let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
+            Arc::new(MockBatchFeeParamsProvider::default());
+        let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
@@ -244,11 +241,12 @@ mod tests {
         // Add a new transaction to the storage.
         let transaction = create_l2_transaction(base_fee, gas_per_pubdata);
         let transaction_hash = transaction.hash();
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
-            .await;
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
         drop(storage);
 
         // Check that the transaction is eventually synced.
@@ -274,16 +272,17 @@ mod tests {
 
     #[tokio::test]
     async fn ignoring_transaction_with_insufficient_fee() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
-        let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
-        let fee_input = fee_params_provider.get_batch_fee_input().await;
+        let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
+            Arc::new(MockBatchFeeParamsProvider::default());
+        let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
@@ -298,11 +297,12 @@ mod tests {
 
         // Add a transaction with insufficient fee to the storage.
         let transaction = create_l2_transaction(base_fee / 2, gas_per_pubdata / 2);
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
-            .await;
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
         drop(storage);
 
         tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval() * 5).await;
@@ -314,16 +314,17 @@ mod tests {
 
     #[tokio::test]
     async fn ignoring_transaction_with_old_nonce() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
-        let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
-        let fee_input = fee_params_provider.get_batch_fee_input().await;
+        let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
+            Arc::new(MockBatchFeeParamsProvider::default());
+        let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
@@ -344,16 +345,17 @@ mod tests {
         let transaction_hash = transaction.hash();
         let nonce_key = get_nonce_key(&transaction.initiator_account());
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .storage_logs_dal()
-            .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])
+            .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![nonce_log])])
             .await
             .unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
-            .await;
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
         drop(storage);
 
         // Check that the transaction is eventually synced.

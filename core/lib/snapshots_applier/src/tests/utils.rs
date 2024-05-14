@@ -5,35 +5,42 @@ use std::{collections::HashMap, fmt, sync::Arc};
 use async_trait::async_trait;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory};
 use zksync_types::{
-    api::en::SyncBlock,
-    block::L1BatchHeader,
-    commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
+    api,
+    block::L2BlockHeader,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
         SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
-        SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey,
+        SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::{TokenInfo, TokenMetadata},
-    AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey,
-    StorageValue, H160, H256,
+    AccountTreeId, Address, Bytes, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
+    StorageValue, H160, H256, U256,
 };
 use zksync_web3_decl::error::EnrichedClientResult;
 
 use crate::SnapshotsApplierMainNodeClient;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct MockMainNodeClient {
-    pub fetch_l2_block_responses: HashMap<MiniblockNumber, SyncBlock>,
+    pub fetch_l1_batch_responses: HashMap<L1BatchNumber, api::L1BatchDetails>,
+    pub fetch_l2_block_responses: HashMap<L2BlockNumber, api::BlockDetails>,
     pub fetch_newest_snapshot_response: Option<SnapshotHeader>,
     pub tokens_response: Vec<TokenInfo>,
 }
 
 #[async_trait]
 impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
-    async fn fetch_l2_block(
+    async fn fetch_l1_batch_details(
         &self,
-        number: MiniblockNumber,
-    ) -> EnrichedClientResult<Option<SyncBlock>> {
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<api::L1BatchDetails>> {
+        Ok(self.fetch_l1_batch_responses.get(&number).cloned())
+    }
+
+    async fn fetch_l2_block_details(
+        &self,
+        number: L2BlockNumber,
+    ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         Ok(self.fetch_l2_block_responses.get(&number).cloned())
     }
 
@@ -43,7 +50,7 @@ impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
 
     async fn fetch_tokens(
         &self,
-        _at_miniblock: MiniblockNumber,
+        _at_l2_block: L2BlockNumber,
     ) -> EnrichedClientResult<Vec<TokenInfo>> {
         Ok(self.tokens_response.clone())
     }
@@ -99,57 +106,61 @@ impl ObjectStore for ObjectStoreWithErrors {
     }
 }
 
-fn miniblock_metadata(
-    number: MiniblockNumber,
-    l1_batch_number: L1BatchNumber,
-    hash: H256,
-) -> SyncBlock {
-    SyncBlock {
-        number,
-        l1_batch_number,
-        last_in_batch: true,
+pub(super) fn mock_l2_block_header(l2_block_number: L2BlockNumber) -> L2BlockHeader {
+    L2BlockHeader {
+        number: l2_block_number,
         timestamp: 0,
-        l1_gas_price: 0,
-        l2_fair_gas_price: 0,
-        fair_pubdata_price: None,
+        hash: H256::from_low_u64_be(u64::from(l2_block_number.0)),
+        l1_tx_count: 0,
+        l2_tx_count: 0,
+        fee_account_address: Address::repeat_byte(1),
+        base_fee_per_gas: U256::zero(),
+        gas_per_pubdata_limit: 0,
+        batch_fee_input: Default::default(),
         base_system_contracts_hashes: Default::default(),
-        operator_address: Default::default(),
-        transactions: None,
-        virtual_blocks: None,
-        hash: Some(hash),
-        protocol_version: Default::default(),
+        protocol_version: Some(Default::default()),
+        virtual_blocks: 0,
+        gas_limit: 0,
     }
 }
 
-fn l1_block_metadata(l1_batch_number: L1BatchNumber, root_hash: H256) -> L1BatchWithMetadata {
-    L1BatchWithMetadata {
-        header: L1BatchHeader::new(
-            l1_batch_number,
-            0,
-            Default::default(),
-            ProtocolVersionId::default(),
-        ),
-        metadata: L1BatchMetadata {
-            root_hash,
-            rollup_last_leaf_index: 0,
-            merkle_root_hash: H256::zero(),
-            initial_writes_compressed: Some(vec![]),
-            repeated_writes_compressed: Some(vec![]),
-            commitment: H256::zero(),
-            l2_l1_merkle_root: H256::zero(),
-            block_meta_params: L1BatchMetaParameters {
-                zkporter_is_available: false,
-                bootloader_code_hash: H256::zero(),
-                default_aa_code_hash: H256::zero(),
-            },
-            aux_data_hash: H256::zero(),
-            meta_parameters_hash: H256::zero(),
-            pass_through_data_hash: H256::zero(),
-            events_queue_commitment: None,
-            bootloader_initial_content_commitment: None,
-            state_diffs_compressed: vec![],
-        },
-        raw_published_factory_deps: vec![],
+fn block_details_base(hash: H256) -> api::BlockDetailsBase {
+    api::BlockDetailsBase {
+        timestamp: 0,
+        l1_tx_count: 0,
+        l2_tx_count: 0,
+        root_hash: Some(hash),
+        status: api::BlockStatus::Sealed,
+        commit_tx_hash: None,
+        committed_at: None,
+        prove_tx_hash: None,
+        proven_at: None,
+        execute_tx_hash: None,
+        executed_at: None,
+        l1_gas_price: U256::zero(),
+        l2_fair_gas_price: U256::zero(),
+        base_system_contracts_hashes: Default::default(),
+    }
+}
+
+fn l2_block_details(
+    number: L2BlockNumber,
+    l1_batch_number: L1BatchNumber,
+    hash: H256,
+) -> api::BlockDetails {
+    api::BlockDetails {
+        number,
+        l1_batch_number,
+        base: block_details_base(hash),
+        operator_address: Default::default(),
+        protocol_version: Some(ProtocolVersionId::latest()),
+    }
+}
+
+fn l1_batch_details(number: L1BatchNumber, root_hash: H256) -> api::L1BatchDetails {
+    api::L1BatchDetails {
+        number,
+        base: block_details_base(root_hash),
     }
 }
 
@@ -175,9 +186,9 @@ pub(super) fn mock_recovery_status() -> SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(123),
         l1_batch_root_hash: H256::random(),
         l1_batch_timestamp: 0,
-        miniblock_number: MiniblockNumber(321),
-        miniblock_hash: H256::random(),
-        miniblock_timestamp: 0,
+        l2_block_number: L2BlockNumber(321),
+        l2_block_hash: H256::random(),
+        l2_block_timestamp: 0,
         protocol_version: ProtocolVersionId::default(),
         storage_logs_chunks_processed: vec![true, true],
     }
@@ -204,6 +215,25 @@ pub(super) fn mock_tokens() -> Vec<TokenInfo> {
             },
         },
     ]
+}
+
+pub(super) fn mock_snapshot_header(status: &SnapshotRecoveryStatus) -> SnapshotHeader {
+    SnapshotHeader {
+        version: SnapshotVersion::Version0.into(),
+        l1_batch_number: status.l1_batch_number,
+        l2_block_number: status.l2_block_number,
+        storage_logs_chunks: vec![
+            SnapshotStorageLogsChunkMetadata {
+                chunk_id: 0,
+                filepath: "file0".to_string(),
+            },
+            SnapshotStorageLogsChunkMetadata {
+                chunk_id: 1,
+                filepath: "file1".to_string(),
+            },
+        ],
+        factory_deps_filepath: "some_filepath".to_string(),
+    }
 }
 
 pub(super) async fn prepare_clients(
@@ -243,32 +273,17 @@ pub(super) async fn prepare_clients(
             .unwrap();
     }
 
-    let snapshot_header = SnapshotHeader {
-        l1_batch_number: status.l1_batch_number,
-        miniblock_number: status.miniblock_number,
-        last_l1_batch_with_metadata: l1_block_metadata(
-            status.l1_batch_number,
-            status.l1_batch_root_hash,
-        ),
-        storage_logs_chunks: vec![
-            SnapshotStorageLogsChunkMetadata {
-                chunk_id: 0,
-                filepath: "file0".to_string(),
-            },
-            SnapshotStorageLogsChunkMetadata {
-                chunk_id: 1,
-                filepath: "file1".to_string(),
-            },
-        ],
-        factory_deps_filepath: "some_filepath".to_string(),
-    };
-    client.fetch_newest_snapshot_response = Some(snapshot_header);
+    client.fetch_newest_snapshot_response = Some(mock_snapshot_header(status));
+    client.fetch_l1_batch_responses.insert(
+        status.l1_batch_number,
+        l1_batch_details(status.l1_batch_number, status.l1_batch_root_hash),
+    );
     client.fetch_l2_block_responses.insert(
-        status.miniblock_number,
-        miniblock_metadata(
-            status.miniblock_number,
+        status.l2_block_number,
+        l2_block_details(
+            status.l2_block_number,
             status.l1_batch_number,
-            status.miniblock_hash,
+            status.l2_block_hash,
         ),
     );
     (object_store, client)

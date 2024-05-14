@@ -1,10 +1,10 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_4_1::{
+use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
+use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zkevm_test_harness_1_4_2::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::{
@@ -18,7 +18,7 @@ use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_4_1::DynTracer,
+        dyn_tracers::vm_1_5_0::DynTracer,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         types::inputs::L1BatchEnv,
         VmExecutionMode,
@@ -30,6 +30,7 @@ use crate::{
         tracers::{traits::VmTracer, utils::VmHook},
         types::internals::{PubdataInput, ZkSyncVmState},
         utils::logs::collect_events_and_l1_system_logs_after_timestamp,
+        vm::MultiVMSubversion,
         StorageOracle,
     },
 };
@@ -43,16 +44,22 @@ pub(crate) struct PubdataTracer<S> {
     // For testing purposes it might be helpful to supply an exact set of state diffs to be provided
     // to the L1Messenger.
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
+    subversion: MultiVMSubversion,
     _phantom_data: PhantomData<S>,
 }
 
 impl<S: WriteStorage> PubdataTracer<S> {
-    pub(crate) fn new(l1_batch_env: L1BatchEnv, execution_mode: VmExecutionMode) -> Self {
+    pub(crate) fn new(
+        l1_batch_env: L1BatchEnv,
+        execution_mode: VmExecutionMode,
+        subversion: MultiVMSubversion,
+    ) -> Self {
         Self {
             l1_batch_env,
             pubdata_info_requested: false,
             execution_mode,
             enforced_state_diffs: None,
+            subversion,
             _phantom_data: Default::default(),
         }
     }
@@ -64,12 +71,14 @@ impl<S: WriteStorage> PubdataTracer<S> {
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
         forced_state_diffs: Vec<StateDiffRecord>,
+        subversion: MultiVMSubversion,
     ) -> Self {
         Self {
             l1_batch_env,
             pubdata_info_requested: false,
             execution_mode,
             enforced_state_diffs: Some(forced_state_diffs),
+            subversion,
             _phantom_data: Default::default(),
         }
     }
@@ -192,7 +201,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PubdataTracer<S> {
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        let hook = VmHook::from_opcode_memory(&state, &data);
+        let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
         if let VmHook::PubdataRequested = hook {
             self.pubdata_info_requested = true;
         }
@@ -222,6 +231,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
 
             // Apply the pubdata to the current memory
             let mut memory_to_apply = vec![];
+
             apply_pubdata_to_memory(&mut memory_to_apply, pubdata_input);
             state.memory.populate_page(
                 BOOTLOADER_HEAP_PAGE as usize,

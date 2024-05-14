@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "license": "MIT",
   "mocha": {
-    "timeout": 240000,
+    "timeout": 300000,
     "exit": true,
     "color": false,
     "slow": 0,
@@ -13,7 +13,8 @@
     ]
   },
   "scripts": {
-    "revert-and-restart-test": "zk f mocha tests/revert-and-restart.test.ts"
+    "revert-and-restart-test": "zk f mocha tests/revert-and-restart.test.ts",
+    "revert-and-restart-test-en": "zk f mocha tests/revert-and-restart-en.test.ts"
   },
   "devDependencies": {
     "@types/chai": "^4.2.21",

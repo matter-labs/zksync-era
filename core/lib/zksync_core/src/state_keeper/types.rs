@@ -4,7 +4,7 @@ use std::{
 };
 
 use multivm::interface::VmExecutionResultAndLogs;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_mempool::{L2TxFilter, MempoolInfo, MempoolStore};
 use zksync_types::{
     block::BlockGasCount, tx::ExecutionMetrics, Address, Nonce, PriorityOpId, Transaction,
@@ -17,7 +17,7 @@ use crate::gas_tracker::{gas_count_from_metrics, gas_count_from_tx_and_metrics};
 pub struct MempoolGuard(Arc<Mutex<MempoolStore>>);
 
 impl MempoolGuard {
-    pub async fn from_storage(storage_processor: &mut StorageProcessor<'_>, capacity: u64) -> Self {
+    pub async fn from_storage(storage_processor: &mut Connection<'_, Core>, capacity: u64) -> Self {
         let next_priority_id = storage_processor
             .transactions_dal()
             .next_priority_id()

@@ -133,6 +133,8 @@ pub struct PostgresConfig {
     pub prover_url: Option<String>,
     /// Maximum size of the connection pool.
     pub max_connections: Option<u32>,
+    /// Maximum size of the connection pool to master DB.
+    pub max_connections_master: Option<u32>,
 
     /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (currently 3)
     /// before acquire methods will return an error.
@@ -144,6 +146,8 @@ pub struct PostgresConfig {
     pub long_connection_threshold_ms: Option<u64>,
     /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
     pub slow_query_threshold_ms: Option<u64>,
+    pub test_server_url: Option<String>,
+    pub test_prover_url: Option<String>,
 }
 
 impl PostgresConfig {
@@ -171,6 +175,10 @@ impl PostgresConfig {
     /// Returns the maximum size of the connection pool as a `Result` to simplify error propagation.
     pub fn max_connections(&self) -> anyhow::Result<u32> {
         self.max_connections.context("Max connections is absent")
+    }
+
+    pub fn max_connections_master(&self) -> Option<u32> {
+        self.max_connections_master
     }
 
     /// Returns the Postgres statement timeout.

@@ -1,10 +1,15 @@
 use std::{collections::VecDeque, sync::Arc};
 
+use test_casing::test_casing;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::MockEthereum;
 
-use super::{GasAdjuster, GasStatisticsInner};
-use crate::native_token_fetcher::NoOpConversionRateFetcher;
+use super::{GasAdjuster, GasStatisticsInner, PubdataPricing};
+use crate::{
+    l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing},
+    utils::testonly::DeploymentMode,
+    NoOpConversionRateFetcher,
+};
 
 /// Check that we compute the median correctly
 #[test]
@@ -28,8 +33,9 @@ fn samples_queue() {
 }
 
 /// Check that we properly fetch base fees as block are mined
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn kept_updated() {
+async fn kept_updated(deployment_mode: DeploymentMode) {
     let eth_client = Arc::new(
         MockEthereum::default()
             .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
@@ -46,7 +52,11 @@ async fn kept_updated() {
     );
     eth_client.advance_block_number(5);
 
-    let no_op_conversion_rate_fetcher = Arc::new(NoOpConversionRateFetcher::new());
+    let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
+        DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+        DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
+    };
+    let base_token_fetcher = Arc::new(NoOpConversionRateFetcher {});
     let adjuster = GasAdjuster::new(
         eth_client.clone(),
         GasAdjusterConfig {
@@ -56,6 +66,7 @@ async fn kept_updated() {
             pricing_formula_parameter_b: 1.0005,
             internal_l1_pricing_multiplier: 0.8,
             internal_enforced_l1_gas_price: None,
+            internal_enforced_pubdata_price: None,
             poll_period: 5,
             max_l1_gas_price: None,
             num_samples_for_blob_base_fee_estimate: 3,
@@ -63,7 +74,8 @@ async fn kept_updated() {
             max_blob_base_fee: None,
         },
         PubdataSendingMode::Calldata,
-        no_op_conversion_rate_fetcher,
+        base_token_fetcher,
+        pubdata_pricing,
     )
     .await
     .unwrap();

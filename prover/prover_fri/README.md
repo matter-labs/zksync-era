@@ -1,16 +1,6 @@
 # FRI Prover
 
-## Running CPU prover
-
-`zk f cargo run --release --bin zksync_prover_fri`
-
-## Running GPU prover(requires CUDA 12.0+)
-
-`zk f cargo run --release --features "gpu" --bin zksync_prover_fri`
-
-## Proving a block using CPU prover locally
-
-### Overview of the pipeline
+## Overview of the pipeline
 
 These are the main components to this process:
 
@@ -20,9 +10,9 @@ These are the main components to this process:
 - Prover
 - Compressor
 
-All of them will be sharing information through a SQL database. The general idea is that the sequencer will produce
-blocks and the gateway will place them into the database to be proven. Then, the rest of the components will pull jobs
-from the database and do their part of the pipeline.
+All of them will be sharing information through a SQL database and GCS bucket. The general idea is that the sequencer
+will produce blocks and the gateway will place them into the database to be proven. Then, the rest of the components
+will pull jobs from the database and do their part of the pipeline, loading intermediary artifacts from GCS.
 
 ```mermaid
 flowchart LR
@@ -33,28 +23,95 @@ flowchart LR
     C --- C1["Basic Circuits"]
     C --- C2["Leaf Aggregation"]
     C --- C3["Node Aggregation"]
-    C --- C4["Scheduler"]
+    C --- C4["Recursion Tip"]
+    C --- C5["Scheduler"]
     C --> B
-    B --> D["Prover"]
+    B --> D["Vector Generator/Prover"]
     D --> |Proven Block| B
-    B --> E["Compressor"]
-    E --> |Compressed block| B
+    B --> G["Compressor"]
+    G --> |Compressed block| B
 ```
 
-### Prerequisites
+## Prerequisites
 
 Make sure these dependencies are installed and available on your machine:
-[Installing dependencies](../../docs/guides/setup-dev.md) Once that is done, before starting, make sure you go into the
-root of the repository, then run
+[Installing dependencies](../../docs/guides/setup-dev.md). Make sure you go through all steps, including setting
+environment variables for `zk`. Same work is done at the bottom of this doc, if you want a TL;DR; for running GPU
+provers on GCP.
 
-```console
-export ZKSYNC_HOME=$(pwd)
-```
+## Proving a block using GPU prover locally
 
-The whole setup below will NOT work if you don't have this environment variable properly set, as the entirety of the
-`zk` CLI tool depends on it.
+Below steps can be used to prove a block on local machine using GPU prover. Running a GPU prover requires a CUDA 12.0
+installation as a pre-requisite, alongside these machine specs:
 
-### Block proving with CPU
+- CPU: At least 16 physical cores
+- RAM: 85GB of RAM
+- Disk: 200GB of free disk (lower might be fine, depending on how many proofs you want to generate)
+- GPU: NVIDIA GPU with CUDA support and at least 6GB of VRAM, we recommend to use GPUs with at least 16GB VRAM for
+  optimal performance. In our GPU picks for datacenters while running on Google Cloud Platform, the L4 takes the top
+  spot in terms of price-to-performance ratio, with the T4 coming in second.
+
+1. Initialize DB and run migrations (make sure you're in the root of the repo): `zk && zk init`
+2. Run the server. In the root of the repository:
+
+   ```console
+   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler
+   ```
+
+   Note that it will produce a first l1 batch that can be proven (should be batch 0).
+
+3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 20GB of disk. You
+   need to be in the `prover/` directory (for all commands from here onwards, you need to be in the `prover/` directory)
+   and run:
+
+   ```console
+   ./setup.sh gpu
+   ```
+
+4. Run prover gateway to fetch blocks to be proven from server:
+
+   ```console
+   zk f cargo run --release --bin zksync_prover_fri_gateway
+   ```
+
+5. Run 4 witness generators to generate witness for each round:
+
+   ```console
+   API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
+   API_PROMETHEUS_LISTENER_PORT=3117 zk f cargo run --release --bin zksync_witness_generator -- --round=leaf_aggregation
+   API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
+   API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=recursion_tip
+   API_PROMETHEUS_LISTENER_PORT=3120 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
+   ```
+
+   or alternatively (recommended), start all of them with
+
+   ```console
+   API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
+   ```
+
+   Note that this will automatically open four ports: 3116 (the starting port), 3117, 3118 and 3119 for subsequent
+   provers.
+
+6. Run witness vector generators to feed jobs to GPU prover:
+
+   ```console
+   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3420 zk f cargo run --release --bin zksync_witness_vector_generator
+   ```
+
+   Note that you may run multiple of them (as 1 prover roughly can be fed by 10 vector generators). Make sure to use a
+   different port!
+
+7. Run prover to perform actual proving: `zk f cargo run --features "gpu" --release --bin zksync_prover_fri`
+
+8. Finally, run proof compressor to compress the proof to be sent on L1:
+   `zk f cargo run --release --bin zksync_proof_fri_compressor`
+
+## Block proving with CPU
+
+We don't recommend using this method, as at the moment none are ran in production and may be broken. There will be
+investment in the future, but for the time being, please use GPU provers. That said, instructions are left below for
+brave adventurers.
 
 Below steps can be used to prove a block on local machine using CPU prover. This is useful for debugging and testing
 Machine specs:
@@ -84,34 +141,19 @@ Machine specs:
 4. Run the sequencer/operator. In the root of the repository:
 
    ```console
-   zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
+   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler
    ```
 
    to produce blocks to be proven
 
-5. Run prover gateway to fetch blocks to be proven from server:
+5. Move again into the `prover` directory. The rest of the steps will be performed from there. Run prover gateway to
+   fetch blocks to be proven from server:
 
    ```console
    zk f cargo run --release --bin zksync_prover_fri_gateway
    ```
 
 6. Run 4 witness generators to generate witness for each round:
-
-   ```console
-   API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
-   API_PROMETHEUS_LISTENER_PORT=3117 zk f cargo run --release --bin zksync_witness_generator -- --round=leaf_aggregation
-   API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
-   API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
-   ```
-
-   These 4 steps can be reduced to a single command
-
-   ```console
-   API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
-   ```
-
-   Note that this will automatically open the three ports after the one specified in environmental variable, in this
-   case 3117, 3118 and 3119.
 
 7. Run prover to perform actual proving:
 
@@ -124,66 +166,6 @@ Machine specs:
    ```console
    zk f cargo run --release --bin zksync_proof_fri_compressor
    ```
-
-## Proving a block using GPU prover locally
-
-Below steps can be used to prove a block on local machine using GPU prover. Running a GPU prover requires a CUDA 12.x
-installation as a pre-requisite, alongside these machine specs:
-
-- CPU: At least 8 physical cores
-- RAM: 16GB of RAM(if you have lower RAM machine enable swap)
-- Disk: 30GB of free disk
-- GPU: NVIDIA GPU with CUDA support and at least 6GB of VRAM, we recommend to use GPUs with at least 16GB VRAM for
-  optimal performance. In our GPU picks for datacenters while running on Google Cloud Platform, the L4 takes the top
-  spot in terms of price-to-performance ratio, with the T4 coming in second.
-
-1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local
-   overrides)
-2. Initialize DB and run migrations: `zk init`
-3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 20GB of disk. For
-   this, move to the `prover` directory, and run
-
-   ```console
-   ./setup.sh gpu
-   ```
-
-4. Run the sequencer/operator. In the root of the repository:
-
-   ```console
-   zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
-   ```
-
-   to produce blocks to be proven
-
-5. Run prover gateway to fetch blocks to be proven from server:
-
-   ```console
-   zk f cargo run --release --bin zksync_prover_fri_gateway
-   ```
-
-6. Run 4 witness generators to generate witness for each round:
-
-   ```console
-   API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
-   API_PROMETHEUS_LISTENER_PORT=3117 zk f cargo run --release --bin zksync_witness_generator -- --round=leaf_aggregation
-   API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
-   API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
-   ```
-
-7. Run prover to perform actual proving: `zk f cargo run --features "gpu" --release --bin zksync_prover_fri`
-
-8. Run 5 witness vector generators to feed jobs to GPU prover:
-
-   ```console
-   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3416 zk f cargo run --release --bin zksync_witness_vector_generator
-   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3417 zk f cargo run --release --bin zksync_witness_vector_generator
-   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3418 zk f cargo run --release --bin zksync_witness_vector_generator
-   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3419 zk f cargo run --release --bin zksync_witness_vector_generator
-   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3420 zk f cargo run --release --bin zksync_witness_vector_generator
-   ```
-
-9. Finally, run proof compressor to compress the proof to be sent on L1:
-   `zk f cargo run --release --bin zksync_proof_fri_compressor`
 
 ## Checking the status of the prover
 
@@ -257,3 +239,76 @@ finalization hints if the circuit changes. Below steps can be used to perform ci
    [build-docker-from-tag.yml](../../.github/workflows/build-docker-from-tag.yml) and in
    [build-prover-fri-gpu-gar.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/build-prover-fri-gpu-gar.yml),
    make sure to only do it from `FRI prover` not old.
+
+## Quick Machine Setup for GPU proving on GCP
+
+```
+# As of 11th of March, 2024
+
+# Go to GCP -> pick a project -> compute engine -> create instance
+# Give the machine a name
+# Go to GPUs and select Nvidia L4, g2-standard-32 (32 vCPUs, 16 core, 128 GB memory)
+# Boot disk, select Ubuntu, Ubuntu 22.04 (x86), select SSD persistent disk and change size to 200GB
+
+# You should have the machine available, that you can SSH into. Assuming you're SSHed in from this point forward
+
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install cMake from https://apt.kitware.com/ -- not listing steps as they may change
+...
+
+# Install cuda -- again not listing steps as they may change -- https://developer.nvidia.com/cuda-downloads -- make sure to select Linux, x86_64, Ubuntu, 22.04, deb(network) and follow through
+...
+
+# Make sure to make the nvidia software available
+echo 'export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}' >> ~/.bashrc
+
+# Reboot for the drivers to kick-in
+sudo reboot
+
+# From here, you can follow-up the instructions from the main setup doc `core/docs/guides/setup-dev.md`; a TL;DR; is:
+
+# Install NVM
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+
+# Install dependencies
+sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev postgresql docker docker-compose-v2 axel
+
+# Make docker work
+sudo usermod -aG docker YOUR_USER
+
+# Make sure you have all binaries loaded in your environment
+source ~/.bashrc
+
+# Setup the node part
+nvm install 18
+npm install -g yarn
+yarn set version 1.22.19
+
+# Install SQLX for database management
+cargo install sqlx-cli --version 0.7.3
+
+# Get solidity working
+sudo add-apt-repository ppa:ethereum/ethereum
+sudo apt-get update
+sudo apt-get install solc
+
+# Make zk work -- insert below into ~/.bashrc
+export ZKSYNC_HOME=/path/to/zksync
+
+export PATH=$ZKSYNC_HOME/bin:$PATH
+
+# Let's get the last bits of the environment in the desired state (stop postgres, as we use it in docker and start docker)
+sudo systemctl stop postgresql
+sudo systemctl disable postgresql
+sudo systemctl start docker
+
+sudo reboot
+
+# Of course, let's get the code
+git clone https://github.com/matter-labs/zksync-era.git
+
+# Load everything in the env and you're good to go
+source ~/.bashrc && cd ~/zksync-era
+```

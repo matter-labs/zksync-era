@@ -2,7 +2,9 @@ use zksync_types::{Address, Execute, U256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{constants::BLOCK_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled},
+    vm_latest::{
+        constants::BATCH_COMPUTATIONAL_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled,
+    },
 };
 
 // Checks that estimated number of circuits for simple transfer doesn't differ much
@@ -13,7 +15,7 @@ fn test_circuits() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_gas_limit(BLOCK_GAS_LIMIT)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
@@ -32,8 +34,9 @@ fn test_circuits() {
 
     let s = res.statistics.circuit_statistic;
     // Check `circuit_statistic`.
-    const EXPECTED: [f32; 11] = [
-        1.1979, 0.1390, 1.5455, 0.0031, 1.0573, 0.00059, 0.00226, 0.00077, 0.1195, 0.1429, 0.0,
+    const EXPECTED: [f32; 13] = [
+        1.34935, 0.15026, 1.66666, 0.00315, 1.0594, 0.00058, 0.00348, 0.00076, 0.11945, 0.14285,
+        0.0, 0.0, 0.0,
     ];
     let actual = [
         (s.main_vm, "main_vm"),
@@ -47,6 +50,8 @@ fn test_circuits() {
         (s.keccak256, "keccak256"),
         (s.ecrecover, "ecrecover"),
         (s.sha256, "sha256"),
+        (s.secp256k1_verify, "secp256k1_verify"),
+        (s.transient_storage_checker, "transient_storage_checker"),
     ];
     for ((actual, name), expected) in actual.iter().zip(EXPECTED) {
         if expected == 0.0 {

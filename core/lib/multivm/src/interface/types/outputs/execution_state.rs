@@ -1,7 +1,7 @@
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     zk_evm_types::LogQuery,
-    StorageLogQuery, VmEvent, U256,
+    VmEvent, U256,
 };
 
 /// State of the VM since the start of the batch execution.
@@ -9,10 +9,7 @@ use zksync_types::{
 pub struct CurrentExecutionState {
     /// Events produced by the VM.
     pub events: Vec<VmEvent>,
-    /// Storage logs produced by the VM.
-    pub storage_log_queries: Vec<StorageLogQuery>,
     /// The deduplicated storage logs produced by the VM.
-    /// It is the deduplicated version of the `storage_log_queries` field.
     pub deduplicated_storage_log_queries: Vec<LogQuery>,
     /// Hashes of the contracts used by the VM.
     pub used_contract_hashes: Vec<U256>,
@@ -31,6 +28,11 @@ pub struct CurrentExecutionState {
     pub deduplicated_events_logs: Vec<LogQuery>,
     /// Refunds returned by `StorageOracle`.
     pub storage_refunds: Vec<u32>,
+    /// Pubdata costs returned by `StorageOracle`.
+    /// This field is non-empty only starting from v1.5.0.
+    /// Note, that it is a signed integer, because the pubdata costs can be negative, e.g. in case
+    /// the user rolls back a state diff.
+    pub pubdata_costs: Vec<i32>,
 }
 
 /// Bootloader Memory of the VM.

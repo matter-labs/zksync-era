@@ -1,4 +1,4 @@
-use zkevm_test_harness_1_4_1::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use circuit_sequencer_api_1_4_1::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use zksync_types::circuit::{CircuitCycleStatistic, CircuitStatistic};
 
 // "Rich addressing" opcodes are opcodes that can write their return value/read the input onto the stack
@@ -63,5 +63,7 @@ pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> Ci
         ecrecover: cycles.ecrecover_cycles as f32
             / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
         sha256: cycles.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
+        secp256k1_verify: 0.0,
+        transient_storage_checker: 0.0,
     }
 }

@@ -1,21 +1,15 @@
 # Running the External Node
 
+> [!NOTE]
+>
+> If you want to just run external with recommended default setting, please see directory docker-compose-examples
+
 This section assumes that you have prepared a configuration file as described on the
 [previous page](./02_configuration.md).
 
-## Preferred hardware configuration
+[**Minimal system requirements**](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/00_quick_start.md#system-requirements)
 
-This configuration is approximate, expect updates to these specs.
-
-- 32-core CPU
-- 64GB RAM
-- SSD storage:
-  - Testnet - ~800 GB (at the time of writing) and will grow over time, so should be constantly monitored
-  - Mainnet - ~400 GB (at the time of writing) and will grow over time, so should be constantly monitored
-  - NVMe recommended
-- 100 Mbps network connection.
-
-### A note about PostgreSQL storage
+## A note about PostgreSQL storage
 
 By far, the heaviest table to maintain is the `call_traces` table. This table is only required for the `debug`
 namespace. If you want to clear some space and aren't using the `debug` namespace, you can
@@ -26,21 +20,21 @@ namespace. If you want to clear some space and aren't using the `debug` namespac
 
 ## Infrastructure
 
-You need to set up a PostgreSQL server with SSD storage:
+You need to set up a PostgreSQL server, however it is out of the scope of these docs, but the popular choice is to run
+it in Docker. There are many of guides on that,
+[here's one example](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/).
 
-- Testnet - ~1TB (at the time of writing) and will grow over time, so should be constantly monitored
-- Mainnet - ~2TB (at the time of writing) and will grow over time, so should be constantly monitored
-
-Setting up Postgres is out of the scope of these docs, but the popular choice is to run it in Docker. There are many of
-guides on that, [here's one example](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/).
-
-Note however that if you run Postgres as a stand-alone Docker image (e.g. not in Docker-compose with a network shared
+Note however that if you run PostgresSQL as a stand-alone Docker image (e.g. not in Docker-compose with a network shared
 between EN and Postgres), EN won't be able to access Postgres via `localhost` or `127.0.0.1` URLs. To make it work,
 you'll have to either run it with a `--network host` (on Linux) or use `host.docker.internal` instead of `localhost` in
 the EN configuration ([official docs][host_docker_internal]).
 
 Besides running Postgres, you are expected to have a DB dump from a corresponding env. You can restore it using
 `pg_restore -O -C <DUMP_PATH> --dbname=<DB_URL>`.
+
+You can also refer to
+[External Node configuration management blueprint](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/00_quick_start.md#advanced-setup)
+for advanced DB instance configurations.
 
 [host_docker_internal](https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host)
 

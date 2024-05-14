@@ -4,10 +4,12 @@ import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import { TestEnvironment } from './types';
 import { Reporter } from './reporter';
+import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/src/utils';
 
 /**
  * Attempts to connect to server.
  * This function returns once connection can be established, or throws an exception in case of timeout.
+ * It also waits for L2 ERC20 bridge to be deployed.
  *
  * This function is expected to be called *before* loading an environment via `loadTestEnvironment`,
  * because the latter expects server to be running and may throw otherwise.
@@ -25,11 +27,14 @@ export async function waitForServer() {
     const l2Provider = new zksync.Provider(l2NodeUrl);
 
     reporter.startAction('Connecting to server');
-    let ready = false;
     for (let i = 0; i < maxAttempts; ++i) {
         try {
             await l2Provider.getNetwork(); // Will throw if the server is not ready yet.
-            ready = true;
+            const bridgeAddress = (await l2Provider.getDefaultBridgeAddresses()).sharedL2;
+            const code = await l2Provider.getCode(bridgeAddress);
+            if (code == '0x') {
+                throw Error('L2 ERC20 bridge is not deployed yet, server is not ready');
+            }
             reporter.finishAction();
             return;
         } catch (e) {
@@ -37,10 +42,7 @@ export async function waitForServer() {
             await zksync.utils.sleep(attemptIntervalMs);
         }
     }
-
-    if (!ready) {
-        throw new Error('Failed to wait for the server to start');
-    }
+    throw new Error('Failed to wait for the server to start');
 }
 
 /**
@@ -62,14 +64,17 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL,
         'L2 node URL'
     );
+    const l2Provider = new zksync.Provider(l2NodeUrl);
+    const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
+
     const l1NodeUrl = ensureVariable(process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL, 'L1 node URL');
     const wsL2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_WS_API_URL || process.env.API_WEB3_JSON_RPC_WS_URL,
         'WS L2 node URL'
     );
     const contractVerificationUrl = process.env.ZKSYNC_ENV!.startsWith('ext-node')
-        ? process.env.API_CONTRACT_VERIFICATION_URL!
-        : ensureVariable(process.env.API_CONTRACT_VERIFICATION_URL, 'Contract verification API');
+        ? process.env.CONTRACT_VERIFIER_URL!
+        : ensureVariable(process.env.CONTRACT_VERIFIER_URL, 'Contract verification API');
 
     const tokens = getTokens(process.env.CHAIN_ETH_NETWORK || 'localhost');
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
@@ -80,19 +85,24 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         token = tokens[0];
     }
     const weth = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')!;
+    const baseToken = tokens.find((token: { address: string }) =>
+        zksync.utils.isAddressEq(token.address, baseTokenAddress)
+    )!;
 
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
     const l2TokenAddress = await new zksync.Wallet(
         mainWalletPK,
-        new zksync.Provider(l2NodeUrl),
+        l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
 
     const l2WethAddress = await new zksync.Wallet(
         mainWalletPK,
-        new zksync.Provider(l2NodeUrl),
+        l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(weth.address);
+
+    const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
 
     return {
         network,
@@ -114,6 +124,13 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
             decimals: weth.decimals,
             l1Address: weth.address,
             l2Address: l2WethAddress
+        },
+        baseToken: {
+            name: baseToken?.name || token.name,
+            symbol: baseToken?.symbol || token.symbol,
+            decimals: baseToken?.decimals || token.decimals,
+            l1Address: baseToken?.address || token.address,
+            l2Address: baseTokenAddressL2
         }
     };
 }

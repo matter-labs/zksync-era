@@ -1,15 +1,17 @@
 [package]
 name = "zksync_prover_fri_types"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 
 [dependencies]
-zksync_object_store = { path = "../../core/lib/object_store" }
-zksync_types = { path = "../../core/lib/types" }
-
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2", features = [
-    "log_tracing",
-] }
-
-serde = { version = "1.0", features = ["derive"] }
+zksync_object_store.workspace = true
+zksync_types.workspace = true
+circuit_definitions = { workspace = true, features = [ "log_tracing" ] }
+serde = { workspace = true, features = ["derive"] }

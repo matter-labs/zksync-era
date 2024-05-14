@@ -14,6 +14,3 @@ pub use zksync_types::web3::contract::tokens::{Detokenize, Tokenizable, Tokenize
 pub mod i_executor;
 /// Utilities for interacting with `Multicall3` contract.
 pub mod multicall3;
-/// Utilities for interacting with the old verifier contract.
-/// Required for backward compatibility only.
-pub mod pre_boojum_verifier;

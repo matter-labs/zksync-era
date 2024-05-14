@@ -7,6 +7,8 @@ on:
     branches:
       - staging
       - trying
+      - kl-factory # adding this branch here to run CI on it regardless of the conflicts
+      - kl-factory-ci
       - '!release-please--branches--**'
 
 concurrency:
@@ -52,6 +54,7 @@ jobs:
               - 'docker/external-node/**'
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
+              - '.github/workflows/build-contract-verifier-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
               - '.github/workflows/ci-core-lint-reusable.yml'
               - 'Cargo.toml'
@@ -108,6 +111,18 @@ jobs:
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-core-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  build-contract-verifier:
+    name: Build contract verifier
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/build-contract-verifier-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"

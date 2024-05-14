@@ -8,7 +8,7 @@ use tokio::{
     sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
-use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction};
+use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::state_keeper::{
@@ -28,8 +28,6 @@ pub(crate) enum TxExecutionResult {
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
         tx_metrics: Box<ExecutionMetricsForCriteria>,
-        bootloader_dry_run_metrics: Box<ExecutionMetricsForCriteria>,
-        bootloader_dry_run_result: Box<VmExecutionResultAndLogs>,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
         gas_remaining: u32,
@@ -38,8 +36,6 @@ pub(crate) enum TxExecutionResult {
     RejectedByVm { reason: Halt },
     /// Bootloader gas limit is not enough to execute the tx.
     BootloaderOutOfGasForTx,
-    /// Bootloader gas limit is enough to run the tx but not enough to execute block tip.
-    BootloaderOutOfGasForBlockTip,
 }
 
 impl TxExecutionResult {
@@ -50,9 +46,7 @@ impl TxExecutionResult {
             Self::RejectedByVm {
                 reason: rejection_reason,
             } => Some(rejection_reason),
-            Self::BootloaderOutOfGasForTx | Self::BootloaderOutOfGasForBlockTip { .. } => {
-                Some(&Halt::BootloaderOutOfGas)
-            }
+            Self::BootloaderOutOfGasForTx => Some(&Halt::BootloaderOutOfGas),
         }
     }
 }
@@ -88,7 +82,7 @@ impl BatchExecutorHandle {
     }
 
     pub(super) async fn execute_tx(&self, tx: Transaction) -> TxExecutionResult {
-        let tx_gas_limit = tx.gas_limit().as_u32();
+        let tx_gas_limit = tx.gas_limit().as_u64();
 
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands
@@ -119,16 +113,16 @@ impl BatchExecutorHandle {
         res
     }
 
-    pub(super) async fn start_next_miniblock(&self, miniblock_info: L2BlockEnv) {
+    pub(super) async fn start_next_l2_block(&self, env: L2BlockEnv) {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands
-            .send(Command::StartNextMiniblock(miniblock_info, response_sender))
+            .send(Command::StartNextL2Block(env, response_sender))
             .await
             .unwrap();
         let latency = EXECUTOR_METRICS.batch_executor_command_response_time
-            [&ExecutorCommand::StartNextMiniblock]
+            [&ExecutorCommand::StartNextL2Block]
             .start();
         response_receiver.await.unwrap();
         latency.observe();
@@ -149,7 +143,7 @@ impl BatchExecutorHandle {
         latency.observe();
     }
 
-    pub(super) async fn finish_batch(self) -> (FinishedL1Batch, Option<WitnessBlockState>) {
+    pub(super) async fn finish_batch(self) -> FinishedL1Batch {
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands
             .send(Command::FinishBatch(response_sender))
@@ -158,17 +152,17 @@ impl BatchExecutorHandle {
         let latency = EXECUTOR_METRICS.batch_executor_command_response_time
             [&ExecutorCommand::FinishBatch]
             .start();
-        let resp = response_receiver.await.unwrap();
+        let finished_batch = response_receiver.await.unwrap();
         self.handle.await.unwrap();
         latency.observe();
-        resp
+        finished_batch
     }
 }
 
 #[derive(Debug)]
 pub(super) enum Command {
     ExecuteTx(Box<Transaction>, oneshot::Sender<TxExecutionResult>),
-    StartNextMiniblock(L2BlockEnv, oneshot::Sender<()>),
+    StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
-    FinishBatch(oneshot::Sender<(FinishedL1Batch, Option<WitnessBlockState>)>),
+    FinishBatch(oneshot::Sender<FinishedL1Batch>),
 }

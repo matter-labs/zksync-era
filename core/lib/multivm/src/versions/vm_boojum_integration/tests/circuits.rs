@@ -1,9 +1,11 @@
-use zkevm_test_harness_1_4_0::geometry_config::get_geometry_config;
+use circuit_sequencer_api_1_4_0::geometry_config::get_geometry_config;
 use zksync_types::{Address, Execute, U256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_boojum_integration::{constants::BLOCK_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled},
+    vm_boojum_integration::{
+        constants::BLOCK_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled,
+    },
 };
 
 // Checks that estimated number of circuits for simple transfer doesn't differ much

@@ -1,14 +1,14 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, str::FromStr};
 
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
-    block::MiniblockHasher,
+    block::L2BlockHasher,
     fee_model::BatchFeeInput,
     get_code_key, get_is_account_key,
     helpers::unix_timestamp_ms,
     utils::{deployed_address_create, storage_key_for_eth_balance},
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -17,7 +17,7 @@ use crate::{
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     vm_latest::{
-        constants::BLOCK_GAS_LIMIT,
+        constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
         tests::{
             tester::{Account, TxType},
             utils::read_test_contract,
@@ -85,7 +85,7 @@ impl<H: HistoryMode> VmTester<H> {
             let last_l2_block = load_last_l2_block(self.storage.clone()).unwrap_or(L2Block {
                 number: 0,
                 timestamp: 0,
-                hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+                hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             });
             l1_batch.first_l2_block = L2BlockEnv {
                 number: last_l2_block.number + 1,
@@ -141,9 +141,9 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
                 base_system_smart_contracts: BaseSystemContracts::playground(),
-                gas_limit: BLOCK_GAS_LIMIT,
+                bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
-                default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+                default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
             },
             deployer: None,
@@ -176,8 +176,8 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
         self
     }
 
-    pub(crate) fn with_gas_limit(mut self, gas_limit: u32) -> Self {
-        self.system_env.gas_limit = gas_limit;
+    pub(crate) fn with_bootloader_gas_limit(mut self, gas_limit: u32) -> Self {
+        self.system_env.bootloader_gas_limit = gas_limit;
         self
     }
 
@@ -253,15 +253,15 @@ pub(crate) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
         number,
         timestamp,
         fee_input: BatchFeeInput::l1_pegged(
-            50_000_000_000, // 50 gwei
-            250_000_000,    // 0.25 gwei
+            U256::from_str("500000000000").unwrap(), // 50 gwei
+            U256::from(250_000_000),                 // 0.25 gwei
         ),
         fee_account: Address::random(),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {
             number: 1,
             timestamp,
-            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             max_virtual_blocks_to_create: 100,
         },
     }

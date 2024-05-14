@@ -79,7 +79,8 @@
   "meta_parameters": {
     "zkporter_is_available": false,
     "bootloader_code_hash": "0x010007ed0e328b940e241f7666a6303b7ffd4e3fd7e8c154d6e7556befe6cd6d",
-    "default_aa_code_hash": "0x0100055b7a8be90522251be8be1a186464d056462973502ac8a0437c85e4d2a9"
+    "default_aa_code_hash": "0x0100055b7a8be90522251be8be1a186464d056462973502ac8a0437c85e4d2a9",
+    "protocol_version": "Version17"
   },
   "auxiliary_output": {
     "PreBoojum": {

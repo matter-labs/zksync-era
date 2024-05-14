@@ -4,14 +4,15 @@ use codegen::{Block, Scope};
 use multivm::{
     utils::{get_bootloader_encoding_space, get_bootloader_max_txs_in_batch},
     vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
+    zk_evm_latest::zkevm_opcode_defs::{
+        circuit_prices::{
+            ECRECOVER_CIRCUIT_COST_IN_ERGS, KECCAK256_CIRCUIT_COST_IN_ERGS,
+            SHA256_CIRCUIT_COST_IN_ERGS,
+        },
+        system_params::MAX_TX_ERGS_LIMIT,
+    },
 };
 use serde::{Deserialize, Serialize};
-use zkevm_test_harness_1_3_3::zk_evm::zkevm_opcode_defs::{
-    circuit_prices::{
-        ECRECOVER_CIRCUIT_COST_IN_ERGS, KECCAK256_CIRCUIT_COST_IN_ERGS, SHA256_CIRCUIT_COST_IN_ERGS,
-    },
-    system_params::MAX_TX_ERGS_LIMIT,
-};
 use zksync_types::{
     IntrinsicSystemGasConstants, ProtocolVersionId, GUARANTEED_PUBDATA_IN_TX,
     L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,

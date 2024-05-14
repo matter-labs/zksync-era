@@ -151,26 +151,29 @@ export function pushConfig(environment?: string, diff?: string) {
         false
     );
 
-    env.modify('DATABASE_URL', `postgres://postgres:notsecurepassword@localhost/${environment}`, l2InitFile, false);
-    env.modify(
-        'TEST_DATABASE_URL',
-        `postgres://postgres:notsecurepassword@localhost/${environment}_test`,
-        l2InitFile,
-        false
-    );
+    // we want to be able to run multiple chains locally, but not break the CI
+    if (!process.env.IN_DOCKER) {
+        env.modify('DATABASE_URL', `postgres://postgres:notsecurepassword@localhost/${environment}`, l2InitFile, false);
+        env.modify(
+            'TEST_DATABASE_URL',
+            `postgres://postgres:notsecurepassword@localhost/${environment}_test`,
+            l2InitFile,
+            false
+        );
 
-    env.modify(
-        'DATABASE_PROVER_URL',
-        `postgres://postgres:notsecurepassword@localhost/prover_${environment}`,
-        l2InitFile,
-        false
-    );
-    env.modify(
-        'TEST_DATABASE_PROVER_URL',
-        `postgres://postgres:notsecurepassword@localhost/prover_${environment}_test`,
-        l2InitFile,
-        false
-    );
+        env.modify(
+            'DATABASE_PROVER_URL',
+            `postgres://postgres:notsecurepassword@localhost/prover_${environment}`,
+            l2InitFile,
+            false
+        );
+        env.modify(
+            'TEST_DATABASE_PROVER_URL',
+            `postgres://postgres:notsecurepassword@localhost/prover_${environment}_test`,
+            l2InitFile,
+            false
+        );
+    }
 
     env.modify('DATABASE_STATE_KEEPER_DB_PATH', `./db/${environment}/state_keeper`, l2InitFile, false);
     env.modify('DATABASE_MERKLE_TREE_PATH', `./db/${environment}/tree`, l2InitFile, false);
@@ -178,8 +181,8 @@ export function pushConfig(environment?: string, diff?: string) {
 
     if (process.env.CONTRACTS_DEV_PROTOCOL_VERSION) {
         env.modify(
-            'CONTRACTS_LATEST_PROTOCOL_VERSION',
-            (parseInt(process.env.CONTRACTS_LATEST_PROTOCOL_VERSION!) + 1).toString(),
+            'CONTRACTS_GENESIS_PROTOCOL_VERSION',
+            (parseInt(process.env.CONTRACTS_GENESIS_PROTOCOL_VERSION!) + 1).toString(),
             l1InitFile,
             false
         );

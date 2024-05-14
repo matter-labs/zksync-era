@@ -1,0 +1,7 @@
+server_addr: '127.0.0.1:3055'
+public_addr: '127.0.0.1:3055'
+max_payload_size: 2500000
+gossip_dynamic_inbound_limit: 0
+gossip_static_outbound:
+- key: 'node:public:ed25519:a9995979f228c91e4f387f7e141a9afe409196ee0c4fca0045c1c6b6e7892cb5'
+  addr: '127.0.0.1:3054'

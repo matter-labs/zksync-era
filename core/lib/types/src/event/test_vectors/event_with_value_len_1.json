@@ -1,0 +1,41 @@
+{
+  "event": {
+    "location": [
+      0,
+      1
+    ],
+    "address": "0xed38c34b90b125d6b59c02b8ac7ed8387876a8c8",
+    "indexed_topics": [
+      "0x1111111111111111111111111111111111111111111111111111111111111111"
+    ],
+    "value": [17]
+  },
+  "list": [
+    {
+      "key": "0x100000002",
+      "address": "0x000000000000000000000000000000000000800d",
+      "rw_flag": false,
+      "aux_byte": 0,
+      "rollback": false,
+      "shard_id": 0,
+      "timestamp": 0,
+      "is_service": true,
+      "read_value": "0x0",
+      "written_value": "0xed38c34b90b125d6b59c02b8ac7ed8387876a8c8",
+      "tx_number_in_block": 1
+    },
+    {
+      "key": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "address": "0x000000000000000000000000000000000000800d",
+      "rw_flag": false,
+      "aux_byte": 0,
+      "rollback": false,
+      "shard_id": 0,
+      "timestamp": 0,
+      "is_service": false,
+      "read_value": "0x0",
+      "written_value": "0x1100000000000000000000000000000000000000000000000000000000000000",
+      "tx_number_in_block": 1
+    }
+  ]
+}
