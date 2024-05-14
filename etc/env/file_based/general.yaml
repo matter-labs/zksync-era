@@ -187,6 +187,9 @@ witness_vector_generator:
   prometheus_push_interval_ms: 100
   specialized_group_id: 100
   max_prover_reservation_duration_in_secs: 1000
+data_handler:
+  http_port: 3320
+  proof_generation_timeout_in_secs: 18000
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 1000
@@ -313,7 +316,7 @@ prometheus:
 
 observability:
   log_format: plain
-  log_directives: "zksync_node_framework=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_eth_client=info,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=debug,snapshots_creator=debug"
+  log_directives: "zksync_node_framework=info,zksync_block_reverter=info,zksync_commitment_generator=info,zksync_node_db_pruner=info,zksync_eth_sender=info,zksync_node_fee_model=info,zksync_node_genesis=info,zksync_house_keeper=info,zksync_proof_data_handler=info,zksync_shared_metrics=info,zksync_node_test_utils=info,zksync_vm_runner=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_db_connection=info,zksync_eth_client=info,zksync_eth_watch=debug,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_web3_decl=debug,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=debug,snapshots_creator=debug"
   sentry:
     url: unset
     panic_interval: 1800
@@ -322,8 +325,3 @@ observability:
   opentelemetry:
     endpoint: unset
     level: debug
-  sporadic_crypto_errors_substrs:
-    - "EventDestroyErr"
-    - "Can't free memory of DeviceBuf"
-    - "value: PoisonError"
-

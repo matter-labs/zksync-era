@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use zksync_types::{transaction_request::PaymasterParams, Address, U256};
 
-use crate::sdk::web3::ethabi::{Contract, Token};
+use crate::sdk::ethabi::{Contract, Token};
 
 const IPAYMASTER_FLOW_INTERFACE: &str = include_str!("./abi/IPaymasterFlow.json");
 

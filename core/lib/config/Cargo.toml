@@ -17,3 +17,4 @@ zksync_consensus_utils.workspace = true
 anyhow.workspace = true
 rand.workspace = true
 serde = { workspace = true, features = ["derive"] }
+url.workspace = true

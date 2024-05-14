@@ -13,7 +13,8 @@ use zksync_types::{
         SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::{TokenInfo, TokenMetadata},
-    AccountTreeId, Address, Bytes, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
+    web3::Bytes,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
     StorageValue, H160, H256,
 };
 use zksync_web3_decl::error::EnrichedClientResult;

@@ -3,13 +3,18 @@ use std::{collections::HashSet, net::Ipv4Addr, str::FromStr, sync::Arc, time::Du
 use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
-use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    commitment_post_processor::{
+        CommitmentPostProcessor, RollupCommitmentPostProcessor, ValidiumCommitmentPostProcessor,
+    },
+    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
+    CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
@@ -24,12 +29,6 @@ use zksync_core::{
     },
     consensus,
     consistency_checker::ConsistencyChecker,
-    db_pruner::{DbPruner, DbPrunerConfig},
-    eth_sender::l1_batch_commit_data_generator::{
-        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-        ValidiumModeL1BatchCommitDataGenerator,
-    },
-    l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector::{self, ReorgDetector},
     setup_sigint_handler,
@@ -47,7 +46,13 @@ use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
 use zksync_eth_client::{clients::QueryClient, EthInterface};
+use zksync_eth_sender::l1_batch_commit_data_generator::{
+    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+    ValidiumModeL1BatchCommitDataGenerator,
+};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
+use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
@@ -59,8 +64,11 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    config::{observability::observability_config_from_env, ExternalNodeConfig},
-    helpers::MainNodeHealthCheck,
+    config::{
+        observability::ObservabilityENConfig, ExternalNodeConfig, OptionalENConfig,
+        RequiredENConfig,
+    },
+    helpers::{EthClientHealthCheck, MainNodeHealthCheck, ValidateChainIdsTask},
     init::ensure_storage_initialized,
     metrics::RUST_METRICS,
 };
@@ -157,7 +165,7 @@ async fn run_tree(
         format!("snapshot recovery max concurrency ({max_concurrency}) is too large")
     })?;
     let recovery_pool = ConnectionPool::builder(
-        tree_pool.database_url(),
+        tree_pool.database_url().clone(),
         max_concurrency.min(config.postgres.max_connections),
     )
     .build()
@@ -191,6 +199,7 @@ async fn run_tree(
             tree_reader
                 .wait()
                 .await
+                .context("Cannot initialize tree reader")?
                 .run_api_server(address, stop_receiver)
                 .await
         }));
@@ -207,7 +216,7 @@ async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -247,7 +256,7 @@ async fn run_core(
         main_node_client.clone(),
         output_handler,
         stop_receiver.clone(),
-        config.remote.l2_chain_id,
+        config.required.l2_chain_id,
         task_handles,
     )
     .await?;
@@ -341,14 +350,21 @@ async fn run_core(
     )
     .await?;
 
-    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
-        .optional
-        .l1_batch_commit_data_generator_mode
-    {
-        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-        L1BatchCommitDataGeneratorMode::Validium => {
-            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
-        }
+    let (l1_batch_commit_data_generator, input_generator, commitment_post_processor): (
+        Arc<dyn L1BatchCommitDataGenerator>,
+        Box<dyn InputGenerator>,
+        Box<dyn CommitmentPostProcessor>,
+    ) = match config.optional.l1_batch_commit_data_generator_mode {
+        L1BatchCommitDataGeneratorMode::Rollup => (
+            Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+            Box::new(RollupInputGenerator),
+            Box::new(RollupCommitmentPostProcessor),
+        ),
+        L1BatchCommitDataGeneratorMode::Validium => (
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+            Box::new(ValidiumInputGenerator),
+            Box::new(ValidiumCommitmentPostProcessor),
+        ),
     };
 
     let consistency_checker = ConsistencyChecker::new(
@@ -379,7 +395,11 @@ async fn run_core(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    let commitment_generator = CommitmentGenerator::new(
+        commitment_generator_pool,
+        input_generator,
+        commitment_post_processor,
+    );
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
@@ -442,11 +462,8 @@ async fn run_api(
         stop_receiver.clone(),
     )));
 
-    let tx_sender_builder = TxSenderBuilder::new(
-        config.clone().into(),
-        connection_pool.clone(),
-        Arc::new(tx_proxy),
-    );
+    let tx_sender_builder =
+        TxSenderBuilder::new(config.into(), connection_pool.clone(), Arc::new(tx_proxy));
 
     if config.optional.transactions_per_sec_limit.is_some() {
         tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
@@ -519,19 +536,18 @@ async fn run_api(
     let pruning_info_refresh_interval = config.optional.pruning_removal_delay() / 5;
 
     if components.contains(&Component::HttpApi) {
-        let mut builder =
-            ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-                .http(config.required.http_port)
-                .with_filter_limit(config.optional.filters_limit)
-                .with_batch_request_size_limit(config.optional.max_batch_request_size)
-                .with_response_body_size_limit(config.optional.max_response_body_size())
-                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
-                .with_tx_sender(tx_sender.clone())
-                .with_vm_barrier(vm_barrier.clone())
-                .with_sync_state(sync_state.clone())
-                .with_mempool_cache(mempool_cache.clone())
-                .with_extended_tracing(config.optional.extended_rpc_tracing)
-                .enable_api_namespaces(config.optional.api_namespaces());
+        let mut builder = ApiBuilder::jsonrpsee_backend(config.into(), connection_pool.clone())
+            .http(config.required.http_port)
+            .with_filter_limit(config.optional.filters_limit)
+            .with_batch_request_size_limit(config.optional.max_batch_request_size)
+            .with_response_body_size_limit(config.optional.max_response_body_size())
+            .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
+            .with_tx_sender(tx_sender.clone())
+            .with_vm_barrier(vm_barrier.clone())
+            .with_sync_state(sync_state.clone())
+            .with_mempool_cache(mempool_cache.clone())
+            .with_extended_tracing(config.optional.extended_rpc_tracing)
+            .enable_api_namespaces(config.optional.api_namespaces());
         if let Some(tree_reader) = &tree_reader {
             builder = builder.with_tree_api(tree_reader.clone());
         }
@@ -547,21 +563,20 @@ async fn run_api(
     }
 
     if components.contains(&Component::WsApi) {
-        let mut builder =
-            ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-                .ws(config.required.ws_port)
-                .with_filter_limit(config.optional.filters_limit)
-                .with_subscriptions_limit(config.optional.subscriptions_limit)
-                .with_batch_request_size_limit(config.optional.max_batch_request_size)
-                .with_response_body_size_limit(config.optional.max_response_body_size())
-                .with_polling_interval(config.optional.polling_interval())
-                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
-                .with_tx_sender(tx_sender)
-                .with_vm_barrier(vm_barrier)
-                .with_sync_state(sync_state)
-                .with_mempool_cache(mempool_cache)
-                .with_extended_tracing(config.optional.extended_rpc_tracing)
-                .enable_api_namespaces(config.optional.api_namespaces());
+        let mut builder = ApiBuilder::jsonrpsee_backend(config.into(), connection_pool.clone())
+            .ws(config.required.ws_port)
+            .with_filter_limit(config.optional.filters_limit)
+            .with_subscriptions_limit(config.optional.subscriptions_limit)
+            .with_batch_request_size_limit(config.optional.max_batch_request_size)
+            .with_response_body_size_limit(config.optional.max_response_body_size())
+            .with_polling_interval(config.optional.polling_interval())
+            .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
+            .with_sync_state(sync_state)
+            .with_mempool_cache(mempool_cache)
+            .with_extended_tracing(config.optional.extended_rpc_tracing)
+            .enable_api_namespaces(config.optional.api_namespaces());
         if let Some(tree_reader) = tree_reader {
             builder = builder.with_tree_api(tree_reader);
         }
@@ -585,7 +600,7 @@ async fn init_tasks(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -681,15 +696,15 @@ async fn init_tasks(
         .await?;
     }
 
-    if let Some(port) = config.optional.prometheus_port {
+    if let Some(prometheus) = config.observability.prometheus() {
+        tracing::info!("Starting Prometheus exporter with configuration: {prometheus:?}");
+
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
         app_health.insert_component(prometheus_health_check)?;
         task_handles.push(tokio::spawn(async move {
             prometheus_health_updater.update(HealthStatus::Ready.into());
-            let result = PrometheusExporterConfig::pull(port)
-                .run(stop_receiver)
-                .await;
+            let result = prometheus.run(stop_receiver).await;
             drop(prometheus_health_updater);
             result
         }));
@@ -783,31 +798,31 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     let observability_config =
-        observability_config_from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
+        ObservabilityENConfig::from_env().context("ObservabilityENConfig::from_env()")?;
+    let _guard = observability_config.build_observability()?;
+    let required_config = RequiredENConfig::from_env()?;
+    let optional_config = OptionalENConfig::from_env()?;
 
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &observability_config.sentry_url {
-        builder = builder
-            .with_sentry_url(sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(observability_config.sentry_environment);
-    }
-    let _guard = builder.build();
+    // Build L1 and L2 clients.
+    let main_node_url = &required_config.main_node_url;
+    tracing::info!("Main node URL is: {main_node_url:?}");
+    let main_node_client = L2Client::http(main_node_url.clone())
+        .context("Failed creating JSON-RPC client for main node")?
+        .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
+        .build();
+    let main_node_client = BoxedL2Client::new(main_node_client);
 
-    // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = observability_config.sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}");
-    } else {
-        tracing::info!("No sentry URL was provided");
-    }
+    let eth_client_url = &required_config.eth_client_url;
+    let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
 
-    let mut config = ExternalNodeConfig::collect()
-        .await
-        .context("Failed to load external node config")?;
+    let mut config = ExternalNodeConfig::new(
+        required_config,
+        optional_config,
+        observability_config,
+        &main_node_client,
+    )
+    .await
+    .context("Failed to load external node config")?;
     if !opt.enable_consensus {
         config.consensus = None;
     }
@@ -821,31 +836,14 @@ async fn main() -> anyhow::Result<()> {
     RUST_METRICS.initialize();
     EN_METRICS.observe_config(&config);
 
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::singleton(config.postgres.database_url());
     let connection_pool = ConnectionPool::<Core>::builder(
-        &config.postgres.database_url,
+        config.postgres.database_url(),
         config.postgres.max_connections,
     )
     .build()
     .await
     .context("failed to build a connection_pool")?;
-
-    let main_node_url = config
-        .required
-        .main_node_url()
-        .expect("Main node URL is incorrect");
-    tracing::info!("Main node URL is: {main_node_url}");
-    let main_node_client = L2Client::http(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?
-        .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
-        .build();
-    let main_node_client = BoxedL2Client::new(main_node_client);
-
-    let eth_client_url = config
-        .required
-        .eth_client_url()
-        .context("L1 client URL is incorrect")?;
-    let eth_client = Arc::new(QueryClient::new(&eth_client_url)?);
 
     run_node(
         (),
@@ -885,7 +883,7 @@ async fn run_node(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
@@ -898,6 +896,7 @@ async fn run_node(
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
     )))?;
+    app_health.insert_custom_component(Arc::new(EthClientHealthCheck::from(eth_client.clone())))?;
     app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
         connection_pool.clone(),
     )))?;
@@ -922,6 +921,14 @@ async fn run_node(
         Ok(())
     });
 
+    let validate_chain_ids_task = ValidateChainIdsTask::new(
+        config.required.l1_chain_id,
+        config.required.l2_chain_id,
+        eth_client.clone(),
+        main_node_client.clone(),
+    );
+    let validate_chain_ids_task = tokio::spawn(validate_chain_ids_task.run(stop_receiver.clone()));
+
     let version_sync_task_pool = connection_pool.clone();
     let version_sync_task_main_node_client = main_node_client.clone();
     let mut stop_receiver_for_version_sync = stop_receiver.clone();
@@ -935,14 +942,14 @@ async fn run_node(
         stop_receiver_for_version_sync.changed().await.ok();
         Ok(())
     });
-    let mut task_handles = vec![metrics_task, version_sync_task];
+    let mut task_handles = vec![metrics_task, validate_chain_ids_task, version_sync_task];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
-        config.remote.l2_chain_id,
+        config.required.l2_chain_id,
         config.optional.snapshots_recovery_enabled,
     )
     .await?;

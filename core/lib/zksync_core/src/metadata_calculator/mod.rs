@@ -17,7 +17,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{CheckHealth, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::ObjectStore;
 
-pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
+pub(crate) use self::helpers::{AsyncTreeReader, MerkleTreeInfo};
 pub use self::{helpers::LazyAsyncTreeReader, pruning::MerkleTreePruningTask};
 use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth, MerkleTreeHealthCheck},

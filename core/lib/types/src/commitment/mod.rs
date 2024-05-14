@@ -24,7 +24,7 @@ use crate::{
         l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes, L2ToL1Log, SystemL2ToL1Log,
         UserL2ToL1Log,
     },
-    web3::signing::keccak256,
+    web3::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
         PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES,
@@ -259,7 +259,7 @@ impl SerializeCommitment for StateDiffRecord {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
-struct L1BatchAuxiliaryCommonOutput {
+pub struct L1BatchAuxiliaryCommonOutput {
     l2_l1_logs_merkle_root: H256,
     protocol_version: ProtocolVersionId,
 }
@@ -267,7 +267,7 @@ struct L1BatchAuxiliaryCommonOutput {
 /// Block Output produced by Virtual Machine
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
-enum L1BatchAuxiliaryOutput {
+pub enum L1BatchAuxiliaryOutput {
     PreBoojum {
         common: L1BatchAuxiliaryCommonOutput,
         l2_l1_logs_linear_hash: H256,
@@ -528,8 +528,8 @@ impl L1BatchPassThroughData {
 #[derive(Debug, Clone)]
 pub struct L1BatchCommitment {
     pass_through_data: L1BatchPassThroughData,
-    auxiliary_output: L1BatchAuxiliaryOutput,
-    meta_parameters: L1BatchMetaParameters,
+    pub auxiliary_output: L1BatchAuxiliaryOutput,
+    pub meta_parameters: L1BatchMetaParameters,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -572,6 +572,10 @@ impl L1BatchCommitment {
 
     pub fn meta_parameters(&self) -> L1BatchMetaParameters {
         self.meta_parameters.clone()
+    }
+
+    pub fn aux_output(&self) -> L1BatchAuxiliaryOutput {
+        self.auxiliary_output.clone()
     }
 
     pub fn l2_l1_logs_merkle_root(&self) -> H256 {

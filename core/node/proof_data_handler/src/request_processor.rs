@@ -13,16 +13,16 @@ use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
     SubmitProofRequest, SubmitProofResponse,
 };
-use zksync_types::{
-    basic_fri_types::Eip4844Blobs, commitment::serialize_commitments, web3::signing::keccak256,
-    L1BatchNumber, H256,
-};
+use zksync_types::{commitment::serialize_commitments, web3::keccak256, L1BatchNumber, H256};
+
+use crate::blob_processor::BlobProcessor;
 
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
+    blob_processor: Arc<dyn BlobProcessor>,
 }
 
 pub(crate) enum RequestProcessorError {
@@ -62,11 +62,13 @@ impl RequestProcessor {
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
+        blob_processor: Arc<dyn BlobProcessor>,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
+            blob_processor,
         }
     }
 
@@ -131,10 +133,9 @@ impl RequestProcessor {
             .unwrap()
             .unwrap();
 
-        let eip_4844_blobs = Eip4844Blobs::decode(&storage_batch.pubdata_input.expect(&format!(
-            "expected pubdata, but it is not available for batch {l1_batch_number:?}"
-        )))
-        .expect("failed to decode EIP-4844 blobs");
+        let eip_4844_blobs = self
+            .blob_processor
+            .process_blobs(l1_batch_number, storage_batch.pubdata_input);
 
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,

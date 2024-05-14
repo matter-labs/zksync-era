@@ -37,6 +37,7 @@ clap = "4.4.6"
 colored = "2.0"
 const-decoder = "0.3.0"
 ctrlc = "3.1"
+dialoguer = "0.11"
 futures = "0.3"
 hex = "0.4"
 itertools = "0.10.5"
@@ -86,6 +87,8 @@ zksync_state = { path = "../core/lib/state" }
 zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }
 zksync_utils = { path = "../core/lib/utils" }
+zksync_eth_client = { path = "../core/lib/eth_client" }
+zksync_contracts = { path = "../core/lib/contracts" }
 
 # for `perf` profiling
 [profile.perf]

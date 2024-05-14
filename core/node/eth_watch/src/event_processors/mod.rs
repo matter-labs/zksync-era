@@ -1,7 +1,7 @@
 use std::fmt;
 
 use zksync_dal::{Connection, Core};
-use zksync_types::{web3::types::Log, H256};
+use zksync_types::{web3::Log, H256};
 
 pub(crate) use self::{
     governance_upgrades::GovernanceUpgradesEventProcessor, priority_ops::PriorityOpsEventProcessor,

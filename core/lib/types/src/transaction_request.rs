@@ -15,8 +15,8 @@ use crate::{
     fee::Fee,
     l1::L1Tx,
     l2::{L2Tx, TransactionType},
-    web3::{signing::keccak256, types::AccessList},
-    Address, Bytes, EIP712TypedStructure, Eip712Domain, L1TxCommonData, L2ChainId, Nonce,
+    web3::{keccak256, AccessList, Bytes},
+    Address, EIP712TypedStructure, Eip712Domain, L1TxCommonData, L2ChainId, Nonce,
     PackedEthSignature, StructBuilder, LEGACY_TX_TYPE, U256, U64,
 };
 
@@ -956,52 +956,6 @@ mod tests {
     use zksync_crypto_primitives::K256PrivateKey;
 
     use super::*;
-    use crate::web3::{
-        api::Namespace,
-        transports::test::TestTransport,
-        types::{TransactionParameters, H256, U256},
-    };
-
-    #[tokio::test]
-    async fn decode_real_tx() {
-        let accounts = crate::web3::api::Accounts::new(TestTransport::default());
-
-        let private_key_bytes: H256 =
-            "4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
-                .parse()
-                .unwrap();
-        let private_key = K256PrivateKey::from_bytes(private_key_bytes).unwrap();
-        let address = private_key.address();
-
-        let tx = TransactionParameters {
-            nonce: Some(U256::from(1u32)),
-            to: Some(Address::random()),
-            gas: Default::default(),
-            gas_price: Some(U256::from(2u32)),
-            max_fee_per_gas: None,
-            max_priority_fee_per_gas: None,
-            value: Default::default(),
-            data: Bytes(vec![1, 2, 3]),
-            chain_id: Some(270),
-            transaction_type: None,
-            access_list: None,
-        };
-        let signed_tx = accounts
-            .sign_transaction(tx.clone(), private_key.expose_secret())
-            .await
-            .unwrap();
-        let (tx2, _) = TransactionRequest::from_bytes(
-            signed_tx.raw_transaction.0.as_slice(),
-            L2ChainId::from(270),
-        )
-        .unwrap();
-        assert_eq!(tx.gas, tx2.gas);
-        assert_eq!(tx.gas_price.unwrap(), tx2.gas_price);
-        assert_eq!(tx.nonce.unwrap(), tx2.nonce);
-        assert_eq!(tx.data, tx2.input);
-        assert_eq!(tx.value, tx2.value);
-        assert_eq!(address, tx2.from.unwrap());
-    }
 
     #[test]
     fn decode_rlp() {
