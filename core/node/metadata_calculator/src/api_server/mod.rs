@@ -17,7 +17,7 @@ use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
 
 use self::metrics::{MerkleTreeApiMethod, API_METRICS};
-use crate::metadata_calculator::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo};
+use crate::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo};
 
 mod metrics;
 #[cfg(test)]

@@ -18,7 +18,7 @@ use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{L1BatchNumber, ProtocolVersionId, StorageLog};
 
 use super::*;
-use crate::metadata_calculator::{
+use crate::{
     helpers::create_db,
     tests::{
         extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, mock_config,

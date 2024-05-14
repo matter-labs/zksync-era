@@ -24,13 +24,10 @@ use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
         healthcheck::HealthCheckHandle,
-        tree::{TreeApiClient, TreeApiHttpClient},
         tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
         web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
     },
-    consensus,
-    metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
-    setup_sigint_handler,
+    consensus, setup_sigint_handler,
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
@@ -46,6 +43,10 @@ use zksync_eth_sender::l1_batch_commit_data_generator::{
     ValidiumModeL1BatchCommitDataGenerator,
 };
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_metadata_calculator::{
+    api_server::{TreeApiClient, TreeApiHttpClient},
+    MetadataCalculator, MetadataCalculatorConfig,
+};
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 use zksync_reorg_detector::ReorgDetector;

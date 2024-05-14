@@ -71,6 +71,9 @@ use zksync_house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
+use zksync_metadata_calculator::{
+    api_server::TreeApiHttpClient, MetadataCalculator, MetadataCalculatorConfig,
+};
 use zksync_node_fee_model::{
     l1_gas_price::{
         GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
@@ -95,17 +98,14 @@ use crate::{
         contract_verification,
         execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
         healthcheck::HealthCheckHandle,
-        tree::TreeApiHttpClient,
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
-    metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
 
 pub mod api_server;
 pub mod consensus;
-pub mod metadata_calculator;
 pub mod proto;
 pub mod sync_layer;
 pub mod temp_config_store;

@@ -17,6 +17,7 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId,
     L2BlockNumber, L2ChainId, H256, U256, U64,
@@ -32,7 +33,6 @@ use super::{
 use crate::{
     api_server::{
         execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
-        tree::TreeApiClient,
         tx_sender::{tx_sink::TxSink, TxSender},
     },
     sync_layer::SyncState,

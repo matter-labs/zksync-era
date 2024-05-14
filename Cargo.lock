@@ -8380,6 +8380,7 @@ dependencies = [
  "zksync_l1_contract_interface",
  "zksync_mempool",
  "zksync_merkle_tree",
+ "zksync_metadata_calculator",
  "zksync_mini_merkle_tree",
  "zksync_node_fee_model",
  "zksync_node_genesis",
@@ -8605,6 +8606,7 @@ dependencies = [
  "zksync_eth_sender",
  "zksync_health_check",
  "zksync_l1_contract_interface",
+ "zksync_metadata_calculator",
  "zksync_node_db_pruner",
  "zksync_node_fee_model",
  "zksync_node_genesis",
@@ -8709,6 +8711,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_metadata_calculator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "async-trait",
+ "axum",
+ "futures 0.3.28",
+ "itertools 0.10.5",
+ "once_cell",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "test-casing",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_health_check",
+ "zksync_merkle_tree",
+ "zksync_node_genesis",
+ "zksync_node_test_utils",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_shared_metrics",
+ "zksync_storage",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_mini_merkle_tree"
 version = "0.1.0"
 dependencies = [
@@ -8789,6 +8825,7 @@ dependencies = [
  "zksync_eth_watch",
  "zksync_health_check",
  "zksync_house_keeper",
+ "zksync_metadata_calculator",
  "zksync_node_fee_model",
  "zksync_object_store",
  "zksync_proof_data_handler",

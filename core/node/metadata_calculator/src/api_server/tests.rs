@@ -7,9 +7,7 @@ use tempfile::TempDir;
 use zksync_dal::{ConnectionPool, Core};
 
 use super::*;
-use crate::metadata_calculator::tests::{
-    gen_storage_logs, reset_db_state, run_calculator, setup_calculator,
-};
+use crate::tests::{gen_storage_logs, reset_db_state, run_calculator, setup_calculator};
 
 #[tokio::test]
 async fn merkle_tree_api() {

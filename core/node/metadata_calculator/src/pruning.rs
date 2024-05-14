@@ -151,7 +151,7 @@ mod tests {
     use zksync_types::{L1BatchNumber, L2BlockNumber};
 
     use super::*;
-    use crate::metadata_calculator::{
+    use crate::{
         tests::{extend_db_state_from_l1_batch, gen_storage_logs, mock_config, reset_db_state},
         MetadataCalculator,
     };

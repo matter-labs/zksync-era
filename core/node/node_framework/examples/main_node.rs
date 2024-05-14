@@ -24,10 +24,10 @@ use zksync_core::{
         tx_sender::{ApiContracts, TxSenderConfig},
         web3::{state::InternalApiConfig, Namespace},
     },
-    metadata_calculator::MetadataCalculatorConfig,
     temp_config_store::decode_yaml_repr,
 };
 use zksync_env_config::FromEnv;
+use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_framework::{
     implementations::layers::{
         circuit_breaker_checker::CircuitBreakerCheckerLayer,

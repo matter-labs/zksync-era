@@ -349,7 +349,7 @@ pub struct LazyAsyncTreeReader(pub(super) watch::Receiver<Option<AsyncTreeReader
 
 impl LazyAsyncTreeReader {
     /// Returns a reader if it is initialized.
-    pub(crate) fn read(&self) -> Option<AsyncTreeReader> {
+    pub fn read(&self) -> Option<AsyncTreeReader> {
         self.0.borrow().clone()
     }
 
@@ -616,9 +616,7 @@ mod tests {
     use zksync_types::{StorageKey, StorageLog};
 
     use super::*;
-    use crate::metadata_calculator::tests::{
-        extend_db_state, gen_storage_logs, mock_config, reset_db_state,
-    };
+    use crate::tests::{extend_db_state, gen_storage_logs, mock_config, reset_db_state};
 
     impl L1BatchWithLogs {
         /// Old, slower method of loading storage logs. We want to test its equivalence to the new implementation.

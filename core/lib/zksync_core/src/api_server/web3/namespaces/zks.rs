@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto};
 use anyhow::Context as _;
 use multivm::interface::VmExecutionResultAndLogs;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
+use zksync_metadata_calculator::api_server::TreeApiError;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
@@ -28,10 +29,7 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::api_server::{
-    tree::TreeApiError,
-    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
-};
+use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState};
 
 #[derive(Debug)]
 pub(crate) struct ZksNamespace {
@@ -509,6 +507,12 @@ impl ZksNamespace {
                 };
             }
             Err(TreeApiError::Internal(err)) => return Err(Web3Error::InternalError(err)),
+            Err(_) => {
+                // This branch is not expected to be executed, but has to be provided since the error is non-exhaustive.
+                return Err(Web3Error::InternalError(anyhow::anyhow!(
+                    "Unspecified tree API error"
+                )));
+            }
         };
 
         let storage_proof = proofs
