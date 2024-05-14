@@ -195,10 +195,12 @@ impl Tokenizable for CommitBatchInfo<'_> {
         if protocol_version.is_pre_1_4_2() {
             tokens.push(Token::Bytes(match self.mode {
                 L1BatchCommitmentMode::Rollup => self.pubdata_input(),
+                // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 L1BatchCommitmentMode::Validium => vec![],
             }));
         } else {
             tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
+                // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 (L1BatchCommitmentMode::Validium, PubdataDA::Calldata) => {
                     vec![PUBDATA_SOURCE_CALLDATA]
                 }
