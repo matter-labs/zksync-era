@@ -183,7 +183,7 @@ mod tests {
             .wait_for(|health| matches!(health.status(), HealthStatus::Ready))
             .await;
         // Wait until the calculator is initialized.
-        let reader = reader.wait().await;
+        let reader = reader.wait().await.unwrap();
         while reader.clone().info().await.next_l1_batch_number < L1BatchNumber(6) {
             tokio::time::sleep(POLL_INTERVAL).await;
         }
@@ -281,7 +281,7 @@ mod tests {
         let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver));
 
         // Wait until the calculator is initialized.
-        let reader = reader.wait().await;
+        let reader = reader.wait().await.unwrap();
         let tree_info = reader.clone().info().await;
         assert_eq!(
             tree_info.next_l1_batch_number,
