@@ -1,5 +1,6 @@
 use std::{
     env,
+    ffi::OsString,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     time::Duration,
 };
@@ -35,14 +36,40 @@ use zksync_web3_decl::{
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
+use crate::config::observability::ObservabilityENConfig;
+
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
 
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 
+/// Encapsulation of configuration source with a mock implementation used in tests.
+trait ConfigurationSource: 'static {
+    type Vars<'a>: Iterator<Item = (OsString, OsString)> + 'a;
+
+    fn vars(&self) -> Self::Vars<'_>;
+
+    fn var(&self, name: &str) -> Option<String>;
+}
+
+#[derive(Debug)]
+struct Environment;
+
+impl ConfigurationSource for Environment {
+    type Vars<'a> = env::VarsOs;
+
+    fn vars(&self) -> Self::Vars<'_> {
+        env::vars_os()
+    }
+
+    fn var(&self, name: &str) -> Option<String> {
+        env::var(name).ok()
+    }
+}
+
 /// This part of the external node config is fetched directly from the main node.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
@@ -166,7 +193,7 @@ impl RemoteENConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) enum BlockFetcher {
     ServerAPI,
     Consensus,
@@ -175,7 +202,7 @@ pub(crate) enum BlockFetcher {
 /// This part of the external node config is completely optional to provide.
 /// It can tweak limits of the API, delay intervals of certain components, etc.
 /// If any of the fields are not provided, the default values will be used.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct OptionalENConfig {
     // User-facing API limits
     /// Max possible limit of filters to be in the API state at once.
@@ -316,8 +343,6 @@ pub(crate) struct OptionalENConfig {
     database_slow_query_threshold_ms: Option<u64>,
 
     // Other config settings
-    /// Port on which the Prometheus exporter server is listening.
-    pub prometheus_port: Option<u16>,
     /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
     /// sealing will block until some of the miniblocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
@@ -603,7 +628,7 @@ impl OptionalENConfig {
 }
 
 /// This part of the external node config is required for its operation.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct RequiredENConfig {
     /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L1 network.
@@ -661,7 +686,7 @@ impl RequiredENConfig {
 /// While also mandatory, it historically used different naming scheme for corresponding
 /// environment variables.
 /// Thus it is kept separately for backward compatibility and ease of deserialization.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct PostgresConfig {
     database_url: SensitiveUrl,
     pub max_connections: u32,
@@ -696,7 +721,7 @@ impl PostgresConfig {
 
 /// Experimental part of the external node config. All parameters in this group can change or disappear without notice.
 /// Eventually, parameters from this group generally end up in the optional group.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct ExperimentalENConfig {
     // State keeper cache config
     /// Block cache capacity of the state keeper RocksDB cache. The default value is 128 MB.
@@ -764,7 +789,7 @@ impl SnapshotsRecoveryConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
@@ -772,18 +797,19 @@ pub struct ApiComponentConfig {
     pub tree_api_remote_url: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct TreeComponentConfig {
     pub api_port: Option<u16>,
 }
 
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct ExternalNodeConfig {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
+    pub observability: ObservabilityENConfig,
     pub remote: RemoteENConfig,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
@@ -796,6 +822,7 @@ impl ExternalNodeConfig {
     pub async fn new(
         required: RequiredENConfig,
         optional: OptionalENConfig,
+        observability: ObservabilityENConfig,
         main_node_client: &BoxedL2Client,
     ) -> anyhow::Result<Self> {
         let experimental = envy::prefixed("EN_EXPERIMENTAL_")
@@ -820,6 +847,7 @@ impl ExternalNodeConfig {
             required,
             optional,
             experimental,
+            observability,
             consensus: read_consensus_config().context("read_consensus_config()")?,
             tree_component: tree_component_config,
             api_component: api_component_config,
@@ -833,6 +861,7 @@ impl ExternalNodeConfig {
             postgres: PostgresConfig::mock(test_pool),
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
+            observability: ObservabilityENConfig::default(),
             experimental: ExperimentalENConfig::mock(),
             consensus: None,
             api_component: ApiComponentConfig {
@@ -843,8 +872,8 @@ impl ExternalNodeConfig {
     }
 }
 
-impl From<ExternalNodeConfig> for InternalApiConfig {
-    fn from(config: ExternalNodeConfig) -> Self {
+impl From<&ExternalNodeConfig> for InternalApiConfig {
+    fn from(config: &ExternalNodeConfig) -> Self {
         Self {
             l1_chain_id: config.required.l1_chain_id,
             l2_chain_id: config.required.l2_chain_id,
@@ -876,8 +905,8 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
     }
 }
 
-impl From<ExternalNodeConfig> for TxSenderConfig {
-    fn from(config: ExternalNodeConfig) -> Self {
+impl From<&ExternalNodeConfig> for TxSenderConfig {
+    fn from(config: &ExternalNodeConfig) -> Self {
         Self {
             // Fee account address does not matter for the EN operation, since
             // actual fee distribution is handled my the main node.

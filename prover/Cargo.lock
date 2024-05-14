@@ -6974,6 +6974,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry-semantic-conventions",
  "sentry",
+ "serde",
  "serde_json",
  "tracing",
  "tracing-opentelemetry",
@@ -7580,7 +7581,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#861f81029bf3a916dae55afa5bd7f82b2eaca98b"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#e554cfaab0821582e289724e8dc2a8fd145ed217"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",

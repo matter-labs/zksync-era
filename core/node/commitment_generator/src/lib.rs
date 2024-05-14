@@ -10,8 +10,8 @@ use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commi
 use zksync_types::{
     blob::num_blobs_required,
     commitment::{
-        AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment,
-        L1BatchCommitmentMode,
+        AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
+        L1BatchCommitment, L1BatchCommitmentMode,
     },
     event::convert_vm_events_to_log_queries,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -270,7 +270,8 @@ impl CommitmentGenerator {
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::Calculate].start();
-        let commitment = L1BatchCommitment::new(input);
+        let mut commitment = L1BatchCommitment::new(input);
+        self.post_process_commitment(&mut commitment);
         let artifacts = commitment.artifacts();
         let latency = latency.observe();
         tracing::debug!(
@@ -313,6 +314,23 @@ impl CommitmentGenerator {
                 blob_commitments.fill(H256::zero());
             }
             (L1BatchCommitmentMode::Validium, _) => { /* Do nothing */ }
+        }
+    }
+
+    fn post_process_commitment(&self, commitment: &mut L1BatchCommitment) {
+        match (self.commitment_mode, &mut commitment.auxiliary_output) {
+            (
+                L1BatchCommitmentMode::Validium,
+                L1BatchAuxiliaryOutput::PostBoojum {
+                    blob_linear_hashes,
+                    blob_commitments,
+                    ..
+                },
+            ) => {
+                blob_linear_hashes.fill(H256::zero());
+                blob_commitments.fill(H256::zero());
+            }
+            _ => { /* Do nothing */ }
         }
     }
 

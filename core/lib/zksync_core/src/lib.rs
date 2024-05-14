@@ -736,6 +736,7 @@ pub async fn initialize_components(
                 .context("proof_data_handler_config")?,
             store_factory.create_store().await,
             connection_pool.clone(),
+            genesis_config.l1_batch_commit_data_generator_mode,
             stop_receiver.clone(),
         )));
     }
@@ -986,6 +987,7 @@ async fn run_tree(
             tree_reader
                 .wait()
                 .await
+                .context("Cannot initialize tree reader")?
                 .run_api_server(address, stop_receiver)
                 .await
         }));
