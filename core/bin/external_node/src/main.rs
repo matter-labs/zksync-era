@@ -703,11 +703,9 @@ async fn init_tasks(
 }
 
 async fn shutdown_components(
-    stop_sender: watch::Sender<bool>,
     tasks: ManagedTasks,
     healthcheck_handle: HealthCheckHandle,
 ) -> anyhow::Result<()> {
-    stop_sender.send(true).ok();
     task::spawn_blocking(RocksDB::await_rocksdb_termination)
         .await
         .context("error waiting for RocksDB instances to drop")?;
@@ -876,7 +874,8 @@ async fn run_node(
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
-    let (stop_sender, stop_receiver) = watch::channel(false);
+    let (stop_sender, mut stop_receiver) = watch::channel(false);
+    let stop_sender = Arc::new(stop_sender);
 
     let app_health = Arc::new(AppHealthCheck::new(
         config.optional.healthcheck_slow_time_limit(),
@@ -943,6 +942,16 @@ async fn run_node(
     )
     .await?;
     let sigint_receiver = env.setup_sigint_handler();
+    // Spawn reacting to signals in a separate task so that the node is responsive to signals right away
+    // (e.g., during the initial reorg detection).
+    tokio::spawn({
+        let stop_sender = stop_sender.clone();
+        async move {
+            sigint_receiver.await.ok();
+            tracing::info!("Stop signal received, shutting down");
+            stop_sender.send_replace(true);
+        }
+    });
 
     // Revert the storage if needed.
     let mut reverter = BlockReverter::new(NodeRole::External, connection_pool.clone());
@@ -958,8 +967,15 @@ async fn run_node(
     // the node lifecycle, the node will exit the same way as it does with any other critical error,
     // and would restart. Then, on the 2nd launch reorg would be detected here, then processed and the node
     // will be able to operate normally afterwards.
-    match reorg_detector.check_consistency().await {
-        Ok(()) => {}
+    match reorg_detector.run_once(stop_receiver.clone()).await {
+        Ok(()) if *stop_receiver.borrow() => {
+            tracing::info!("Stop signal received during initial reorg detection; shutting down");
+            healthcheck_handle.stop().await;
+            return Ok(());
+        }
+        Ok(()) => {
+            tracing::info!("Successfully checked no reorg compared to the main node");
+        }
         Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
             tracing::info!("Reverting to l1 batch number {last_correct_l1_batch}");
             reverter.roll_back(last_correct_l1_batch).await?;
@@ -1011,15 +1027,14 @@ async fn run_node(
 
     let mut tasks = ManagedTasks::new(task_handles);
     tokio::select! {
-        _ = tasks.wait_single() => {},
-        _ = sigint_receiver => {
-            tracing::info!("Stop signal received, shutting down");
-        },
+        () = tasks.wait_single() => {},
+        _ = stop_receiver.changed() => {},
     };
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
-    // Broadcast the stop signal to all actors and exit.
-    shutdown_components(stop_sender, tasks, healthcheck_handle).await?;
+    // Broadcast the stop signal (in case it wasn't broadcast previously) to all actors and exit.
+    stop_sender.send_replace(true);
+    shutdown_components(tasks, healthcheck_handle).await?;
     tracing::info!("Stopped");
     Ok(())
 }

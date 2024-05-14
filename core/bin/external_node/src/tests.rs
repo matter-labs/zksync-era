@@ -5,8 +5,13 @@ use test_casing::test_casing;
 use zksync_basic_types::protocol_version::ProtocolVersionId;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_types::{api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, H256, U64};
-use zksync_web3_decl::client::{BoxedL2Client, MockL2Client};
+use zksync_types::{
+    api, ethabi, fee_model::FeeParams, Address, L1BatchNumber, L2BlockNumber, H256, U64,
+};
+use zksync_web3_decl::{
+    client::{BoxedL2Client, MockL2Client},
+    jsonrpsee::core::ClientError,
+};
 
 use super::*;
 
@@ -94,6 +99,34 @@ fn expected_health_components(components: &ComponentsToRun) -> Vec<&'static str>
     output
 }
 
+fn mock_eth_client(diamond_proxy_addr: Address) -> MockEthereum {
+    MockEthereum::default().with_call_handler(move |call, _| {
+        tracing::info!("L1 call: {call:?}");
+        if call.to == Some(diamond_proxy_addr) {
+            let call_signature = &call.data.as_ref().unwrap().0[..4];
+            let contract = zksync_contracts::hyperchain_contract();
+            let pricing_mode_sig = contract
+                .function("getPubdataPricingMode")
+                .unwrap()
+                .short_signature();
+            let protocol_version_sig = contract
+                .function("getProtocolVersion")
+                .unwrap()
+                .short_signature();
+            match call_signature {
+                sig if sig == pricing_mode_sig => {
+                    return ethabi::Token::Uint(0.into()); // "rollup" mode encoding
+                }
+                sig if sig == protocol_version_sig => {
+                    return ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
+                }
+                _ => { /* unknown call; panic below */ }
+            }
+        }
+        panic!("Unexpected L1 call: {call:?}");
+    })
+}
+
 #[test_casing(5, ["all", "core", "api", "tree", "tree,tree_api"])]
 #[tokio::test]
 #[tracing::instrument] // Add args to the test logs
@@ -165,33 +198,7 @@ async fn external_node_basics(components_str: &'static str) {
         }
     });
     let l2_client = BoxedL2Client::new(l2_client);
-
-    let eth_client = MockEthereum::default().with_call_handler(move |call, _| {
-        tracing::info!("L1 call: {call:?}");
-        if call.to == Some(diamond_proxy_addr) {
-            let call_signature = &call.data.as_ref().unwrap().0[..4];
-            let contract = zksync_contracts::hyperchain_contract();
-            let pricing_mode_sig = contract
-                .function("getPubdataPricingMode")
-                .unwrap()
-                .short_signature();
-            let protocol_version_sig = contract
-                .function("getProtocolVersion")
-                .unwrap()
-                .short_signature();
-            match call_signature {
-                sig if sig == pricing_mode_sig => {
-                    return ethabi::Token::Uint(0.into()); // "rollup" mode encoding
-                }
-                sig if sig == protocol_version_sig => {
-                    return ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
-                }
-                _ => { /* unknown call; panic below */ }
-            }
-        }
-        panic!("Unexpected L1 call: {call:?}");
-    });
-    let eth_client = Box::new(eth_client);
+    let eth_client = Box::new(mock_eth_client(diamond_proxy_addr));
 
     let (env, env_handles) = TestEnvironment::new();
     let node_handle = tokio::spawn(async move {
@@ -247,4 +254,71 @@ async fn external_node_basics(components_str: &'static str) {
         let component_health = &health_data.components()[name];
         assert_matches!(component_health.status(), HealthStatus::ShutDown);
     }
+}
+
+#[tokio::test]
+async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
+    let _guard = vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let temp_dir = tempfile::TempDir::new().unwrap();
+
+    let connection_pool = ConnectionPool::test_pool().await;
+    let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url().clone());
+    let mut storage = connection_pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+    drop(storage);
+
+    let opt = Cli {
+        revert_pending_l1_batch: false,
+        enable_consensus: false,
+        components: "core".parse().unwrap(),
+    };
+    let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
+    if opt.components.0.contains(&Component::TreeApi) {
+        config.tree_component.api_port = Some(0);
+    }
+
+    let l2_client = MockL2Client::new(move |method, params| {
+        tracing::info!("Called L2 client: {method}({params:?})");
+        match method {
+            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
+            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(9))),
+
+            // Requested by the reorg detector; emulate a transient error.
+            "zks_L1BatchNumber"
+            | "zks_getL1BatchDetails"
+            | "eth_blockNumber"
+            | "eth_getBlockByNumber" => Err(ClientError::RequestTimeout),
+
+            "zks_getFeeParams" => Ok(serde_json::to_value(FeeParams::sensible_v1_default())?),
+            "en_whitelistedTokensForAA" => Ok(serde_json::json!([])),
+            _ => panic!("Unexpected call: {method}({params:?})"),
+        }
+    });
+    let l2_client = BoxedL2Client::new(l2_client);
+    let diamond_proxy_addr = config.remote.diamond_proxy_addr;
+    let eth_client = Box::new(mock_eth_client(diamond_proxy_addr));
+
+    let (env, env_handles) = TestEnvironment::new();
+    let mut node_handle = tokio::spawn(async move {
+        run_node(
+            env,
+            &opt,
+            &config,
+            connection_pool,
+            singleton_pool_builder,
+            l2_client,
+            eth_client,
+        )
+        .await
+    });
+
+    // Check that the node doesn't stop on its own.
+    let timeout_result = tokio::time::timeout(Duration::from_millis(50), &mut node_handle).await;
+    assert_matches!(timeout_result, Err(tokio::time::error::Elapsed { .. }));
+
+    // Send a stop signal and check that the node reacts to it.
+    env_handles.sigint_sender.send(()).unwrap();
+    node_handle.await.unwrap().unwrap();
 }
