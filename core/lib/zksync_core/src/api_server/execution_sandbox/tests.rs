@@ -2,9 +2,9 @@
 
 use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
-use zksync_types::U256;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
+use zksync_types::U256;
 
 use super::*;
 use crate::api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts};

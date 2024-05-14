@@ -21,7 +21,7 @@ use zksync_types::{
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, StorageKey, H256, U256
+    ProtocolVersionId, StorageKey, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
