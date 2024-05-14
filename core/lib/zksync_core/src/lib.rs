@@ -24,6 +24,9 @@ use zksync_circuit_breaker::{
     CircuitBreakerChecker, CircuitBreakers,
 };
 use zksync_commitment_generator::{
+    commitment_post_processor::{
+        CommitmentPostProcessor, RollupCommitmentPostProcessor, ValidiumCommitmentPostProcessor,
+    },
     input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
     CommitmentGenerator,
 };
@@ -31,14 +34,14 @@ use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
+        base_token_fetcher,
         chain::{
             CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig,
             OperationsManagerConfig, StateKeeperConfig,
         },
         consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
-        wallets,
-        wallets::Wallets,
+        wallets::{self, Wallets},
         ContractsConfig, GeneralConfig,
     },
     ApiConfig, DBConfig, EthWatchConfig, GenesisConfig, PostgresConfig,
@@ -46,10 +49,7 @@ use zksync_config::{
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
-use zksync_eth_client::{
-    clients::{PKSigningClient, QueryClient},
-    BoundEthInterface, EthInterface,
-};
+use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface, EthInterface};
 use zksync_eth_sender::{
     l1_batch_commit_data_generator::{
         L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
@@ -79,9 +79,13 @@ use zksync_node_fee_model::{
 };
 use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_proof_data_handler::blob_processor::{
+    BlobProcessor, RollupBlobProcessor, ValidiumBlobProcessor,
+};
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
+use zksync_web3_decl::client::Client;
 
 use crate::{
     api_server::{
@@ -303,7 +307,10 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = QueryClient::new(eth.web3_url.clone()).context("Ethereum client")?;
+    let query_client = Client::http(eth.web3_url.clone())
+        .context("Ethereum client")?
+        .for_network(genesis_config.l1_chain_id.into())
+        .build();
     let query_client = Box::new(query_client);
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
@@ -380,6 +387,7 @@ pub async fn initialize_components(
     };
 
     let mut gas_adjuster = GasAdjusterSingleton::new(
+        genesis_config.l1_chain_id,
         eth.web3_url.clone(),
         gas_adjuster_config,
         sender.pubdata_sending_mode,
@@ -657,13 +665,24 @@ pub async fn initialize_components(
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
-    let input_generator: Box<dyn InputGenerator> = if genesis_config
-        .l1_batch_commit_data_generator_mode
+    let (input_generator, commitment_post_processor, blob_processor): (
+        Box<dyn InputGenerator>,
+        Box<dyn CommitmentPostProcessor>,
+        Arc<dyn BlobProcessor>,
+    ) = if genesis_config.l1_batch_commit_data_generator_mode
         == L1BatchCommitDataGeneratorMode::Validium
     {
-        Box::new(ValidiumInputGenerator)
+        (
+            Box::new(ValidiumInputGenerator),
+            Box::new(ValidiumCommitmentPostProcessor),
+            Arc::new(ValidiumBlobProcessor),
+        )
     } else {
-        Box::new(RollupInputGenerator)
+        (
+            Box::new(RollupInputGenerator),
+            Box::new(RollupCommitmentPostProcessor),
+            Arc::new(RollupBlobProcessor),
+        )
     };
 
     if components.contains(&Component::EthTxAggregator) {
@@ -823,6 +842,7 @@ pub async fn initialize_components(
                 .context("proof_data_handler_config")?,
             store_factory.create_store().await,
             connection_pool.clone(),
+            blob_processor,
             stop_receiver.clone(),
         )));
     }
@@ -833,8 +853,11 @@ pub async fn initialize_components(
                 .build()
                 .await
                 .context("failed to build commitment_generator_pool")?;
-        let commitment_generator =
-            CommitmentGenerator::new(commitment_generator_pool, input_generator);
+        let commitment_generator = CommitmentGenerator::new(
+            commitment_generator_pool,
+            input_generator,
+            commitment_post_processor,
+        );
         app_health.insert_component(commitment_generator.health_check())?;
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
@@ -1071,6 +1094,7 @@ async fn run_tree(
             tree_reader
                 .wait()
                 .await
+                .context("Cannot initialize tree reader")?
                 .run_api_server(address, stop_receiver)
                 .await
         }));

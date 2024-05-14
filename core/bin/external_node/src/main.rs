@@ -9,6 +9,9 @@ use tokio::{
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
 use zksync_commitment_generator::{
+    commitment_post_processor::{
+        CommitmentPostProcessor, RollupCommitmentPostProcessor, ValidiumCommitmentPostProcessor,
+    },
     input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
     CommitmentGenerator,
 };
@@ -42,7 +45,7 @@ use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
-use zksync_eth_client::{clients::QueryClient, EthInterface};
+use zksync_eth_client::EthInterface;
 use zksync_eth_sender::l1_batch_commit_data_generator::{
     L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
     ValidiumModeL1BatchCommitDataGenerator,
@@ -55,7 +58,7 @@ use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_web3_decl::{
-    client::{BoxedL2Client, L2Client},
+    client::{Client, DynClient, L2},
     jsonrpsee,
     namespaces::EnNamespaceClient,
 };
@@ -86,7 +89,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
@@ -196,6 +199,7 @@ async fn run_tree(
             tree_reader
                 .wait()
                 .await
+                .context("Cannot initialize tree reader")?
                 .run_api_server(address, stop_receiver)
                 .await
         }));
@@ -211,7 +215,7 @@ async fn run_tree(
 async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -346,17 +350,20 @@ async fn run_core(
     )
     .await?;
 
-    let (l1_batch_commit_data_generator, input_generator): (
+    let (l1_batch_commit_data_generator, input_generator, commitment_post_processor): (
         Arc<dyn L1BatchCommitDataGenerator>,
         Box<dyn InputGenerator>,
+        Box<dyn CommitmentPostProcessor>,
     ) = match config.optional.l1_batch_commit_data_generator_mode {
         L1BatchCommitDataGeneratorMode::Rollup => (
             Arc::new(RollupModeL1BatchCommitDataGenerator {}),
             Box::new(RollupInputGenerator),
+            Box::new(RollupCommitmentPostProcessor),
         ),
         L1BatchCommitDataGeneratorMode::Validium => (
             Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
             Box::new(ValidiumInputGenerator),
+            Box::new(ValidiumCommitmentPostProcessor),
         ),
     };
 
@@ -388,7 +395,11 @@ async fn run_core(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool, input_generator);
+    let commitment_generator = CommitmentGenerator::new(
+        commitment_generator_pool,
+        input_generator,
+        commitment_post_processor,
+    );
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
@@ -414,7 +425,7 @@ async fn run_api(
     stop_receiver: watch::Receiver<bool>,
     sync_state: SyncState,
     tree_reader: Option<Arc<dyn TreeApiClient>>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     singleton_pool_builder: &ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &HashSet<Component>,
@@ -588,7 +599,7 @@ async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -795,20 +806,25 @@ async fn main() -> anyhow::Result<()> {
     // Build L1 and L2 clients.
     let main_node_url = &required_config.main_node_url;
     tracing::info!("Main node URL is: {main_node_url:?}");
-    let main_node_client = L2Client::http(main_node_url.clone())
+    let main_node_client = Client::http(main_node_url.clone())
         .context("Failed creating JSON-RPC client for main node")?
+        .for_network(required_config.l2_chain_id.into())
         .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
         .build();
-    let main_node_client = BoxedL2Client::new(main_node_client);
+    let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 
     let eth_client_url = &required_config.eth_client_url;
-    let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
+    let eth_client = Client::http(eth_client_url.clone())
+        .context("failed creating JSON-RPC client for Ethereum")?
+        .for_network(required_config.l1_chain_id.into())
+        .build();
+    let eth_client = Box::new(eth_client);
 
     let mut config = ExternalNodeConfig::new(
         required_config,
         optional_config,
         observability_config,
-        &main_node_client,
+        main_node_client.as_ref(),
     )
     .await
     .context("Failed to load external node config")?;
@@ -871,7 +887,7 @@ async fn run_node(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");

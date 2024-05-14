@@ -25,7 +25,7 @@ use zksync_core::{
     Component, Components,
 };
 use zksync_env_config::FromEnv;
-use zksync_eth_client::clients::QueryClient;
+use zksync_eth_client::clients::Client;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -182,8 +182,10 @@ async fn main() -> anyhow::Result<()> {
 
         if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
             let eth_config = configs.eth.as_ref().context("eth config")?;
-            let query_client =
-                QueryClient::new(eth_config.web3_url.clone()).context("Ethereum client")?;
+            let query_client = Client::http(eth_config.web3_url.clone())
+                .context("Ethereum client")?
+                .for_network(genesis.l1_chain_id.into())
+                .build();
             zksync_node_genesis::save_set_chain_id_tx(
                 &query_client,
                 contracts_config.diamond_proxy_addr,

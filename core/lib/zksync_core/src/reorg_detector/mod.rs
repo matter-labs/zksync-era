@@ -8,7 +8,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
@@ -91,7 +91,7 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 }
 
 #[async_trait]
-impl MainNodeClient for BoxedL2Client {
+impl MainNodeClient for Box<DynClient<L2>> {
     async fn sealed_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber> {
         let number = self
             .get_block_number()
@@ -221,7 +221,7 @@ pub struct ReorgDetector {
 impl ReorgDetector {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: BoxedL2Client, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
         let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
             client: Box::new(client.for_component("reorg_detector")),

@@ -29,7 +29,7 @@ thiserror.workspace = true
 chrono.workspace = true
 serde_json.workspace = true
 ethabi.workspace = true
-metrics.workspace = true
+vise.workspace = true
 hex.workspace = true
 serde = { workspace = true, features = ["derive"] }
 structopt.workspace = true
