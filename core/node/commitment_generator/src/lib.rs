@@ -17,11 +17,13 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
+    commitment_post_processor::CommitmentPostProcessor,
     input_generation::InputGenerator,
     metrics::{CommitmentStage, METRICS},
     utils::{bootloader_initial_content_commitment, events_queue_commitment},
 };
 
+pub mod commitment_post_processor;
 pub mod input_generation;
 mod metrics;
 mod utils;
@@ -33,17 +35,20 @@ pub struct CommitmentGenerator {
     connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     input_generator: Box<dyn InputGenerator>,
+    commitment_post_processor: Box<dyn CommitmentPostProcessor>,
 }
 
 impl CommitmentGenerator {
     pub fn new(
         connection_pool: ConnectionPool<Core>,
         input_generator: Box<dyn InputGenerator>,
+        commitment_post_processor: Box<dyn CommitmentPostProcessor>,
     ) -> Self {
         Self {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
             input_generator,
+            commitment_post_processor,
         }
     }
 
@@ -271,6 +276,9 @@ impl CommitmentGenerator {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::Calculate].start();
         let commitment = L1BatchCommitment::new(input);
+        let commitment = self
+            .commitment_post_processor
+            .post_process_commitment(commitment);
         let artifacts = commitment.artifacts();
         let latency = latency.observe();
         tracing::debug!(

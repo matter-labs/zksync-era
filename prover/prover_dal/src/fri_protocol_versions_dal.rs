@@ -162,4 +162,10 @@ impl FriProtocolVersionsDal<'_, '_> {
             ),
         })
     }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!("DELETE FROM prover_fri_protocol_versions")
+            .execute(self.storage.conn())
+            .await
+    }
 }

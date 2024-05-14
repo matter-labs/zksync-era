@@ -263,7 +263,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     match case {
         // Wait until the tree is fully initialized and stop the calculator.
         RecoveryWorkflowCase::Stop => {
-            let tree_info = tree_reader.wait().await.info().await;
+            let tree_info = tree_reader.wait().await.unwrap().info().await;
             assert_eq!(tree_info.root_hash, snapshot_recovery.l1_batch_root_hash);
             assert_eq!(tree_info.leaf_count, 200);
             assert_eq!(
@@ -274,7 +274,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
 
         // Emulate state keeper adding a new L1 batch to Postgres.
         RecoveryWorkflowCase::CreateBatch => {
-            tree_reader.wait().await;
+            tree_reader.wait().await.unwrap();
 
             let mut storage = storage.start_transaction().await.unwrap();
             let mut new_logs = gen_storage_logs(500..600, 1).pop().unwrap();
