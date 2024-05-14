@@ -172,7 +172,7 @@ pub struct L1BatchCommitmentModeValidationTask {
 impl L1BatchCommitmentModeValidationTask {
     const DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
-    /// Creates
+    /// Creates a new task with the specified params and Ethereum client.
     pub fn new(
         diamond_proxy_address: Address,
         expected_mode: L1BatchCommitmentMode,
