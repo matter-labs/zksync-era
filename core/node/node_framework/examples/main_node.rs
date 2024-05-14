@@ -142,7 +142,7 @@ impl MainNodeBuilder {
             &operations_manager_env_config,
         );
         self.node
-            .add_layer(MetadataCalculatorLayer(metadata_calculator_config));
+            .add_layer(MetadataCalculatorLayer::new(metadata_calculator_config));
         Ok(self)
     }
 
@@ -174,8 +174,10 @@ impl MainNodeBuilder {
     }
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        let genesis_config = GenesisConfig::from_env()?;
         self.node.add_layer(ProofDataHandlerLayer::new(
             ProofDataHandlerConfig::from_env()?,
+            genesis_config.l1_batch_commit_data_generator_mode,
         ));
         Ok(self)
     }
