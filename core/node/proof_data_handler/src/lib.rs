@@ -8,19 +8,21 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 
-use crate::request_processor::RequestProcessor;
+use crate::{blob_processor::BlobProcessor, request_processor::RequestProcessor};
 
+pub mod blob_processor;
 mod request_processor;
 
 pub async fn run_server(
     config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
+    blob_processor: Arc<dyn BlobProcessor>,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting proof data handler server on {bind_address}");
-    let get_proof_gen_processor = RequestProcessor::new(blob_store, pool, config);
+    let get_proof_gen_processor = RequestProcessor::new(blob_store, pool, config, blob_processor);
     let submit_proof_processor = get_proof_gen_processor.clone();
     let app = Router::new()
         .route(
