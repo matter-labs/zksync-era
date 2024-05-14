@@ -524,7 +524,9 @@ impl JobProcessor for ContractVerifier {
             let verification_result = Self::verify(&mut connection, job, config).await;
             Self::process_result(&mut connection, job_id, verification_result).await;
 
-            API_CONTRACT_VERIFIER_METRICS.request_processing_time(started_at.elapsed());
+            API_CONTRACT_VERIFIER_METRICS
+                .request_processing_time
+                .observe(started_at.elapsed());
             Ok(())
         })
     }
