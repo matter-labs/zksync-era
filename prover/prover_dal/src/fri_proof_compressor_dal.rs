@@ -354,6 +354,28 @@ impl FriProofCompressorDal<'_, '_> {
         })
     }
 
+    pub async fn delete_batch_data(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!(
+            r#"
+            DELETE FROM proof_compression_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!("DELETE FROM proof_compression_jobs_fri")
+            .execute(self.storage.conn())
+            .await
+    }
+
     pub async fn requeue_stuck_jobs_for_batch(
         &mut self,
         block_number: L1BatchNumber,

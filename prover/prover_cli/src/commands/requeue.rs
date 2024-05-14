@@ -1,9 +1,9 @@
 use anyhow::Context;
 use clap::Args as ClapArgs;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_config::PostgresConfig;
-use zksync_env_config::FromEnv;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::StuckJobs, L1BatchNumber};
+
+use crate::cli::ProverCLIConfig;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -16,9 +16,8 @@ pub struct Args {
     max_attempts: u32,
 }
 
-pub async fn run(args: Args) -> anyhow::Result<()> {
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::<Prover>::singleton(postgres_config.prover_url()?)
+pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
+    let pool = ConnectionPool::<Prover>::singleton(config.db_url)
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;

@@ -469,7 +469,13 @@ impl EthTxManager {
 
         // Not confirmed transactions, ordered by nonce
         for tx in inflight_txs {
-            tracing::trace!("Checking tx id: {}", tx.id,);
+            tracing::trace!(
+                "Checking tx id: {}, operator_nonce: {:?}, tx nonce: {}",
+                tx.id,
+                operator_nonce,
+                tx.nonce,
+            );
+
             if tx.from_addr != operator_address {
                 continue;
             }
