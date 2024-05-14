@@ -21,6 +21,7 @@ use zksync_core::{
         tx_sender::TxSenderConfig,
         web3::{state::InternalApiConfig, Namespace},
     },
+    metadata_calculator::MetadataCalculatorRecoveryConfig,
     temp_config_store::decode_yaml_repr,
 };
 #[cfg(test)]
@@ -733,11 +734,22 @@ pub(crate) struct ExperimentalENConfig {
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
+    /// Approximate chunk size (measured in the number of entries) to recover on a single iteration.
+    /// Reasonable values are order of 100,000 (meaning an iteration takes several seconds).
+    ///
+    /// **Important.** This value cannot be changed in the middle of tree recovery (i.e., if a node is stopped in the middle
+    /// of recovery and then restarted with a different config).
+    #[serde(default = "ExperimentalENConfig::default_snapshots_recovery_tree_chunk_size")]
+    pub snapshots_recovery_tree_chunk_size: u64,
 }
 
 impl ExperimentalENConfig {
     const fn default_state_keeper_db_block_cache_capacity_mb() -> usize {
         128
+    }
+
+    fn default_snapshots_recovery_tree_chunk_size() -> u64 {
+        MetadataCalculatorRecoveryConfig::default().desired_chunk_size
     }
 
     #[cfg(test)]
@@ -746,6 +758,7 @@ impl ExperimentalENConfig {
             state_keeper_db_block_cache_capacity_mb:
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
+            snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
         }
     }
 

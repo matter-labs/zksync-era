@@ -29,7 +29,9 @@ use zksync_core::{
     },
     consensus,
     consistency_checker::ConsistencyChecker,
-    metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
+    metadata_calculator::{
+        MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
+    },
     reorg_detector::{self, ReorgDetector},
     setup_sigint_handler,
     state_keeper::{
@@ -155,6 +157,9 @@ async fn run_tree(
             .merkle_tree_include_indices_and_filters_in_block_cache,
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
+        recovery: MetadataCalculatorRecoveryConfig {
+            desired_chunk_size: config.experimental.snapshots_recovery_tree_chunk_size,
+        },
     };
 
     let max_concurrency = config
