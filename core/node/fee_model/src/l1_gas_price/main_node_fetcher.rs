@@ -6,7 +6,9 @@ use std::{
 use tokio::sync::watch::Receiver;
 use zksync_types::fee_model::FeeParams;
 use zksync_web3_decl::{
-    client::BoxedL2Client, error::ClientRpcContext, namespaces::ZksNamespaceClient,
+    client::{DynClient, L2},
+    error::ClientRpcContext,
+    namespaces::ZksNamespaceClient,
 };
 
 use crate::BatchFeeModelInputProvider;
@@ -21,12 +23,12 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 /// since it relies on the configuration, which may change.
 #[derive(Debug)]
 pub struct MainNodeFeeParamsFetcher {
-    client: BoxedL2Client,
+    client: Box<DynClient<L2>>,
     main_node_fee_params: RwLock<FeeParams>,
 }
 
 impl MainNodeFeeParamsFetcher {
-    pub fn new(client: BoxedL2Client) -> Self {
+    pub fn new(client: Box<DynClient<L2>>) -> Self {
         Self {
             client: client.for_component("fee_params_fetcher"),
             main_node_fee_params: RwLock::new(FeeParams::sensible_v1_default()),
