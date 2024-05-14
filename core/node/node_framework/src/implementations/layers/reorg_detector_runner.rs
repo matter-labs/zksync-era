@@ -15,7 +15,7 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Layer responsible for detecting reorgs and reverting blocks in case it was found.
+/// Layer responsible for detecting reorg and reverting blocks in case it was found.
 #[derive(Debug)]
 pub struct ReorgDetectorRunnerLayer;
 

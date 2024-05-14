@@ -10,7 +10,6 @@ use crate::{
     },
     precondition::Precondition,
     service::{ServiceContext, StopReceiver},
-    task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 

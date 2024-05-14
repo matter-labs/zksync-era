@@ -8744,6 +8744,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
+ "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",
