@@ -11023,7 +11023,7 @@ zksync-ethers@5.8.0-beta.5:
   dependencies:
     ethers "~5.7.0"
 
-zksync-web3@^0.15.4, zksync-web3@^0.15.5:
+zksync-web3@^0.15.4:
   version "0.15.5"
   resolved "https://registry.yarnpkg.com/zksync-web3/-/zksync-web3-0.15.5.tgz#aabe379464963ab573e15948660a709f409b5316"
   integrity sha512-97gB7OKJL4spegl8fGO54g6cvTd/75G6yFWZWEa2J09zhjTrfqabbwE/GwiUJkFQ5BbzoH4JaTlVz1hoYZI+DQ==
