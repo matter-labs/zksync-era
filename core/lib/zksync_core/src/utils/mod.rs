@@ -192,7 +192,9 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
         // Getters contract does not support getPubdataPricingMode method.
         // This case is accepted for backwards compatibility with older contracts, but emits a
         // warning in case the wrong contract address was passed by the caller.
-        Err(err @ EthClientError::EthereumGateway(ClientError::Call(_))) => {
+        Err(EthClientError::EthereumGateway(err))
+            if matches!(err.as_ref(), ClientError::Call(_)) =>
+        {
             tracing::warn!("Getters contract does not support getPubdataPricingMode method: {err}");
             Ok(())
         }
@@ -208,6 +210,7 @@ mod tests {
     use zksync_eth_client::{clients::MockEthereum, ClientError};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{ethabi, U256};
+    use zksync_web3_decl::error::EnrichedClientError;
 
     use super::*;
 
@@ -269,14 +272,14 @@ mod tests {
     }
 
     fn mock_ethereum_with_legacy_contract() -> MockEthereum {
-        let call_err = ErrorObject::owned(3, "execution reverted: F", None::<()>);
-        let err = EthClientError::EthereumGateway(ClientError::Call(call_err));
+        let err = ClientError::Call(ErrorObject::owned(3, "execution reverted: F", None::<()>));
+        let err = EthClientError::EthereumGateway(EnrichedClientError::new(err, "call"));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 
     fn mock_ethereum_with_transport_error() -> MockEthereum {
-        let err =
-            EthClientError::EthereumGateway(ClientError::Transport(anyhow::anyhow!("unreachable")));
+        let err = ClientError::Transport(anyhow::anyhow!("unreachable"));
+        let err = EthClientError::EthereumGateway(EnrichedClientError::new(err, "call"));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 

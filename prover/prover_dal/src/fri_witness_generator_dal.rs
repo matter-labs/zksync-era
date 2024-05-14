@@ -1548,4 +1548,79 @@ impl FriWitnessGeneratorDal<'_, '_> {
         })
         .collect()
     }
+
+    pub async fn delete_witness_generator_data_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        aggregation_round: AggregationRound,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query(
+            format!(
+                r#"
+            DELETE FROM
+                {table}
+            WHERE
+                l1_batch_number = {l1_batch_number}
+            "#,
+                table = Self::input_table_name_for(aggregation_round),
+                l1_batch_number = i64::from(block_number.0),
+            )
+            .as_str(),
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete_batch_data(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_witness_generator_data_for_batch(block_number, AggregationRound::BasicCircuits)
+            .await?;
+        self.delete_witness_generator_data_for_batch(
+            block_number,
+            AggregationRound::LeafAggregation,
+        )
+        .await?;
+        self.delete_witness_generator_data_for_batch(
+            block_number,
+            AggregationRound::NodeAggregation,
+        )
+        .await?;
+        self.delete_witness_generator_data(AggregationRound::RecursionTip)
+            .await?;
+        self.delete_witness_generator_data_for_batch(block_number, AggregationRound::Scheduler)
+            .await
+    }
+
+    pub async fn delete_witness_generator_data(
+        &mut self,
+        aggregation_round: AggregationRound,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query(
+            format!(
+                r#"
+            DELETE FROM
+                {}
+            "#,
+                Self::input_table_name_for(aggregation_round)
+            )
+            .as_str(),
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_witness_generator_data(AggregationRound::BasicCircuits)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::LeafAggregation)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::NodeAggregation)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::RecursionTip)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::Scheduler)
+            .await
+    }
 }

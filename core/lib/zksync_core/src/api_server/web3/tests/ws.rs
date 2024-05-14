@@ -10,10 +10,10 @@ use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
 use zksync_types::{api, Address, L1BatchNumber, H256, U64};
 use zksync_web3_decl::{
+    client::{WsClient, L2},
     jsonrpsee::{
         core::client::{Subscription, SubscriptionClientT},
         rpc_params,
-        ws_client::{WsClient, WsClientBuilder},
     },
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::{BlockHeader, PubSubFilter},
@@ -151,7 +151,7 @@ trait WsTest: Send + Sync {
 
     async fn test(
         &self,
-        client: &WsClient,
+        client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
         pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()>;
@@ -185,10 +185,10 @@ async fn test_ws_server(test: impl WsTest) {
     .await;
 
     let local_addr = server_handles.wait_until_ready().await;
-    let client = WsClientBuilder::default()
-        .build(format!("ws://{local_addr}"))
+    let client = Client::ws(format!("ws://{local_addr}").parse().unwrap())
         .await
-        .unwrap();
+        .unwrap()
+        .build();
     test.test(&client, &pool, pub_sub_events).await.unwrap();
 
     stop_sender.send_replace(true);
@@ -202,7 +202,7 @@ struct WsServerCanStartTest;
 impl WsTest for WsServerCanStartTest {
     async fn test(
         &self,
-        client: &WsClient,
+        client: &WsClient<L2>,
         _pool: &ConnectionPool<Core>,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
@@ -243,7 +243,7 @@ impl WsTest for BasicSubscriptionsTest {
 
     async fn test(
         &self,
-        client: &WsClient,
+        client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
@@ -331,7 +331,7 @@ struct LogSubscriptions {
 
 impl LogSubscriptions {
     async fn new(
-        client: &WsClient,
+        client: &WsClient<L2>,
         pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<Self> {
         // Wait for the notifier to get initialized so that it doesn't skip notifications
@@ -382,7 +382,7 @@ impl WsTest for LogSubscriptionsTest {
 
     async fn test(
         &self,
-        client: &WsClient,
+        client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
@@ -471,7 +471,7 @@ struct LogSubscriptionsWithNewBlockTest;
 impl WsTest for LogSubscriptionsWithNewBlockTest {
     async fn test(
         &self,
-        client: &WsClient,
+        client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
@@ -519,7 +519,7 @@ struct LogSubscriptionsWithManyBlocksTest;
 impl WsTest for LogSubscriptionsWithManyBlocksTest {
     async fn test(
         &self,
-        client: &WsClient,
+        client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
@@ -565,7 +565,7 @@ struct LogSubscriptionsWithDelayTest;
 impl WsTest for LogSubscriptionsWithDelayTest {
     async fn test(
         &self,
-        client: &WsClient,
+        client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
@@ -635,7 +635,7 @@ struct RateLimitingTest;
 impl WsTest for RateLimitingTest {
     async fn test(
         &self,
-        client: &WsClient,
+        client: &WsClient<L2>,
         _pool: &ConnectionPool<Core>,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
@@ -672,7 +672,7 @@ struct BatchGetsRateLimitedTest;
 impl WsTest for BatchGetsRateLimitedTest {
     async fn test(
         &self,
-        client: &WsClient,
+        client: &WsClient<L2>,
         _pool: &ConnectionPool<Core>,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
