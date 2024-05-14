@@ -51,6 +51,7 @@ pub struct StuckJobs {
     pub id: u64,
     pub status: String,
     pub attempts: u64,
+    pub circuit_id: Option<u32>,
 }
 
 // TODO (PLA-774): Redundant structure, should be replaced with `std::net::SocketAddr`.
