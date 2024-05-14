@@ -10,7 +10,9 @@ use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::Address;
 
 use crate::state_keeper::{
-    io::StateKeeperOutputHandler,
+    io::{
+        seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, IoCursor, StateKeeperOutputHandler,
+    },
     metrics::{L2BlockQueueStage, L2_BLOCK_METRICS},
     updates::{L2BlockSealCommand, UpdatesManager},
 };
@@ -148,6 +150,11 @@ impl StateKeeperPersistence {
 
 #[async_trait]
 impl StateKeeperOutputHandler for StateKeeperPersistence {
+    async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
+        let mut connection = self.pool.connection_tagged("state_keeper").await?;
+        L2BlockSealProcess::clear_pending_l2_block(&mut connection, cursor.next_l2_block - 1).await
+    }
+
     async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         let command =
             updates_manager.seal_l2_block_command(self.l2_shared_bridge_addr, self.pre_insert_txs);
@@ -245,20 +252,19 @@ mod tests {
     use futures::FutureExt;
     use multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_dal::CoreDal;
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
-        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics, L1BatchNumber,
-        L2BlockNumber,
+        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId,
+        L1BatchNumber, L2BlockNumber, StorageKey, StorageLogQueryType,
     };
+    use zksync_utils::u256_to_h256;
 
     use super::*;
-    use crate::{
-        genesis::{insert_genesis_batch, GenesisParams},
-        state_keeper::{
-            io::L2BlockParams,
-            tests::{
-                create_execution_result, create_transaction, create_updates_manager,
-                default_l1_batch_env, default_system_env, default_vm_batch_result, Query,
-            },
+    use crate::state_keeper::{
+        io::L2BlockParams,
+        tests::{
+            create_execution_result, create_transaction, create_updates_manager,
+            default_l1_batch_env, default_system_env, default_vm_batch_result, Query,
         },
     };
 
@@ -346,13 +352,24 @@ mod tests {
         });
 
         let mut batch_result = default_vm_batch_result();
-        batch_result.final_execution_state.storage_log_queries = storage_logs.clone();
         batch_result
             .final_execution_state
-            .deduplicated_storage_log_queries = storage_logs
-            .into_iter()
-            .map(|query| query.log_query)
-            .collect();
+            .deduplicated_storage_log_queries =
+            storage_logs.iter().map(|query| query.log_query).collect();
+        batch_result.initially_written_slots = Some(
+            storage_logs
+                .into_iter()
+                .filter(|&log| log.log_type == StorageLogQueryType::InitialWrite)
+                .map(|log| {
+                    let key = StorageKey::new(
+                        AccountTreeId::new(log.log_query.address),
+                        u256_to_h256(log.log_query.key),
+                    );
+                    key.hashed_key()
+                })
+                .collect(),
+        );
+
         updates.finish_batch(batch_result);
         persistence.handle_l1_batch(&updates).await.unwrap();
 

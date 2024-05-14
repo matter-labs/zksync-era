@@ -171,7 +171,7 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Removes all storage logs with a L2 block number strictly greater than the specified `block_number`.
-    pub async fn rollback_storage_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
+    pub async fn roll_back_storage_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM storage_logs
@@ -180,7 +180,7 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .instrument("rollback_storage_logs")
+        .instrument("roll_back_storage_logs")
         .with_arg("block_number", &block_number)
         .execute(self.storage)
         .await?;
@@ -199,17 +199,25 @@ impl StorageLogsDal<'_, '_> {
                         *
                     FROM
                         storage_logs
-                        LEFT JOIN miniblocks ON miniblocks.number = storage_logs.miniblock_number
-                        LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = storage_logs.miniblock_number
                     WHERE
-                        storage_logs.hashed_key = $1
-                        AND (
-                            miniblocks.number IS NOT NULL
-                            OR snapshot_recovery.miniblock_number IS NOT NULL
+                        hashed_key = $1
+                        AND miniblock_number <= COALESCE(
+                            (
+                                SELECT
+                                    MAX(number)
+                                FROM
+                                    miniblocks
+                            ),
+                            (
+                                SELECT
+                                    miniblock_number
+                                FROM
+                                    snapshot_recovery
+                            )
                         )
                     ORDER BY
-                        storage_logs.miniblock_number DESC,
-                        storage_logs.operation_number DESC
+                        miniblock_number DESC,
+                        operation_number DESC
                     LIMIT
                         1
                 ) sl
@@ -246,23 +254,31 @@ impl StorageLogsDal<'_, '_> {
             r#"
             SELECT DISTINCT
                 ON (hashed_key) hashed_key,
-                storage_logs.miniblock_number,
-                storage_logs.value
+                miniblock_number,
+                value
             FROM
                 storage_logs
-                LEFT JOIN miniblocks ON miniblocks.number = storage_logs.miniblock_number
-                LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = storage_logs.miniblock_number
             WHERE
-                storage_logs.hashed_key = ANY ($1)
-                AND storage_logs.miniblock_number <= $2
-                AND (
-                    miniblocks.number IS NOT NULL
-                    OR snapshot_recovery.miniblock_number IS NOT NULL
+                hashed_key = ANY ($1)
+                AND miniblock_number <= $2
+                AND miniblock_number <= COALESCE(
+                    (
+                        SELECT
+                            MAX(number)
+                        FROM
+                            miniblocks
+                    ),
+                    (
+                        SELECT
+                            miniblock_number
+                        FROM
+                            snapshot_recovery
+                    )
                 )
             ORDER BY
-                storage_logs.hashed_key,
-                storage_logs.miniblock_number DESC,
-                storage_logs.operation_number DESC
+                hashed_key,
+                miniblock_number DESC,
+                operation_number DESC
             "#,
             &bytecode_hashed_keys as &[_],
             i64::from(max_l2_block_number)
@@ -782,14 +798,10 @@ mod tests {
         assert_eq!(touched_slots[&first_key], H256::repeat_byte(3));
         assert_eq!(touched_slots[&second_key], H256::repeat_byte(2));
 
-        test_rollback(&mut conn, first_key, second_key).await;
+        test_revert(&mut conn, first_key, second_key).await;
     }
 
-    async fn test_rollback(
-        conn: &mut Connection<'_, Core>,
-        key: StorageKey,
-        second_key: StorageKey,
-    ) {
+    async fn test_revert(conn: &mut Connection<'_, Core>, key: StorageKey, second_key: StorageKey) {
         let new_account = AccountTreeId::new(Address::repeat_byte(2));
         let new_key = StorageKey::new(new_account, H256::zero());
         let log = StorageLog::new_write_log(key, H256::repeat_byte(0xff));
@@ -821,7 +833,7 @@ mod tests {
         assert_eq!(prev_values[&prev_keys[2]], None);
 
         conn.storage_logs_dal()
-            .rollback_storage_logs(L2BlockNumber(1))
+            .roll_back_storage_logs(L2BlockNumber(1))
             .await
             .unwrap();
 

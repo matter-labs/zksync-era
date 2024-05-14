@@ -1,5 +1,5 @@
 //! Configuration utilities for the consensus component.
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::HashMap;
 
 use anyhow::Context as _;
 use zksync_concurrency::net;
@@ -7,6 +7,7 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets, Host,
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
+use zksync_types::L2ChainId;
 
 use crate::consensus::{fetcher::P2PConfig, MainNodeConfig};
 
@@ -14,32 +15,6 @@ fn read_secret_text<T: TextFmt>(text: Option<&String>) -> anyhow::Result<T> {
     Text::new(text.context("missing")?)
         .decode()
         .map_err(|_| anyhow::format_err!("invalid format"))
-}
-
-/// Config (shared between main node and external node).
-#[derive(Clone, Debug, PartialEq)]
-pub struct Config {
-    /// Local socket address to listen for the incoming connections.
-    pub server_addr: std::net::SocketAddr,
-    /// Public address of this node (should forward to `server_addr`)
-    /// that will be advertised to peers, so that they can connect to this
-    /// node.
-    pub public_addr: net::Host,
-
-    /// Validators participating in consensus.
-    pub validators: validator::ValidatorSet,
-
-    /// Maximal allowed size of the payload in bytes.
-    pub max_payload_size: usize,
-
-    /// Limit on the number of inbound connections outside
-    /// of the `static_inbound` set.
-    pub gossip_dynamic_inbound_limit: usize,
-    /// Inbound gossip connections that should be unconditionally accepted.
-    pub gossip_static_inbound: BTreeSet<node::PublicKey>,
-    /// Outbound gossip connections that the node should actively try to
-    /// establish and maintain.
-    pub gossip_static_outbound: BTreeMap<node::PublicKey, net::Host>,
 }
 
 fn validator_key(secrets: &ConsensusSecrets) -> anyhow::Result<validator::SecretKey> {
@@ -54,10 +29,12 @@ fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<node::SecretKey> {
 pub fn main_node(
     cfg: &ConsensusConfig,
     secrets: &ConsensusSecrets,
+    chain_id: L2ChainId,
 ) -> anyhow::Result<MainNodeConfig> {
     Ok(MainNodeConfig {
         executor: executor(cfg, secrets)?,
         validator_key: validator_key(secrets).context("validator_key")?,
+        chain_id: validator::ChainId(chain_id.as_u64()),
     })
 }
 

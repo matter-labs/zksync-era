@@ -1,13 +1,16 @@
 use std::time::Duration;
 
-use zksync_config::{ContractsConfig, EthWatchConfig, GenesisConfig};
+use zksync_config::{ContractsConfig, EthWatchConfig};
 use zksync_contracts::governance_contract;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_types::{ethabi::Contract, Address};
 
 use crate::{
-    implementations::resources::{eth_interface::EthInterfaceResource, pools::MasterPoolResource},
+    implementations::resources::{
+        eth_interface::EthInterfaceResource,
+        pools::{MasterPool, PoolResource},
+    },
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -16,19 +19,13 @@ use crate::{
 #[derive(Debug)]
 pub struct EthWatchLayer {
     eth_watch_config: EthWatchConfig,
-    genesis_config: GenesisConfig,
     contracts_config: ContractsConfig,
 }
 
 impl EthWatchLayer {
-    pub fn new(
-        eth_watch_config: EthWatchConfig,
-        contracts_config: ContractsConfig,
-        genesis_config: GenesisConfig,
-    ) -> Self {
+    pub fn new(eth_watch_config: EthWatchConfig, contracts_config: ContractsConfig) -> Self {
         Self {
             eth_watch_config,
-            genesis_config,
             contracts_config,
         }
     }
@@ -41,22 +38,22 @@ impl WiringLayer for EthWatchLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<MasterPoolResource>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let main_pool = pool_resource.get().await.unwrap();
 
         let client = context.get_resource::<EthInterfaceResource>().await?.0;
 
         let state_transition_manager_address = self
-            .genesis_config
-            .shared_bridge
+            .contracts_config
+            .ecosystem_contracts
             .as_ref()
             .map(|a| a.state_transition_proxy_addr);
 
         let eth_client = EthHttpQueryClient::new(
             client,
             self.contracts_config.diamond_proxy_addr,
-            self.genesis_config
-                .shared_bridge
+            self.contracts_config
+                .ecosystem_contracts
                 .map(|a| a.transparent_proxy_admin_addr),
             self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,

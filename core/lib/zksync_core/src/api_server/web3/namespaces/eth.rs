@@ -9,11 +9,8 @@ use zksync_types::{
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     utils::decompose_full_nonce,
-    web3::{
-        self,
-        types::{FeeHistory, SyncInfo, SyncState},
-    },
-    AccountTreeId, Bytes, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    web3::{self, Bytes, FeeHistory, SyncInfo, SyncState},
+    AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -42,7 +39,6 @@ impl EthNamespace {
         &self.state.current_method
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_block_number_impl(&self) -> Result<U64, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
         let block_number = storage
@@ -54,7 +50,6 @@ impl EthNamespace {
         Ok(block_number.0.into())
     }
 
-    #[tracing::instrument(skip(self, request, block_id))]
     pub async fn call_impl(
         &self,
         request: CallRequest,
@@ -80,7 +75,6 @@ impl EthNamespace {
         Ok(call_result.into())
     }
 
-    #[tracing::instrument(skip(self, request, _block))]
     pub async fn estimate_gas_impl(
         &self,
         request: CallRequest,
@@ -131,13 +125,11 @@ impl EthNamespace {
         Ok(fee.gas_limit)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
         let gas_price = self.state.tx_sender.gas_price().await?;
         Ok(gas_price.into())
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_balance_impl(
         &self,
         address: Address,
@@ -168,7 +160,6 @@ impl EthNamespace {
         self.current_method().set_block_diff(diff);
     }
 
-    #[tracing::instrument(skip(self, filter))]
     pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
         self.state.resolve_filter_block_hash(&mut filter).await?;
         let (from_block, to_block) = self.state.resolve_filter_block_range(&filter).await?;
@@ -209,7 +200,6 @@ impl EthNamespace {
         Ok(logs)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_block_impl(
         &self,
         block_id: BlockId,
@@ -276,7 +266,6 @@ impl EthNamespace {
         Ok(Some(block.with_transactions(transactions)))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_block_transaction_count_impl(
         &self,
         block_id: BlockId,
@@ -308,7 +297,6 @@ impl EthNamespace {
         Ok(tx_count.map(Into::into))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_block_receipts_impl(
         &self,
         block_id: BlockId,
@@ -347,7 +335,6 @@ impl EthNamespace {
         Ok(Some(receipts))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_code_impl(
         &self,
         address: Address,
@@ -368,12 +355,10 @@ impl EthNamespace {
         Ok(contract_code.unwrap_or_default().into())
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn chain_id_impl(&self) -> U64 {
         self.state.api_config.l2_chain_id.as_u64().into()
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_storage_at_impl(
         &self,
         address: Address,
@@ -396,7 +381,6 @@ impl EthNamespace {
     }
 
     /// Account nonce.
-    #[tracing::instrument(skip(self))]
     pub async fn get_transaction_count_impl(
         &self,
         address: Address,
@@ -442,7 +426,6 @@ impl EthNamespace {
         Ok(account_nonce)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_transaction_impl(
         &self,
         id: TransactionId,
@@ -482,7 +465,6 @@ impl EthNamespace {
         Ok(transaction)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_transaction_receipt_impl(
         &self,
         hash: H256,
@@ -496,7 +478,6 @@ impl EthNamespace {
         Ok(receipts.into_iter().next())
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn new_block_filter_impl(&self) -> Result<U256, Web3Error> {
         let installed_filters = self
             .state
@@ -519,7 +500,6 @@ impl EthNamespace {
             .add(TypedFilter::Blocks(next_block_number)))
     }
 
-    #[tracing::instrument(skip(self, filter))]
     pub async fn new_filter_impl(&self, mut filter: Filter) -> Result<U256, Web3Error> {
         let installed_filters = self
             .state
@@ -540,7 +520,6 @@ impl EthNamespace {
             .add(TypedFilter::Events(filter, from_block)))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn new_pending_transaction_filter_impl(&self) -> Result<U256, Web3Error> {
         let installed_filters = self
             .state
@@ -555,7 +534,6 @@ impl EthNamespace {
             )))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_filter_changes_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
         let installed_filters = self
             .state
@@ -582,7 +560,6 @@ impl EthNamespace {
         }
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn uninstall_filter_impl(&self, idx: U256) -> Result<bool, Web3Error> {
         let installed_filters = self
             .state
@@ -592,13 +569,11 @@ impl EthNamespace {
         Ok(installed_filters.lock().await.remove(idx))
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn protocol_version(&self) -> String {
         // TODO (SMA-838): Versioning of our protocol
         PROTOCOL_VERSION.to_string()
     }
 
-    #[tracing::instrument(skip(self, tx_bytes))]
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
         let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
         tx.set_input(tx_bytes.0, hash);
@@ -611,12 +586,10 @@ impl EthNamespace {
         })
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn accounts_impl(&self) -> Vec<Address> {
         Vec::new()
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn syncing_impl(&self) -> SyncState {
         if let Some(state) = &self.state.sync_state {
             // Node supports syncing process (i.e. not the main node).
@@ -635,7 +608,6 @@ impl EthNamespace {
         }
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn fee_history_impl(
         &self,
         block_count: U64,
@@ -678,14 +650,13 @@ impl EthNamespace {
         // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         Ok(FeeHistory {
-            oldest_block: web3::types::BlockNumber::Number(oldest_block.into()),
+            oldest_block: web3::BlockNumber::Number(oldest_block.into()),
             base_fee_per_gas,
             gas_used_ratio,
             reward,
         })
     }
 
-    #[tracing::instrument(skip(self, typed_filter))]
     async fn filter_changes(
         &self,
         typed_filter: &mut TypedFilter,

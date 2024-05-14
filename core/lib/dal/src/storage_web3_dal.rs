@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
-use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
+use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
+};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
@@ -67,7 +71,8 @@ impl StorageWeb3Dal<'_, '_> {
         Ok(h256_to_u256(balance))
     }
 
-    /// Gets the current value for the specified `key`.
+    /// Gets the current value for the specified `key`. Uses state of the latest sealed L2 block.
+    /// Returns error if there is no sealed L2 blocks.
     pub async fn get_value(&mut self, key: &StorageKey) -> DalResult<H256> {
         let Some(l2_block_number) = self
             .storage
@@ -75,14 +80,18 @@ impl StorageWeb3Dal<'_, '_> {
             .get_sealed_l2_block_number()
             .await?
         else {
-            return Ok(H256::zero());
+            let err = Instrumented::new("get_value")
+                .with_arg("key", &key)
+                .constraint_error(anyhow::anyhow!("no sealed l2 blocks"));
+            return Err(err);
         };
         self.get_historical_value_unchecked(key, l2_block_number)
             .await
     }
 
     /// Gets the current values for the specified `hashed_keys`. The returned map has requested hashed keys as keys
-    /// and current storage values as values.
+    /// and current storage values as values. Uses state of the latest sealed L2 block.
+    /// Returns error if there is no sealed L2 blocks.
     pub async fn get_values(&mut self, hashed_keys: &[H256]) -> DalResult<HashMap<H256, H256>> {
         let Some(l2_block_number) = self
             .storage
@@ -90,11 +99,10 @@ impl StorageWeb3Dal<'_, '_> {
             .get_sealed_l2_block_number()
             .await?
         else {
-            let result = hashed_keys
-                .iter()
-                .map(|hashed_key| (*hashed_key, H256::zero()))
-                .collect();
-            return Ok(result);
+            let err = Instrumented::new("get_values")
+                .with_arg("hashed_keys", &hashed_keys)
+                .constraint_error(anyhow::anyhow!("no sealed l2 blocks"));
+            return Err(err);
         };
         let storage_map = self
             .storage

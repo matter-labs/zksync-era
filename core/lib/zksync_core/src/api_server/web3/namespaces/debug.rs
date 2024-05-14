@@ -30,22 +30,23 @@ pub(crate) struct DebugNamespace {
 }
 
 impl DebugNamespace {
-    pub async fn new(state: RpcState) -> Self {
+    pub async fn new(state: RpcState) -> anyhow::Result<Self> {
         let api_contracts = ApiContracts::load_from_disk();
-        Self {
+        let fee_input_provider = &state.tx_sender.0.batch_fee_input_provider;
+        let batch_fee_input = fee_input_provider
+            .get_batch_fee_input_scaled(
+                state.api_config.estimate_gas_scale_factor,
+                state.api_config.estimate_gas_scale_factor,
+            )
+            .await
+            .context("cannot get batch fee input")?;
+
+        Ok(Self {
             // For now, the same scaling is used for both the L1 gas price and the pubdata price
-            batch_fee_input: state
-                .tx_sender
-                .0
-                .batch_fee_input_provider
-                .get_batch_fee_input_scaled(
-                    state.api_config.estimate_gas_scale_factor,
-                    state.api_config.estimate_gas_scale_factor,
-                )
-                .await,
+            batch_fee_input,
             state,
             api_contracts,
-        }
+        })
     }
 
     fn sender_config(&self) -> &TxSenderConfig {
@@ -56,7 +57,6 @@ impl DebugNamespace {
         &self.state.current_method
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn debug_trace_block_impl(
         &self,
         block_id: BlockId,
@@ -90,7 +90,6 @@ impl DebugNamespace {
         Ok(call_trace)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn debug_trace_block_flat_impl(
         &self,
         block_id: BlockId,
@@ -101,7 +100,6 @@ impl DebugNamespace {
         Ok(call_trace_flat)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn debug_trace_transaction_impl(
         &self,
         tx_hash: H256,
@@ -125,7 +123,6 @@ impl DebugNamespace {
         }))
     }
 
-    #[tracing::instrument(skip(self, request, block_id))]
     pub async fn debug_trace_call_impl(
         &self,
         request: CallRequest,

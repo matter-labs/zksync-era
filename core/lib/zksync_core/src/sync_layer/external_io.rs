@@ -17,7 +17,8 @@ use super::{
 };
 use crate::state_keeper::{
     io::{
-        common::{clear_pending_l2_block, load_pending_batch, IoCursor},
+        common::{load_pending_batch, IoCursor},
+        seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
         L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
@@ -141,7 +142,7 @@ impl StateKeeperIO for ExternalIO {
             cursor.next_l2_block,
         );
 
-        clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
+        L2BlockSealProcess::clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
         let pending_l2_block_header = self
             .l1_batch_params_provider
             .load_first_l2_block_in_batch(&mut storage, cursor.l1_batch)

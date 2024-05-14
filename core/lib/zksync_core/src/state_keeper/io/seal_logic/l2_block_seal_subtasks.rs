@@ -1,14 +1,11 @@
-use std::sync::Arc;
-
 use anyhow::Context;
 use async_trait::async_trait;
-use futures::FutureExt;
-use tokio::task::JoinHandle;
 use zksync_dal::{Core, CoreDal};
-use zksync_db_connection::{connection::Connection, connection_pool::ConnectionPool};
+use zksync_db_connection::connection::Connection;
 use zksync_types::{event::extract_added_tokens, L2BlockNumber};
 
 use crate::state_keeper::{
+    io::seal_logic::SealStrategy,
     metrics::{L2BlockSealStage, L2_BLOCK_METRICS},
     updates::L2BlockSealCommand,
 };
@@ -34,19 +31,48 @@ impl L2BlockSealProcess {
     }
 
     pub async fn run_subtasks(
-        command: Arc<L2BlockSealCommand>,
-        pool: ConnectionPool<Core>,
+        command: &L2BlockSealCommand,
+        strategy: &mut SealStrategy<'_>,
     ) -> anyhow::Result<()> {
         let subtasks = Self::all_subtasks();
-        let handles: Vec<_> = subtasks
-            .into_iter()
-            .map(|subtask| {
-                subtask
-                    .spawn(command.clone(), pool.clone())
-                    .map(|res| res.unwrap_or_else(|err| Err(err.into())))
-            })
-            .collect();
-        futures::future::try_join_all(handles).await?;
+        match strategy {
+            SealStrategy::Sequential(connection) => {
+                for subtask in subtasks {
+                    let subtask_name = subtask.name();
+                    subtask
+                        .run(command, connection)
+                        .await
+                        .context(subtask_name)?;
+                }
+            }
+            SealStrategy::Parallel(pool) => {
+                let pool = &*pool;
+                let handles = subtasks.into_iter().map(|subtask| {
+                    let subtask_name = subtask.name();
+                    async move {
+                        let mut connection = pool.connection_tagged("state_keeper").await?;
+                        subtask
+                            .run(command, &mut connection)
+                            .await
+                            .context(subtask_name)
+                    }
+                });
+                futures::future::try_join_all(handles).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Clears pending l2 block data from the database.
+    pub async fn clear_pending_l2_block(
+        connection: &mut Connection<'_, Core>,
+        last_sealed_l2_block: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        let seal_subtasks = L2BlockSealProcess::all_subtasks();
+        for subtask in seal_subtasks {
+            subtask.rollback(connection, last_sealed_l2_block).await?;
+        }
 
         Ok(())
     }
@@ -58,12 +84,12 @@ pub(crate) trait L2BlockSealSubtask: Send + Sync + 'static {
     /// Returns sub-task name.
     fn name(&self) -> &'static str;
 
-    /// Spawns tokio task that runs the seal process.
-    fn spawn(
+    /// Runs seal process.
+    async fn run(
         self: Box<Self>,
-        command: Arc<L2BlockSealCommand>,
-        pool: ConnectionPool<Core>,
-    ) -> JoinHandle<anyhow::Result<()>>;
+        command: &L2BlockSealCommand,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()>;
 
     /// Rollbacks data that was saved to database for the pending L2 block.
     async fn rollback(
@@ -82,36 +108,29 @@ impl L2BlockSealSubtask for MarkTransactionsInL2BlockSubtask {
         "mark_transactions_in_l2_block"
     }
 
-    fn spawn(
+    async fn run(
         self: Box<Self>,
-        command: Arc<L2BlockSealCommand>,
-        pool: ConnectionPool<Core>,
-    ) -> JoinHandle<anyhow::Result<()>> {
-        tokio::spawn(async move {
-            let progress = L2_BLOCK_METRICS.start(
-                L2BlockSealStage::MarkTransactionsInL2Block,
-                command.is_l2_block_fictive(),
-            );
+        command: &L2BlockSealCommand,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
+        let progress = L2_BLOCK_METRICS.start(
+            L2BlockSealStage::MarkTransactionsInL2Block,
+            command.is_l2_block_fictive(),
+        );
 
-            let mut connection = pool
-                .connection_tagged("state_keeper")
-                .await
-                .context(self.name())?;
-            connection
-                .transactions_dal()
-                .mark_txs_as_executed_in_l2_block(
-                    command.l2_block.number,
-                    &command.l2_block.executed_transactions,
-                    command.base_fee_per_gas.into(),
-                    command.l2_block.protocol_version,
-                    command.pre_insert_txs,
-                )
-                .await
-                .context(self.name())?;
+        connection
+            .transactions_dal()
+            .mark_txs_as_executed_in_l2_block(
+                command.l2_block.number,
+                &command.l2_block.executed_transactions,
+                command.base_fee_per_gas.into(),
+                command.l2_block.protocol_version,
+                command.pre_insert_txs,
+            )
+            .await?;
 
-            progress.observe(command.l2_block.executed_transactions.len());
-            Ok(())
-        })
+        progress.observe(command.l2_block.executed_transactions.len());
+        Ok(())
     }
 
     async fn rollback(
@@ -136,31 +155,24 @@ impl L2BlockSealSubtask for InsertStorageLogsSubtask {
         "insert_storage_logs"
     }
 
-    fn spawn(
+    async fn run(
         self: Box<Self>,
-        command: Arc<L2BlockSealCommand>,
-        pool: ConnectionPool<Core>,
-    ) -> JoinHandle<anyhow::Result<()>> {
-        tokio::spawn(async move {
-            let is_fictive = command.is_l2_block_fictive();
-            let write_logs = command.extract_deduplicated_write_logs(is_fictive);
+        command: &L2BlockSealCommand,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
+        let is_fictive = command.is_l2_block_fictive();
+        let write_logs = command.extract_deduplicated_write_logs(is_fictive);
 
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertStorageLogs, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertStorageLogs, is_fictive);
 
-            let mut connection = pool
-                .connection_tagged("state_keeper")
-                .await
-                .context(self.name())?;
-            let write_log_count: usize = write_logs.iter().map(|(_, logs)| logs.len()).sum();
-            connection
-                .storage_logs_dal()
-                .insert_storage_logs(command.l2_block.number, &write_logs)
-                .await
-                .context(self.name())?;
+        let write_log_count: usize = write_logs.iter().map(|(_, logs)| logs.len()).sum();
+        connection
+            .storage_logs_dal()
+            .insert_storage_logs(command.l2_block.number, &write_logs)
+            .await?;
 
-            progress.observe(write_log_count);
-            Ok(())
-        })
+        progress.observe(write_log_count);
+        Ok(())
     }
 
     async fn rollback(
@@ -170,7 +182,7 @@ impl L2BlockSealSubtask for InsertStorageLogsSubtask {
     ) -> anyhow::Result<()> {
         storage
             .storage_logs_dal()
-            .rollback_storage_logs(last_sealed_l2_block)
+            .roll_back_storage_logs(last_sealed_l2_block)
             .await?;
         Ok(())
     }
@@ -185,35 +197,25 @@ impl L2BlockSealSubtask for InsertFactoryDepsSubtask {
         "insert_factory_deps"
     }
 
-    fn spawn(
+    async fn run(
         self: Box<Self>,
-        command: Arc<L2BlockSealCommand>,
-        pool: ConnectionPool<Core>,
-    ) -> JoinHandle<anyhow::Result<()>> {
-        tokio::spawn(async move {
-            let progress = L2_BLOCK_METRICS.start(
-                L2BlockSealStage::InsertFactoryDeps,
-                command.is_l2_block_fictive(),
-            );
+        command: &L2BlockSealCommand,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
+        let progress = L2_BLOCK_METRICS.start(
+            L2BlockSealStage::InsertFactoryDeps,
+            command.is_l2_block_fictive(),
+        );
 
-            if !command.l2_block.new_factory_deps.is_empty() {
-                let mut connection = pool
-                    .connection_tagged("state_keeper")
-                    .await
-                    .context(self.name())?;
-                connection
-                    .factory_deps_dal()
-                    .insert_factory_deps(
-                        command.l2_block.number,
-                        &command.l2_block.new_factory_deps,
-                    )
-                    .await
-                    .context(self.name())?;
-                progress.observe(command.l2_block.new_factory_deps.len());
-            }
+        if !command.l2_block.new_factory_deps.is_empty() {
+            connection
+                .factory_deps_dal()
+                .insert_factory_deps(command.l2_block.number, &command.l2_block.new_factory_deps)
+                .await?;
+            progress.observe(command.l2_block.new_factory_deps.len());
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 
     async fn rollback(
@@ -223,7 +225,7 @@ impl L2BlockSealSubtask for InsertFactoryDepsSubtask {
     ) -> anyhow::Result<()> {
         storage
             .factory_deps_dal()
-            .rollback_factory_deps(last_sealed_l2_block)
+            .roll_back_factory_deps(last_sealed_l2_block)
             .await?;
         Ok(())
     }
@@ -238,35 +240,25 @@ impl L2BlockSealSubtask for InsertTokensSubtask {
         "insert_tokens"
     }
 
-    fn spawn(
+    async fn run(
         self: Box<Self>,
-        command: Arc<L2BlockSealCommand>,
-        pool: ConnectionPool<Core>,
-    ) -> JoinHandle<anyhow::Result<()>> {
-        tokio::spawn(async move {
-            let is_fictive = command.is_l2_block_fictive();
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
-            let added_tokens =
-                extract_added_tokens(command.l2_shared_bridge_addr, &command.l2_block.events);
-            progress.observe(added_tokens.len());
+        command: &L2BlockSealCommand,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
+        let is_fictive = command.is_l2_block_fictive();
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
+        let added_tokens =
+            extract_added_tokens(command.l2_shared_bridge_addr, &command.l2_block.events);
+        progress.observe(added_tokens.len());
 
-            if !added_tokens.is_empty() {
-                let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
-                let added_tokens_len = added_tokens.len();
-                let mut connection = pool
-                    .connection_tagged("state_keeper")
-                    .await
-                    .context(self.name())?;
-                connection
-                    .tokens_dal()
-                    .add_tokens(&added_tokens)
-                    .await
-                    .context(self.name())?;
-                progress.observe(added_tokens_len);
-            }
+        if !added_tokens.is_empty() {
+            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
+            let added_tokens_len = added_tokens.len();
+            connection.tokens_dal().add_tokens(&added_tokens).await?;
+            progress.observe(added_tokens_len);
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 
     async fn rollback(
@@ -276,7 +268,7 @@ impl L2BlockSealSubtask for InsertTokensSubtask {
     ) -> anyhow::Result<()> {
         storage
             .tokens_dal()
-            .rollback_tokens(last_sealed_l2_block)
+            .roll_back_tokens(last_sealed_l2_block)
             .await?;
         Ok(())
     }
@@ -291,32 +283,25 @@ impl L2BlockSealSubtask for InsertEventsSubtask {
         "insert_events"
     }
 
-    fn spawn(
+    async fn run(
         self: Box<Self>,
-        command: Arc<L2BlockSealCommand>,
-        pool: ConnectionPool<Core>,
-    ) -> JoinHandle<anyhow::Result<()>> {
-        tokio::spawn(async move {
-            let is_fictive = command.is_l2_block_fictive();
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractEvents, is_fictive);
-            let l2_block_events = command.extract_events(is_fictive);
-            let l2_block_event_count: usize =
-                l2_block_events.iter().map(|(_, events)| events.len()).sum();
-            progress.observe(l2_block_event_count);
+        command: &L2BlockSealCommand,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
+        let is_fictive = command.is_l2_block_fictive();
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractEvents, is_fictive);
+        let l2_block_events = command.extract_events(is_fictive);
+        let l2_block_event_count: usize =
+            l2_block_events.iter().map(|(_, events)| events.len()).sum();
+        progress.observe(l2_block_event_count);
 
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertEvents, is_fictive);
-            let mut connection = pool
-                .connection_tagged("state_keeper")
-                .await
-                .context(self.name())?;
-            connection
-                .events_dal()
-                .save_events(command.l2_block.number, &l2_block_events)
-                .await
-                .context(self.name())?;
-            progress.observe(l2_block_event_count);
-            Ok(())
-        })
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertEvents, is_fictive);
+        connection
+            .events_dal()
+            .save_events(command.l2_block.number, &l2_block_events)
+            .await?;
+        progress.observe(l2_block_event_count);
+        Ok(())
     }
 
     async fn rollback(
@@ -326,7 +311,7 @@ impl L2BlockSealSubtask for InsertEventsSubtask {
     ) -> anyhow::Result<()> {
         storage
             .events_dal()
-            .rollback_events(last_sealed_l2_block)
+            .roll_back_events(last_sealed_l2_block)
             .await?;
         Ok(())
     }
@@ -341,36 +326,29 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
         "insert_l2_to_l1_logs"
     }
 
-    fn spawn(
+    async fn run(
         self: Box<Self>,
-        command: Arc<L2BlockSealCommand>,
-        pool: ConnectionPool<Core>,
-    ) -> JoinHandle<anyhow::Result<()>> {
-        tokio::spawn(async move {
-            let is_fictive = command.is_l2_block_fictive();
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractL2ToL1Logs, is_fictive);
+        command: &L2BlockSealCommand,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
+        let is_fictive = command.is_l2_block_fictive();
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractL2ToL1Logs, is_fictive);
 
-            let user_l2_to_l1_logs = command.extract_user_l2_to_l1_logs(is_fictive);
-            let user_l2_to_l1_log_count: usize = user_l2_to_l1_logs
-                .iter()
-                .map(|(_, l2_to_l1_logs)| l2_to_l1_logs.len())
-                .sum();
+        let user_l2_to_l1_logs = command.extract_user_l2_to_l1_logs(is_fictive);
+        let user_l2_to_l1_log_count: usize = user_l2_to_l1_logs
+            .iter()
+            .map(|(_, l2_to_l1_logs)| l2_to_l1_logs.len())
+            .sum();
 
-            progress.observe(user_l2_to_l1_log_count);
+        progress.observe(user_l2_to_l1_log_count);
 
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2ToL1Logs, is_fictive);
-            let mut connection = pool
-                .connection_tagged("state_keeper")
-                .await
-                .context(self.name())?;
-            connection
-                .events_dal()
-                .save_user_l2_to_l1_logs(command.l2_block.number, &user_l2_to_l1_logs)
-                .await
-                .context(self.name())?;
-            progress.observe(user_l2_to_l1_log_count);
-            Ok(())
-        })
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2ToL1Logs, is_fictive);
+        connection
+            .events_dal()
+            .save_user_l2_to_l1_logs(command.l2_block.number, &user_l2_to_l1_logs)
+            .await?;
+        progress.observe(user_l2_to_l1_log_count);
+        Ok(())
     }
 
     async fn rollback(
@@ -380,7 +358,7 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
     ) -> anyhow::Result<()> {
         storage
             .events_dal()
-            .rollback_l2_to_l1_logs(last_sealed_l2_block)
+            .roll_back_l2_to_l1_logs(last_sealed_l2_block)
             .await?;
         Ok(())
     }
@@ -395,6 +373,7 @@ mod tests {
     };
     use zksync_dal::Core;
     use zksync_db_connection::connection_pool::ConnectionPool;
+    use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
         block::L2BlockHeader,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
@@ -406,10 +385,7 @@ mod tests {
     use zksync_utils::h256_to_u256;
 
     use super::*;
-    use crate::{
-        state_keeper::{io::common::clear_pending_l2_block, updates::L2BlockUpdates},
-        utils::testonly::create_l2_transaction,
-    };
+    use crate::state_keeper::updates::L2BlockUpdates;
 
     #[tokio::test]
     async fn rollback_pending_l2_block() {
@@ -473,7 +449,7 @@ mod tests {
         let bytecode_hash = H256::repeat_byte(0x12);
         let bytecode = vec![0u8; 32];
         let new_factory_deps = vec![(bytecode_hash, bytecode)].into_iter().collect();
-        let l2_block_seal_command = Arc::new(L2BlockSealCommand {
+        let l2_block_seal_command = L2BlockSealCommand {
             l1_batch_number: L1BatchNumber(1),
             l2_block: L2BlockUpdates {
                 executed_transactions,
@@ -500,10 +476,11 @@ mod tests {
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_shared_bridge_addr: Default::default(),
             pre_insert_txs: false,
-        });
+        };
 
         // Run.
-        L2BlockSealProcess::run_subtasks(l2_block_seal_command.clone(), pool.clone())
+        let mut strategy = SealStrategy::Parallel(&pool);
+        L2BlockSealProcess::run_subtasks(&l2_block_seal_command, &mut strategy)
             .await
             .unwrap();
 
@@ -516,7 +493,7 @@ mod tests {
         assert!(factory_deps.contains_key(&h256_to_u256(bytecode_hash)));
 
         // Rollback.
-        clear_pending_l2_block(&mut connection, L2BlockNumber(0))
+        L2BlockSealProcess::clear_pending_l2_block(&mut connection, L2BlockNumber(0))
             .await
             .unwrap();
 
@@ -529,7 +506,8 @@ mod tests {
         drop(connection);
 
         // Run again.
-        L2BlockSealProcess::run_subtasks(l2_block_seal_command.clone(), pool.clone())
+        let mut strategy = SealStrategy::Parallel(&pool);
+        L2BlockSealProcess::run_subtasks(&l2_block_seal_command, &mut strategy)
             .await
             .unwrap();
 

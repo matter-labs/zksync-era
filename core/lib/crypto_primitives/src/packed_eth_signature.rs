@@ -1,12 +1,11 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
-use web3::signing::keccak256;
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::{web3::keccak256, Address, H256};
 use zksync_utils::ZeroPrefixHexSerde;
 
 use crate::{
     ecdsa_signature::{
-        public_to_address, recover, sign, Error as ParityCryptoError, KeyPair,
+        public_to_address, recover, sign, Error as ParityCryptoError, K256PrivateKey,
         Signature as ETHSignature,
     },
     eip712_signature::typed_structure::{EIP712TypedStructure, Eip712Domain},
@@ -65,7 +64,7 @@ impl PackedEthSignature {
     }
 
     pub fn sign_raw(
-        private_key: &H256,
+        private_key: &K256PrivateKey,
         signed_bytes: &H256,
     ) -> Result<PackedEthSignature, ParityCryptoError> {
         let signature = sign(private_key, signed_bytes)?;
@@ -75,7 +74,7 @@ impl PackedEthSignature {
     /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
     /// Result of this function is the equivalent of RPC calling `eth_signTypedData`.
     pub fn sign_typed_data(
-        private_key: &H256,
+        private_key: &K256PrivateKey,
         domain: &Eip712Domain,
         typed_struct: &impl EIP712TypedStructure,
     ) -> Result<PackedEthSignature, ParityCryptoError> {
@@ -109,13 +108,6 @@ impl PackedEthSignature {
         let signed_bytes = H256::from_slice(&signed_bytes.0);
         let public_key = recover(&self.0, &signed_bytes)?;
         let address = public_to_address(&public_key);
-        Ok(Address::from(address.0))
-    }
-
-    /// Get Ethereum address from private key.
-    pub fn address_from_private_key(private_key: &H256) -> Result<Address, ParityCryptoError> {
-        let private_key = H256::from_slice(&private_key.0);
-        let address = KeyPair::from_secret(private_key)?.address();
         Ok(Address::from(address.0))
     }
 

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use zksync_eth_signer::{error::SignerError, EthereumSigner};
+use zksync_eth_signer::{EthereumSigner, SignerError};
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::PaymasterParams, Address, Eip712Domain, L2ChainId,
     Nonce, PackedEthSignature, L2_BASE_TOKEN_ADDRESS, U256,

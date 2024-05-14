@@ -1835,6 +1835,8 @@ impl TransactionsDal<'_, '_> {
             .map(|op_id| PriorityOpId(op_id as u64)))
     }
 
+    /// Returns the next ID after the ID of the last sealed priority operation.
+    /// Doesn't work if node was recovered from snapshot because transaction history is not recovered.
     pub async fn next_priority_id(&mut self) -> PriorityOpId {
         {
             sqlx::query!(
@@ -1843,13 +1845,13 @@ impl TransactionsDal<'_, '_> {
                     MAX(priority_op_id) AS "op_id"
                 FROM
                     transactions
-                    LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                    LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = transactions.miniblock_number
                 WHERE
                     is_priority = TRUE
-                    AND (
-                        miniblocks.number IS NOT NULL
-                        OR snapshot_recovery.miniblock_number IS NOT NULL
+                    AND transactions.miniblock_number <= (
+                        SELECT
+                            MAX(number)
+                        FROM
+                            miniblocks
                     )
                 "#
             )

@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use serde::Serialize;
-use web3::signing::keccak256;
-use zksync_basic_types::{Address, H256, U256};
+use zksync_basic_types::{web3::keccak256, Address, H256, U256};
 
 use crate::{
+    ecdsa_signature::K256PrivateKey,
     eip712_signature::{
         struct_builder::StructBuilder,
         typed_structure::{EIP712TypedStructure, Eip712Domain},
@@ -108,8 +108,8 @@ fn test_encode_eip712_typed_struct() {
         H256::from_str("3b98b16ad068d9d8854a6a416bd476de44a4933ec5104d7c786a422ab262ed14").unwrap()
     );
 
-    let private_key = keccak256(b"cow").into();
-    let address_owner = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+    let private_key = K256PrivateKey::from_bytes(H256(keccak256(b"cow"))).unwrap();
+    let address_owner = private_key.address();
 
     let signature = PackedEthSignature::sign_typed_data(&private_key, &domain, &message).unwrap();
     let signed_bytes = PackedEthSignature::typed_data_to_signed_bytes(&domain, &message);

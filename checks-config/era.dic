@@ -278,6 +278,7 @@ metadata
 boojum
 deps
 Precalculated
+precalculated
 WASM
 DefaultPrecompilesProcessor
 LSB
@@ -672,6 +673,7 @@ crypto
 callee
 Subcalls
 Vec
+vec
 vecs
 L1Messenger
 SystemL2ToL1Log
@@ -942,5 +944,16 @@ demuxer
 superset
 80M
 780kb
+None
+Nones
+evm_simulator_code_hash
+pubdata_costs
+storage_refunds
+state_keeper's
+witness_generator
+arity
+recursion_tip
+RECURSION_TIP_ARITY
+empty_proof
 hyperchain
 storages

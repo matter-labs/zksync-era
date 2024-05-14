@@ -57,6 +57,7 @@ jobs:
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      en_alpha_release: true
 
   build-push-contract-verifier:
     name: Build and push image

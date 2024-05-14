@@ -5,7 +5,7 @@ use multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 
-use super::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, PendingBatchData};
+use super::PendingBatchData;
 
 #[cfg(test)]
 mod tests;
@@ -106,17 +106,4 @@ pub(crate) async fn load_pending_batch(
         system_env,
         pending_l2_blocks,
     })
-}
-
-/// Clears pending l2 block data from the database.
-pub(crate) async fn clear_pending_l2_block(
-    connection: &mut Connection<'_, Core>,
-    last_sealed_l2_block: L2BlockNumber,
-) -> anyhow::Result<()> {
-    let seal_subtasks = L2BlockSealProcess::all_subtasks();
-    for subtask in seal_subtasks {
-        subtask.rollback(connection, last_sealed_l2_block).await?;
-    }
-
-    Ok(())
 }
