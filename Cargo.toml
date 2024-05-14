@@ -25,6 +25,7 @@ members = [
     "core/node/test_utils",
     "core/node/state_keeper",
     "core/node/reorg_detector",
+    "core/node/consistency_checker",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core",
@@ -244,3 +245,4 @@ zksync_vm_runner = { path = "core/node/vm_runner" }
 zksync_node_test_utils = { path = "core/node/test_utils" }
 zksync_state_keeper = { path = "core/node/state_keeper" }
 zksync_reorg_detector = { path = "core/node/reorg_detector" }
+zksync_consistency_checker = { path = "core/node/consistency_checker" }

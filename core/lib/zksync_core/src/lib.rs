@@ -105,7 +105,6 @@ use crate::{
 
 pub mod api_server;
 pub mod consensus;
-pub mod consistency_checker;
 pub mod metadata_calculator;
 pub mod proto;
 pub mod sync_layer;

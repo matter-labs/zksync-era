@@ -19,6 +19,7 @@ use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
 };
+use zksync_consistency_checker::ConsistencyChecker;
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -28,7 +29,6 @@ use zksync_core::{
         web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
     },
     consensus,
-    consistency_checker::ConsistencyChecker,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     setup_sigint_handler,
     sync_layer::{

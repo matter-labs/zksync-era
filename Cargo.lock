@@ -8247,6 +8247,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_consistency_checker"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "chrono",
+ "once_cell",
+ "serde",
+ "test-casing",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_eth_sender",
+ "zksync_health_check",
+ "zksync_l1_contract_interface",
+ "zksync_node_genesis",
+ "zksync_node_test_utils",
+ "zksync_shared_metrics",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_contract_verifier"
 version = "0.1.0"
 dependencies = [
@@ -8570,6 +8596,7 @@ dependencies = [
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_roles",
+ "zksync_consistency_checker",
  "zksync_contracts",
  "zksync_core",
  "zksync_dal",
@@ -8751,6 +8778,7 @@ dependencies = [
  "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
+ "zksync_consistency_checker",
  "zksync_contracts",
  "zksync_core",
  "zksync_dal",
