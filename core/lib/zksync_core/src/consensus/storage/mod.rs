@@ -564,7 +564,7 @@ impl PayloadManager for Store {
             let n = block.number;
             payloads.send(block).await.context("payload_queue.send()")?;
             // Wait for the block to be processed, without waiting for it to be stored.
-            // TODO: this is not ideal, because we don't check here whether the
+            // TODO(BFT-459): this is not ideal, because we don't check here whether the
             // processed block is the same as `payload`. It will work correctly
             // with the current implementation of EN, but we should make it more
             // precise when block reverting support is implemented.
