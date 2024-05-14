@@ -1,7 +1,9 @@
 use std::{collections::HashMap, ops, sync::Arc, time::Duration};
 
+use crate::storage::StorageLoader;
 use async_trait::async_trait;
 use backon::{ConstantBuilder, ExponentialBuilder, Retryable};
+use multivm::zk_evm_latest::ethereum_types::{H160, H256};
 use rand::Rng;
 use tempfile::TempDir;
 use tokio::{
@@ -21,7 +23,7 @@ use zksync_types::{
     block::{BlockGasCount, L1BatchHeader},
     fee::TransactionExecutionMetrics,
     AccountTreeId, L1BatchNumber, L2ChainId, ProtocolVersionId, StorageKey, StorageLog,
-    StorageLogKind, StorageValue, H160, H256,
+    StorageLogKind, StorageValue,
 };
 
 use super::{BatchExecuteData, VmRunnerIo, VmRunnerStorage};
@@ -34,7 +36,7 @@ struct IoMock {
 
 #[async_trait]
 impl VmRunnerIo for Arc<RwLock<IoMock>> {
-    fn name() -> &'static str {
+    fn name(&self) -> &'static str {
         "io_mock"
     }
 
