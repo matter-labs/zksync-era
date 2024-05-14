@@ -159,6 +159,8 @@ pub enum ProverJobStatus {
     Skipped,
     #[strum(serialize = "ignored")]
     Ignored,
+    #[strum(serialize = "in_gpu_proof")]
+    InGPUProof,
 }
 
 #[derive(Debug, Clone, strum::Display, strum::EnumString, strum::AsRefStr)]

@@ -72,7 +72,7 @@ impl Default for BatchData {
             recursion_tip: Task::RecursionTip {
                 status: TaskStatus::default(),
                 aggregation_round_info: AggregationRoundInfo {
-                    round: AggregationRound::Scheduler,
+                    round: AggregationRound::RecursionTip,
                     prover_jobs_status: TaskStatus::default(),
                 },
             },
@@ -122,12 +122,17 @@ impl From<Vec<ProverJobFriInfo>> for TaskStatus {
             TaskStatus::JobsNotFound
         } else if jobs_vector
             .iter()
+            .all(|job| matches!(job.status, ProverJobStatus::InGPUProof))
+        {
+            TaskStatus::Custom("In GPU ⚡️".to_owned())
+        } else if jobs_vector
+            .iter()
             .all(|job| matches!(job.status, ProverJobStatus::Queued))
         {
             TaskStatus::Queued
         } else if jobs_vector
             .iter()
-            .all(|job| matches!(job.status, ProverJobStatus::InProgress(_)))
+            .all(|job| matches!(job.status, ProverJobStatus::Successful(_)))
         {
             TaskStatus::Successful
         } else {
@@ -167,7 +172,7 @@ impl From<Vec<WitnessJobStatus>> for TaskStatus {
             TaskStatus::WaitingForProofs
         } else if status_vector
             .iter()
-            .all(|job| matches!(job, WitnessJobStatus::InProgress))
+            .all(|job| matches!(job, WitnessJobStatus::Successful(_)))
         {
             TaskStatus::Successful
         } else {
