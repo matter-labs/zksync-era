@@ -152,7 +152,7 @@ impl TimeoutSealer {
 
 impl IoSealCriteria for TimeoutSealer {
     fn should_seal_l1_batch(&mut self, manager: &UpdatesManager) -> bool {
-        const RULE_NAME: &str = "miniblock_timestamp_timeout";
+        const RULE_NAME: &str = "l2_block_timestamp_timeout";
 
         if manager.pending_executed_transactions_len() == 0 {
             // Regardless of which sealers are provided, we never want to seal an empty batch.

@@ -116,10 +116,10 @@ export class Tester {
     }
 
     /// Dispatches a dummy transaction asynchronously after the L1 batch seal timeout to ensure the L1 batch is sealed.
-    /// This should trigger the L1 batch timeout due to the next L2 block timestamp.
+    /// This should trigger the L1 batch timeout due to the consecutive L2 block timestamp.
     ensureL1BatchSeal(targetL1BatchNumber: number) {
         setTimeout(async () => {
-            const deadline = process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS || '8000';
+            const deadline = process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS || '5000';
             const bufferedDeadline = parseInt(deadline, 10) + 1000;
             await utils.sleep(bufferedDeadline / 1000);
 

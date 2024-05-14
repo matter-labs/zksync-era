@@ -261,7 +261,7 @@ mod tests {
             // Incomplete sequences.
             (vec![open_batch()], "Incomplete sequence"),
             (vec![open_batch(), tx()], "Incomplete sequence"),
-            // // Unexpected tx
+            // Unexpected tx
             (vec![tx()], "Unexpected Tx"),
             (vec![open_batch(), seal_l2_block(), tx()], "Unexpected Tx"),
             // Unexpected `OpenBatch / L2Block`
