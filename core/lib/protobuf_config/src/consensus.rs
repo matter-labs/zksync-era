@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use secrecy::ExposeSecret as _;
 use zksync_basic_types::L2ChainId;
 use zksync_config::configs::consensus::{
     ConsensusConfig, ConsensusSecrets, GenesisSpec, Host, NodePublicKey, NodeSecretKey,
@@ -121,15 +122,21 @@ impl ProtoRepr for proto::Secrets {
             validator_key: self
                 .validator_key
                 .as_ref()
-                .map(|x| ValidatorSecretKey(x.clone())),
-            node_key: self.node_key.as_ref().map(|x| NodeSecretKey(x.clone())),
+                .map(|x| ValidatorSecretKey(x.clone().into())),
+            node_key: self
+                .node_key
+                .as_ref()
+                .map(|x| NodeSecretKey(x.clone().into())),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            validator_key: this.validator_key.as_ref().map(|x| x.0.clone()),
-            node_key: this.node_key.as_ref().map(|x| x.0.clone()),
+            validator_key: this
+                .validator_key
+                .as_ref()
+                .map(|x| x.0.expose_secret().clone()),
+            node_key: this.node_key.as_ref().map(|x| x.0.expose_secret().clone()),
         }
     }
 }

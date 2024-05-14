@@ -195,11 +195,11 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
             }),
         },
         config::ConsensusSecrets {
-            node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode())),
+            node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
             validator_key: cfg
                 .validator_key
                 .as_ref()
-                .map(|k| config::ValidatorSecretKey(k.encode())),
+                .map(|k| config::ValidatorSecretKey(k.encode().into())),
         },
     )
 }

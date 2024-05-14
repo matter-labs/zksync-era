@@ -752,8 +752,8 @@ impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusSecrets {
         use configs::consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey};
         ConsensusSecrets {
-            validator_key: self.sample_opt(|| ValidatorSecretKey(self.sample(rng))),
-            node_key: self.sample_opt(|| NodeSecretKey(self.sample(rng))),
+            validator_key: self.sample_opt(|| ValidatorSecretKey(String::into(self.sample(rng)))),
+            node_key: self.sample_opt(|| NodeSecretKey(String::into(self.sample(rng)))),
         }
     }
 }

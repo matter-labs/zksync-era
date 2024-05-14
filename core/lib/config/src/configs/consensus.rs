@@ -1,9 +1,6 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
-use zeroize::ZeroizeOnDrop;
+use secrecy::{ExposeSecret as _, Secret};
 use zksync_basic_types::L2ChainId;
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::PublicKey`.
@@ -11,26 +8,26 @@ use zksync_basic_types::L2ChainId;
 pub struct ValidatorPublicKey(pub String);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::SecretKey`.
-#[derive(PartialEq, Clone, ZeroizeOnDrop)]
-pub struct ValidatorSecretKey(pub String);
+#[derive(Debug, Clone)]
+pub struct ValidatorSecretKey(pub Secret<String>);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodePublicKey(pub String);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::SecretKey`.
-#[derive(PartialEq, Clone, ZeroizeOnDrop)]
-pub struct NodeSecretKey(pub String);
+#[derive(Debug, Clone)]
+pub struct NodeSecretKey(pub Secret<String>);
 
-impl fmt::Debug for ValidatorSecretKey {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write_str("<redacted>")
+impl PartialEq for ValidatorSecretKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.expose_secret().eq(other.0.expose_secret())
     }
 }
 
-impl fmt::Debug for NodeSecretKey {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write_str("<redacted>")
+impl PartialEq for NodeSecretKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.expose_secret().eq(other.0.expose_secret())
     }
 }
 

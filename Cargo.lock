@@ -5541,6 +5541,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "secrecy"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9bd1c54ea06cfd2f6b63219704de0b9b4f72dcc2b8fdef820be6cd799780e91e"
+dependencies = [
+ "zeroize",
+]
+
+[[package]]
 name = "security-framework"
 version = "2.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8104,9 +8113,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
+ "secrecy",
  "serde",
  "url",
- "zeroize",
  "zksync_basic_types",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
@@ -8317,6 +8326,7 @@ dependencies = [
  "prover_dal",
  "rand 0.8.5",
  "reqwest",
+ "secrecy",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -8886,6 +8896,7 @@ dependencies = [
  "hex",
  "prost 0.12.1",
  "rand 0.8.5",
+ "secrecy",
  "serde_json",
  "serde_yaml",
  "zksync_basic_types",

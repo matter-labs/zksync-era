@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
+use secrecy::{ExposeSecret as _, Secret};
 use zksync_concurrency::net;
 use zksync_config::{
     configs,
@@ -11,8 +12,8 @@ use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
 
-fn read_secret_text<T: TextFmt>(text: Option<&String>) -> anyhow::Result<Option<T>> {
-    text.map(|text| Text::new(text).decode())
+fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
+    text.map(|text| Text::new(text.expose_secret()).decode())
         .transpose()
         .map_err(|_| anyhow::format_err!("invalid format"))
 }
