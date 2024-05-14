@@ -7980,6 +7980,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
@@ -8314,6 +8315,26 @@ dependencies = [
  "vlog",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zksync_basic_types",
+]
+
+[[package]]
+name = "zksync_web3_decl"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures 0.3.30",
+ "jsonrpsee",
+ "pin-project-lite",
+ "rlp",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_types",
 ]
 
 [[package]]
