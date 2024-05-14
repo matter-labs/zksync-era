@@ -61,9 +61,13 @@ impl Serialize for Bytes {
     where
         S: Serializer,
     {
-        let mut serialized = "0x".to_owned();
-        serialized.push_str(&hex::encode(&self.0));
-        serializer.serialize_str(serialized.as_ref())
+        if serializer.is_human_readable() {
+            let mut serialized = "0x".to_owned();
+            serialized.push_str(&hex::encode(&self.0));
+            serializer.serialize_str(serialized.as_ref())
+        } else {
+            serializer.serialize_bytes(&self.0)
+        }
     }
 }
 
@@ -72,7 +76,11 @@ impl<'a> Deserialize<'a> for Bytes {
     where
         D: Deserializer<'a>,
     {
-        deserializer.deserialize_identifier(BytesVisitor)
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_identifier(BytesVisitor)
+        } else {
+            Vec::<u8>::deserialize(deserializer).map(Bytes)
+        }
     }
 }
 
