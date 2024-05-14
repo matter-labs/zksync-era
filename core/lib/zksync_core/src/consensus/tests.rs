@@ -338,7 +338,7 @@ async fn test_en_validators(from_snapshot: bool) {
                 .context("main_node")
         });
         tracing::info!("Generate a couple of blocks, before initializing consensus genesis.");
-        main_node.push_random_blocks(rng, 5).await;
+        main_node.push_random_blocks_and_seal(rng, 5).await;
         // API server needs at least 1 L1 batch to start.
         main_node.seal_batch().await;
         main_node_pool
@@ -381,7 +381,7 @@ async fn test_en_validators(from_snapshot: bool) {
         }
 
         tracing::info!("Make the main node produce blocks and wait for consensus to finalize them");
-        main_node.push_random_blocks(rng, 5).await;
+        main_node.push_random_blocks_and_seal(rng, 5).await;
         let want_last = main_node.last_block();
         let want = main_node_pool
             .wait_for_certificates_and_verify(ctx, want_last)
