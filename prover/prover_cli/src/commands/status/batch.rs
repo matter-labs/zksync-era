@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use anyhow::Context as _;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
@@ -339,8 +339,7 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
         "Prover Jobs".to_owned().bold()
     );
 
-    let mut jobs_by_circuit_id: HashMap<u32, Vec<ProverJobFriInfo>> = HashMap::new();
-
+    let mut jobs_by_circuit_id: BTreeMap<u32, Vec<ProverJobFriInfo>> = BTreeMap::new();
     prover_jobs_info.iter().for_each(|job| {
         jobs_by_circuit_id
             .entry(job.circuit_id)
@@ -348,38 +347,20 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
             .push(job.clone())
     });
 
-    let mut jobs_by_circuit_id: Vec<(u32, Vec<ProverJobFriInfo>)> = jobs_by_circuit_id
-        .iter()
-        .map(|(key, value)| (*key, value.clone()))
-        .collect();
-
-    jobs_by_circuit_id.sort_by_key(|job| job.0);
-
     for (circuit_id, prover_jobs_info) in jobs_by_circuit_id {
         let status = Status::from(prover_jobs_info.clone());
-        match status {
-            Status::InProgress => {
-                println!(
-                    "   > {}: {}",
-                    format!(
-                        "{:?}",
-                        BaseLayerCircuitType::from_numeric_value(circuit_id as u8)
-                    )
-                    .bold(),
-                    status
-                );
-                display_job_status_count(prover_jobs_info);
-            }
-            _ => println!(
-                "   > {}: {}",
-                format!(
-                    "{:?}",
-                    BaseLayerCircuitType::from_numeric_value(circuit_id as u8)
-                )
-                .bold(),
-                status
-            ),
-        };
+        println!(
+            "   > {}: {}",
+            format!(
+                "{:?}",
+                BaseLayerCircuitType::from_numeric_value(circuit_id as u8)
+            )
+            .bold(),
+            status
+        );
+        if matches!(status, Status::InProgress) {
+            display_job_status_count(prover_jobs_info);
+        }
     }
 }
 
