@@ -31,8 +31,8 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
 
         const promise = new Promise((resolve, reject) => {
             child.on('error', reject);
-            child.on('close', (code) => {
-                code == 0 ? resolve(code) : reject(`Child process exited with code ${code}`);
+            child.on('close', (code, signal) => {
+                signal == 'SIGTERM' ? resolve(signal) : reject(`Child process exited with code ${code} and signal ${signal}`);
             });
         });
 
@@ -41,7 +41,7 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
         console.log(`${+timeToLive} seconds passed, killing the server.`);
 
         // Kill the server after the time to live.
-        child.kill('SIGINT');
+        child.kill('SIGTERM');
 
         console.log('Waiting for the server to shut down.');
 
@@ -134,3 +134,27 @@ export const enCommand = new Command('external-node')
     .action(async (cmd: Command) => {
         await externalNode(cmd.reinit, cmd.args);
     });
+
+
+
+const fn = async () => {
+    const transactions: string[] = [];
+
+    const validateTx = (tx: string) => {
+    }
+    const executeTx = (tx: string) => {
+    }
+
+    // 1. Initialize batch params.
+
+    // 2. Validate and execute transactions:
+    for(const transaction of transactions) {
+        validateTx(transaction);
+        executeTx(transaction);
+    }
+
+    // 3. Distribute funds to the operator 
+    // and compress the final state diffs.
+
+
+};
