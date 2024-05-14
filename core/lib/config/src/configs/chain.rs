@@ -89,7 +89,7 @@ pub struct StateKeeperConfig {
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
     pub transaction_slots: usize,
 
-    /// Number of ms after which an L1 batch is going to be sealed, checked against latest miniblock's timestamp.
+    /// Number of ms after which an L1 batch is going to be sealed, checked against latest L2 block timestamp.
     pub block_commit_deadline_ms: u64,
     /// Number of ms after which an L2 block should be sealed by the timeout sealer.
     #[serde(alias = "miniblock_commit_deadline_ms")]
