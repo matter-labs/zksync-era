@@ -46,6 +46,7 @@ fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 
         None,
     );
 
+    vm.vm.make_snapshot();
     vm.vm.push_transaction(tx1);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "First tx failed");
@@ -57,6 +58,7 @@ fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 
     assert!(!result.result.is_failed(), "Second tx failed");
     vm.vm.rollback_to_the_latest_snapshot();
 
+    vm.vm.make_snapshot();
     vm.vm.push_transaction(tx2);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Second tx failed on second run");
