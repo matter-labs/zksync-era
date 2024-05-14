@@ -26,6 +26,7 @@ async fn merkle_tree_api() {
     let api_server = tree_reader
         .wait()
         .await
+        .unwrap()
         .create_api_server(&api_addr, stop_receiver.clone())
         .unwrap();
     let local_addr = *api_server.local_addr();
