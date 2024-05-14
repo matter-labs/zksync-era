@@ -704,6 +704,9 @@ impl StateKeeperIO for TestIO {
             l1_batch: self.batch_number,
         };
         let pending_batch = self.pending_batch.take();
+        if pending_batch.is_some() {
+            self.batch_number += 1;
+        }
         Ok((cursor, pending_batch))
     }
 

@@ -15,7 +15,7 @@ use zksync_types::{
 
 use super::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
-    io::{IoCursor, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
+    io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution},
     types::ExecutionMetricsForCriteria,
@@ -274,23 +274,29 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
+    async fn wait_for_new_batch_params(
+        &mut self,
+        cursor: &IoCursor,
+    ) -> Result<L1BatchParams, Error> {
+        while !self.is_canceled() {
+            if let Some(params) = self
+                .io
+                .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
+                .await?
+            {
+                return Ok(params);
+            }
+        }
+        Err(Error::Canceled)
+    }
+
     async fn wait_for_new_batch_env(
         &mut self,
         cursor: &IoCursor,
     ) -> Result<(SystemEnv, L1BatchEnv), Error> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop signal.
-        let params = loop {
-            match self
-                .io
-                .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
-                .await?
-            {
-                Some(params) => break params,
-                None if self.is_canceled() => return Err(Error::Canceled),
-                None => { /* continue querying I/O */ }
-            }
-        };
+        let params = self.wait_for_new_batch_params(cursor).await?;
         let contracts = self
             .io
             .load_base_system_contracts(params.protocol_version, cursor)
