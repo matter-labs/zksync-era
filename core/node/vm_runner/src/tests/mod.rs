@@ -204,6 +204,7 @@ async fn store_l2_blocks(
                 &[tx_result],
                 1.into(),
                 ProtocolVersionId::latest(),
+                false,
             )
             .await?;
 

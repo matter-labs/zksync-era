@@ -125,6 +125,7 @@ impl L2BlockSealSubtask for MarkTransactionsInL2BlockSubtask {
                 &command.l2_block.executed_transactions,
                 command.base_fee_per_gas.into(),
                 command.l2_block.protocol_version,
+                command.pre_insert_txs,
             )
             .await?;
 

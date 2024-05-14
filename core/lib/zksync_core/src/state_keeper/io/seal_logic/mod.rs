@@ -9,17 +9,14 @@ use std::{
 use anyhow::Context as _;
 use itertools::Itertools;
 use multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
-use zksync_dal::{Connection, Core, CoreDal};
-use zksync_db_connection::connection_pool::ConnectionPool;
+use zksync_dal::{Core, CoreDal};
+use zksync_db_connection::{connection::Connection, connection_pool::ConnectionPool};
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     event::extract_long_l2_to_l1_messages,
     helpers::unix_timestamp_ms,
-    l1::L1Tx,
-    l2::L2Tx,
     l2_to_l1_log::UserL2ToL1Log,
-    protocol_upgrade::ProtocolUpgradeTx,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
@@ -27,8 +24,8 @@ use zksync_types::{
     },
     utils::display_timestamp,
     zk_evm_types::LogQuery,
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, Transaction, VmEvent, H256,
+    AccountTreeId, Address, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
+    Transaction, VmEvent, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -325,51 +322,6 @@ impl L2BlockSealCommand {
             .with_context(|| format!("failed sealing L2 block #{l2_block_number}"))
     }
 
-    async fn insert_transactions(
-        &self,
-        transaction: &mut Connection<'_, Core>,
-    ) -> anyhow::Result<()> {
-        for tx_result in &self.l2_block.executed_transactions {
-            let tx = tx_result.transaction.clone();
-            let tx_hash = tx.hash();
-
-            match &tx.common_data {
-                ExecuteTransactionCommon::L1(_) => {
-                    // `unwrap` is safe due to the check above
-                    let l1_tx = L1Tx::try_from(tx).unwrap();
-                    let l1_block_number = L1BlockNumber(l1_tx.common_data.eth_block as u32);
-                    transaction
-                        .transactions_dal()
-                        .insert_transaction_l1(&l1_tx, l1_block_number)
-                        .await
-                        .with_context(|| format!("failed persisting L1 transaction {tx_hash:?}"))?;
-                }
-                ExecuteTransactionCommon::L2(_) => {
-                    // `unwrap` is safe due to the check above
-                    let l2_tx = L2Tx::try_from(tx).unwrap();
-                    // Using `Default` for execution metrics should be OK here, since this data is not used on the EN.
-                    transaction
-                        .transactions_dal()
-                        .insert_transaction_l2(&l2_tx, Default::default())
-                        .await
-                        .with_context(|| format!("failed persisting L2 transaction {tx_hash:?}"))?;
-                }
-                ExecuteTransactionCommon::ProtocolUpgrade(_) => {
-                    // `unwrap` is safe due to the check above
-                    let protocol_system_upgrade_tx = ProtocolUpgradeTx::try_from(tx).unwrap();
-                    transaction
-                        .transactions_dal()
-                        .insert_system_transaction(&protocol_system_upgrade_tx)
-                        .await
-                        .with_context(|| {
-                            format!("failed persisting protocol upgrade transaction {tx_hash:?}")
-                        })?;
-                }
-            }
-        }
-        Ok(())
-    }
-
     /// Seals an L2 block with the given number.
     ///
     /// If `is_fictive` flag is set to true, then it is assumed that we should seal a fictive L2 block
@@ -398,15 +350,6 @@ impl L2BlockSealCommand {
             total_tx_count = l1_tx_count + l2_tx_count,
             event_count = self.l2_block.events.len()
         );
-
-        if self.pre_insert_txs {
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::PreInsertTxs, is_fictive);
-            let mut connection = strategy.connection().await?;
-            self.insert_transactions(&mut connection)
-                .await
-                .context("failed persisting transactions in L2 block")?;
-            progress.observe(Some(self.l2_block.executed_transactions.len()));
-        }
 
         // Run sub-tasks in parallel.
         L2BlockSealProcess::run_subtasks(self, strategy).await?;

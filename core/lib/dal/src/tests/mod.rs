@@ -301,6 +301,7 @@ async fn remove_stuck_txs() {
             &[mock_execution_result(executed_tx.clone())],
             U256::from(1),
             ProtocolVersionId::latest(),
+            false,
         )
         .await
         .unwrap();
