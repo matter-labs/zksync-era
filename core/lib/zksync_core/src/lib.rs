@@ -549,14 +549,13 @@ pub async fn initialize_components(
         .map(|a| a.state_transition_proxy_addr);
 
     if components.contains(&Component::Consensus) {
-        let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
-        let cfg = consensus::config::main_node(
-            consensus_config
-                .as_ref()
-                .context("consensus component's config is missing")?,
-            secrets,
-            l2_chain_id,
-        )?;
+        let cfg = consensus_config
+            .clone()
+            .context("consensus component's config is missing")?;
+        let secrets = secrets
+            .consensus
+            .clone()
+            .context("consensus component's secrets are missing")?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();
@@ -569,7 +568,7 @@ pub async fn initialize_components(
             // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let root_ctx = ctx::root();
             scope::run!(&root_ctx, |ctx, s| async move {
-                s.spawn_bg(consensus::era::run_main_node(ctx, cfg, pool));
+                s.spawn_bg(consensus::era::run_main_node(ctx, cfg, secrets, pool));
                 let _ = stop_receiver.wait_for(|stop| *stop).await?;
                 Ok(())
             })

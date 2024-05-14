@@ -2,47 +2,82 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
+use secrecy::{ExposeSecret as _, Secret};
 use zksync_concurrency::net;
-use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey};
+use zksync_config::{
+    configs,
+    configs::consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey},
+};
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
-use zksync_types::L2ChainId;
 
-use crate::consensus::{fetcher::P2PConfig, MainNodeConfig};
-
-fn read_secret_text<T: TextFmt>(text: Option<&String>) -> anyhow::Result<T> {
-    Text::new(text.context("missing")?)
-        .decode()
+fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
+    text.map(|text| Text::new(text.expose_secret()).decode())
+        .transpose()
         .map_err(|_| anyhow::format_err!("invalid format"))
 }
 
-fn validator_key(secrets: &ConsensusSecrets) -> anyhow::Result<validator::SecretKey> {
+pub(super) fn validator_key(
+    secrets: &ConsensusSecrets,
+) -> anyhow::Result<Option<validator::SecretKey>> {
     read_secret_text(secrets.validator_key.as_ref().map(|x| &x.0))
 }
 
-fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<node::SecretKey> {
+/// Consensus genesis specification.
+/// It is a digest of the `validator::Genesis`,
+/// which allows to initialize genesis (if not present)
+/// decide whether a hard fork is necessary (if present).
+#[derive(Debug, PartialEq)]
+pub(super) struct GenesisSpec {
+    pub(super) chain_id: validator::ChainId,
+    pub(super) protocol_version: validator::ProtocolVersion,
+    pub(super) validators: validator::Committee,
+    pub(super) leader_selection: validator::LeaderSelectionMode,
+}
+
+impl GenesisSpec {
+    pub(super) fn from_genesis(g: &validator::Genesis) -> Self {
+        Self {
+            chain_id: g.chain_id,
+            protocol_version: g.protocol_version,
+            validators: g.committee.clone(),
+            leader_selection: g.leader_selection.clone(),
+        }
+    }
+
+    pub(super) fn parse(x: &configs::consensus::GenesisSpec) -> anyhow::Result<Self> {
+        let validators: Vec<_> = x
+            .validators
+            .iter()
+            .enumerate()
+            .map(|(i, v)| {
+                Ok(validator::WeightedValidator {
+                    key: Text::new(&v.key.0).decode().context("key").context(i)?,
+                    weight: v.weight,
+                })
+            })
+            .collect::<anyhow::Result<_>>()
+            .context("validators")?;
+        Ok(Self {
+            chain_id: validator::ChainId(x.chain_id.as_u64()),
+            protocol_version: validator::ProtocolVersion(x.protocol_version.0),
+            leader_selection: validator::LeaderSelectionMode::Sticky(
+                Text::new(&x.leader.0).decode().context("leader")?,
+            ),
+            validators: validator::Committee::new(validators).context("validators")?,
+        })
+    }
+}
+
+pub(super) fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node::SecretKey>> {
     read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
 }
 
-/// Constructs a main node config from raw config.
-pub fn main_node(
+pub(super) fn executor(
     cfg: &ConsensusConfig,
     secrets: &ConsensusSecrets,
-    chain_id: L2ChainId,
-) -> anyhow::Result<MainNodeConfig> {
-    Ok(MainNodeConfig {
-        executor: executor(cfg, secrets)?,
-        validator_key: validator_key(secrets).context("validator_key")?,
-        chain_id: validator::ChainId(chain_id.as_u64()),
-    })
-}
-
-pub(super) fn p2p(cfg: &ConsensusConfig, secrets: &ConsensusSecrets) -> anyhow::Result<P2PConfig> {
-    executor(cfg, secrets)
-}
-
-fn executor(cfg: &ConsensusConfig, secrets: &ConsensusSecrets) -> anyhow::Result<executor::Config> {
+) -> anyhow::Result<executor::Config> {
     let mut gossip_static_outbound = HashMap::new();
     {
         let mut append = |key: &NodePublicKey, addr: &Host| {
@@ -60,7 +95,9 @@ fn executor(cfg: &ConsensusConfig, secrets: &ConsensusSecrets) -> anyhow::Result
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
         max_payload_size: cfg.max_payload_size,
-        node_key: node_key(secrets).context("node_key")?,
+        node_key: node_key(secrets)
+            .context("node_key")?
+            .context("missing node_key")?,
         gossip_dynamic_inbound_limit: cfg.gossip_dynamic_inbound_limit,
         gossip_static_inbound: cfg
             .gossip_static_inbound
