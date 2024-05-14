@@ -17,7 +17,6 @@ multivm.workspace = true
 serde.workspace = true
 tracing.workspace = true
 vm_utils.workspace = true
-zksync_basic_types.workspace = true
 zksync_config.workspace = true
 zksync_crypto.workspace = true
 zksync_dal.workspace = true
@@ -29,4 +28,7 @@ zksync_queued_job_processor.workspace = true
 zksync_state.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
+
+[dev-dependencies]
 zksync_contracts.workspace = true
+zksync_basic_types.workspace = true
