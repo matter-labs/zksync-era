@@ -331,7 +331,7 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
     {
         println!(
             "> {}: {prover_jobs_status}",
-            "Prover Jobs".to_owned().bold()g
+            "Prover Jobs".to_owned().bold()
         );
         return;
     }
