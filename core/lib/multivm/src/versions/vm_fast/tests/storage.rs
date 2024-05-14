@@ -3,7 +3,7 @@ use zksync_contracts::{load_contract, read_bytecode};
 use zksync_types::{Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled},
     vm_fast::tests::tester::VmTesterBuilder,
 };
 
@@ -50,9 +50,17 @@ fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "First tx failed");
 
-    vm.vm.push_transaction(tx2);
+    // We rollback once because transient storage and rollbacks are a tricky combination.
+    vm.vm.make_snapshot();
+    vm.vm.push_transaction(tx2.clone());
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Second tx failed");
+    vm.vm.rollback_to_the_latest_snapshot();
+
+    vm.vm.push_transaction(tx2);
+    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    assert!(!result.result.is_failed(), "Second tx failed on second run");
+
     result.statistics.pubdata_published
 }
 
