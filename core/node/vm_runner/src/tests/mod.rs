@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{collections::HashMap, ops, sync::Arc};
 
 use async_trait::async_trait;
@@ -5,11 +6,13 @@ use multivm::zk_evm_latest::ethereum_types::{H160, H256};
 use rand::Rng;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_core::state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, create_l2_transaction, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
+use zksync_types::block::L2BlockHasher;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader},
     fee::TransactionExecutionMetrics,
@@ -17,9 +20,10 @@ use zksync_types::{
     StorageValue,
 };
 
-use super::VmRunnerIo;
+use super::{OutputHandlerFactory, VmRunnerIo};
 
 mod output_handler;
+mod process;
 mod storage;
 
 #[derive(Debug, Default)]
@@ -59,6 +63,45 @@ impl VmRunnerIo for Arc<RwLock<IoMock>> {
     }
 }
 
+#[derive(Debug)]
+struct TestOutputFactory {
+    delays: HashMap<L1BatchNumber, Duration>,
+}
+
+#[async_trait]
+impl OutputHandlerFactory for TestOutputFactory {
+    async fn create_handler(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
+        let delay = self.delays.get(&l1_batch_number).copied();
+        #[derive(Debug)]
+        struct TestOutputHandler {
+            delay: Option<Duration>,
+        }
+        #[async_trait]
+        impl StateKeeperOutputHandler for TestOutputHandler {
+            async fn handle_l2_block(
+                &mut self,
+                _updates_manager: &UpdatesManager,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+
+            async fn handle_l1_batch(
+                &mut self,
+                _updates_manager: Arc<UpdatesManager>,
+            ) -> anyhow::Result<()> {
+                if let Some(delay) = self.delay {
+                    tokio::time::sleep(delay).await
+                }
+                Ok(())
+            }
+        }
+        Ok(Box::new(TestOutputHandler { delay }))
+    }
+}
+
 async fn store_l2_blocks(
     conn: &mut Connection<'_, Core>,
     numbers: ops::RangeInclusive<u32>,
@@ -73,6 +116,11 @@ async fn store_l2_blocks(
         .map(|m| m.number)
         .unwrap_or_default()
         + 1;
+    let mut last_l2_block = conn
+        .blocks_dal()
+        .get_l2_block_header(l2_block_number - 1)
+        .await?
+        .unwrap();
     for l1_batch_number in numbers {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let tx = create_l2_transaction(10, 100);
@@ -105,23 +153,33 @@ async fn store_l2_blocks(
             .insert_factory_deps(l2_block_number, &factory_deps)
             .await?;
         let mut new_l2_block = create_l2_block(l2_block_number.0);
+
+        let mut digest = L2BlockHasher::new(
+            new_l2_block.number,
+            new_l2_block.timestamp,
+            last_l2_block.hash,
+        );
+        digest.push_tx_hash(tx.hash());
+        new_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
+
         l2_block_number += 1;
         new_l2_block.base_system_contracts_hashes = contract_hashes;
         new_l2_block.l2_tx_count = 1;
         conn.blocks_dal().insert_l2_block(&new_l2_block).await?;
+        last_l2_block = new_l2_block.clone();
         let tx_result = execute_l2_transaction(tx);
         conn.transactions_dal()
-            .mark_txs_as_executed_in_l2_block(new_l2_block.number, &[tx_result], 1.into())
+            .mark_txs_as_executed_in_l2_block(new_l2_block.number, &[tx_result.clone()], 1.into())
             .await?;
 
         // Insert a fictive L2 block at the end of the batch
-        let fictive_l2_block = create_l2_block(l2_block_number.0);
-        l2_block_number += 1;
-        conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
+        // let fictive_l2_block = create_l2_block(l2_block_number.0);
+        // l2_block_number += 1;
+        // conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
 
         let header = L1BatchHeader::new(
             l1_batch_number,
-            l2_block_number.0 as u64 - 2, // Matches the first L2 block in the batch
+            l2_block_number.0 as u64 - 1, // Matches the first L2 block in the batch
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
         );
@@ -135,6 +193,9 @@ async fn store_l2_blocks(
             .await?;
         conn.blocks_dal()
             .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
+            .await?;
+        conn.transactions_dal()
+            .mark_txs_as_executed_in_l1_batch(l1_batch_number, &[tx_result])
             .await?;
 
         let metadata = create_l1_batch_metadata(l1_batch_number.0);

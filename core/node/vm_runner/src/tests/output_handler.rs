@@ -1,6 +1,5 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use async_trait::async_trait;
 use backon::{ConstantBuilder, Retryable};
 use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use tokio::{
@@ -8,51 +7,12 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
-use zksync_core::state_keeper::{StateKeeperOutputHandler, UpdatesManager};
+use zksync_core::state_keeper::UpdatesManager;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::L1BatchNumber;
 
-use crate::tests::IoMock;
+use crate::tests::{IoMock, TestOutputFactory};
 use crate::{ConcurrentOutputHandlerFactory, OutputHandlerFactory};
-
-#[derive(Debug)]
-struct TestOutputFactory {
-    delays: HashMap<L1BatchNumber, Duration>,
-}
-
-#[async_trait]
-impl OutputHandlerFactory for TestOutputFactory {
-    async fn create_handler(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
-        let delay = self.delays.get(&l1_batch_number).copied();
-        #[derive(Debug)]
-        struct TestOutputHandler {
-            delay: Option<Duration>,
-        }
-        #[async_trait]
-        impl StateKeeperOutputHandler for TestOutputHandler {
-            async fn handle_l2_block(
-                &mut self,
-                _updates_manager: &UpdatesManager,
-            ) -> anyhow::Result<()> {
-                Ok(())
-            }
-
-            async fn handle_l1_batch(
-                &mut self,
-                _updates_manager: Arc<UpdatesManager>,
-            ) -> anyhow::Result<()> {
-                if let Some(delay) = self.delay {
-                    tokio::time::sleep(delay).await
-                }
-                Ok(())
-            }
-        }
-        Ok(Box::new(TestOutputHandler { delay }))
-    }
-}
 
 struct OutputHandlerTester {
     io: Arc<RwLock<IoMock>>,

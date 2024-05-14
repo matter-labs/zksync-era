@@ -78,14 +78,17 @@ impl VmRunner {
                 .await?;
 
             tokio::task::spawn(async move {
-                for l2_block in batch_data.l2_blocks {
-                    updates_manager.push_l2_block(L2BlockParams {
-                        timestamp: l2_block.timestamp,
-                        virtual_blocks: l2_block.virtual_blocks,
-                    });
-                    handler
-                        .start_next_l2_block(L2BlockEnv::from_l2_block_data(&l2_block))
-                        .await;
+                for (i, l2_block) in batch_data.l2_blocks.into_iter().enumerate() {
+                    if i > 0 {
+                        // First L2 block in every batch is already preloaded
+                        updates_manager.push_l2_block(L2BlockParams {
+                            timestamp: l2_block.timestamp,
+                            virtual_blocks: l2_block.virtual_blocks,
+                        });
+                        handler
+                            .start_next_l2_block(L2BlockEnv::from_l2_block_data(&l2_block))
+                            .await;
+                    }
                     for tx in l2_block.txs {
                         let exec_result = handler.execute_tx(tx.clone()).await;
                         let TxExecutionResult::Success {
