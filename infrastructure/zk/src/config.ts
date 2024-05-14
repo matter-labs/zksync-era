@@ -254,14 +254,13 @@ command
             console.error('This command is only for local networks');
             process.exit(1);
         }
-        const templatePath = process.env.IN_DOCKER ? 'etc/env/configs/l1-hyperchain-docker.template.toml' : 'etc/env/configs/l1-hyperchain.template.toml';
+        const templatePath = process.env.IN_DOCKER
+            ? 'etc/env/configs/l1-hyperchain-docker.template.toml'
+            : 'etc/env/configs/l1-hyperchain.template.toml';
         const template = fs
             .readFileSync(path.join(process.env.ZKSYNC_HOME!, templatePath))
             .toString()
-            .replace(
-                '"l2-inits/dev2.init.env',
-                `"l2-inits/${envName}.init.env]`
-            );
+            .replace('"l2-inits/dev2.init.env', `"l2-inits/${envName}.init.env]`);
 
         const configFile = `etc/env/configs/${envName}.toml`;
 
