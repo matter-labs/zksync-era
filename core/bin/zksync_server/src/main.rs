@@ -202,6 +202,7 @@ async fn main() -> anyhow::Result<()> {
     if opt.clear_l1_txs_history {
         println!("Clearing L1 txs history!");
         delete_l1_txs_history(&postgres_config).await?;
+        println!("Complete!");
         return Ok(());
     }
 
