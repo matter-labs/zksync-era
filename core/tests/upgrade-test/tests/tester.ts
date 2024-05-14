@@ -2,6 +2,7 @@ import * as ethers from 'ethers';
 import * as zkweb3 from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as utils from 'zk/build/utils';
 
 type Network = string;
 
@@ -65,5 +66,21 @@ export class Tester {
 
     emptyWallet() {
         return zkweb3.Wallet.createRandom().connect(this.web3Provider).connectToL1(this.ethProvider);
+    }
+
+    /// Dispatches a dummy transaction asynchronously after the L1 batch seal timeout to ensure the L1 batch is sealed.
+    /// This should trigger the L1 batch timeout due to the next L2 block timestamp.
+    ensureL1BatchSeal(targetL1BatchNumber: number) {
+        setTimeout(async () => {
+            const deadline = process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS || '8000';
+            const bufferedDeadline = parseInt(deadline, 10) + 1000;
+            await utils.sleep(bufferedDeadline / 1000);
+            console.log(`### ${bufferedDeadline}`);
+
+            const l1BatchNumber = await this.web3Provider.getL1BatchNumber();
+            if (l1BatchNumber < targetL1BatchNumber) {
+                await this.syncWallet.transfer({ to: this.syncWallet.address, amount: 0 }).then((tx) => tx.wait());
+            }
+        }, 0);
     }
 }

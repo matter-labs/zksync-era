@@ -8,6 +8,7 @@ import { ChildProcess, spawn, exec } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import * as zksync from 'zksync-ethers';
+import * as utils from 'zk/build/utils';
 
 interface AllSnapshotsResponse {
     readonly snapshotsL1BatchNumbers: number[];
@@ -396,6 +397,7 @@ describe('snapshot recovery', () => {
     // should be pruned eventually.
     step(`generate ${PRUNED_BATCH_COUNT + 1} transactions`, async () => {
         let pastL1BatchNumber = snapshotMetadata.l1BatchNumber;
+        let targetL1BatchNumber = pastL1BatchNumber + 1;
         for (let i = 0; i < PRUNED_BATCH_COUNT + 1; i++) {
             const transactionResponse = await fundedWallet.transfer({
                 to: fundedWallet.address,
@@ -408,11 +410,13 @@ describe('snapshot recovery', () => {
 
             // Wait until an L1 batch number with the transaction is sealed.
             let newL1BatchNumber: number;
-            while ((newL1BatchNumber = await mainNode.getL1BatchNumber()) <= pastL1BatchNumber) {
+            ensureL1BatchSeal(fundedWallet, mainNode, targetL1BatchNumber);
+            while ((newL1BatchNumber = await mainNode.getL1BatchNumber()) < targetL1BatchNumber) {
                 await sleep(1000);
             }
             console.log(`Sealed L1 batch #${newL1BatchNumber}`);
             pastL1BatchNumber = newL1BatchNumber;
+            targetL1BatchNumber = pastL1BatchNumber + 1;
         }
     });
 
@@ -533,4 +537,20 @@ async function killExternalNode() {
             throw err;
         }
     }
+}
+
+/// Dispatches a dummy transaction asynchronously after the L1 batch seal timeout to ensure the L1 batch is sealed.
+/// This should trigger the L1 batch timeout due to the next L2 block timestamp.
+function ensureL1BatchSeal(wallet: zkweb3.Wallet, web3Provider: zkweb3.Provider, targetL1BatchNumber: number) {
+    setTimeout(async () => {
+        const deadline = process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS || '8000';
+        const bufferedDeadline = parseInt(deadline, 10) + 1000;
+        await utils.sleep(bufferedDeadline / 1000);
+        console.log(`### ${bufferedDeadline}`);
+
+        const l1BatchNumber = await web3Provider.getL1BatchNumber();
+        if (l1BatchNumber < targetL1BatchNumber) {
+            await wallet.transfer({ to: wallet.address, amount: 0 }).then((tx) => tx.wait());
+        }
+    }, 0);
 }
