@@ -23,7 +23,7 @@ pub mod main_executor;
 
 /// Representation of a transaction executed in the virtual machine.
 #[derive(Debug, Clone)]
-pub(crate) enum TxExecutionResult {
+pub enum TxExecutionResult {
     /// Successful execution of the tx and the block tip dry run.
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
@@ -81,7 +81,7 @@ impl BatchExecutorHandle {
         Self { handle, commands }
     }
 
-    pub(super) async fn execute_tx(&self, tx: Transaction) -> TxExecutionResult {
+    pub async fn execute_tx(&self, tx: Transaction) -> TxExecutionResult {
         let tx_gas_limit = tx.gas_limit().as_u64();
 
         let (response_sender, response_receiver) = oneshot::channel();
@@ -113,7 +113,7 @@ impl BatchExecutorHandle {
         res
     }
 
-    pub(super) async fn start_next_l2_block(&self, env: L2BlockEnv) {
+    pub async fn start_next_l2_block(&self, env: L2BlockEnv) {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
         let (response_sender, response_receiver) = oneshot::channel();
@@ -128,7 +128,7 @@ impl BatchExecutorHandle {
         latency.observe();
     }
 
-    pub(super) async fn rollback_last_tx(&self) {
+    pub async fn rollback_last_tx(&self) {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
         let (response_sender, response_receiver) = oneshot::channel();
@@ -143,7 +143,7 @@ impl BatchExecutorHandle {
         latency.observe();
     }
 
-    pub(super) async fn finish_batch(self) -> FinishedL1Batch {
+    pub async fn finish_batch(self) -> FinishedL1Batch {
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands
             .send(Command::FinishBatch(response_sender))

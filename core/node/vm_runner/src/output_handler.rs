@@ -97,7 +97,7 @@ impl<Io: VmRunnerIo, F: OutputHandlerFactory> OutputHandlerFactory
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
-        let mut conn = self.pool.connection_tagged(Io::name()).await?;
+        let mut conn = self.pool.connection_tagged(self.io.name()).await?;
         let latest_processed_batch = self.io.latest_processed_batch(&mut conn).await?;
         let last_processable_batch = self.io.last_ready_to_be_loaded_batch(&mut conn).await?;
         drop(conn);
@@ -214,7 +214,7 @@ impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
-        let mut conn = self.pool.connection_tagged(Io::name()).await?;
+        let mut conn = self.pool.connection_tagged(self.io.name()).await?;
         let mut latest_processed_batch = self.io.latest_processed_batch(&mut conn).await?;
         drop(conn);
         loop {
@@ -238,7 +238,7 @@ impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
                     // computation has finished, and we can consider this batch to be completed
                     future.await?;
                     latest_processed_batch += 1;
-                    let mut conn = self.pool.connection_tagged(Io::name()).await?;
+                    let mut conn = self.pool.connection_tagged(self.io.name()).await?;
                     self.io
                         .mark_l1_batch_as_completed(&mut conn, latest_processed_batch)
                         .await?;
@@ -275,7 +275,7 @@ mod tests {
 
     #[async_trait]
     impl VmRunnerIo for Arc<RwLock<IoMock>> {
-        fn name() -> &'static str {
+        fn name(&self) -> &'static str {
             "io_mock"
         }
 

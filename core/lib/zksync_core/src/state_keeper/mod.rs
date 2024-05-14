@@ -10,16 +10,16 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::L2ChainId;
 
 pub use self::{
-    batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
+    batch_executor::{main_executor::MainBatchExecutor, BatchExecutor, TxExecutionResult},
     io::{
-        mempool::MempoolIO, L2BlockSealerTask, OutputHandler, StateKeeperIO,
+        mempool::MempoolIO, L2BlockParams, L2BlockSealerTask, OutputHandler, StateKeeperIO,
         StateKeeperOutputHandler, StateKeeperPersistence,
     },
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
     seal_criteria::SequencerSealer,
     state_keeper_storage::AsyncRocksdbCache,
-    types::MempoolGuard,
+    types::{ExecutionMetricsForCriteria, MempoolGuard},
     updates::UpdatesManager,
 };
 

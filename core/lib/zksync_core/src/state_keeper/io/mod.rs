@@ -46,7 +46,7 @@ pub struct PendingBatchData {
 #[derive(Debug, Copy, Clone, Default)]
 pub struct L2BlockParams {
     /// The timestamp of the L2 block.
-    pub(crate) timestamp: u64,
+    pub timestamp: u64,
     /// The maximal number of virtual blocks that can be created within this L2 block.
     /// During the migration from displaying users `batch.number` to L2 block number in Q3 2023
     /// in order to make the process smoother for users, we temporarily display the virtual blocks for users.
@@ -55,7 +55,7 @@ pub struct L2BlockParams {
     /// Note that it is the *maximal* number of virtual blocks that can be created within this L2 block since
     /// once the virtual blocks' number reaches the L2 block number, they will never be allowed to exceed those, i.e.
     /// any "excess" created blocks will be ignored.
-    pub(crate) virtual_blocks: u32,
+    pub virtual_blocks: u32,
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
