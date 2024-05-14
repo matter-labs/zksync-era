@@ -186,6 +186,8 @@ export const initHyperCmdAction = async ({
     runObservability,
     validiumMode
 }: InitHyperCmdActionOptions): Promise<void> => {
+    console.log('ZKSYNC_ENV : ', process.env.ZKSYNC_ENV);
+    console.log('DB URL : ', process.env.DATABASE_URL);
     if (bumpChainId) {
         config.bumpChainId();
     }
