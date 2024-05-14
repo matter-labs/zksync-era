@@ -36,6 +36,7 @@ Cargo.lock
 !/etc/env/configs/dev.toml
 !/etc/env/configs/dev2.toml
 !/etc/env/configs/l1-hyperchain.template.toml
+!/etc/env/configs/l1-hyperchain-docker.template.toml
 !/etc/env/configs/dev_validium.toml
 !/etc/env/configs/dev_validium_docker.toml
 !/etc/env/configs/ext-node.toml
