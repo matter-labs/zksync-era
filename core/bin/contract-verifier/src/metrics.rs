@@ -1,4 +1,4 @@
-use chrono::Duration;
+use std::time::Duration;
 use vise::{Buckets, Histogram, Metrics};
 
 #[derive(Debug, Metrics)]
