@@ -28,7 +28,11 @@ impl SnapshotBasicsTest {
 
 #[async_trait]
 impl HttpTest for SnapshotBasicsTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let mut storage = pool.connection().await.unwrap();
         store_l2_block(
             &mut storage,

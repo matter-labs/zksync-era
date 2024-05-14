@@ -7,7 +7,7 @@ use zksync_core::{
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::L2ChainId;
-use zksync_web3_decl::client::BoxedL2Client;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::{
     implementations::resources::{
@@ -141,7 +141,7 @@ impl Task for MainNodeConsensusTask {
 pub struct FetcherTask {
     config: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     sync_state: SyncState,
     action_queue_sender: ActionQueueSender,
 }

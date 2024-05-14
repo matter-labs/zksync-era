@@ -7,7 +7,7 @@
 use zksync_concurrency::ctx;
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_web3_decl::client::BoxedL2Client;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use super::{config, fetcher::Fetcher, storage::Store};
 use crate::sync_layer::{sync_action::ActionQueueSender, SyncState};
@@ -36,7 +36,7 @@ pub async fn run_fetcher(
     cfg: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
     sync_state: SyncState,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     actions: ActionQueueSender,
 ) -> anyhow::Result<()> {
     let fetcher = Fetcher {
