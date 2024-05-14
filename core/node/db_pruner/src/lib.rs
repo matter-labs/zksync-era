@@ -294,7 +294,7 @@ impl DbPruner {
                 Ok(pruning_done) => !pruning_done,
             };
 
-            if Instant::now() - last_vacuum_time > Duration::from_secs(24 * 3600) {
+            if Instant::now().duration_since(last_vacuum_time) > Duration::from_secs(24 * 3600) {
                 let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
                 storage
                     .pruning_dal()
