@@ -16,7 +16,6 @@ use zksync_types::{
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::TokenInfo,
-    web3::futures,
     L1BatchNumber, L2BlockNumber, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;

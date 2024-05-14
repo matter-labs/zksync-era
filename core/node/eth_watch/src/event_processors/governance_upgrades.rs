@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    ethabi::Contract, protocol_upgrade::GovernanceOperation, web3::types::Log, Address,
-    ProtocolUpgrade, ProtocolVersionId, H256,
+    ethabi::Contract, protocol_upgrade::GovernanceOperation, web3::Log, Address, ProtocolUpgrade,
+    ProtocolVersionId, H256,
 };
 
 use crate::{

@@ -72,7 +72,7 @@ impl WiringLayer for PoolsLayer {
 
         if self.with_master {
             context.insert_resource(PoolResource::<MasterPool>::new(
-                self.config.master_url()?.into(),
+                self.config.master_url()?,
                 self.config.max_connections()?,
                 self.config.statement_timeout(),
             ))?;
@@ -80,7 +80,7 @@ impl WiringLayer for PoolsLayer {
 
         if self.with_replica {
             context.insert_resource(PoolResource::<ReplicaPool>::new(
-                self.config.replica_url()?.into(),
+                self.config.replica_url()?,
                 self.config.max_connections()?,
                 self.config.statement_timeout(),
             ))?;
@@ -88,7 +88,7 @@ impl WiringLayer for PoolsLayer {
 
         if self.with_prover {
             context.insert_resource(PoolResource::<ProverPool>::new(
-                self.config.prover_url()?.into(),
+                self.config.prover_url()?,
                 self.config.max_connections()?,
                 self.config.statement_timeout(),
             ))?;

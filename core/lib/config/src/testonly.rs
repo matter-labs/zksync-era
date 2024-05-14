@@ -306,9 +306,9 @@ impl Distribution<configs::database::DBConfig> for EncodeDist {
 impl Distribution<configs::database::PostgresConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::PostgresConfig {
         configs::database::PostgresConfig {
-            master_url: self.sample(rng),
-            replica_url: self.sample(rng),
-            prover_url: self.sample(rng),
+            master_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            replica_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            prover_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
             max_connections: self.sample(rng),
             max_connections_master: self.sample(rng),
             acquire_timeout_sec: self.sample(rng),
@@ -327,7 +327,7 @@ impl Distribution<configs::EthConfig> for EncodeDist {
             sender: self.sample(rng),
             gas_adjuster: self.sample(rng),
             watcher: self.sample(rng),
-            web3_url: self.sample(rng),
+            web3_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
         }
     }
 }
@@ -659,7 +659,6 @@ impl Distribution<configs::ObservabilityConfig> for EncodeDist {
             sentry_environment: self.sample(rng),
             log_format: self.sample(rng),
             opentelemetry: self.sample(rng),
-            sporadic_crypto_errors_substrs: self.sample_collect(rng),
             log_directives: self.sample(rng),
         }
     }
