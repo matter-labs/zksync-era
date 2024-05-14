@@ -629,8 +629,32 @@ async fn detector_waits_for_state_hash_on_main_node() {
     let client = SlowMainNode::new(genesis_batch.root_hash, 5);
     let l1_batch_root_hash_call_count = client.l1_batch_root_hash_call_count.clone();
     let mut detector = create_mock_detector(client, pool);
-    detector.check_consistency().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    detector.run_once(stop_receiver).await.unwrap();
 
     let call_count = l1_batch_root_hash_call_count.load(Ordering::Relaxed);
     assert!(call_count >= 5, "{call_count}");
+}
+
+#[tokio::test]
+async fn detector_does_not_deadlock_if_main_node_is_not_available() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+    drop(storage);
+
+    // `client` will always return transient errors making the detector to retry its checks indefinitely
+    let client = MockMainNodeClient::default();
+    *client.error_kind.lock().unwrap() = Some(RpcErrorKind::Transient);
+    let mut detector = create_mock_detector(client, pool);
+    let (stop_sender, stop_receiver) = watch::channel(false);
+
+    let detector_handle = tokio::spawn(async move { detector.run_once(stop_receiver).await });
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    assert!(!detector_handle.is_finished());
+
+    stop_sender.send_replace(true);
+    detector_handle.await.unwrap().unwrap();
 }

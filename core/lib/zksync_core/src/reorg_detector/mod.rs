@@ -22,7 +22,9 @@ mod tests;
 pub enum HashMatchError {
     #[error("RPC error calling main node")]
     Rpc(#[from] EnrichedClientError),
-    #[error("remote hash is missing")]
+    #[error("batch is missing on remote node")]
+    RemoteBatchMissing,
+    #[error("state hash is missing on remote node")]
     RemoteHashMissing,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
@@ -54,7 +56,7 @@ impl HashMatchError {
     pub fn is_transient(&self) -> bool {
         match self {
             Self::Rpc(err) => err.is_transient(),
-            Self::RemoteHashMissing => true,
+            Self::RemoteBatchMissing | Self::RemoteHashMissing => true,
             Self::Internal(_) => false,
         }
     }
@@ -246,9 +248,7 @@ impl ReorgDetector {
         &self.health_check
     }
 
-    /// Returns `Ok(())` if no reorg was detected.
-    /// Returns `Err::ReorgDetected()` if a reorg was detected.
-    pub async fn check_consistency(&mut self) -> Result<(), Error> {
+    async fn check_consistency(&mut self) -> Result<(), Error> {
         let mut storage = self.pool.connection().await.context("connection()")?;
         let Some(local_l1_batch) = storage
             .blocks_dal()
@@ -356,21 +356,11 @@ impl ReorgDetector {
             .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 
-        let remote_hash = loop {
-            match self.client.l1_batch_root_hash(l1_batch).await? {
-                StateHash::MissingHash => {
-                    // May happen if the main node has an L1 batch, but its state root hash is not computed yet.
-                    tracing::debug!("Last L1 batch number on the main node has not changed; waiting until its state hash is computed");
-                    tokio::time::sleep(self.sleep_interval / 10).await;
-                }
-                StateHash::MissingBatch => {
-                    tracing::info!("Remote L1 batch #{l1_batch} is missing");
-                    return Err(HashMatchError::RemoteHashMissing);
-                }
-                StateHash::Some(hash) => break hash,
-            }
+        let remote_hash = match self.client.l1_batch_root_hash(l1_batch).await? {
+            StateHash::MissingHash => return Err(HashMatchError::RemoteHashMissing),
+            StateHash::MissingBatch => return Err(HashMatchError::RemoteBatchMissing),
+            StateHash::Some(hash) => hash,
         };
-
         if remote_hash != local_hash {
             tracing::warn!(
                 "Reorg detected: local root hash {local_hash:?} doesn't match the state hash from \
@@ -393,7 +383,9 @@ impl ReorgDetector {
             diverged_l1_batch.0,
             |number| async move {
                 match self.root_hashes_match(L1BatchNumber(number)).await {
-                    Err(HashMatchError::RemoteHashMissing) => Ok(true),
+                    Err(HashMatchError::RemoteHashMissing | HashMatchError::RemoteBatchMissing) => {
+                        Ok(true)
+                    }
                     res => res,
                 }
             },
@@ -402,19 +394,49 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
+    /// Runs this detector *once* checking whether there is a reorg. This method will return:
+    ///
+    /// - `Ok(())` if there is no reorg, or if a stop signal is received.
+    /// - `Err(ReorgDetected(_))` if a reorg was detected.
+    /// - `Err(_)` for fatal errors.
+    ///
+    /// Transient errors are retried indefinitely accounting for a stop signal.
+    pub async fn run_once(&mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
+        self.run_inner(true, stop_receiver).await
+    }
+
+    /// Runs this detector continuously checking for a reorg until a fatal error occurs (including if a reorg is detected),
+    /// or a stop signal is received.
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
         self.event_handler.initialize();
+        self.run_inner(false, stop_receiver).await?;
+        self.event_handler.start_shutting_down();
+        tracing::info!("Shutting down reorg detector");
+        Ok(())
+    }
+
+    async fn run_inner(
+        &mut self,
+        stop_after_success: bool,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> Result<(), Error> {
         while !*stop_receiver.borrow_and_update() {
-            match self.check_consistency().await {
+            let sleep_interval = match self.check_consistency().await {
+                Err(Error::HashMatch(HashMatchError::RemoteHashMissing)) => {
+                    tracing::debug!("Last L1 batch number on the main node has not changed; waiting until its state hash is computed");
+                    self.sleep_interval / 10
+                }
                 Err(err) if err.is_transient() => {
                     tracing::warn!("Following transient error occurred: {err}");
                     tracing::info!("Trying again after a delay");
+                    self.sleep_interval
                 }
                 Err(err) => return Err(err),
-                Ok(()) => {}
-            }
+                Ok(()) if stop_after_success => return Ok(()),
+                Ok(()) => self.sleep_interval,
+            };
 
-            if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+            if tokio::time::timeout(sleep_interval, stop_receiver.changed())
                 .await
                 .is_ok()
             {
@@ -423,8 +445,6 @@ impl ReorgDetector {
                 break;
             }
         }
-        self.event_handler.start_shutting_down();
-        tracing::info!("Shutting down reorg detector");
         Ok(())
     }
 }
