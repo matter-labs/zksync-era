@@ -35,8 +35,7 @@ fn main() {
         vm_benchmark::with_prometheus::with_prometheus(|| {
             for (name, timings) in results {
                 for (i, timing) in timings.into_iter().enumerate() {
-                    VM_BENCHMARK_METRICS.timing[&(name.clone(), i.to_string())]
-                        .set(timing.as_secs_f64());
+                    VM_BENCHMARK_METRICS.timing[&(name.clone(), i.to_string())].set(timing);
                 }
             }
         });
