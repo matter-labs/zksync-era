@@ -87,7 +87,9 @@ async function registerSyncLayer() {
 async function migrateToSyncLayer() {
     await utils.confirmAction();
 
-    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer migrate-to-sync-layer | tee sync-layer-migration.log`);
+    await utils.spawn(
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer migrate-to-sync-layer | tee sync-layer-migration.log`
+    );
 
     const migrationLog = fs.readFileSync('sync-layer-migration.log').toString();
 
@@ -108,17 +110,14 @@ async function recoverFromFailedMigrationToSyncLayer(failedTxSLHash: string) {
     );
 }
 
-/// FIXME: generally we should use a different approach for config maintaining within sync layer 
+/// FIXME: generally we should use a different approach for config maintaining within sync layer
 /// the chain should retain both "sync_layer" and "contracts_" contracts and be able to switch between them
 async function updateConfigOnSyncLayer() {
-    const specialParams = [
-        'SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL',
-        'SYNC_LAYER_CHAIN_ID',
-    ];
+    const specialParams = ['SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL', 'SYNC_LAYER_CHAIN_ID'];
 
     const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
     for (const envVar of syncLayerEnvVars) {
-        if(specialParams.includes(envVar)) {
+        if (specialParams.includes(envVar)) {
             continue;
         }
         const contractsVar = envVar.replace(/SYNC_LAYER/g, 'CONTRACTS');
@@ -126,14 +125,17 @@ async function updateConfigOnSyncLayer() {
     }
     env.modify('ETH_CLIENT_WEB3_URL', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
     env.modify('ETH_CLIENT_CHAIN_ID', process.env.SYNC_LAYER_CHAIN_ID!, envFile, false);
-    
+
     env.modify('CHAIN_ETH_NETWORK', 'localhostL2', envFile, false);
 
     env.modify(`ETH_SENDER_SENDER_IGNORE_DB_NONCE`, 'true', envFile, false);
-    env.modify('CONTRACTS_BASE_NETWORK_ZKSYNC', 'true' , envFile, false);
+    env.modify('CONTRACTS_BASE_NETWORK_ZKSYNC', 'true', envFile, false);
 
     // FIXME: while logically incorrect, it is temporarily needed to make the synclayer start
-    fs.copyFileSync(`${process.env.ZKSYNC_HOME}/etc/tokens/localhost.json`, `${process.env.ZKSYNC_HOME}/etc/tokens/localhostL2.json`);
+    fs.copyFileSync(
+        `${process.env.ZKSYNC_HOME}/etc/tokens/localhost.json`,
+        `${process.env.ZKSYNC_HOME}/etc/tokens/localhostL2.json`
+    );
 
     env.reload();
 }
@@ -454,7 +456,6 @@ command
         console.log('input params : ', cmd.failedTxL2Hash);
         await recoverFromFailedMigrationToSyncLayer(cmd.failedTxL2Hash);
     });
-
 
 command
     .command('prepare-sync-layer-validators')

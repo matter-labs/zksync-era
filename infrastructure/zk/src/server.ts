@@ -23,7 +23,7 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
         options += ` --components=${components}`;
     }
 
-    if(!timeToLive) {    
+    if (!timeToLive) {
         await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
     } else {
         const child = utils.background(`cargo run --bin zksync_server --release ${options}`);
