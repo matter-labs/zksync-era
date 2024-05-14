@@ -18,14 +18,27 @@ use crate::utils::binary_search_with;
 #[cfg(test)]
 mod tests;
 
+/// Data missing on the main node.
+#[derive(Debug, thiserror::Error)]
+#[cfg_attr(test, derive(Clone, Copy))] // deriving these traits for errors is usually a bad idea, so we scope derivation to tests
+pub enum MissingData {
+    /// The main node lacks a requested L2 block.
+    #[error("no requested L2 block")]
+    L2Block,
+    /// The main node lacks a requested L1 batch.
+    #[error("no requested L1 batch")]
+    Batch,
+    /// The main node lacks a root hash for a requested L1 batch; the batch itself is present on the node.
+    #[error("no root hash for L1 batch")]
+    RootHash,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum HashMatchError {
     #[error("RPC error calling main node")]
     Rpc(#[from] EnrichedClientError),
-    #[error("batch is missing on remote node")]
-    RemoteBatchMissing,
-    #[error("state hash is missing on remote node")]
-    RemoteHashMissing,
+    #[error("missing data on main node")]
+    MissingData(#[from] MissingData),
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
@@ -56,7 +69,7 @@ impl HashMatchError {
     pub fn is_transient(&self) -> bool {
         match self {
             Self::Rpc(err) => err.is_transient(),
-            Self::RemoteBatchMissing | Self::RemoteHashMissing => true,
+            Self::MissingData(_) => true,
             Self::Internal(_) => false,
         }
     }
@@ -80,13 +93,6 @@ impl From<EnrichedClientError> for Error {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum StateHash {
-    MissingBatch,
-    MissingHash,
-    Some(H256),
-}
-
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn sealed_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber>;
@@ -95,7 +101,10 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 
     async fn l2_block_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>>;
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> EnrichedClientResult<StateHash>;
+    async fn l1_batch_root_hash(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Result<H256, MissingData>>;
 }
 
 #[async_trait]
@@ -131,20 +140,19 @@ impl MainNodeClient for Box<DynClient<L2>> {
             .map(|block| block.hash))
     }
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> EnrichedClientResult<StateHash> {
+    async fn l1_batch_root_hash(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Result<H256, MissingData>> {
         let Some(batch) = self
             .get_l1_batch_details(number)
             .rpc_context("l1_batch_root_hash")
             .with_arg("number", &number)
             .await?
         else {
-            return Ok(StateHash::MissingBatch);
+            return Ok(Err(MissingData::Batch));
         };
-
-        Ok(match batch.base.root_hash {
-            Some(hash) => StateHash::Some(hash),
-            None => StateHash::MissingHash,
-        })
+        Ok(batch.base.root_hash.ok_or(MissingData::RootHash))
     }
 }
 
@@ -304,7 +312,7 @@ impl ReorgDetector {
         match self.root_hashes_match(first_l1_batch).await {
             Ok(true) => {}
             Ok(false) => return Err(Error::EarliestL1BatchMismatch(first_l1_batch)),
-            Err(HashMatchError::RemoteHashMissing) => {
+            Err(HashMatchError::MissingData(_)) => {
                 return Err(Error::EarliestL1BatchTruncated(first_l1_batch));
             }
             Err(err) => return Err(err.into()),
@@ -333,7 +341,7 @@ impl ReorgDetector {
             // Lack of the hash on the main node is treated as a hash match,
             // We need to wait for our knowledge of main node to catch up.
             tracing::info!("Remote L2 block #{l2_block} is missing");
-            return Err(HashMatchError::RemoteHashMissing);
+            return Err(MissingData::L2Block.into());
         };
 
         if remote_hash != local_hash {
@@ -356,11 +364,7 @@ impl ReorgDetector {
             .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 
-        let remote_hash = match self.client.l1_batch_root_hash(l1_batch).await? {
-            StateHash::MissingHash => return Err(HashMatchError::RemoteHashMissing),
-            StateHash::MissingBatch => return Err(HashMatchError::RemoteBatchMissing),
-            StateHash::Some(hash) => hash,
-        };
+        let remote_hash = self.client.l1_batch_root_hash(l1_batch).await??;
         if remote_hash != local_hash {
             tracing::warn!(
                 "Reorg detected: local root hash {local_hash:?} doesn't match the state hash from \
@@ -383,9 +387,7 @@ impl ReorgDetector {
             diverged_l1_batch.0,
             |number| async move {
                 match self.root_hashes_match(L1BatchNumber(number)).await {
-                    Err(HashMatchError::RemoteHashMissing | HashMatchError::RemoteBatchMissing) => {
-                        Ok(true)
-                    }
+                    Err(HashMatchError::MissingData(_)) => Ok(true),
                     res => res,
                 }
             },
@@ -422,8 +424,8 @@ impl ReorgDetector {
     ) -> Result<(), Error> {
         while !*stop_receiver.borrow_and_update() {
             let sleep_interval = match self.check_consistency().await {
-                Err(Error::HashMatch(HashMatchError::RemoteHashMissing)) => {
-                    tracing::debug!("Last L1 batch number on the main node has not changed; waiting until its state hash is computed");
+                Err(Error::HashMatch(HashMatchError::MissingData(MissingData::RootHash))) => {
+                    tracing::debug!("Last L1 batch on the main node doesn't have a state root hash; waiting until it is computed");
                     self.sleep_interval / 10
                 }
                 Err(err) if err.is_transient() => {
