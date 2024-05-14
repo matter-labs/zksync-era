@@ -142,7 +142,7 @@ impl MainNodeBuilder {
             &operations_manager_env_config,
         );
         self.node
-            .add_layer(MetadataCalculatorLayer(metadata_calculator_config));
+            .add_layer(MetadataCalculatorLayer::new(metadata_calculator_config));
         Ok(self)
     }
 
