@@ -129,7 +129,7 @@ impl SnapshotParameters {
         let l2_block = recovery.l2_block_number;
         let expected_root_hash = recovery.l1_batch_root_hash;
 
-        let mut storage = pool.connection().await?;
+        let mut storage = pool.connection_tagged("metadata_calculator").await?;
         let log_count = storage
             .storage_logs_dal()
             .get_storage_logs_row_count(l2_block)
@@ -237,7 +237,7 @@ impl AsyncTreeRecovery {
             options.concurrency_limit
         );
 
-        let mut storage = pool.connection().await?;
+        let mut storage = pool.connection_tagged("metadata_calculator").await?;
         let remaining_chunks = self
             .filter_chunks(&mut storage, snapshot.l2_block, &chunks)
             .await?;
@@ -339,7 +339,7 @@ impl AsyncTreeRecovery {
     ) -> anyhow::Result<()> {
         let acquire_connection_latency =
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::AcquireConnection].start();
-        let mut storage = pool.connection().await?;
+        let mut storage = pool.connection_tagged("metadata_calculator").await?;
         acquire_connection_latency.observe();
 
         if *stop_receiver.borrow() {
