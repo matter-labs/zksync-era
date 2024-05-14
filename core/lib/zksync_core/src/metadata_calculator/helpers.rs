@@ -392,6 +392,39 @@ impl AsyncTreeRecovery {
             .recovered_version()
     }
 
+    pub async fn ensure_desired_chunk_size(
+        &mut self,
+        desired_chunk_size: u64,
+    ) -> anyhow::Result<()> {
+        const CHUNK_SIZE_KEY: &str = "recovery.desired_chunk_size";
+
+        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+        let tree = tokio::task::spawn_blocking(move || {
+            // **Important.** Tags should not be mutated on error (i.e., it would be an error to unconditionally call `tags.insert()`
+            // and then check the previous value).
+            tree.update_custom_tags(|tags| {
+                if let Some(chunk_size_in_tree) = tags.get(CHUNK_SIZE_KEY) {
+                    let chunk_size_in_tree: u64 = chunk_size_in_tree
+                        .parse()
+                        .with_context(|| format!("error parsing desired_chunk_size `{chunk_size_in_tree}` in Merkle tree tags"))?;
+                    anyhow::ensure!(
+                        chunk_size_in_tree == desired_chunk_size,
+                        "Mismatch between the configured desired chunk size ({desired_chunk_size}) and one that was used previously ({chunk_size_in_tree}). \
+                         Either change the desired chunk size in configuration, or reset Merkle tree recovery by clearing its RocksDB directory"
+                    );
+                } else {
+                    tags.insert(CHUNK_SIZE_KEY.to_owned(), desired_chunk_size.to_string());
+                }
+                Ok(())
+            })?;
+            anyhow::Ok(tree)
+        })
+        .await??;
+
+        self.inner = Some(tree);
+        Ok(())
+    }
+
     /// Returns an entry for the specified keys.
     pub async fn entries(&mut self, keys: Vec<Key>) -> Vec<TreeEntry> {
         let tree = self.inner.take().expect(Self::INCONSISTENT_MSG);

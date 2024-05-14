@@ -46,6 +46,7 @@ use zksync_types::{
 use super::{
     helpers::{AsyncTree, AsyncTreeRecovery, GenericAsyncTree, MerkleTreeHealth},
     metrics::{ChunkRecoveryStage, RecoveryStage, RECOVERY_METRICS},
+    MetadataCalculatorRecoveryConfig,
 };
 
 #[cfg(test)]
@@ -113,16 +114,14 @@ struct SnapshotParameters {
     l2_block: L2BlockNumber,
     expected_root_hash: H256,
     log_count: u64,
+    desired_chunk_size: u64,
 }
 
 impl SnapshotParameters {
-    /// This is intentionally not configurable because chunks must be the same for the entire recovery
-    /// (i.e., not changed after a node restart).
-    const DESIRED_CHUNK_SIZE: u64 = 200_000;
-
     async fn new(
         pool: &ConnectionPool<Core>,
         recovery: &SnapshotRecoveryStatus,
+        config: &MetadataCalculatorRecoveryConfig,
     ) -> anyhow::Result<Self> {
         let l2_block = recovery.l2_block_number;
         let expected_root_hash = recovery.l1_batch_root_hash;
@@ -137,11 +136,12 @@ impl SnapshotParameters {
             l2_block,
             expected_root_hash,
             log_count,
+            desired_chunk_size: config.desired_chunk_size,
         })
     }
 
     fn chunk_count(&self) -> u64 {
-        self.log_count.div_ceil(Self::DESIRED_CHUNK_SIZE)
+        self.log_count.div_ceil(self.desired_chunk_size)
     }
 }
 
@@ -161,10 +161,11 @@ impl GenericAsyncTree {
     /// with other components).
     pub async fn ensure_ready(
         self,
+        config: &MetadataCalculatorRecoveryConfig,
         main_pool: &ConnectionPool<Core>,
         recovery_pool: ConnectionPool<Core>,
-        stop_receiver: &watch::Receiver<bool>,
         health_updater: &HealthUpdater,
+        stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<AsyncTree>> {
         let started_at = Instant::now();
         let (tree, snapshot_recovery) = match self {
@@ -197,8 +198,10 @@ impl GenericAsyncTree {
             }
         };
 
-        let snapshot = SnapshotParameters::new(main_pool, &snapshot_recovery).await?;
-        tracing::debug!("Obtained snapshot parameters: {snapshot:?}");
+        let snapshot = SnapshotParameters::new(main_pool, &snapshot_recovery, config).await?;
+        tracing::debug!(
+            "Obtained snapshot parameters: {snapshot:?} based on recovery configuration {config:?}"
+        );
         let recovery_options = RecoveryOptions {
             chunk_count: snapshot.chunk_count(),
             concurrency_limit: recovery_pool.max_size() as usize,
@@ -225,6 +228,9 @@ impl AsyncTreeRecovery {
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<AsyncTree>> {
+        self.ensure_desired_chunk_size(snapshot.desired_chunk_size)
+            .await?;
+
         let start_time = Instant::now();
         let chunk_count = options.chunk_count;
         let chunks: Vec<_> = (0..chunk_count)

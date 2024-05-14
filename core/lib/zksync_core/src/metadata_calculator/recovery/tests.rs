@@ -33,6 +33,7 @@ fn calculating_chunk_count() {
         l2_block: L2BlockNumber(1),
         log_count: 160_000_000,
         expected_root_hash: H256::zero(),
+        desired_chunk_size: 200_000,
     };
     assert_eq!(snapshot.chunk_count(), 800);
 
@@ -53,7 +54,8 @@ async fn basic_recovery_workflow() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let snapshot_recovery = prepare_recovery_snapshot_with_genesis(pool.clone(), &temp_dir).await;
-    let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery)
+    let config = MetadataCalculatorRecoveryConfig::default();
+    let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery, &config)
         .await
         .unwrap();
 
@@ -159,6 +161,47 @@ impl HandleRecoveryEvent for TestEventListener {
     }
 }
 
+#[tokio::test]
+async fn recovery_detects_incorrect_chunk_size_change() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let snapshot_recovery = prepare_recovery_snapshot_with_genesis(pool.clone(), &temp_dir).await;
+
+    let tree_path = temp_dir.path().join("recovery");
+    let tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let recovery_options = RecoveryOptions {
+        chunk_count: 5,
+        concurrency_limit: 1,
+        events: Box::new(TestEventListener::new(1, stop_sender)),
+    };
+    let config = MetadataCalculatorRecoveryConfig::default();
+    let mut snapshot = SnapshotParameters::new(&pool, &snapshot_recovery, &config)
+        .await
+        .unwrap();
+    assert!(tree
+        .recover(snapshot, recovery_options, &pool, &stop_receiver)
+        .await
+        .unwrap()
+        .is_none());
+
+    let tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
+    let health_updater = ReactiveHealthCheck::new("tree").1;
+    let recovery_options = RecoveryOptions {
+        chunk_count: 5,
+        concurrency_limit: 1,
+        events: Box::new(RecoveryHealthUpdater::new(&health_updater)),
+    };
+    snapshot.desired_chunk_size /= 2;
+
+    let err = tree
+        .recover(snapshot, recovery_options, &pool, &stop_receiver)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("desired chunk size"), "{err}");
+}
+
 #[test_casing(3, [5, 7, 8])]
 #[tokio::test]
 async fn recovery_fault_tolerance(chunk_count: u64) {
@@ -174,7 +217,8 @@ async fn recovery_fault_tolerance(chunk_count: u64) {
         concurrency_limit: 1,
         events: Box::new(TestEventListener::new(1, stop_sender)),
     };
-    let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery)
+    let config = MetadataCalculatorRecoveryConfig::default();
+    let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery, &config)
         .await
         .unwrap();
     assert!(tree
