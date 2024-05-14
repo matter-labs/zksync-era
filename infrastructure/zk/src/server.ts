@@ -38,7 +38,7 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
         await utils.sleep(+timeToLive);
 
         // Kill the server after the time to live.
-        child.kill();
+        child.kill('SIGINT');
 
         // Now waiting for the graceful shutdown of the server.
         await promise;
