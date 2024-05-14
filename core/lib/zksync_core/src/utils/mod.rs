@@ -1,88 +1,8 @@
 //! Miscellaneous utils used by multiple components.
 
-use std::time::Duration;
-
-use tokio::sync::watch;
 use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, ClientError, Error as EthClientError, EthInterface};
-use zksync_types::{Address, L1BatchNumber};
-
-/// Repeatedly polls the DB until there is an L1 batch. We may not have such a batch initially
-/// if the DB is recovered from an application-level snapshot.
-///
-/// Returns the number of the *earliest* L1 batch, or `None` if the stop signal is received.
-pub(crate) async fn wait_for_l1_batch(
-    pool: &ConnectionPool<Core>,
-    poll_interval: Duration,
-    stop_receiver: &mut watch::Receiver<bool>,
-) -> anyhow::Result<Option<L1BatchNumber>> {
-    tracing::debug!("Waiting for at least one L1 batch in db in DB");
-    loop {
-        if *stop_receiver.borrow() {
-            return Ok(None);
-        }
-
-        let mut storage = pool.connection().await?;
-        let sealed_l1_batch_number = storage.blocks_dal().get_earliest_l1_batch_number().await?;
-        drop(storage);
-
-        if let Some(number) = sealed_l1_batch_number {
-            return Ok(Some(number));
-        }
-
-        // We don't check the result: if a stop signal is received, we'll return at the start
-        // of the next iteration.
-        tokio::time::timeout(poll_interval, stop_receiver.changed())
-            .await
-            .ok();
-    }
-}
-
-/// Repeatedly polls the DB until there is an L1 batch with metadata. We may not have such a batch initially
-/// if the DB is recovered from an application-level snapshot.
-///
-/// Returns the number of the *earliest* L1 batch with metadata, or `None` if the stop signal is received.
-pub(crate) async fn wait_for_l1_batch_with_metadata(
-    pool: &ConnectionPool<Core>,
-    poll_interval: Duration,
-    stop_receiver: &mut watch::Receiver<bool>,
-) -> anyhow::Result<Option<L1BatchNumber>> {
-    loop {
-        if *stop_receiver.borrow() {
-            return Ok(None);
-        }
-
-        let mut storage = pool.connection().await?;
-        let sealed_l1_batch_number = storage
-            .blocks_dal()
-            .get_earliest_l1_batch_number_with_metadata()
-            .await?;
-        drop(storage);
-
-        if let Some(number) = sealed_l1_batch_number {
-            return Ok(Some(number));
-        }
-        tracing::debug!(
-            "No L1 batches with metadata are present in DB; trying again in {poll_interval:?}"
-        );
-        tokio::time::timeout(poll_interval, stop_receiver.changed())
-            .await
-            .ok();
-    }
-}
-
-/// Returns the projected number of the first locally available L1 batch. The L1 batch is **not**
-/// guaranteed to be present in the storage!
-pub(crate) async fn projected_first_l1_batch(
-    storage: &mut Connection<'_, Core>,
-) -> anyhow::Result<L1BatchNumber> {
-    let snapshot_recovery = storage
-        .snapshot_recovery_dal()
-        .get_applied_snapshot_status()
-        .await?;
-    Ok(snapshot_recovery.map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1))
-}
+use zksync_types::Address;
 
 async fn get_pubdata_pricing_mode(
     diamond_proxy_address: Address,
@@ -131,46 +51,9 @@ mod tests {
 
     use jsonrpsee::types::ErrorObject;
     use zksync_eth_client::{clients::MockEthereum, ClientError};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{ethabi, U256};
 
     use super::*;
-
-    #[tokio::test]
-    async fn waiting_for_l1_batch_success() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let (_stop_sender, mut stop_receiver) = watch::channel(false);
-
-        let pool_copy = pool.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(25)).await;
-            let mut storage = pool_copy.connection().await.unwrap();
-            insert_genesis_batch(&mut storage, &GenesisParams::mock())
-                .await
-                .unwrap();
-        });
-
-        let l1_batch = wait_for_l1_batch(&pool, Duration::from_millis(10), &mut stop_receiver)
-            .await
-            .unwrap();
-        assert_eq!(l1_batch, Some(L1BatchNumber(0)));
-    }
-
-    #[tokio::test]
-    async fn waiting_for_l1_batch_cancellation() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let (stop_sender, mut stop_receiver) = watch::channel(false);
-
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(25)).await;
-            stop_sender.send_replace(true);
-        });
-
-        let l1_batch = wait_for_l1_batch(&pool, Duration::from_secs(30), &mut stop_receiver)
-            .await
-            .unwrap();
-        assert_eq!(l1_batch, None);
-    }
 
     fn mock_ethereum(token: ethabi::Token, err: Option<EthClientError>) -> MockEthereum {
         let err_mutex = Mutex::new(err);

@@ -10,7 +10,7 @@ use tokio::{
 };
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides};
-use zksync_dal::{ConnectionPool, Core};
+use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
@@ -48,7 +48,6 @@ use crate::{
         tx_sender::TxSender,
     },
     sync_layer::SyncState,
-    utils::wait_for_l1_batch,
 };
 
 pub mod backend_jsonrpsee;

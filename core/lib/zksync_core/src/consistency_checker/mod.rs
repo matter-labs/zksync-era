@@ -15,8 +15,6 @@ use zksync_types::{
     L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
-use crate::utils::wait_for_l1_batch_with_metadata;
-
 #[cfg(test)]
 mod tests;
 
@@ -648,5 +646,38 @@ impl ConsistencyChecker {
 
         tracing::info!("Stop signal received, consistency_checker is shutting down");
         Ok(())
+    }
+}
+
+/// Repeatedly polls the DB until there is an L1 batch with metadata. We may not have such a batch initially
+/// if the DB is recovered from an application-level snapshot.
+///
+/// Returns the number of the *earliest* L1 batch with metadata, or `None` if the stop signal is received.
+async fn wait_for_l1_batch_with_metadata(
+    pool: &ConnectionPool<Core>,
+    poll_interval: Duration,
+    stop_receiver: &mut watch::Receiver<bool>,
+) -> anyhow::Result<Option<L1BatchNumber>> {
+    loop {
+        if *stop_receiver.borrow() {
+            return Ok(None);
+        }
+
+        let mut storage = pool.connection().await?;
+        let sealed_l1_batch_number = storage
+            .blocks_dal()
+            .get_earliest_l1_batch_number_with_metadata()
+            .await?;
+        drop(storage);
+
+        if let Some(number) = sealed_l1_batch_number {
+            return Ok(Some(number));
+        }
+        tracing::debug!(
+            "No L1 batches with metadata are present in DB; trying again in {poll_interval:?}"
+        );
+        tokio::time::timeout(poll_interval, stop_receiver.changed())
+            .await
+            .ok();
     }
 }

@@ -5,7 +5,7 @@ use std::{ops, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{helpers::wait_for_l1_batch, Connection, ConnectionPool, Core, CoreDal};
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
@@ -18,7 +18,6 @@ use super::{
     metrics::{TreeUpdateStage, METRICS},
     MetadataCalculator,
 };
-use crate::utils::wait_for_l1_batch;
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {

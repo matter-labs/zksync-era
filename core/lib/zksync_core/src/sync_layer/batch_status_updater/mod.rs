@@ -22,7 +22,6 @@ use zksync_web3_decl::{
 };
 
 use super::metrics::{FetchStage, FETCHER_METRICS};
-use crate::utils::projected_first_l1_batch;
 
 #[cfg(test)]
 mod tests;
@@ -484,4 +483,16 @@ impl BatchStatusUpdater {
         self.changes_sender.send(changes).ok();
         Ok(())
     }
+}
+
+/// Returns the projected number of the first locally available L1 batch. The L1 batch is **not**
+/// guaranteed to be present in the storage!
+async fn projected_first_l1_batch(
+    storage: &mut Connection<'_, Core>,
+) -> anyhow::Result<L1BatchNumber> {
+    let snapshot_recovery = storage
+        .snapshot_recovery_dal()
+        .get_applied_snapshot_status()
+        .await?;
+    Ok(snapshot_recovery.map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1))
 }
