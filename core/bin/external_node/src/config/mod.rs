@@ -1,7 +1,7 @@
 use std::{
-    env, fmt,
+    env,
+    ffi::OsString,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
-    str::FromStr,
     time::Duration,
 };
 
@@ -25,18 +25,17 @@ use zksync_core::{
 };
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
-use zksync_eth_client::EthInterface;
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
-use zksync_types::{
-    api::BridgeAddresses, fee_model::FeeParams, url::SensitiveUrl, ETHEREUM_ADDRESS,
-};
+use zksync_types::{api::BridgeAddresses, url::SensitiveUrl, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::ClientRpcContext,
     jsonrpsee::{core::ClientError, types::error::ErrorCode},
-    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
+
+use crate::config::observability::ObservabilityENConfig;
 
 pub(crate) mod observability;
 #[cfg(test)]
@@ -44,8 +43,32 @@ mod tests;
 
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 
+/// Encapsulation of configuration source with a mock implementation used in tests.
+trait ConfigurationSource: 'static {
+    type Vars<'a>: Iterator<Item = (OsString, OsString)> + 'a;
+
+    fn vars(&self) -> Self::Vars<'_>;
+
+    fn var(&self, name: &str) -> Option<String>;
+}
+
+#[derive(Debug)]
+struct Environment;
+
+impl ConfigurationSource for Environment {
+    type Vars<'a> = env::VarsOs;
+
+    fn vars(&self) -> Self::Vars<'_> {
+        env::vars_os()
+    }
+
+    fn var(&self, name: &str) -> Option<String> {
+        env::var(name).ok()
+    }
+}
+
 /// This part of the external node config is fetched directly from the main node.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
@@ -61,16 +84,13 @@ pub(crate) struct RemoteENConfig {
     pub l1_weth_bridge_addr: Option<Address>,
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
-    pub l2_chain_id: L2ChainId,
-    pub l1_chain_id: L1ChainId,
     pub base_token_addr: Address,
-    pub max_pubdata_per_batch: u64,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     pub dummy_verifier: bool,
 }
 
 impl RemoteENConfig {
-    pub async fn fetch(client: &BoxedL2Client) -> anyhow::Result<Self> {
+    pub async fn fetch(client: &DynClient<L2>) -> anyhow::Result<Self> {
         let bridges = client
             .get_bridge_contracts()
             .rpc_context("get_bridge_contracts")
@@ -104,24 +124,6 @@ impl RemoteENConfig {
                 ETHEREUM_ADDRESS
             }
             response => response.context("Failed to fetch base token address")?,
-        };
-        let l2_chain_id = client.chain_id().rpc_context("chain_id").await?;
-        let l2_chain_id = L2ChainId::try_from(l2_chain_id.as_u64())
-            .map_err(|err| anyhow::anyhow!("invalid chain ID supplied by main node: {err}"))?;
-        let l1_chain_id = client.l1_chain_id().rpc_context("l1_chain_id").await?;
-        let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
-
-        let fee_params = client
-            .get_fee_params()
-            .rpc_context("get_fee_params")
-            .await?;
-        let max_pubdata_per_batch = match fee_params {
-            FeeParams::V1(_) => {
-                const MAX_V1_PUBDATA_PER_BATCH: u64 = 100_000;
-
-                MAX_V1_PUBDATA_PER_BATCH
-            }
-            FeeParams::V2(params) => params.config.max_pubdata_per_batch,
         };
 
         // These two config variables should always have the same value.
@@ -157,10 +159,7 @@ impl RemoteENConfig {
             l2_shared_bridge_addr: l2_erc20_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
-            l2_chain_id,
-            l1_chain_id,
             base_token_addr,
-            max_pubdata_per_batch,
             l1_batch_commit_data_generator_mode: genesis
                 .as_ref()
                 .map(|a| a.l1_batch_commit_data_generator_mode)
@@ -183,20 +182,17 @@ impl RemoteENConfig {
             l2_erc20_bridge_addr: Some(Address::repeat_byte(3)),
             l2_weth_bridge_addr: None,
             l2_testnet_paymaster_addr: None,
-            l2_chain_id: L2ChainId::default(),
-            l1_chain_id: L1ChainId(9),
             base_token_addr: Address::repeat_byte(4),
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
-            max_pubdata_per_batch: 1 << 17,
             l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
             dummy_verifier: true,
         }
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) enum BlockFetcher {
     ServerAPI,
     Consensus,
@@ -205,7 +201,7 @@ pub(crate) enum BlockFetcher {
 /// This part of the external node config is completely optional to provide.
 /// It can tweak limits of the API, delay intervals of certain components, etc.
 /// If any of the fields are not provided, the default values will be used.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct OptionalENConfig {
     // User-facing API limits
     /// Max possible limit of filters to be in the API state at once.
@@ -346,8 +342,6 @@ pub(crate) struct OptionalENConfig {
     database_slow_query_threshold_ms: Option<u64>,
 
     // Other config settings
-    /// Port on which the Prometheus exporter server is listening.
-    pub prometheus_port: Option<u16>,
     /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
     /// sealing will block until some of the miniblocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
@@ -637,8 +631,15 @@ impl OptionalENConfig {
 }
 
 /// This part of the external node config is required for its operation.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct RequiredENConfig {
+    /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
+    /// to ensure that there's no mismatch between the expected and actual L1 network.
+    pub l1_chain_id: L1ChainId,
+    /// L2 chain ID (e.g., 270 for zkSync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
+    /// to ensure that there's no mismatch between the expected and actual L2 network.
+    pub l2_chain_id: L2ChainId,
+
     /// Port on which the HTTP RPC server is listening.
     pub http_port: u16,
     /// Port on which the WebSocket RPC server is listening.
@@ -665,6 +666,8 @@ impl RequiredENConfig {
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
+            l1_chain_id: L1ChainId(9),
+            l2_chain_id: L2ChainId::default(),
             http_port: 0,
             ws_port: 0,
             healthcheck_port: 0,
@@ -686,7 +689,7 @@ impl RequiredENConfig {
 /// While also mandatory, it historically used different naming scheme for corresponding
 /// environment variables.
 /// Thus it is kept separately for backward compatibility and ease of deserialization.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct PostgresConfig {
     database_url: SensitiveUrl,
     pub max_connections: u32,
@@ -721,7 +724,7 @@ impl PostgresConfig {
 
 /// Experimental part of the external node config. All parameters in this group can change or disappear without notice.
 /// Eventually, parameters from this group generally end up in the optional group.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct ExperimentalENConfig {
     // State keeper cache config
     /// Block cache capacity of the state keeper RocksDB cache. The default value is 128 MB.
@@ -789,7 +792,7 @@ impl SnapshotsRecoveryConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
@@ -797,18 +800,19 @@ pub struct ApiComponentConfig {
     pub tree_api_remote_url: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct TreeComponentConfig {
     pub api_port: Option<u16>,
 }
 
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct ExternalNodeConfig {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
+    pub observability: ObservabilityENConfig,
     pub remote: RemoteENConfig,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
@@ -821,8 +825,8 @@ impl ExternalNodeConfig {
     pub async fn new(
         required: RequiredENConfig,
         optional: OptionalENConfig,
-        main_node_client: &BoxedL2Client,
-        eth_client: &dyn EthInterface,
+        observability: ObservabilityENConfig,
+        main_node_client: &DynClient<L2>,
     ) -> anyhow::Result<Self> {
         let experimental = envy::prefixed("EN_EXPERIMENTAL_")
             .from_env::<ExperimentalENConfig>()
@@ -838,36 +842,6 @@ impl ExternalNodeConfig {
         let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-        // We can query them from main node, but it's better to set them explicitly
-        // as well to avoid connecting to wrong environment variables unintentionally.
-        let eth_chain_id = eth_client
-            .fetch_chain_id()
-            .await
-            .context("Unable to check L1 chain ID through the configured L1 client")?;
-
-        let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID")?;
-        anyhow::ensure!(
-            l2_chain_id == remote.l2_chain_id,
-            "Configured L2 chain id doesn't match the one from main node.
-            Make sure your configuration is correct and you are corrected to the right main node.
-            Main node L2 chain id: {:?}. Local config value: {l2_chain_id:?}",
-            remote.l2_chain_id,
-        );
-
-        let l1_chain_id: L1ChainId = env_var("EN_L1_CHAIN_ID")?;
-        anyhow::ensure!(
-            l1_chain_id == remote.l1_chain_id,
-            "Configured L1 chain id doesn't match the one from main node.
-            Make sure your configuration is correct and you are corrected to the right main node.
-            Main node L1 chain id: {}. Local config value: {l1_chain_id}",
-            remote.l1_chain_id,
-        );
-        anyhow::ensure!(
-            l1_chain_id == eth_chain_id,
-            "Configured L1 chain id doesn't match the one from eth node.
-            Make sure your configuration is correct and you are corrected to the right eth node.
-            Eth node chain id: {eth_chain_id}. Local config value: {l1_chain_id}"
-        );
 
         let postgres = PostgresConfig::from_env()?;
         Ok(Self {
@@ -876,6 +850,7 @@ impl ExternalNodeConfig {
             required,
             optional,
             experimental,
+            observability,
             consensus: read_consensus_config().context("read_consensus_config()")?,
             tree_component: tree_component_config,
             api_component: api_component_config,
@@ -889,6 +864,7 @@ impl ExternalNodeConfig {
             postgres: PostgresConfig::mock(test_pool),
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
+            observability: ObservabilityENConfig::default(),
             experimental: ExperimentalENConfig::mock(),
             consensus: None,
             api_component: ApiComponentConfig {
@@ -899,22 +875,11 @@ impl ExternalNodeConfig {
     }
 }
 
-fn env_var<T>(name: &str) -> anyhow::Result<T>
-where
-    T: FromStr,
-    T::Err: fmt::Display,
-{
-    env::var(name)
-        .with_context(|| format!("`{name}` env variable is not set"))?
-        .parse()
-        .map_err(|err| anyhow::anyhow!("unable to parse `{name}` env variable: {err}"))
-}
-
-impl From<ExternalNodeConfig> for InternalApiConfig {
-    fn from(config: ExternalNodeConfig) -> Self {
+impl From<&ExternalNodeConfig> for InternalApiConfig {
+    fn from(config: &ExternalNodeConfig) -> Self {
         Self {
-            l1_chain_id: config.remote.l1_chain_id,
-            l2_chain_id: config.remote.l2_chain_id,
+            l1_chain_id: config.required.l1_chain_id,
+            l2_chain_id: config.required.l2_chain_id,
             max_tx_size: config.optional.max_tx_size,
             estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: config
@@ -943,8 +908,8 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
     }
 }
 
-impl From<ExternalNodeConfig> for TxSenderConfig {
-    fn from(config: ExternalNodeConfig) -> Self {
+impl From<&ExternalNodeConfig> for TxSenderConfig {
+    fn from(config: &ExternalNodeConfig) -> Self {
         Self {
             // Fee account address does not matter for the EN operation, since
             // actual fee distribution is handled my the main node.
@@ -958,8 +923,7 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             // and they will be enforced by the main node anyway.
             max_allowed_l2_tx_gas_limit: u64::MAX,
             validation_computational_gas_limit: u32::MAX,
-            chain_id: config.remote.l2_chain_id,
-            max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
+            chain_id: config.required.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
         }

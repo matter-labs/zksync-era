@@ -5,20 +5,17 @@ use std::{
 };
 
 use async_trait::async_trait;
-use jsonrpc_core::types::error::Error as RpcError;
+use jsonrpsee::{core::ClientError, types::ErrorObject};
 use zksync_types::{
-    web3::{
-        contract::tokens::Tokenize,
-        ethabi,
-        types::{BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
-        Error as Web3Error,
-    },
-    Address, L1ChainId, H160, H256, U256,
+    ethabi,
+    web3::{self, contract::Tokenize, BlockId},
+    Address, L1ChainId, H160, H256, U256, U64,
 };
+use zksync_web3_decl::error::EnrichedClientError;
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    Block, BoundEthInterface, ContractCall, EthInterface, Options, RawTransactionBytes,
+    BoundEthInterface, EthInterface, Options, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
@@ -55,7 +52,7 @@ impl From<Vec<u8>> for MockTx {
     }
 }
 
-impl From<MockTx> for Transaction {
+impl From<MockTx> for web3::Transaction {
     fn from(tx: MockTx) -> Self {
         Self {
             to: Some(tx.recipient),
@@ -106,11 +103,11 @@ impl MockEthereumInner {
         let status = ExecutedTxStatus {
             tx_hash,
             success,
-            receipt: TransactionReceipt {
+            receipt: web3::TransactionReceipt {
                 gas_used: Some(21000u32.into()),
                 block_number: Some(block_number.into()),
                 transaction_hash: tx_hash,
-                ..TransactionReceipt::default()
+                ..web3::TransactionReceipt::default()
             },
         };
         self.tx_statuses.insert(tx_hash, status);
@@ -124,14 +121,15 @@ pub struct MockExecutedTxHandle<'a> {
 }
 
 impl MockExecutedTxHandle<'_> {
-    pub fn with_logs(&mut self, logs: Vec<Log>) -> &mut Self {
+    pub fn with_logs(&mut self, logs: Vec<web3::Log>) -> &mut Self {
         let status = self.inner.tx_statuses.get_mut(&self.tx_hash).unwrap();
         status.receipt.logs = logs;
         self
     }
 }
 
-type CallHandler = dyn Fn(&ContractCall) -> Result<ethabi::Token, Error> + Send + Sync;
+type CallHandler =
+    dyn Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, Error> + Send + Sync;
 
 /// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
 #[derive(Clone)]
@@ -173,8 +171,8 @@ impl Default for MockEthereum {
             excess_blob_gas_history: vec![],
             non_ordering_confirmations: false,
             inner: Arc::default(),
-            call_handler: Arc::new(|call| {
-                panic!("Unexpected eth_call: {call:?}");
+            call_handler: Arc::new(|call, block_id| {
+                panic!("Unexpected eth_call: {call:?}, {block_id:?}");
             }),
         }
     }
@@ -278,17 +276,17 @@ impl MockEthereum {
 
     pub fn with_call_handler<F>(self, call_handler: F) -> Self
     where
-        F: 'static + Send + Sync + Fn(&ContractCall) -> ethabi::Token,
+        F: 'static + Send + Sync + Fn(&web3::CallRequest, BlockId) -> ethabi::Token,
     {
         Self {
-            call_handler: Arc::new(move |call| Ok(call_handler(call))),
+            call_handler: Arc::new(move |call, block_id| Ok(call_handler(call, block_id))),
             ..self
         }
     }
 
     pub fn with_fallible_call_handler<F>(self, call_handler: F) -> Self
     where
-        F: 'static + Send + Sync + Fn(&ContractCall) -> Result<ethabi::Token, Error>,
+        F: 'static + Send + Sync + Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, Error>,
     {
         Self {
             call_handler: Arc::new(call_handler),
@@ -325,11 +323,13 @@ impl EthInterface for MockEthereum {
         let mut inner = self.inner.write().unwrap();
 
         if mock_tx.nonce < inner.current_nonce {
-            return Err(Error::EthereumGateway(Web3Error::Rpc(RpcError {
-                message: "transaction with the same nonce already processed".to_string(),
-                code: 101.into(),
-                data: None,
-            })));
+            let err = ErrorObject::owned(
+                101,
+                "transaction with the same nonce already processed",
+                None::<()>,
+            );
+            let err = EnrichedClientError::new(ClientError::Call(err), "send_raw_transaction");
+            return Err(Error::EthereumGateway(err));
         }
 
         if mock_tx.nonce == inner.pending_nonce {
@@ -342,7 +342,7 @@ impl EthInterface for MockEthereum {
     async fn nonce_at_for_account(
         &self,
         account: Address,
-        block: BlockNumber,
+        block: web3::BlockNumber,
     ) -> Result<U256, Error> {
         if account != Self::SENDER_ACCOUNT {
             unimplemented!("Getting nonce for custom account is not supported");
@@ -350,13 +350,13 @@ impl EthInterface for MockEthereum {
 
         let inner = self.inner.read().unwrap();
         Ok(match block {
-            BlockNumber::Number(block_number) => {
+            web3::BlockNumber::Number(block_number) => {
                 let mut nonce_range = inner.nonces.range(..=block_number.as_u64());
                 let (_, &nonce) = nonce_range.next_back().unwrap_or((&0, &0));
                 nonce.into()
             }
-            BlockNumber::Pending => inner.pending_nonce.into(),
-            BlockNumber::Latest => inner.current_nonce.into(),
+            web3::BlockNumber::Pending => inner.pending_nonce.into(),
+            web3::BlockNumber::Latest => inner.current_nonce.into(),
             _ => unimplemented!(
                 "`nonce_at_for_account()` called with unsupported block number: {block:?}"
             ),
@@ -393,12 +393,14 @@ impl EthInterface for MockEthereum {
 
     async fn call_contract_function(
         &self,
-        call: ContractCall,
-    ) -> Result<Vec<ethabi::Token>, Error> {
-        (self.call_handler)(&call).map(|token| vec![token])
+        request: web3::CallRequest,
+        block: Option<BlockId>,
+    ) -> Result<web3::Bytes, Error> {
+        (self.call_handler)(&request, block.unwrap_or(web3::BlockNumber::Pending.into()))
+            .map(|token| web3::Bytes(ethabi::encode(&[token])))
     }
 
-    async fn get_tx(&self, hash: H256) -> Result<Option<Transaction>, Error> {
+    async fn get_tx(&self, hash: H256) -> Result<Option<web3::Transaction>, Error> {
         let txs = &self.inner.read().unwrap().sent_txs;
         let Some(tx) = txs.get(&hash) else {
             return Ok(None);
@@ -406,7 +408,7 @@ impl EthInterface for MockEthereum {
         Ok(Some(tx.clone().into()))
     }
 
-    async fn tx_receipt(&self, _tx_hash: H256) -> Result<Option<TransactionReceipt>, Error> {
+    async fn tx_receipt(&self, _tx_hash: H256) -> Result<Option<web3::TransactionReceipt>, Error> {
         unimplemented!("Not needed right now")
     }
 
@@ -414,13 +416,13 @@ impl EthInterface for MockEthereum {
         unimplemented!("Not needed right now")
     }
 
-    async fn logs(&self, _filter: Filter) -> Result<Vec<Log>, Error> {
+    async fn logs(&self, _filter: web3::Filter) -> Result<Vec<web3::Log>, Error> {
         unimplemented!("Not needed right now")
     }
 
-    async fn block(&self, block_id: BlockId) -> Result<Option<Block<H256>>, Error> {
+    async fn block(&self, block_id: web3::BlockId) -> Result<Option<web3::Block<H256>>, Error> {
         match block_id {
-            BlockId::Number(BlockNumber::Number(number)) => {
+            web3::BlockId::Number(web3::BlockNumber::Number(number)) => {
                 let excess_blob_gas = self
                     .excess_blob_gas_history
                     .get(number.as_usize())
@@ -430,7 +432,7 @@ impl EthInterface for MockEthereum {
                     .get(number.as_usize())
                     .map(|base_fee| (*base_fee).into());
 
-                Ok(Some(Block {
+                Ok(Some(web3::Block {
                     number: Some(number),
                     excess_blob_gas,
                     base_fee_per_gas,
@@ -487,7 +489,7 @@ impl BoundEthInterface for MockEthereum {
         &self,
         _token_address: Address,
         _contract_address: Address,
-        _erc20_abi: ethabi::Contract,
+        _erc20_abi: &ethabi::Contract,
     ) -> Result<U256, Error> {
         unimplemented!("Not needed right now")
     }

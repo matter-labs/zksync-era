@@ -2,7 +2,6 @@
 
 use std::{
     collections::{BTreeMap, HashSet},
-    future,
     future::Future,
     path::Path,
     sync::Arc,
@@ -88,7 +87,7 @@ impl MerkleTreeHealthCheck {
         let weak_reader_for_task = weak_reader.clone();
         tokio::spawn(async move {
             weak_reader_for_task
-                .set(reader.wait().await.downgrade())
+                .set(reader.wait().await.unwrap().downgrade())
                 .ok();
         });
 
@@ -355,15 +354,15 @@ impl LazyAsyncTreeReader {
     }
 
     /// Waits until the tree is initialized and returns a reader for it.
-    pub async fn wait(mut self) -> AsyncTreeReader {
+    pub async fn wait(mut self) -> anyhow::Result<AsyncTreeReader> {
         loop {
             if let Some(reader) = self.0.borrow().clone() {
-                break reader;
+                break Ok(reader);
             }
-            if self.0.changed().await.is_err() {
-                tracing::info!("Tree dropped without getting ready; not resolving tree reader");
-                future::pending::<()>().await;
-            }
+            self.0
+                .changed()
+                .await
+                .context("Tree dropped without getting ready; not resolving tree reader")?;
         }
     }
 }
@@ -612,15 +611,13 @@ impl L1BatchWithLogs {
 mod tests {
     use tempfile::TempDir;
     use zksync_dal::{ConnectionPool, Core};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
     use zksync_types::{StorageKey, StorageLog};
 
     use super::*;
-    use crate::{
-        genesis::{insert_genesis_batch, GenesisParams},
-        metadata_calculator::tests::{
-            extend_db_state, gen_storage_logs, mock_config, reset_db_state,
-        },
+    use crate::metadata_calculator::tests::{
+        extend_db_state, gen_storage_logs, mock_config, reset_db_state,
     };
 
     impl L1BatchWithLogs {

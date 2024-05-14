@@ -2,13 +2,11 @@
 
 use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
 
 use super::*;
-use crate::{
-    api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts},
-    genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot},
-};
+use crate::api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts};
 
 #[tokio::test]
 async fn creating_block_args() {

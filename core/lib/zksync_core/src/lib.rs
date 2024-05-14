@@ -9,7 +9,6 @@ use std::{
 
 use anyhow::Context as _;
 use api_server::tx_sender::master_pool_sink::MasterPoolSink;
-use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
 use temp_config_store::Secrets;
@@ -22,6 +21,9 @@ use zksync_circuit_breaker::{
     CircuitBreakerChecker, CircuitBreakers,
 };
 use zksync_commitment_generator::{
+    commitment_post_processor::{
+        CommitmentPostProcessor, RollupCommitmentPostProcessor, ValidiumCommitmentPostProcessor,
+    },
     input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
     CommitmentGenerator,
 };
@@ -44,9 +46,13 @@ use zksync_config::{
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
-use zksync_eth_client::{
-    clients::{PKSigningClient, QueryClient},
-    BoundEthInterface, EthInterface,
+use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface, EthInterface};
+use zksync_eth_sender::{
+    l1_batch_commit_data_generator::{
+        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+        ValidiumModeL1BatchCommitDataGenerator,
+    },
+    Aggregator, EthTxAggregator, EthTxManager,
 };
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
@@ -62,11 +68,21 @@ use zksync_house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
+use zksync_node_fee_model::{
+    l1_gas_price::{
+        GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
+    },
+    ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider,
+};
+use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_queued_job_processor::JobProcessor;
+use zksync_proof_data_handler::blob_processor::{
+    BlobProcessor, RollupBlobProcessor, ValidiumBlobProcessor,
+};
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
+use zksync_web3_decl::client::Client;
 
 use crate::{
     api_server::{
@@ -77,18 +93,6 @@ use crate::{
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
-    basic_witness_input_producer::BasicWitnessInputProducer,
-    eth_sender::{
-        l1_batch_commit_data_generator::{
-            L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-            ValidiumModeL1BatchCommitDataGenerator,
-        },
-        Aggregator, EthTxAggregator, EthTxManager,
-    },
-    genesis::GenesisParams,
-    l1_gas_price::{
-        GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
-    },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     state_keeper::{
         create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
@@ -98,14 +102,8 @@ use crate::{
 };
 
 pub mod api_server;
-pub mod basic_witness_input_producer;
 pub mod consensus;
 pub mod consistency_checker;
-pub mod db_pruner;
-pub mod eth_sender;
-pub mod fee_model;
-pub mod genesis;
-pub mod l1_gas_price;
 pub mod metadata_calculator;
 pub mod proto;
 pub mod reorg_detector;
@@ -113,7 +111,6 @@ pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
 pub mod utils;
-pub mod vm_runner;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -128,7 +125,7 @@ pub async fn genesis_init(
     let mut storage = pool.connection().await.context("connection()")?;
 
     let params = GenesisParams::load_genesis_params(genesis_config)?;
-    genesis::ensure_genesis_state(&mut storage, &params).await?;
+    ensure_genesis_state(&mut storage, &params).await?;
 
     Ok(())
 }
@@ -180,9 +177,6 @@ pub enum Component {
     EthTxManager,
     /// State keeper.
     StateKeeper,
-    /// Produces input for basic witness generator and uploads it as bin encoded file (blob) to GCS.
-    /// The blob is later used as input for Basic Witness Generators.
-    BasicWitnessInputProducer,
     /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
@@ -213,9 +207,6 @@ impl FromStr for Components {
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
-            "basic_witness_input_producer" => {
-                Ok(Components(vec![Component::BasicWitnessInputProducer]))
-            }
             "eth" => Ok(Components(vec![
                 Component::EthWatcher,
                 Component::EthTxAggregator,
@@ -306,7 +297,10 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = QueryClient::new(eth.web3_url.clone()).context("Ethereum client")?;
+    let query_client = Client::http(eth.web3_url.clone())
+        .context("Ethereum client")?
+        .for_network(genesis_config.l1_chain_id.into())
+        .build();
     let query_client = Box::new(query_client);
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
@@ -317,6 +311,7 @@ pub async fn initialize_components(
         };
 
     let mut gas_adjuster = GasAdjusterSingleton::new(
+        genesis_config.l1_chain_id,
         eth.web3_url.clone(),
         gas_adjuster_config,
         sender.pubdata_sending_mode,
@@ -618,13 +613,24 @@ pub async fn initialize_components(
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
-    let input_generator: Box<dyn InputGenerator> = if genesis_config
-        .l1_batch_commit_data_generator_mode
+    let (input_generator, commitment_post_processor, blob_processor): (
+        Box<dyn InputGenerator>,
+        Box<dyn CommitmentPostProcessor>,
+        Arc<dyn BlobProcessor>,
+    ) = if genesis_config.l1_batch_commit_data_generator_mode
         == L1BatchCommitDataGeneratorMode::Validium
     {
-        Box::new(ValidiumInputGenerator)
+        (
+            Box::new(ValidiumInputGenerator),
+            Box::new(ValidiumCommitmentPostProcessor),
+            Arc::new(ValidiumBlobProcessor),
+        )
     } else {
-        Box::new(RollupInputGenerator)
+        (
+            Box::new(RollupInputGenerator),
+            Box::new(RollupCommitmentPostProcessor),
+            Arc::new(RollupBlobProcessor),
+        )
     };
 
     if components.contains(&Component::EthTxAggregator) {
@@ -770,23 +776,6 @@ pub async fn initialize_components(
     .await
     .context("add_trees_to_task_futures()")?;
 
-    if components.contains(&Component::BasicWitnessInputProducer) {
-        let singleton_connection_pool =
-            ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
-                .build()
-                .await
-                .context("failed to build singleton connection_pool")?;
-        add_basic_witness_input_producer_to_task_futures(
-            &mut task_futures,
-            &singleton_connection_pool,
-            &store_factory,
-            l2_chain_id,
-            stop_receiver.clone(),
-        )
-        .await
-        .context("add_basic_witness_input_producer_to_task_futures()")?;
-    }
-
     if components.contains(&Component::Housekeeper) {
         add_house_keeper_to_task_futures(configs, &mut task_futures, stop_receiver.clone())
             .await
@@ -801,6 +790,7 @@ pub async fn initialize_components(
                 .context("proof_data_handler_config")?,
             store_factory.create_store().await,
             connection_pool.clone(),
+            blob_processor,
             stop_receiver.clone(),
         )));
     }
@@ -811,8 +801,11 @@ pub async fn initialize_components(
                 .build()
                 .await
                 .context("failed to build commitment_generator_pool")?;
-        let commitment_generator =
-            CommitmentGenerator::new(commitment_generator_pool, input_generator);
+        let commitment_generator = CommitmentGenerator::new(
+            commitment_generator_pool,
+            input_generator,
+            commitment_post_processor,
+        );
         app_health.insert_component(commitment_generator.health_check())?;
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
@@ -1049,6 +1042,7 @@ async fn run_tree(
             tree_reader
                 .wait()
                 .await
+                .context("Cannot initialize tree reader")?
                 .run_api_server(address, stop_receiver)
                 .await
         }));
@@ -1062,32 +1056,6 @@ async fn run_tree(
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::Tree].set(elapsed);
     tracing::info!("Initialized {mode_str} tree in {elapsed:?}");
-    Ok(())
-}
-
-async fn add_basic_witness_input_producer_to_task_futures(
-    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    connection_pool: &ConnectionPool<Core>,
-    store_factory: &ObjectStoreFactory,
-    l2_chain_id: L2ChainId,
-    stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<()> {
-    // Witness Generator won't be spawned with `ZKSYNC_LOCAL_SETUP` running.
-    // BasicWitnessInputProducer shouldn't be producing input for it locally either.
-    if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
-        return Ok(());
-    }
-    let started_at = Instant::now();
-    tracing::info!("initializing BasicWitnessInputProducer");
-    let producer =
-        BasicWitnessInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
-    task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
-    tracing::info!(
-        "Initialized BasicWitnessInputProducer in {:?}",
-        started_at.elapsed()
-    );
-    let elapsed = started_at.elapsed();
-    APP_METRICS.init_latency[&InitStage::BasicWitnessInputProducer].set(elapsed);
     Ok(())
 }
 

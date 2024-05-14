@@ -7,14 +7,14 @@ use zksync_config::configs::{
     eth_sender::EthConfig,
     ContractsConfig,
 };
-use zksync_core::eth_sender::{
+use zksync_eth_client::BoundEthInterface;
+use zksync_eth_sender::{
     l1_batch_commit_data_generator::{
         L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
         ValidiumModeL1BatchCommitDataGenerator,
     },
     Aggregator, EthTxAggregator, EthTxManager,
 };
-use zksync_eth_client::BoundEthInterface;
 
 use crate::{
     implementations::resources::{

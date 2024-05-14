@@ -4,29 +4,28 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
-    clients::{QueryClient, SigningClient},
-    BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
+    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
 };
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
     api::BridgeAddresses,
+    ethabi,
     l1::L1Tx,
     network::Network,
     url::SensitiveUrl,
-    web3::{
-        contract::tokens::{Detokenize, Tokenize},
-        ethabi,
-        types::{TransactionReceipt, H160, H256, U256},
-    },
-    Address, L1ChainId, L1TxCommonData, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    web3::{contract::Tokenize, TransactionReceipt},
+    Address, L1ChainId, L1TxCommonData, H160, H256, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
-use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
+use zksync_web3_decl::{
+    client::Client,
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+};
 
 use crate::sdk::{
     error::ClientError,
+    ethabi::Bytes,
     operations::SyncTransactionHandle,
     utils::{is_token_eth, load_contract},
-    web3::ethabi::Bytes,
 };
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
@@ -87,6 +86,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 "Chain id overflow - Expected chain id to be in range 0..2^64".to_owned(),
             )
         })?;
+        let l1_chain_id = L1ChainId(l1_chain_id);
 
         let contract_address = provider.get_main_contract().await?;
         let default_bridges = provider
@@ -98,8 +98,10 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .as_ref()
             .parse::<SensitiveUrl>()
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
-        let query_client = QueryClient::new(eth_web3_url)
-            .map_err(|err| ClientError::NetworkError(err.to_string()))?;
+        let query_client = Client::http(eth_web3_url)
+            .map_err(|err| ClientError::NetworkError(err.to_string()))?
+            .for_network(l1_chain_id.into())
+            .build();
         let eth_client = SigningClient::new(
             Box::new(query_client).for_component("provider"),
             hyperchain_contract(),
@@ -107,7 +109,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             eth_signer,
             contract_address,
             DEFAULT_PRIORITY_FEE.into(),
-            L1ChainId(l1_chain_id),
+            l1_chain_id,
         );
         let erc20_abi = ierc20_contract();
         let l1_erc20_bridge_abi = l1_erc20_bridge_contract();
@@ -150,14 +152,14 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         address: Address,
         token_address: Address,
     ) -> Result<U256, ClientError> {
-        let args = CallFunctionArgs::new("balanceOf", address)
-            .for_contract(token_address, self.erc20_abi.clone());
-        let res = self
-            .query_client()
-            .call_contract_function(args)
+        CallFunctionArgs::new("balanceOf", address)
+            .for_contract(token_address, &self.erc20_abi)
+            .call(self.query_client())
             .await
-            .map_err(|err| ClientError::NetworkError(err.to_string()))?;
-        U256::from_tokens(res).map_err(|err| ClientError::MalformedResponse(err.to_string()))
+            .map_err(|err| match err {
+                Error::EthereumGateway(err) => ClientError::NetworkError(err.to_string()),
+                _ => ClientError::MalformedResponse(err.to_string()),
+            })
     }
 
     /// Returns the pending nonce for the Ethereum account.
@@ -185,14 +187,14 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     ) -> Result<Address, ClientError> {
         // TODO(EVM-571): This should be moved to the shared bridge, which does not have `l2_token_address` on L1. Use L2 contracts instead.
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
-        let args = CallFunctionArgs::new("l2TokenAddress", l1_token_address)
-            .for_contract(bridge, self.l1_erc20_bridge_abi.clone());
-        let res = self
-            .query_client()
-            .call_contract_function(args)
+        CallFunctionArgs::new("l2TokenAddress", l1_token_address)
+            .for_contract(bridge, &self.l1_erc20_bridge_abi)
+            .call(self.query_client())
             .await
-            .map_err(|err| ClientError::NetworkError(err.to_string()))?;
-        Address::from_tokens(res).map_err(|err| ClientError::MalformedResponse(err.to_string()))
+            .map_err(|err| match err {
+                Error::EthereumGateway(err) => ClientError::NetworkError(err.to_string()),
+                _ => ClientError::MalformedResponse(err.to_string()),
+            })
     }
 
     /// Checks whether ERC20 of a certain token deposit with limit is approved for account.
@@ -206,7 +208,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
         let current_allowance = self
             .client()
-            .allowance_on_account(token_address, bridge, self.erc20_abi.clone())
+            .allowance_on_account(token_address, bridge, &self.erc20_abi)
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
@@ -365,10 +367,11 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         };
         let args = CallFunctionArgs::new(
             "l2TransactionBaseCost",
-            (gas_price, gas_limit, gas_per_pubdata_byte),
+            (gas_price, gas_limit, U256::from(gas_per_pubdata_byte)),
         );
-        let res = self.client().call_main_contract_function(args).await?;
-        Ok(U256::from_tokens(res)?)
+        args.for_contract(self.eth_client.contract_addr(), self.eth_client.contract())
+            .call(self.query_client())
+            .await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -405,7 +408,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 l2_value,
                 calldata,
                 gas_limit,
-                L1_TO_L2_GAS_PER_PUBDATA,
+                U256::from(L1_TO_L2_GAS_PER_PUBDATA),
                 factory_deps,
                 refund_recipient,
             )
