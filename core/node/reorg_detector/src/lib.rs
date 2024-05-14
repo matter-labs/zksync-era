@@ -1,8 +1,7 @@
-use std::{fmt, time::Duration};
+use std::{fmt, future::Future, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use futures::Future;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};

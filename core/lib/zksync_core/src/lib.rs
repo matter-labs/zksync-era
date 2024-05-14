@@ -108,7 +108,6 @@ pub mod consensus;
 pub mod consistency_checker;
 pub mod metadata_calculator;
 pub mod proto;
-pub mod reorg_detector;
 pub mod sync_layer;
 pub mod temp_config_store;
 pub mod utils;

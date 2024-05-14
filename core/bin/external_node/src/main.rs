@@ -30,7 +30,6 @@ use zksync_core::{
     consensus,
     consistency_checker::ConsistencyChecker,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
-    reorg_detector::{self, ReorgDetector},
     setup_sigint_handler,
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
@@ -49,6 +48,7 @@ use zksync_eth_sender::l1_batch_commit_data_generator::{
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
+use zksync_reorg_detector::ReorgDetector;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
     seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
@@ -971,7 +971,7 @@ async fn run_node(
     // will be able to operate normally afterwards.
     match reorg_detector.check_consistency().await {
         Ok(()) => {}
-        Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
+        Err(zksync_reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
             tracing::info!("Reverting to l1 batch number {last_correct_l1_batch}");
             reverter.roll_back(last_correct_l1_batch).await?;
             tracing::info!("Revert successfully completed");
