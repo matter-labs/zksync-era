@@ -1,15 +1,17 @@
-use crate::storage::StorageLoader;
-use crate::tests::{store_l2_blocks, IoMock, TestOutputFactory};
-use crate::{ConcurrentOutputHandlerFactory, VmRunner, VmRunnerStorage};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{collections::HashMap, sync::Arc, time::Duration};
+
 use tempfile::TempDir;
 use tokio::sync::{watch, RwLock};
 use zksync_core::state_keeper::MainBatchExecutor;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::L2ChainId;
+
+use crate::{
+    storage::StorageLoader,
+    tests::{store_l2_blocks, IoMock, TestOutputFactory},
+    ConcurrentOutputHandlerFactory, VmRunner, VmRunnerStorage,
+};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
 async fn simple() -> anyhow::Result<()> {

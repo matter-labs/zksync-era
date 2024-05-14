@@ -1,5 +1,4 @@
-use std::time::Duration;
-use std::{collections::HashMap, ops, sync::Arc};
+use std::{collections::HashMap, ops, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use multivm::zk_evm_latest::ethereum_types::{H160, H256};
@@ -12,9 +11,8 @@ use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, create_l2_transaction, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
-use zksync_types::block::L2BlockHasher;
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader},
+    block::{BlockGasCount, L1BatchHeader, L2BlockHasher},
     fee::TransactionExecutionMetrics,
     AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind,
     StorageValue,

@@ -1,17 +1,22 @@
-use crate::storage::StorageLoader;
-use crate::tests::{store_l2_blocks, IoMock};
-use crate::{BatchExecuteData, VmRunnerIo, VmRunnerStorage};
+use std::{sync::Arc, time::Duration};
+
 use backon::{ConstantBuilder, ExponentialBuilder, Retryable};
-use std::sync::Arc;
-use std::time::Duration;
 use tempfile::TempDir;
-use tokio::runtime::Handle;
-use tokio::sync::{watch, RwLock};
-use tokio::task::JoinHandle;
+use tokio::{
+    runtime::Handle,
+    sync::{watch, RwLock},
+    task::JoinHandle,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_state::{PgOrRocksdbStorage, PostgresStorage, ReadStorage, ReadStorageFactory};
 use zksync_types::{AccountTreeId, L1BatchNumber, L2ChainId, StorageKey};
+
+use crate::{
+    storage::StorageLoader,
+    tests::{store_l2_blocks, IoMock},
+    BatchExecuteData, VmRunnerIo, VmRunnerStorage,
+};
 
 #[derive(Debug)]
 struct StorageTester {
