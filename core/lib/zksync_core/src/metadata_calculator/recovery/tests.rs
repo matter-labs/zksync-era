@@ -146,13 +146,12 @@ impl TestEventListener {
     }
 }
 
-#[async_trait]
 impl HandleRecoveryEvent for TestEventListener {
     fn recovery_started(&mut self, _chunk_count: u64, recovered_chunk_count: u64) {
         assert_eq!(recovered_chunk_count, self.expected_recovered_chunks);
     }
 
-    async fn chunk_recovered(&self) {
+    fn chunk_recovered(&self) {
         let processed_chunk_count = self.processed_chunk_count.fetch_add(1, Ordering::SeqCst) + 1;
         if processed_chunk_count >= self.stop_threshold {
             self.stop_sender.send_replace(true);

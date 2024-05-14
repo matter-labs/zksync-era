@@ -32,7 +32,6 @@ use std::{
 };
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use futures::future;
 use tokio::sync::{watch, Mutex, Semaphore};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -54,17 +53,12 @@ mod tests;
 
 /// Handler of recovery life cycle events. This functionality is encapsulated in a trait to be able
 /// to control recovery behavior in tests.
-#[async_trait]
 trait HandleRecoveryEvent: fmt::Debug + Send + Sync {
     fn recovery_started(&mut self, _chunk_count: u64, _recovered_chunk_count: u64) {
         // Default implementation does nothing
     }
 
-    async fn chunk_started(&self) {
-        // Default implementation does nothing
-    }
-
-    async fn chunk_recovered(&self) {
+    fn chunk_recovered(&self) {
         // Default implementation does nothing
     }
 }
@@ -87,7 +81,6 @@ impl<'a> RecoveryHealthUpdater<'a> {
     }
 }
 
-#[async_trait]
 impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
     fn recovery_started(&mut self, chunk_count: u64, recovered_chunk_count: u64) {
         self.chunk_count = chunk_count;
@@ -97,8 +90,13 @@ impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
             .set(recovered_chunk_count);
     }
 
-    async fn chunk_recovered(&self) {
+    fn chunk_recovered(&self) {
         let recovered_chunk_count = self.recovered_chunk_count.fetch_add(1, Ordering::SeqCst) + 1;
+        let chunks_left = self.chunk_count.saturating_sub(recovered_chunk_count);
+        tracing::info!(
+            "Recovered {recovered_chunk_count}/{} Merkle tree chunks, there are {chunks_left} left to process",
+            self.chunk_count
+        );
         RECOVERY_METRICS
             .recovered_chunk_count
             .set(recovered_chunk_count);
@@ -257,9 +255,8 @@ impl AsyncTreeRecovery {
                 .acquire()
                 .await
                 .context("semaphore is never closed")?;
-            options.events.chunk_started().await;
             Self::recover_key_chunk(&tree, snapshot.l2_block, chunk, pool, stop_receiver).await?;
-            options.events.chunk_recovered().await;
+            options.events.chunk_recovered();
             anyhow::Ok(())
         });
         future::try_join_all(chunk_tasks).await?;
