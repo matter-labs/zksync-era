@@ -326,7 +326,9 @@ fn display_node_witness_generator_jobs_info(
 fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
     let prover_jobs_status = Status::from(prover_jobs_info.clone());
 
-    if matches!(prover_jobs_status, Status::Successful) || matches!(prover_jobs_status, Status::WaitingForProofs) {
+    if matches!(prover_jobs_status, Status::Successful)
+        || matches!(prover_jobs_status, Status::WaitingForProofs)
+    {
         println!(
             "> {}: {prover_jobs_status}",
             "Prover Jobs".to_owned().bold()
