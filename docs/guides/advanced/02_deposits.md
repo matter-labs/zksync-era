@@ -3,7 +3,8 @@
 In the [first article](01_initialization.md), we've managed to setup our system on local machine and verify that it
 works. Now let's actually start using it.
 
-As part of this guide, the project must be initialized in [legacy compatibility mode](../development.md#legacy-bridge-initialization).
+As part of this guide, the project must be initialized in
+[legacy compatibility mode](../development.md#legacy-bridge-initialization).
 
 ## Seeing the status of the accounts
 

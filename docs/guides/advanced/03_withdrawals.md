@@ -1,6 +1,7 @@
 # zkSync deeper dive bridging stuff back (a.k.a withdrawals)
 
-As part of this guide, the project must be initialized in [legacy compatibility mode](../development.md#legacy-bridge-initialization).
+As part of this guide, the project must be initialized in
+[legacy compatibility mode](../development.md#legacy-bridge-initialization).
 
 Assuming that you have completed [part 1](01_initialization.md) and [part 2](02_deposits.md) already, we can bridge the
 tokens back by simply calling the zksync-cli:
@@ -86,8 +87,8 @@ list here
 This is the place where we specify that `bootloader` is at address 0x8001, `NonceHolder` at 0x8003 etc.
 
 This brings us to
-[L2BaseToken.sol](https://github.com/matter-labs/era-contracts/blob/452a54f6724347b7e517be1a3d948299ab827d8c/system-contracts/contracts/L2BaseToken.sol) that has the
-implementation of the L2 Eth.
+[L2BaseToken.sol](https://github.com/matter-labs/era-contracts/blob/452a54f6724347b7e517be1a3d948299ab827d8c/system-contracts/contracts/L2BaseToken.sol)
+that has the implementation of the L2 Eth.
 
 When we look inside, we can see:
 
