@@ -2,7 +2,7 @@
 //! some of these types are declared as public and can be even exported using the `unstable` module.
 //! Still, logically these types are private, so adding them to new public APIs etc. is a logical error.
 
-use std::{fmt, num::NonZeroU64};
+use std::{collections::HashMap, fmt, num::NonZeroU64};
 
 use crate::{
     hasher::{HashTree, InternalNodeCache},
@@ -25,6 +25,8 @@ pub(crate) struct TreeTags {
     pub depth: usize,
     pub hasher: String,
     pub is_recovering: bool,
+    /// Custom / user-defined tags.
+    pub custom: HashMap<String, String>,
 }
 
 impl TreeTags {
@@ -36,6 +38,7 @@ impl TreeTags {
             hasher: hasher.name().to_owned(),
             depth: TREE_DEPTH,
             is_recovering: false,
+            custom: HashMap::new(),
         }
     }
 
