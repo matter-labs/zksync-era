@@ -10,19 +10,19 @@ use crate::{
         pools::{MasterPool, PoolResource},
         reverter::BlockReverterResource,
     },
-    precondition::Precondition,
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::UnconstrainedOneshotTask,
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Layer responsible for detecting reorgs and reverting blocks in case it was found.
 #[derive(Debug)]
-pub struct ReorgDetectorLayer;
+pub struct ReorgDetectorRunnerLayer;
 
 #[async_trait::async_trait]
-impl WiringLayer for ReorgDetectorLayer {
+impl WiringLayer for ReorgDetectorRunnerLayer {
     fn layer_name(&self) -> &'static str {
-        "reorg_detector_layer"
+        "reorg_detector_runner_layer"
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
@@ -34,33 +34,31 @@ impl WiringLayer for ReorgDetectorLayer {
 
         let reverter = context.get_resource::<BlockReverterResource>().await?.0;
 
-        // Create and insert precondition.
-        context.add_precondition(Box::new(ReorgDetectorPrecondition {
-            reorg_detector: ReorgDetector::new(main_node_client.clone(), pool.clone()),
-            reverter,
-        }));
-
         // Create and insert task.
-        context.add_task(Box::new(ReorgDetectorTask {
+        context.add_unconstrained_oneshot_task(Box::new(RunnerUnconstrainedOneshotTask {
             reorg_detector: ReorgDetector::new(main_node_client, pool),
+            reverter,
         }));
 
         Ok(())
     }
 }
 
-pub struct ReorgDetectorPrecondition {
+pub struct RunnerUnconstrainedOneshotTask {
     reorg_detector: ReorgDetector,
     reverter: Arc<BlockReverter>,
 }
 
 #[async_trait::async_trait]
-impl Precondition for ReorgDetectorPrecondition {
+impl UnconstrainedOneshotTask for RunnerUnconstrainedOneshotTask {
     fn name(&self) -> &'static str {
-        "reorg_detector"
+        "reorg_detector_runner"
     }
 
-    async fn check(mut self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run_unconstrained_oneshot(
+        mut self: Box<Self>,
+        _stop_receiver: StopReceiver,
+    ) -> anyhow::Result<()> {
         match self.reorg_detector.check_consistency().await {
             Ok(()) => {}
             Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
@@ -71,23 +69,5 @@ impl Precondition for ReorgDetectorPrecondition {
             Err(err) => return Err(err).context("reorg_detector.check_consistency()"),
         }
         Ok(())
-    }
-}
-
-pub struct ReorgDetectorTask {
-    reorg_detector: ReorgDetector,
-}
-
-#[async_trait::async_trait]
-impl Task for ReorgDetectorTask {
-    fn name(&self) -> &'static str {
-        "reorg_detector"
-    }
-
-    async fn run(mut self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.reorg_detector
-            .run(stop_receiver.0)
-            .await
-            .context("reorg_detector.run()")
     }
 }
