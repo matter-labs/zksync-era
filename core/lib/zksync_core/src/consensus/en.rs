@@ -4,7 +4,7 @@ use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_types::L2BlockNumber;
-use zksync_web3_decl::client::BoxedL2Client;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use super::{config, storage::Store, ConnectionPool, ConsensusConfig, ConsensusSecrets};
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
 pub(super) struct EN {
     pub(super) pool: ConnectionPool,
     pub(super) sync_state: SyncState,
-    pub(super) client: BoxedL2Client,
+    pub(super) client: Box<DynClient<L2>>,
 }
 
 impl EN {

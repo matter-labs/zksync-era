@@ -11,6 +11,7 @@ use zksync_types::{
     web3::{self, contract::Tokenize, BlockId},
     Address, L1ChainId, H160, H256, U256, U64,
 };
+use zksync_web3_decl::error::EnrichedClientError;
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
@@ -327,7 +328,8 @@ impl EthInterface for MockEthereum {
                 "transaction with the same nonce already processed",
                 None::<()>,
             );
-            return Err(Error::EthereumGateway(ClientError::Call(err)));
+            let err = EnrichedClientError::new(ClientError::Call(err), "send_raw_transaction");
+            return Err(Error::EthereumGateway(err));
         }
 
         if mock_tx.nonce == inner.pending_nonce {

@@ -8494,6 +8494,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
@@ -8555,7 +8556,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.1.0"
+version = "24.2.0"
 dependencies = [
  "anyhow",
  "assert_matches",

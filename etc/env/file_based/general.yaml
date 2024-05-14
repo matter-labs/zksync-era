@@ -187,6 +187,9 @@ witness_vector_generator:
   prometheus_push_interval_ms: 100
   specialized_group_id: 100
   max_prover_reservation_duration_in_secs: 1000
+data_handler:
+  http_port: 3320
+  proof_generation_timeout_in_secs: 18000
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 1000
