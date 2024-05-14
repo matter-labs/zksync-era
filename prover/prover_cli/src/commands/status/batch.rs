@@ -1,4 +1,4 @@
-use std::collections::gBTreeMap;
+use std::collections::BTreeMap;
 
 use anyhow::Context as _;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
@@ -327,11 +327,11 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
     let prover_jobs_status = Status::from(prover_jobs_info.clone());
 
     if matches!(prover_jobs_status, Status::Successful)
-        || matches!(prover_jobs_status, Status::WaitingForProofs)
+        || matches!(prover_jobs_status, Status::JobsNotFound)
     {
         println!(
             "> {}: {prover_jobs_status}",
-            "Prover Jobs".to_owned().bold()
+            "Prover Jobs".to_owned().bold()g
         );
         return;
     }
