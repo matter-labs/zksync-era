@@ -6,8 +6,8 @@ This document presumes familiarity with Rollups. For a better understanding, con
 Rollups inherit security and decentralization guarantees from Ethereum, on which they store information about changes in
 their own state, providing validity proofs for state transition, implementing a communication mechanism, etc. In
 practice, all this is achieved by Smart Contracts built on top of Ethereum. This document details the architecture of
-the L2 contracts on Ethereum Layer 1. We also have contracts that support the zkSync ZK Chain ecosystem, we cover those in
-the [Shared Bridge](./zk_chain_ecosystem/shared_bridge.md) section. The Shared Bridge relies on these individual contracts.
+the L2 contracts on Ethereum Layer 1. We also have contracts that support the ZK Chain ecosystem, we cover those in
+the [Shared Bridge](./zk_chains/shared_bridge.md) section. The Shared Bridge relies on these individual contracts.
 
 ## Diamond
 
