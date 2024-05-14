@@ -25,7 +25,7 @@ use zksync_types::{
 
 use crate::{
     error::ContractVerifierError,
-    metrics::API_CONTRACT_VERIFIER,
+    metrics::API_CONTRACT_VERIFIER_METRICS,
     zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolc, ZkSolcInput, ZkSolcOutput},
     zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
@@ -524,7 +524,7 @@ impl JobProcessor for ContractVerifier {
             let verification_result = Self::verify(&mut connection, job, config).await;
             Self::process_result(&mut connection, job_id, verification_result).await;
 
-            API_CONTRACT_VERIFIER.request_processing_time(started_at.elapsed());
+            API_CONTRACT_VERIFIER_METRICS.request_processing_time(started_at.elapsed());
             Ok(())
         })
     }
