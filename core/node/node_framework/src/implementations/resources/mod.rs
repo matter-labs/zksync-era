@@ -1,6 +1,6 @@
 pub mod action_queue;
 pub mod circuit_breakers;
-mod da_interface;
+pub(crate) mod da_interface;
 pub mod eth_interface;
 pub mod fee_input;
 pub mod healthcheck;

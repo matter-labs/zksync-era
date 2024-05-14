@@ -34,6 +34,7 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
+        da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::EthSenderLayer,
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
@@ -309,6 +310,17 @@ impl MainNodeBuilder {
             genesis_config.l1_batch_commit_data_generator_mode,
         ));
 
+        Ok(self)
+    }
+
+    fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
+        let eth_sender_config = EthConfig::from_env()?;
+        let l1_batch_commit_data_generator_mode =
+            GenesisConfig::from_env()?.l1_batch_commit_data_generator_mode;
+        self.node.add_layer(DataAvailabilityDispatcherLayer::new(
+            eth_sender_config,
+            l1_batch_commit_data_generator_mode,
+        ));
         Ok(self)
     }
 

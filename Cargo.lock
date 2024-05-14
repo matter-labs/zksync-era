@@ -8422,8 +8422,10 @@ name = "zksync_da_client"
 version = "0.1.0"
 dependencies = [
  "tokio",
+ "uuid",
  "zksync_config",
  "zksync_object_store",
+ "zksync_types",
 ]
 
 [[package]]

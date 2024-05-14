@@ -84,11 +84,7 @@ pub enum PubdataSendingMode {
     #[default]
     Calldata,
     Blobs,
-    NoDA,
-    GCS,
-    Celestia,
-    EigenDA,
-    Avail,
+    Custom,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]

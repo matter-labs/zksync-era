@@ -1,6 +1,8 @@
+pub(crate) type Error = String;
+
 #[derive(Default)]
 pub struct DispatchResponse {
-    blob_id: Vec<u8>,
+    pub(crate) blob_id: Vec<u8>,
 }
 
 #[derive(Default)]

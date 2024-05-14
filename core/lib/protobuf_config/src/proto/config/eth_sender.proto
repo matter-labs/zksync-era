@@ -23,11 +23,7 @@ enum ProofLoadingMode {
 enum PubdataSendingMode {
   CALLDATA = 0;
   BLOBS = 1;
-  NO_DA = 2;
-  GCS = 3;
-  CELESTIA = 4;
-  EIGEN_DA = 5;
-  AVAIL = 6;
+  CUSTOM = 2;
 }
 
 message Sender {

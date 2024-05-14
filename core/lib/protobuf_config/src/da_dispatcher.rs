@@ -9,11 +9,11 @@ impl ProtoRepr for proto::DataAvailabilityDispatcher {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         configs::da_dispatcher::DADispatcherConfig {
-            credentials: match &self.credentials {
+            mode: match &self.credentials {
                 Some(proto::data_availability_dispatcher::Credentials::DaLayer(config)) => {
-                    configs::da_dispatcher::DACredentials::DALayer(
+                    configs::da_dispatcher::DataAvailabilityMode::DALayer(
                         configs::da_dispatcher::DALayerInfo {
-                            url: *required(&config.url).context("url"),
+                            name: *required(&config.name).context("name"),
                             private_key: required(&config.private_key)
                                 .context("private_key")
                                 .into_bytes(),
@@ -21,26 +21,27 @@ impl ProtoRepr for proto::DataAvailabilityDispatcher {
                     )
                 }
                 Some(proto::data_availability_dispatcher::Credentials::ObjectStore(config)) => {
-                    configs::da_dispatcher::DACredentials::GCS(config.read()?)
+                    configs::da_dispatcher::DataAvailabilityMode::GCS(config.read()?)
                 }
-                None => None,
+                None => configs::da_dispatcher::DataAvailabilityMode::NoDA,
             },
         }
     }
 
     fn build(this: &Self::Type) -> Self {
-        let credentials = match this.credentials.clone() {
-            configs::da_dispatcher::DACredentials::DALayer(info) => Some(
+        let credentials = match this.mode.clone() {
+            configs::da_dispatcher::DataAvailabilityMode::DALayer(info) => Some(
                 proto::data_availability_dispatcher::Credentials::DaLayer(proto::DaLayer {
-                    url: Some(info.url.clone()),
+                    name: Some(info.name.clone()),
                     private_key: info.private_key.clone().into(),
                 }),
             ),
-            configs::da_dispatcher::DACredentials::GCS(config) => Some(
+            configs::da_dispatcher::DataAvailabilityMode::GCS(config) => Some(
                 proto::data_availability_dispatcher::Credentials::ObjectStore(ObjectStore::build(
                     &config,
                 )),
             ),
+            configs::da_dispatcher::DataAvailabilityMode::NoDA => None,
         };
 
         Self { credentials }

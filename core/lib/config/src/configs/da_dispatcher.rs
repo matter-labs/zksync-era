@@ -1,27 +1,30 @@
+use serde::Deserialize;
+
 use crate::ObjectStoreConfig;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DALayerInfo {
-    pub url: String,
+    pub name: String,
     pub private_key: Vec<u8>,
 }
 
-#[derive(Clone, Debug)]
-pub enum DACredentials {
+#[derive(Clone, Debug, PartialEq)]
+pub enum DataAvailabilityMode {
     DALayer(DALayerInfo),
     GCS(ObjectStoreConfig),
+    NoDA,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct DADispatcherConfig {
-    pub credentials: DACredentials,
+    pub mode: DataAvailabilityMode,
 }
 
 impl DADispatcherConfig {
     pub fn for_tests() -> Self {
         Self {
-            credentials: DACredentials::DALayer(DALayerInfo {
-                url: "http://localhost:1234".to_string(),
+            mode: DataAvailabilityMode::DALayer(DALayerInfo {
+                name: "zkDA".into(),
                 private_key: vec![1, 2, 3],
             }),
         }

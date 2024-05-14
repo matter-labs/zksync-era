@@ -48,11 +48,7 @@ impl proto::PubdataSendingMode {
         match x {
             From::Calldata => Self::Calldata,
             From::Blobs => Self::Blobs,
-            From::NoDA => Self::NoDa,
-            From::GCS => Self::Gcs,
-            From::Celestia => Self::Celestia,
-            From::EigenDA => Self::EigenDa,
-            From::Avail => Self::Avail,
+            From::Custom => Self::Custom,
         }
     }
 
@@ -61,11 +57,7 @@ impl proto::PubdataSendingMode {
         match self {
             Self::Calldata => To::Calldata,
             Self::Blobs => To::Blobs,
-            Self::NoDa => To::NoDA,
-            Self::Gcs => To::GCS,
-            Self::Celestia => To::Celestia,
-            Self::EigenDa => To::EigenDA,
-            Self::Avail => To::Avail,
+            Self::Custom => To::Custom,
         }
     }
 }

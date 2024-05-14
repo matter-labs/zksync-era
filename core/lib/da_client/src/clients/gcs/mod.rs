@@ -6,10 +6,11 @@ use std::{
 
 use zksync_config::ObjectStoreConfig;
 use zksync_object_store::{ObjectStore, ObjectStoreError, ObjectStoreFactory};
+use zksync_types::{pubdata_da::StorablePubdata, L1BatchNumber};
 
 use crate::{
     types::{DispatchResponse, InclusionData},
-    DataAvailabilityClient,
+    DataAvailabilityInterface,
 };
 
 struct GCSDAClient {
@@ -24,9 +25,21 @@ impl GCSDAClient {
     }
 }
 
-impl DataAvailabilityClient<ObjectStoreError> for GCSDAClient {
-    fn dispatch_blob(&self, data: Vec<u8>) -> Result<DispatchResponse, ObjectStoreError> {
-        Ok(DispatchResponse::default())
+impl DataAvailabilityInterface for GCSDAClient {
+    async fn dispatch_blob(
+        &self,
+        batch_number: L1BatchNumber,
+        data: Vec<u8>,
+    ) -> Result<DispatchResponse, ObjectStoreError> {
+        let key = self
+            .object_store
+            .put(batch_number, &StorablePubdata { data })
+            .await
+            .unwrap();
+
+        Ok(DispatchResponse {
+            blob_id: key.into_bytes(),
+        })
     }
 
     fn get_inclusion_data(&self, _: Vec<u8>) -> Result<InclusionData, ObjectStoreError> {
