@@ -26,6 +26,7 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     if (!timeToLive) {
         await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
     } else {
+        console.log('Starting server');
         const child = utils.background(`cargo run --bin zksync_server --release ${options}`);
 
         const promise = new Promise((resolve, reject) => {
@@ -37,11 +38,17 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
 
         await utils.sleep(+timeToLive);
 
+        console.log(`${+timeToLive} seconds passed, killing the server.`);
+
         // Kill the server after the time to live.
         child.kill('SIGINT');
 
+        console.log('Waiting for the server to shut down.');
+
         // Now waiting for the graceful shutdown of the server.
         await promise;
+
+        console.log('Server successfully shut down.');
     }
 }
 
