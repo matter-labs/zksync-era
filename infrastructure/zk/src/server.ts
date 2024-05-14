@@ -32,7 +32,9 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
         const promise = new Promise((resolve, reject) => {
             child.on('error', reject);
             child.on('close', (code, signal) => {
-                signal == 'SIGTERM' ? resolve(signal) : reject(`Child process exited with code ${code} and signal ${signal}`);
+                signal == 'SIGTERM'
+                    ? resolve(signal)
+                    : reject(`Child process exited with code ${code} and signal ${signal}`);
             });
         });
 
@@ -135,26 +137,20 @@ export const enCommand = new Command('external-node')
         await externalNode(cmd.reinit, cmd.args);
     });
 
-
-
 const fn = async () => {
     const transactions: string[] = [];
 
-    const validateTx = (tx: string) => {
-    }
-    const executeTx = (tx: string) => {
-    }
+    const validateTx = (tx: string) => {};
+    const executeTx = (tx: string) => {};
 
     // 1. Initialize batch params.
 
     // 2. Validate and execute transactions:
-    for(const transaction of transactions) {
+    for (const transaction of transactions) {
         validateTx(transaction);
         executeTx(transaction);
     }
 
-    // 3. Distribute funds to the operator 
+    // 3. Distribute funds to the operator
     // and compress the final state diffs.
-
-
 };
