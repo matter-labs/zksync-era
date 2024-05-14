@@ -258,10 +258,37 @@ impl ReorgDetector {
         };
         drop(storage);
 
-        let remote_l1_batch = self.client.sealed_l1_batch_number().await?;
+        let remote_sealed_l1_batch = self.client.sealed_l1_batch_number().await?;
+        // Hash for the latest L1 remote batch may not be calculated yet.
+        // It is checked and if it is not calculated then we try to use `remote_sealed_l1_batch - 1`. It should have the root hash calculated
+        // (we assume here that the next batch cannot be sealed before root hash for the previous one is calculated)
+        // unless `remote_sealed_l1_batch` is the only remote batch (e.g. if it is a genesis batch or node was restored from a snapshot).
+        let remote_ready_l1_batch = if self
+            .client
+            .l1_batch_root_hash(remote_sealed_l1_batch)
+            .await?
+            .is_some()
+        {
+            remote_sealed_l1_batch
+        } else if remote_sealed_l1_batch.0 > 0
+            && self
+                .client
+                .l1_batch_root_hash(remote_sealed_l1_batch - 1)
+                .await?
+                .is_some()
+        {
+            remote_sealed_l1_batch - 1
+        } else {
+            tracing::info!(
+                "Failed to check consistency: remote root hash is missing for `remote_sealed_l1_batch` \
+                (#{remote_sealed_l1_batch}) and for the previous one"
+            );
+            return Ok(());
+        };
+
         let remote_l2_block = self.client.sealed_l2_block_number().await?;
 
-        let checked_l1_batch = local_l1_batch.min(remote_l1_batch);
+        let checked_l1_batch = local_l1_batch.min(remote_ready_l1_batch);
         let checked_l2_block = local_l2_block.min(remote_l2_block);
 
         let root_hashes_match = self.root_hashes_match(checked_l1_batch).await?;
