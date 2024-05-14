@@ -3,6 +3,7 @@ use std::{fmt, time::Duration};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use multivm::interface::{L1BatchEnv, SystemEnv};
+use tokio::time::Instant;
 use vm_utils::storage::l1_batch_params;
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
@@ -163,6 +164,7 @@ impl dyn StateKeeperIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
+        let deadline = Instant::now() + max_wait;
         let Some(params) = self.wait_for_new_batch_params(cursor, max_wait).await? else {
             return Ok(None);
         };
@@ -175,10 +177,20 @@ impl dyn StateKeeperIO {
                     params.protocol_version
                 )
             })?;
-        let previous_batch_hash = self
-            .load_batch_state_hash(cursor.l1_batch - 1)
-            .await
-            .context("cannot load state hash for previous L1 batch")?;
+        let wait_result =
+            tokio::time::timeout_at(deadline, self.load_batch_state_hash(cursor.l1_batch - 1))
+                .await;
+
+        let previous_batch_hash = match wait_result {
+            Err(_) => {
+                tracing::debug!(
+                    "Timed out waiting for root hash for L1 batch #{}",
+                    cursor.l1_batch - 1
+                );
+                return Ok(None);
+            }
+            Ok(result) => result.context("cannot load state hash for previous L1 batch")?,
+        };
         Ok(Some(params.into_env(
             self.chain_id(),
             contracts,

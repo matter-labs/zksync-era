@@ -70,28 +70,44 @@ enum StepOutcome {
     RemoteHashMissing,
 }
 
+/// Component fetching tree data (i.e., state root hashes for L1 batches) from external sources, such as
+/// the main node, and persisting this data to Postgres.
+///
+/// # Overview
+///
+/// This component allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up.
+/// It can be operated together with Metadata calculator or instead of it. In the first case, Metadata calculator
+/// (which is generally expected to be slower) will check that data returned by the main node is correct
+/// (i.e., "trust but verify" trust model). Additionally, the persisted data will be checked against L1 commitment transactions
+/// by Consistency checker.
 #[derive(Debug)]
 pub struct TreeDataFetcher {
     main_node_client: Box<dyn MainNodeClient>,
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
-    sleep_interval: Duration,
+    poll_interval: Duration,
     #[cfg(test)]
     updates_sender: mpsc::UnboundedSender<L1BatchNumber>,
 }
 
 impl TreeDataFetcher {
-    const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
+    const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
+    /// Creates a new fetcher connected to the main node.
     pub fn new(client: BoxedL2Client, pool: ConnectionPool<Core>) -> Self {
         Self {
-            main_node_client: Box::new(client),
+            main_node_client: Box::new(client.for_component("tree_data_fetcher")),
             pool,
             health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,
-            sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
+            poll_interval: Self::DEFAULT_POLL_INTERVAL,
             #[cfg(test)]
             updates_sender: mpsc::unbounded_channel().0,
         }
+    }
+
+    /// Returns a health check for this fetcher.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 
     async fn get_batch_to_fetch(&self) -> anyhow::Result<Option<L1BatchNumber>> {
@@ -190,6 +206,8 @@ impl TreeDataFetcher {
         self.health_updater.update(health);
     }
 
+    /// Runs this component until a fatal error occurs or a stop signal is received. Transient errors
+    /// (e.g., no network connection) are handled gracefully by retrying after a delay.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
@@ -229,7 +247,7 @@ impl TreeDataFetcher {
             };
 
             if need_to_sleep
-                && tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+                && tokio::time::timeout(self.poll_interval, stop_receiver.changed())
                     .await
                     .is_ok()
             {

@@ -87,7 +87,7 @@ fn create_tree_data_fetcher(
         main_node_client: Box::new(client),
         pool: pool.clone(),
         health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,
-        sleep_interval: Duration::from_millis(10),
+        poll_interval: Duration::from_millis(10),
         updates_sender,
     };
     (fetcher, updates_receiver)

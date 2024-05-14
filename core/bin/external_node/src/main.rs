@@ -34,7 +34,8 @@ use zksync_core::{
         OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
+        tree_data_fetcher::TreeDataFetcher, ActionQueue, SyncState,
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
@@ -641,6 +642,16 @@ async fn init_tasks(
         None
     };
 
+    if components.contains(&Component::TreeFetcher) {
+        tracing::warn!(
+            "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
+             This is an experimental feature; do not use unless you know what you're doing"
+        );
+        let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone());
+        app_health.insert_component(fetcher.health_check())?;
+        task_handles.push(tokio::spawn(fetcher.run(stop_receiver.clone())));
+    }
+
     let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
 
     let sync_state = if components.contains(&Component::Core) {
@@ -740,6 +751,7 @@ pub enum Component {
     WsApi,
     Tree,
     TreeApi,
+    TreeFetcher,
     Core,
 }
 
@@ -751,6 +763,7 @@ impl Component {
             "ws_api" => Ok(&[Component::WsApi]),
             "tree" => Ok(&[Component::Tree]),
             "tree_api" => Ok(&[Component::TreeApi]),
+            "tree_fetcher" => Ok(&[Component::TreeFetcher]),
             "core" => Ok(&[Component::Core]),
             "all" => Ok(&[
                 Component::HttpApi,
