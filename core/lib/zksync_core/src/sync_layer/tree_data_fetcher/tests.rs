@@ -14,7 +14,7 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, prepare_recovery_snapshot};
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, StorageLog, H256};
 
-use super::*;
+use super::{metrics::StepOutcomeLabel, *};
 
 #[derive(Debug, Default)]
 struct MockMainNodeClient {
@@ -78,19 +78,31 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
     transaction.commit().await.unwrap();
 }
 
-fn create_tree_data_fetcher(
-    client: impl MainNodeClient,
-    pool: ConnectionPool<Core>,
-) -> (TreeDataFetcher, mpsc::UnboundedReceiver<L1BatchNumber>) {
-    let (updates_sender, updates_receiver) = mpsc::unbounded_channel();
-    let fetcher = TreeDataFetcher {
-        main_node_client: Box::new(client),
-        pool: pool.clone(),
-        health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,
-        poll_interval: Duration::from_millis(10),
-        updates_sender,
-    };
-    (fetcher, updates_receiver)
+#[derive(Debug)]
+struct FetcherHarness {
+    fetcher: TreeDataFetcher,
+    updates_receiver: mpsc::UnboundedReceiver<L1BatchNumber>,
+    metrics: &'static TreeDataFetcherMetrics,
+}
+
+impl FetcherHarness {
+    fn new(client: impl MainNodeClient, pool: ConnectionPool<Core>) -> Self {
+        let (updates_sender, updates_receiver) = mpsc::unbounded_channel();
+        let metrics = &*Box::leak(Box::<TreeDataFetcherMetrics>::default());
+        let fetcher = TreeDataFetcher {
+            main_node_client: Box::new(client),
+            pool: pool.clone(),
+            metrics,
+            health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,
+            poll_interval: Duration::from_millis(10),
+            updates_sender,
+        };
+        Self {
+            fetcher,
+            updates_receiver,
+            metrics,
+        }
+    }
 }
 
 #[tokio::test]
@@ -109,7 +121,7 @@ async fn tree_data_fetcher_steps() {
         seal_l1_batch(&mut storage, number).await;
     }
 
-    let (fetcher, _) = create_tree_data_fetcher(client, pool.clone());
+    let fetcher = FetcherHarness::new(client, pool.clone()).fetcher;
     for number in 1..=5 {
         let step_outcome = fetcher.step().await.unwrap();
         assert_matches!(
@@ -173,7 +185,7 @@ async fn tree_data_fetcher_steps_after_snapshot_recovery() {
         seal_l1_batch(&mut storage, number).await;
     }
 
-    let (fetcher, _) = create_tree_data_fetcher(client, pool.clone());
+    let fetcher = FetcherHarness::new(client, pool.clone()).fetcher;
     for i in 1..=5 {
         let step_outcome = fetcher.step().await.unwrap();
         assert_matches!(
@@ -204,7 +216,11 @@ async fn tree_data_fetcher_recovers_from_transient_errors() {
     }
     let transient_error = client.transient_error.clone();
 
-    let (fetcher, mut updates_receiver) = create_tree_data_fetcher(client, pool.clone());
+    let FetcherHarness {
+        fetcher,
+        mut updates_receiver,
+        metrics,
+    } = FetcherHarness::new(client, pool.clone());
     let (stop_sender, stop_receiver) = watch::channel(false);
     let fetcher_handle = tokio::spawn(fetcher.run(stop_receiver));
 
@@ -229,6 +245,17 @@ async fn tree_data_fetcher_recovers_from_transient_errors() {
             genesis.rollup_last_leaf_index + u64::from(number)
         );
     }
+
+    // Check metrics.
+    assert_eq!(metrics.last_updated_batch_number.get(), 5);
+    assert_eq!(
+        metrics.step_outcomes[&StepOutcomeLabel::TransientError].get(),
+        5
+    );
+    assert_eq!(
+        metrics.step_outcomes[&StepOutcomeLabel::UpdatedBatch].get(),
+        5
+    );
 
     stop_sender.send_replace(true);
     fetcher_handle.await.unwrap().unwrap();
@@ -281,7 +308,11 @@ async fn tree_data_fetcher_with_missing_remote_hash(delayed_insertion: bool) {
     }
 
     let client = SlowMainNode::new(3);
-    let (fetcher, mut updates_receiver) = create_tree_data_fetcher(client, pool.clone());
+    let FetcherHarness {
+        fetcher,
+        mut updates_receiver,
+        metrics,
+    } = FetcherHarness::new(client, pool.clone());
     let (stop_sender, stop_receiver) = watch::channel(false);
     let fetcher_handle = tokio::spawn(fetcher.run(stop_receiver));
 
@@ -304,6 +335,17 @@ async fn tree_data_fetcher_with_missing_remote_hash(delayed_insertion: bool) {
     assert_eq!(
         tree_data.rollup_last_leaf_index,
         genesis.rollup_last_leaf_index + 1
+    );
+
+    // Check metrics.
+    assert_eq!(metrics.last_updated_batch_number.get(), 1);
+    assert_eq!(
+        metrics.step_outcomes[&StepOutcomeLabel::RemoteHashMissing].get(),
+        3
+    );
+    assert_eq!(
+        metrics.step_outcomes[&StepOutcomeLabel::UpdatedBatch].get(),
+        1
     );
 
     // Check that the fetcher can be stopped.

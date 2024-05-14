@@ -16,6 +16,9 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
+use self::metrics::{ProcessingStage, TreeDataFetcherMetrics, METRICS};
+
+mod metrics;
 #[cfg(test)]
 mod tests;
 
@@ -84,6 +87,7 @@ enum StepOutcome {
 pub struct TreeDataFetcher {
     main_node_client: Box<dyn MainNodeClient>,
     pool: ConnectionPool<Core>,
+    metrics: &'static TreeDataFetcherMetrics,
     health_updater: HealthUpdater,
     poll_interval: Duration,
     #[cfg(test)]
@@ -98,6 +102,7 @@ impl TreeDataFetcher {
         Self {
             main_node_client: Box::new(client.for_component("tree_data_fetcher")),
             pool,
+            metrics: &METRICS,
             health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,
             poll_interval: Self::DEFAULT_POLL_INTERVAL,
             #[cfg(test)]
@@ -166,7 +171,9 @@ impl TreeDataFetcher {
         let Some(l1_batch_to_fetch) = self.get_batch_to_fetch().await? else {
             return Ok(StepOutcome::NoProgress);
         };
+
         tracing::debug!("Fetching tree data for L1 batch #{l1_batch_to_fetch} from main node");
+        let stage_latency = self.metrics.stage_latency[&ProcessingStage::Fetch].start();
         let batch_details = self
             .main_node_client
             .batch_details(l1_batch_to_fetch)
@@ -177,6 +184,7 @@ impl TreeDataFetcher {
                      which is assumed to store batch info indefinitely"
                 )
             })?;
+        stage_latency.observe();
         let Some(root_hash) = batch_details.base.root_hash else {
             tracing::debug!(
                 "L1 batch #{l1_batch_to_fetch} does not have root hash computed on the main node"
@@ -184,6 +192,7 @@ impl TreeDataFetcher {
             return Ok(StepOutcome::RemoteHashMissing);
         };
 
+        let stage_latency = self.metrics.stage_latency[&ProcessingStage::Persistence].start();
         let mut storage = self.pool.connection_tagged("tree_data_fetcher").await?;
         let rollup_last_leaf_index =
             Self::get_rollup_last_leaf_index(&mut storage, l1_batch_to_fetch).await?;
@@ -195,6 +204,7 @@ impl TreeDataFetcher {
             .blocks_dal()
             .save_l1_batch_tree_data(l1_batch_to_fetch, &tree_data)
             .await?;
+        stage_latency.observe();
         tracing::debug!("Updated L1 batch #{l1_batch_to_fetch} with tree data: {tree_data:?}");
         Ok(StepOutcome::UpdatedBatch(l1_batch_to_fetch))
     }
@@ -209,12 +219,15 @@ impl TreeDataFetcher {
     /// Runs this component until a fatal error occurs or a stop signal is received. Transient errors
     /// (e.g., no network connection) are handled gracefully by retrying after a delay.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.metrics.observe_info(&self);
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
 
         while !*stop_receiver.borrow_and_update() {
-            let need_to_sleep = match self.step().await {
+            let step_outcome = self.step().await;
+            self.metrics.observe_step_outcome(step_outcome.as_ref());
+            let need_to_sleep = match step_outcome {
                 Ok(StepOutcome::UpdatedBatch(batch_number)) => {
                     #[cfg(test)]
                     self.updates_sender.send(batch_number).ok();
