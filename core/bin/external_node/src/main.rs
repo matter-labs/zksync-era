@@ -9,6 +9,9 @@ use tokio::{
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
 use zksync_commitment_generator::{
+    commitment_post_processor::{
+        CommitmentPostProcessor, RollupCommitmentPostProcessor, ValidiumCommitmentPostProcessor,
+    },
     input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
     CommitmentGenerator,
 };
@@ -347,17 +350,20 @@ async fn run_core(
     )
     .await?;
 
-    let (l1_batch_commit_data_generator, input_generator): (
+    let (l1_batch_commit_data_generator, input_generator, commitment_post_processor): (
         Arc<dyn L1BatchCommitDataGenerator>,
         Box<dyn InputGenerator>,
+        Box<dyn CommitmentPostProcessor>,
     ) = match config.optional.l1_batch_commit_data_generator_mode {
         L1BatchCommitDataGeneratorMode::Rollup => (
             Arc::new(RollupModeL1BatchCommitDataGenerator {}),
             Box::new(RollupInputGenerator),
+            Box::new(RollupCommitmentPostProcessor),
         ),
         L1BatchCommitDataGeneratorMode::Validium => (
             Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
             Box::new(ValidiumInputGenerator),
+            Box::new(ValidiumCommitmentPostProcessor),
         ),
     };
 
@@ -389,7 +395,11 @@ async fn run_core(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool, input_generator);
+    let commitment_generator = CommitmentGenerator::new(
+        commitment_generator_pool,
+        input_generator,
+        commitment_post_processor,
+    );
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
