@@ -448,7 +448,7 @@ impl PruningDal<'_, '_> {
     pub async fn run_vacuum_after_hard_pruning(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
-            VACUUM l1_batches,
+            VACUUM FREEZE l1_batches,
             miniblocks,
             storage_logs,
             events,
