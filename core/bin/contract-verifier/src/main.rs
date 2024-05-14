@@ -16,6 +16,7 @@ use zksync_utils::wait_for_tasks::ManagedTasks;
 use crate::verifier::ContractVerifier;
 
 pub mod error;
+mod metrics;
 pub mod verifier;
 pub mod zksolc_utils;
 pub mod zkvyper_utils;
