@@ -11,8 +11,10 @@ use zksync_core::state_keeper::UpdatesManager;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::L1BatchNumber;
 
-use crate::tests::{IoMock, TestOutputFactory};
-use crate::{ConcurrentOutputHandlerFactory, OutputHandlerFactory};
+use crate::{
+    tests::{IoMock, TestOutputFactory},
+    ConcurrentOutputHandlerFactory, OutputHandlerFactory,
+};
 
 struct OutputHandlerTester {
     io: Arc<RwLock<IoMock>>,

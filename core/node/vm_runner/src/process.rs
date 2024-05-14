@@ -1,13 +1,13 @@
-use crate::storage::StorageLoader;
-use crate::{OutputHandlerFactory, VmRunnerIo};
+use std::{sync::Arc, time::Duration};
+
 use multivm::interface::L2BlockEnv;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::watch;
 use zksync_core::state_keeper::{
     BatchExecutor, ExecutionMetricsForCriteria, L2BlockParams, TxExecutionResult, UpdatesManager,
 };
 use zksync_dal::{ConnectionPool, Core};
+
+use crate::{storage::StorageLoader, OutputHandlerFactory, VmRunnerIo};
 
 #[derive(Debug)]
 pub struct VmRunner {
