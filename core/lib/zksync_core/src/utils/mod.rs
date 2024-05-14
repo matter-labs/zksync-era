@@ -195,10 +195,6 @@ impl L1BatchCommitmentModeValidationTask {
     }
 
     async fn validate_commitment_mode(self) -> anyhow::Result<()> {
-        fn is_transient_err(err: &ClientError) -> bool {
-            matches!(err, ClientError::Transport(_) | ClientError::RequestTimeout)
-        }
-
         let expected_mode = self.expected_mode;
         let diamond_proxy_address = self.diamond_proxy_address;
         let eth_client = self.eth_client.as_ref();
@@ -221,12 +217,14 @@ impl L1BatchCommitmentModeValidationTask {
                 // Getters contract does not support `getPubdataPricingMode` method.
                 // This case is accepted for backwards compatibility with older contracts, but emits a
                 // warning in case the wrong contract address was passed by the caller.
-                Err(err @ EthClientError::EthereumGateway(ClientError::Call(_))) => {
+                Err(EthClientError::EthereumGateway(err))
+                    if matches!(err.as_ref(), ClientError::Call(_)) =>
+                {
                     tracing::warn!("Contract {diamond_proxy_address:?} does not support getPubdataPricingMode method: {err}");
                     return Ok(());
                 }
 
-                Err(EthClientError::EthereumGateway(err)) if is_transient_err(&err) => {
+                Err(EthClientError::EthereumGateway(err)) if err.is_transient() => {
                     tracing::warn!(
                         "Transient error validating commitment mode, will retry after {:?}: {err}",
                         self.retry_interval
@@ -278,9 +276,10 @@ mod tests {
     use std::{mem, sync::Mutex};
 
     use jsonrpsee::types::ErrorObject;
-    use zksync_eth_client::{clients::MockEthereum, ClientError};
+    use zksync_eth_client::clients::MockEthereum;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{ethabi, U256};
+    use zksync_web3_decl::error::EnrichedClientError;
 
     use super::*;
 
@@ -342,14 +341,14 @@ mod tests {
     }
 
     fn mock_ethereum_with_legacy_contract() -> MockEthereum {
-        let call_err = ErrorObject::owned(3, "execution reverted: F", None::<()>);
-        let err = EthClientError::EthereumGateway(ClientError::Call(call_err));
+        let err = ClientError::Call(ErrorObject::owned(3, "execution reverted: F", None::<()>));
+        let err = EthClientError::EthereumGateway(EnrichedClientError::new(err, "call"));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 
     fn mock_ethereum_with_transport_error() -> MockEthereum {
-        let err =
-            EthClientError::EthereumGateway(ClientError::Transport(anyhow::anyhow!("unreachable")));
+        let err = ClientError::Transport(anyhow::anyhow!("unreachable"));
+        let err = EthClientError::EthereumGateway(EnrichedClientError::new(err, "call"));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 
