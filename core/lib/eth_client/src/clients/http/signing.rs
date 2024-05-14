@@ -2,7 +2,7 @@ use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
 use zksync_contracts::hyperchain_contract;
-use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
+use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_types::{
     ethabi, web3, Address, K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE, H160, U256,
 };
