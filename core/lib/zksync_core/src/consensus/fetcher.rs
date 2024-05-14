@@ -3,7 +3,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_types::L2BlockNumber;
-use zksync_web3_decl::client::BoxedL2Client;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::{
     consensus::{storage, Store},
@@ -18,7 +18,7 @@ pub type P2PConfig = executor::Config;
 pub struct Fetcher {
     pub store: Store,
     pub sync_state: SyncState,
-    pub client: BoxedL2Client,
+    pub client: Box<DynClient<L2>>,
 }
 
 impl Fetcher {

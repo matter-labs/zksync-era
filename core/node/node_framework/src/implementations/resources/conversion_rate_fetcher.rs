@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_core::base_token_fetcher::ConversionRateFetcher;
+use zksync_base_token_fetcher::ConversionRateFetcher;
 
 use crate::resource::Resource;
 

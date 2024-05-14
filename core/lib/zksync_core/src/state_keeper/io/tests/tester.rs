@@ -3,6 +3,7 @@
 use std::{slice, sync::Arc, time::Duration};
 
 use multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
+use zksync_base_token_fetcher::NoOpConversionRateFetcher;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
     GasAdjusterConfig,
@@ -10,6 +11,14 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
+use zksync_node_fee_model::{
+    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
+    MainNodeFeeInputProvider,
+};
+use zksync_node_genesis::create_genesis_l1_batch;
+use zksync_node_test_utils::{
+    create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction, DeploymentMode,
+};
 use zksync_types::{
     block::L2BlockHeader,
     fee::TransactionExecutionMetrics,
@@ -21,17 +30,7 @@ use zksync_types::{
     L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256, U256,
 };
 
-use crate::{
-    base_token_fetcher::NoOpConversionRateFetcher,
-    fee_model::MainNodeFeeInputProvider,
-    genesis::create_genesis_l1_batch,
-    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
-    state_keeper::{MempoolGuard, MempoolIO},
-    utils::testonly::{
-        create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
-        DeploymentMode,
-    },
-};
+use crate::state_keeper::{MempoolGuard, MempoolIO};
 
 #[derive(Debug)]
 pub struct Tester {
@@ -78,7 +77,7 @@ impl Tester {
         let base_token_fetcher = Arc::new(NoOpConversionRateFetcher);
 
         GasAdjuster::new(
-            Arc::new(eth_client),
+            Box::new(eth_client),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
             base_token_fetcher,

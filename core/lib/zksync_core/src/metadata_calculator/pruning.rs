@@ -146,16 +146,14 @@ impl MerkleTreePruningTask {
 mod tests {
     use tempfile::TempDir;
     use test_casing::test_casing;
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_test_utils::prepare_recovery_snapshot;
     use zksync_types::{L1BatchNumber, L2BlockNumber};
 
     use super::*;
-    use crate::{
-        genesis::{insert_genesis_batch, GenesisParams},
-        metadata_calculator::{
-            tests::{extend_db_state_from_l1_batch, gen_storage_logs, mock_config, reset_db_state},
-            MetadataCalculator,
-        },
-        utils::testonly::prepare_recovery_snapshot,
+    use crate::metadata_calculator::{
+        tests::{extend_db_state_from_l1_batch, gen_storage_logs, mock_config, reset_db_state},
+        MetadataCalculator,
     };
 
     const POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -185,7 +183,7 @@ mod tests {
             .wait_for(|health| matches!(health.status(), HealthStatus::Ready))
             .await;
         // Wait until the calculator is initialized.
-        let reader = reader.wait().await;
+        let reader = reader.wait().await.unwrap();
         while reader.clone().info().await.next_l1_batch_number < L1BatchNumber(6) {
             tokio::time::sleep(POLL_INTERVAL).await;
         }
@@ -283,7 +281,7 @@ mod tests {
         let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver));
 
         // Wait until the calculator is initialized.
-        let reader = reader.wait().await;
+        let reader = reader.wait().await.unwrap();
         let tree_info = reader.clone().info().await;
         assert_eq!(
             tree_info.next_l1_batch_number,

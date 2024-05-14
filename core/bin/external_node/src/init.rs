@@ -10,9 +10,9 @@ use zksync_health_check::AppHealthCheck;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_snapshots_applier::{SnapshotsApplierConfig, SnapshotsApplierTask};
-use zksync_web3_decl::client::BoxedL2Client;
+use zksync_web3_decl::client::{DynClient, L2};
 
-use crate::config::read_snapshots_recovery_config;
+use crate::config::SnapshotsRecoveryConfig;
 
 #[derive(Debug)]
 enum InitDecision {
@@ -24,7 +24,7 @@ enum InitDecision {
 
 pub(crate) async fn ensure_storage_initialized(
     pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     app_health: &AppHealthCheck,
     l2_chain_id: L2ChainId,
     consider_snapshot_recovery: bool,
@@ -85,7 +85,7 @@ pub(crate) async fn ensure_storage_initialized(
             );
 
             tracing::warn!("Proceeding with snapshot recovery. This is an experimental feature; use at your own risk");
-            let recovery_config = read_snapshots_recovery_config()?;
+            let recovery_config = SnapshotsRecoveryConfig::new()?;
             let blob_store = ObjectStoreFactory::new(recovery_config.snapshots_object_store)
                 .create_store()
                 .await;

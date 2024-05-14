@@ -10,10 +10,17 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-web3 = { workspace = true, features = ["http-rustls-tls", "test", "signing"] }
+ethabi.workspace = true
+hex.workspace = true
+tiny-keccak.workspace = true
+thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 chrono.workspace = true
 strum = { workspace = true, features = ["derive"] }
 num_enum.workspace = true
 anyhow.workspace = true
+url = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+bincode.workspace = true

@@ -15,22 +15,20 @@ use multivm::{
 };
 use tokio::sync::{mpsc, watch};
 use zksync_contracts::BaseSystemContracts;
+use zksync_node_test_utils::create_l2_transaction;
 use zksync_types::{
     block::L2BlockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
 
-use crate::{
-    state_keeper::{
-        batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
-        io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
-        seal_criteria::{IoSealCriteria, SequencerSealer},
-        tests::{default_l1_batch_env, default_vm_batch_result, BASE_SYSTEM_CONTRACTS},
-        types::ExecutionMetricsForCriteria,
-        updates::UpdatesManager,
-        OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
-    },
-    utils::testonly::create_l2_transaction,
+use crate::state_keeper::{
+    batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
+    io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
+    seal_criteria::{IoSealCriteria, SequencerSealer},
+    tests::{default_l1_batch_env, default_vm_batch_result, BASE_SYSTEM_CONTRACTS},
+    types::ExecutionMetricsForCriteria,
+    updates::UpdatesManager,
+    OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
 };
 
 const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);

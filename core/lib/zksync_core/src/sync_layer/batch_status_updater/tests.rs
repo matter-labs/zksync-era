@@ -6,14 +6,12 @@ use chrono::TimeZone;
 use test_casing::{test_casing, Product};
 use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_types::{Address, ProtocolVersionId, U256};
 
 use super::*;
-use crate::{
-    genesis::{insert_genesis_batch, GenesisParams},
-    sync_layer::metrics::L1BatchStage,
-    utils::testonly::{create_l1_batch, create_l2_block, prepare_recovery_snapshot},
-};
+use crate::sync_layer::metrics::L1BatchStage;
 
 async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber) {
     let mut storage = storage.start_transaction().await.unwrap();

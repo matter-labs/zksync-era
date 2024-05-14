@@ -15,7 +15,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    protocol_version::L1VerifierConfig,
+    ProtocolVersionId,
 };
 
 use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
@@ -28,12 +28,8 @@ pub async fn fetch_next_circuit(
     storage: &mut Connection<'_, Prover>,
     blob_store: &dyn ObjectStore,
     circuit_ids_for_round_to_be_proven: &[CircuitIdRoundTuple],
-    vk_commitments: &L1VerifierConfig,
+    protocol_version: &ProtocolVersionId,
 ) -> Option<ProverJob> {
-    let protocol_versions = storage
-        .fri_protocol_versions_dal()
-        .protocol_version_for(vk_commitments)
-        .await;
     let pod_name = get_current_pod_name();
     let prover_job = match &circuit_ids_for_round_to_be_proven.is_empty() {
         false => {
@@ -42,7 +38,7 @@ pub async fn fetch_next_circuit(
                 .fri_prover_jobs_dal()
                 .get_next_job_for_circuit_id_round(
                     circuit_ids_for_round_to_be_proven,
-                    &protocol_versions,
+                    protocol_version,
                     &pod_name,
                 )
                 .await
@@ -51,7 +47,7 @@ pub async fn fetch_next_circuit(
             // Generalized prover: proving all circuits.
             storage
                 .fri_prover_jobs_dal()
-                .get_next_job(&protocol_versions, &pod_name)
+                .get_next_job(protocol_version, &pod_name)
                 .await
         }
     }?;
@@ -121,8 +117,7 @@ pub fn get_all_circuit_id_round_tuples_for(
 }
 
 fn get_all_circuit_id_round_tuples_for_node_aggregation() -> Vec<CircuitIdRoundTuple> {
-    ((ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-        ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8))
+    ZkSyncRecursionLayerStorageType::leafs_as_iter_u8()
         .map(|circuit_id| CircuitIdRoundTuple {
             circuit_id,
             aggregation_round: AggregationRound::NodeAggregation as u8,
@@ -149,7 +144,7 @@ mod tests {
         let res = get_all_circuit_id_round_tuples_for(ids);
         let expected_circuit_ids: Vec<u8> =
             ((ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-                ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8))
+                ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8))
                 .collect();
         let expected = expected_circuit_ids
             .into_iter()

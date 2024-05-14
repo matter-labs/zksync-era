@@ -15,7 +15,7 @@ use zksync_types::{
     Address, Nonce, H256,
 };
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
@@ -109,11 +109,11 @@ impl TxCache {
 #[derive(Debug)]
 pub struct TxProxy {
     tx_cache: TxCache,
-    client: BoxedL2Client,
+    client: Box<DynClient<L2>>,
 }
 
 impl TxProxy {
-    pub fn new(client: BoxedL2Client) -> Self {
+    pub fn new(client: Box<DynClient<L2>>) -> Self {
         Self {
             client: client.for_component("tx_proxy"),
             tx_cache: TxCache::default(),
@@ -122,7 +122,7 @@ impl TxProxy {
 
     async fn submit_tx_impl(&self, tx: &L2Tx) -> EnrichedClientResult<H256> {
         let input_data = tx.common_data.input_data().expect("raw tx is absent");
-        let raw_tx = zksync_types::Bytes(input_data.to_vec());
+        let raw_tx = zksync_types::web3::Bytes(input_data.to_vec());
         let tx_hash = tx.hash();
         tracing::info!("Proxying tx {tx_hash:?}");
         self.client

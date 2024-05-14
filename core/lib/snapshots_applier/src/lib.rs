@@ -16,12 +16,11 @@ use zksync_types::{
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::TokenInfo,
-    web3::futures,
     L1BatchNumber, L2BlockNumber, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::client,
     namespaces::{EnNamespaceClient, SnapshotsNamespaceClient, ZksNamespaceClient},
@@ -136,7 +135,7 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
 }
 
 #[async_trait]
-impl SnapshotsApplierMainNodeClient for BoxedL2Client {
+impl SnapshotsApplierMainNodeClient for Box<DynClient<L2>> {
     async fn fetch_l1_batch_details(
         &self,
         number: L1BatchNumber,

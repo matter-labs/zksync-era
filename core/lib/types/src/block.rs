@@ -10,7 +10,7 @@ use crate::{
     fee_model::BatchFeeInput,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
-    web3::signing::keccak256,
+    web3::keccak256,
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 

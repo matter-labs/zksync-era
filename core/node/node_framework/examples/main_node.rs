@@ -103,8 +103,10 @@ impl MainNodeBuilder {
     }
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_client_config = EthConfig::from_env()?;
-        let query_eth_client_layer = QueryEthClientLayer::new(eth_client_config.web3_url);
+        let genesis = GenesisConfig::from_env()?;
+        let eth_config = EthConfig::from_env()?;
+        let query_eth_client_layer =
+            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.web3_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
@@ -142,7 +144,7 @@ impl MainNodeBuilder {
             &operations_manager_env_config,
         );
         self.node
-            .add_layer(MetadataCalculatorLayer(metadata_calculator_config));
+            .add_layer(MetadataCalculatorLayer::new(metadata_calculator_config));
         Ok(self)
     }
 
@@ -174,8 +176,10 @@ impl MainNodeBuilder {
     }
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        let genesis_config = GenesisConfig::from_env()?;
         self.node.add_layer(ProofDataHandlerLayer::new(
             ProofDataHandlerConfig::from_env()?,
+            genesis_config.l1_batch_commit_data_generator_mode,
         ));
         Ok(self)
     }
@@ -301,14 +305,11 @@ impl MainNodeBuilder {
         let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
-        let wallets = Wallets::from_env()?;
 
         self.node.add_layer(EthSenderLayer::new(
             eth_sender_config,
             contracts_config,
             network_config,
-            genesis_config.l1_chain_id,
-            wallets.eth_sender.context("Eth sender wallets")?,
             genesis_config.l1_batch_commit_data_generator_mode,
         ));
 
@@ -334,7 +335,10 @@ impl MainNodeBuilder {
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(CommitmentGeneratorLayer);
+        let genesis = GenesisConfig::from_env()?;
+        self.node.add_layer(CommitmentGeneratorLayer::new(
+            genesis.l1_batch_commit_data_generator_mode,
+        ));
 
         Ok(self)
     }

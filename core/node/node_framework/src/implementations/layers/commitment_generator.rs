@@ -1,13 +1,50 @@
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    commitment_post_processor::{
+        CommitmentPostProcessor, RollupCommitmentPostProcessor, ValidiumCommitmentPostProcessor,
+    },
+    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
+    CommitmentGenerator,
+};
+use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
 
 use crate::{
-    implementations::resources::{healthcheck::AppHealthCheckResource, pools::MasterPoolResource},
+    implementations::resources::{
+        healthcheck::AppHealthCheckResource,
+        pools::{MasterPool, PoolResource},
+    },
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-pub struct CommitmentGeneratorLayer;
+pub struct CommitmentGeneratorLayer {
+    input_generator: Box<dyn InputGenerator>,
+    commitment_post_processor: Box<dyn CommitmentPostProcessor>,
+}
+
+impl CommitmentGeneratorLayer {
+    pub fn new(commit_data_generator_mode: L1BatchCommitDataGeneratorMode) -> Self {
+        let (input_generator, commitment_post_processor): (
+            Box<dyn InputGenerator>,
+            Box<dyn CommitmentPostProcessor>,
+        ) = if commit_data_generator_mode == L1BatchCommitDataGeneratorMode::Validium {
+            (
+                Box::new(ValidiumInputGenerator),
+                Box::new(ValidiumCommitmentPostProcessor),
+            )
+        } else {
+            (
+                Box::new(RollupInputGenerator),
+                Box::new(RollupCommitmentPostProcessor),
+            )
+        };
+
+        Self {
+            input_generator,
+            commitment_post_processor,
+        }
+    }
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for CommitmentGeneratorLayer {
@@ -16,10 +53,14 @@ impl WiringLayer for CommitmentGeneratorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<MasterPoolResource>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let main_pool = pool_resource.get().await.unwrap();
 
-        let commitment_generator = CommitmentGenerator::new(main_pool);
+        let commitment_generator = CommitmentGenerator::new(
+            main_pool,
+            self.input_generator,
+            self.commitment_post_processor,
+        );
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health

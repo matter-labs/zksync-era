@@ -2,9 +2,11 @@
 use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use sqlx::Row;
-use strum::{Display, EnumString};
 use zksync_basic_types::{
-    prover_dal::{JobCountStatistics, StuckJobs},
+    protocol_version::ProtocolVersionId,
+    prover_dal::{
+        JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
+    },
     L1BatchNumber,
 };
 use zksync_db_connection::connection::Connection;
@@ -16,39 +18,25 @@ pub struct FriProofCompressorDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Prover>,
 }
 
-#[derive(Debug, EnumString, Display)]
-pub enum ProofCompressionJobStatus {
-    #[strum(serialize = "queued")]
-    Queued,
-    #[strum(serialize = "in_progress")]
-    InProgress,
-    #[strum(serialize = "successful")]
-    Successful,
-    #[strum(serialize = "failed")]
-    Failed,
-    #[strum(serialize = "sent_to_server")]
-    SentToServer,
-    #[strum(serialize = "skipped")]
-    Skipped,
-}
-
 impl FriProofCompressorDal<'_, '_> {
     pub async fn insert_proof_compression_job(
         &mut self,
         block_number: L1BatchNumber,
         fri_proof_blob_url: &str,
+        protocol_version: ProtocolVersionId,
     ) {
         sqlx::query!(
                 r#"
                 INSERT INTO
-                    proof_compression_jobs_fri (l1_batch_number, fri_proof_blob_url, status, created_at, updated_at)
+                    proof_compression_jobs_fri (l1_batch_number, fri_proof_blob_url, status, created_at, updated_at, protocol_version)
                 VALUES
-                    ($1, $2, $3, NOW(), NOW())
+                    ($1, $2, $3, NOW(), NOW(), $4)
                 ON CONFLICT (l1_batch_number) DO NOTHING
                 "#,
                 i64::from(block_number.0),
                 fri_proof_blob_url,
-            ProofCompressionJobStatus::Queued.to_string(),
+                ProofCompressionJobStatus::Queued.to_string(),
+                protocol_version as i32
             )
             .fetch_optional(self.storage.conn())
             .await
@@ -75,6 +63,7 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn get_next_proof_compression_job(
         &mut self,
         picked_by: &str,
+        protocol_version: &ProtocolVersionId,
     ) -> Option<L1BatchNumber> {
         sqlx::query!(
             r#"
@@ -93,6 +82,7 @@ impl FriProofCompressorDal<'_, '_> {
                         proof_compression_jobs_fri
                     WHERE
                         status = $2
+                        AND protocol_version = $4
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -106,6 +96,7 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::InProgress.to_string(),
             ProofCompressionJobStatus::Queued.to_string(),
             picked_by,
+            *protocol_version as i32
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -327,5 +318,60 @@ impl FriProofCompressorDal<'_, '_> {
             })
             .collect()
         }
+    }
+
+    pub async fn get_proof_compression_job_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> Option<ProofCompressionJobInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                proof_compression_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| ProofCompressionJobInfo {
+            l1_batch_number: block_number,
+            attempts: row.attempts as u32,
+            status: ProofCompressionJobStatus::from_str(&row.status).unwrap(),
+            fri_proof_blob_url: row.fri_proof_blob_url,
+            l1_proof_blob_url: row.l1_proof_blob_url,
+            error: row.error,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            picked_by: row.picked_by,
+        })
+    }
+
+    pub async fn delete_batch_data(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!(
+            r#"
+            DELETE FROM proof_compression_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!("DELETE FROM proof_compression_jobs_fri")
+            .execute(self.storage.conn())
+            .await
     }
 }

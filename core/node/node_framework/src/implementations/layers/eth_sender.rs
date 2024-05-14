@@ -5,25 +5,24 @@ use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{
     chain::{L1BatchCommitDataGeneratorMode, NetworkConfig},
     eth_sender::EthConfig,
-    wallets, ContractsConfig,
+    ContractsConfig,
 };
-use zksync_core::eth_sender::{
+use zksync_eth_client::BoundEthInterface;
+use zksync_eth_sender::{
     l1_batch_commit_data_generator::{
         L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
         ValidiumModeL1BatchCommitDataGenerator,
     },
     Aggregator, EthTxAggregator, EthTxManager,
 };
-use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
-use zksync_types::L1ChainId;
 
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
-        eth_interface::BoundEthInterfaceResource,
+        eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
         l1_tx_params::L1TxParamsResource,
         object_store::ObjectStoreResource,
-        pools::{MasterPoolResource, ReplicaPoolResource},
+        pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -35,8 +34,6 @@ pub struct EthSenderLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
     network_config: NetworkConfig,
-    l1chain_id: L1ChainId,
-    wallets: wallets::EthSender,
     l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
@@ -45,16 +42,12 @@ impl EthSenderLayer {
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
         network_config: NetworkConfig,
-        l1chain_id: L1ChainId,
-        wallets: wallets::EthSender,
         l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
             network_config,
-            l1chain_id,
-            wallets,
             l1_batch_commit_data_generator_mode,
         }
     }
@@ -68,27 +61,26 @@ impl WiringLayer for EthSenderLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let master_pool_resource = context.get_resource::<MasterPoolResource>().await?;
+        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let master_pool = master_pool_resource.get().await.unwrap();
-
-        let replica_pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = replica_pool_resource.get().await.unwrap();
 
         let eth_client = context.get_resource::<BoundEthInterfaceResource>().await?.0;
-
+        let eth_client_blobs = match context
+            .get_resource::<BoundEthInterfaceForBlobsResource>()
+            .await
+        {
+            Ok(BoundEthInterfaceForBlobsResource(client)) => Some(client),
+            Err(WiringError::ResourceLacking { .. }) => None,
+            Err(err) => return Err(err),
+        };
         let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
 
         // Create and add tasks.
-
-        let eth_client_blobs = self.wallets.blob_operator.map(|wallet| {
-            PKSigningClient::from_config(
-                &self.eth_sender_config,
-                &self.contracts_config,
-                self.l1chain_id,
-                wallet.private_key().clone(),
-            )
-        });
-        let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());
+        let eth_client_blobs_addr = eth_client_blobs
+            .as_deref()
+            .map(BoundEthInterface::sender_account);
 
         let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
             match self.l1_batch_commit_data_generator_mode {
@@ -133,7 +125,7 @@ impl WiringLayer for EthSenderLayer {
             config,
             gas_adjuster,
             eth_client,
-            eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
+            eth_client_blobs,
         );
 
         context.add_task(Box::new(EthTxManagerTask {

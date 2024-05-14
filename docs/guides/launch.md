@@ -97,14 +97,14 @@ output.
 ## Gas Price Oracle
 
 As prices in a custom base token setting need to be in the native currency of the chain. These prices are partially
-determined by l1 gas prices in L1, which are in eth, so a conversion is required.
+determined by l1 gas prices in L1, which are in ETH, so a conversion is required.
 
 ### Conversion rate API
 
 To use a conversion rate oracle, you will need to add the component to the command:
 
 ```
-zk server --components "api,tree,eth,state_keeper,housekeeper,commitment_generator,base_token_fetcher"
+zk server --components="api,tree,eth,state_keeper,housekeeper,commitment_generator,base_token_fetcher"
 ```
 
 In order to run the server with the conversion rate, you will need to configure the variables in the
@@ -122,10 +122,23 @@ rate API, this component is only meant for development purposes and should not b
 fixed conversion rate for all tokens:
 
 ```
-zk server --components "api,tree,eth,state_keeper,housekeeper,commitment_generator,base_token_fetcher,dev_conversion_rate_api"
+zk server --components="api,tree,eth,state_keeper,housekeeper,commitment_generator,base_token_fetcher,dev_conversion_rate_api"
 ```
 
 This server will use the host setted in the environment variable previously mentioned.
+
+#### Gas price variables
+
+Gas prices are determined by a few variables, one of which is set through the `minimal_l2_gas_price` config variable.
+This is, quote:
+
+```
+The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well as potentially premium for congestion.
+```
+
+This price is currently denominated in `eth`. For chains running with a custom base token, it has to be denominated in
+the custom token. Therefore, operators must update it with a value they deem suitable (probably multiplying the current
+value by the `eth` conversion rate of their token).
 
 ## Running server using Google cloud storage object store instead of default In memory store
 
