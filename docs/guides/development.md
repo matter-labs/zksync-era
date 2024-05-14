@@ -62,6 +62,15 @@ zk up   # Set up `reth` and `postgres` containers
 zk down # Shut down `reth` and `postgres` containers
 ```
 
+### Legacy bridge initialization
+
+To initialize a bridge in legacy compatibility mode, you must use the following commands:
+
+```
+zk init --local-legacy-bridge-testing
+zk contract setup-legacy-bridge-era
+```
+
 ## Reinitializing
 
 When actively changing something that affects infrastructure (for example, contracts code), you normally don't need the

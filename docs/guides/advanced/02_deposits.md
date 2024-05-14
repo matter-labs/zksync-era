@@ -3,6 +3,8 @@
 In the [first article](01_initialization.md), we've managed to setup our system on local machine and verify that it
 works. Now let's actually start using it.
 
+As part of this guide, the project must be initialized in [legacy compatibility mode](../development.md#legacy-bridge-initialization).
+
 ## Seeing the status of the accounts
 
 Let's use a small command line tool (web3 - <https://github.com/mm-zk/web3>) to interact with our blockchains.
@@ -104,7 +106,7 @@ Input: 0xeb672419000000000000000000000000618263ce921f7dd5f4f40c29f6c524aaf97b9bb
 
 The deposit command has called the contract on address `0xa6B` (which is exactly the `CONTRACTS_DIAMOND_PROXY_ADDR` from
 `deployL1.log`), and it has called the method `0xeb672419` - which is the `requestL2Transaction` from
-[Mailbox.sol](https://github.com/matter-labs/era-contracts/blob/f06a58360a2b8e7129f64413998767ac169d1efd/ethereum/contracts/zksync/facets/Mailbox.sol#L220)
+[Mailbox.sol](https://github.com/matter-labs/era-contracts/blob/452a54f6724347b7e517be1a3d948299ab827d8c/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L206)
 
 #### Quick note on our L1 contracts
 

@@ -1,5 +1,7 @@
 # zkSync deeper dive bridging stuff back (a.k.a withdrawals)
 
+As part of this guide, the project must be initialized in [legacy compatibility mode](../development.md#legacy-bridge-initialization).
+
 Assuming that you have completed [part 1](01_initialization.md) and [part 2](02_deposits.md) already, we can bridge the
 tokens back by simply calling the zksync-cli:
 
@@ -79,12 +81,12 @@ address constant L2_BASE_TOKEN_SYSTEM_CONTRACT_ADDR = address(0x800a);
 
 This is a good opportunity to talk about system contracts that are automatically deployed on L2. You can find the full
 list here
-[in github](https://github.com/matter-labs/era-system-contracts/blob/436d57da2fb35c40e38bcb6637c3a090ddf60701/scripts/constants.ts#L29)
+[in github](https://github.com/matter-labs/era-contracts/blob/452a54f6724347b7e517be1a3d948299ab827d8c/system-contracts/scripts/constants.ts#L37)
 
 This is the place where we specify that `bootloader` is at address 0x8001, `NonceHolder` at 0x8003 etc.
 
 This brings us to
-[L2BaseToken.sol](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/L2EthToken.sol) that has the
+[L2BaseToken.sol](https://github.com/matter-labs/era-contracts/blob/452a54f6724347b7e517be1a3d948299ab827d8c/system-contracts/contracts/L2BaseToken.sol) that has the
 implementation of the L2 Eth.
 
 When we look inside, we can see:
