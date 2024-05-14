@@ -8,10 +8,7 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
     api, ethabi, fee_model::FeeParams, Address, L1BatchNumber, L2BlockNumber, H256, U64,
 };
-use zksync_web3_decl::{
-    client::{BoxedL2Client, MockL2Client},
-    jsonrpsee::core::ClientError,
-};
+use zksync_web3_decl::{client::MockClient, jsonrpsee::core::ClientError};
 
 use super::*;
 
@@ -164,40 +161,32 @@ async fn external_node_basics(components_str: &'static str) {
 
     let diamond_proxy_addr = config.remote.diamond_proxy_addr;
 
-    let l2_client = MockL2Client::new(move |method, params| {
-        tracing::info!("Called L2 client: {method}({params:?})");
-        match method {
-            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
-            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(9))),
-
-            "zks_L1BatchNumber" => Ok(serde_json::json!("0x0")),
-            "zks_getL1BatchDetails" => {
-                let (number,): (L1BatchNumber,) = serde_json::from_value(params)?;
-                assert_eq!(number, L1BatchNumber(0));
-                Ok(serde_json::to_value(api::L1BatchDetails {
-                    number: L1BatchNumber(0),
-                    base: block_details_base(genesis_params.root_hash),
-                })?)
-            }
-            "eth_blockNumber" => Ok(serde_json::json!("0x0")),
-            "eth_getBlockByNumber" => {
-                let (number, _): (api::BlockNumber, bool) = serde_json::from_value(params)?;
+    let l2_client = MockClient::builder(L2::default())
+        .method("eth_chainId", || Ok(U64::from(270)))
+        .method("zks_L1ChainId", || Ok(U64::from(9)))
+        .method("zks_L1BatchNumber", || Ok(U64::from(0)))
+        .method("zks_getL1BatchDetails", move |number: L1BatchNumber| {
+            assert_eq!(number, L1BatchNumber(0));
+            Ok(api::L1BatchDetails {
+                number: L1BatchNumber(0),
+                base: block_details_base(genesis_params.root_hash),
+            })
+        })
+        .method("eth_blockNumber", || Ok(U64::from(0)))
+        .method(
+            "eth_getBlockByNumber",
+            move |number: api::BlockNumber, _with_txs: bool| {
                 assert_eq!(number, api::BlockNumber::Number(0.into()));
-                Ok(serde_json::to_value(
-                    api::Block::<api::TransactionVariant> {
-                        hash: genesis_l2_block.hash,
-                        ..api::Block::default()
-                    },
-                )?)
-            }
-
-            "zks_getFeeParams" => Ok(serde_json::to_value(FeeParams::sensible_v1_default())?),
-            "en_whitelistedTokensForAA" => Ok(serde_json::json!([])),
-
-            _ => panic!("Unexpected call: {method}({params:?})"),
-        }
-    });
-    let l2_client = BoxedL2Client::new(l2_client);
+                Ok(api::Block::<api::TransactionVariant> {
+                    hash: genesis_l2_block.hash,
+                    ..api::Block::default()
+                })
+            },
+        )
+        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
+        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
+        .build();
+    let l2_client = Box::new(l2_client);
     let eth_client = Box::new(mock_eth_client(diamond_proxy_addr));
 
     let (env, env_handles) = TestEnvironment::new();
@@ -279,24 +268,19 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
         config.tree_component.api_port = Some(0);
     }
 
-    let l2_client = MockL2Client::new(move |method, params| {
-        tracing::info!("Called L2 client: {method}({params:?})");
-        match method {
-            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
-            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(9))),
-
-            // Requested by the reorg detector; emulate a transient error.
-            "zks_L1BatchNumber"
-            | "zks_getL1BatchDetails"
-            | "eth_blockNumber"
-            | "eth_getBlockByNumber" => Err(ClientError::RequestTimeout),
-
-            "zks_getFeeParams" => Ok(serde_json::to_value(FeeParams::sensible_v1_default())?),
-            "en_whitelistedTokensForAA" => Ok(serde_json::json!([])),
-            _ => panic!("Unexpected call: {method}({params:?})"),
-        }
-    });
-    let l2_client = BoxedL2Client::new(l2_client);
+    let l2_client = MockClient::builder(L2::default())
+        .method("eth_chainId", || Ok(U64::from(270)))
+        .method("zks_L1ChainId", || Ok(U64::from(9)))
+        .method("zks_L1BatchNumber", || {
+            Err::<(), _>(ClientError::RequestTimeout)
+        })
+        .method("eth_blockNumber", || {
+            Err::<(), _>(ClientError::RequestTimeout)
+        })
+        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
+        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
+        .build();
+    let l2_client = Box::new(l2_client);
     let diamond_proxy_addr = config.remote.diamond_proxy_addr;
     let eth_client = Box::new(mock_eth_client(diamond_proxy_addr));
 

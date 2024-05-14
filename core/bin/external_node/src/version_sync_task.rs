@@ -5,12 +5,12 @@ use zksync_basic_types::{L1BatchNumber, L2BlockNumber};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
 pub async fn get_l1_batch_remote_protocol_version(
-    main_node_client: &BoxedL2Client,
+    main_node_client: &DynClient<L2>,
     l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<Option<ProtocolVersionId>> {
     let Some((miniblock, _)) = main_node_client.get_l2_block_range(l1_batch_number).await? else {
@@ -25,7 +25,7 @@ pub async fn get_l1_batch_remote_protocol_version(
 // Synchronizes protocol version in `l1_batches` and `miniblocks` tables between EN and main node.
 pub async fn sync_versions(
     connection_pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
 ) -> anyhow::Result<()> {
     tracing::info!("Starting syncing protocol version of blocks");
 
@@ -54,7 +54,7 @@ pub async fn sync_versions(
     }
 
     let right_bound_remote_version =
-        get_l1_batch_remote_protocol_version(&main_node_client, right_bound).await?;
+        get_l1_batch_remote_protocol_version(main_node_client.as_ref(), right_bound).await?;
     if right_bound_remote_version != Some(ProtocolVersionId::Version22) {
         anyhow::bail!("Remote protocol versions should be v22 for the first local v22 batch, got {right_bound_remote_version:?}");
     }
