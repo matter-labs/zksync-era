@@ -9,7 +9,7 @@ use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_config::{GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_eth_client::{clients::QueryClient, EthInterface};
+use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
@@ -404,7 +404,7 @@ pub async fn create_genesis_l1_batch(
 // Save chain id transaction into the database
 // We keep returning anyhow and will refactor it later
 pub async fn save_set_chain_id_tx(
-    query_client: &QueryClient,
+    query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
     postgres_config: &PostgresConfig,
