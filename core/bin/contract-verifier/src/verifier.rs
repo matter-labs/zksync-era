@@ -25,6 +25,7 @@ use zksync_types::{
 
 use crate::{
     error::ContractVerifierError,
+    metrics::API_CONTRACT_VERIFIER,
     zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolc, ZkSolcInput, ZkSolcOutput},
     zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
