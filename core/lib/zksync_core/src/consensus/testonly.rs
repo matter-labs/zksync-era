@@ -16,7 +16,7 @@ use zksync_types::{
     ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
-    client::{BoxedL2Client, L2Client},
+    client::{Client, DynClient, L2},
     error::{EnrichedClientError, EnrichedClientResult},
 };
 
@@ -278,21 +278,21 @@ impl StateKeeper {
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
-    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<BoxedL2Client> {
+    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<Box<DynClient<L2>>> {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
             .await?
             .unwrap();
-        let client = L2Client::http(format!("http://{addr}/").parse().context("url")?)
+        let client = Client::http(format!("http://{addr}/").parse().context("url")?)
             .context("json_rpc()")?
             .build();
-        Ok(BoxedL2Client::new(client))
+        Ok(Box::new(client))
     }
 
     /// Runs the centralized fetcher.
     pub async fn run_centralized_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: BoxedL2Client,
+        client: Box<DynClient<L2>>,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
@@ -307,7 +307,7 @@ impl StateKeeper {
     pub async fn run_p2p_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: BoxedL2Client,
+        client: Box<DynClient<L2>>,
         cfg: P2PConfig,
     ) -> anyhow::Result<()> {
         Fetcher {

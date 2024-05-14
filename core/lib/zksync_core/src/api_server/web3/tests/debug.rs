@@ -1,7 +1,10 @@
 //! Tests for the `debug` Web3 namespace.
 
 use zksync_types::{tx::TransactionExecutionResult, vm_trace::Call, BOOTLOADER_ADDRESS};
-use zksync_web3_decl::namespaces::DebugNamespaceClient;
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    namespaces::DebugNamespaceClient,
+};
 
 use super::*;
 
@@ -34,7 +37,11 @@ struct TraceBlockTest(L2BlockNumber);
 
 #[async_trait]
 impl HttpTest for TraceBlockTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
         let mut storage = pool.connection().await?;
         let new_l2_block = store_l2_block(&mut storage, self.0, &tx_results).await?;
@@ -97,7 +104,11 @@ struct TraceBlockFlatTest(L2BlockNumber);
 
 #[async_trait]
 impl HttpTest for TraceBlockFlatTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
         let mut storage = pool.connection().await?;
         store_l2_block(&mut storage, self.0, &tx_results).await?;
@@ -173,7 +184,11 @@ struct TraceTransactionTest;
 
 #[async_trait]
 impl HttpTest for TraceTransactionTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let tx_results = [execute_l2_transaction_with_traces(0)];
         let mut storage = pool.connection().await?;
         store_l2_block(&mut storage, L2BlockNumber(1), &tx_results).await?;
@@ -212,7 +227,11 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let snapshot_l2_block_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK;
         let missing_l2_block_numbers = [
             L2BlockNumber(0),
