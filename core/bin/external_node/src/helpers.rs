@@ -4,9 +4,9 @@ use std::time::Duration;
 
 use futures::FutureExt;
 use tokio::sync::watch;
-use zksync_basic_types::{L1ChainId, L2ChainId};
 use zksync_eth_client::EthInterface;
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
+use zksync_types::{L1ChainId, L2ChainId};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::ClientRpcContext,
