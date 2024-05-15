@@ -27,7 +27,7 @@ tracing.workspace = true
 rlp.workspace = true
 
 [dev-dependencies]
-static_assertions.workspace = true
+assert_matches.workspace = true
 tokio = { workspace = true, features = ["full"] }
 pretty_assertions.workspace = true
 hex.workspace = true

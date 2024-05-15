@@ -8,7 +8,10 @@ use zksync_types::{
     },
     Address, EIP_4844_TX_TYPE, H256, U256,
 };
-use zksync_web3_decl::error::EnrichedClientError;
+use zksync_web3_decl::{
+    client::{DynClient, L1},
+    error::EnrichedClientError,
+};
 
 use crate::EthInterface;
 
@@ -76,7 +79,7 @@ impl ContractCall<'_> {
         &self.inner.params
     }
 
-    pub async fn call<Res: Detokenize>(&self, client: &dyn EthInterface) -> Result<Res, Error> {
+    pub async fn call<Res: Detokenize>(&self, client: &DynClient<L1>) -> Result<Res, Error> {
         let func = self
             .contract_abi
             .function(&self.inner.name)

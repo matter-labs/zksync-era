@@ -8480,13 +8480,13 @@ dependencies = [
 name = "zksync_eth_client"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "async-trait",
  "hex",
  "jsonrpsee",
  "pretty_assertions",
  "rlp",
  "serde_json",
- "static_assertions",
  "thiserror",
  "tokio",
  "tracing",

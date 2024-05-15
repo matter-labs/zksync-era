@@ -10,6 +10,7 @@ use zksync_types::{
     },
     Address, L1ChainId, H160, H256, U256, U64,
 };
+use zksync_web3_decl::client::{DynClient, L1};
 pub use zksync_web3_decl::{error::EnrichedClientError, jsonrpsee::core::ClientError};
 
 pub use crate::types::{
@@ -71,13 +72,10 @@ impl Options {
 /// If you want to add a method to this trait, make sure that it doesn't depend on any particular
 /// contract or account address. For that, you can use the `BoundEthInterface` trait.
 #[async_trait]
-pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
-    /// Clones this client.
-    fn clone_boxed(&self) -> Box<dyn EthInterface>;
-
-    /// Tags this client as working for a specific component. The component name can be used in logging,
-    /// metrics etc. The component name should be copied to the clones of this client, but should not be passed upstream.
-    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn EthInterface>;
+pub trait EthInterface: Sync + Send {
+    fn component(&self) -> &'static str {
+        "" // FIXME
+    }
 
     /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
     /// the *expected* L1 chain ID).
@@ -149,15 +147,6 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     async fn block(&self, block_id: BlockId) -> Result<Option<Block<H256>>, Error>;
 }
 
-impl Clone for Box<dyn EthInterface> {
-    fn clone(&self) -> Self {
-        self.clone_boxed()
-    }
-}
-
-#[cfg(test)]
-static_assertions::assert_obj_safe!(EthInterface);
-
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to
 /// a certain contract and account.
 ///
@@ -172,7 +161,7 @@ static_assertions::assert_obj_safe!(EthInterface);
 /// 2. Consider adding the "unbound" version to the `EthInterface` trait and create a default method
 ///   implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
-pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + fmt::Debug {
+pub trait BoundEthInterface: AsRef<DynClient<L1>> + 'static + Sync + Send + fmt::Debug {
     /// Clones this client.
     fn clone_boxed(&self) -> Box<dyn BoundEthInterface>;
 
