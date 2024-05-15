@@ -43,7 +43,7 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
         console.log(`${+timeToLive} seconds passed, killing the server.`);
 
         // Kill the server after the time to live.
-        child.kill('SIGKILL');
+        process.kill(-child.pid!, 'SIGKILL');
 
         console.log('Waiting for the server to shut down.');
 
