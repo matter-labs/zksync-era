@@ -19,6 +19,7 @@ use zksync_types::{
     pubdata_da::PubdataDA,
     Address, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
+use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::utils::wait_for_l1_batch_with_metadata;
 
@@ -307,7 +308,7 @@ pub struct ConsistencyChecker {
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
-    l1_client: Box<dyn EthInterface>,
+    l1_client: Box<DynClient<L1>>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -319,7 +320,7 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        l1_client: Box<dyn EthInterface>,
+        l1_client: Box<DynClient<L1>>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
