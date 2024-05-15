@@ -39,6 +39,7 @@ zksync_state_keeper.workspace = true
 zksync_reorg_detector.workspace = true
 zksync_consistency_checker.workspace = true
 zksync_metadata_calculator.workspace = true
+zksync_node_sync.workspace = true
 vlog.workspace = true
 
 zksync_concurrency.workspace = true

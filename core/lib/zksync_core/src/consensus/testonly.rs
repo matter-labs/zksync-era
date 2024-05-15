@@ -11,6 +11,12 @@ use zksync_consensus_network as network;
 use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
 use zksync_node_genesis::GenesisParams;
+use zksync_node_sync::{
+    fetcher::{FetchedTransaction, IoCursorExt as _},
+    sync_action::{ActionQueue, ActionQueueSender, SyncAction},
+    testonly::MockMainNodeClient,
+    ExternalIO, MainNodeClient, SyncState,
+};
 use zksync_node_test_utils::{create_l1_batch_metadata, create_l2_transaction};
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
@@ -24,12 +30,6 @@ use zksync_web3_decl::client::{Client, DynClient, L2};
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{en, ConnectionPool},
-    sync_layer::{
-        fetcher::{FetchedTransaction, IoCursorExt as _},
-        sync_action::{ActionQueue, ActionQueueSender, SyncAction},
-        testonly::MockMainNodeClient,
-        ExternalIO, MainNodeClient, SyncState,
-    },
 };
 
 /// Fake StateKeeper for tests.

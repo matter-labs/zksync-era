@@ -11,7 +11,7 @@ use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_
 use zksync_types::{Address, ProtocolVersionId};
 
 use super::*;
-use crate::sync_layer::metrics::L1BatchStage;
+use crate::metrics::L1BatchStage;
 
 async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber) {
     let mut storage = storage.start_transaction().await.unwrap();

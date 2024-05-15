@@ -11,7 +11,7 @@ use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::L2BlockNumber;
 
 use super::config;
-use crate::sync_layer::{
+use zksync_node_sync::{
     fetcher::{FetchedBlock, FetchedTransaction, IoCursorExt as _},
     sync_action::ActionQueueSender,
     SyncState,

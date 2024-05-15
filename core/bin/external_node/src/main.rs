@@ -20,9 +20,6 @@ use zksync_core::{
         web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
     },
     consensus, setup_sigint_handler,
-    sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
-    },
     utils::L1BatchCommitmentModeValidationTask,
 };
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
@@ -37,6 +34,9 @@ use zksync_metadata_calculator::{
 };
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
+use zksync_node_sync::{
+    batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
+};
 use zksync_reorg_detector::ReorgDetector;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{

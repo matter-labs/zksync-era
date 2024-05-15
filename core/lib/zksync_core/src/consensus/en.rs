@@ -3,16 +3,14 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
+use zksync_node_sync::{
+    fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
+};
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::{DynClient, L2};
 
 use super::{config, storage::Store, ConnectionPool, ConsensusConfig, ConsensusSecrets};
-use crate::{
-    consensus::storage,
-    sync_layer::{
-        fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
-    },
-};
+use crate::consensus::storage;
 
 /// External node.
 pub(super) struct EN {

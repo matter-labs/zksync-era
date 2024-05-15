@@ -1,11 +1,9 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_core::{
-    consensus,
-    sync_layer::{ActionQueueSender, SyncState},
-};
+use zksync_core::consensus;
 use zksync_dal::{ConnectionPool, Core};
+use zksync_node_sync::{ActionQueueSender, SyncState};
 use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::{

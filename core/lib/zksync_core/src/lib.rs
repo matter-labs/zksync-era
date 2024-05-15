@@ -87,7 +87,6 @@ use crate::{
 pub mod api_server;
 pub mod consensus;
 pub mod proto;
-pub mod sync_layer;
 pub mod tee_verifier_input_producer;
 pub mod temp_config_store;
 pub mod utils;

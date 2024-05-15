@@ -42,13 +42,11 @@ use self::{
     pubsub::{EthSubscribe, EthSubscriptionIdProvider, PubSubEvent},
     state::{Filters, InternalApiConfig, RpcState, SealedL2BlockNumber},
 };
-use crate::{
-    api_server::{
-        execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
-        tx_sender::TxSender,
-    },
-    sync_layer::SyncState,
+use crate::api_server::{
+    execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
+    tx_sender::TxSender,
 };
+use zksync_node_sync::SyncState;
 
 pub mod backend_jsonrpsee;
 pub mod mempool_cache;

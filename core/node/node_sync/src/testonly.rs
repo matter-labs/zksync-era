@@ -9,7 +9,7 @@ use zksync_web3_decl::error::EnrichedClientResult;
 use super::MainNodeClient;
 
 #[derive(Debug, Default)]
-pub(crate) struct MockMainNodeClient {
+pub struct MockMainNodeClient {
     pub l2_blocks: Vec<api::en::SyncBlock>,
     pub block_number_offset: u32,
     pub protocol_versions: HashMap<u16, api::ProtocolVersion>,

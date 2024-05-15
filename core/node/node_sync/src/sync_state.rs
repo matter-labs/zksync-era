@@ -34,15 +34,15 @@ impl Default for SyncState {
 const SYNC_L2_BLOCK_DELTA: u32 = 10;
 
 impl SyncState {
-    pub(crate) fn get_main_node_block(&self) -> L2BlockNumber {
+    pub fn get_main_node_block(&self) -> L2BlockNumber {
         self.0.borrow().main_node_block.unwrap_or_default()
     }
 
-    pub(crate) fn get_local_block(&self) -> L2BlockNumber {
+    pub fn get_local_block(&self) -> L2BlockNumber {
         self.0.borrow().local_block.unwrap_or_default()
     }
 
-    pub(crate) async fn wait_for_local_block(&self, want: L2BlockNumber) {
+    pub async fn wait_for_local_block(&self, want: L2BlockNumber) {
         self.0
             .subscribe()
             .wait_for(|inner| matches!(inner.local_block, Some(got) if got >= want))
@@ -50,7 +50,7 @@ impl SyncState {
             .unwrap();
     }
 
-    pub(crate) async fn wait_for_main_node_block(
+    pub async fn wait_for_main_node_block(
         &self,
         ctx: &ctx::Ctx,
         want: L2BlockNumber,
@@ -64,7 +64,7 @@ impl SyncState {
         Ok(())
     }
 
-    pub(crate) fn set_main_node_block(&self, block: L2BlockNumber) {
+    pub fn set_main_node_block(&self, block: L2BlockNumber) {
         self.0.send_modify(|inner| inner.set_main_node_block(block));
     }
 
@@ -72,7 +72,7 @@ impl SyncState {
         self.0.send_modify(|inner| inner.set_local_block(block));
     }
 
-    pub(crate) fn is_synced(&self) -> bool {
+    pub fn is_synced(&self) -> bool {
         self.0.borrow().is_synced().0
     }
 
