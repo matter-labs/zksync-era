@@ -2359,7 +2359,7 @@ dependencies = [
  "tracing",
  "zksync_config",
  "zksync_contracts",
- "zksync_core",
+ "zksync_core_leftovers",
  "zksync_dal",
  "zksync_env_config",
  "zksync_node_genesis",
@@ -8349,7 +8349,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_core"
+name = "zksync_core_leftovers"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -8638,7 +8638,7 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_consistency_checker",
  "zksync_contracts",
- "zksync_core",
+ "zksync_core_leftovers",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_eth_client",
@@ -8939,7 +8939,7 @@ dependencies = [
  "zksync_consistency_checker",
  "zksync_contract_verification_server",
  "zksync_contracts",
- "zksync_core",
+ "zksync_core_leftovers",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_env_config",
@@ -9186,7 +9186,7 @@ dependencies = [
  "zksync_consensus_crypto",
  "zksync_consensus_executor",
  "zksync_consensus_roles",
- "zksync_core",
+ "zksync_core_leftovers",
  "zksync_env_config",
  "zksync_eth_client",
  "zksync_node_genesis",

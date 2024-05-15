@@ -19,7 +19,7 @@ use zksync_config::{
     ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
-use zksync_core::temp_config_store::decode_yaml_repr;
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_env_config::FromEnv;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{

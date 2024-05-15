@@ -14,7 +14,7 @@ use zksync_commitment_generator::{
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_consistency_checker::ConsistencyChecker;
-use zksync_core::setup_sigint_handler;
+use zksync_core_leftovers::setup_sigint_handler;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,

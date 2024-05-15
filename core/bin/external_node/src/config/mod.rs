@@ -14,7 +14,7 @@ use zksync_config::{
     },
     ObjectStoreConfig,
 };
-use zksync_core::temp_config_store::decode_yaml_repr;
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_api_server::{

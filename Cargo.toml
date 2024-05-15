@@ -34,7 +34,7 @@ members = [
     "core/node/tee_verifier_input_producer",
     # Libraries
     "core/lib/db_connection",
-    "core/lib/zksync_core",
+    "core/lib/zksync_core_leftovers",
     "core/lib/basic_types",
     "core/lib/config",
     "core/lib/constants",
@@ -211,7 +211,7 @@ zksync_basic_types = { path = "core/lib/basic_types" }
 zksync_circuit_breaker = { path = "core/lib/circuit_breaker" }
 zksync_config = { path = "core/lib/config" }
 zksync_contracts = { path = "core/lib/contracts" }
-zksync_core = { path = "core/lib/zksync_core" }
+zksync_core_leftovers = { path = "core/lib/zksync_core_leftovers" }
 zksync_crypto = { path = "core/lib/crypto" }
 zksync_dal = { path = "core/lib/dal" }
 zksync_db_connection = { path = "core/lib/db_connection" }

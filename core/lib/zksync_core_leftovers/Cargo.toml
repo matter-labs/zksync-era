@@ -1,5 +1,5 @@
 [package]
-name = "zksync_core"
+name = "zksync_core_leftovers"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
@@ -9,7 +9,7 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-links = "zksync_core_proto"
+links = "zksync_core_leftovers_proto"
 
 [dependencies]
 vise.workspace = true
