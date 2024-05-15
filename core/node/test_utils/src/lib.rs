@@ -1,4 +1,5 @@
 //! Test utils.
+
 use std::collections::HashMap;
 
 use multivm::utils::get_max_gas_per_pubdata_byte;
@@ -344,10 +345,4 @@ pub async fn recover(
 
     storage.commit().await.unwrap();
     snapshot_recovery
-}
-
-#[derive(Debug, Clone)]
-pub enum DeploymentMode {
-    Validium,
-    Rollup,
 }

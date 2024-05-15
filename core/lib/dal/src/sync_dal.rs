@@ -39,14 +39,7 @@ impl SyncDal<'_, '_> {
                             snapshot_recovery
                     )
                 ) AS "l1_batch_number!",
-                (
-                    SELECT
-                        MAX(m2.number)
-                    FROM
-                        miniblocks m2
-                    WHERE
-                        miniblocks.l1_batch_number = m2.l1_batch_number
-                ) AS "last_batch_miniblock?",
+                (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS "tx_count!",
                 miniblocks.timestamp,
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
@@ -152,6 +145,7 @@ mod tests {
         // Insert another block in the store.
         let miniblock_header = L2BlockHeader {
             fee_account_address: Address::repeat_byte(0x42),
+            l2_tx_count: 1,
             ..create_l2_block_header(1)
         };
         let tx = mock_l2_transaction();
@@ -168,6 +162,8 @@ mod tests {
                 L2BlockNumber(1),
                 &[mock_execution_result(tx.clone())],
                 1.into(),
+                ProtocolVersionId::latest(),
+                false,
             )
             .await
             .unwrap();
@@ -210,6 +206,16 @@ mod tests {
         let transactions = block.transactions.unwrap();
         assert_eq!(transactions, [Transaction::from(tx)]);
 
+        let miniblock_header = L2BlockHeader {
+            fee_account_address: Address::repeat_byte(0x42),
+            l2_tx_count: 0,
+            ..create_l2_block_header(2)
+        };
+        conn.blocks_dal()
+            .insert_l2_block(&miniblock_header)
+            .await
+            .unwrap();
+
         l1_batch_header.number = L1BatchNumber(1);
         l1_batch_header.timestamp = 1;
         conn.blocks_dal()
@@ -223,7 +229,7 @@ mod tests {
 
         let block = conn
             .sync_dal()
-            .sync_block(L2BlockNumber(1), true)
+            .sync_block(L2BlockNumber(2), true)
             .await
             .unwrap()
             .expect("no sync block");

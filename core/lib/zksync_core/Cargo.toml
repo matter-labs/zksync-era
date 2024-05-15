@@ -30,10 +30,12 @@ zksync_l1_contract_interface.workspace = true
 zksync_mempool.workspace = true
 zksync_circuit_breaker.workspace = true
 zksync_storage.workspace = true
+zksync_tee_verifier.workspace = true
 zksync_merkle_tree.workspace = true
 zksync_mini_merkle_tree.workspace = true
 prometheus_exporter.workspace = true
 zksync_prover_interface.workspace = true
+zksync_queued_job_processor.workspace = true
 zksync_web3_decl = { workspace = true, features = [
     "server",
     "client",
@@ -64,6 +66,7 @@ zksync_consensus_utils.workspace = true
 zksync_protobuf.workspace = true
 
 prost.workspace = true
+secrecy.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 serde_yaml.workspace = true

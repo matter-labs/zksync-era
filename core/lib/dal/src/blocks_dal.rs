@@ -2061,29 +2061,6 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_l2_block_protocol_version_id(
-        &mut self,
-        l2_block_number: L2BlockNumber,
-    ) -> DalResult<Option<ProtocolVersionId>> {
-        Ok(sqlx::query!(
-            r#"
-            SELECT
-                protocol_version
-            FROM
-                miniblocks
-            WHERE
-                number = $1
-            "#,
-            i64::from(l2_block_number.0)
-        )
-        .try_map(|row| row.protocol_version.map(parse_protocol_version).transpose())
-        .instrument("get_l2_block_protocol_version_id")
-        .with_arg("l2_block_number", &l2_block_number)
-        .fetch_optional(self.storage)
-        .await?
-        .flatten())
-    }
-
     pub async fn get_fee_address_for_l2_block(
         &mut self,
         number: L2BlockNumber,

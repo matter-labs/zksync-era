@@ -6,8 +6,8 @@ This document presumes familiarity with Rollups. For a better understanding, con
 Rollups inherit security and decentralization guarantees from Ethereum, on which they store information about changes in
 their own state, providing validity proofs for state transition, implementing a communication mechanism, etc. In
 practice, all this is achieved by Smart Contracts built on top of Ethereum. This document details the architecture of
-the L2 contracts on Ethereum Layer 1. We also have contracts that support the hyperchain ecosystem, we cover those in
-the [Shared Bridge](./the_hyperchain/shared_bridge.md) section. The Shared Bridge relies on these individual contracts.
+the L2 contracts on Ethereum Layer 1. We also have contracts that support the ZK Chain ecosystem, we cover those in the
+[Shared Bridge](./zk_chains/shared_bridge.md) section. The Shared Bridge relies on these individual contracts.
 
 ## Diamond
 
@@ -32,7 +32,7 @@ then the diamond will be frozen forever.
 The diamond proxy pattern is very flexible and extendable. For now, it allows splitting implementation contracts by
 their logical meaning, removes the limit of bytecode size per contract and implements security features such as
 freezing. In the future, it can also be viewed as [EIP-6900](https://eips.ethereum.org/EIPS/eip-6900) for
-[zkStack](https://blog.matter-labs.io/introducing-the-zk-stack-c24240c2532a), where each hyperchain can implement a
+[ZK Stack](https://blog.matter-labs.io/introducing-the-zk-stack-c24240c2532a), where each ZK Chain can implement a
 sub-set of allowed implementation contracts.
 
 ### GettersFacet

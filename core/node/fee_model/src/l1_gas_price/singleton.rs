@@ -4,10 +4,9 @@ use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_base_token_fetcher::ConversionRateFetcher;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-use zksync_types::{url::SensitiveUrl, L1ChainId};
+use zksync_types::{commitment::L1BatchCommitmentMode, url::SensitiveUrl, L1ChainId};
 use zksync_web3_decl::client::Client;
 
-use super::PubdataPricing;
 use crate::l1_gas_price::GasAdjuster;
 
 /// Special struct for creating a singleton of `GasAdjuster`.
@@ -20,7 +19,7 @@ pub struct GasAdjusterSingleton {
     pubdata_sending_mode: PubdataSendingMode,
     singleton: Option<Arc<GasAdjuster>>,
     base_token_fetcher: Arc<dyn ConversionRateFetcher>,
-    pubdata_pricing: Arc<dyn PubdataPricing>,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl GasAdjusterSingleton {
@@ -30,7 +29,7 @@ impl GasAdjusterSingleton {
         gas_adjuster_config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         base_token_fetcher: Arc<dyn ConversionRateFetcher>,
-        pubdata_pricing: Arc<dyn PubdataPricing>,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             chain_id,
@@ -39,7 +38,7 @@ impl GasAdjusterSingleton {
             pubdata_sending_mode,
             singleton: None,
             base_token_fetcher,
-            pubdata_pricing,
+            commitment_mode,
         }
     }
 
@@ -56,7 +55,7 @@ impl GasAdjusterSingleton {
                 self.gas_adjuster_config,
                 self.pubdata_sending_mode,
                 self.base_token_fetcher.clone(),
-                self.pubdata_pricing.clone(),
+                self.commitment_mode,
             )
             .await
             .context("GasAdjuster::new()")?;

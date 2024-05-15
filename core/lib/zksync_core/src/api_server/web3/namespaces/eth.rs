@@ -766,7 +766,7 @@ impl EthNamespace {
                         return Err(Web3Error::LogsLimitExceeded(
                             self.state.api_config.req_entities_limit,
                             from_block.0,
-                            l2_block_number.0 - 1,
+                            from_block.0.max(l2_block_number.0 - 1),
                         ));
                     }
                 }

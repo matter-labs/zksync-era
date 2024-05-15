@@ -125,7 +125,7 @@ fixed conversion rate for all tokens:
 zk server --components="api,tree,eth,state_keeper,housekeeper,commitment_generator,base_token_fetcher,dev_conversion_rate_api"
 ```
 
-This server will use the host setted in the environment variable previously mentioned.
+This server will use the host set in the environment variable previously mentioned.
 
 #### Gas price variables
 
