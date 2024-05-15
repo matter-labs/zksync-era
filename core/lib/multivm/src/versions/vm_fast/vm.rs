@@ -60,7 +60,6 @@ pub struct Vm<S: ReadStorage> {
     pub(crate) program_cache: Rc<RefCell<HashMap<U256, Program>>>,
     bytecode_cache: HashMap<U256, Vec<u8>>,
 
-    // these two are only needed for tests so far
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
 
@@ -109,19 +108,14 @@ impl<S: ReadStorage + 'static> Vm<S> {
             use Hook::*;
             match Hook::from_u32(hook) {
                 AccountValidationEntered => self.run_account_validation(),
-                PaymasterValidationEntered => {}
                 AccountValidationExited => {
                     panic!("must enter account validation before exiting");
                 }
-                ValidationStepEnded => {}
                 TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
                         break last_tx_result.take().unwrap();
                     }
                 }
-                DebugLog => {}
-                DebugReturnData => {}
-                NearCallCatch => {}
                 AskOperatorForRefund => {
                     if track_refunds {
                         let [bootloader_refund, gas_spent_on_pubdata, gas_per_pubdata_byte] =
@@ -230,6 +224,9 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     apply_pubdata_to_memory(&mut memory_to_apply, pubdata_input);
                     self.write_to_bootloader_heap(memory_to_apply);
                 }
+
+                PaymasterValidationEntered | ValidationStepEnded => {} // unused
+                DebugLog | DebugReturnData | NearCallCatch => {} // these are for debug purposes only
             }
         };
 
