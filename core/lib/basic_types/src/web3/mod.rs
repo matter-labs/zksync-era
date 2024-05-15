@@ -119,6 +119,20 @@ impl<'a> Visitor<'a> for BytesVisitor {
     {
         self.visit_str(value.as_ref())
     }
+
+    fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(Bytes(value.to_vec()))
+    }
+
+    fn visit_byte_buf<E>(self, value: Vec<u8>) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(Bytes(value))
+    }
 }
 
 // `Log`: from `web3::types::log`
