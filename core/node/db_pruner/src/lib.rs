@@ -4,6 +4,7 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use chrono::Utc;
 use serde::Serialize;
 use tokio::{sync::watch, time::Instant};
 use zksync_dal::{pruning_dal::PruningInfo, Connection, ConnectionPool, Core, CoreDal};
@@ -272,7 +273,7 @@ impl DbPruner {
                 .collect::<Vec<_>>()
         );
 
-        let mut last_vacuum_time = Instant::now();
+        let mut last_vacuum_time = Utc::now();
         while !*stop_receiver.borrow_and_update() {
             if let Err(err) = self.update_l1_batches_metric().await {
                 tracing::warn!("Error updating DB pruning metrics: {err:?}");
@@ -294,13 +295,14 @@ impl DbPruner {
                 Ok(pruning_done) => !pruning_done,
             };
 
-            if Instant::now().duration_since(last_vacuum_time) > Duration::from_secs(24 * 3600) {
+            let time_now = Utc::now();
+            if last_vacuum_time.date_naive() != time_now.date_naive() {
                 let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
                 storage
                     .pruning_dal()
                     .run_vacuum_after_hard_pruning()
                     .await?;
-                last_vacuum_time = Instant::now();
+                last_vacuum_time = time_now;
             }
 
             if should_sleep
