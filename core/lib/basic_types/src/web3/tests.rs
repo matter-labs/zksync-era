@@ -104,3 +104,27 @@ fn block_can_be_deserialized() {
     let block: Block<H256> = serde_json::from_str(pre_dencun).unwrap();
     assert!(block.excess_blob_gas.is_none());
 }
+
+#[test]
+fn test_bytes_serde_bincode() {
+    let original = Bytes(vec![0, 1, 2, 3, 4]);
+    let encoded: Vec<u8> = bincode::serialize(&original).unwrap();
+    let decoded: Bytes = bincode::deserialize(&encoded).unwrap();
+    assert_eq!(original, decoded);
+}
+
+#[test]
+fn test_bytes_serde_bincode_snapshot() {
+    let original = Bytes(vec![0, 1, 2, 3, 4]);
+    let encoded: Vec<u8> = vec![5, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4];
+    let decoded: Bytes = bincode::deserialize(&encoded).unwrap();
+    assert_eq!(original, decoded);
+}
+
+#[test]
+fn test_bytes_serde_json() {
+    let original = Bytes(vec![0, 1, 2, 3, 4]);
+    let encoded = serde_json::to_string(&original).unwrap();
+    let decoded: Bytes = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(original, decoded);
+}
