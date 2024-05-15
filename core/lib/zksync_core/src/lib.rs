@@ -72,16 +72,13 @@ use zksync_state_keeper::{
     create_state_keeper, io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
     AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler, StateKeeperPersistence,
 };
+use zksync_tee_verifier_input_producer::TeeVerifierInputProducer;
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 use zksync_web3_decl::client::Client;
 
-use crate::{
-    tee_verifier_input_producer::TeeVerifierInputProducer,
-    utils::L1BatchCommitmentModeValidationTask,
-};
+use crate::utils::L1BatchCommitmentModeValidationTask;
 
 pub mod proto;
-pub mod tee_verifier_input_producer;
 pub mod temp_config_store;
 pub mod utils;
 

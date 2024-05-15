@@ -31,6 +31,7 @@ members = [
     "core/node/consensus",
     "core/node/contract_verification_server",
     "core/node/api_server",
+    "core/node/tee_verifier_input_producer",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core",
@@ -259,3 +260,4 @@ zksync_node_sync = { path = "core/node/node_sync" }
 zksync_node_consensus = { path = "core/node/consensus" }
 zksync_contract_verification_server = { path = "core/node/contract_verification_server" }
 zksync_node_api_server = { path = "core/node/api_server" }
+zksync_tee_verifier_input_producer = { path = "core/node/tee_verifier_input_producer" }

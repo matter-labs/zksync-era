@@ -8430,6 +8430,7 @@ dependencies = [
  "zksync_storage",
  "zksync_system_constants",
  "zksync_tee_verifier",
+ "zksync_tee_verifier_input_producer",
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
@@ -9326,6 +9327,27 @@ dependencies = [
  "zksync_prover_interface",
  "zksync_queued_job_processor",
  "zksync_state",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
+name = "zksync_tee_verifier_input_producer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "multivm",
+ "tokio",
+ "tracing",
+ "vise",
+ "vm_utils",
+ "zksync_dal",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_queued_job_processor",
+ "zksync_state",
+ "zksync_tee_verifier",
  "zksync_types",
  "zksync_utils",
 ]
