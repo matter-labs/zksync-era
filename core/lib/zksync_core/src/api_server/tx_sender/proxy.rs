@@ -16,7 +16,7 @@ use zksync_types::{
     Address, Nonce, H256,
 };
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
@@ -129,11 +129,11 @@ impl TxCache {
 #[derive(Debug)]
 pub struct TxProxy {
     tx_cache: TxCache,
-    client: BoxedL2Client,
+    client: Box<DynClient<L2>>,
 }
 
 impl TxProxy {
-    pub fn new(client: BoxedL2Client) -> Self {
+    pub fn new(client: Box<DynClient<L2>>) -> Self {
         Self {
             client: client.for_component("tx_proxy"),
             tx_cache: TxCache::default(),

@@ -7,14 +7,17 @@ use zksync_basic_types::{
 use zksync_config::{ContractsConfig, EthConfig, PostgresConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
-use zksync_eth_client::{clients::QueryClient, CallFunctionArgs};
+use zksync_eth_client::{
+    clients::{Client, L1},
+    CallFunctionArgs,
+};
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     println!(" ====== L1 Status ====== ");
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env")?;
     let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let eth_config = EthConfig::from_env().context("EthConfig::from_env")?;
-    let query_client = QueryClient::new(eth_config.web3_url)?;
+    let query_client = Client::<L1>::http(eth_config.web3_url)?.build();
 
     let total_batches_committed: U256 = CallFunctionArgs::new("getTotalBatchesCommitted", ())
         .for_contract(
