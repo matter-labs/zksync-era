@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
 use test_casing::test_casing;
 use zksync_base_token_fetcher::NoOpConversionRateFetcher;

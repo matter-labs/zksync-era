@@ -28,7 +28,6 @@ use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
-        base_token_fetcher,
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
