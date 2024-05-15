@@ -24,7 +24,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
-    glue::storage_log_query_from_change,
+    glue::{log_query_from_change, storage_log_query_from_change},
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
@@ -571,21 +571,14 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
 
         CurrentExecutionState {
             events,
-            storage_log_queries: self
+            deduplicated_storage_log_queries: self
                 .inner
                 .world
                 .get_storage_changes()
                 .iter()
                 .map(|(&a, &b)| (a, b))
-                .map(|((address, key), change)| {
-                    let is_initial = self.storage.borrow_mut().is_write_initial(&StorageKey::new(
-                        AccountTreeId::new(address),
-                        u256_to_h256(key),
-                    ));
-                    storage_log_query_from_change(((address, key), change), is_initial)
-                })
+                .map(|((address, key), change)| log_query_from_change(((address, key), change)))
                 .collect(),
-            deduplicated_storage_log_queries: vec![],
             used_contract_hashes: vec![],
             system_logs: self
                 .inner
