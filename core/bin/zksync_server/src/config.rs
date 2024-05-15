@@ -10,7 +10,8 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets
     };
     let secrets = std::fs::read_to_string(&path).context(path)?;
     Ok(Some(
-        decode_yaml_repr::<proto::consensus::Secrets>(&secrets).context("failed decoding YAML")?,
+        decode_yaml_repr::<proto::secrets::ConsensusSecrets>(&secrets)
+            .context("failed decoding YAML")?,
     ))
 }
 

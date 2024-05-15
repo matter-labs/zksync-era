@@ -13,14 +13,14 @@ use zksync_config::{
         house_keeper::HouseKeeperConfig,
         ContractsConfig, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig,
+        PrometheusConfig, ProofDataHandlerConfig, Secrets,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
-    temp_config_store::{decode_yaml, decode_yaml_repr, Secrets, TempConfigStore},
+    temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
@@ -143,10 +143,13 @@ async fn main() -> anyhow::Result<()> {
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml(&yaml).context("failed decoding secrets YAML config")?
+            decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
+                .context("failed decoding secrets YAML config")?
         }
         None => Secrets {
             consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
+            database: None,
+            l1: None,
         },
     };
 

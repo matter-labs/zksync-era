@@ -9,8 +9,6 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-links = "zksync_core_proto"
-
 [dependencies]
 vise.workspace = true
 zksync_state.workspace = true

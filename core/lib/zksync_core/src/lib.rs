@@ -11,7 +11,6 @@ use anyhow::Context as _;
 use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
-use temp_config_store::Secrets;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
@@ -30,7 +29,7 @@ use zksync_config::{
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets,
         wallets::Wallets,
-        ContractsConfig, GeneralConfig,
+        ContractsConfig, GeneralConfig, Secrets,
     },
     ApiConfig, DBConfig, EthWatchConfig, GenesisConfig, PostgresConfig,
 };
@@ -88,7 +87,6 @@ pub mod api_server;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod metadata_calculator;
-pub mod proto;
 pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
