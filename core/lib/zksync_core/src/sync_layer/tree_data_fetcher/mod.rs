@@ -11,7 +11,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{api, block::L1BatchTreeData, L1BatchNumber};
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::ZksNamespaceClient,
 };
@@ -31,7 +31,7 @@ trait MainNodeClient: fmt::Debug + Send + Sync + 'static {
 }
 
 #[async_trait]
-impl MainNodeClient for BoxedL2Client {
+impl MainNodeClient for Box<DynClient<L2>> {
     async fn batch_details(
         &self,
         number: L1BatchNumber,
@@ -98,7 +98,7 @@ impl TreeDataFetcher {
     const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
     /// Creates a new fetcher connected to the main node.
-    pub fn new(client: BoxedL2Client, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
         Self {
             main_node_client: Box::new(client.for_component("tree_data_fetcher")),
             pool,
