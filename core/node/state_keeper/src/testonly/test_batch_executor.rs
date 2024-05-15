@@ -1,7 +1,7 @@
 // TODO(QIT-33): Some of the interfaces are public, and some are only used in tests within this crate.
 // This causes crate-local interfaces to spawn a warning without `cfg(test)`. The interfaces here must
 // be revisited and properly split into "truly public" (e.g. useful for other crates to test, say, different
-// IO or BatchExecutor implementations) and "local-test-only" (e.g. used only in tests within this crate).
+// IO or `BatchExecutor` implementations) and "local-test-only" (e.g. used only in tests within this crate).
 #![allow(dead_code)]
 
 use std::{
