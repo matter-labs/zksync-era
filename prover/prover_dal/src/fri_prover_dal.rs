@@ -324,7 +324,8 @@ impl FriProverDal<'_, '_> {
                 RETURNING
                     id,
                     status,
-                    attempts
+                    attempts,
+                    circuit_id
                 "#,
                 &processing_timeout,
                 max_attempts as i32,
@@ -337,6 +338,7 @@ impl FriProverDal<'_, '_> {
                 id: row.id as u64,
                 status: row.status,
                 attempts: row.attempts as u64,
+                circuit_id: Some(row.circuit_id as u32),
             })
             .collect()
         }
@@ -706,5 +708,112 @@ impl FriProverDal<'_, '_> {
         .protocol_version
         .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
         .unwrap()
+    }
+
+    pub async fn delete_prover_jobs_fri_batch_data(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1;
+            
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete_prover_jobs_fri_archive_batch_data(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                prover_jobs_fri_archive
+            WHERE
+                l1_batch_number = $1;
+            
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete_batch_data(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_prover_jobs_fri_batch_data(l1_batch_number)
+            .await?;
+        self.delete_prover_jobs_fri_archive_batch_data(l1_batch_number)
+            .await
+    }
+
+    pub async fn delete_prover_jobs_fri(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!("DELETE FROM prover_jobs_fri")
+            .execute(self.storage.conn())
+            .await
+    }
+
+    pub async fn delete_prover_jobs_fri_archive(
+        &mut self,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!("DELETE FROM prover_jobs_fri_archive")
+            .execute(self.storage.conn())
+            .await
+    }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_prover_jobs_fri().await?;
+        self.delete_prover_jobs_fri_archive().await
+    }
+
+    pub async fn requeue_stuck_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        {
+            sqlx::query!(
+                r#"
+                UPDATE prover_jobs_fri
+                SET
+                    status = 'queued',
+                    error = 'Manually requeued',
+                    attempts = 2,
+                    updated_at = NOW(),
+                    processing_started_at = NOW()
+                WHERE
+                    l1_batch_number = $1
+                    AND attempts >= $2
+                    AND (status = 'in_progress' OR status = 'failed')
+                RETURNING
+                    id,
+                    status,
+                    attempts,
+                    circuit_id
+                "#,
+                i64::from(block_number.0),
+                max_attempts as i32,
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.id as u64,
+                status: row.status,
+                attempts: row.attempts as u64,
+                circuit_id: Some(row.circuit_id as u32),
+            })
+            .collect()
+        }
     }
 }

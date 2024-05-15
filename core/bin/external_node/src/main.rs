@@ -37,7 +37,7 @@ use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
-use zksync_eth_client::{clients::QueryClient, EthInterface};
+use zksync_eth_client::EthInterface;
 use zksync_eth_sender::l1_batch_commit_data_generator::{
     L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
     ValidiumModeL1BatchCommitDataGenerator,
@@ -59,7 +59,7 @@ use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_web3_decl::{
-    client::{BoxedL2Client, L2Client},
+    client::{Client, DynClient, L2},
     jsonrpsee,
     namespaces::EnNamespaceClient,
 };
@@ -90,7 +90,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
@@ -216,7 +216,7 @@ async fn run_tree(
 async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -290,7 +290,7 @@ async fn run_core(
             // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let ctx = ctx::root();
             scope::run!(&ctx, |ctx, s| async move {
-                s.spawn_bg(consensus::era::run_fetcher(
+                s.spawn_bg(consensus::era::run_en(
                     ctx,
                     cfg,
                     pool,
@@ -426,7 +426,7 @@ async fn run_api(
     stop_receiver: watch::Receiver<bool>,
     sync_state: SyncState,
     tree_reader: Option<Arc<dyn TreeApiClient>>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     singleton_pool_builder: &ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &HashSet<Component>,
@@ -600,7 +600,7 @@ async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -807,20 +807,25 @@ async fn main() -> anyhow::Result<()> {
     // Build L1 and L2 clients.
     let main_node_url = &required_config.main_node_url;
     tracing::info!("Main node URL is: {main_node_url:?}");
-    let main_node_client = L2Client::http(main_node_url.clone())
+    let main_node_client = Client::http(main_node_url.clone())
         .context("Failed creating JSON-RPC client for main node")?
+        .for_network(required_config.l2_chain_id.into())
         .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
         .build();
-    let main_node_client = BoxedL2Client::new(main_node_client);
+    let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 
     let eth_client_url = &required_config.eth_client_url;
-    let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
+    let eth_client = Client::http(eth_client_url.clone())
+        .context("failed creating JSON-RPC client for Ethereum")?
+        .for_network(required_config.l1_chain_id.into())
+        .build();
+    let eth_client = Box::new(eth_client);
 
     let mut config = ExternalNodeConfig::new(
         required_config,
         optional_config,
         observability_config,
-        &main_node_client,
+        main_node_client.as_ref(),
     )
     .await
     .context("Failed to load external node config")?;
@@ -883,7 +888,7 @@ async fn run_node(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");

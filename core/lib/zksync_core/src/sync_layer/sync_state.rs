@@ -9,7 +9,10 @@ use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_shared_metrics::EN_METRICS;
 use zksync_state_keeper::{io::IoCursor, updates::UpdatesManager, StateKeeperOutputHandler};
 use zksync_types::L2BlockNumber;
-use zksync_web3_decl::{client::BoxedL2Client, namespaces::EthNamespaceClient};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    namespaces::EthNamespaceClient,
+};
 
 /// `SyncState` is a structure that holds the state of the syncing process.
 /// The intended use case is to signalize to Web3 API whether the node is fully synced.
@@ -39,7 +42,6 @@ impl SyncState {
         self.0.borrow().local_block.unwrap_or_default()
     }
 
-    #[cfg(test)]
     pub(crate) async fn wait_for_local_block(&self, want: L2BlockNumber) {
         self.0
             .subscribe()
@@ -77,7 +79,7 @@ impl SyncState {
     pub async fn run_updater(
         self,
         connection_pool: ConnectionPool<Core>,
-        main_node_client: BoxedL2Client,
+        main_node_client: Box<DynClient<L2>>,
         mut stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         const UPDATE_INTERVAL: Duration = Duration::from_secs(10);

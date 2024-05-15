@@ -5,7 +5,7 @@ use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, ClientError, Error as L1ClientError, EthInterface};
+use zksync_eth_client::{CallFunctionArgs, Error as L1ClientError, EthInterface};
 use zksync_eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
@@ -34,9 +34,7 @@ impl CheckError {
     fn is_transient(&self) -> bool {
         matches!(
             self,
-            Self::Web3(L1ClientError::EthereumGateway(
-                ClientError::Transport(_) | ClientError::RequestTimeout
-            ))
+            Self::Web3(L1ClientError::EthereumGateway(err)) if err.is_transient()
         )
     }
 }
