@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::Serialize;
-use tokio::{sync::watch, time::Instant};
+use tokio::sync::watch;
 use zksync_dal::{pruning_dal::PruningInfo, Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
