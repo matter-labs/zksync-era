@@ -66,7 +66,7 @@ impl Serialize for Bytes {
             serialized.push_str(&hex::encode(&self.0));
             serializer.serialize_str(serialized.as_ref())
         } else {
-            serializer.serialize_bytes(&self.0)
+            self.0.serialize(serializer)
         }
     }
 }
