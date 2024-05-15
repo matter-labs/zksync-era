@@ -10,19 +10,17 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core};
+use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_test_utils::{
+    create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
+    prepare_recovery_snapshot,
+};
 use zksync_types::{
     block::L2BlockHasher, fee::TransactionExecutionMetrics, L2ChainId, ProtocolVersion,
     ProtocolVersionId,
 };
 
 use super::*;
-use crate::{
-    genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams},
-    utils::testonly::{
-        create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
-        prepare_recovery_snapshot,
-    },
-};
 
 #[test]
 #[rustfmt::skip] // One-line formatting looks better here.
@@ -372,7 +370,13 @@ async fn store_pending_l2_blocks(
         let tx_result = execute_l2_transaction(tx);
         storage
             .transactions_dal()
-            .mark_txs_as_executed_in_l2_block(new_l2_block.number, &[tx_result], 1.into())
+            .mark_txs_as_executed_in_l2_block(
+                new_l2_block.number,
+                &[tx_result],
+                1.into(),
+                ProtocolVersionId::latest(),
+                false,
+            )
             .await
             .unwrap();
     }

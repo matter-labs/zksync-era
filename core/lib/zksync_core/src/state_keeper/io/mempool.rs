@@ -13,6 +13,7 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp, Address, L1BatchNumber,
     L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
@@ -20,19 +21,17 @@ use zksync_types::{
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
 
-use crate::{
-    fee_model::BatchFeeModelInputProvider,
-    state_keeper::{
-        io::{
-            common::{load_pending_batch, poll_iters, IoCursor},
-            L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
-        },
-        mempool_actor::l2_tx_filter,
-        metrics::KEEPER_METRICS,
-        seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer},
-        updates::UpdatesManager,
-        MempoolGuard,
+use crate::state_keeper::{
+    io::{
+        common::{load_pending_batch, poll_iters, IoCursor},
+        seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
+        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
+    mempool_actor::l2_tx_filter,
+    metrics::KEEPER_METRICS,
+    seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer},
+    updates::UpdatesManager,
+    MempoolGuard,
 };
 
 /// Mempool-based sequencer for the state keeper.
@@ -80,6 +79,8 @@ impl StateKeeperIO for MempoolIO {
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         let cursor = IoCursor::new(&mut storage).await?;
+
+        L2BlockSealProcess::clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
 
         let pending_l2_block_header = self
             .l1_batch_params_provider

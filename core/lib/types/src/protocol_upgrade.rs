@@ -8,8 +8,8 @@ use zksync_utils::u256_to_account_address;
 use crate::{
     ethabi::{decode, encode, ParamType, Token},
     helpers::unix_timestamp_ms,
-    web3::signing::keccak256,
-    Address, Execute, ExecuteTransactionCommon, Log, Transaction, TransactionType, H256,
+    web3::{keccak256, Log},
+    Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256,
     PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 

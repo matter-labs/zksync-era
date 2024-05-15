@@ -140,7 +140,7 @@ jobs:
         # FIXME: run tests even when not using synclayer
         sync_layer: [true]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
     runs-on: [matterlabs-ci-runner]
     steps:
@@ -197,8 +197,13 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk config compile
-          ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}}
+          if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
+            ci_run zk env dev_validium_docker
+            ci_run zk config compile dev_validium_docker
+          else
+            ci_run zk config compile
+          fi
+          ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}} ${{ matrix.deployment_mode == 'Validium' && '--validium-mode' || ''}}
 
       # `sleep 5` because we need to wait until server started properly
       - name: Run server

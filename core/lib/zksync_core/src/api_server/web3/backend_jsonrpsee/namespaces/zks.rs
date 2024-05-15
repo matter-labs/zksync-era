@@ -9,7 +9,8 @@ use zksync_types::{
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    Address, Bytes, L1BatchNumber, L2BlockNumber, StorageLogQueryType, H256, U256, U64,
+    web3::Bytes,
+    Address, L1BatchNumber, L2BlockNumber, StorageLogQueryType, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},

@@ -9,7 +9,6 @@ use std::{
 
 use anyhow::Context as _;
 use api_server::tx_sender::master_pool_sink::MasterPoolSink;
-use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
 use temp_config_store::Secrets;
@@ -26,10 +25,7 @@ use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
-        chain::{
-            CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig,
-            OperationsManagerConfig, StateKeeperConfig,
-        },
+        chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets,
@@ -41,10 +37,8 @@ use zksync_config::{
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
-use zksync_eth_client::{
-    clients::{PKSigningClient, QueryClient},
-    BoundEthInterface, EthInterface,
-};
+use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface, EthInterface};
+use zksync_eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_house_keeper::{
@@ -59,11 +53,17 @@ use zksync_house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
+use zksync_node_fee_model::{
+    l1_gas_price::GasAdjusterSingleton, ApiFeeInputProvider, BatchFeeModelInputProvider,
+    MainNodeFeeInputProvider,
+};
+use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
+use zksync_web3_decl::client::Client;
 
 use crate::{
     api_server::{
@@ -74,43 +74,27 @@ use crate::{
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
-    basic_witness_input_producer::BasicWitnessInputProducer,
-    eth_sender::{
-        l1_batch_commit_data_generator::{
-            L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-            ValidiumModeL1BatchCommitDataGenerator,
-        },
-        Aggregator, EthTxAggregator, EthTxManager,
-    },
-    genesis::GenesisParams,
-    l1_gas_price::{
-        GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
-    },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     state_keeper::{
-        create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
-        SequencerSealer, StateKeeperPersistence,
+        create_state_keeper, io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
+        AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
+        StateKeeperPersistence,
     },
-    utils::ensure_l1_batch_commit_data_generation_mode,
+    tee_verifier_input_producer::TeeVerifierInputProducer,
+    utils::L1BatchCommitmentModeValidationTask,
 };
 
 pub mod api_server;
-pub mod basic_witness_input_producer;
 pub mod consensus;
 pub mod consistency_checker;
-pub mod db_pruner;
-pub mod eth_sender;
-pub mod fee_model;
-pub mod genesis;
-pub mod l1_gas_price;
 pub mod metadata_calculator;
 pub mod proto;
 pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
+pub mod tee_verifier_input_producer;
 pub mod temp_config_store;
 pub mod utils;
-pub mod vm_runner;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -125,7 +109,7 @@ pub async fn genesis_init(
     let mut storage = pool.connection().await.context("connection()")?;
 
     let params = GenesisParams::load_genesis_params(genesis_config)?;
-    genesis::ensure_genesis_state(&mut storage, &params).await?;
+    ensure_genesis_state(&mut storage, &params).await?;
 
     Ok(())
 }
@@ -191,9 +175,9 @@ pub enum Component {
     EthTxManager,
     /// State keeper.
     StateKeeper,
-    /// Produces input for basic witness generator and uploads it as bin encoded file (blob) to GCS.
-    /// The blob is later used as input for Basic Witness Generators.
-    BasicWitnessInputProducer,
+    /// Produces input for the TEE verifier.
+    /// The blob is later used as input for TEE verifier.
+    TeeVerifierInputProducer,
     /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
@@ -224,8 +208,8 @@ impl FromStr for Components {
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
-            "basic_witness_input_producer" => {
-                Ok(Components(vec![Component::BasicWitnessInputProducer]))
+            "tee_verifier_input_producer" => {
+                Ok(Components(vec![Component::TeeVerifierInputProducer]))
             }
             "eth" => Ok(Components(vec![
                 Component::EthWatcher,
@@ -317,20 +301,20 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = QueryClient::new(&eth.web3_url).unwrap();
+    let query_client = Client::http(eth.web3_url.clone())
+        .context("Ethereum client")?
+        .for_network(genesis_config.l1_chain_id.into())
+        .build();
+    let query_client = Box::new(query_client);
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
-    let pubdata_pricing: Arc<dyn PubdataPricing> =
-        match genesis_config.l1_batch_commit_data_generator_mode {
-            L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
-            L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
-        };
 
     let mut gas_adjuster = GasAdjusterSingleton::new(
+        genesis_config.l1_chain_id,
         eth.web3_url.clone(),
         gas_adjuster_config,
         sender.pubdata_sending_mode,
-        pubdata_pricing,
+        genesis_config.l1_batch_commit_data_generator_mode,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -564,14 +548,13 @@ pub async fn initialize_components(
         .map(|a| a.state_transition_proxy_addr);
 
     if components.contains(&Component::Consensus) {
-        let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
-        let cfg = consensus::config::main_node(
-            consensus_config
-                .as_ref()
-                .context("consensus component's config is missing")?,
-            secrets,
-            l2_chain_id,
-        )?;
+        let cfg = consensus_config
+            .clone()
+            .context("consensus component's config is missing")?;
+        let secrets = secrets
+            .consensus
+            .clone()
+            .context("consensus component's secrets are missing")?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();
@@ -584,7 +567,7 @@ pub async fn initialize_components(
             // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let root_ctx = ctx::root();
             scope::run!(&root_ctx, |ctx, s| async move {
-                s.spawn_bg(consensus::era::run_main_node(ctx, cfg, pool));
+                s.spawn_bg(consensus::era::run_main_node(ctx, cfg, secrets, pool));
                 let _ = stop_receiver.wait_for(|stop| *stop).await?;
                 Ok(())
             })
@@ -614,7 +597,7 @@ pub async fn initialize_components(
             start_eth_watch(
                 eth_watch_config,
                 eth_watch_pool,
-                Arc::new(query_client.clone()),
+                query_client.clone(),
                 diamond_proxy_addr,
                 state_transition_manager_addr,
                 governance,
@@ -645,34 +628,27 @@ pub async fn initialize_components(
             .context("gas_adjuster")?
             .default_priority_fee_per_gas;
         let l1_chain_id = genesis_config.l1_chain_id;
-        let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
             operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
-            web3_url,
+            query_client.clone(),
         );
 
         let l1_batch_commit_data_generator_mode =
             genesis_config.l1_batch_commit_data_generator_mode;
-        ensure_l1_batch_commit_data_generation_mode(
-            l1_batch_commit_data_generator_mode,
+        // Run the task synchronously: the main node is expected to have a stable Ethereum client connection,
+        // and the cost of detecting an incorrect mode with a delay is higher.
+        L1BatchCommitmentModeValidationTask::new(
             contracts_config.diamond_proxy_addr,
-            &eth_client,
+            l1_batch_commit_data_generator_mode,
+            query_client.clone(),
         )
+        .exit_on_success()
+        .run(stop_receiver.clone())
         .await?;
-
-        let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
-            match l1_batch_commit_data_generator_mode {
-                L1BatchCommitDataGeneratorMode::Rollup => {
-                    Arc::new(RollupModeL1BatchCommitDataGenerator {})
-                }
-                L1BatchCommitDataGeneratorMode::Validium => {
-                    Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
-                }
-            };
 
         let operator_blobs_address = eth_sender_wallets.blob_operator.map(|x| x.address());
 
@@ -684,15 +660,14 @@ pub async fn initialize_components(
                 sender_config.clone(),
                 store_factory.create_store().await,
                 operator_blobs_address.is_some(),
-                l1_batch_commit_data_generator.clone(),
+                l1_batch_commit_data_generator_mode,
             ),
-            Arc::new(eth_client),
+            Box::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             diamond_proxy_addr,
             l2_chain_id,
             operator_blobs_address,
-            l1_batch_commit_data_generator,
         )
         .await;
         task_futures.push(tokio::spawn(
@@ -720,25 +695,25 @@ pub async fn initialize_components(
             .context("gas_adjuster")?
             .default_priority_fee_per_gas;
         let l1_chain_id = genesis_config.l1_chain_id;
-        let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
             operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
-            web3_url,
+            query_client.clone(),
         );
 
         let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
             let operator_blob_private_key = blob_operator.private_key().clone();
-            Some(PKSigningClient::new_raw(
+            let client = Box::new(PKSigningClient::new_raw(
                 operator_blob_private_key,
                 diamond_proxy_addr,
                 default_priority_fee_per_gas,
                 l1_chain_id,
-                web3_url,
-            ))
+                query_client,
+            ));
+            Some(client as Box<dyn BoundEthInterface>)
         } else {
             None
         };
@@ -750,8 +725,8 @@ pub async fn initialize_components(
                 .get_or_init()
                 .await
                 .context("gas_adjuster.get_or_init()")?,
-            Arc::new(eth_client),
-            eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
+            Box::new(eth_client),
+            eth_client_blobs,
         );
         task_futures.extend([tokio::spawn(
             eth_tx_manager_actor.run(stop_receiver.clone()),
@@ -772,13 +747,13 @@ pub async fn initialize_components(
     .await
     .context("add_trees_to_task_futures()")?;
 
-    if components.contains(&Component::BasicWitnessInputProducer) {
+    if components.contains(&Component::TeeVerifierInputProducer) {
         let singleton_connection_pool =
             ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
                 .build()
                 .await
                 .context("failed to build singleton connection_pool")?;
-        add_basic_witness_input_producer_to_task_futures(
+        add_tee_verifier_input_producer_to_task_futures(
             &mut task_futures,
             &singleton_connection_pool,
             &store_factory,
@@ -786,7 +761,7 @@ pub async fn initialize_components(
             stop_receiver.clone(),
         )
         .await
-        .context("add_basic_witness_input_producer_to_task_futures()")?;
+        .context("add_tee_verifier_input_producer_to_task_futures()")?;
     }
 
     if components.contains(&Component::Housekeeper) {
@@ -803,6 +778,7 @@ pub async fn initialize_components(
                 .context("proof_data_handler_config")?,
             store_factory.create_store().await,
             connection_pool.clone(),
+            genesis_config.l1_batch_commit_data_generator_mode,
             stop_receiver.clone(),
         )));
     }
@@ -813,7 +789,10 @@ pub async fn initialize_components(
                 .build()
                 .await
                 .context("failed to build commitment_generator_pool")?;
-        let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+        let commitment_generator = CommitmentGenerator::new(
+            commitment_generator_pool,
+            genesis_config.l1_batch_commit_data_generator_mode,
+        );
         app_health.insert_component(commitment_generator.health_check())?;
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
@@ -860,10 +839,14 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    let l2_block_sealer_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
-        .build()
-        .await
-        .context("failed to build l2_block_sealer_pool")?;
+    // L2 Block sealing process is parallelized, so we have to provide enough pooled connections.
+    let l2_block_sealer_pool = ConnectionPool::<Core>::builder(
+        postgres_config.master_url()?,
+        L2BlockSealProcess::subtasks_len(),
+    )
+    .build()
+    .await
+    .context("failed to build l2_block_sealer_pool")?;
     let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
         l2_block_sealer_pool,
         contracts_config
@@ -930,7 +913,7 @@ async fn add_state_keeper_to_task_futures(
 pub async fn start_eth_watch(
     config: EthWatchConfig,
     pool: ConnectionPool<Core>,
-    eth_gateway: Arc<dyn EthInterface>,
+    eth_gateway: Box<dyn EthInterface>,
     diamond_proxy_addr: Address,
     state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),
@@ -1050,6 +1033,7 @@ async fn run_tree(
             tree_reader
                 .wait()
                 .await
+                .context("Cannot initialize tree reader")?
                 .run_api_server(address, stop_receiver)
                 .await
         }));
@@ -1066,29 +1050,24 @@ async fn run_tree(
     Ok(())
 }
 
-async fn add_basic_witness_input_producer_to_task_futures(
+async fn add_tee_verifier_input_producer_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     connection_pool: &ConnectionPool<Core>,
     store_factory: &ObjectStoreFactory,
     l2_chain_id: L2ChainId,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    // Witness Generator won't be spawned with `ZKSYNC_LOCAL_SETUP` running.
-    // BasicWitnessInputProducer shouldn't be producing input for it locally either.
-    if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
-        return Ok(());
-    }
     let started_at = Instant::now();
-    tracing::info!("initializing BasicWitnessInputProducer");
+    tracing::info!("initializing TeeVerifierInputProducer");
     let producer =
-        BasicWitnessInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+        TeeVerifierInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
     task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
     tracing::info!(
-        "Initialized BasicWitnessInputProducer in {:?}",
+        "Initialized TeeVerifierInputProducer in {:?}",
         started_at.elapsed()
     );
     let elapsed = started_at.elapsed();
-    APP_METRICS.init_latency[&InitStage::BasicWitnessInputProducer].set(elapsed);
+    APP_METRICS.init_latency[&InitStage::TeeVerifierInputProducer].set(elapsed);
     Ok(())
 }
 

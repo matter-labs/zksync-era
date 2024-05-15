@@ -10,7 +10,7 @@ use crate::{
     fee_model::BatchFeeInput,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
-    web3::signing::keccak256,
+    web3::keccak256,
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
@@ -93,7 +93,7 @@ pub struct StorageOracleInfo {
 }
 
 /// Data needed to execute an L2 block in the VM.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct L2BlockExecutionData {
     pub number: L2BlockNumber,
     pub timestamp: u64,

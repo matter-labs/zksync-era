@@ -89,7 +89,7 @@ pub struct BasicWitnessGenerator {
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool<Core>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_versions: Vec<ProtocolVersionId>,
+    protocol_version: ProtocolVersionId,
 }
 
 impl BasicWitnessGenerator {
@@ -99,7 +99,7 @@ impl BasicWitnessGenerator {
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool<Core>,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_versions: Vec<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             config: Arc::new(config),
@@ -107,7 +107,7 @@ impl BasicWitnessGenerator {
             public_blob_store,
             connection_pool,
             prover_connection_pool,
-            protocol_versions,
+            protocol_version,
         }
     }
 
@@ -160,7 +160,7 @@ impl JobProcessor for BasicWitnessGenerator {
             .fri_witness_generator_dal()
             .get_next_basic_circuit_witness_job(
                 last_l1_batch_to_process,
-                &self.protocol_versions,
+                self.protocol_version,
                 &pod_name,
             )
             .await
@@ -485,14 +485,14 @@ async fn generate_witness(
 
     let bootloader_code_bytes = connection
         .factory_deps_dal()
-        .get_factory_dep(header.base_system_contracts_hashes.bootloader)
+        .get_sealed_factory_dep(header.base_system_contracts_hashes.bootloader)
         .await
         .expect("Failed fetching bootloader bytecode from DB")
         .expect("Bootloader bytecode should exist");
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
     let account_bytecode_bytes = connection
         .factory_deps_dal()
-        .get_factory_dep(header.base_system_contracts_hashes.default_aa)
+        .get_sealed_factory_dep(header.base_system_contracts_hashes.default_aa)
         .await
         .expect("Failed fetching default account bytecode from DB")
         .expect("Default account bytecode should exist");

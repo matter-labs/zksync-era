@@ -13,20 +13,18 @@ use zksync_config::configs::{
 use zksync_dal::CoreDal;
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{L1BatchNumber, ProtocolVersionId, StorageLog};
 
 use super::*;
-use crate::{
-    genesis::{insert_genesis_batch, GenesisParams},
-    metadata_calculator::{
-        helpers::create_db,
-        tests::{
-            extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, mock_config,
-            run_calculator, setup_calculator,
-        },
-        MetadataCalculator, MetadataCalculatorConfig,
+use crate::metadata_calculator::{
+    helpers::create_db,
+    tests::{
+        extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, mock_config,
+        run_calculator, setup_calculator,
     },
-    utils::testonly::prepare_recovery_snapshot,
+    MetadataCalculator, MetadataCalculatorConfig,
 };
 
 #[test]
@@ -265,7 +263,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     match case {
         // Wait until the tree is fully initialized and stop the calculator.
         RecoveryWorkflowCase::Stop => {
-            let tree_info = tree_reader.wait().await.info().await;
+            let tree_info = tree_reader.wait().await.unwrap().info().await;
             assert_eq!(tree_info.root_hash, snapshot_recovery.l1_batch_root_hash);
             assert_eq!(tree_info.leaf_count, 200);
             assert_eq!(
@@ -276,7 +274,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
 
         // Emulate state keeper adding a new L1 batch to Postgres.
         RecoveryWorkflowCase::CreateBatch => {
-            tree_reader.wait().await;
+            tree_reader.wait().await.unwrap();
 
             let mut storage = storage.start_transaction().await.unwrap();
             let mut new_logs = gen_storage_logs(500..600, 1).pop().unwrap();

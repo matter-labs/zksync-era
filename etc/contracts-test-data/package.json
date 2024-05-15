@@ -4,7 +4,7 @@
   "license": "MIT",
   "dependencies": {
     "@openzeppelin/contracts": "^4.8.0",
-    "hardhat": "=2.16.0"
+    "hardhat": "=2.22.2"
   },
   "devDependencies": {
     "@matterlabs/hardhat-zksync-solc": "^0.3.15"

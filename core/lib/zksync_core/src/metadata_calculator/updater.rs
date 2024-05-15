@@ -143,10 +143,11 @@ impl TreeUpdater {
 
             if let Some(object_key) = &object_key {
                 storage
-                    .basic_witness_input_producer_dal()
-                    .create_basic_witness_input_producer_job(l1_batch_number)
+                    .tee_verifier_input_producer_dal()
+                    .create_tee_verifier_input_producer_job(l1_batch_number)
                     .await
-                    .context("failed to create basic_witness_input_producer job")?;
+                    .expect("failed to create tee_verifier_input_producer job");
+                // Save the proof generation details to Postgres
                 storage
                     .proof_generation_dal()
                     .insert_proof_generation_details(l1_batch_number, object_key)

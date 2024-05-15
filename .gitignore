@@ -41,7 +41,9 @@ Cargo.lock
 !/etc/env/configs/dev_validium.toml
 !/etc/env/configs/dev_validium_docker.toml
 !/etc/env/configs/ext-node.toml
+!/etc/env/configs/ext-node-validium.toml
 !/etc/env/configs/ext-node-docker.toml
+!/etc/env/configs/ext-node-validium-docker.toml
 /etc/env/l1-inits
 /etc/env/l2-inits
 !/etc/env/base

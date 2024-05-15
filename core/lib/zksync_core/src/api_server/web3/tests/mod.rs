@@ -26,6 +26,11 @@ use zksync_config::{
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
 use zksync_health_check::CheckHealth;
+use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_test_utils::{
+    create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
+    l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
+};
 use zksync_types::{
     api,
     block::L2BlockHeader,
@@ -39,25 +44,19 @@ use zksync_types::{
         TransactionExecutionResult,
     },
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, VmEvent, H256, U64,
+    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog,
+    VmEvent, H256, U64,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
+    client::{Client, DynClient, L2},
     jsonrpsee::{http_client::HttpClient, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
 use super::{metrics::ApiTransportLabel, *};
-use crate::{
-    api_server::{
-        execution_sandbox::testonly::MockTransactionExecutor,
-        tx_sender::tests::create_test_tx_sender,
-    },
-    genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams},
-    utils::testonly::{
-        create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
-        l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
-    },
+use crate::api_server::{
+    execution_sandbox::testonly::MockTransactionExecutor, tx_sender::tests::create_test_tx_sender,
 };
 
 mod debug;
@@ -270,7 +269,8 @@ trait HttpTest: Send + Sync {
         Arc::default()
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()>;
+    async fn test(&self, client: &DynClient<L2>, pool: &ConnectionPool<Core>)
+        -> anyhow::Result<()>;
 
     /// Overrides the `filters_disabled` configuration parameter for HTTP server startup
     fn filters_disabled(&self) -> bool {
@@ -363,9 +363,9 @@ async fn test_http_server(test: impl HttpTest) {
     .await;
 
     let local_addr = server_handles.wait_until_ready().await;
-    let client = <HttpClient>::builder()
-        .build(format!("http://{local_addr}/"))
-        .unwrap();
+    let client = Client::http(format!("http://{local_addr}/").parse().unwrap())
+        .unwrap()
+        .build();
     test.test(&client, &pool).await.unwrap();
 
     stop_sender.send_replace(true);
@@ -428,7 +428,13 @@ async fn store_l2_block(
     storage.blocks_dal().insert_l2_block(&new_l2_block).await?;
     storage
         .transactions_dal()
-        .mark_txs_as_executed_in_l2_block(new_l2_block.number, transaction_results, 1.into())
+        .mark_txs_as_executed_in_l2_block(
+            new_l2_block.number,
+            transaction_results,
+            1.into(),
+            ProtocolVersionId::latest(),
+            false,
+        )
         .await?;
     Ok(new_l2_block)
 }
@@ -516,7 +522,11 @@ struct HttpServerBasicsTest;
 
 #[async_trait]
 impl HttpTest for HttpServerBasicsTest {
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
 
@@ -546,7 +556,11 @@ impl HttpTest for BlockMethodsWithSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let block = client.get_block_by_number(1_000.into(), false).await?;
         assert!(block.is_none());
 
@@ -619,7 +633,11 @@ impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let l2_block_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         let l1_batch_number = StorageInitialization::SNAPSHOT_RECOVERY_BATCH + 1;
         assert_eq!(
@@ -710,7 +728,11 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
         StorageInitialization::Recovery { logs, factory_deps }
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let address = Address::repeat_byte(1);
         let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         for number in [0, 1, first_local_l2_block.0 - 1] {
@@ -751,7 +773,11 @@ struct TransactionCountTest;
 
 #[async_trait]
 impl HttpTest for TransactionCountTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let test_address = Address::repeat_byte(11);
         let mut storage = pool.connection().await?;
         let mut l2_block_number = L2BlockNumber(0);
@@ -849,7 +875,11 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         }
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let test_address = Address::repeat_byte(11);
         let pending_count = client.get_transaction_count(test_address, None).await?;
         assert_eq!(pending_count, 3.into());
@@ -904,7 +934,11 @@ struct TransactionReceiptsTest;
 
 #[async_trait]
 impl HttpTest for TransactionReceiptsTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let mut storage = pool.connection().await?;
         let l2_block_number = L2BlockNumber(1);
 
@@ -962,7 +996,11 @@ impl AllAccountBalancesTest {
 
 #[async_trait]
 impl HttpTest for AllAccountBalancesTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
         assert_eq!(balances, HashMap::new());
 
@@ -1031,7 +1069,11 @@ impl HttpTest for RpcCallsTracingTest {
         self.tracer.clone()
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
 
@@ -1070,10 +1112,13 @@ impl HttpTest for RpcCallsTracingTest {
         assert_eq!(calls[0].metadata.block_diff, None);
 
         // Check protocol-level errors.
-        client
-            .request::<serde_json::Value, _>("eth_unknownMethod", jsonrpsee::rpc_params![])
-            .await
-            .unwrap_err();
+        ClientT::request::<serde_json::Value, _>(
+            &client,
+            "eth_unknownMethod",
+            jsonrpsee::rpc_params![],
+        )
+        .await
+        .unwrap_err();
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
@@ -1083,10 +1128,13 @@ impl HttpTest for RpcCallsTracingTest {
         );
         assert!(!calls[0].metadata.has_app_error);
 
-        client
-            .request::<serde_json::Value, _>("eth_getBlockByNumber", jsonrpsee::rpc_params![0])
-            .await
-            .unwrap_err();
+        ClientT::request::<serde_json::Value, _>(
+            &client,
+            "eth_getBlockByNumber",
+            jsonrpsee::rpc_params![0],
+        )
+        .await
+        .unwrap_err();
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
@@ -1097,13 +1145,13 @@ impl HttpTest for RpcCallsTracingTest {
         assert!(!calls[0].metadata.has_app_error);
 
         // Check app-level error.
-        client
-            .request::<serde_json::Value, _>(
-                "eth_getFilterLogs",
-                jsonrpsee::rpc_params![U256::from(1)],
-            )
-            .await
-            .unwrap_err();
+        ClientT::request::<serde_json::Value, _>(
+            &client,
+            "eth_getFilterLogs",
+            jsonrpsee::rpc_params![U256::from(1)],
+        )
+        .await
+        .unwrap_err();
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
@@ -1117,7 +1165,7 @@ impl HttpTest for RpcCallsTracingTest {
         let mut batch = BatchRequestBuilder::new();
         batch.insert("eth_blockNumber", jsonrpsee::rpc_params![])?;
         batch.insert("zks_L1BatchNumber", jsonrpsee::rpc_params![])?;
-        let response = client.batch_request::<U64>(batch).await?;
+        let response = ClientT::batch_request::<U64>(&client, batch).await?;
         for response_part in response {
             assert_eq!(response_part.unwrap(), U64::from(0));
         }
@@ -1144,7 +1192,11 @@ struct GenesisConfigTest;
 
 #[async_trait]
 impl HttpTest for GenesisConfigTest {
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         // It's enough to check that we fill all fields and deserialization is correct.
         // Mocking values is not suitable since they will always change
         client.genesis_config().await.unwrap();

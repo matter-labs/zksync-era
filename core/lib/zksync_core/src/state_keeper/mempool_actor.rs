@@ -8,12 +8,13 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
 use zksync_types::{get_nonce_key, Address, Nonce, Transaction, VmVersion};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::{fee_model::BatchFeeModelInputProvider, utils::pending_protocol_version};
+use crate::utils::pending_protocol_version;
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
@@ -156,6 +157,9 @@ async fn get_transaction_nonces(
 
 #[cfg(test)]
 mod tests {
+    use zksync_node_fee_model::MockBatchFeeParamsProvider;
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
         fee::TransactionExecutionMetrics, L2BlockNumber, PriorityOpId, ProtocolVersionId,
         StorageLog, H256,
@@ -163,10 +167,6 @@ mod tests {
     use zksync_utils::u256_to_h256;
 
     use super::*;
-    use crate::{
-        genesis::{insert_genesis_batch, GenesisParams},
-        utils::testonly::{create_l2_transaction, MockBatchFeeParamsProvider},
-    };
 
     const TEST_MEMPOOL_CONFIG: MempoolConfig = MempoolConfig {
         sync_interval_ms: 10,
@@ -181,6 +181,9 @@ mod tests {
     async fn getting_transaction_nonces() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
 
         let transaction = create_l2_transaction(10, 100);
         let transaction_initiator = transaction.initiator_account();

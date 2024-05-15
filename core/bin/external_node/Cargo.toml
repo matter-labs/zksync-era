@@ -1,6 +1,6 @@
 [package]
 name = "zksync_external_node"
-version = "24.0.0" # x-release-please-version
+version = "24.2.0" # x-release-please-version
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -21,17 +21,20 @@ zksync_eth_client.workspace = true
 zksync_storage.workspace = true
 zksync_utils.workspace = true
 zksync_state.workspace = true
-zksync_basic_types.workspace = true
 zksync_contracts.workspace = true
 zksync_l1_contract_interface.workspace = true
 zksync_snapshots_applier.workspace = true
 zksync_object_store.workspace = true
 prometheus_exporter.workspace = true
 zksync_health_check.workspace = true
-zksync_web3_decl.workspace = true
+zksync_web3_decl = { workspace = true, features = ["client"] }
 zksync_types.workspace = true
 zksync_block_reverter.workspace = true
 zksync_shared_metrics.workspace = true
+zksync_node_genesis.workspace = true
+zksync_node_fee_model.workspace = true
+zksync_node_db_pruner.workspace = true
+zksync_eth_sender.workspace = true
 vlog.workspace = true
 
 zksync_concurrency.workspace = true

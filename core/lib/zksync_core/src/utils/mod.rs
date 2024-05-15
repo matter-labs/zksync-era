@@ -9,17 +9,9 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
-use zksync_l1_contract_interface::Detokenize;
-use zksync_types::{
-    ethabi::{self, Address},
-    L1BatchNumber, ProtocolVersionId,
-};
-
-#[cfg(test)]
-pub(crate) mod testonly;
+use zksync_eth_client::{CallFunctionArgs, ClientError, Error as EthClientError, EthInterface};
+use zksync_types::{commitment::L1BatchCommitmentMode, Address, L1BatchNumber, ProtocolVersionId};
 
 /// Fallible and async predicate for binary search.
 #[async_trait]
@@ -166,67 +158,130 @@ pub(crate) async fn pending_protocol_version(
     Ok(snapshot_recovery.protocol_version)
 }
 
-async fn get_pubdata_pricing_mode(
+/// Managed task that asynchronously validates that the commitment mode (rollup or validium) from the node config
+/// matches the mode in the L1 diamond proxy contract.
+#[derive(Debug)]
+pub struct L1BatchCommitmentModeValidationTask {
     diamond_proxy_address: Address,
-    eth_client: &dyn EthInterface,
-) -> Result<Vec<ethabi::Token>, EthClientError> {
-    let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
-        diamond_proxy_address,
-        zksync_contracts::state_transition_manager_contract(),
-    );
-    eth_client.call_contract_function(args).await
+    expected_mode: L1BatchCommitmentMode,
+    eth_client: Box<dyn EthInterface>,
+    retry_interval: Duration,
+    exit_on_success: bool,
 }
 
-pub async fn ensure_l1_batch_commit_data_generation_mode(
-    selected_l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
-    diamond_proxy_address: Address,
-    eth_client: &dyn EthInterface,
-) -> anyhow::Result<()> {
-    match get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await {
-        // Getters contract support getPubdataPricingMode method
-        Ok(l1_contract_pubdata_pricing_mode) => {
-            let l1_contract_batch_commitment_mode =
-                L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)
-                    .context(
-                        "Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract",
-                    )?;
+impl L1BatchCommitmentModeValidationTask {
+    const DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
-            // contracts mode == server mode
-            anyhow::ensure!(
-                l1_contract_batch_commitment_mode == selected_l1_batch_commit_data_generator_mode,
-                "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
-                selected_l1_batch_commit_data_generator_mode,
-                l1_contract_batch_commitment_mode
-            );
+    /// Creates a new task with the specified params and Ethereum client.
+    pub fn new(
+        diamond_proxy_address: Address,
+        expected_mode: L1BatchCommitmentMode,
+        eth_client: Box<dyn EthInterface>,
+    ) -> Self {
+        Self {
+            diamond_proxy_address,
+            expected_mode,
+            eth_client: eth_client.for_component("commitment_mode_validation"),
+            retry_interval: Self::DEFAULT_RETRY_INTERVAL,
+            exit_on_success: false,
+        }
+    }
 
-            Ok(())
+    /// Makes the task exit after the commitment mode was successfully verified. By default, the task
+    /// will only exit on error or after getting a stop signal.
+    pub fn exit_on_success(mut self) -> Self {
+        self.exit_on_success = true;
+        self
+    }
+
+    async fn validate_commitment_mode(self) -> anyhow::Result<()> {
+        let expected_mode = self.expected_mode;
+        let diamond_proxy_address = self.diamond_proxy_address;
+        let eth_client = self.eth_client.as_ref();
+        loop {
+            let result = Self::get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await;
+            match result {
+                Ok(mode) => {
+                    anyhow::ensure!(
+                        mode == self.expected_mode,
+                        "Configured L1 batch commitment mode ({expected_mode:?}) does not match the commitment mode \
+                         used on L1 contract {diamond_proxy_address:?} ({mode:?})"
+                    );
+                    tracing::info!(
+                        "Checked that the configured L1 batch commitment mode ({expected_mode:?}) matches the commitment mode \
+                         used on L1 contract {diamond_proxy_address:?}"
+                    );
+                    return Ok(());
+                }
+
+                // Getters contract does not support `getPubdataPricingMode` method.
+                // This case is accepted for backwards compatibility with older contracts, but emits a
+                // warning in case the wrong contract address was passed by the caller.
+                Err(EthClientError::EthereumGateway(err))
+                    if matches!(err.as_ref(), ClientError::Call(_)) =>
+                {
+                    tracing::warn!("Contract {diamond_proxy_address:?} does not support getPubdataPricingMode method: {err}");
+                    return Ok(());
+                }
+
+                Err(EthClientError::EthereumGateway(err)) if err.is_transient() => {
+                    tracing::warn!(
+                        "Transient error validating commitment mode, will retry after {:?}: {err}",
+                        self.retry_interval
+                    );
+                    tokio::time::sleep(self.retry_interval).await;
+                }
+
+                Err(err) => {
+                    tracing::error!("Fatal error validating commitment mode: {err}");
+                    return Err(err.into());
+                }
+            }
         }
-        // Getters contract does not support getPubdataPricingMode method.
-        // This case is accepted for backwards compatibility with older contracts, but emits a
-        // warning in case the wrong contract address was passed by the caller.
-        Err(EthClientError::Contract(_)) => {
-            tracing::warn!("Getters contract does not support getPubdataPricingMode method");
-            Ok(())
+    }
+
+    async fn get_pubdata_pricing_mode(
+        diamond_proxy_address: Address,
+        eth_client: &dyn EthInterface,
+    ) -> Result<L1BatchCommitmentMode, EthClientError> {
+        CallFunctionArgs::new("getPubdataPricingMode", ())
+            .for_contract(
+                diamond_proxy_address,
+                &zksync_contracts::hyperchain_contract(),
+            )
+            .call(eth_client)
+            .await
+    }
+
+    /// Runs this task. The task will exit on error (and on success if `exit_on_success` is set),
+    /// or when a stop signal is received.
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let exit_on_success = self.exit_on_success;
+        let validation = self.validate_commitment_mode();
+        tokio::select! {
+            result = validation => {
+                if exit_on_success || result.is_err() {
+                    return result;
+                }
+                stop_receiver.changed().await.ok();
+                Ok(())
+            },
+            _ = stop_receiver.changed() => Ok(()),
         }
-        Err(err) => anyhow::bail!(err),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
+    use std::{mem, sync::Mutex};
 
-    use assert_matches::assert_matches;
-    use zksync_eth_client::{
-        Block, ContractCall, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
-    };
-    use zksync_types::{
-        web3::types::{BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt},
-        H160, H256, U256, U64,
-    };
+    use jsonrpsee::types::ErrorObject;
+    use zksync_eth_client::clients::MockEthereum;
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_types::{ethabi, U256};
+    use zksync_web3_decl::error::EnrichedClientError;
 
     use super::*;
-    use crate::genesis::{insert_genesis_batch, GenesisParams};
 
     #[tokio::test]
     async fn test_binary_search() {
@@ -273,270 +328,130 @@ mod tests {
         assert_eq!(l1_batch, None);
     }
 
-    #[derive(Debug)]
-    struct MockEthereumForCommitGenerationMode {
-        retval: Vec<ethabi::Token>,
-        // Can't copy `Error` so use internal mutability to `take` it.
-        // This means the the error is one use, reload if you need a second call.
-        // We also can't use `RefCell`, since `EthInterface` requires implementors to be `Sync` and
-        // `Send`.
-        error: Mutex<Option<EthClientError>>,
+    fn mock_ethereum(token: ethabi::Token, err: Option<EthClientError>) -> MockEthereum {
+        let err_mutex = Mutex::new(err);
+        MockEthereum::default().with_fallible_call_handler(move |_, _| {
+            let err = mem::take(&mut *err_mutex.lock().unwrap());
+            if let Some(err) = err {
+                Err(err)
+            } else {
+                Ok(token.clone())
+            }
+        })
     }
 
-    impl MockEthereumForCommitGenerationMode {
-        fn with_retval(retval: Vec<ethabi::Token>) -> Self {
-            Self {
-                retval,
-                error: Mutex::new(None),
-            }
-        }
-
-        fn with_error(error: EthClientError) -> Self {
-            Self {
-                retval: Vec::new(),
-                error: Mutex::new(Some(error)),
-            }
-        }
-
-        fn with_contract_error() -> Self {
-            Self::with_error(EthClientError::Contract(
-                zksync_types::web3::contract::Error::InterfaceUnsupported,
-            ))
-        }
-
-        fn with_tx_error() -> Self {
-            Self::with_error(EthClientError::EthereumGateway(
-                zksync_types::web3::Error::Unreachable,
-            ))
-        }
-
-        fn with_legacy_contract() -> Self {
-            Self::with_contract_error()
-        }
-
-        fn with_rollup_contract() -> Self {
-            Self::with_retval(vec![ethabi::Token::Uint(U256::zero())])
-        }
-
-        fn with_validium_contract() -> Self {
-            Self::with_retval(vec![ethabi::Token::Uint(U256::one())])
-        }
+    fn mock_ethereum_with_legacy_contract() -> MockEthereum {
+        let err = ClientError::Call(ErrorObject::owned(3, "execution reverted: F", None::<()>));
+        let err = EthClientError::EthereumGateway(EnrichedClientError::new(err, "call"));
+        mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 
-    #[async_trait]
-    impl EthInterface for MockEthereumForCommitGenerationMode {
-        async fn get_tx_status(
-            &self,
-            _: H256,
-            _: &'static str,
-        ) -> Result<Option<ExecutedTxStatus>, EthClientError> {
-            unimplemented!("Not needed");
-        }
+    fn mock_ethereum_with_transport_error() -> MockEthereum {
+        let err = ClientError::Transport(anyhow::anyhow!("unreachable"));
+        let err = EthClientError::EthereumGateway(EnrichedClientError::new(err, "call"));
+        mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
+    }
 
-        async fn send_raw_tx(&self, _: RawTransactionBytes) -> Result<H256, EthClientError> {
-            unimplemented!("Not needed");
-        }
+    fn mock_ethereum_with_rollup_contract() -> MockEthereum {
+        mock_ethereum(ethabi::Token::Uint(U256::zero()), None)
+    }
 
-        async fn nonce_at_for_account(
-            &self,
-            _: Address,
-            _: BlockNumber,
-            _: &'static str,
-        ) -> Result<U256, EthClientError> {
-            unimplemented!("Not needed");
-        }
+    fn mock_ethereum_with_validium_contract() -> MockEthereum {
+        mock_ethereum(ethabi::Token::Uint(U256::one()), None)
+    }
 
-        async fn base_fee_history(
-            &self,
-            _: usize,
-            _: usize,
-            _: &'static str,
-        ) -> Result<Vec<u64>, EthClientError> {
-            unimplemented!("Not needed");
-        }
-
-        async fn get_pending_block_base_fee_per_gas(
-            &self,
-            _: &'static str,
-        ) -> Result<U256, EthClientError> {
-            unimplemented!("Not needed");
-        }
-
-        async fn get_gas_price(&self, _: &'static str) -> Result<U256, EthClientError> {
-            unimplemented!("Not needed");
-        }
-
-        async fn block_number(&self, _: &'static str) -> Result<U64, EthClientError> {
-            unimplemented!("Not needed");
-        }
-
-        async fn failure_reason(&self, _: H256) -> Result<Option<FailureInfo>, EthClientError> {
-            unimplemented!("Not needed");
-        }
-
-        async fn get_tx(
-            &self,
-            _: H256,
-            _: &'static str,
-        ) -> Result<Option<Transaction>, EthClientError> {
-            unimplemented!("Not needed");
-        }
-
-        async fn tx_receipt(
-            &self,
-            _: H256,
-            _: &'static str,
-        ) -> Result<Option<TransactionReceipt>, EthClientError> {
-            unimplemented!("Not needed");
-        }
-
-        async fn eth_balance(&self, _: H160, _: &'static str) -> Result<U256, EthClientError> {
-            unimplemented!("Not needed");
-        }
-
-        async fn call_contract_function(
-            &self,
-            _: ContractCall,
-        ) -> Result<Vec<ethabi::Token>, EthClientError> {
-            let mut error = None;
-            core::mem::swap(&mut *self.error.lock().unwrap(), &mut error);
-            if let Some(error) = error {
-                return Err(error);
-            }
-            Ok(self.retval.clone())
-        }
-
-        async fn logs(&self, _: Filter, _: &'static str) -> Result<Vec<Log>, EthClientError> {
-            unimplemented!("Not needed");
-        }
-
-        async fn block(
-            &self,
-            _: BlockId,
-            _: &'static str,
-        ) -> Result<Option<Block<H256>>, EthClientError> {
-            unimplemented!("Not needed");
+    fn commitment_task(
+        expected_mode: L1BatchCommitmentMode,
+        eth_client: MockEthereum,
+    ) -> L1BatchCommitmentModeValidationTask {
+        let diamond_proxy_address = Address::repeat_byte(0x01);
+        L1BatchCommitmentModeValidationTask {
+            diamond_proxy_address,
+            expected_mode,
+            eth_client: Box::new(eth_client),
+            exit_on_success: true,
+            retry_interval: Duration::ZERO,
         }
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_succeeds_when_both_match() {
-        let addr = Address::repeat_byte(0x01);
-        assert_matches!(
-            ensure_l1_batch_commit_data_generation_mode(
-                L1BatchCommitDataGeneratorMode::Rollup,
-                addr,
-                &MockEthereumForCommitGenerationMode::with_rollup_contract(),
-            )
-            .await,
-            Ok(())
+        let task = commitment_task(
+            L1BatchCommitmentMode::Rollup,
+            mock_ethereum_with_rollup_contract(),
         );
-        assert_matches!(
-            ensure_l1_batch_commit_data_generation_mode(
-                L1BatchCommitDataGeneratorMode::Validium,
-                addr,
-                &MockEthereumForCommitGenerationMode::with_validium_contract(),
-            )
-            .await,
-            Ok(())
+        task.validate_commitment_mode().await.unwrap();
+
+        let task = commitment_task(
+            L1BatchCommitmentMode::Validium,
+            mock_ethereum_with_validium_contract(),
         );
+        task.validate_commitment_mode().await.unwrap();
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_succeeds_on_legacy_contracts() {
-        let addr = Address::repeat_byte(0x01);
-        assert_matches!(
-            ensure_l1_batch_commit_data_generation_mode(
-                L1BatchCommitDataGeneratorMode::Rollup,
-                addr,
-                &MockEthereumForCommitGenerationMode::with_legacy_contract(),
-            )
-            .await,
-            Ok(())
+        let task = commitment_task(
+            L1BatchCommitmentMode::Rollup,
+            mock_ethereum_with_legacy_contract(),
         );
-        assert_matches!(
-            ensure_l1_batch_commit_data_generation_mode(
-                L1BatchCommitDataGeneratorMode::Validium,
-                addr,
-                &MockEthereumForCommitGenerationMode::with_legacy_contract(),
-            )
-            .await,
-            Ok(())
+        task.validate_commitment_mode().await.unwrap();
+
+        let task = commitment_task(
+            L1BatchCommitmentMode::Validium,
+            mock_ethereum_with_legacy_contract(),
         );
+        task.validate_commitment_mode().await.unwrap();
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_fails_on_mismatch() {
-        let addr = Address::repeat_byte(0x01);
-        assert_eq!(
-            ensure_l1_batch_commit_data_generation_mode(
-                L1BatchCommitDataGeneratorMode::Validium,
-                addr,
-                &MockEthereumForCommitGenerationMode::with_rollup_contract(),
-            ).await.unwrap_err().to_string(),
-            "The selected L1BatchCommitDataGeneratorMode (Validium) does not match the commitment mode used on L1 contract (Rollup)",
+        let task = commitment_task(
+            L1BatchCommitmentMode::Validium,
+            mock_ethereum_with_rollup_contract(),
         );
-        assert_eq!(
-            ensure_l1_batch_commit_data_generation_mode(
-                L1BatchCommitDataGeneratorMode::Rollup,
-                addr,
-                &MockEthereumForCommitGenerationMode::with_validium_contract(),
-            ).await.unwrap_err().to_string(),
-            "The selected L1BatchCommitDataGeneratorMode (Rollup) does not match the commitment mode used on L1 contract (Validium)",
+        let err = task
+            .validate_commitment_mode()
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("commitment mode"), "{err}");
+
+        let task = commitment_task(
+            L1BatchCommitmentMode::Rollup,
+            mock_ethereum_with_validium_contract(),
         );
+        let err = task
+            .validate_commitment_mode()
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("commitment mode"), "{err}");
     }
 
     #[tokio::test]
-    async fn ensure_l1_batch_commit_data_generation_mode_fails_on_request_failure() {
-        let addr = Address::repeat_byte(0x01);
-        assert_eq!(
-            ensure_l1_batch_commit_data_generation_mode(
-                L1BatchCommitDataGeneratorMode::Rollup,
-                addr,
-                &MockEthereumForCommitGenerationMode::with_tx_error(),
-            )
-            .await
-            .unwrap_err()
-            .to_string(),
-            "Request to ethereum gateway failed: Server is unreachable",
+    async fn ensure_l1_batch_commit_data_generation_mode_recovers_from_request_failure() {
+        let task = commitment_task(
+            L1BatchCommitmentMode::Rollup,
+            mock_ethereum_with_transport_error(),
         );
-        assert_eq!(
-            ensure_l1_batch_commit_data_generation_mode(
-                L1BatchCommitDataGeneratorMode::Validium,
-                addr,
-                &MockEthereumForCommitGenerationMode::with_tx_error(),
-            )
-            .await
-            .unwrap_err()
-            .to_string(),
-            "Request to ethereum gateway failed: Server is unreachable",
-        );
+        task.validate_commitment_mode().await.unwrap();
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_fails_on_parse_error() {
-        let addr = Address::repeat_byte(0x01);
-        assert_eq!(
-            ensure_l1_batch_commit_data_generation_mode(
-                L1BatchCommitDataGeneratorMode::Rollup,
-                addr,
-                &MockEthereumForCommitGenerationMode::with_retval(vec![]),
-            )
-            .await
-            .unwrap_err()
-            .to_string(),
-            "Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract",
+        let task = commitment_task(
+            L1BatchCommitmentMode::Rollup,
+            mock_ethereum(ethabi::Token::String("what".into()), None),
         );
-        assert_eq!(
-            ensure_l1_batch_commit_data_generation_mode(
-                L1BatchCommitDataGeneratorMode::Validium,
-                addr,
-                &MockEthereumForCommitGenerationMode::with_retval(vec![]),
-            )
+        let err = task
+            .validate_commitment_mode()
             .await
             .unwrap_err()
-            .to_string(),
-            "Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract",
+            .to_string();
+        assert!(
+            err.contains("L1BatchCommitDataGeneratorMode::from_tokens"),
+            "{err}",
         );
     }
 }
