@@ -63,7 +63,8 @@ impl Options {
 }
 
 /// Common Web3 interface, as seen by the core applications.
-/// Encapsulates the raw Web3 interaction, providing a high-level interface.
+/// Encapsulates the raw Web3 interaction, providing a high-level interface. Acts as an extension
+/// trait implemented for L1 / Ethereum [clients](zksync_web3_decl::client::Client).
 ///
 /// ## Trait contents
 ///
@@ -73,10 +74,6 @@ impl Options {
 /// contract or account address. For that, you can use the `BoundEthInterface` trait.
 #[async_trait]
 pub trait EthInterface: Sync + Send {
-    fn component(&self) -> &'static str {
-        "" // FIXME
-    }
-
     /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
     /// the *expected* L1 chain ID).
     async fn fetch_chain_id(&self) -> Result<L1ChainId, Error>;
