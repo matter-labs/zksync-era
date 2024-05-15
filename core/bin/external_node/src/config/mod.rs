@@ -734,7 +734,9 @@ pub(crate) struct ExperimentalENConfig {
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
-    /// Approximate chunk size (measured in the number of entries) to recover on a single iteration.
+
+    // Snapshot recovery
+    /// Approximate chunk size (measured in the number of entries) to recover in a single iteration.
     /// Reasonable values are order of 100,000 (meaning an iteration takes several seconds).
     ///
     /// **Important.** This value cannot be changed in the middle of tree recovery (i.e., if a node is stopped in the middle

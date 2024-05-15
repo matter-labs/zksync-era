@@ -206,6 +206,7 @@ impl Node {
 impl TreeTags {
     /// Tags are serialized as a length-prefixed list of `(&str, &str)` tuples, where each
     /// `&str` is length-prefixed as well. All lengths are encoded using LEB128.
+    /// Custom tag keys are prefixed with `custom.` to ensure they don't intersect with standard tags.
     fn deserialize(bytes: &mut &[u8]) -> Result<Self, DeserializeError> {
         let tag_count = leb128::read::unsigned(bytes).map_err(DeserializeErrorKind::Leb128)?;
         let mut architecture = None;
