@@ -538,9 +538,29 @@ impl TransactionsDal<'_, '_> {
                 "#,
                 &tx_hashes as &[&[u8]],
             )
-            .instrument("mark_txs_as_executed_in_l2_block#remove_old_txs")
+            .instrument("mark_txs_as_executed_in_l2_block#remove_old_txs_with_hashes")
             .execute(&mut transaction)
             .await?;
+            for tx in transactions {
+                let Some(nonce) = tx.transaction.nonce() else {
+                    // Nonce is missing for L1 and upgrade txs, they can be skipped in this loop.
+                    continue;
+                };
+                let initiator = tx.transaction.initiator_account();
+                sqlx::query!(
+                    r#"
+                    DELETE FROM transactions
+                    WHERE
+                        initiator_address = $1
+                        AND nonce = $2
+                    "#,
+                    initiator.as_bytes(),
+                    nonce.0 as i32,
+                )
+                .instrument("mark_txs_as_executed_in_l2_block#remove_old_txs_with_addr_and_nonce")
+                .execute(&mut transaction)
+                .await?;
+            }
 
             // Different transaction types have different sets of fields to insert so we handle them separately.
             transaction
