@@ -402,10 +402,10 @@ impl BlocksDal<'_, '_> {
         number_range: ops::RangeInclusive<L1BatchNumber>,
         eth_tx_id: u32,
         aggregation_type: AggregatedActionType,
-    ) -> DalResult<()> {
+    ) -> anyhow::Result<()> {
         match aggregation_type {
             AggregatedActionType::Commit => {
-                sqlx::query!(
+                let result = sqlx::query!(
                     r#"
                     UPDATE l1_batches
                     SET
@@ -413,6 +413,7 @@ impl BlocksDal<'_, '_> {
                         updated_at = NOW()
                     WHERE
                         number BETWEEN $2 AND $3
+                        AND eth_commit_tx_id IS NULL
                     "#,
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
@@ -423,9 +424,15 @@ impl BlocksDal<'_, '_> {
                 .with_arg("eth_tx_id", &eth_tx_id)
                 .execute(self.storage)
                 .await?;
+
+                if result.rows_affected() == 0 {
+                    return Err(anyhow::anyhow!(
+                        "Update eth_commit_tx_id that is is not null is not allowed"
+                    ));
+                }
             }
             AggregatedActionType::PublishProofOnchain => {
-                sqlx::query!(
+                let result = sqlx::query!(
                     r#"
                     UPDATE l1_batches
                     SET
@@ -433,6 +440,7 @@ impl BlocksDal<'_, '_> {
                         updated_at = NOW()
                     WHERE
                         number BETWEEN $2 AND $3
+                        AND eth_prove_tx_id IS NULL
                     "#,
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
@@ -443,9 +451,15 @@ impl BlocksDal<'_, '_> {
                 .with_arg("eth_tx_id", &eth_tx_id)
                 .execute(self.storage)
                 .await?;
+
+                if result.rows_affected() == 0 {
+                    return Err(anyhow::anyhow!(
+                        "Update eth_prove_tx_id that is is not null is not allowed"
+                    ));
+                }
             }
             AggregatedActionType::Execute => {
-                sqlx::query!(
+                let result = sqlx::query!(
                     r#"
                     UPDATE l1_batches
                     SET
@@ -453,6 +467,7 @@ impl BlocksDal<'_, '_> {
                         updated_at = NOW()
                     WHERE
                         number BETWEEN $2 AND $3
+                        AND eth_execute_tx_id IS NULL
                     "#,
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
@@ -463,6 +478,12 @@ impl BlocksDal<'_, '_> {
                 .with_arg("eth_tx_id", &eth_tx_id)
                 .execute(self.storage)
                 .await?;
+
+                if result.rows_affected() == 0 {
+                    return Err(anyhow::anyhow!(
+                        "Update eth_execute_tx_id that is is not null is not allowed"
+                    ));
+                }
             }
         }
         Ok(())
