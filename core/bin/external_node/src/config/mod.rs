@@ -343,11 +343,14 @@ pub(crate) struct OptionalENConfig {
     database_slow_query_threshold_ms: Option<u64>,
 
     // Other config settings
-    /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
-    /// sealing will block until some of the miniblocks from the queue are processed.
+    /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
+    /// sealing will block until some of the L2 blocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
-    #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
-    pub miniblock_seal_queue_capacity: usize,
+    #[serde(
+        alias = "miniblock_seal_queue_capacity",
+        default = "OptionalENConfig::default_l2_block_seal_queue_capacity"
+    )]
+    pub l2_block_seal_queue_capacity: usize,
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
@@ -490,7 +493,7 @@ impl OptionalENConfig {
         10
     }
 
-    const fn default_miniblock_seal_queue_capacity() -> usize {
+    const fn default_l2_block_seal_queue_capacity() -> usize {
         10
     }
 
