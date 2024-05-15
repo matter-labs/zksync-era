@@ -1,4 +1,4 @@
-use zksync_web3_decl::{jsonrpsee::core::RpcResult, namespaces::web3::Web3NamespaceServer};
+use zksync_web3_decl::{jsonrpsee::core::RpcResult, namespaces::Web3NamespaceServer};
 
 use crate::api_server::web3::Web3Namespace;
 
