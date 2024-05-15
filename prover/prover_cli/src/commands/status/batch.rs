@@ -186,7 +186,7 @@ fn is_proof_ongoing(batch_data: &BatchData) -> bool {
     let comprossor_status = batch_data.compressor.witness_generator_jobs_status();
     if let Status::Custom(msg) = comprossor_status {
         if msg.contains("Sent to server") {
-            println!("Proof sent to server");
+            println!("> Proof sent to server ✅");
             return false;
         }
     }
@@ -194,7 +194,7 @@ fn is_proof_ongoing(batch_data: &BatchData) -> bool {
         .basic_witness_generator
         .witness_generator_jobs_status();
     if matches!(basic_witness_generator_status, Status::JobsNotFound) {
-        println!("No batch found.");
+        println!("> No batch found. 🚫");
         return false;
     }
     return true;
