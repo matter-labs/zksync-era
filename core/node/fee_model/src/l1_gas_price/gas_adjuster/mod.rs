@@ -206,7 +206,9 @@ impl GasAdjuster {
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_pubdata_pricing_multiplier;
 
-                self.bound_blob_base_fee(calculated_price)
+                let conversion_rate = self.base_token_fetcher.conversion_rate().unwrap_or(1);
+
+                self.bound_blob_base_fee(calculated_price) * conversion_rate
             }
             PubdataSendingMode::Calldata => {
                 self.estimate_effective_gas_price() * self.pubdata_byte_gas()
