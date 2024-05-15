@@ -40,10 +40,10 @@ pub async fn wait_for_l1_batch(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId, H256};
 
+    use super::*;
     use crate::{ConnectionPool, Core, CoreDal};
 
     #[tokio::test]

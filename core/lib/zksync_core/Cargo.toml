@@ -54,6 +54,9 @@ zksync_node_fee_model.workspace = true
 zksync_state_keeper.workspace = true
 zksync_metadata_calculator.workspace = true
 zksync_node_sync.workspace = true
+zksync_node_consensus.workspace = true
+zksync_contract_verification_server.workspace = true
+zksync_node_api_server.workspace = true
 multivm.workspace = true
 
 # Consensus dependenices

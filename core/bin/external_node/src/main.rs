@@ -12,16 +12,7 @@ use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_consistency_checker::ConsistencyChecker;
-use zksync_core::{
-    api_server::{
-        execution_sandbox::VmConcurrencyLimiter,
-        healthcheck::HealthCheckHandle,
-        tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
-        web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
-    },
-    consensus, setup_sigint_handler,
-    utils::L1BatchCommitmentModeValidationTask,
-};
+use zksync_core::{setup_sigint_handler, utils::L1BatchCommitmentModeValidationTask};
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
@@ -32,6 +23,13 @@ use zksync_metadata_calculator::{
     api_server::{TreeApiClient, TreeApiHttpClient},
     MetadataCalculator, MetadataCalculatorConfig,
 };
+use zksync_node_api_server::{
+    execution_sandbox::VmConcurrencyLimiter,
+    healthcheck::HealthCheckHandle,
+    tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
+    web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
+};
+use zksync_node_consensus as consensus;
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 use zksync_node_sync::{

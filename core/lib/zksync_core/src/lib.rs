@@ -8,7 +8,6 @@ use std::{
 };
 
 use anyhow::Context as _;
-use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
 use temp_config_store::Secrets;
@@ -56,9 +55,13 @@ use zksync_house_keeper::{
 use zksync_metadata_calculator::{
     api_server::TreeApiHttpClient, MetadataCalculator, MetadataCalculatorConfig,
 };
+use zksync_node_api_server::{
+    healthcheck::HealthCheckHandle,
+    tx_sender::{build_tx_sender, TxSenderConfig},
+    web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
+};
 use zksync_node_fee_model::{
-    l1_gas_price::GasAdjusterSingleton, ApiFeeInputProvider, BatchFeeModelInputProvider,
-    MainNodeFeeInputProvider,
+    l1_gas_price::GasAdjusterSingleton, BatchFeeModelInputProvider, MainNodeFeeInputProvider,
 };
 use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -67,25 +70,16 @@ use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
     create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
-    SequencerSealer, StateKeeperPersistence,
+    StateKeeperPersistence,
 };
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 use zksync_web3_decl::client::Client;
 
 use crate::{
-    api_server::{
-        contract_verification,
-        execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
-        healthcheck::HealthCheckHandle,
-        tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
-        web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
-    },
     tee_verifier_input_producer::TeeVerifierInputProducer,
     utils::L1BatchCommitmentModeValidationTask,
 };
 
-pub mod api_server;
-pub mod consensus;
 pub mod proto;
 pub mod tee_verifier_input_producer;
 pub mod temp_config_store;
@@ -460,15 +454,17 @@ pub async fn initialize_components(
         if components.contains(&Component::ContractVerificationApi) {
             let started_at = Instant::now();
             tracing::info!("initializing contract verification REST API");
-            task_futures.push(tokio::spawn(contract_verification::start_server(
-                connection_pool.clone(),
-                replica_connection_pool.clone(),
-                configs
-                    .contract_verifier
-                    .clone()
-                    .context("Contract verifier")?,
-                stop_receiver.clone(),
-            )));
+            task_futures.push(tokio::spawn(
+                zksync_contract_verification_server::start_server(
+                    connection_pool.clone(),
+                    replica_connection_pool.clone(),
+                    configs
+                        .contract_verifier
+                        .clone()
+                        .context("Contract verifier")?,
+                    stop_receiver.clone(),
+                ),
+            ));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::ContractVerificationApi].set(elapsed);
             tracing::info!("initialized contract verification REST API in {elapsed:?}");
@@ -548,7 +544,9 @@ pub async fn initialize_components(
             // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let root_ctx = ctx::root();
             scope::run!(&root_ctx, |ctx, s| async move {
-                s.spawn_bg(consensus::era::run_main_node(ctx, cfg, secrets, pool));
+                s.spawn_bg(zksync_node_consensus::era::run_main_node(
+                    ctx, cfg, secrets, pool,
+                ));
                 let _ = stop_receiver.wait_for(|stop| *stop).await?;
                 Ok(())
             })
@@ -1211,41 +1209,6 @@ fn build_storage_caches(
         task_futures.push(tokio::task::spawn(values_cache_task.run(stop_receiver)));
     }
     Ok(storage_caches)
-}
-
-async fn build_tx_sender(
-    tx_sender_config: &TxSenderConfig,
-    web3_json_config: &Web3JsonRpcConfig,
-    state_keeper_config: &StateKeeperConfig,
-    replica_pool: ConnectionPool<Core>,
-    master_pool: ConnectionPool<Core>,
-    batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    storage_caches: PostgresStorageCaches,
-) -> (TxSender, VmConcurrencyBarrier) {
-    let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
-    let master_pool_sink = MasterPoolSink::new(master_pool);
-    let tx_sender_builder = TxSenderBuilder::new(
-        tx_sender_config.clone(),
-        replica_pool.clone(),
-        Arc::new(master_pool_sink),
-    )
-    .with_sealer(Arc::new(sequencer_sealer));
-
-    let max_concurrency = web3_json_config.vm_concurrency_limit();
-    let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
-
-    let batch_fee_input_provider =
-        ApiFeeInputProvider::new(batch_fee_model_input_provider, replica_pool);
-
-    let tx_sender = tx_sender_builder
-        .build(
-            Arc::new(batch_fee_input_provider),
-            Arc::new(vm_concurrency_limiter),
-            ApiContracts::load_from_disk(),
-            storage_caches,
-        )
-        .await;
-    (tx_sender, vm_barrier)
 }
 
 #[allow(clippy::too_many_arguments)]

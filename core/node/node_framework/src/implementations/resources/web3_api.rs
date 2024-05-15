@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use zksync_core::api_server::{
+use zksync_metadata_calculator::api_server::TreeApiClient;
+use zksync_node_api_server::{
     tx_sender::{tx_sink::TxSink, TxSender},
     web3::mempool_cache::MempoolCache,
 };
-use zksync_metadata_calculator::api_server::TreeApiClient;
 
 use crate::resource::Resource;
 
