@@ -324,7 +324,6 @@ impl Executor {
             .get_balance(paymaster_address, None)
             .await?;
 
-        // TODO: decimals may differ from eth
         tracing::info!(
             "Paymaster balance is {}. Minimum amount {}",
             format(paymaster_balance),

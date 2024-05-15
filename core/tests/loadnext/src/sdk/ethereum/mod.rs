@@ -473,6 +473,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
     /// Performs a deposit in zkSync network.
     /// For ERC20 tokens, a deposit must be approved beforehand via the `EthereumProvider::approve_erc20_token_deposits` method.
+    /// Cannot deposit ETH onto custom base token chains.
     #[allow(clippy::too_many_arguments)]
     pub async fn deposit(
         &self,
@@ -577,6 +578,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 .function("requestL2TransactionTwoBridges")
                 .expect("failed to get function");
 
+            // Does not support depositing ETH onto custom base token chains.
             let params = (
                 U256::from(self.l2_chain_id),
                 base_cost + operator_tip,

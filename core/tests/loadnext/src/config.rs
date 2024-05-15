@@ -45,6 +45,9 @@ pub struct LoadtestConfig {
     ///
     /// Note that we use ERC-20 token since we can't easily mint a lot of ETH on
     /// Testnets without caring about collecting it back.
+    ///
+    /// Don't confuse with `base_token`, which is used instead of ETH
+    /// on custom base token chains.
     #[serde(default = "default_main_token")]
     pub main_token: Address,
 
