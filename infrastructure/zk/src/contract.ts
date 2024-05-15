@@ -124,6 +124,7 @@ async function updateConfigOnSyncLayer() {
         env.modify(contractsVar, process.env[envVar]!, envFile, false);
     }
     env.modify('ETH_CLIENT_WEB3_URL', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    env.modify('L1_RPC_ADDRESS', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
     env.modify('ETH_CLIENT_CHAIN_ID', process.env.SYNC_LAYER_CHAIN_ID!, envFile, false);
 
     env.modify('CHAIN_ETH_NETWORK', 'localhostL2', envFile, false);
