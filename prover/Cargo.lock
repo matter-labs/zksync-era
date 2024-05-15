@@ -7631,7 +7631,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#e554cfaab0821582e289724e8dc2a8fd145ed217"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#c9d3ca5dba6d1125da02c48987a01f0f0f1744e3"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
