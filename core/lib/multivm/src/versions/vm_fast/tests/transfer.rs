@@ -1,6 +1,6 @@
 use ethabi::Token;
 use zksync_contracts::{load_contract, read_bytecode};
-use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
+use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
 use zksync_types::{utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, U256};
 use zksync_utils::u256_to_h256;
 
@@ -89,7 +89,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 
     let new_recipient_balance = get_balance(
-        AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+        AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
         &recipient_address,
         vm.vm.storage.clone(),
         vm.vm.inner.world.get_storage_state(),

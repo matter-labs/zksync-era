@@ -1,6 +1,6 @@
 use zk_evm_1_5_0::zkevm_opcode_defs::p256;
 use zksync_system_constants::P256VERIFY_PRECOMPILE_ADDRESS;
-use zksync_types::{web3::signing::keccak256, Execute, H256, U256};
+use zksync_types::{web3::keccak256, Execute, H256, U256};
 use zksync_utils::h256_to_u256;
 
 use crate::{

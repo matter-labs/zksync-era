@@ -6,12 +6,11 @@
 use zksync_state::WriteStorage;
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
-    block::{pack_block_info, MiniblockHasher},
-    AccountTreeId, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData,
-    MiniblockNumber, ProtocolVersionId, StorageKey, Transaction, H160, H256,
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
-    U256,
+    block::{pack_block_info, L2BlockHasher},
+    AccountTreeId, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData, L2BlockNumber,
+    ProtocolVersionId, StorageKey, Transaction, H160, H256, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
@@ -58,11 +57,11 @@ fn test_l2_block_initialization_timestamp() {
         .with_random_rich_accounts(1)
         .build();
 
-    // Override the timestamp of the current miniblock to be 0.
+    // Override the timestamp of the current L2 block to be 0.
     vm.vm.bootloader_state.push_l2_block(L2BlockEnv {
         number: 1,
         timestamp: 0,
-        prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+        prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
     });
     let l1_tx = get_l1_noop();
@@ -79,13 +78,13 @@ fn test_l2_block_initialization_timestamp() {
 #[test]
 fn test_l2_block_initialization_number_non_zero() {
     // This test checks that the L2 block initialization works correctly.
-    // Here we check that the first miniblock number can not be zero.
+    // Here we check that the first L2 block number can not be zero.
 
     let l1_batch = default_l1_batch(L1BatchNumber(1));
     let first_l2_block = L2BlockEnv {
         number: 0,
         timestamp: l1_batch.timestamp,
-        prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+        prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
     };
 
@@ -242,7 +241,7 @@ fn test_l2_block_new_l2_block() {
     let correct_first_block = L2BlockEnv {
         number: 1,
         timestamp: 1,
-        prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+        prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
     };
 
@@ -336,7 +335,7 @@ fn test_first_in_batch(
     );
     storage_ptr.borrow_mut().set_value(
         prev_block_hash_position,
-        MiniblockHasher::legacy_hash(MiniblockNumber(miniblock_number - 1)),
+        L2BlockHasher::legacy_hash(L2BlockNumber(miniblock_number - 1)),
     );
 
     // In order to skip checks from the Rust side of the VM, we firstly use some definitely correct L2 block info.
@@ -364,8 +363,8 @@ fn test_first_in_batch(
 
 #[test]
 fn test_l2_block_first_in_batch() {
-    let prev_block_hash = MiniblockHasher::legacy_hash(MiniblockNumber(0));
-    let prev_block_hash = MiniblockHasher::new(MiniblockNumber(1), 1, prev_block_hash)
+    let prev_block_hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
+    let prev_block_hash = L2BlockHasher::new(L2BlockNumber(1), 1, prev_block_hash)
         .finalize(ProtocolVersionId::latest());
     test_first_in_batch(
         1,
@@ -383,8 +382,8 @@ fn test_l2_block_first_in_batch() {
         None,
     );
 
-    let prev_block_hash = MiniblockHasher::legacy_hash(MiniblockNumber(0));
-    let prev_block_hash = MiniblockHasher::new(MiniblockNumber(1), 8, prev_block_hash)
+    let prev_block_hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
+    let prev_block_hash = L2BlockHasher::new(L2BlockNumber(1), 8, prev_block_hash)
         .finalize(ProtocolVersionId::latest());
     test_first_in_batch(
         8,
