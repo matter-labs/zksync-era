@@ -6,16 +6,6 @@ use circuit_sequencer_api::proof::FinalProof;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::task::JoinHandle;
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
-use zkevm_test_harness_1_3_3::{
-    abstract_zksync_circuit::concrete_circuits::{
-        ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
-    },
-    bellman::{
-        bn256::Bn256,
-        plonk::better_better_cs::{proof::Proof, setup::VerificationKey as SnarkVerificationKey},
-    },
-    witness::oracle::VmWitnessOracle,
-};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -38,7 +28,6 @@ pub struct ProofCompressor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Prover>,
     compression_mode: u8,
-    verify_wrapper_proof: bool,
     max_attempts: u32,
     protocol_version: ProtocolVersionId,
 }
@@ -48,7 +37,6 @@ impl ProofCompressor {
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Prover>,
         compression_mode: u8,
-        verify_wrapper_proof: bool,
         max_attempts: u32,
         protocol_version: ProtocolVersionId,
     ) -> Self {
@@ -56,7 +44,6 @@ impl ProofCompressor {
             blob_store,
             pool,
             compression_mode,
-            verify_wrapper_proof,
             max_attempts,
             protocol_version,
         }
@@ -65,7 +52,6 @@ impl ProofCompressor {
     pub fn compress_proof(
         proof: ZkSyncRecursionLayerProof,
         compression_mode: u8,
-        verify_wrapper_proof: bool,
     ) -> anyhow::Result<FinalProof> {
         let keystore = Keystore::default();
         let scheduler_vk = keystore
@@ -80,29 +66,6 @@ impl ProofCompressor {
         // (Re)serialization should always succeed.
         let serialized = bincode::serialize(&inner)
             .expect("Failed to serialize proof with ZkSyncSnarkWrapperCircuit");
-
-        if verify_wrapper_proof {
-            // If we want to verify the proof, we have to deserialize it, with proper type.
-            // So that we can pass it into `from_proof_and_numeric_type` method below.
-            let proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>> =
-                bincode::deserialize(&serialized)
-                    .expect("Failed to deserialize proof with ZkSyncCircuit");
-            // We're fetching the key as String and deserializing it here
-            // as we don't want to include the old version of prover in the main libraries.
-            let existing_vk_serialized = keystore
-                .load_snark_verification_key()
-                .context("get_snark_vk()")?;
-            let existing_vk = serde_json::from_str::<
-                SnarkVerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
-            >(&existing_vk_serialized)?;
-
-            let vk = ZkSyncVerificationKey::from_verification_key_and_numeric_type(0, existing_vk);
-            let scheduler_proof = ZkSyncProof::from_proof_and_numeric_type(0, proof.clone());
-            match vk.verify_proof(&scheduler_proof) {
-                true => tracing::info!("Compressed proof verified successfully"),
-                false => anyhow::bail!("Compressed proof verification failed "),
-            }
-        }
 
         // For sending to L1, we can use the `FinalProof` type, that has a generic circuit inside, that is not used for serialization.
         // So `FinalProof` and `Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>` are compatible on serialization bytecode level.
@@ -185,11 +148,10 @@ impl JobProcessor for ProofCompressor {
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let compression_mode = self.compression_mode;
-        let verify_wrapper_proof = self.verify_wrapper_proof;
         let block_number = *job_id;
         tokio::task::spawn_blocking(move || {
             let _span = tracing::info_span!("compress", %block_number).entered();
-            Self::compress_proof(job, compression_mode, verify_wrapper_proof)
+            Self::compress_proof(job, compression_mode)
         })
     }
 
