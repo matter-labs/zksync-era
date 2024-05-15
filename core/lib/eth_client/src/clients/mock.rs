@@ -292,7 +292,7 @@ impl MockEthereumBuilder {
         let call_handler = self.call_handler.clone();
 
         MockClient::builder(CHAIN_ID.into())
-            .method("eth_chainId", || Ok(CHAIN_ID))
+            .method("eth_chainId", || Ok(U64::from(CHAIN_ID.0)))
             .method("eth_blockNumber", {
                 let this = self.clone();
                 move || Ok(U64::from(this.inner.read().unwrap().block_number))
@@ -535,13 +535,34 @@ mod tests {
 
     #[tokio::test]
     async fn managing_block_number() {
-        let mock = MockEthereum::builder().build();
+        let mock = MockEthereum::builder()
+            .with_fee_history(vec![0, 1, 2, 3, 4])
+            .build();
         let block_number = mock.client.block_number().await.unwrap();
         assert_eq!(block_number, 0.into());
 
         mock.advance_block_number(5);
         let block_number = mock.client.block_number().await.unwrap();
         assert_eq!(block_number, 5.into());
+
+        for number in 0..=4 {
+            let block_number = web3::BlockNumber::Number(number.into()).into();
+            let block = mock
+                .client
+                .block(block_number)
+                .await
+                .unwrap()
+                .expect("no block");
+            assert_eq!(block.number, Some(number.into()));
+            assert_eq!(block.base_fee_per_gas.unwrap(), U256::from(number));
+        }
+    }
+
+    #[tokio::test]
+    async fn getting_chain_id() {
+        let mock = MockEthereum::builder().build();
+        let chain_id = mock.client.fetch_chain_id().await.unwrap();
+        assert_eq!(chain_id, L1ChainId(9));
     }
 
     #[tokio::test]
