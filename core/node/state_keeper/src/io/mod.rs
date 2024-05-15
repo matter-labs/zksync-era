@@ -21,7 +21,7 @@ pub mod common;
 pub(crate) mod mempool;
 mod output_handler;
 mod persistence;
-pub(crate) mod seal_logic;
+pub mod seal_logic;
 #[cfg(test)]
 mod tests;
 

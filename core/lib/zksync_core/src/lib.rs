@@ -69,8 +69,8 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
-    create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
-    StateKeeperPersistence,
+    create_state_keeper, io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
+    AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler, StateKeeperPersistence,
 };
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 use zksync_web3_decl::client::Client;
@@ -818,10 +818,14 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    let l2_block_sealer_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
-        .build()
-        .await
-        .context("failed to build l2_block_sealer_pool")?;
+    // L2 Block sealing process is parallelized, so we have to provide enough pooled connections.
+    let l2_block_sealer_pool = ConnectionPool::<Core>::builder(
+        postgres_config.master_url()?,
+        L2BlockSealProcess::subtasks_len(),
+    )
+    .build()
+    .await
+    .context("failed to build l2_block_sealer_pool")?;
     let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
         l2_block_sealer_pool,
         contracts_config

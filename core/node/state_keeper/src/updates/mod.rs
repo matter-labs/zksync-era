@@ -180,7 +180,7 @@ impl UpdatesManager {
 
 /// Command to seal an L2 block containing all necessary data for it.
 #[derive(Debug)]
-pub(crate) struct L2BlockSealCommand {
+pub struct L2BlockSealCommand {
     pub l1_batch_number: L1BatchNumber,
     pub l2_block: L2BlockUpdates,
     pub first_tx_index: usize,

@@ -32,6 +32,7 @@ async-trait.workspace = true
 tokio = { workspace = true, features = ["time"] }
 thiserror.workspace = true
 tracing.workspace = true
+futures.workspace = true
 once_cell.workspace = true
 itertools.workspace = true
 hex.workspace = true

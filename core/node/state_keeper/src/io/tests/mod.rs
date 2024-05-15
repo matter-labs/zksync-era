@@ -19,7 +19,7 @@ use zksync_utils::time::seconds_since_epoch;
 
 use self::tester::Tester;
 use crate::{
-    io::StateKeeperIO,
+    io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperIO},
     mempool_actor::l2_tx_filter,
     testonly::BASE_SYSTEM_CONTRACTS,
     tests::{create_execution_result, create_transaction, Query},
@@ -218,7 +218,8 @@ async fn l1_batch_timestamp_respects_prev_l2_block_with_clock_skew(
 
 #[tokio::test]
 async fn processing_storage_logs_when_sealing_l2_block() {
-    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let connection_pool =
+        ConnectionPool::<Core>::constrained_test_pool(L2BlockSealProcess::subtasks_len()).await;
     let mut l2_block = L2BlockUpdates::new(
         0,
         L2BlockNumber(3),
@@ -285,12 +286,16 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         l2_shared_bridge_addr: Address::default(),
         pre_insert_txs: false,
     };
-    let mut conn = connection_pool.connection().await.unwrap();
-    conn.protocol_versions_dal()
+    connection_pool
+        .connection()
+        .await
+        .unwrap()
+        .protocol_versions_dal()
         .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
-    seal_command.seal(&mut conn).await.unwrap();
+    seal_command.seal(connection_pool.clone()).await.unwrap();
+    let mut conn = connection_pool.connection().await.unwrap();
 
     // Manually mark the L2 block as executed so that getting touched slots from it works
     conn.blocks_dal()
@@ -321,11 +326,13 @@ async fn processing_storage_logs_when_sealing_l2_block() {
 
 #[tokio::test]
 async fn processing_events_when_sealing_l2_block() {
-    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let pool =
+        ConnectionPool::<Core>::constrained_test_pool(L2BlockSealProcess::subtasks_len()).await;
     let l1_batch_number = L1BatchNumber(2);
+    let l2_block_number = L2BlockNumber(3);
     let mut l2_block = L2BlockUpdates::new(
         0,
-        L2BlockNumber(3),
+        l2_block_number,
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
@@ -368,16 +375,19 @@ async fn processing_events_when_sealing_l2_block() {
         l2_shared_bridge_addr: Address::default(),
         pre_insert_txs: false,
     };
-    let mut conn = pool.connection().await.unwrap();
-    conn.protocol_versions_dal()
+    pool.connection()
+        .await
+        .unwrap()
+        .protocol_versions_dal()
         .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
-    seal_command.seal(&mut conn).await.unwrap();
+    seal_command.seal(pool.clone()).await.unwrap();
+    let mut conn = pool.connection().await.unwrap();
 
     let logs = conn
         .events_web3_dal()
-        .get_all_logs(seal_command.l2_block.number - 1)
+        .get_all_logs(l2_block_number - 1)
         .await
         .unwrap();
 

@@ -182,6 +182,9 @@ mod tests {
     async fn getting_transaction_nonces() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
 
         let transaction = create_l2_transaction(10, 100);
         let transaction_initiator = transaction.initiator_account();
