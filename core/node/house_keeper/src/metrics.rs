@@ -102,14 +102,21 @@ pub(crate) struct ServerMetrics {
     pub prover_fri_requeued_jobs: Counter<u64>,
     pub requeued_jobs: Family<WitnessType, Counter<u64>>,
     #[metrics(labels = ["type", "round"])]
-    pub witness_generator_jobs_by_round: LabeledFamily<(&'static str, String), Gauge<u64>, 2>,
-    #[metrics(labels = ["type"])]
-    pub witness_generator_jobs: LabeledFamily<&'static str, Gauge<u64>>,
+    pub fri_witness_generator_jobs_by_round: LabeledFamily<(&'static str, String), Gauge<u64>, 2>,
     pub leaf_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
     pub node_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-    pub recursion_tip_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
+    pub recursion_tip_witness_generator_waiting_to_queued_jobspostgres_transitions: Counter<u64>,
     pub scheduler_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
 }
 
 #[vise::register]
 pub(crate) static SERVER_METRICS: vise::Global<ServerMetrics> = vise::Global::new();
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "server_fri")]
+pub(crate) struct ServerFriMetrics {
+    #[metrics(labels = ["type"])]
+    pub witness_generator_jobs: LabeledFamily<&'static str, Gauge<u64>>,
+}
+#[vise::register]
+pub(crate) static SERVER_FRI_METRICS: vise::Global<ServerFriMetrics> = vise::Global::new();
