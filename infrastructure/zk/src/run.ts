@@ -56,7 +56,7 @@ export async function tokenInfo(address: string) {
 
 // installs all dependencies
 export async function yarn() {
-    await utils.spawn('yarn install --frozen-lockfile');
+    await utils.spawn('run_retried yarn install --frozen-lockfile');
 }
 
 export async function revertReason(txHash: string, web3url?: string) {

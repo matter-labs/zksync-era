@@ -5,7 +5,8 @@ use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
+        correct_circuit_id, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo,
+        ProverJobStatus, StuckJobs,
     },
     L1BatchNumber,
 };
@@ -670,7 +671,8 @@ impl FriProverDal<'_, '_> {
         .map(|row| ProverJobFriInfo {
             id: row.id as u32,
             l1_batch_number,
-            circuit_id: row.circuit_id as u32,
+            // It is necessary to correct the circuit IDs due to the discrepancy between different aggregation rounds.
+            circuit_id: correct_circuit_id(row.circuit_id, aggregation_round),
             circuit_blob_url: row.circuit_blob_url.clone(),
             aggregation_round,
             sequence_number: row.sequence_number as u32,
