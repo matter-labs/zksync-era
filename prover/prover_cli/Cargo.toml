@@ -32,3 +32,4 @@ zksync_dal.workspace = true
 strum.workspace = true
 colored.workspace = true
 sqlx.workspace = true
+circuit_definitions.workspace = true
