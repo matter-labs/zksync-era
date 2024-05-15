@@ -255,6 +255,7 @@ impl Default for MockEthereumBuilder {
 }
 
 impl MockEthereumBuilder {
+    /// Sets fee history for each block in the mocked Ethereum network, starting from the 0th block.
     pub fn with_fee_history(self, history: Vec<u64>) -> Self {
         Self {
             base_fee_history: history,
@@ -262,6 +263,7 @@ impl MockEthereumBuilder {
         }
     }
 
+    /// Sets the excess blob gas history for each block in the mocked Ethereum network, starting from the 0th block.
     pub fn with_excess_blob_gas_history(self, history: Vec<u64>) -> Self {
         Self {
             excess_blob_gas_history: history,
@@ -276,6 +278,8 @@ impl MockEthereumBuilder {
         }
     }
 
+    /// Sets the `eth_call` handler. There are "standard" calls that will not be routed to the handler
+    /// (e.g., calls to determine transaction failure reason).
     pub fn with_call_handler<F>(self, call_handler: F) -> Self
     where
         F: 'static + Send + Sync + Fn(&web3::CallRequest, BlockId) -> ethabi::Token,
@@ -286,6 +290,8 @@ impl MockEthereumBuilder {
         }
     }
 
+    /// Same as [`Self::with_call_handler()`], with a difference that the provided closure should return a `Result`.
+    /// Thus, it can emulate network errors, reversions etc.
     pub fn with_fallible_call_handler<F>(self, call_handler: F) -> Self
     where
         F: 'static
@@ -410,6 +416,7 @@ impl MockEthereumBuilder {
             .build()
     }
 
+    /// Builds a mock Ethereum client.
     pub fn build(self) -> MockEthereum {
         MockEthereum {
             max_fee_per_gas: self.max_fee_per_gas,
@@ -446,7 +453,7 @@ impl MockEthereum {
     }
 
     /// A fake `sha256` hasher, which calculates an `std::hash` instead.
-    /// This is done for simplicity and it's also much faster.
+    /// This is done for simplicity, and it's also much faster.
     fn fake_sha256(data: &[u8]) -> H256 {
         use std::{collections::hash_map::DefaultHasher, hash::Hasher};
 
@@ -461,6 +468,7 @@ impl MockEthereum {
         self.inner.read().unwrap().sent_txs.len()
     }
 
+    /// Signs a prepared transaction.
     pub fn sign_prepared_tx(
         &self,
         mut raw_tx: Vec<u8>,
@@ -511,12 +519,14 @@ impl MockEthereum {
         MockExecutedTxHandle { inner, tx_hash }
     }
 
+    /// Increases the block number in the network by the specified value.
     pub fn advance_block_number(&self, val: u64) -> u64 {
         let mut inner = self.inner.write().unwrap();
         inner.block_number += val;
         inner.block_number
     }
 
+    /// Converts this client into an immutable / contract-agnostic client.
     pub fn into_client(self) -> MockClient<L1> {
         self.client
     }
