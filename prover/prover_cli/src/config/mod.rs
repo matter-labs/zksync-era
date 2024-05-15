@@ -10,8 +10,8 @@ pub fn get_envfile() -> anyhow::Result<String> {
 pub fn load_envfile(path: impl AsRef<std::path::Path>) -> anyhow::Result<()> {
     std::fs::read_to_string(path)?
         .lines()
-        .filter(|l| !l.starts_with("#"))
-        .filter_map(|l| l.split_once("="))
+        .filter(|l| !l.starts_with('#'))
+        .filter_map(|l| l.split_once('='))
         .for_each(|(k, v)| std::env::set_var(k, v));
 
     Ok(())
