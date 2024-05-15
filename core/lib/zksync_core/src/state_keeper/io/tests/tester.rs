@@ -175,6 +175,8 @@ impl Tester {
                 L2BlockNumber(number),
                 slice::from_ref(&tx_result),
                 1.into(),
+                ProtocolVersionId::latest(),
+                false,
             )
             .await
             .unwrap();
