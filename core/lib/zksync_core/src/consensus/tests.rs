@@ -37,7 +37,7 @@ async fn test_validator_block_store() {
         // Start state keeper.
         let (mut sk, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run(ctx));
-        sk.push_random_blocks(rng, 10).await;
+        sk.push_random_blocks_and_seal(rng, 10).await;
         pool.wait_for_payload(ctx, sk.last_block()).await?;
         let mut setup = SetupSpec::new(rng, 3);
         setup.first_block = validator::BlockNumber(4);
@@ -105,7 +105,7 @@ async fn test_validator(from_snapshot: bool) {
         s.spawn_bg(runner.run(ctx));
 
         tracing::info!("Populate storage with a bunch of blocks.");
-        sk.push_random_blocks(rng, 5).await;
+        sk.push_random_blocks_and_seal(rng, 5).await;
         pool
             .wait_for_payload(ctx, sk.last_block())
             .await
@@ -121,7 +121,7 @@ async fn test_validator(from_snapshot: bool) {
                 s.spawn_bg(run_main_node(ctx, cfg, secrets, pool.clone()));
 
                 tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
-                sk.push_random_blocks(rng, 3).await;
+                sk.push_random_blocks_and_seal(rng, 3).await;
                 pool
                     .wait_for_certificate(ctx, sk.last_block())
                     .await
@@ -129,7 +129,7 @@ async fn test_validator(from_snapshot: bool) {
 
                 tracing::info!("Synchronously produce blocks one by one, and wait for consensus.");
                 for _ in 0..2 {
-                    sk.push_random_blocks(rng, 1).await;
+                    sk.push_random_blocks_and_seal(rng, 1).await;
                     pool
                         .wait_for_certificate(ctx, sk.last_block())
                         .await
@@ -171,8 +171,7 @@ async fn test_nodes_from_various_snapshots() {
         s.spawn_bg(run_main_node(ctx, cfg, secrets, validator_pool.clone()));
 
         tracing::info!("produce some batches");
-        validator.push_random_blocks(rng, 5).await;
-        validator.seal_batch().await;
+        validator.push_random_blocks_and_seal(rng, 5).await;
         validator_pool
             .wait_for_certificate(ctx, validator.last_block())
             .await?;
@@ -189,8 +188,7 @@ async fn test_nodes_from_various_snapshots() {
         });
 
         tracing::info!("produce more batches");
-        validator.push_random_blocks(rng, 5).await;
-        validator.seal_batch().await;
+        validator.push_random_blocks_and_seal(rng, 5).await;
         node_pool
             .wait_for_certificate(ctx, validator.last_block())
             .await?;
@@ -207,7 +205,7 @@ async fn test_nodes_from_various_snapshots() {
         });
 
         tracing::info!("produce more blocks and compare storages");
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks_and_seal(rng, 5).await;
         let want = validator_pool
             .wait_for_certificates_and_verify(ctx, validator.last_block())
             .await?;
@@ -265,7 +263,7 @@ async fn test_full_nodes(from_snapshot: bool) {
                 .context("validator")
         });
         tracing::info!("Generate a couple of blocks, before initializing consensus genesis.");
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks_and_seal(rng, 5).await;
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;
         validator_pool
@@ -297,7 +295,7 @@ async fn test_full_nodes(from_snapshot: bool) {
 
         tracing::info!("Make validator produce blocks and wait for fetchers to get them.");
         // Note that block from before and after genesis have to be fetched.
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks_and_seal(rng, 5).await;
         let want_last = validator.last_block();
         let want = validator_pool
             .wait_for_certificates_and_verify(ctx, want_last)
@@ -340,7 +338,7 @@ async fn test_en_validators(from_snapshot: bool) {
                 .context("main_node")
         });
         tracing::info!("Generate a couple of blocks, before initializing consensus genesis.");
-        main_node.push_random_blocks(rng, 5).await;
+        main_node.push_random_blocks_and_seal(rng, 5).await;
         // API server needs at least 1 L1 batch to start.
         main_node.seal_batch().await;
         main_node_pool
@@ -383,7 +381,7 @@ async fn test_en_validators(from_snapshot: bool) {
         }
 
         tracing::info!("Make the main node produce blocks and wait for consensus to finalize them");
-        main_node.push_random_blocks(rng, 5).await;
+        main_node.push_random_blocks_and_seal(rng, 5).await;
         let want_last = main_node.last_block();
         let want = main_node_pool
             .wait_for_certificates_and_verify(ctx, want_last)
@@ -421,6 +419,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
         let (cfg, secrets) = testonly::config(&validator_cfg);
         s.spawn_bg(run_main_node(ctx, cfg, secrets, validator_pool.clone()));
         // API server needs at least 1 L1 batch to start.
+        validator.push_block(1).await;
         validator.seal_batch().await;
         let client = validator.connect(ctx).await?;
 
@@ -431,7 +430,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_consensus(ctx, client.clone(), &node_cfg));
-            validator.push_random_blocks(rng, 3).await;
+            validator.push_random_blocks_and_seal(rng, 3).await;
             node_pool
                 .wait_for_certificate(ctx, validator.last_block())
                 .await?;
@@ -445,7 +444,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_fetcher(ctx, client.clone()));
-            validator.push_random_blocks(rng, 3).await;
+            validator.push_random_blocks_and_seal(rng, 3).await;
             node_pool
                 .wait_for_payload(ctx, validator.last_block())
                 .await?;
@@ -459,7 +458,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_consensus(ctx, client.clone(), &node_cfg));
-            validator.push_random_blocks(rng, 3).await;
+            validator.push_random_blocks_and_seal(rng, 3).await;
             let want = validator_pool
                 .wait_for_certificates_and_verify(ctx, validator.last_block())
                 .await?;
@@ -493,6 +492,7 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
 
         tracing::info!("Produce a batch (to make api server start)");
         // TODO: ensure at least L1 batch in `testonly::StateKeeper::new()` to make it fool proof.
+        validator.push_block(1).await;
         validator.seal_batch().await;
 
         tracing::info!("Spawn a node.");
@@ -502,7 +502,7 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
         s.spawn_bg(node.run_fetcher(ctx, validator.connect(ctx).await?));
 
         tracing::info!("Produce some blocks and wait for node to fetch them");
-        validator.push_random_blocks(rng, 10).await;
+        validator.push_random_blocks_and_seal(rng, 10).await;
         let want = validator_pool
             .wait_for_payload(ctx, validator.last_block())
             .await?;

@@ -95,8 +95,6 @@ describe('Upgrade test', function () {
         governanceContract = new ethers.Contract(governanceAddr, GOVERNANCE_ABI, tester.syncWallet.providerL1);
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();
 
-        const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
-
         const baseToken = await tester.syncWallet.provider.getBaseTokenContractAddress();
 
         if (!isAddressEq(baseToken, zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS)) {
@@ -104,23 +102,27 @@ describe('Upgrade test', function () {
             await mintToWallet(baseToken, tester.syncWallet, depositAmount.mul(10));
         }
 
+        let initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
+        let targetL1BatchNumber = initialL1BatchNumber + 1;
         const firstDepositHandle = await tester.syncWallet.deposit({
             token: baseToken,
             amount: depositAmount,
             to: alice.address
         });
         await firstDepositHandle.wait();
-        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
+        tester.ensureL1BatchSeal(targetL1BatchNumber);
+        while ((await tester.web3Provider.getL1BatchNumber()) < targetL1BatchNumber) {
             await utils.sleep(1);
         }
-
+        targetL1BatchNumber++;
         const secondDepositHandle = await tester.syncWallet.deposit({
             token: baseToken,
             amount: depositAmount,
             to: alice.address
         });
         await secondDepositHandle.wait();
-        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
+        tester.ensureL1BatchSeal(targetL1BatchNumber);
+        while ((await tester.web3Provider.getL1BatchNumber()) < targetL1BatchNumber) {
             await utils.sleep(1);
         }
 
@@ -159,7 +161,7 @@ describe('Upgrade test', function () {
             }
         });
         await txHandle.wait();
-        await waitForNewL1Batch(alice);
+        await waitForNewL1Batch(alice, tester);
     });
 
     step('Schedule governance call', async () => {
@@ -217,7 +219,7 @@ describe('Upgrade test', function () {
     });
 
     step('Check bootloader is updated on L2', async () => {
-        const receipt = await waitForNewL1Batch(alice);
+        const receipt = await waitForNewL1Batch(alice, tester);
         const batchDetails = await alice.provider.getL1BatchDetails(receipt.l1BatchNumber);
         expect(batchDetails.baseSystemContractsHashes.bootloader).to.eq(bootloaderHash);
     });
@@ -264,8 +266,10 @@ describe('Upgrade test', function () {
     });
 
     step('Wait for block finalization', async () => {
+        let targetL1BatchNumber = (await tester.web3Provider.getL1BatchNumber()) + 1;
         // Execute an L2 transaction
         const txHandle = await checkedRandomTransfer(alice, BigNumber.from(1));
+        tester.ensureL1BatchSeal(targetL1BatchNumber);
         await txHandle.waitFinalize();
     });
 
@@ -339,9 +343,12 @@ interface ForceDeployment {
     input: BytesLike;
 }
 
-async function waitForNewL1Batch(wallet: zkweb3.Wallet): Promise<zkweb3.types.TransactionReceipt> {
+async function waitForNewL1Batch(wallet: zkweb3.Wallet, tester: Tester): Promise<zkweb3.types.TransactionReceipt> {
+    let targetL1BatchNumber = (await tester.web3Provider.getL1BatchNumber()) + 1;
     // Send a dummy transaction and wait until the new L1 batch is created.
     const oldReceipt = await wallet.transfer({ to: wallet.address, amount: 0 }).then((tx) => tx.wait());
+    tester.ensureL1BatchSeal(targetL1BatchNumber);
+
     // Invariant: even with 1 transaction, l1 batch must be eventually sealed, so this loop must exit.
     while (!(await wallet.provider.getTransactionReceipt(oldReceipt.transactionHash)).l1BatchNumber) {
         await zkweb3.utils.sleep(wallet.provider.pollingInterval);

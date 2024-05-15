@@ -481,10 +481,10 @@ async fn load_upgrade_tx() {
     // we should load the upgrade transaction -- that's the `SetChainIdUpgrade`.
 }
 
-/// Unconditionally seal the batch without triggering specific criteria.
+/// Seal the batch without triggering specific criteria.
 /// TODO(PLA-881): this test can be flaky if run under load.
 #[tokio::test]
-async fn unconditional_sealing() {
+async fn l1_batch_sealing() {
     // Trigger to know when to seal the batch.
     // Once L2 block with one tx would be sealed, trigger would allow batch to be sealed as well.
     let batch_seal_trigger = Arc::new(AtomicBool::new(false));
@@ -513,7 +513,6 @@ async fn unconditional_sealing() {
         .next_tx("The only tx", random_tx(1), successful_exec())
         .no_txs_until_next_action("We don't give transaction to wait for L2 block to be sealed")
         .l2_block_sealed("L2 block is sealed with just one tx")
-        .no_txs_until_next_action("Still no tx")
         .batch_sealed("Batch is sealed with just one tx")
         .run(sealer)
         .await;
