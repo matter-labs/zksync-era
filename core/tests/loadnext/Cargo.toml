@@ -37,5 +37,5 @@ once_cell.workspace = true
 thiserror.workspace = true
 reqwest = { workspace = true, features = ["blocking", "json"] }
 regex.workspace = true
-metrics.workspace = true
+vise.workspace = true
 tracing.workspace = true

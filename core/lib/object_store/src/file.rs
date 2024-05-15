@@ -33,6 +33,7 @@ impl FileBackedObjectStore {
             Bucket::SchedulerWitnessJobsFri,
             Bucket::ProofsFri,
             Bucket::StorageSnapshot,
+            Bucket::TeeVerifierInput,
         ] {
             let bucket_path = format!("{base_dir}/{bucket}");
             fs::create_dir_all(&bucket_path)

@@ -5,7 +5,7 @@ use std::{fmt, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use serde::Serialize;
-use tokio::sync::watch;
+use tokio::{sync::watch, time::Instant};
 use zksync_dal::{pruning_dal::PruningInfo, Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
@@ -228,12 +228,6 @@ impl DbPruner {
         METRICS.observe_hard_pruning(stats);
         transaction.commit().await?;
 
-        let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
-        storage
-            .pruning_dal()
-            .run_vacuum_after_hard_pruning()
-            .await?;
-
         let latency = latency.observe();
         tracing::info!(
             "Hard pruned db l1_batches up to {last_soft_pruned_l1_batch} and L2 blocks up to {last_soft_pruned_l2_block}, \
@@ -278,6 +272,7 @@ impl DbPruner {
                 .collect::<Vec<_>>()
         );
 
+        let mut last_vacuum_time = Instant::now();
         while !*stop_receiver.borrow_and_update() {
             if let Err(err) = self.update_l1_batches_metric().await {
                 tracing::warn!("Error updating DB pruning metrics: {err:?}");
@@ -298,6 +293,15 @@ impl DbPruner {
                 }
                 Ok(pruning_done) => !pruning_done,
             };
+
+            if Instant::now().duration_since(last_vacuum_time) > Duration::from_secs(24 * 3600) {
+                let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
+                storage
+                    .pruning_dal()
+                    .run_vacuum_after_hard_pruning()
+                    .await?;
+                last_vacuum_time = Instant::now();
+            }
 
             if should_sleep
                 && tokio::time::timeout(next_iteration_delay, stop_receiver.changed())
