@@ -389,7 +389,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             self.paid_changes.apply_historic_record(
                 HashMapHistoryEvent {
                     key: storage_key,
-                    value: Some(to_pay_by_user),
+                    value: Some(current_price),
                 },
                 query.timestamp,
             );
