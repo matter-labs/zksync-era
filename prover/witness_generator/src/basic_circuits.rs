@@ -485,14 +485,14 @@ async fn generate_witness(
 
     let bootloader_code_bytes = connection
         .factory_deps_dal()
-        .get_factory_dep(header.base_system_contracts_hashes.bootloader)
+        .get_sealed_factory_dep(header.base_system_contracts_hashes.bootloader)
         .await
         .expect("Failed fetching bootloader bytecode from DB")
         .expect("Bootloader bytecode should exist");
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
     let account_bytecode_bytes = connection
         .factory_deps_dal()
-        .get_factory_dep(header.base_system_contracts_hashes.default_aa)
+        .get_sealed_factory_dep(header.base_system_contracts_hashes.default_aa)
         .await
         .expect("Failed fetching default account bytecode from DB")
         .expect("Default account bytecode should exist");

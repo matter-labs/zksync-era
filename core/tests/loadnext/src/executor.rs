@@ -15,6 +15,7 @@ use crate::{
     account_pool::AccountPool,
     config::{ExecutionConfig, LoadtestConfig, RequestLimiters},
     constants::*,
+    metrics::LOADTEST_METRICS,
     report::ReportBuilder,
     report_collector::{LoadtestResult, ReportCollector},
     sdk::{
@@ -158,10 +159,9 @@ impl Executor {
             self.pool.master_wallet.address(),
             format(eth_balance)
         );
-        metrics::gauge!(
-            "loadtest.master_account_balance",
-            eth_balance.as_u128() as f64
-        );
+        LOADTEST_METRICS
+            .master_account_balance
+            .set(eth_balance.as_u128() as u64);
 
         Ok(())
     }

@@ -20,18 +20,12 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
-use zksync_commitment_generator::{
-    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
-    CommitmentGenerator,
-};
+use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
-        chain::{
-            CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig,
-            OperationsManagerConfig, StateKeeperConfig,
-        },
+        chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets,
@@ -43,17 +37,8 @@ use zksync_config::{
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
-use zksync_eth_client::{
-    clients::{PKSigningClient, QueryClient},
-    BoundEthInterface, EthInterface,
-};
-use zksync_eth_sender::{
-    l1_batch_commit_data_generator::{
-        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-        ValidiumModeL1BatchCommitDataGenerator,
-    },
-    Aggregator, EthTxAggregator, EthTxManager,
-};
+use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface, EthInterface};
+use zksync_eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_house_keeper::{
@@ -69,16 +54,16 @@ use zksync_house_keeper::{
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
 use zksync_node_fee_model::{
-    l1_gas_price::{
-        GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
-    },
-    ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider,
+    l1_gas_price::GasAdjusterSingleton, ApiFeeInputProvider, BatchFeeModelInputProvider,
+    MainNodeFeeInputProvider,
 };
 use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
+use zksync_web3_decl::client::Client;
 
 use crate::{
     api_server::{
@@ -91,10 +76,12 @@ use crate::{
     },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     state_keeper::{
-        create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
-        SequencerSealer, StateKeeperPersistence,
+        create_state_keeper, io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
+        AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
+        StateKeeperPersistence,
     },
-    utils::ensure_l1_batch_commit_data_generation_mode,
+    tee_verifier_input_producer::TeeVerifierInputProducer,
+    utils::L1BatchCommitmentModeValidationTask,
 };
 
 pub mod api_server;
@@ -105,6 +92,7 @@ pub mod proto;
 pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
+pub mod tee_verifier_input_producer;
 pub mod temp_config_store;
 pub mod utils;
 
@@ -173,6 +161,9 @@ pub enum Component {
     EthTxManager,
     /// State keeper.
     StateKeeper,
+    /// Produces input for the TEE verifier.
+    /// The blob is later used as input for TEE verifier.
+    TeeVerifierInputProducer,
     /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
@@ -203,6 +194,9 @@ impl FromStr for Components {
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
+            "tee_verifier_input_producer" => {
+                Ok(Components(vec![Component::TeeVerifierInputProducer]))
+            }
             "eth" => Ok(Components(vec![
                 Component::EthWatcher,
                 Component::EthTxAggregator,
@@ -293,21 +287,20 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = QueryClient::new(eth.web3_url.clone()).context("Ethereum client")?;
+    let query_client = Client::http(eth.web3_url.clone())
+        .context("Ethereum client")?
+        .for_network(genesis_config.l1_chain_id.into())
+        .build();
     let query_client = Box::new(query_client);
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
-    let pubdata_pricing: Arc<dyn PubdataPricing> =
-        match genesis_config.l1_batch_commit_data_generator_mode {
-            L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
-            L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
-        };
 
     let mut gas_adjuster = GasAdjusterSingleton::new(
+        genesis_config.l1_chain_id,
         eth.web3_url.clone(),
         gas_adjuster_config,
         sender.pubdata_sending_mode,
-        pubdata_pricing,
+        genesis_config.l1_batch_commit_data_generator_mode,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -541,14 +534,13 @@ pub async fn initialize_components(
         .map(|a| a.state_transition_proxy_addr);
 
     if components.contains(&Component::Consensus) {
-        let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
-        let cfg = consensus::config::main_node(
-            consensus_config
-                .as_ref()
-                .context("consensus component's config is missing")?,
-            secrets,
-            l2_chain_id,
-        )?;
+        let cfg = consensus_config
+            .clone()
+            .context("consensus component's config is missing")?;
+        let secrets = secrets
+            .consensus
+            .clone()
+            .context("consensus component's secrets are missing")?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();
@@ -561,7 +553,7 @@ pub async fn initialize_components(
             // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let root_ctx = ctx::root();
             scope::run!(&root_ctx, |ctx, s| async move {
-                s.spawn_bg(consensus::era::run_main_node(ctx, cfg, pool));
+                s.spawn_bg(consensus::era::run_main_node(ctx, cfg, secrets, pool));
                 let _ = stop_receiver.wait_for(|stop| *stop).await?;
                 Ok(())
             })
@@ -605,15 +597,6 @@ pub async fn initialize_components(
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
-    let input_generator: Box<dyn InputGenerator> = if genesis_config
-        .l1_batch_commit_data_generator_mode
-        == L1BatchCommitDataGeneratorMode::Validium
-    {
-        Box::new(ValidiumInputGenerator)
-    } else {
-        Box::new(RollupInputGenerator)
-    };
-
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
@@ -642,22 +625,16 @@ pub async fn initialize_components(
 
         let l1_batch_commit_data_generator_mode =
             genesis_config.l1_batch_commit_data_generator_mode;
-        ensure_l1_batch_commit_data_generation_mode(
-            l1_batch_commit_data_generator_mode,
+        // Run the task synchronously: the main node is expected to have a stable Ethereum client connection,
+        // and the cost of detecting an incorrect mode with a delay is higher.
+        L1BatchCommitmentModeValidationTask::new(
             contracts_config.diamond_proxy_addr,
-            eth_client.as_ref(),
+            l1_batch_commit_data_generator_mode,
+            query_client.clone(),
         )
+        .exit_on_success()
+        .run(stop_receiver.clone())
         .await?;
-
-        let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
-            match l1_batch_commit_data_generator_mode {
-                L1BatchCommitDataGeneratorMode::Rollup => {
-                    Arc::new(RollupModeL1BatchCommitDataGenerator {})
-                }
-                L1BatchCommitDataGeneratorMode::Validium => {
-                    Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
-                }
-            };
 
         let operator_blobs_address = eth_sender_wallets.blob_operator.map(|x| x.address());
 
@@ -669,7 +646,7 @@ pub async fn initialize_components(
                 sender_config.clone(),
                 store_factory.create_store().await,
                 operator_blobs_address.is_some(),
-                l1_batch_commit_data_generator.clone(),
+                l1_batch_commit_data_generator_mode,
             ),
             Box::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -677,7 +654,6 @@ pub async fn initialize_components(
             diamond_proxy_addr,
             l2_chain_id,
             operator_blobs_address,
-            l1_batch_commit_data_generator,
         )
         .await;
         task_futures.push(tokio::spawn(
@@ -757,6 +733,23 @@ pub async fn initialize_components(
     .await
     .context("add_trees_to_task_futures()")?;
 
+    if components.contains(&Component::TeeVerifierInputProducer) {
+        let singleton_connection_pool =
+            ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+                .build()
+                .await
+                .context("failed to build singleton connection_pool")?;
+        add_tee_verifier_input_producer_to_task_futures(
+            &mut task_futures,
+            &singleton_connection_pool,
+            &store_factory,
+            l2_chain_id,
+            stop_receiver.clone(),
+        )
+        .await
+        .context("add_tee_verifier_input_producer_to_task_futures()")?;
+    }
+
     if components.contains(&Component::Housekeeper) {
         add_house_keeper_to_task_futures(configs, &mut task_futures, stop_receiver.clone())
             .await
@@ -771,6 +764,7 @@ pub async fn initialize_components(
                 .context("proof_data_handler_config")?,
             store_factory.create_store().await,
             connection_pool.clone(),
+            genesis_config.l1_batch_commit_data_generator_mode,
             stop_receiver.clone(),
         )));
     }
@@ -781,8 +775,10 @@ pub async fn initialize_components(
                 .build()
                 .await
                 .context("failed to build commitment_generator_pool")?;
-        let commitment_generator =
-            CommitmentGenerator::new(commitment_generator_pool, input_generator);
+        let commitment_generator = CommitmentGenerator::new(
+            commitment_generator_pool,
+            genesis_config.l1_batch_commit_data_generator_mode,
+        );
         app_health.insert_component(commitment_generator.health_check())?;
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
@@ -829,10 +825,14 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    let l2_block_sealer_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
-        .build()
-        .await
-        .context("failed to build l2_block_sealer_pool")?;
+    // L2 Block sealing process is parallelized, so we have to provide enough pooled connections.
+    let l2_block_sealer_pool = ConnectionPool::<Core>::builder(
+        postgres_config.master_url()?,
+        L2BlockSealProcess::subtasks_len(),
+    )
+    .build()
+    .await
+    .context("failed to build l2_block_sealer_pool")?;
     let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
         l2_block_sealer_pool,
         contracts_config
@@ -1019,6 +1019,7 @@ async fn run_tree(
             tree_reader
                 .wait()
                 .await
+                .context("Cannot initialize tree reader")?
                 .run_api_server(address, stop_receiver)
                 .await
         }));
@@ -1032,6 +1033,27 @@ async fn run_tree(
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::Tree].set(elapsed);
     tracing::info!("Initialized {mode_str} tree in {elapsed:?}");
+    Ok(())
+}
+
+async fn add_tee_verifier_input_producer_to_task_futures(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    connection_pool: &ConnectionPool<Core>,
+    store_factory: &ObjectStoreFactory,
+    l2_chain_id: L2ChainId,
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    let started_at = Instant::now();
+    tracing::info!("initializing TeeVerifierInputProducer");
+    let producer =
+        TeeVerifierInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+    task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
+    tracing::info!(
+        "Initialized TeeVerifierInputProducer in {:?}",
+        started_at.elapsed()
+    );
+    let elapsed = started_at.elapsed();
+    APP_METRICS.init_latency[&InitStage::TeeVerifierInputProducer].set(elapsed);
     Ok(())
 }
 

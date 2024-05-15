@@ -315,6 +315,7 @@ impl FriProofCompressorDal<'_, '_> {
                 id: row.l1_batch_number as u64,
                 status: row.status,
                 attempts: row.attempts as u64,
+                circuit_id: None,
             })
             .collect()
         }
@@ -351,5 +352,67 @@ impl FriProofCompressorDal<'_, '_> {
             time_taken: row.time_taken,
             picked_by: row.picked_by,
         })
+    }
+
+    pub async fn delete_batch_data(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!(
+            r#"
+            DELETE FROM proof_compression_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!("DELETE FROM proof_compression_jobs_fri")
+            .execute(self.storage.conn())
+            .await
+    }
+
+    pub async fn requeue_stuck_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        {
+            sqlx::query!(
+                r#"
+                UPDATE proof_compression_jobs_fri
+                SET
+                    status = 'queued',
+                    error = 'Manually requeued',
+                    attempts = 2,
+                    updated_at = NOW(),
+                    processing_started_at = NOW()
+                WHERE
+                    l1_batch_number = $1
+                    AND attempts >= $2
+                    AND (status = 'in_progress' OR status = 'failed')
+                RETURNING
+                    status,
+                    attempts
+                "#,
+                i64::from(block_number.0),
+                max_attempts as i32,
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: block_number.0 as u64,
+                status: row.status,
+                attempts: row.attempts as u64,
+                circuit_id: None,
+            })
+            .collect()
+        }
     }
 }

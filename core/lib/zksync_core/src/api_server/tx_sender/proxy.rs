@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::Context;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
@@ -15,12 +16,13 @@ use zksync_types::{
     Address, Nonce, H256,
 };
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
 use super::{tx_sink::TxSink, SubmitTxError};
+use crate::utils::wait_for_l1_batch;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TxCache {
@@ -65,9 +67,27 @@ impl TxCache {
     async fn run_updates(
         self,
         pool: ConnectionPool<Core>,
-        stop_receiver: watch::Receiver<bool>,
+        mut stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
+
+        tracing::info!(
+            "Waiting for at least one L1 batch in Postgres to start TxCache::run_updates"
+        );
+        // Starting the updater before L1 batches are present in Postgres can lead to some invariants the server logic
+        // implicitly assumes not being upheld. The only case when we'll actually wait here is immediately after snapshot recovery.
+        let earliest_l1_batch_number =
+            wait_for_l1_batch(&pool, UPDATE_INTERVAL, &mut stop_receiver)
+                .await
+                .context("error while waiting for L1 batch in Postgres")?;
+        if let Some(number) = earliest_l1_batch_number {
+            tracing::info!("Successfully waited for at least one L1 batch in Postgres; the earliest one is #{number}");
+        } else {
+            tracing::info!(
+                "Received shutdown signal before TxCache::run_updates is started; shutting down"
+            );
+            return Ok(());
+        }
 
         loop {
             if *stop_receiver.borrow() {
@@ -109,11 +129,11 @@ impl TxCache {
 #[derive(Debug)]
 pub struct TxProxy {
     tx_cache: TxCache,
-    client: BoxedL2Client,
+    client: Box<DynClient<L2>>,
 }
 
 impl TxProxy {
-    pub fn new(client: BoxedL2Client) -> Self {
+    pub fn new(client: Box<DynClient<L2>>) -> Self {
         Self {
             client: client.for_component("tx_proxy"),
             tx_cache: TxCache::default(),

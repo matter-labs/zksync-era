@@ -4,8 +4,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
-    clients::{QueryClient, SigningClient},
-    BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
+    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
 };
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
@@ -17,7 +16,10 @@ use zksync_types::{
     web3::{contract::Tokenize, TransactionReceipt},
     Address, L1ChainId, L1TxCommonData, H160, H256, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
-use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
+use zksync_web3_decl::{
+    client::Client,
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+};
 
 use crate::sdk::{
     error::ClientError,
@@ -93,6 +95,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 "Chain id overflow - Expected chain id to be in range 0..2^64".to_owned(),
             )
         })?;
+        let l1_chain_id = L1ChainId(l1_chain_id);
 
         let l2_chain_id = provider.chain_id().await?.as_u64();
         let contract_address = provider.get_main_contract().await?;
@@ -119,9 +122,16 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .as_ref()
             .parse::<SensitiveUrl>()
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
+<<<<<<< lyova-fix-loadtest
         let query_client = QueryClient::new(eth_web3_url)
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
+=======
+        let query_client = Client::http(eth_web3_url)
+            .map_err(|err| ClientError::NetworkError(err.to_string()))?
+            .for_network(l1_chain_id.into())
+            .build();
+>>>>>>> main
         let eth_client = SigningClient::new(
             Box::new(query_client).for_component("provider"),
             hyperchain_contract(),
@@ -129,7 +139,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             eth_signer,
             contract_address,
             DEFAULT_PRIORITY_FEE.into(),
-            L1ChainId(l1_chain_id),
+            l1_chain_id,
         );
 
         Ok(Self {

@@ -1,5 +1,23 @@
 # Changelog
 
+## [24.2.0](https://github.com/matter-labs/zksync-era/compare/core-v24.1.0...core-v24.2.0) (2024-05-14)
+
+
+### Features
+
+* **api:** Add zeppelinos well-known slots ([#1892](https://github.com/matter-labs/zksync-era/issues/1892)) ([1c041cc](https://github.com/matter-labs/zksync-era/commit/1c041ccd4226f7f9c520814f3af8d00d6d8784c7))
+* **en:** Brush up EN observability config ([#1897](https://github.com/matter-labs/zksync-era/issues/1897)) ([086f768](https://github.com/matter-labs/zksync-era/commit/086f7683307b2b9c6a43cb8cf2c1a8a8874277a7))
+* **node_framework:** Add tree api server & client to the metadata calculator ([#1885](https://github.com/matter-labs/zksync-era/issues/1885)) ([6dda157](https://github.com/matter-labs/zksync-era/commit/6dda15773295c36d4a8ef56d4e84e4b944829922))
+
+
+### Bug Fixes
+
+* **core/prover:** Changes to support Validium ([#1910](https://github.com/matter-labs/zksync-era/issues/1910)) ([1cb0dc5](https://github.com/matter-labs/zksync-era/commit/1cb0dc5504d226c55217accca87f2fd75addc917))
+* **eth-client:** Fix call error detection ([#1890](https://github.com/matter-labs/zksync-era/issues/1890)) ([c22ce63](https://github.com/matter-labs/zksync-era/commit/c22ce639e08f78b5fd12f2ba7f1e419e8849b1ca))
+* **eth-client:** Make block params non-optional ([#1882](https://github.com/matter-labs/zksync-era/issues/1882)) ([3005862](https://github.com/matter-labs/zksync-era/commit/3005862be1ea7c40dea0ae9442b3299b15cf20ca))
+* **pruning:** Don't require metadata to exist for first L1 batches to be pruned ([#1850](https://github.com/matter-labs/zksync-era/issues/1850)) ([75c8565](https://github.com/matter-labs/zksync-era/commit/75c85654c4ac4638f3f0705485c95e72727880d4))
+* **pruning:** query optimization ([#1904](https://github.com/matter-labs/zksync-era/issues/1904)) ([9154390](https://github.com/matter-labs/zksync-era/commit/9154390ff1d0c2d66a4a811795afa66e6c3c742e))
+
 ## [24.1.0](https://github.com/matter-labs/zksync-era/compare/core-v24.0.0...core-v24.1.0) (2024-05-08)
 
 
