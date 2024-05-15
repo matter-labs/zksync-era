@@ -1,10 +1,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::Context as _;
-use circuit_definitions::{
-    snark_wrapper::franklin_crypto::plonk::circuit::hashes_with_tables::blake2s::tables::CompoundRotTable,
-    zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
-};
+use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use clap::Args as ClapArgs;
 use colored::*;
 use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
