@@ -28,7 +28,8 @@ pub(crate) async fn run_server(
     Ok(())
 }
 
-// basic handler that responds with a static string
+/// Basic handler that responds with a static string with the format expected by the token fetcher component
+/// Returns 1 in the case of using ETH as the base token, a hardcoded 42 otherwise
 async fn get_conversion_rate(extract::Path(token_address): extract::Path<String>) -> Json<u64> {
     if token_address == "0x0000000000000000000000000000000000000000"
         || token_address == "0x0000000000000000000000000000000000000001"
