@@ -58,7 +58,30 @@ impl TokensWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        Ok(records.into_iter().map(Into::into).collect())
+        let l2_token_addresses = records
+            .iter()
+            .map(|storage_token_info| Address::from_slice(&storage_token_info.l2_address));
+        let token_deployment_data = self
+            .storage
+            .storage_logs_dal()
+            .filter_deployed_contracts(l2_token_addresses, None)
+            .await?;
+
+        let tokens = records
+            .into_iter()
+            .filter_map(|storage_token_info| {
+                let l2_token_address = Address::from_slice(&storage_token_info.l2_address);
+                if !l2_token_address.is_zero()
+                    && !token_deployment_data.contains_key(&l2_token_address)
+                {
+                    return None;
+                }
+
+                Some(TokenInfo::from(storage_token_info))
+            })
+            .collect();
+
+        Ok(tokens)
     }
 
     /// Returns information about all tokens.
@@ -88,18 +111,17 @@ impl TokensWeb3Dal<'_, '_> {
         .await?;
 
         let mut all_tokens: Vec<_> = records.into_iter().map(TokenInfo::from).collect();
-        let Some(at_l2_block) = at_l2_block else {
-            return Ok(all_tokens); // No additional filtering is required
-        };
 
         let token_addresses = all_tokens.iter().map(|token| token.l2_address);
         let filtered_addresses = self
             .storage
             .storage_logs_dal()
-            .filter_deployed_contracts(token_addresses, Some(at_l2_block))
+            .filter_deployed_contracts(token_addresses, at_l2_block)
             .await?;
 
-        all_tokens.retain(|token| filtered_addresses.contains_key(&token.l2_address));
+        all_tokens.retain(|token| {
+            token.l2_address.is_zero() || filtered_addresses.contains_key(&token.l2_address)
+        });
         Ok(all_tokens)
     }
 }

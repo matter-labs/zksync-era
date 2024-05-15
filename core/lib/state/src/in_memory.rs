@@ -85,6 +85,18 @@ impl InMemoryStorage {
     }
 
     /// Sets the storage `value` at the specified `key`.
+    pub fn set_value_hashed_enum(&mut self, key: H256, enum_index_set: u64, value: StorageValue) {
+        match self.state.entry(key) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().0 = value;
+            }
+            Entry::Vacant(entry) => {
+                entry.insert((value, enum_index_set));
+            }
+        }
+    }
+
+    /// Sets the storage `value` at the specified `key`.
     pub fn set_value(&mut self, key: StorageKey, value: StorageValue) {
         match self.state.entry(key.hashed_key()) {
             Entry::Occupied(mut entry) => {

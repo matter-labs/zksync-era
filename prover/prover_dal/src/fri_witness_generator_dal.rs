@@ -115,16 +115,19 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| {
-            (
-                L1BatchNumber(row.l1_batch_number as u32),
+            // Blobs can be `None` if we are using an `off-chain DA`
+            let blobs = if row.eip_4844_blobs.is_none() {
+                Eip4844Blobs::empty()
+            } else {
                 Eip4844Blobs::decode(&row.eip_4844_blobs.unwrap_or_else(|| {
                     panic!(
                         "missing eip 4844 blobs from the database for batch {}",
                         row.l1_batch_number
                     )
                 }))
-                .expect("failed to decode EIP4844 blobs"),
-            )
+                .expect("failed to decode EIP4844 blobs")
+            };
+            (L1BatchNumber(row.l1_batch_number as u32), blobs)
         })
     }
 
@@ -296,6 +299,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.l1_batch_number as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: None,
         })
         .collect()
     }
@@ -951,7 +955,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 id,
                 status,
-                attempts
+                attempts,
+                circuit_id
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -964,6 +969,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.id as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: Some(row.circuit_id as u32),
         })
         .collect()
     }
@@ -994,7 +1000,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 id,
                 status,
-                attempts
+                attempts,
+                circuit_id
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1007,6 +1014,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.id as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: Some(row.circuit_id as u32),
         })
         .collect()
     }
@@ -1050,6 +1058,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.l1_batch_number as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: None,
         })
         .collect()
     }
@@ -1153,6 +1162,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.l1_batch_number as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: None,
         })
         .collect()
     }
@@ -1544,5 +1554,273 @@ impl FriWitnessGeneratorDal<'_, '_> {
             picked_by: row.picked_by.clone(),
         })
         .collect()
+    }
+
+    pub async fn delete_witness_generator_data_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        aggregation_round: AggregationRound,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query(
+            format!(
+                r#"
+            DELETE FROM
+                {table}
+            WHERE
+                l1_batch_number = {l1_batch_number}
+            "#,
+                table = Self::input_table_name_for(aggregation_round),
+                l1_batch_number = i64::from(block_number.0),
+            )
+            .as_str(),
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete_batch_data(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_witness_generator_data_for_batch(block_number, AggregationRound::BasicCircuits)
+            .await?;
+        self.delete_witness_generator_data_for_batch(
+            block_number,
+            AggregationRound::LeafAggregation,
+        )
+        .await?;
+        self.delete_witness_generator_data_for_batch(
+            block_number,
+            AggregationRound::NodeAggregation,
+        )
+        .await?;
+        self.delete_witness_generator_data(AggregationRound::RecursionTip)
+            .await?;
+        self.delete_witness_generator_data_for_batch(block_number, AggregationRound::Scheduler)
+            .await
+    }
+
+    pub async fn delete_witness_generator_data(
+        &mut self,
+        aggregation_round: AggregationRound,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query(
+            format!(
+                r#"
+            DELETE FROM
+                {}
+            "#,
+                Self::input_table_name_for(aggregation_round)
+            )
+            .as_str(),
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_witness_generator_data(AggregationRound::BasicCircuits)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::LeafAggregation)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::NodeAggregation)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::RecursionTip)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::Scheduler)
+            .await
+    }
+
+    pub async fn requeue_stuck_witness_inputs_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        let query = format!(
+            r#"
+            UPDATE witness_inputs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = {}
+                AND attempts >= {}
+                AND (status = 'in_progress' OR status = 'failed')
+            RETURNING
+                l1_batch_number,
+                status,
+                attempts
+            "#,
+            i64::from(block_number.0),
+            max_attempts
+        );
+        sqlx::query(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.get::<i64, &str>("l1_batch_number") as u64,
+                status: row.get("status"),
+                attempts: row.get::<i16, &str>("attempts") as u64,
+                circuit_id: None,
+            })
+            .collect()
+    }
+
+    pub async fn requeue_stuck_leaf_aggregation_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        self.requeue_stuck_jobs_for_batch_in_aggregation_round(
+            AggregationRound::LeafAggregation,
+            block_number,
+            max_attempts,
+        )
+        .await
+    }
+
+    pub async fn requeue_stuck_node_aggregation_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        self.requeue_stuck_jobs_for_batch_in_aggregation_round(
+            AggregationRound::NodeAggregation,
+            block_number,
+            max_attempts,
+        )
+        .await
+    }
+
+    pub async fn requeue_stuck_recursion_tip_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        let query = format!(
+            r#"
+            UPDATE recursion_tip_witness_jobs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = {}
+                AND attempts >= {}
+                AND (status = 'in_progress' OR status = 'failed')
+            RETURNING
+                l1_batch_number,
+                status,
+                attempts
+            "#,
+            i64::from(block_number.0),
+            max_attempts
+        );
+        sqlx::query(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.get::<i64, &str>("l1_batch_number") as u64,
+                status: row.get("status"),
+                attempts: row.get::<i16, &str>("attempts") as u64,
+                circuit_id: None,
+            })
+            .collect()
+    }
+
+    pub async fn requeue_stuck_scheduler_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        let query = format!(
+            r#"
+            UPDATE scheduler_witness_jobs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = {}
+                AND attempts >= {}
+                AND (status = 'in_progress' OR status = 'failed')
+            RETURNING
+                l1_batch_number,
+                status,
+                attempts
+            "#,
+            i64::from(block_number.0),
+            max_attempts
+        );
+        sqlx::query(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.get::<i64, &str>("l1_batch_number") as u64,
+                status: row.get("status"),
+                attempts: row.get::<i16, &str>("attempts") as u64,
+                circuit_id: None,
+            })
+            .collect()
+    }
+
+    async fn requeue_stuck_jobs_for_batch_in_aggregation_round(
+        &mut self,
+        aggregation_round: AggregationRound,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        let table_name = Self::input_table_name_for(aggregation_round);
+        let job_id_table_name = Self::job_id_table_name_for(aggregation_round);
+        let query = format!(
+            r#"
+            UPDATE {}
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = {}
+                AND attempts >= {}
+                AND (status = 'in_progress' OR status = 'failed')
+            RETURNING
+                {},
+                status,
+                attempts,
+                circuit_id
+            "#,
+            table_name,
+            i64::from(block_number.0),
+            max_attempts,
+            job_id_table_name
+        );
+        sqlx::query(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.get::<i64, &str>(job_id_table_name) as u64,
+                status: row.get("status"),
+                attempts: row.get::<i16, &str>("attempts") as u64,
+                circuit_id: Some(row.get::<i16, &str>("circuit_id") as u32),
+            })
+            .collect()
+    }
+
+    fn job_id_table_name_for(aggregation_round: AggregationRound) -> &'static str {
+        match aggregation_round {
+            AggregationRound::BasicCircuits
+            | AggregationRound::RecursionTip
+            | AggregationRound::Scheduler => "l1_batch_number",
+            AggregationRound::LeafAggregation | AggregationRound::NodeAggregation => "id",
+        }
     }
 }

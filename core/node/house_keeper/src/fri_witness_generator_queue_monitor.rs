@@ -5,9 +5,7 @@ use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
 
-use crate::periodic_job::PeriodicJob;
-
-const FRI_WITNESS_GENERATOR_SERVICE_NAME: &str = "fri_witness_generator";
+use crate::{metrics::SERVER_METRICS, periodic_job::PeriodicJob};
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorStatsReporter {
@@ -70,19 +68,10 @@ fn emit_metrics_for_round(round: AggregationRound, stats: JobCountStatistics) {
         );
     }
 
-    metrics::gauge!(
-        format!("server.{}.jobs", FRI_WITNESS_GENERATOR_SERVICE_NAME),
-        stats.queued as f64,
-        "type" => "queued",
-        "round" => format!("{:?}", round)
-    );
-
-    metrics::gauge!(
-        format!("server.{}.jobs", FRI_WITNESS_GENERATOR_SERVICE_NAME),
-        stats.in_progress as f64,
-        "type" => "in_progress",
-        "round" => format!("{:?}", round)
-    );
+    SERVER_METRICS.witness_generator_jobs_by_round[&("queued", format!("{:?}", round))]
+        .set(stats.queued as u64);
+    SERVER_METRICS.witness_generator_jobs_by_round[&("in_progress", format!("{:?}", round))]
+        .set(stats.queued as u64);
 }
 
 /// Invoked periodically to push job statistics to Prometheus
@@ -107,17 +96,9 @@ impl PeriodicJob for FriWitnessGeneratorStatsReporter {
             );
         }
 
-        metrics::gauge!(
-            format!("server.{}.jobs", FRI_WITNESS_GENERATOR_SERVICE_NAME),
-            aggregated.queued as f64,
-            "type" => "queued"
-        );
+        SERVER_METRICS.witness_generator_jobs[&("queued")].set(aggregated.queued as u64);
+        SERVER_METRICS.witness_generator_jobs[&("in_progress")].set(aggregated.in_progress as u64);
 
-        metrics::gauge!(
-            format!("server.{}.jobs", FRI_WITNESS_GENERATOR_SERVICE_NAME),
-            aggregated.in_progress as f64,
-            "type" => "in_progress"
-        );
         Ok(())
     }
 
