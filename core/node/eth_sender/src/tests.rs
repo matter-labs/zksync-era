@@ -18,7 +18,6 @@ use zksync_types::{
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
     },
-    ethabi,
     ethabi::Token,
     helpers::unix_timestamp_ms,
     pubdata_da::PubdataDA,
@@ -102,13 +101,8 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                if call.to == Some(contracts_config.l1_multicall3_addr) {
-                    mock_multicall_response()
-                } else {
-                    // To get failure reasons for failed transactions
-                    // FIXME: handle failure reasons in MockEthereum
-                    ethabi::Token::Uint(0.into())
-                }
+                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                mock_multicall_response()
             })
             .build();
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);

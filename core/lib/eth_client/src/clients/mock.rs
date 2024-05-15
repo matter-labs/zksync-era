@@ -13,7 +13,7 @@ use zksync_types::{
 use zksync_web3_decl::client::{DynClient, MockClient, L1};
 
 use crate::{
-    types::{Error, ExecutedTxStatus, SignedCallResult},
+    types::{Error, SignedCallResult},
     BoundEthInterface, Options, RawTransactionBytes,
 };
 
@@ -65,11 +65,17 @@ impl From<MockTx> for web3::Transaction {
     }
 }
 
+#[derive(Debug)]
+struct MockExecutedTx {
+    receipt: web3::TransactionReceipt,
+    success: bool,
+}
+
 /// Mutable part of [`MockEthereum`] that needs to be synchronized via an `RwLock`.
 #[derive(Debug, Default)]
 struct MockEthereumInner {
     block_number: u64,
-    tx_statuses: HashMap<H256, ExecutedTxStatus>,
+    executed_txs: HashMap<H256, MockExecutedTx>,
     sent_txs: HashMap<H256, MockTx>,
     current_nonce: u64,
     pending_nonce: u64,
@@ -99,8 +105,7 @@ impl MockEthereumInner {
         }
         self.nonces.insert(block_number, nonce + 1);
 
-        let status = ExecutedTxStatus {
-            tx_hash,
+        let status = MockExecutedTx {
             success,
             receipt: web3::TransactionReceipt {
                 gas_used: Some(21000u32.into()),
@@ -110,7 +115,79 @@ impl MockEthereumInner {
                 ..web3::TransactionReceipt::default()
             },
         };
-        self.tx_statuses.insert(tx_hash, status);
+        self.executed_txs.insert(tx_hash, status);
+    }
+
+    fn get_transaction_count(&self, address: Address, block: web3::BlockNumber) -> U256 {
+        if address != MockEthereum::SENDER_ACCOUNT {
+            unimplemented!("Getting nonce for custom account is not supported");
+        }
+
+        match block {
+            web3::BlockNumber::Number(block_number) => {
+                let mut nonce_range = self.nonces.range(..=block_number.as_u64());
+                let (_, &nonce) = nonce_range.next_back().unwrap_or((&0, &0));
+                nonce.into()
+            }
+            web3::BlockNumber::Pending => self.pending_nonce.into(),
+            web3::BlockNumber::Latest => self.current_nonce.into(),
+            _ => unimplemented!(
+                "`nonce_at_for_account()` called with unsupported block number: {block:?}"
+            ),
+        }
+    }
+
+    fn send_raw_transaction(&mut self, tx: web3::Bytes) -> Result<H256, ClientError> {
+        let mock_tx = MockTx::from(tx.0);
+        let mock_tx_hash = mock_tx.hash;
+
+        if mock_tx.nonce < self.current_nonce {
+            let err = ErrorObject::owned(
+                101,
+                "transaction with the same nonce already processed",
+                None::<()>,
+            );
+            return Err(ClientError::Call(err));
+        }
+
+        if mock_tx.nonce == self.pending_nonce {
+            self.pending_nonce += 1;
+        }
+        self.sent_txs.insert(mock_tx_hash, mock_tx);
+        Ok(mock_tx_hash)
+    }
+
+    /// Processes a transaction-like `eth_call` which is used in `EthInterface::failure_reason()`.
+    fn transaction_call(
+        &self,
+        request: &web3::CallRequest,
+        block_id: BlockId,
+    ) -> Option<Result<web3::Bytes, ClientError>> {
+        if request.gas.is_none() || request.value.is_none() {
+            return None;
+        }
+        let data = request.data.as_ref()?;
+
+        // Check if any of sent transactions match the request parameters
+        let executed_tx = self.sent_txs.iter().find_map(|(hash, tx)| {
+            if request.to != Some(tx.recipient) || data.0 != tx.input {
+                return None;
+            }
+            let executed_tx = self.executed_txs.get(hash)?;
+            let expected_block_number = executed_tx.receipt.block_number.unwrap();
+            (block_id == BlockId::Number(expected_block_number.into())).then_some(executed_tx)
+        })?;
+
+        Some(if executed_tx.success {
+            Ok(web3::Bytes(vec![1]))
+        } else {
+            // The error code is arbitrary
+            Err(ClientError::Call(ErrorObject::owned(
+                3,
+                "execution reverted: oops",
+                None::<()>,
+            )))
+        })
     }
 }
 
@@ -122,7 +199,7 @@ pub struct MockExecutedTxHandle<'a> {
 
 impl MockExecutedTxHandle<'_> {
     pub fn with_logs(&mut self, logs: Vec<web3::Log>) -> &mut Self {
-        let status = self.inner.tx_statuses.get_mut(&self.tx_hash).unwrap();
+        let status = self.inner.executed_txs.get_mut(&self.tx_hash).unwrap();
         status.receipt.logs = logs;
         self
     }
@@ -132,7 +209,6 @@ type CallHandler =
     dyn Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, ClientError> + Send + Sync;
 
 /// Builder for [`MockEthereum`] client.
-#[derive(Clone)]
 pub struct MockEthereumBuilder {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
@@ -142,7 +218,7 @@ pub struct MockEthereumBuilder {
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
     inner: Arc<RwLock<MockEthereumInner>>,
-    call_handler: Arc<CallHandler>,
+    call_handler: Box<CallHandler>,
 }
 
 impl fmt::Debug for MockEthereumBuilder {
@@ -171,7 +247,7 @@ impl Default for MockEthereumBuilder {
             excess_blob_gas_history: vec![],
             non_ordering_confirmations: false,
             inner: Arc::default(),
-            call_handler: Arc::new(|call, block_id| {
+            call_handler: Box::new(|call, block_id| {
                 panic!("Unexpected eth_call: {call:?}, {block_id:?}");
             }),
         }
@@ -205,7 +281,7 @@ impl MockEthereumBuilder {
         F: 'static + Send + Sync + Fn(&web3::CallRequest, BlockId) -> ethabi::Token,
     {
         Self {
-            call_handler: Arc::new(move |call, block_id| Ok(call_handler(call, block_id))),
+            call_handler: Box::new(move |call, block_id| Ok(call_handler(call, block_id))),
             ..self
         }
     }
@@ -218,41 +294,23 @@ impl MockEthereumBuilder {
             + Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, ClientError>,
     {
         Self {
-            call_handler: Arc::new(call_handler),
+            call_handler: Box::new(call_handler),
             ..self
         }
     }
 
-    fn get_transaction_count(&self, address: Address, block: web3::BlockNumber) -> U256 {
-        if address != MockEthereum::SENDER_ACCOUNT {
-            unimplemented!("Getting nonce for custom account is not supported");
-        }
-
-        let inner = self.inner.read().unwrap();
-        match block {
-            web3::BlockNumber::Number(block_number) => {
-                let mut nonce_range = inner.nonces.range(..=block_number.as_u64());
-                let (_, &nonce) = nonce_range.next_back().unwrap_or((&0, &0));
-                nonce.into()
-            }
-            web3::BlockNumber::Pending => inner.pending_nonce.into(),
-            web3::BlockNumber::Latest => inner.current_nonce.into(),
-            _ => unimplemented!(
-                "`nonce_at_for_account()` called with unsupported block number: {block:?}"
-            ),
-        }
-    }
-
-    fn get_block_by_number(&self, block: web3::BlockNumber) -> Option<web3::Block<H256>> {
+    fn get_block_by_number(
+        base_fee_history: &[u64],
+        excess_blob_gas_history: &[u64],
+        block: web3::BlockNumber,
+    ) -> Option<web3::Block<H256>> {
         let web3::BlockNumber::Number(number) = block else {
             panic!("Non-numeric block requested");
         };
-        let excess_blob_gas = self
-            .excess_blob_gas_history
+        let excess_blob_gas = excess_blob_gas_history
             .get(number.as_usize())
             .map(|excess_blob_gas| (*excess_blob_gas).into());
-        let base_fee_per_gas = self
-            .base_fee_history
+        let base_fee_per_gas = base_fee_history
             .get(number.as_usize())
             .map(|base_fee| (*base_fee).into());
 
@@ -264,52 +322,38 @@ impl MockEthereumBuilder {
         })
     }
 
-    fn send_raw_transaction(&self, tx: web3::Bytes) -> Result<H256, ClientError> {
-        let mock_tx = MockTx::from(tx.0);
-        let mock_tx_hash = mock_tx.hash;
-        let mut inner = self.inner.write().unwrap();
-
-        if mock_tx.nonce < inner.current_nonce {
-            let err = ErrorObject::owned(
-                101,
-                "transaction with the same nonce already processed",
-                None::<()>,
-            );
-            return Err(ClientError::Call(err));
-        }
-
-        if mock_tx.nonce == inner.pending_nonce {
-            inner.pending_nonce += 1;
-        }
-        inner.sent_txs.insert(mock_tx_hash, mock_tx);
-        Ok(mock_tx_hash)
-    }
-
     fn build_client(self) -> MockClient<L1> {
         const CHAIN_ID: L1ChainId = L1ChainId(9);
 
         let base_fee_history = self.base_fee_history.clone();
-        let call_handler = self.call_handler.clone();
+        let call_handler = self.call_handler;
 
         MockClient::builder(CHAIN_ID.into())
             .method("eth_chainId", || Ok(U64::from(CHAIN_ID.0)))
             .method("eth_blockNumber", {
-                let this = self.clone();
-                move || Ok(U64::from(this.inner.read().unwrap().block_number))
+                let inner = self.inner.clone();
+                move || Ok(U64::from(inner.read().unwrap().block_number))
             })
             .method("eth_getBlockByNumber", {
-                let this = self.clone();
+                let base_fee_history = self.base_fee_history;
+                let excess_blob_gas_history = self.excess_blob_gas_history;
                 move |number, full_transactions: bool| {
                     assert!(
                         !full_transactions,
                         "getting blocks with transactions is not mocked"
                     );
-                    Ok(this.get_block_by_number(number))
+                    Ok(Self::get_block_by_number(
+                        &base_fee_history,
+                        &excess_blob_gas_history,
+                        number,
+                    ))
                 }
             })
             .method("eth_getTransactionCount", {
-                let this = self.clone();
-                move |address, block| Ok(this.get_transaction_count(address, block))
+                let inner = self.inner.clone();
+                move |address, block| {
+                    Ok(inner.read().unwrap().get_transaction_count(address, block))
+                }
             })
             .method("eth_gasPrice", move || Ok(self.max_fee_per_gas))
             .method(
@@ -332,20 +376,23 @@ impl MockEthereumBuilder {
                     })
                 },
             )
-            .method(
-                "eth_call",
-                move |req: web3::CallRequest, block: web3::BlockId| {
+            .method("eth_call", {
+                let inner = self.inner.clone();
+                move |req, block| {
+                    if let Some(res) = inner.read().unwrap().transaction_call(&req, block) {
+                        return res;
+                    }
                     call_handler(&req, block).map(|token| web3::Bytes(ethabi::encode(&[token])))
-                },
-            )
+                }
+            })
             .method("eth_sendRawTransaction", {
-                let this = self.clone();
-                move |tx_bytes: web3::Bytes| this.send_raw_transaction(tx_bytes)
+                let inner = self.inner.clone();
+                move |tx_bytes| inner.write().unwrap().send_raw_transaction(tx_bytes)
             })
             .method("eth_getTransactionByHash", {
-                let this = self.clone();
+                let inner = self.inner.clone();
                 move |hash: H256| {
-                    let txs = &this.inner.read().unwrap().sent_txs;
+                    let txs = &inner.read().unwrap().sent_txs;
                     let Some(tx) = txs.get(&hash) else {
                         return Ok(None);
                     };
@@ -353,10 +400,11 @@ impl MockEthereumBuilder {
                 }
             })
             .method("eth_getTransactionReceipt", {
-                let this = self.clone();
+                let inner = self.inner.clone();
                 move |hash: H256| {
-                    let status = this.inner.read().unwrap().tx_statuses.get(&hash).cloned();
-                    Ok(status.map(|status| status.receipt))
+                    let inner = inner.read().unwrap();
+                    let status = inner.executed_txs.get(&hash);
+                    Ok(status.map(|status| status.receipt.clone()))
                 }
             })
             .build()
@@ -682,5 +730,49 @@ mod tests {
                 .await
                 .unwrap();
         assert_matches!(commitment_mode, L1BatchCommitmentMode::Rollup);
+    }
+
+    #[tokio::test]
+    async fn getting_transaction_failure_reason() {
+        let client = MockEthereum::default();
+        let signed_tx = client
+            .sign_prepared_tx(
+                vec![1, 2, 3],
+                Address::repeat_byte(1),
+                Options {
+                    nonce: Some(0.into()),
+                    ..Options::default()
+                },
+            )
+            .unwrap();
+        let tx_hash = client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        assert_eq!(tx_hash, signed_tx.hash);
+
+        client.execute_tx(tx_hash, true, 1);
+        let failure = client.as_ref().failure_reason(tx_hash).await.unwrap();
+        assert!(failure.is_none(), "{failure:?}");
+
+        let signed_tx = client
+            .sign_prepared_tx(
+                vec![4, 5, 6],
+                Address::repeat_byte(0xff),
+                Options {
+                    nonce: Some(1.into()),
+                    ..Options::default()
+                },
+            )
+            .unwrap();
+        let failed_tx_hash = client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        assert_ne!(failed_tx_hash, tx_hash);
+
+        client.execute_tx(failed_tx_hash, false, 1);
+        let failure = client
+            .as_ref()
+            .failure_reason(failed_tx_hash)
+            .await
+            .unwrap()
+            .expect("no failure");
+        assert_eq!(failure.revert_reason, "oops");
+        assert_eq!(failure.revert_code, 3);
     }
 }
