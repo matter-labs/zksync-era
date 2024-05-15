@@ -11,12 +11,12 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use multivm::zk_evm_latest::ethereum_types::H256;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::{
     client::{Client, ClientConfig},
     publisher::Publisher,
 };
+use multivm::zk_evm_latest::ethereum_types::H256;
 use tokio::{runtime::Handle, task::JoinHandle};
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
