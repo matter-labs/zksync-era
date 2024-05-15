@@ -18,11 +18,12 @@ use zksync_types::{
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
     },
+    ethabi,
     ethabi::Token,
     helpers::unix_timestamp_ms,
     pubdata_da::PubdataDA,
     web3::contract::Error,
-    Address, L1BatchNumber, L1BlockNumber, ProtocolVersion, ProtocolVersionId, H256,
+    Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -92,7 +93,7 @@ impl EthSenderTester {
             ..eth_sender_config.clone().sender.unwrap()
         };
 
-        let gateway = MockEthereum::default()
+        let gateway = MockEthereum::builder()
             .with_fee_history(
                 std::iter::repeat(0)
                     .take(Self::WAIT_CONFIRMATIONS as usize)
@@ -101,15 +102,21 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
-                mock_multicall_response()
-            });
+                if call.to == Some(contracts_config.l1_multicall3_addr) {
+                    mock_multicall_response()
+                } else {
+                    // To get failure reasons for failed transactions
+                    // FIXME: handle failure reasons in MockEthereum
+                    ethabi::Token::Uint(0.into())
+                }
+            })
+            .build();
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway = Box::new(gateway);
 
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
-                gateway.clone(),
+                Box::new(gateway.clone().into_client()),
                 GasAdjusterConfig {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
@@ -170,7 +177,14 @@ impl EthSenderTester {
     }
 
     async fn get_block_numbers(&self) -> L1BlockNumbers {
-        let latest = self.gateway.block_number().await.unwrap().as_u32().into();
+        let latest = self
+            .manager
+            .query_client()
+            .block_number()
+            .await
+            .unwrap()
+            .as_u32()
+            .into();
         let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
         L1BlockNumbers {
             finalized,
@@ -245,7 +259,7 @@ async fn confirm_many(
                 &mut tester.conn.connection().await.unwrap(),
                 &tx,
                 0,
-                L1BlockNumber(tester.gateway.block_number().await?.as_u32()),
+                tester.get_block_numbers().await.latest,
             )
             .await?;
         hashes.push(hash);
@@ -315,7 +329,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     tester.gateway.advance_block_number(3);
     tester.gas_adjuster.keep_updated().await?;
 
-    let block = L1BlockNumber(tester.gateway.block_number().await?.as_u32());
+    let block = tester.get_block_numbers().await.latest;
     let tx = tester
         .aggregator
         .save_eth_tx(
@@ -345,7 +359,8 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     );
 
     let sent_tx = tester
-        .gateway
+        .manager
+        .query_client()
         .get_tx(hash)
         .await
         .unwrap()
@@ -393,7 +408,8 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     );
 
     let resent_tx = tester
-        .gateway
+        .manager
+        .query_client()
         .get_tx(resent_hash)
         .await
         .unwrap()
@@ -437,7 +453,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
             &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
-            L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
+            tester.get_block_numbers().await.latest,
         )
         .await
         .unwrap();
@@ -519,7 +535,7 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
                 &mut tester.conn.connection().await.unwrap(),
                 &tx,
                 0,
-                L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
+                tester.get_block_numbers().await.latest,
             )
             .await
             .unwrap();
@@ -596,7 +612,7 @@ async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
             &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
-            L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
+            tester.get_block_numbers().await.latest,
         )
         .await
         .unwrap();
@@ -1076,7 +1092,7 @@ async fn send_operation(
             &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
-            L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
+            tester.get_block_numbers().await.latest,
         )
         .await
         .unwrap();
