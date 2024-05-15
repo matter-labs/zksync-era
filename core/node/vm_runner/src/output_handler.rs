@@ -6,8 +6,8 @@ use std::{
 
 use async_trait::async_trait;
 use dashmap::DashMap;
-use futures::future::BoxFuture;
 use tokio::sync::{oneshot, watch};
+use tokio::task::JoinHandle;
 use zksync_core::state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::L1BatchNumber;
@@ -46,7 +46,7 @@ pub trait OutputHandlerFactory: Debug + Send {
 /// processed and #3 would be the latest processed batch as defined in [`VmRunnerIo`].
 pub struct ConcurrentOutputHandlerFactory<Io: VmRunnerIo, F: OutputHandlerFactory> {
     pool: ConnectionPool<Core>,
-    state: Arc<DashMap<L1BatchNumber, oneshot::Receiver<BoxFuture<'static, anyhow::Result<()>>>>>,
+    state: Arc<DashMap<L1BatchNumber, oneshot::Receiver<JoinHandle<anyhow::Result<()>>>>>,
     io: Io,
     factory: F,
 }
@@ -127,7 +127,7 @@ impl<Io: VmRunnerIo, F: OutputHandlerFactory> OutputHandlerFactory
 enum OutputHandlerState {
     Running {
         handler: Box<dyn StateKeeperOutputHandler>,
-        sender: oneshot::Sender<BoxFuture<'static, anyhow::Result<()>>>,
+        sender: oneshot::Sender<JoinHandle<anyhow::Result<()>>>,
     },
     Finished,
 }
@@ -171,7 +171,7 @@ impl StateKeeperOutputHandler for AsyncOutputHandler {
             }) => {
                 self.internal = Some(OutputHandlerState::Finished);
                 sender
-                    .send(Box::pin(async move {
+                    .send(tokio::task::spawn(async move {
                         handler.handle_l1_batch(updates_manager).await
                     }))
                     .ok();
@@ -193,7 +193,7 @@ impl StateKeeperOutputHandler for AsyncOutputHandler {
 pub struct ConcurrentOutputHandlerFactoryTask<Io: VmRunnerIo> {
     pool: ConnectionPool<Core>,
     io: Io,
-    state: Arc<DashMap<L1BatchNumber, oneshot::Receiver<BoxFuture<'static, anyhow::Result<()>>>>>,
+    state: Arc<DashMap<L1BatchNumber, oneshot::Receiver<JoinHandle<anyhow::Result<()>>>>>,
 }
 
 impl<Io: VmRunnerIo> Debug for ConcurrentOutputHandlerFactoryTask<Io> {
@@ -231,12 +231,12 @@ impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
                     tokio::time::sleep(SLEEP_INTERVAL).await;
                 }
                 Some((_, receiver)) => {
-                    // Wait until the future is sent through the receiver, happens when
+                    // Wait until the `JoinHandle` is sent through the receiver, happens when
                     // `handle_l1_batch` is called on the corresponding output handler
-                    let future = receiver.await?;
-                    // Wait until the future is completed, meaning that the `handle_l1_batch`
+                    let handle = receiver.await?;
+                    // Wait until the handle is resolved, meaning that the `handle_l1_batch`
                     // computation has finished, and we can consider this batch to be completed
-                    future.await?;
+                    handle.await??;
                     latest_processed_batch += 1;
                     let mut conn = self.pool.connection_tagged(Io::name()).await?;
                     self.io
