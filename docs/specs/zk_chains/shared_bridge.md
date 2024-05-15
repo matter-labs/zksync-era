@@ -3,9 +3,9 @@
 ## Introduction
 
 Ethereum's future is rollup-centric. This means breaking with the current paradigm of isolated EVM chains to
-infrastructure that is focused on an ecosystem of interconnected zkEVMs, (which we name ZK Chains). This ecosystem
-will be grounded on Ethereum, requiring the appropriate L1 smart contracts. Here we outline our ZK Stack approach for
-these contracts, their interfaces, the needed changes to the existing architecture, as well as future features to be
+infrastructure that is focused on an ecosystem of interconnected zkEVMs, (which we name ZK Chains). This ecosystem will
+be grounded on Ethereum, requiring the appropriate L1 smart contracts. Here we outline our ZK Stack approach for these
+contracts, their interfaces, the needed changes to the existing architecture, as well as future features to be
 implemented.
 
 If you want to know more about ZK Chains, check this
@@ -22,8 +22,8 @@ We want to create a system where:
   supporting architecture.
 
 ZK Chains have specific trust requirements - they need to satisfy certain common standards so that they can trust each
-other. This means a single set of L1 smart contracts has to manage the proof verification for all ZK Chains, and if
-the proof system is upgraded, all chains have to be upgraded together. New chains will be able to be launched
+other. This means a single set of L1 smart contracts has to manage the proof verification for all ZK Chains, and if the
+proof system is upgraded, all chains have to be upgraded together. New chains will be able to be launched
 permissionlessly in the ecosystem according to this shared standard.
 
 To allow unified liquidity each L1 asset (ETH, ERC20, NFTs) will have a single bridge contract on L1 for the whole
@@ -57,9 +57,9 @@ be able to leverage them when available).
 
 #### Bridgehub
 
-- Acts as a hub for bridges, so that they have a single point of communication with all ZK Chain contracts. This
-  allows L1 assets to be locked in the same contract for all ZK Chains, including L3s and validiums. The `Bridgehub`
-  also implements the following:
+- Acts as a hub for bridges, so that they have a single point of communication with all ZK Chain contracts. This allows
+  L1 assets to be locked in the same contract for all ZK Chains, including L3s and validiums. The `Bridgehub` also
+  implements the following:
 - `Registry` This is where ZK Chains can register, starting in a permissioned manner, but with the goal to be
   permissionless in the future. This is where their `chainID` is determined. L3s will also register here. This
   `Registry` is also where State Transition contracts should register. Each chain has to specify its desired ST when
@@ -119,13 +119,13 @@ be able to leverage them when available).
 
 - Some assets have to be natively supported (ETH, WETH) and it also makes sense to support some generally accepted token
   standards (ERC20 tokens), as this makes it easy to bridge those tokens (and ensures a single version of them exists on
-  the ZK Chain ecosystem). These canonical asset contracts are deployed from L1 by a bridge shared by all ZK Chains. This is
-  where assets are locked on L1. These bridges use the BridgeHub to communicate with all ZK Chains. Currently, these
-  bridges are the `WETH` and `ERC20` bridges.
+  the ZK Chain ecosystem). These canonical asset contracts are deployed from L1 by a bridge shared by all ZK Chains.
+  This is where assets are locked on L1. These bridges use the BridgeHub to communicate with all ZK Chains. Currently,
+  these bridges are the `WETH` and `ERC20` bridges.
 
-  - The pair on L2 is deployed from L1. The hash of the factory dependencies is stored on L1, and when a ZK Chain
-    wants to register, it can passes it in for deployment, it is verified, and the contract is deployed on L2. The
-    actual token contracts on L2 are deployed by the L2 bridge.
+  - The pair on L2 is deployed from L1. The hash of the factory dependencies is stored on L1, and when a ZK Chain wants
+    to register, it can passes it in for deployment, it is verified, and the contract is deployed on L2. The actual
+    token contracts on L2 are deployed by the L2 bridge.
 
   ```
   function initializeChain(
@@ -157,8 +157,8 @@ This topic is now covered more thoroughly by the Custom native token discussion.
   following functionalities:
   - `StateTransitionRegistry` The ST is shared for multiple chains, so initialization and upgrades have to be the same
     for all chains. Registration is not permissionless but happens based on the registrations in the bridgehub’s
-    `Registry`. At registration a `DiamondProxy` is deployed and initialized with the appropriate `Facets` for each
-    ZK Chain.
+    `Registry`. At registration a `DiamondProxy` is deployed and initialized with the appropriate `Facets` for each ZK
+    Chain.
   - `Facets` and `Verifier` are shared across chains that relies on the same ST: `Base`, `Executor` , `Getters`, `Admin`
     , `Mailbox.`The `Verifier` is the contract that actually verifies the proof, and is called by the `Executor`.
   - Upgrade Mechanism The system requires all chains to be up-to-date with the latest implementation, so whenever an
@@ -219,10 +219,9 @@ specified address.
 
 ### Common Standards and Upgrades
 
-In this initial phase, ZK Chains have to follow some common standards, so that they can trust each other. This means
-all chains start out with the same empty state, they have the same VM implementations and proof systems, asset contracts
-can trust each on different chains, and the chains are upgraded together. We elaborate on the shared upgrade mechanism
-here.
+In this initial phase, ZK Chains have to follow some common standards, so that they can trust each other. This means all
+chains start out with the same empty state, they have the same VM implementations and proof systems, asset contracts can
+trust each on different chains, and the chains are upgraded together. We elaborate on the shared upgrade mechanism here.
 
 #### Upgrade mechanism
 
@@ -230,10 +229,10 @@ Currently, there are three types of upgrades for zkEVM. Normal upgrades (used fo
 Governor (a multisig) and are public for a certain timeframe before they can be applied. Shadow upgrades are similar to
 normal upgrades, but the data is not known at the moment the upgrade is proposed, but only when executed (they can be
 executed with the delay, or instantly if approved by the security council). Instant upgrades (used for security issues),
-on the other hand happen quickly and need to be approved by the Security Council in addition to the Governor. For
-ZK Chains the difference is that upgrades now happen on multiple chains. This is only a problem for shadow upgrades -
-in this case, the chains have to tightly coordinate to make all the upgrades happen in a short time frame, as the
-content of the upgrade becomes public once the first chain is upgraded. The actual upgrade process is as follows:
+on the other hand happen quickly and need to be approved by the Security Council in addition to the Governor. For ZK
+Chains the difference is that upgrades now happen on multiple chains. This is only a problem for shadow upgrades - in
+this case, the chains have to tightly coordinate to make all the upgrades happen in a short time frame, as the content
+of the upgrade becomes public once the first chain is upgraded. The actual upgrade process is as follows:
 
 1. Prepare Upgrade for all chains:
    - The new facets and upgrade contracts have to be deployed,
