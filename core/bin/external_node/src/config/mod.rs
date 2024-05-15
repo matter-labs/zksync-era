@@ -547,7 +547,7 @@ impl OptionalENConfig {
         3_600 // 1 hour
     }
 
-    pub fn from_env() -> anyhow::Result<Self> {
+    fn from_env() -> anyhow::Result<Self> {
         envy::prefixed("EN_")
             .from_env()
             .context("could not load external node config")
@@ -671,7 +671,7 @@ pub(crate) struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    fn from_env() -> anyhow::Result<Self> {
         envy::prefixed("EN_")
             .from_env()
             .context("could not load external node config")
@@ -710,7 +710,7 @@ pub(crate) struct PostgresConfig {
 }
 
 impl PostgresConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             database_url: env::var("DATABASE_URL")
                 .context("DATABASE_URL env variable is not set")?
@@ -822,55 +822,63 @@ pub struct TreeComponentConfig {
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
 #[derive(Debug)]
-pub(crate) struct ExternalNodeConfig {
+pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub observability: ObservabilityENConfig,
-    pub remote: RemoteENConfig,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
+    pub remote: R,
 }
 
-impl ExternalNodeConfig {
-    /// Loads config from the environment variables and fetches contracts addresses from the main node.
-    pub async fn new(
-        required: RequiredENConfig,
-        optional: OptionalENConfig,
-        observability: ObservabilityENConfig,
-        main_node_client: &DynClient<L2>,
-    ) -> anyhow::Result<Self> {
-        let experimental = envy::prefixed("EN_EXPERIMENTAL_")
-            .from_env::<ExperimentalENConfig>()
-            .context("could not load external node config (experimental params)")?;
-
-        let api_component_config = envy::prefixed("EN_API_")
-            .from_env::<ApiComponentConfig>()
-            .context("could not load external node config (API component params)")?;
-        let tree_component_config = envy::prefixed("EN_TREE_")
-            .from_env::<TreeComponentConfig>()
-            .context("could not load external node config (tree component params)")?;
-
-        let remote = RemoteENConfig::fetch(main_node_client)
-            .await
-            .context("Unable to fetch required config values from the main node")?;
-
-        let postgres = PostgresConfig::from_env()?;
+impl ExternalNodeConfig<()> {
+    /// Parses the local part of node configuration from the environment.
+    pub fn new() -> anyhow::Result<Self> {
         Ok(Self {
-            remote,
-            postgres,
-            required,
-            optional,
-            experimental,
-            observability,
+            required: RequiredENConfig::from_env()?,
+            postgres: PostgresConfig::from_env()?,
+            optional: OptionalENConfig::from_env()?,
+            observability: ObservabilityENConfig::from_env()?,
+            experimental: envy::prefixed("EN_EXPERIMENTAL_")
+                .from_env::<ExperimentalENConfig>()
+                .context("could not load external node config (experimental params)")?,
             consensus: read_consensus_config().context("read_consensus_config()")?,
-            tree_component: tree_component_config,
-            api_component: api_component_config,
+            api_component: envy::prefixed("EN_API_")
+                .from_env::<ApiComponentConfig>()
+                .context("could not load external node config (API component params)")?,
+            tree_component: envy::prefixed("EN_TREE_")
+                .from_env::<TreeComponentConfig>()
+                .context("could not load external node config (tree component params)")?,
+            remote: (),
         })
     }
 
+    /// Fetches contracts addresses from the main node, completing the configuration.
+    pub async fn fetch_remote(
+        self,
+        main_node_client: &DynClient<L2>,
+    ) -> anyhow::Result<ExternalNodeConfig> {
+        let remote = RemoteENConfig::fetch(main_node_client)
+            .await
+            .context("Unable to fetch required config values from the main node")?;
+        Ok(ExternalNodeConfig {
+            required: self.required,
+            postgres: self.postgres,
+            optional: self.optional,
+            observability: self.observability,
+            experimental: self.experimental,
+            consensus: self.consensus,
+            tree_component: self.tree_component,
+            api_component: self.api_component,
+            remote,
+        })
+    }
+}
+
+impl ExternalNodeConfig {
     #[cfg(test)]
     pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
         Self {
