@@ -1,49 +1,51 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use axum::{
     extract::Path,
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
+use tokio::runtime::Handle;
+use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::api::{
-    ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
-    SubmitProofRequest, SubmitProofResponse,
+    SubmitProofRequest, SubmitProofResponse, TeeProofGenerationData, TeeProofGenerationDataRequest,
+    TeeProofGenerationDataResponse,
 };
+use zksync_state::{PostgresStorage, ReadStorage};
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs,
-    commitment::{serialize_commitments, L1BatchCommitmentMode},
-    web3::keccak256,
-    L1BatchNumber, H256,
+    block::L1BatchHeader, commitment::serialize_commitments, web3::keccak256, L1BatchNumber,
+    L2BlockNumber, L2ChainId, H256,
 };
+use zksync_utils::u256_to_h256;
 
 #[derive(Clone)]
-pub(crate) struct RequestProcessor {
+pub(crate) struct TeeRequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
-    commitment_mode: L1BatchCommitmentMode,
 }
 
-pub(crate) enum RequestProcessorError {
+pub(crate) enum TeeRequestProcessorError {
     ObjectStore(ObjectStoreError),
     Sqlx(SqlxError),
 }
 
-impl IntoResponse for RequestProcessorError {
+impl IntoResponse for TeeRequestProcessorError {
     fn into_response(self) -> Response {
         let (status_code, message) = match self {
-            RequestProcessorError::ObjectStore(err) => {
+            TeeRequestProcessorError::ObjectStore(err) => {
                 tracing::error!("GCS error: {:?}", err);
                 (
                     StatusCode::BAD_GATEWAY,
                     "Failed fetching/saving from GCS".to_owned(),
                 )
             }
-            RequestProcessorError::Sqlx(err) => {
+            TeeRequestProcessorError::Sqlx(err) => {
                 tracing::error!("Sqlx error: {:?}", err);
                 match err {
                     SqlxError::RowNotFound => {
@@ -60,121 +62,144 @@ impl IntoResponse for RequestProcessorError {
     }
 }
 
-impl RequestProcessor {
+impl TeeRequestProcessor {
     pub(crate) fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
-        commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
-            commitment_mode,
         }
     }
 
     pub(crate) async fn get_proof_generation_data(
         &self,
-        request: Json<ProofGenerationDataRequest>,
-    ) -> Result<Json<ProofGenerationDataResponse>, RequestProcessorError> {
+        request: Json<TeeProofGenerationDataRequest>,
+    ) -> Result<Json<TeeProofGenerationDataResponse>, TeeRequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let l1_batch_number_result = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
+        let mut connection = self.pool.connection().await.unwrap();
+
+        let l1_batch_number_result = connection
             .proof_generation_dal()
             .get_next_block_to_be_proven(self.config.proof_generation_timeout())
             .await;
 
         let l1_batch_number = match l1_batch_number_result {
             Some(number) => number,
-            None => return Ok(Json(ProofGenerationDataResponse::Success(None))), // no batches pending to be proven
+            None => return Ok(Json(TeeProofGenerationDataResponse::Success(None))),
         };
 
         let blob = self
             .blob_store
             .get(l1_batch_number)
             .await
-            .map_err(RequestProcessorError::ObjectStore)?;
+            .map_err(TeeRequestProcessorError::ObjectStore)?;
 
-        let header = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
+        let l1_batch_header = connection
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
             .unwrap()
-            .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
+            .expect(&format!("Missing header for {}", l1_batch_number));
 
-        let minor_version = header.protocol_version.unwrap();
-        let protocol_version = self
-            .pool
-            .connection()
+        let l2_blocks_execution_data = connection
+            .transactions_dal()
+            .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number)
             .await
-            .unwrap()
-            .protocol_versions_dal()
-            .get_protocol_version_with_latest_patch(minor_version)
-            .await
-            .unwrap()
-            .unwrap_or_else(|| {
-                panic!("Missing l1 verifier info for protocol version {minor_version}")
-            });
+            .unwrap();
 
-        let batch_header = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
-            .blocks_dal()
-            .get_l1_batch_header(l1_batch_number)
+        let last_batch_miniblock_number = l2_blocks_execution_data.first().unwrap().number - 1;
+
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection).await.unwrap();
+
+        let first_miniblock_in_batch = l1_batch_params_provider
+            .load_first_l2_block_in_batch(&mut connection, l1_batch_number)
             .await
             .unwrap()
             .unwrap();
 
-        let eip_4844_blobs = match self.commitment_mode {
-            L1BatchCommitmentMode::Validium => Eip4844Blobs::empty(),
-            L1BatchCommitmentMode::Rollup => {
-                let blobs = batch_header.pubdata_input.as_deref().unwrap_or_else(|| {
-                    panic!(
-                        "expected pubdata, but it is not available for batch {l1_batch_number:?}"
-                    )
-                });
-                Eip4844Blobs::decode(blobs).expect("failed to decode EIP-4844 blobs")
-            }
-        };
+        let validation_computational_gas_limit = u32::MAX;
 
-        let proof_gen_data = ProofGenerationData {
-            l1_batch_number,
-            data: blob,
-            protocol_version: protocol_version.version,
-            l1_verifier_config: protocol_version.l1_verifier_config,
-            eip_4844_blobs,
-        };
-        Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
-            proof_gen_data,
-        )))))
+        let (system_env, l1_batch_env) = l1_batch_params_provider
+            .load_l1_batch_params(
+                &mut connection,
+                &first_miniblock_in_batch,
+                validation_computational_gas_limit,
+                L2ChainId::default(), // TODO: pass correct chain id
+                                      // l2_chain_id,
+            )
+            .await
+            .unwrap();
+
+        let rt_handle = Handle::current();
+
+        let pool = self.pool.clone();
+
+        // `PostgresStorage` needs a blocking context
+        let used_contracts = rt_handle
+            .spawn_blocking(move || {
+                Self::get_used_contracts(last_batch_miniblock_number, l1_batch_header, pool)
+            })
+            .await
+            .unwrap()
+            .unwrap();
+
+        let proof_gen_data = TeeProofGenerationData::new(
+            blob,
+            l2_blocks_execution_data,
+            l1_batch_env,
+            system_env,
+            used_contracts,
+        );
+
+        Ok(Json(TeeProofGenerationDataResponse::Success(Some(
+            Box::new(proof_gen_data),
+        ))))
+    }
+
+    fn get_used_contracts(
+        last_batch_miniblock_number: L2BlockNumber,
+        l1_batch_header: L1BatchHeader,
+        connection_pool: ConnectionPool<Core>,
+    ) -> anyhow::Result<Vec<(H256, Vec<u8>)>> {
+        let rt_handle = Handle::current();
+
+        let connection = rt_handle
+            .block_on(connection_pool.connection())
+            .context("failed to get connection for TeeVerifierInputProducer")?;
+
+        let mut pg_storage =
+            PostgresStorage::new(rt_handle, connection, last_batch_miniblock_number, true);
+
+        Ok(l1_batch_header
+            .used_contract_hashes
+            .into_iter()
+            .filter_map(|hash| {
+                pg_storage
+                    .load_factory_dep(u256_to_h256(hash))
+                    .map(|bytes| (u256_to_h256(hash), bytes))
+            })
+            .collect())
     }
 
     pub(crate) async fn submit_proof(
         &self,
         Path(l1_batch_number): Path<u32>,
         Json(payload): Json<SubmitProofRequest>,
-    ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
+    ) -> Result<Json<SubmitProofResponse>, TeeRequestProcessorError> {
         tracing::info!("Received proof for block number: {:?}", l1_batch_number);
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         match payload {
             SubmitProofRequest::Proof(proof) => {
                 let blob_url = self
                     .blob_store
-                    .put((l1_batch_number, proof.protocol_version), &*proof)
+                    .put(l1_batch_number, &*proof)
                     .await
-                    .map_err(RequestProcessorError::ObjectStore)?;
+                    .map_err(TeeRequestProcessorError::ObjectStore)?;
 
                 let system_logs_hash_from_prover =
                     H256::from_slice(&proof.aggregation_result_coords[0]);
@@ -250,7 +275,7 @@ impl RequestProcessor {
                     .proof_generation_dal()
                     .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
                     .await
-                    .map_err(RequestProcessorError::Sqlx)?;
+                    .map_err(TeeRequestProcessorError::Sqlx)?;
             }
             SubmitProofRequest::TeeProof(_proof) => { /* TBD */ }
             SubmitProofRequest::SkippedProofGeneration => {
@@ -261,7 +286,7 @@ impl RequestProcessor {
                     .proof_generation_dal()
                     .mark_proof_generation_job_as_skipped(l1_batch_number)
                     .await
-                    .map_err(RequestProcessorError::Sqlx)?;
+                    .map_err(TeeRequestProcessorError::Sqlx)?;
             }
         }
 

@@ -10,11 +10,14 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+vm_utils.workspace = true
 zksync_config.workspace = true
 zksync_dal.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
+zksync_state.workspace = true
 zksync_types.workspace = true
+zksync_utils.workspace = true
 
 tracing.workspace = true
 anyhow.workspace = true

@@ -6,10 +6,14 @@ use tokio::sync::watch;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
+use zksync_prover_interface::api::{
+    ProofGenerationDataRequest, SubmitProofRequest, TeeProofGenerationDataRequest,
+};
 use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::request_processor::RequestProcessor;
+mod tee_request_processor;
+use crate::tee_request_processor::TeeRequestProcessor;
 
 mod request_processor;
 
@@ -22,6 +26,9 @@ pub async fn run_server(
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting proof data handler server on {bind_address}");
+    let get_tee_proof_gen_processor =
+        TeeRequestProcessor::new(blob_store.clone(), pool.clone(), config.clone());
+    let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();
     let get_proof_gen_processor = RequestProcessor::new(blob_store, pool, config, commitment_mode);
     let submit_proof_processor = get_proof_gen_processor.clone();
     let app = Router::new()
@@ -42,6 +49,26 @@ pub async fn run_server(
             post(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitProofRequest>| async move {
                     submit_proof_processor
+                        .submit_proof(l1_batch_number, payload)
+                        .await
+                },
+            ),
+        )
+        .route(
+            "/tee_proof_generation_data",
+            post(
+                move |payload: Json<TeeProofGenerationDataRequest>| async move {
+                    get_tee_proof_gen_processor
+                        .get_proof_generation_data(payload)
+                        .await
+                },
+            ),
+        )
+        .route(
+            "/submit_tee_proof/:l1_batch_number",
+            post(
+                move |l1_batch_number: Path<u32>, payload: Json<SubmitProofRequest>| async move {
+                    submit_tee_proof_processor
                         .submit_proof(l1_batch_number, payload)
                         .await
                 },
