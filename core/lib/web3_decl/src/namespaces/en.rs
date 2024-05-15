@@ -1,14 +1,19 @@
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
 
+#[cfg(feature = "client")]
+use crate::client::{ForNetwork, L2};
+
 #[cfg_attr(
     all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "en")
+    rpc(server, client, namespace = "en", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
     all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "en")
+    rpc(client, namespace = "en", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
     all(not(feature = "client"), feature = "server"),

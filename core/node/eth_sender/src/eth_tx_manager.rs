@@ -5,8 +5,8 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
-    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, Error, EthInterface,
-    ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
+    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError, Error,
+    EthInterface, ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
@@ -223,6 +223,10 @@ impl EthTxManager {
                 next_block_minimal_base_fee
             );
             let err = ClientError::Custom("base_fee_per_gas is too low".into());
+            let err = EnrichedClientError::new(err, "increase_priority_fee")
+                .with_arg("base_fee_per_gas", &base_fee_per_gas)
+                .with_arg("previous_base_fee", &previous_base_fee)
+                .with_arg("next_block_minimal_base_fee", &next_block_minimal_base_fee);
             return Err(ETHSenderError::from(Error::EthereumGateway(err)));
         }
 
@@ -469,7 +473,13 @@ impl EthTxManager {
 
         // Not confirmed transactions, ordered by nonce
         for tx in inflight_txs {
-            tracing::trace!("Checking tx id: {}", tx.id,);
+            tracing::trace!(
+                "Checking tx id: {}, operator_nonce: {:?}, tx nonce: {}",
+                tx.id,
+                operator_nonce,
+                tx.nonce,
+            );
+
             if tx.from_addr != operator_address {
                 continue;
             }

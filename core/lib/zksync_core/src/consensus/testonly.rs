@@ -4,8 +4,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use rand::Rng;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, sync};
-use zksync_config::{configs, GenesisConfig};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
+use zksync_config::{configs, configs::consensus as config, GenesisConfig};
+use zksync_consensus_crypto::TextFmt as _;
+use zksync_consensus_network as network;
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{CoreDal, DalError};
@@ -16,13 +18,13 @@ use zksync_types::{
     ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
-    client::{BoxedL2Client, L2Client},
+    client::{Client, DynClient, L2},
     error::{EnrichedClientError, EnrichedClientResult},
 };
 
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
-    consensus::{fetcher::P2PConfig, Fetcher, Store},
+    consensus::{en, ConnectionPool},
     state_keeper::{
         io::{IoCursor, L1BatchParams, L2BlockParams},
         seal_criteria::NoopSealer,
@@ -158,22 +160,66 @@ pub(super) struct StateKeeper {
     gas_per_pubdata: u64,
 
     actions_sender: ActionQueueSender,
+    sync_state: SyncState,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
-    store: Store,
+    pool: ConnectionPool,
+}
+
+pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config::ConsensusSecrets) {
+    (
+        config::ConsensusConfig {
+            server_addr: *cfg.server_addr,
+            public_addr: config::Host(cfg.public_addr.0.clone()),
+            max_payload_size: usize::MAX,
+            gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
+            gossip_static_inbound: cfg
+                .gossip
+                .static_inbound
+                .iter()
+                .map(|k| config::NodePublicKey(k.encode()))
+                .collect(),
+            gossip_static_outbound: cfg
+                .gossip
+                .static_outbound
+                .iter()
+                .map(|(k, v)| (config::NodePublicKey(k.encode()), config::Host(v.0.clone())))
+                .collect(),
+            genesis_spec: cfg.validator_key.as_ref().map(|key| config::GenesisSpec {
+                chain_id: L2ChainId::default(),
+                protocol_version: config::ProtocolVersion(validator::ProtocolVersion::CURRENT.0),
+                validators: vec![config::WeightedValidator {
+                    key: config::ValidatorPublicKey(key.public().encode()),
+                    weight: 1,
+                }],
+                leader: config::ValidatorPublicKey(key.public().encode()),
+            }),
+        },
+        config::ConsensusSecrets {
+            node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
+            validator_key: cfg
+                .validator_key
+                .as_ref()
+                .map(|k| config::ValidatorSecretKey(k.encode().into())),
+        },
+    )
 }
 
 /// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
-    store: Store,
+    sync_state: SyncState,
+    pool: ConnectionPool,
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
 }
 
 impl StateKeeper {
     /// Constructs and initializes a new `StateKeeper`.
     /// Caller has to run `StateKeeperRunner.run()` task in the background.
-    pub async fn new(ctx: &ctx::Ctx, store: Store) -> ctx::Result<(Self, StateKeeperRunner)> {
-        let mut conn = store.access(ctx).await.wrap("access()")?;
+    pub async fn new(
+        ctx: &ctx::Ctx,
+        pool: ConnectionPool,
+    ) -> ctx::Result<(Self, StateKeeperRunner)> {
+        let mut conn = pool.connection(ctx).await.wrap("connection()")?;
         let cursor = ctx
             .wait(IoCursor::for_fetcher(&mut conn.0))
             .await?
@@ -184,6 +230,7 @@ impl StateKeeper {
             .context("pending_batch_exists()")?;
         let (actions_sender, actions_queue) = ActionQueue::new();
         let addr = sync::watch::channel(None).0;
+        let sync_state = SyncState::default();
         Ok((
             Self {
                 last_batch: cursor.l1_batch,
@@ -193,12 +240,14 @@ impl StateKeeper {
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
                 actions_sender,
+                sync_state: sync_state.clone(),
                 addr: addr.subscribe(),
-                store: store.clone(),
+                pool: pool.clone(),
             },
             StateKeeperRunner {
                 actions_queue,
-                store: store.clone(),
+                sync_state,
+                pool: pool.clone(),
                 addr,
             },
         ))
@@ -278,50 +327,64 @@ impl StateKeeper {
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
-    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<BoxedL2Client> {
+    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<Box<DynClient<L2>>> {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
             .await?
             .unwrap();
-        let client = L2Client::http(format!("http://{addr}/").parse().context("url")?)
+        let client = Client::http(format!("http://{addr}/").parse().context("url")?)
             .context("json_rpc()")?
             .build();
-        Ok(BoxedL2Client::new(client))
+        let client: Box<DynClient<L2>> = Box::new(client);
+        // Wait until the server is actually available.
+        loop {
+            let res = ctx.wait(client.fetch_l2_block_number()).await?;
+            match res {
+                Ok(_) => return Ok(client),
+                Err(err) if err.is_transient() => {
+                    ctx.sleep(time::Duration::seconds(5)).await?;
+                }
+                Err(err) => {
+                    return Err(anyhow::format_err!("{err}").into());
+                }
+            }
+        }
     }
 
     /// Runs the centralized fetcher.
-    pub async fn run_centralized_fetcher(
+    pub async fn run_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: BoxedL2Client,
+        client: Box<DynClient<L2>>,
     ) -> anyhow::Result<()> {
-        Fetcher {
-            store: self.store,
+        en::EN {
+            pool: self.pool,
             client,
-            sync_state: SyncState::default(),
+            sync_state: self.sync_state.clone(),
         }
-        .run_centralized(ctx, self.actions_sender)
+        .run_fetcher(ctx, self.actions_sender)
         .await
     }
 
-    /// Runs the p2p fetcher.
-    pub async fn run_p2p_fetcher(
+    /// Runs consensus node for the external node.
+    pub async fn run_consensus(
         self,
         ctx: &ctx::Ctx,
-        client: BoxedL2Client,
-        cfg: P2PConfig,
+        client: Box<DynClient<L2>>,
+        cfg: &network::Config,
     ) -> anyhow::Result<()> {
-        Fetcher {
-            store: self.store,
+        let (cfg, secrets) = config(cfg);
+        en::EN {
+            pool: self.pool,
             client,
-            sync_state: SyncState::default(),
+            sync_state: self.sync_state.clone(),
         }
-        .run_p2p(ctx, self.actions_sender, cfg)
+        .run(ctx, self.actions_sender, cfg, secrets)
         .await
     }
 }
 
-async fn calculate_mock_metadata(ctx: &ctx::Ctx, store: &Store) -> ctx::Result<()> {
-    let mut conn = store.access(ctx).await.wrap("access()")?;
+async fn calculate_mock_metadata(ctx: &ctx::Ctx, pool: &ConnectionPool) -> ctx::Result<()> {
+    let mut conn = pool.connection(ctx).await.wrap("connection()")?;
     let Some(last) = ctx
         .wait(conn.0.blocks_dal().get_sealed_l1_batch_number())
         .await?
@@ -361,10 +424,10 @@ impl StateKeeperRunner {
         let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) =
-                StateKeeperPersistence::new(self.store.0.clone(), Address::repeat_byte(11), 5);
+                StateKeeperPersistence::new(self.pool.0.clone(), Address::repeat_byte(11), 5);
 
             let io = ExternalIO::new(
-                self.store.0.clone(),
+                self.pool.0.clone(),
                 self.actions_queue,
                 Box::<MockMainNodeClient>::default(),
                 L2ChainId::default(),
@@ -378,7 +441,7 @@ impl StateKeeperRunner {
             });
             s.spawn_bg::<()>(async {
                 loop {
-                    calculate_mock_metadata(ctx, &self.store).await?;
+                    calculate_mock_metadata(ctx, &self.pool).await?;
                     // Sleep real time.
                     ctx.wait(tokio::time::sleep(tokio::time::Duration::from_millis(100)))
                         .await?;
@@ -391,7 +454,8 @@ impl StateKeeperRunner {
                         stop_recv,
                         Box::new(io),
                         Box::new(MockBatchExecutor),
-                        OutputHandler::new(Box::new(persistence.with_tx_insertion())),
+                        OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+                            .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
                     )
                     .run()
@@ -409,7 +473,7 @@ impl StateKeeperRunner {
                 );
                 let mut server = spawn_http_server(
                     cfg,
-                    self.store.0.clone(),
+                    self.pool.0.clone(),
                     Default::default(),
                     Arc::default(),
                     stop_recv,
