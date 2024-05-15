@@ -1,7 +1,7 @@
-use zksync_types::{VmVersion, H256, U256};
+use zksync_types::{H256, U256};
 use zksync_utils::ceil_div_u256;
 
-use crate::{utils::get_batch_base_fee, vm_latest::L1BatchEnv};
+use crate::vm_latest::{utils::fee::get_batch_base_fee, L1BatchEnv};
 
 pub(crate) fn compute_refund(
     l1_batch: &L1BatchEnv,
@@ -26,7 +26,7 @@ pub(crate) fn compute_refund(
         });
 
     // For now, bootloader charges only for base fee.
-    let effective_gas_price = get_batch_base_fee(l1_batch, VmVersion::Vm1_5_0);
+    let effective_gas_price = get_batch_base_fee(l1_batch);
 
     let bootloader_eth_price_per_pubdata_byte =
         U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);

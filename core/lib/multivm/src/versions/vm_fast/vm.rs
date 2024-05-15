@@ -17,7 +17,7 @@ use zksync_types::{
         BYTES_PER_ENUMERATION_INDEX,
     },
     AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, U256,
+    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -40,14 +40,17 @@ use crate::{
     },
     vm_latest::{
         constants::{
-            OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
-            VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
+            get_used_bootloader_memory_bytes, get_vm_hook_params_start_position,
+            get_vm_hook_position, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET,
+            VM_HOOK_PARAMS_COUNT,
         },
         BootloaderMemory, CurrentExecutionState, ExecutionResult, HistoryEnabled, L1BatchEnv,
-        L2BlockEnv, Refunds, SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
-        VmExecutionStatistics,
+        L2BlockEnv, MultiVMSubversion, Refunds, SystemEnv, VmExecutionLogs, VmExecutionMode,
+        VmExecutionResultAndLogs, VmExecutionStatistics,
     },
 };
+
+const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
 pub struct Vm<S: ReadStorage> {
     pub(crate) inner: VirtualMachine,
@@ -273,7 +276,8 @@ impl<S: ReadStorage + 'static> Vm<S> {
     }
 
     fn get_hook_params(&self) -> [U256; 3] {
-        (VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT)
+        (get_vm_hook_params_start_position(VM_VERSION)
+            ..get_vm_hook_params_start_position(VM_VERSION) + VM_HOOK_PARAMS_COUNT)
             .map(|word| self.read_heap_word(word as usize))
             .collect::<Vec<_>>()
             .try_into()
@@ -428,7 +432,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 default_aa_code_hash,
                 // this will change after 1.5
                 evm_interpreter_code_hash: default_aa_code_hash,
-                hook_address: VM_HOOK_POSITION * 32,
+                hook_address: get_vm_hook_position(VM_VERSION) * 32,
             },
         );
 
@@ -436,7 +440,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
 
         // The bootloader shouldn't pay for growing memory and it writes results
         // to the end of its heap, so it makes sense to preallocate it in its entirety.
-        const BOOTLOADER_MAX_MEMORY_SIZE: usize = 59000000;
+        const BOOTLOADER_MAX_MEMORY_SIZE: usize = get_used_bootloader_memory_bytes(VM_VERSION);
         inner.state.heaps[vm2::FIRST_HEAP].resize(BOOTLOADER_MAX_MEMORY_SIZE, 0);
         inner.state.heaps[vm2::FIRST_HEAP + 1].resize(BOOTLOADER_MAX_MEMORY_SIZE, 0);
 
@@ -733,7 +737,7 @@ impl<S: ReadStorage> vm2::World for World<S> {
 
     fn is_free_storage_slot(&self, contract: &H160, key: &U256) -> bool {
         contract == &zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
-            || contract == &L2_ETH_TOKEN_ADDRESS
+            || contract == &L2_BASE_TOKEN_ADDRESS
                 && u256_to_h256(*key) == key_for_eth_balance(&BOOTLOADER_ADDRESS)
     }
 }
