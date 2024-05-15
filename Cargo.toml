@@ -10,6 +10,7 @@ members = [
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
     "core/bin/genesis_generator",
+    "core/bin/tee_prover",
     # Node services
     "core/node/node_framework",
     "core/node/proof_data_handler",
@@ -102,6 +103,7 @@ ethabi = "18.0.0"
 flate2 = "1.0.28"
 futures = "0.3"
 google-cloud-auth = "0.13.0"
+google-cloud-pubsub = "0.24"
 google-cloud-storage = "0.15.0"
 governor = "0.4.2"
 hex = "0.4"

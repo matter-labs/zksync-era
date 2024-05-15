@@ -12,6 +12,11 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context;
 use async_trait::async_trait;
 use multivm::zk_evm_latest::ethereum_types::H256;
+use google_cloud_googleapis::pubsub::v1::PubsubMessage;
+use google_cloud_pubsub::{
+    client::{Client, ClientConfig},
+    publisher::Publisher,
+};
 use tokio::{runtime::Handle, task::JoinHandle};
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
@@ -33,6 +38,8 @@ pub struct TeeVerifierInputProducer {
     connection_pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
     object_store: Arc<dyn ObjectStore>,
+    pubsub_client: Client,
+    publisher: Publisher,
 }
 
 impl TeeVerifierInputProducer {
@@ -41,10 +48,26 @@ impl TeeVerifierInputProducer {
         store_factory: &ObjectStoreFactory,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
+        // TODO: Supply credentials via alternate method, e.g., Google/Azure credentials mgmt solution.
+        // Right now, need to invoke binary with `GOOGLE_APPLICATION_CREDENTIALS=key.json zk server`.
+        let pubsub_config = ClientConfig::default().with_auth().await?;
+
+        let pubsub_client = Client::new(pubsub_config).await?;
+        let topic_name = "tee-prover-inputs";
+        let topic = pubsub_client.topic(topic_name);
+
+        if !topic.exists(None).await? {
+            return Err(anyhow::anyhow!(format!("topic {} missing", topic_name)));
+        }
+
+        let publisher = topic.new_publisher(None);
+
         Ok(TeeVerifierInputProducer {
             connection_pool,
             object_store: store_factory.create_store().await,
             l2_chain_id,
+            pubsub_client,
+            publisher,
         })
     }
 
@@ -263,6 +286,19 @@ impl JobProcessor for TeeVerifierInputProducer {
             .commit()
             .await
             .context("failed to commit DB transaction for TeeVerifierInputProducer")?;
+
+        let serialized =
+            <TeeVerifierInput as zksync_object_store::StoredObject>::serialize(&artifacts)
+                .expect("Failed to serialize TeeVerifierInput.");
+
+        let msg = PubsubMessage {
+            data: serialized,
+            ..Default::default()
+        };
+
+        let awaiter = self.publisher.publish(msg).await;
+        awaiter.get().await?;
+
         METRICS.block_number_processed.set(job_id.0 as i64);
         Ok(())
     }

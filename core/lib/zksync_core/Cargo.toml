@@ -52,6 +52,8 @@ zksync_node_genesis.workspace = true
 zksync_eth_sender.workspace = true
 zksync_node_fee_model.workspace = true
 multivm.workspace = true
+google-cloud-pubsub.workspace = true
+google-cloud-googleapis = "0.12"
 
 # Consensus dependenices
 zksync_concurrency.workspace = true
