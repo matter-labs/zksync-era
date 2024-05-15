@@ -119,6 +119,21 @@ impl TeeVerifierInput {
         Ok(())
     }
 
+    pub fn l1_batch_nr(&self) -> anyhow::Result<L1BatchNumber> {
+        let TeeVerifierInput::V1(V1TeeVerifierInput {
+            prepare_basic_circuits_job: _,
+            l2_blocks_execution_data: _,
+            l1_batch_env,
+            system_env: _,
+            used_contracts: _,
+        }) = self
+        else {
+            tracing::error!("TeeVerifierInput variant not supported");
+            anyhow::bail!("TeeVerifierInput variant not supported");
+        };
+
+        Ok(l1_batch_env.number)
+    }
     /// Sets the initial storage values and returns `BlockOutputWithProofs`
     fn get_bowp_and_set_initial_values(
         prepare_basic_circuits_job: PrepareBasicCircuitsJob,

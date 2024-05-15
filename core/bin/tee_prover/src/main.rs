@@ -75,9 +75,10 @@ async fn main() -> anyhow::Result<()> {
 
         let input =
             TeeVerifierInput::deserialize(message.message.data).expect("Deserialization error");
+        let l1_batch_nr = input.l1_batch_nr();
         let result = input.verify();
         if result.is_ok() {
-            tracing::info!("Successfully proved a batch!");
+            tracing::info!("Successfully proved a batch #{:?}!", l1_batch_nr);
         }
     }
 
