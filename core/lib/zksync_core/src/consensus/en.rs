@@ -2,33 +2,37 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
+use zksync_consensus_storage::BlockStore;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::{DynClient, L2};
 
+use super::{config, storage::Store, ConnectionPool, ConsensusConfig, ConsensusSecrets};
 use crate::{
-    consensus::{storage, Store},
+    consensus::storage,
     sync_layer::{
         fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
     },
 };
 
-pub type P2PConfig = executor::Config;
-
-/// L2 block fetcher.
-pub struct Fetcher {
-    pub store: Store,
-    pub sync_state: SyncState,
-    pub client: Box<DynClient<L2>>,
+/// External node.
+pub(super) struct EN {
+    pub(super) pool: ConnectionPool,
+    pub(super) sync_state: SyncState,
+    pub(super) client: Box<DynClient<L2>>,
 }
 
-impl Fetcher {
-    /// Task fetching L2 blocks using peer-to-peer gossip network.
-    /// NOTE: it still uses main node json RPC in some cases for now.
-    pub async fn run_p2p(
+impl EN {
+    /// Task running a consensus node for the external node.
+    /// It may be a validator, but it cannot be a leader (cannot propose blocks).
+    ///
+    /// NOTE: Before starting the consensus node if fetches all the blocks
+    /// older than consensus genesis from the main node using json RPC.
+    pub async fn run(
         self,
         ctx: &ctx::Ctx,
         actions: ActionQueueSender,
-        p2p: P2PConfig,
+        cfg: ConsensusConfig,
+        secrets: ConsensusSecrets,
     ) -> anyhow::Result<()> {
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
@@ -36,12 +40,12 @@ impl Fetcher {
 
             // Initialize genesis.
             let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
-            let mut conn = self.store.access(ctx).await.wrap("access()")?;
+            let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
             conn.try_update_genesis(ctx, &genesis)
                 .await
                 .wrap("set_genesis()")?;
             let mut payload_queue = conn
-                .new_payload_queue(ctx, actions)
+                .new_payload_queue(ctx, actions, self.sync_state.clone())
                 .await
                 .wrap("new_payload_queue()")?;
             drop(conn);
@@ -67,17 +71,24 @@ impl Fetcher {
             });
 
             // Run consensus component.
-            let (block_store, runner) = self
-                .store
-                .clone()
-                .into_block_store(ctx, Some(payload_queue))
+            let (store, runner) = Store::new(ctx, self.pool.clone(), Some(payload_queue))
                 .await
-                .wrap("into_block_store()")?;
+                .wrap("Store::new()")?;
+            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
+                .await
+                .wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
             let executor = executor::Executor {
-                config: p2p.clone(),
+                config: config::executor(&cfg, &secrets)?,
                 block_store,
-                validator: None,
+                validator: config::validator_key(&secrets)
+                    .context("validator_key")?
+                    .map(|key| executor::Validator {
+                        key,
+                        replica_store: Box::new(store.clone()),
+                        payload_manager: Box::new(store.clone()),
+                    }),
             };
             executor.run(ctx).await?;
             Ok(())
@@ -90,7 +101,7 @@ impl Fetcher {
     }
 
     /// Task fetching L2 blocks using JSON-RPC endpoint of the main node.
-    pub async fn run_centralized(
+    pub async fn run_fetcher(
         self,
         ctx: &ctx::Ctx,
         actions: ActionQueueSender,
@@ -99,11 +110,11 @@ impl Fetcher {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
             let mut payload_queue = self
-                .store
-                .access(ctx)
+                .pool
+                .connection(ctx)
                 .await
-                .wrap("access()")?
-                .new_payload_queue(ctx, actions)
+                .wrap("connection()")?
+                .new_payload_queue(ctx, actions, self.sync_state.clone())
                 .await
                 .wrap("new_fetcher_cursor()")?;
             self.fetch_blocks(ctx, &mut payload_queue, None).await
@@ -193,7 +204,7 @@ impl Fetcher {
         .await?;
         // If fetched anything, wait for the last block to be stored persistently.
         if first < queue.next() {
-            self.store
+            self.pool
                 .wait_for_payload(ctx, queue.next().prev().unwrap())
                 .await?;
         }

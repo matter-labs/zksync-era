@@ -3388,7 +3388,6 @@ dependencies = [
  "envy",
  "futures 0.3.28",
  "hex",
- "metrics",
  "num",
  "once_cell",
  "prometheus_exporter",
@@ -3401,6 +3400,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "vise",
  "vlog",
  "zksync_config",
  "zksync_contracts",
@@ -3725,6 +3725,7 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "once_cell",
+ "serde",
  "thiserror",
  "tokio",
  "tracing",
@@ -5541,6 +5542,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "secrecy"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9bd1c54ea06cfd2f6b63219704de0b9b4f72dcc2b8fdef820be6cd799780e91e"
+dependencies = [
+ "zeroize",
+]
+
+[[package]]
 name = "security-framework"
 version = "2.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7311,9 +7321,9 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "iai",
- "metrics",
  "metrics-exporter-prometheus",
  "tokio",
+ "vise",
  "vm-benchmark-harness",
 ]
 
@@ -8104,6 +8114,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
+ "secrecy",
  "serde",
  "zksync_basic_types",
  "zksync_consensus_utils",
@@ -8256,7 +8267,6 @@ dependencies = [
  "futures 0.3.28",
  "hex",
  "lazy_static",
- "metrics",
  "prometheus_exporter",
  "regex",
  "serde",
@@ -8266,6 +8276,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "vise",
  "vlog",
  "zksync_config",
  "zksync_contracts",
@@ -8306,7 +8317,6 @@ dependencies = [
  "itertools 0.10.5",
  "jsonrpsee",
  "lru",
- "metrics",
  "multivm",
  "once_cell",
  "pin-project-lite",
@@ -8315,6 +8325,7 @@ dependencies = [
  "prover_dal",
  "rand 0.8.5",
  "reqwest",
+ "secrecy",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -8363,10 +8374,12 @@ dependencies = [
  "zksync_protobuf_build",
  "zksync_protobuf_config",
  "zksync_prover_interface",
+ "zksync_queued_job_processor",
  "zksync_shared_metrics",
  "zksync_state",
  "zksync_storage",
  "zksync_system_constants",
+ "zksync_tee_verifier",
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
@@ -8611,7 +8624,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "metrics",
  "prover_dal",
  "tokio",
  "tracing",
@@ -8884,6 +8896,7 @@ dependencies = [
  "hex",
  "prost 0.12.1",
  "rand 0.8.5",
+ "secrecy",
  "serde_json",
  "serde_yaml",
  "zksync_basic_types",
@@ -9022,6 +9035,30 @@ version = "0.1.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
+ "zksync_utils",
+]
+
+[[package]]
+name = "zksync_tee_verifier"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "multivm",
+ "serde",
+ "tracing",
+ "vm_utils",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_crypto",
+ "zksync_dal",
+ "zksync_db_connection",
+ "zksync_merkle_tree",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_queued_job_processor",
+ "zksync_state",
+ "zksync_types",
  "zksync_utils",
 ]
 

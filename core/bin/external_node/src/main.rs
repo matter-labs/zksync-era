@@ -277,7 +277,7 @@ async fn run_core(
             // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let ctx = ctx::root();
             scope::run!(&ctx, |ctx, s| async move {
-                s.spawn_bg(consensus::era::run_fetcher(
+                s.spawn_bg(consensus::era::run_en(
                     ctx,
                     cfg,
                     pool,

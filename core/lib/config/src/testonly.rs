@@ -696,6 +696,28 @@ impl Distribution<configs::EcosystemContracts> for EncodeDist {
     }
 }
 
+impl Distribution<configs::consensus::WeightedValidator> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::WeightedValidator {
+        use configs::consensus::{ValidatorPublicKey, WeightedValidator};
+        WeightedValidator {
+            key: ValidatorPublicKey(self.sample(rng)),
+            weight: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::GenesisSpec {
+        use configs::consensus::{GenesisSpec, ProtocolVersion, ValidatorPublicKey};
+        GenesisSpec {
+            chain_id: L2ChainId::default(),
+            protocol_version: ProtocolVersion(self.sample(rng)),
+            validators: self.sample_collect(rng),
+            leader: ValidatorPublicKey(self.sample(rng)),
+        }
+    }
+}
+
 impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
         use configs::consensus::{ConsensusConfig, Host, NodePublicKey};
@@ -712,6 +734,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
                 .sample_range(rng)
                 .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
                 .collect(),
+            genesis_spec: self.sample(rng),
         }
     }
 }
@@ -720,8 +743,8 @@ impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusSecrets {
         use configs::consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey};
         ConsensusSecrets {
-            validator_key: self.sample_opt(|| ValidatorSecretKey(self.sample(rng))),
-            node_key: self.sample_opt(|| NodeSecretKey(self.sample(rng))),
+            validator_key: self.sample_opt(|| ValidatorSecretKey(String::into(self.sample(rng)))),
+            node_key: self.sample_opt(|| NodeSecretKey(String::into(self.sample(rng)))),
         }
     }
 }

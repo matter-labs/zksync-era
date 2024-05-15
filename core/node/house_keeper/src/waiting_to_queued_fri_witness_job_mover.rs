@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 
-use crate::periodic_job::PeriodicJob;
+use crate::{metrics::SERVER_METRICS, periodic_job::PeriodicJob};
 
 #[derive(Debug)]
 pub struct WaitingToQueuedFriWitnessJobMover {
@@ -32,10 +32,10 @@ impl WaitingToQueuedFriWitnessJobMover {
                 circuit_id
             );
         }
-        metrics::counter!(
-            "server.node_fri_witness_generator.waiting_to_queued_jobs_transitions",
-            len as u64
-        );
+
+        SERVER_METRICS
+            .node_fri_witness_generator_waiting_to_queued_jobs_transitions
+            .inc_by(len as u64);
     }
 
     async fn move_node_aggregation_jobs_from_waiting_to_queued(&mut self) -> Vec<(i64, u8, u16)> {
@@ -65,10 +65,9 @@ impl WaitingToQueuedFriWitnessJobMover {
                 depth
             );
         }
-        metrics::counter!(
-            "server.leaf_fri_witness_generator.waiting_to_queued_jobs_transitions",
-            len as u64
-        );
+        SERVER_METRICS
+            .leaf_fri_witness_generator_waiting_to_queued_jobs_transitions
+            .inc_by(len as u64);
     }
 
     /// Marks recursion tip witness jobs as queued.
@@ -85,10 +84,9 @@ impl WaitingToQueuedFriWitnessJobMover {
                 l1_batch_number,
             );
         }
-        metrics::counter!(
-            "server.recursion_tip_witness_generator.waiting_to_queued_jobs_transitions",
-            l1_batch_numbers.len() as u64
-        );
+        SERVER_METRICS
+            .recursion_tip_witness_generator_waiting_to_queued_jobs_transitions
+            .inc_by(l1_batch_numbers.len() as u64);
     }
 
     /// Marks scheduler witness jobs as queued.
@@ -105,10 +103,9 @@ impl WaitingToQueuedFriWitnessJobMover {
                 l1_batch_number,
             );
         }
-        metrics::counter!(
-            "server.scheduler_witness_generator.waiting_to_queued_jobs_transitions",
-            l1_batch_numbers.len() as u64
-        );
+        SERVER_METRICS
+            .scheduler_witness_generator_waiting_to_queued_jobs_transitions
+            .inc_by(l1_batch_numbers.len() as u64);
     }
 }
 
