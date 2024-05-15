@@ -24,8 +24,9 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 
-use super::{fetcher::FetchedTransaction, sync_action::SyncAction, *};
-use crate::consensus::testonly::MockMainNodeClient;
+use super::{
+    fetcher::FetchedTransaction, sync_action::SyncAction, testonly::MockMainNodeClient, *,
+};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -45,6 +46,41 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
         },
         number: L1BatchNumber(number),
         first_l2_block_number: L2BlockNumber(first_l2_block_number),
+    }
+}
+
+impl MockMainNodeClient {
+    pub(crate) fn for_snapshot_recovery(snapshot: &SnapshotRecoveryStatus) -> Self {
+        // This block may be requested during node initialization
+        let last_l2_block_in_snapshot_batch = api::en::SyncBlock {
+            number: snapshot.l2_block_number,
+            l1_batch_number: snapshot.l1_batch_number,
+            last_in_batch: true,
+            timestamp: snapshot.l2_block_timestamp,
+            l1_gas_price: 2,
+            l2_fair_gas_price: 3,
+            fair_pubdata_price: Some(24),
+            base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+            operator_address: Address::repeat_byte(2),
+            transactions: Some(vec![]),
+            virtual_blocks: Some(0),
+            hash: Some(snapshot.l2_block_hash),
+            protocol_version: ProtocolVersionId::latest(),
+        };
+
+        Self {
+            l2_blocks: vec![last_l2_block_in_snapshot_batch],
+            block_number_offset: snapshot.l2_block_number.0,
+            ..Self::default()
+        }
+    }
+
+    pub fn insert_protocol_version(&mut self, version: api::ProtocolVersion) {
+        self.system_contracts
+            .insert(version.base_system_contracts.bootloader, vec![]);
+        self.system_contracts
+            .insert(version.base_system_contracts.default_aa, vec![]);
+        self.protocol_versions.insert(version.version_id, version);
     }
 }
 

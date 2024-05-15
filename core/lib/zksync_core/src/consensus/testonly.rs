@@ -1,17 +1,16 @@
 //! Utilities for testing the consensus module.
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_config::{configs, configs::consensus as config, GenesisConfig};
+use zksync_config::{configs, configs::consensus as config};
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::validator;
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{CoreDal, DalError};
-use zksync_node_genesis::{mock_genesis_config, GenesisParams};
+use zksync_node_genesis::GenesisParams;
 use zksync_node_test_utils::{create_l1_batch_metadata, create_l2_transaction};
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
@@ -19,14 +18,8 @@ use zksync_state_keeper::{
     testonly::MockBatchExecutor,
     OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
 };
-use zksync_types::{
-    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, H256,
-};
-use zksync_web3_decl::{
-    client::{Client, DynClient, L2},
-    error::{EnrichedClientError, EnrichedClientResult},
-};
+use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
+use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
@@ -34,118 +27,10 @@ use crate::{
     sync_layer::{
         fetcher::{FetchedTransaction, IoCursorExt as _},
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
+        testonly::MockMainNodeClient,
         ExternalIO, MainNodeClient, SyncState,
     },
 };
-
-#[derive(Debug, Default)]
-pub(crate) struct MockMainNodeClient {
-    l2_blocks: Vec<api::en::SyncBlock>,
-    block_number_offset: u32,
-    protocol_versions: HashMap<u16, api::ProtocolVersion>,
-    system_contracts: HashMap<H256, Vec<u8>>,
-}
-
-impl MockMainNodeClient {
-    pub fn for_snapshot_recovery(snapshot: &SnapshotRecoveryStatus) -> Self {
-        // This block may be requested during node initialization
-        let last_l2_block_in_snapshot_batch = api::en::SyncBlock {
-            number: snapshot.l2_block_number,
-            l1_batch_number: snapshot.l1_batch_number,
-            last_in_batch: true,
-            timestamp: snapshot.l2_block_timestamp,
-            l1_gas_price: 2,
-            l2_fair_gas_price: 3,
-            fair_pubdata_price: Some(24),
-            base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-            operator_address: Address::repeat_byte(2),
-            transactions: Some(vec![]),
-            virtual_blocks: Some(0),
-            hash: Some(snapshot.l2_block_hash),
-            protocol_version: ProtocolVersionId::latest(),
-        };
-
-        Self {
-            l2_blocks: vec![last_l2_block_in_snapshot_batch],
-            block_number_offset: snapshot.l2_block_number.0,
-            ..Self::default()
-        }
-    }
-
-    pub fn insert_protocol_version(&mut self, version: api::ProtocolVersion) {
-        self.system_contracts
-            .insert(version.base_system_contracts.bootloader, vec![]);
-        self.system_contracts
-            .insert(version.base_system_contracts.default_aa, vec![]);
-        self.protocol_versions.insert(version.version_id, version);
-    }
-}
-
-#[async_trait::async_trait]
-impl MainNodeClient for MockMainNodeClient {
-    async fn fetch_system_contract_by_hash(
-        &self,
-        hash: H256,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        Ok(self.system_contracts.get(&hash).cloned())
-    }
-
-    async fn fetch_genesis_contract_bytecode(
-        &self,
-        _address: Address,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        Err(EnrichedClientError::custom(
-            "not implemented",
-            "fetch_genesis_contract_bytecode",
-        ))
-    }
-
-    async fn fetch_protocol_version(
-        &self,
-        protocol_version: ProtocolVersionId,
-    ) -> EnrichedClientResult<Option<api::ProtocolVersion>> {
-        let protocol_version = protocol_version as u16;
-        Ok(self.protocol_versions.get(&protocol_version).cloned())
-    }
-
-    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber> {
-        if let Some(number) = self.l2_blocks.len().checked_sub(1) {
-            Ok(L2BlockNumber(number as u32))
-        } else {
-            Err(EnrichedClientError::custom(
-                "not implemented",
-                "fetch_l2_block_number",
-            ))
-        }
-    }
-
-    async fn fetch_l2_block(
-        &self,
-        number: L2BlockNumber,
-        with_transactions: bool,
-    ) -> EnrichedClientResult<Option<api::en::SyncBlock>> {
-        let Some(block_index) = number.0.checked_sub(self.block_number_offset) else {
-            return Ok(None);
-        };
-        let Some(mut block) = self.l2_blocks.get(block_index as usize).cloned() else {
-            return Ok(None);
-        };
-        if !with_transactions {
-            block.transactions = None;
-        }
-        Ok(Some(block))
-    }
-
-    async fn fetch_consensus_genesis(
-        &self,
-    ) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
-        unimplemented!()
-    }
-
-    async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {
-        Ok(mock_genesis_config())
-    }
-}
 
 /// Fake StateKeeper for tests.
 pub(super) struct StateKeeper {
