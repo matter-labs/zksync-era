@@ -1,9 +1,8 @@
 use std::cmp::Ordering;
 
 use anyhow::Context;
-use zksync_basic_types::{L1BatchNumber, L2BlockNumber};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::ProtocolVersionId;
+use zksync_types::{L1BatchNumber, L2BlockNumber, ProtocolVersionId};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::{EnNamespaceClient, ZksNamespaceClient},

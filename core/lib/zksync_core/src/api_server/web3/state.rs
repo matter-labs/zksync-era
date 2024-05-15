@@ -13,13 +13,13 @@ use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::{
-    configs::{api::Web3JsonRpcConfig, chain::L1BatchCommitDataGeneratorMode, ContractsConfig},
+    configs::{api::Web3JsonRpcConfig, ContractsConfig},
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_types::{
-    api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId,
-    L2BlockNumber, L2ChainId, H256, U256, U64,
+    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
+    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
@@ -113,7 +113,7 @@ pub struct InternalApiConfig {
     pub base_token_address: Option<Address>,
     pub filters_disabled: bool,
     pub dummy_verifier: bool,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
 impl InternalApiConfig {
