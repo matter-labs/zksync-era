@@ -1,18 +1,24 @@
 use std::{
     fmt::{Debug, Formatter},
+    mem,
     sync::Arc,
     time::Duration,
 };
 
+use anyhow::Context;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use tokio::sync::{oneshot, watch};
-use tokio::task::JoinHandle;
+use tokio::{
+    sync::{oneshot, watch},
+    task::JoinHandle,
+};
 use zksync_core::state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::L1BatchNumber;
 
 use crate::VmRunnerIo;
+
+type BatchReceiver = oneshot::Receiver<JoinHandle<anyhow::Result<()>>>;
 
 /// Functionality to produce a [`StateKeeperOutputHandler`] implementation for a specific L1 batch.
 ///
@@ -24,7 +30,7 @@ use crate::VmRunnerIo;
 pub trait OutputHandlerFactory: Debug + Send {
     /// Creates a [`StateKeeperOutputHandler`] implementation for the provided L1 batch. Only
     /// supposed to be used for the L1 batch data it was created against. Using it for anything else
-    /// is undefined behavior.
+    /// will lead to errors.
     ///
     /// # Errors
     ///
@@ -46,7 +52,7 @@ pub trait OutputHandlerFactory: Debug + Send {
 /// processed and #3 would be the latest processed batch as defined in [`VmRunnerIo`].
 pub struct ConcurrentOutputHandlerFactory<Io: VmRunnerIo, F: OutputHandlerFactory> {
     pool: ConnectionPool<Core>,
-    state: Arc<DashMap<L1BatchNumber, oneshot::Receiver<JoinHandle<anyhow::Result<()>>>>>,
+    state: Arc<DashMap<L1BatchNumber, BatchReceiver>>,
     io: Io,
     factory: F,
 }
@@ -118,13 +124,11 @@ impl<Io: VmRunnerIo, F: OutputHandlerFactory> OutputHandlerFactory
         let handler = self.factory.create_handler(l1_batch_number).await?;
         let (sender, receiver) = oneshot::channel();
         self.state.insert(l1_batch_number, receiver);
-        Ok(Box::new(AsyncOutputHandler {
-            internal: Some(OutputHandlerState::Running { handler, sender }),
-        }))
+        Ok(Box::new(AsyncOutputHandler::Running { handler, sender }))
     }
 }
 
-enum OutputHandlerState {
+enum AsyncOutputHandler {
     Running {
         handler: Box<dyn StateKeeperOutputHandler>,
         sender: oneshot::Sender<JoinHandle<anyhow::Result<()>>>,
@@ -132,30 +136,28 @@ enum OutputHandlerState {
     Finished,
 }
 
-impl Debug for OutputHandlerState {
+impl Debug for AsyncOutputHandler {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OutputHandlerState").finish()
+        match self {
+            AsyncOutputHandler::Running { handler, .. } => f
+                .debug_struct("AsyncOutputHandler::Running")
+                .field("handler", handler)
+                .finish(),
+            AsyncOutputHandler::Finished => f.debug_struct("AsyncOutputHandler::Finished").finish(),
+        }
     }
-}
-
-#[derive(Debug)]
-struct AsyncOutputHandler {
-    internal: Option<OutputHandlerState>,
 }
 
 #[async_trait]
 impl StateKeeperOutputHandler for AsyncOutputHandler {
     async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        match &mut self.internal {
-            Some(OutputHandlerState::Running { handler, .. }) => {
+        match self {
+            AsyncOutputHandler::Running { handler, .. } => {
                 handler.handle_l2_block(updates_manager).await
             }
-            Some(OutputHandlerState::Finished) => {
+            AsyncOutputHandler::Finished => {
                 Err(anyhow::anyhow!("Cannot handle any more L2 blocks"))
             }
-            None => Err(anyhow::anyhow!(
-                "Unexpected state, missing output handler state"
-            )),
         }
     }
 
@@ -163,13 +165,12 @@ impl StateKeeperOutputHandler for AsyncOutputHandler {
         &mut self,
         updates_manager: Arc<UpdatesManager>,
     ) -> anyhow::Result<()> {
-        let state = self.internal.take();
+        let state = mem::replace(self, AsyncOutputHandler::Finished);
         match state {
-            Some(OutputHandlerState::Running {
+            AsyncOutputHandler::Running {
                 mut handler,
                 sender,
-            }) => {
-                self.internal = Some(OutputHandlerState::Finished);
+            } => {
                 sender
                     .send(tokio::task::spawn(async move {
                         handler.handle_l1_batch(updates_manager).await
@@ -177,13 +178,9 @@ impl StateKeeperOutputHandler for AsyncOutputHandler {
                     .ok();
                 Ok(())
             }
-            Some(OutputHandlerState::Finished) => {
-                self.internal = state;
+            AsyncOutputHandler::Finished => {
                 Err(anyhow::anyhow!("Cannot handle any more L1 batches"))
             }
-            None => Err(anyhow::anyhow!(
-                "Unexpected state, missing output handler state"
-            )),
         }
     }
 }
@@ -193,7 +190,7 @@ impl StateKeeperOutputHandler for AsyncOutputHandler {
 pub struct ConcurrentOutputHandlerFactoryTask<Io: VmRunnerIo> {
     pool: ConnectionPool<Core>,
     io: Io,
-    state: Arc<DashMap<L1BatchNumber, oneshot::Receiver<JoinHandle<anyhow::Result<()>>>>>,
+    state: Arc<DashMap<L1BatchNumber, BatchReceiver>>,
 }
 
 impl<Io: VmRunnerIo> Debug for ConcurrentOutputHandlerFactoryTask<Io> {
@@ -233,16 +230,19 @@ impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
                 Some((_, receiver)) => {
                     // Wait until the `JoinHandle` is sent through the receiver, happens when
                     // `handle_l1_batch` is called on the corresponding output handler
-                    let handle = receiver.await?;
+                    let handle = receiver
+                        .await
+                        .context("handler was dropped before the batch was fully processed")?;
                     // Wait until the handle is resolved, meaning that the `handle_l1_batch`
                     // computation has finished, and we can consider this batch to be completed
-                    handle.await??;
+                    handle
+                        .await
+                        .context("failed to await for batch to be processed")??;
                     latest_processed_batch += 1;
                     let mut conn = self.pool.connection_tagged(Io::name()).await?;
                     self.io
                         .mark_l1_batch_as_completed(&mut conn, latest_processed_batch)
                         .await?;
-                    drop(conn);
                 }
             }
         }
