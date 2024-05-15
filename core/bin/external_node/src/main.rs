@@ -8,11 +8,13 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    validation_task::L1BatchCommitmentModeValidationTask, CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_consistency_checker::ConsistencyChecker;
-use zksync_core::{setup_sigint_handler, utils::L1BatchCommitmentModeValidationTask};
+use zksync_core::setup_sigint_handler;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,

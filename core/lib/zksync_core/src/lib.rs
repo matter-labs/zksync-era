@@ -19,7 +19,9 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    validation_task::L1BatchCommitmentModeValidationTask, CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
@@ -76,11 +78,8 @@ use zksync_tee_verifier_input_producer::TeeVerifierInputProducer;
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 use zksync_web3_decl::client::Client;
 
-use crate::utils::L1BatchCommitmentModeValidationTask;
-
 pub mod proto;
 pub mod temp_config_store;
-pub mod utils;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(

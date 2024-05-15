@@ -1,5 +1,3 @@
-//! Miscellaneous utils used by multiple components.
-
 use std::time::Duration;
 
 use tokio::sync::watch;
