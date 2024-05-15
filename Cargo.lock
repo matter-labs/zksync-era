@@ -3725,6 +3725,7 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "once_cell",
+ "serde",
  "thiserror",
  "tokio",
  "tracing",
@@ -5538,6 +5539,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a129b9e9efbfb223753b9163c4ab3b13cff7fd9c7f010fbac25ab4099fa07e"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "secrecy"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9bd1c54ea06cfd2f6b63219704de0b9b4f72dcc2b8fdef820be6cd799780e91e"
+dependencies = [
+ "zeroize",
 ]
 
 [[package]]
@@ -8029,6 +8039,7 @@ dependencies = [
  "num_enum 0.7.2",
  "serde",
  "serde_json",
+ "sqlx",
  "strum",
  "thiserror",
  "tiny-keccak 2.0.2",
@@ -8120,8 +8131,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
+ "secrecy",
  "serde",
- "url",
  "zksync_basic_types",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
@@ -8331,6 +8342,7 @@ dependencies = [
  "prover_dal",
  "rand 0.8.5",
  "reqwest",
+ "secrecy",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -8380,10 +8392,12 @@ dependencies = [
  "zksync_protobuf_build",
  "zksync_protobuf_config",
  "zksync_prover_interface",
+ "zksync_queued_job_processor",
  "zksync_shared_metrics",
  "zksync_state",
  "zksync_storage",
  "zksync_system_constants",
+ "zksync_tee_verifier",
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
@@ -8581,7 +8595,6 @@ dependencies = [
  "url",
  "vise",
  "vlog",
- "zksync_basic_types",
  "zksync_block_reverter",
  "zksync_commitment_generator",
  "zksync_concurrency",
@@ -8904,6 +8917,7 @@ dependencies = [
  "hex",
  "prost 0.12.1",
  "rand 0.8.5",
+ "secrecy",
  "serde_json",
  "serde_yaml",
  "zksync_basic_types",
@@ -9042,6 +9056,30 @@ version = "0.1.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
+ "zksync_utils",
+]
+
+[[package]]
+name = "zksync_tee_verifier"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "multivm",
+ "serde",
+ "tracing",
+ "vm_utils",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_crypto",
+ "zksync_dal",
+ "zksync_db_connection",
+ "zksync_merkle_tree",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_queued_job_processor",
+ "zksync_state",
+ "zksync_types",
  "zksync_utils",
 ]
 
