@@ -18,4 +18,3 @@ anyhow.workspace = true
 rand.workspace = true
 secrecy.workspace = true
 serde = { workspace = true, features = ["derive"] }
-url.workspace = true

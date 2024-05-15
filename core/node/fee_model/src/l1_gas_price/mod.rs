@@ -2,15 +2,14 @@
 
 use std::fmt;
 
-pub use gas_adjuster::GasAdjuster;
-pub use main_node_fetcher::MainNodeFeeParamsFetcher;
-pub use pubdata_pricing::{PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing};
-pub use singleton::GasAdjusterSingleton;
+pub use self::{
+    gas_adjuster::GasAdjuster, main_node_fetcher::MainNodeFeeParamsFetcher,
+    singleton::GasAdjusterSingleton,
+};
 
 mod gas_adjuster;
 mod main_node_fetcher;
-mod pubdata_pricing;
-pub mod singleton;
+mod singleton;
 
 /// Abstraction that provides parameters to set the fee for an L1 transaction, taking the desired
 /// mining time into account.

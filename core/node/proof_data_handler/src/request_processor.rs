@@ -13,16 +13,19 @@ use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
     SubmitProofRequest, SubmitProofResponse,
 };
-use zksync_types::{commitment::serialize_commitments, web3::keccak256, L1BatchNumber, H256};
-
-use crate::blob_processor::BlobProcessor;
+use zksync_types::{
+    basic_fri_types::Eip4844Blobs,
+    commitment::{serialize_commitments, L1BatchCommitmentMode},
+    web3::keccak256,
+    L1BatchNumber, H256,
+};
 
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
-    blob_processor: Arc<dyn BlobProcessor>,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 pub(crate) enum RequestProcessorError {
@@ -62,13 +65,13 @@ impl RequestProcessor {
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
-        blob_processor: Arc<dyn BlobProcessor>,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
-            blob_processor,
+            commitment_mode,
         }
     }
 
@@ -133,9 +136,17 @@ impl RequestProcessor {
             .unwrap()
             .unwrap();
 
-        let eip_4844_blobs = self
-            .blob_processor
-            .process_blobs(l1_batch_number, storage_batch.pubdata_input);
+        let eip_4844_blobs = match self.commitment_mode {
+            L1BatchCommitmentMode::Validium => Eip4844Blobs::empty(),
+            L1BatchCommitmentMode::Rollup => {
+                let blobs = storage_batch.pubdata_input.as_deref().unwrap_or_else(|| {
+                    panic!(
+                        "expected pubdata, but it is not available for batch {l1_batch_number:?}"
+                    )
+                });
+                Eip4844Blobs::decode(blobs).expect("failed to decode EIP-4844 blobs")
+            }
+        };
 
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,

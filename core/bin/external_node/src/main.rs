@@ -8,17 +8,9 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::{
-    commitment_post_processor::{
-        CommitmentPostProcessor, RollupCommitmentPostProcessor, ValidiumCommitmentPostProcessor,
-    },
-    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
-    CommitmentGenerator,
-};
+use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
-use zksync_config::configs::{
-    api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
-};
+use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -39,17 +31,13 @@ use zksync_core::{
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
-    utils::ensure_l1_batch_commit_data_generation_mode,
+    utils::L1BatchCommitmentModeValidationTask,
 };
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
 use zksync_eth_client::EthInterface;
-use zksync_eth_sender::l1_batch_commit_data_generator::{
-    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-    ValidiumModeL1BatchCommitDataGenerator,
-};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
@@ -217,7 +205,7 @@ async fn run_core(
     connection_pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
-    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
@@ -343,29 +331,14 @@ async fn run_core(
         remote_diamond_proxy_addr
     };
 
-    ensure_l1_batch_commit_data_generation_mode(
-        config.optional.l1_batch_commit_data_generator_mode,
+    // Run validation asynchronously: the node starting shouldn't depend on Ethereum client availability,
+    // and the impact of a failed async check is reasonably low (the commitment mode is only used in consistency checker).
+    let validation_task = L1BatchCommitmentModeValidationTask::new(
         diamond_proxy_addr,
-        eth_client.as_ref(),
-    )
-    .await?;
-
-    let (l1_batch_commit_data_generator, input_generator, commitment_post_processor): (
-        Arc<dyn L1BatchCommitDataGenerator>,
-        Box<dyn InputGenerator>,
-        Box<dyn CommitmentPostProcessor>,
-    ) = match config.optional.l1_batch_commit_data_generator_mode {
-        L1BatchCommitDataGeneratorMode::Rollup => (
-            Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-            Box::new(RollupInputGenerator),
-            Box::new(RollupCommitmentPostProcessor),
-        ),
-        L1BatchCommitDataGeneratorMode::Validium => (
-            Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-            Box::new(ValidiumInputGenerator),
-            Box::new(ValidiumCommitmentPostProcessor),
-        ),
-    };
+        config.optional.l1_batch_commit_data_generator_mode,
+        eth_client.clone(),
+    );
+    task_handles.push(tokio::spawn(validation_task.run(stop_receiver.clone())));
 
     let consistency_checker = ConsistencyChecker::new(
         eth_client,
@@ -374,7 +347,7 @@ async fn run_core(
             .build()
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
-        l1_batch_commit_data_generator,
+        config.optional.l1_batch_commit_data_generator_mode,
     )
     .context("cannot initialize consistency checker")?
     .with_diamond_proxy_addr(diamond_proxy_addr);
@@ -397,8 +370,7 @@ async fn run_core(
         .context("failed to build a commitment_generator_pool")?;
     let commitment_generator = CommitmentGenerator::new(
         commitment_generator_pool,
-        input_generator,
-        commitment_post_processor,
+        config.optional.l1_batch_commit_data_generator_mode,
     );
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));

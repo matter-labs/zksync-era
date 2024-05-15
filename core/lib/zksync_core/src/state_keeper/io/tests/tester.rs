@@ -10,16 +10,14 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
-use zksync_node_fee_model::{
-    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
-    MainNodeFeeInputProvider,
-};
+use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
 use zksync_node_genesis::create_genesis_l1_batch;
 use zksync_node_test_utils::{
-    create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction, DeploymentMode,
+    create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
 };
 use zksync_types::{
     block::L2BlockHeader,
+    commitment::L1BatchCommitmentMode,
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     l2::L2Tx,
@@ -35,22 +33,16 @@ use crate::state_keeper::{MempoolGuard, MempoolIO};
 pub struct Tester {
     base_system_contracts: BaseSystemContracts,
     current_timestamp: u64,
-    pubdata_pricing: Arc<dyn PubdataPricing>,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl Tester {
-    pub(super) fn new(deployment_mode: &DeploymentMode) -> Self {
+    pub(super) fn new(commitment_mode: L1BatchCommitmentMode) -> Self {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
-
-        let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
-            DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
-            DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
-        };
-
         Self {
             base_system_contracts,
             current_timestamp: 0,
-            pubdata_pricing,
+            commitment_mode,
         }
     }
 
@@ -77,7 +69,7 @@ impl Tester {
             Box::new(eth_client),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
-            self.pubdata_pricing.clone(),
+            self.commitment_mode,
         )
         .await
         .unwrap()
