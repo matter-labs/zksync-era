@@ -1,18 +1,17 @@
-use serde::Deserialize;
 use zksync_basic_types::url::SensitiveUrl;
 
 use crate::configs::consensus::ConsensusSecrets;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DatabaseSecrets {
-    server_url: Option<SensitiveUrl>,
-    prover_url: Option<SensitiveUrl>,
-    server_replica_url: Option<SensitiveUrl>,
+    pub server_url: Option<SensitiveUrl>,
+    pub prover_url: Option<SensitiveUrl>,
+    pub server_replica_url: Option<SensitiveUrl>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct L1Secrets {
-    l1_rpc_url: Option<SensitiveUrl>,
+    pub l1_rpc_url: SensitiveUrl,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -31,20 +31,20 @@ impl FromEnv for DBConfig {
 
 impl FromEnv for PostgresConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let master_url = env::var("DATABASE_URL")
-            .ok()
-            .map(|s| s.parse())
-            .transpose()?;
-        let replica_url = env::var("DATABASE_REPLICA_URL")
-            .ok()
-            .map(|s| s.parse())
-            .transpose()?
-            .or_else(|| master_url.clone());
-        let prover_url = env::var("DATABASE_PROVER_URL")
-            .ok()
-            .map(|s| s.parse())
-            .transpose()?
-            .or_else(|| master_url.clone());
+        // let master_url = env::var("DATABASE_URL")
+        //     .ok()
+        //     .map(|s| s.parse())
+        //     .transpose()?;
+        // let replica_url = env::var("DATABASE_REPLICA_URL")
+        //     .ok()
+        //     .map(|s| s.parse())
+        //     .transpose()?
+        //     .or_else(|| master_url.clone());
+        // let prover_url = env::var("DATABASE_PROVER_URL")
+        //     .ok()
+        //     .map(|s| s.parse())
+        //     .transpose()?
+        //     .or_else(|| master_url.clone());
         let test_server_url = env::var("TEST_DATABASE_URL").ok();
         let test_prover_url = env::var("TEST_DATABASE_PROVER_URL").ok();
         let max_connections = parse_optional_var("DATABASE_POOL_SIZE")?;
@@ -56,9 +56,6 @@ impl FromEnv for PostgresConfig {
         let slow_query_threshold_ms = parse_optional_var("DATABASE_SLOW_QUERY_THRESHOLD_MS")?;
 
         Ok(Self {
-            master_url,
-            replica_url,
-            prover_url,
             max_connections,
             max_connections_master,
             acquire_timeout_sec,
