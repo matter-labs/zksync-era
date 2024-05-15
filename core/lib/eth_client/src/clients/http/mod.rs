@@ -4,10 +4,7 @@ use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily, Metrics,
 };
 
-pub use self::{
-    query::QueryClient,
-    signing::{PKSigningClient, SigningClient},
-};
+pub use self::signing::{PKSigningClient, SigningClient};
 
 mod decl;
 mod query;

@@ -103,8 +103,10 @@ impl MainNodeBuilder {
     }
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_client_config = EthConfig::from_env()?;
-        let query_eth_client_layer = QueryEthClientLayer::new(eth_client_config.web3_url);
+        let genesis = GenesisConfig::from_env()?;
+        let eth_config = EthConfig::from_env()?;
+        let query_eth_client_layer =
+            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.web3_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
@@ -382,7 +384,6 @@ impl MainNodeBuilder {
             ))
         }
 
-        let genesis = GenesisConfig::from_env()?;
         let config = read_consensus_config().context("read_consensus_config()")?;
         let secrets = read_consensus_secrets().context("read_consensus_secrets()")?;
 
@@ -390,7 +391,6 @@ impl MainNodeBuilder {
             mode: ConsensusMode::Main,
             config,
             secrets,
-            chain_id: genesis.l2_chain_id,
         });
 
         Ok(self)

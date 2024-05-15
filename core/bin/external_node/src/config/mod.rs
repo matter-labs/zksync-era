@@ -7,11 +7,9 @@ use std::{
 
 use anyhow::Context;
 use serde::Deserialize;
-use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
-        chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
     ObjectStoreConfig,
@@ -28,9 +26,12 @@ use zksync_core::{
 use zksync_dal::{ConnectionPool, Core};
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
-use zksync_types::{api::BridgeAddresses, url::SensitiveUrl, ETHEREUM_ADDRESS};
+use zksync_types::{
+    api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address, L1ChainId,
+    L2ChainId, ETHEREUM_ADDRESS,
+};
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::ClientRpcContext,
     jsonrpsee::{core::ClientError, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
@@ -86,12 +87,12 @@ pub(crate) struct RemoteENConfig {
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub base_token_addr: Address,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
 }
 
 impl RemoteENConfig {
-    pub async fn fetch(client: &BoxedL2Client) -> anyhow::Result<Self> {
+    pub async fn fetch(client: &DynClient<L2>) -> anyhow::Result<Self> {
         let bridges = client
             .get_bridge_contracts()
             .rpc_context("get_bridge_contracts")
@@ -187,7 +188,7 @@ impl RemoteENConfig {
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
-            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
+            l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
         }
     }
@@ -363,8 +364,8 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_main_node_rate_limit_rps")]
     pub main_node_rate_limit_rps: NonZeroUsize,
 
-    #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    #[serde(default)]
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
     /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
     /// or was synced from genesis.
@@ -512,10 +513,6 @@ impl OptionalENConfig {
 
     fn default_main_node_rate_limit_rps() -> NonZeroUsize {
         NonZeroUsize::new(100).unwrap()
-    }
-
-    const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
-        L1BatchCommitDataGeneratorMode::Rollup
     }
 
     fn default_snapshots_recovery_postgres_max_concurrency() -> NonZeroUsize {
@@ -841,7 +838,7 @@ impl ExternalNodeConfig {
         required: RequiredENConfig,
         optional: OptionalENConfig,
         observability: ObservabilityENConfig,
-        main_node_client: &BoxedL2Client,
+        main_node_client: &DynClient<L2>,
     ) -> anyhow::Result<Self> {
         let experimental = envy::prefixed("EN_EXPERIMENTAL_")
             .from_env::<ExperimentalENConfig>()

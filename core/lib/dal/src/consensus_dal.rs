@@ -47,6 +47,8 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Attempts to update the genesis.
+    /// Fails if the new genesis is invalid.
+    /// Fails if the new genesis has different `chain_id`.
     /// Fails if the storage contains a newer genesis (higher fork number).
     /// Noop if the new genesis is the same as the current one.
     /// Resets the stored consensus state otherwise and purges all certificates.
@@ -58,11 +60,18 @@ impl ConsensusDal<'_, '_> {
                 return Ok(());
             }
             anyhow::ensure!(
+                got.chain_id == genesis.chain_id,
+                "changing chain_id is not allowed: old = {:?}, new = {:?}",
+                got.chain_id,
+                genesis.chain_id,
+            );
+            anyhow::ensure!(
                 got.fork_number < genesis.fork_number,
                 "transition to a past fork is not allowed: old = {:?}, new = {:?}",
                 got.fork_number,
                 genesis.fork_number,
             );
+            genesis.verify().context("genesis.verify()")?;
         }
         let genesis =
             zksync_protobuf::serde::serialize(genesis, serde_json::value::Serializer).unwrap();
@@ -144,7 +153,7 @@ impl ConsensusDal<'_, '_> {
             fork_number: old.fork_number.next(),
             first_block,
 
-            protocol_version: validator::ProtocolVersion::CURRENT,
+            protocol_version: old.protocol_version,
             committee: old.committee.clone(),
             leader_selection: old.leader_selection.clone(),
         }
