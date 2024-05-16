@@ -15,6 +15,6 @@ RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.
 RUN apt-get update && apt-get install -y google-cloud-cli
 
 
-COPY --from=builder /usr/src/zksync/zksync-era/target/release/verified_sources_fetcher /usr/bin/
+COPY --from=builder /usr/src/zksync/target/release/verified_sources_fetcher /usr/bin/
 
 ENTRYPOINT ["verified_sources_fetcher"]
