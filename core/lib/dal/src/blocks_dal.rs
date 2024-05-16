@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     convert::{Into, TryInto},
     ops,
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use anyhow::Context as _;
@@ -142,7 +143,7 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
-    pub async fn get_last_l1_batch_number_with_metadata(
+    pub async fn get_last_l1_batch_number_with_tree_data(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
@@ -155,7 +156,7 @@ impl BlocksDal<'_, '_> {
                 hash IS NOT NULL
             "#
         )
-        .instrument("get_last_block_number_with_metadata")
+        .instrument("get_last_block_number_with_tree_data")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
@@ -804,33 +805,12 @@ impl BlocksDal<'_, '_> {
         if update_result.rows_affected() == 0 {
             tracing::debug!("L1 batch #{number}: tree data wasn't updated as it's already present");
 
-            // Batch was already processed. Verify that existing hash matches
-            let matched: i64 = sqlx::query!(
-                r#"
-                SELECT
-                    COUNT(*) AS "count!"
-                FROM
-                    l1_batches
-                WHERE
-                    number = $1
-                    AND hash = $2
-                "#,
-                i64::from(number.0),
-                tree_data.hash.as_bytes(),
-            )
-            .instrument("get_matching_batch_hash")
-            .with_arg("number", &number)
-            .report_latency()
-            .fetch_one(self.storage)
-            .await?
-            .count;
-
+            // Batch was already processed. Verify that the existing tree data matches.
+            let existing_tree_data = self.get_l1_batch_tree_data(number).await?;
             anyhow::ensure!(
-                matched == 1,
-                "Root hash verification failed. Hash for L1 batch #{} does not match the expected value \
-                 (expected root hash: {:?})",
-                number,
-                tree_data.hash,
+                existing_tree_data.as_ref() == Some(tree_data),
+                "Root hash verification failed. Tree data for L1 batch #{number} does not match the expected value \
+                 (expected: {tree_data:?}, existing: {existing_tree_data:?})",
             );
         }
         Ok(())
@@ -2206,6 +2186,39 @@ impl BlocksDal<'_, '_> {
         self.delete_initial_writes_inner(None).await?;
         self.delete_logs_inner().await?;
         Ok(())
+    }
+
+    /// Obtains a protocol version projected to be applied for the next L2 block. This is either the version used by the last
+    /// sealed L2 block, or (if there are no L2 blocks), one referenced in the snapshot recovery record.
+    pub async fn pending_protocol_version(&mut self) -> anyhow::Result<ProtocolVersionId> {
+        static WARNED_ABOUT_NO_VERSION: AtomicBool = AtomicBool::new(false);
+
+        let last_l2_block = self
+            .storage
+            .blocks_dal()
+            .get_last_sealed_l2_block_header()
+            .await?;
+        if let Some(last_l2_block) = last_l2_block {
+            return Ok(last_l2_block.protocol_version.unwrap_or_else(|| {
+                // Protocol version should be set for the most recent L2 block even in cases it's not filled
+                // for old L2 blocks, hence the warning. We don't want to rely on this assumption, so we treat
+                // the lack of it as in other similar places, replacing with the default value.
+                if !WARNED_ABOUT_NO_VERSION.fetch_or(true, Ordering::Relaxed) {
+                    tracing::warn!(
+                        "Protocol version not set for recent L2 block: {last_l2_block:?}"
+                    );
+                }
+                ProtocolVersionId::last_potentially_undefined()
+            }));
+        }
+        // No L2 blocks in the storage; use snapshot recovery information.
+        let snapshot_recovery = self
+            .storage
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await?
+            .context("storage contains neither L2 blocks, nor snapshot recovery info")?;
+        Ok(snapshot_recovery.protocol_version)
     }
 }
 

@@ -1,4 +1,4 @@
-use zksync_core::sync_layer::SyncState;
+use zksync_node_sync::SyncState;
 
 use crate::resource::Resource;
 

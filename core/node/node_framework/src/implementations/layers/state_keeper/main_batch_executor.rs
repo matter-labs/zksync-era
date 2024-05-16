@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use zksync_config::{configs::chain::StateKeeperConfig, DBConfig};
-use zksync_core::state_keeper::{AsyncRocksdbCache, MainBatchExecutor};
 use zksync_state::{AsyncCatchupTask, RocksdbStorageOptions};
+use zksync_state_keeper::{AsyncRocksdbCache, MainBatchExecutor};
 
 use crate::{
     implementations::resources::{

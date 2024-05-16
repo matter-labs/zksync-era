@@ -14,15 +14,13 @@ use zksync_config::{
     },
     ObjectStoreConfig,
 };
-use zksync_core::{
-    api_server::{
-        tx_sender::TxSenderConfig,
-        web3::{state::InternalApiConfig, Namespace},
-    },
-    temp_config_store::decode_yaml_repr,
-};
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
+use zksync_node_api_server::{
+    tx_sender::TxSenderConfig,
+    web3::{state::InternalApiConfig, Namespace},
+};
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
@@ -758,7 +756,8 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
     Ok(Some(
-        decode_yaml_repr::<proto::consensus::Secrets>(&cfg).context("failed decoding YAML")?,
+        decode_yaml_repr::<proto::secrets::ConsensusSecrets>(&cfg)
+            .context("failed decoding YAML")?,
     ))
 }
 
