@@ -9,6 +9,17 @@ use zksync_dal::{ConnectionPool, Core};
 
 use crate::{storage::StorageLoader, OutputHandlerFactory, VmRunnerIo};
 
+/// VM runner represents a logic layer of L1 batch / L2 block processing flow akin to that of state
+/// keeper. The difference is that VM runner is designed to be run on batches/blocks that have
+/// already been processed by state keeper but still require some extra handling as regulated by
+/// [`OutputHandlerFactory`].
+///
+/// It's responsible for taking unprocessed data from the [`VmRunnerIo`], feeding it into
+/// [`BatchExecutor`] and calling [`OutputHandlerFactory`] on the result of the execution (batch
+/// execution state in the [`UpdatesManager`]).
+///
+/// You can think of VM runner as a concurrent processor of a continuous stream of newly committed
+/// batches/blocks.
 #[derive(Debug)]
 pub struct VmRunner {
     pool: ConnectionPool<Core>,
@@ -19,6 +30,12 @@ pub struct VmRunner {
 }
 
 impl VmRunner {
+    /// Initializes VM runner with its constituents. In order to make VM runner concurrent each
+    /// parameter here needs to support concurrent execution mode. See
+    /// [`ConcurrentOutputHandlerFactory`], [`VmRunnerStorage`].
+    ///
+    /// Caller is expected to provide a component-specific implementation of [`VmRunnerIo`] and
+    /// an underlying implementation of [`OutputHandlerFactory`].
     pub fn new(
         pool: ConnectionPool<Core>,
         io: Box<dyn VmRunnerIo>,
@@ -35,6 +52,8 @@ impl VmRunner {
         }
     }
 
+    /// Consumes VM runner to execute a loop that continuously pulls data from [`VmRunnerIo`] and
+    /// processes it.
     pub async fn run(mut self, stop_receiver: &watch::Receiver<bool>) -> anyhow::Result<()> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
