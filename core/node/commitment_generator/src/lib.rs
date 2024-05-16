@@ -26,6 +26,7 @@ use crate::{
 
 mod metrics;
 mod utils;
+pub mod validation_task;
 
 const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 

@@ -35,6 +35,7 @@ pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
+pub mod helpers;
 pub mod metrics;
 mod models;
 pub mod proof_generation_dal;

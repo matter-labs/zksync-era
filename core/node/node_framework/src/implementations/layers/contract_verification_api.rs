@@ -51,7 +51,7 @@ impl Task for ContractVerificationApiTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_core::api_server::contract_verification::start_server(
+        zksync_contract_verification_server::start_server(
             self.master_pool,
             self.replica_pool,
             self.config,
