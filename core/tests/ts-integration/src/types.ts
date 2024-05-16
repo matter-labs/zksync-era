@@ -15,6 +15,18 @@ export interface Token {
  * Description of the environment the integration tests are being run in.
  */
 export interface TestEnvironment {
+    maxLogsLimit: number;
+    pathToHome: string;
+    priorityTxMaxGasLimit: number;
+    validationComputationalGasLimit: number;
+    externalNode: boolean;
+    minimalL2GasPrice: ethers.BigNumber;
+    l1BatchCommitDataGeneratorMode: string;
+    /**
+     * Chain Id of the L2 Network
+     */
+    l2ChainId: number;
+
     /**
      * Plaintext name of the L1 network name (i.e. `localhost` or `goerli`).
      */
