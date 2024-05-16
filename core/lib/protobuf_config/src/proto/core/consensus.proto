@@ -81,7 +81,3 @@ message Config {
   optional GenesisSpec genesis_spec = 8;
 }
 
-message Secrets {
-  optional string validator_key = 1; // required for validator nodes; ValidatorSecretKey
-  optional string node_key = 2; // required for any node; NodeSecretKey
-}

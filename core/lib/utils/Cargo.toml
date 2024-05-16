@@ -30,3 +30,4 @@ itertools.workspace = true
 serde_json.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
+bincode.workspace = true
