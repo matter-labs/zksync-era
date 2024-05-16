@@ -101,6 +101,7 @@ axum = { workspace = true, features = [
     "tokio",
 ] }
 once_cell.workspace = true
+dashmap.workspace = true
 
 tracing.workspace = true
 
