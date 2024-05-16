@@ -25,7 +25,7 @@ use zksync_merkle_tree::{
     TreeEntryWithProof, TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
-use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, H256};
+use zksync_types::{block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, StorageKey, H256};
 
 use super::{
     metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
@@ -550,8 +550,45 @@ impl L1BatchWithLogs {
             MerkleTreeMode::Lightweight => HashSet::new(),
         };
 
+        let load_tree_writes_latency = METRICS.start_load_stage(LoadChangesStage::LoadTreeWrites);
+        let tree_writes = storage
+            .blocks_dal()
+            .get_tree_writes(l1_batch_number)
+            .await?;
+        load_tree_writes_latency.observe();
+
+        let storage_logs = if let Some(tree_writes) = tree_writes {
+            // If tree writes are present in DB then simply use them.
+            let writes = tree_writes.into_iter().map(|tree_write| {
+                let storage_key = StorageKey::new(
+                    AccountTreeId::new(Address::from_slice(&tree_write.address)),
+                    H256(tree_write.key),
+                );
+                TreeInstruction::write(storage_key, tree_write.leaf_index, H256(tree_write.value))
+            });
+            let reads = protective_reads.into_iter().map(TreeInstruction::Read);
+            writes.chain(reads).collect::<Vec<_>>()
+        } else {
+            // Otherwise, load writes' data from other tables.
+            Self::extract_storage_logs_from_db(storage, l1_batch_number, protective_reads).await?
+        };
+
+        load_changes_latency.observe();
+
+        Ok(Some(Self {
+            header,
+            storage_logs,
+            mode,
+        }))
+    }
+
+    async fn extract_storage_logs_from_db(
+        connection: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+        protective_reads: HashSet<StorageKey>,
+    ) -> anyhow::Result<Vec<TreeInstruction<StorageKey>>> {
         let touched_slots_latency = METRICS.start_load_stage(LoadChangesStage::LoadTouchedSlots);
-        let mut touched_slots = storage
+        let mut touched_slots = connection
             .storage_logs_dal()
             .get_touched_slots_for_l1_batch(l1_batch_number)
             .await
@@ -561,7 +598,7 @@ impl L1BatchWithLogs {
         let leaf_indices_latency = METRICS.start_load_stage(LoadChangesStage::LoadLeafIndices);
         let hashed_keys_for_writes: Vec<_> =
             touched_slots.keys().map(StorageKey::hashed_key).collect();
-        let l1_batches_for_initial_writes = storage
+        let l1_batches_for_initial_writes = connection
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_writes)
             .await
@@ -598,12 +635,7 @@ impl L1BatchWithLogs {
             }
         }
 
-        load_changes_latency.observe();
-        Ok(Some(Self {
-            header,
-            storage_logs: storage_logs.into_values().collect(),
-            mode,
-        }))
+        Ok(storage_logs.into_values().collect())
     }
 }
 

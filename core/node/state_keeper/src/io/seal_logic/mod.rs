@@ -22,6 +22,7 @@ use zksync_types::{
         TransactionExecutionResult,
     },
     utils::display_timestamp,
+    writes::TreeWrite,
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
     Transaction, VmEvent, H256,
@@ -109,6 +110,96 @@ impl UpdatesManager {
             current_l1_batch_number = self.l1_batch.number
         );
 
+        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
+        let (deduplicated_writes, protective_reads): (Vec<LogQuery>, Vec<LogQuery>) =
+            finished_batch
+                .final_execution_state
+                .deduplicated_storage_log_queries
+                .iter()
+                .partition(|log_query| log_query.rw_flag);
+        let mut next_index = transaction
+            .storage_logs_dedup_dal()
+            .max_enumeration_index()
+            .await?
+            .unwrap_or(0)
+            + 1;
+        let (written_storage_keys, tree_input): (Vec<_>, Vec<_>) = if let Some(state_diffs) =
+            &finished_batch.state_diffs
+        {
+            let written_storage_keys = state_diffs
+                .iter()
+                .filter(|diff| diff.is_write_initial())
+                .map(|diff| {
+                    StorageKey::new(AccountTreeId::new(diff.address), u256_to_h256(diff.key))
+                })
+                .collect();
+            let tree_input = state_diffs
+                .iter()
+                .map(|diff| {
+                    let leaf_index = if diff.is_write_initial() {
+                        next_index += 1;
+                        next_index - 1
+                    } else {
+                        diff.enumeration_index
+                    };
+                    TreeWrite {
+                        address: diff.address.0,
+                        key: u256_to_h256(diff.key).0,
+                        value: u256_to_h256(diff.final_value).0,
+                        leaf_index,
+                    }
+                })
+                .collect();
+
+            (written_storage_keys, tree_input)
+        } else {
+            let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
+                .iter()
+                .map(|log| {
+                    H256(StorageKey::raw_hashed_key(
+                        &log.address,
+                        &u256_to_h256(log.key),
+                    ))
+                })
+                .collect();
+            let non_initial_writes = transaction
+                .storage_logs_dal()
+                .get_l1_batches_and_indices_for_initial_writes(&deduplicated_writes_hashed_keys)
+                .await?;
+
+            let written_storage_keys = deduplicated_writes
+                .iter()
+                .filter_map(|log| {
+                    let key =
+                        StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
+                    (!non_initial_writes.contains_key(&key.hashed_key())).then_some(key)
+                })
+                .collect();
+            let tree_input = deduplicated_writes
+                .iter()
+                .map(|log| {
+                    let key =
+                        StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
+                    let leaf_index =
+                        if let Some((_, leaf_index)) = non_initial_writes.get(&key.hashed_key()) {
+                            *leaf_index
+                        } else {
+                            next_index += 1;
+                            next_index - 1
+                        };
+                    TreeWrite {
+                        address: log.address.0,
+                        key: u256_to_h256(log.key).0,
+                        value: u256_to_h256(log.written_value).0,
+                        leaf_index,
+                    }
+                })
+                .collect();
+
+            (written_storage_keys, tree_input)
+        };
+        progress.observe(deduplicated_writes.len());
+
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let l2_to_l1_messages =
             extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
@@ -148,6 +239,7 @@ impl UpdatesManager {
                 &finished_batch.final_execution_state.storage_refunds,
                 &finished_batch.final_execution_state.pubdata_costs,
                 self.pending_execution_metrics().circuit_statistic,
+                Some(tree_input),
             )
             .await?;
         progress.observe(None);
@@ -169,11 +261,6 @@ impl UpdatesManager {
             .await?;
         progress.observe(None);
 
-        let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = finished_batch
-            .final_execution_state
-            .deduplicated_storage_log_queries
-            .iter()
-            .partition(|log_query| log_query.rw_flag);
         if insert_protective_reads {
             let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
             transaction
@@ -182,45 +269,6 @@ impl UpdatesManager {
                 .await?;
             progress.observe(protective_reads.len());
         }
-
-        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
-        let written_storage_keys: Vec<_> =
-            if let Some(initially_written_slots) = &finished_batch.initially_written_slots {
-                deduplicated_writes
-                    .iter()
-                    .filter_map(|log| {
-                        let key =
-                            StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
-                        initially_written_slots
-                            .contains(&key.hashed_key())
-                            .then_some(key)
-                    })
-                    .collect()
-            } else {
-                let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
-                    .iter()
-                    .map(|log| {
-                        H256(StorageKey::raw_hashed_key(
-                            &log.address,
-                            &u256_to_h256(log.key),
-                        ))
-                    })
-                    .collect();
-                let non_initial_writes = transaction
-                    .storage_logs_dedup_dal()
-                    .filter_written_slots(&deduplicated_writes_hashed_keys)
-                    .await?;
-
-                deduplicated_writes
-                    .iter()
-                    .filter_map(|log| {
-                        let key =
-                            StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
-                        (!non_initial_writes.contains(&key.hashed_key())).then_some(key)
-                    })
-                    .collect()
-            };
-        progress.observe(deduplicated_writes.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertInitialWrites);
         transaction

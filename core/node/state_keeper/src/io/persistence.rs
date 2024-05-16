@@ -257,8 +257,9 @@ mod tests {
     use zksync_dal::CoreDal;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
-        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId,
-        L1BatchNumber, L2BlockNumber, StorageKey, StorageLogQueryType,
+        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics,
+        writes::StateDiffRecord, AccountTreeId, L1BatchNumber, L2BlockNumber, StorageKey,
+        StorageLogQueryType,
     };
     use zksync_utils::u256_to_h256;
 
@@ -360,7 +361,7 @@ mod tests {
             .final_execution_state
             .deduplicated_storage_log_queries =
             storage_logs.iter().map(|query| query.log_query).collect();
-        batch_result.initially_written_slots = Some(
+        batch_result.state_diffs = Some(
             storage_logs
                 .into_iter()
                 .filter(|&log| log.log_type == StorageLogQueryType::InitialWrite)
@@ -369,7 +370,14 @@ mod tests {
                         AccountTreeId::new(log.log_query.address),
                         u256_to_h256(log.log_query.key),
                     );
-                    key.hashed_key()
+                    StateDiffRecord {
+                        address: log.log_query.address,
+                        key: log.log_query.key,
+                        derived_key: key.hashed_key().0,
+                        enumeration_index: 0,
+                        initial_value: log.log_query.read_value,
+                        final_value: log.log_query.written_value,
+                    }
                 })
                 .collect(),
         );

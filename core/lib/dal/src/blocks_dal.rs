@@ -18,6 +18,7 @@ use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHeader, StorageOracleInfo},
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
+    writes::TreeWrite,
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
 
@@ -469,6 +470,7 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_l1_batch(
         &mut self,
         header: &L1BatchHeader,
@@ -477,6 +479,7 @@ impl BlocksDal<'_, '_> {
         storage_refunds: &[u32],
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
+        tree_writes: Option<Vec<TreeWrite>>,
     ) -> DalResult<()> {
         let initial_bootloader_contents_len = initial_bootloader_contents.len();
         let instrumentation = Instrumented::new("insert_l1_batch")
@@ -508,6 +511,13 @@ impl BlocksDal<'_, '_> {
             .map_err(|err| instrumentation.arg_error("header.used_contract_hashes", err))?;
         let storage_refunds: Vec<_> = storage_refunds.iter().copied().map(i64::from).collect();
         let pubdata_costs: Vec<_> = pubdata_costs.iter().copied().map(i64::from).collect();
+        let tree_writes = tree_writes
+            .map(|v| {
+                bincode::serialize(&v)
+                    .map_err(|err| instrumentation.arg_error("tree_writes_data", err))
+            })
+            .transpose()?;
+        let tree_writes_slice = tree_writes.as_deref();
 
         let query = sqlx::query!(
             r#"
@@ -534,6 +544,7 @@ impl BlocksDal<'_, '_> {
                     pubdata_costs,
                     pubdata_input,
                     predicted_circuits_by_type,
+                    tree_writes,
                     created_at,
                     updated_at
                 )
@@ -560,6 +571,7 @@ impl BlocksDal<'_, '_> {
                     $19,
                     $20,
                     $21,
+                    $22,
                     NOW(),
                     NOW()
                 )
@@ -585,6 +597,7 @@ impl BlocksDal<'_, '_> {
             &pubdata_costs,
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
+            tree_writes_slice,
         );
 
         let mut transaction = self.storage.start_transaction().await?;
@@ -2159,6 +2172,40 @@ impl BlocksDal<'_, '_> {
         .await?;
         Ok(())
     }
+
+    pub async fn get_tree_writes(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<Vec<TreeWrite>>> {
+        let tree_writes: Option<Vec<u8>> = sqlx::query!(
+            r#"
+            SELECT
+                tree_writes
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0),
+        )
+        .instrument("get_tree_writes")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .and_then(|row| row.tree_writes);
+
+        let tree_writes = tree_writes
+            .map(|data| {
+                bincode::deserialize(&data).map_err(|err| {
+                    Instrumented::new("get_tree_writes")
+                        .with_arg("l1_batch_number", &l1_batch_number)
+                        .constraint_error(err.into())
+                })
+            })
+            .transpose()?;
+
+        Ok(tree_writes)
+    }
 }
 
 /// These methods should only be used for tests.
@@ -2196,6 +2243,7 @@ impl BlocksDal<'_, '_> {
             &[],
             &[],
             Default::default(),
+            None,
         )
         .await
     }
@@ -2331,7 +2379,15 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
+            .insert_l1_batch(
+                &header,
+                &[],
+                predicted_gas,
+                &[],
+                &[],
+                Default::default(),
+                Some(Vec::new()),
+            )
             .await
             .unwrap();
 
@@ -2339,7 +2395,15 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
+            .insert_l1_batch(
+                &header,
+                &[],
+                predicted_gas,
+                &[],
+                &[],
+                Default::default(),
+                Some(Vec::new()),
+            )
             .await
             .unwrap();
 

@@ -156,7 +156,7 @@ impl StorageLogsDedupDal<'_, '_> {
             .collect())
     }
 
-    async fn max_enumeration_index(&mut self) -> DalResult<Option<u64>> {
+    pub async fn max_enumeration_index(&mut self) -> DalResult<Option<u64>> {
         Ok(sqlx::query!(
             r#"
             SELECT

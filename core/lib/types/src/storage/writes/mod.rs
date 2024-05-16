@@ -188,6 +188,19 @@ fn prepend_header(compressed_state_diffs: Vec<u8>) -> Vec<u8> {
     res.to_vec()
 }
 
+/// Struct for storing tree writes in DB.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TreeWrite {
+    /// `address` part of storage key. Represented as byte array so `bincode` serialization format is shorter.
+    pub address: [u8; 20],
+    /// `key` part of storage key. Represented as byte array so `bincode` serialization format is shorter.
+    pub key: [u8; 32],
+    /// Value written. Represented as byte array so `bincode` serialization format is shorter.
+    pub value: [u8; 32],
+    /// Leaf index of the slot.
+    pub leaf_index: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
