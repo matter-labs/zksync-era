@@ -71,6 +71,10 @@ interface DbPrunerDetails {
     readonly last_hard_pruned_l1_batch?: number;
 }
 
+interface TreeDataFetcherDetails {
+    readonly last_updated_l1_batch?: number;
+}
+
 interface HealthCheckResponse {
     readonly components: {
         snapshot_recovery?: Health<SnapshotRecoveryDetails>;
@@ -79,6 +83,7 @@ interface HealthCheckResponse {
         tree?: Health<TreeDetails>;
         db_pruner?: Health<DbPrunerDetails>;
         tree_pruner?: Health<{}>;
+        tree_data_fetcher?: Health<TreeDataFetcherDetails>;
     };
 }
 
@@ -97,6 +102,9 @@ describe('snapshot recovery', () => {
     const PRUNED_BATCH_COUNT = 1;
 
     const homeDir = process.env.ZKSYNC_HOME!!;
+
+    const disableTreeDuringPruning = process.env.DISABLE_TREE_DURING_PRUNING === 'true';
+    console.log(`Tree is ${disableTreeDuringPruning ? 'disabled' : 'enabled'} during pruning`);
 
     const externalNodeEnvProfile =
         'ext-node' +
@@ -351,6 +359,9 @@ describe('snapshot recovery', () => {
         await stopExternalNode();
         await waitForProcess(externalNodeProcess);
 
+        const components = disableTreeDuringPruning
+            ? NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE
+            : NodeComponents.WITH_TREE_FETCHER;
         const pruningParams = {
             EN_PRUNING_ENABLED: 'true',
             EN_PRUNING_REMOVAL_DELAY_SEC: '1',
@@ -359,7 +370,7 @@ describe('snapshot recovery', () => {
         };
         externalNodeEnv = { ...externalNodeEnv, ...pruningParams };
         console.log('Starting EN with pruning params', pruningParams);
-        externalNodeProcess = spawn('zk', externalNodeArgs(), {
+        externalNodeProcess = spawn('zk', externalNodeArgs(components), {
             cwd: homeDir,
             stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
             shell: true,
@@ -367,8 +378,9 @@ describe('snapshot recovery', () => {
         });
 
         let isDbPrunerReady = false;
-        let isTreePrunerReady = false;
-        while (!isDbPrunerReady || !isTreePrunerReady) {
+        let isTreePrunerReady = disableTreeDuringPruning; // skip health checks if we don't run the tree
+        let isTreeFetcherReady = false;
+        while (!isDbPrunerReady || !isTreePrunerReady || !isTreeFetcherReady) {
             await sleep(1000);
             const health = await getExternalNodeHealth();
             if (health === null) {
@@ -386,6 +398,12 @@ describe('snapshot recovery', () => {
                 const status = health.components.tree_pruner?.status;
                 expect(status).to.be.oneOf([undefined, 'not_ready', 'affected', 'ready']);
                 isTreePrunerReady = status === 'ready';
+            }
+            if (!isTreeFetcherReady) {
+                console.log('Tree fetcher health', health.components.tree_data_fetcher);
+                const status = health.components.tree_data_fetcher?.status;
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'affected', 'ready']);
+                isTreeFetcherReady = status === 'ready';
             }
         }
     });
@@ -419,7 +437,7 @@ describe('snapshot recovery', () => {
         const expectedPrunedBatchNumber = snapshotMetadata.l1BatchNumber + PRUNED_BATCH_COUNT;
         console.log(`Waiting for L1 batch #${expectedPrunedBatchNumber} to be pruned`);
         let isDbPruned = false;
-        let isTreePruned = false;
+        let isTreePruned = disableTreeDuringPruning;
 
         while (!isDbPruned || !isTreePruned) {
             await sleep(1000);
@@ -430,12 +448,16 @@ describe('snapshot recovery', () => {
             expect(dbPrunerHealth.status).to.be.equal('ready');
             isDbPruned = dbPrunerHealth.details!.last_hard_pruned_l1_batch! >= expectedPrunedBatchNumber;
 
-            const treeHealth = health.components.tree!;
-            console.log('Tree health', treeHealth);
-            expect(treeHealth.status).to.be.equal('ready');
-            const minTreeL1BatchNumber = treeHealth.details?.min_l1_batch_number;
-            // The batch number pruned from the tree is one less than `minTreeL1BatchNumber`.
-            isTreePruned = minTreeL1BatchNumber ? minTreeL1BatchNumber - 1 >= expectedPrunedBatchNumber : false;
+            if (disableTreeDuringPruning) {
+                expect(health.components.tree).to.be.undefined;
+            } else {
+                const treeHealth = health.components.tree!;
+                console.log('Tree health', treeHealth);
+                expect(treeHealth.status).to.be.equal('ready');
+                const minTreeL1BatchNumber = treeHealth.details?.min_l1_batch_number;
+                // The batch number pruned from the tree is one less than `minTreeL1BatchNumber`.
+                isTreePruned = minTreeL1BatchNumber ? minTreeL1BatchNumber - 1 >= expectedPrunedBatchNumber : false;
+            }
         }
     });
 });
@@ -491,9 +513,15 @@ async function getExternalNodeHealth() {
     }
 }
 
-function externalNodeArgs() {
+enum NodeComponents {
+    STANDARD = 'all',
+    WITH_TREE_FETCHER = 'all,tree_fetcher',
+    WITH_TREE_FETCHER_AND_NO_TREE = 'core,api,tree_fetcher'
+}
+
+function externalNodeArgs(components: NodeComponents = NodeComponents.STANDARD) {
     const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-    const args = ['external-node', '--'];
+    const args = ['external-node', '--', `--components=${components}`];
     if (enableConsensus) {
         args.push('--enable-consensus');
     }
