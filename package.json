@@ -47,6 +47,6 @@
     "prettier-plugin-solidity": "=1.0.0-dev.22",
     "solhint": "^3.3.2",
     "sql-formatter": "^13.1.0",
-    "zksync-ethers": "5.8.0-beta.5"
+    "zksync-ethers": "6.7.1"
   }
 }
