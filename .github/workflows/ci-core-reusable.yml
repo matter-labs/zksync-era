@@ -216,7 +216,9 @@ jobs:
       - name: Snapshot recovery test
         # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
-        # (e.g., DATABASE_URL). Since `base_token` doesn't meaningfully influence the test, we use it as a flag for
+        # (e.g., DATABASE_URL).
+        #
+        # Since `base_token` doesn't meaningfully influence the test, we use it as a flag for
         # enabling / disabling tree during pruning.
         run: |
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
@@ -227,7 +229,14 @@ jobs:
           DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
           DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
           PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING" \
-            ci_run yarn snapshot-recovery-test snapshot-recovery-test
+            ci_run yarn recovery-test snapshot-recovery-test
+
+      - name: Genesis recovery test
+        run: |
+          ENABLE_CONSENSUS=${{ matrix.consensus }} \
+          DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" \
+            ci_run yarn recovery-test genesis-recovery-test
 
       - name: Fee projection tests
         run: ci_run zk test i fees
@@ -257,10 +266,13 @@ jobs:
 
       - name: Show snapshot-creator.log logs
         if: always()
-        run: ci_run cat core/tests/snapshot-recovery-test/snapshot-creator.log || true
+        run: ci_run cat core/tests/recovery-test/snapshot-creator.log || true
       - name: Show snapshot-recovery.log logs
         if: always()
-        run: ci_run cat core/tests/snapshot-recovery-test/snapshot-recovery.log || true
+        run: ci_run cat core/tests/recovery-test/snapshot-recovery.log || true
+      - name: Show genesis-recovery.log logs
+        if: always()
+        run: ci_run cat core/tests/recovery-test/genesis-recovery.log || true
 
       - name: Show revert.log logs
         if: always()
