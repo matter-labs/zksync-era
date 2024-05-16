@@ -211,7 +211,7 @@ mod tests {
         );
     }
     #[test]
-    fn db_secrets_from_env() {
+    fn database_secrets_from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
             DATABASE_URL=postgres://postgres:notsecurepassword@localhost/zksync_local

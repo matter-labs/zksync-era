@@ -6,6 +6,7 @@ message ETH {
   optional Sender sender = 1; // required
   optional GasAdjuster gas_adjuster = 2; // required
   optional ETHWatch watcher = 3; // required
+  reserved 4; reserved "web3_url";
 }
 
 enum ProofSendingMode {

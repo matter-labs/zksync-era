@@ -11,9 +11,9 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        ContractsConfig, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig, Secrets,
+        ContractsConfig, DatabaseSecrets, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, Secrets,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -148,8 +148,8 @@ async fn main() -> anyhow::Result<()> {
         }
         None => Secrets {
             consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
-            database: None,
-            l1: None,
+            database: DatabaseSecrets::from_env().ok(),
+            l1: L1Secrets::from_env().ok(),
         },
     };
 
@@ -175,7 +175,6 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let _postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
     let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
 
     if opt.genesis || is_genesis_needed(&database_secrets).await {

@@ -82,9 +82,9 @@ pub mod temp_config_store;
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
     genesis_config: GenesisConfig,
-    db_secrets: &DatabaseSecrets,
+    database_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
-    let db_url = db_secrets.master_url()?;
+    let db_url = database_secrets.master_url()?;
     let pool = ConnectionPool::<Core>::singleton(db_url)
         .build()
         .await
@@ -213,7 +213,7 @@ pub async fn initialize_components(
     let l2_chain_id = genesis_config.l2_chain_id;
     let db_config = configs.db_config.clone().context("db_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
-    let db_secrets = secrets.database.clone().context("database_secrets")?;
+    let database_secrets = secrets.database.clone().context("database_secrets")?;
 
     if let Some(threshold) = postgres_config.slow_query_threshold() {
         ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
@@ -228,14 +228,14 @@ pub async fn initialize_components(
         .unwrap_or(pool_size);
 
     let connection_pool =
-        ConnectionPool::<Core>::builder(db_secrets.master_url()?, pool_size_master)
+        ConnectionPool::<Core>::builder(database_secrets.master_url()?, pool_size_master)
             .build()
             .await
             .context("failed to build connection_pool")?;
     // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
     // on Postgres.
     let replica_connection_pool =
-        ConnectionPool::<Core>::builder(db_secrets.replica_url()?, pool_size)
+        ConnectionPool::<Core>::builder(database_secrets.replica_url()?, pool_size)
             .set_acquire_timeout(postgres_config.acquire_timeout())
             .set_statement_timeout(postgres_config.statement_timeout())
             .build()
@@ -262,7 +262,7 @@ pub async fn initialize_components(
 
     let circuit_breaker_checker = CircuitBreakerChecker::new(
         Arc::new(
-            circuit_breakers_for_components(components, &db_secrets, &circuit_breaker_config)
+            circuit_breakers_for_components(components, &database_secrets, &circuit_breaker_config)
                 .await
                 .context("circuit_breakers_for_components")?,
         ),
@@ -375,7 +375,7 @@ pub async fn initialize_components(
             run_http_api(
                 &mut task_futures,
                 &app_health,
-                &db_secrets,
+                &database_secrets,
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -424,7 +424,7 @@ pub async fn initialize_components(
             run_ws_api(
                 &mut task_futures,
                 &app_health,
-                &db_secrets,
+                &database_secrets,
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -493,7 +493,7 @@ pub async fn initialize_components(
         ));
         add_state_keeper_to_task_futures(
             &mut task_futures,
-            &db_secrets,
+            &database_secrets,
             contracts_config,
             state_keeper_config,
             wallets
@@ -557,7 +557,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
-        let eth_watch_pool = ConnectionPool::<Core>::singleton(db_secrets.master_url()?)
+        let eth_watch_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
@@ -589,7 +589,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
-        let eth_sender_pool = ConnectionPool::<Core>::singleton(db_secrets.master_url()?)
+        let eth_sender_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
             .build()
             .await
             .context("failed to build eth_sender_pool")?;
@@ -656,7 +656,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxManager) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxManager");
-        let eth_manager_pool = ConnectionPool::<Core>::singleton(db_secrets.master_url()?)
+        let eth_manager_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
             .build()
             .await
             .context("failed to build eth_manager_pool")?;
@@ -724,10 +724,11 @@ pub async fn initialize_components(
     .context("add_trees_to_task_futures()")?;
 
     if components.contains(&Component::TeeVerifierInputProducer) {
-        let singleton_connection_pool = ConnectionPool::<Core>::singleton(db_secrets.master_url()?)
-            .build()
-            .await
-            .context("failed to build singleton connection_pool")?;
+        let singleton_connection_pool =
+            ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
+                .build()
+                .await
+                .context("failed to build singleton connection_pool")?;
         add_tee_verifier_input_producer_to_task_futures(
             &mut task_futures,
             &singleton_connection_pool,
@@ -764,10 +765,11 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::CommitmentGenerator) {
-        let commitment_generator_pool = ConnectionPool::<Core>::singleton(db_secrets.master_url()?)
-            .build()
-            .await
-            .context("failed to build commitment_generator_pool")?;
+        let commitment_generator_pool =
+            ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
+                .build()
+                .await
+                .context("failed to build commitment_generator_pool")?;
         let commitment_generator = CommitmentGenerator::new(
             commitment_generator_pool,
             genesis_config.l1_batch_commit_data_generator_mode,
@@ -937,7 +939,7 @@ async fn add_trees_to_task_futures(
     }
 
     let db_config = configs.db_config.clone().context("db_config")?;
-    let db_secrets = secrets.database.clone().context("database_secrets")?;
+    let database_secrets = secrets.database.clone().context("database_secrets")?;
     let operation_config = configs
         .operations_manager_config
         .clone()
@@ -959,7 +961,7 @@ async fn add_trees_to_task_futures(
     run_tree(
         task_futures,
         app_health,
-        &db_secrets,
+        &database_secrets,
         &db_config.merkle_tree,
         api_config,
         &operation_config,
@@ -974,7 +976,7 @@ async fn add_trees_to_task_futures(
 async fn run_tree(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
-    db_secrets: &DatabaseSecrets,
+    database_secrets: &DatabaseSecrets,
     merkle_tree_config: &MerkleTreeConfig,
     api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
@@ -990,13 +992,13 @@ async fn run_tree(
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
     let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
-    let pool = ConnectionPool::singleton(db_secrets.master_url()?)
+    let pool = ConnectionPool::singleton(database_secrets.master_url()?)
         .build()
         .await
         .context("failed to build connection pool for Merkle tree")?;
     // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
     // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
-    let recovery_pool = ConnectionPool::builder(db_secrets.replica_url()?, 10)
+    let recovery_pool = ConnectionPool::builder(database_secrets.replica_url()?, 10)
         .build()
         .await
         .context("failed to build connection pool for Merkle tree recovery")?;
