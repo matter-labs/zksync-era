@@ -1,4 +1,4 @@
-use zksync_da_client::DataAvailabilityInterface;
+use zksync_da::DataAvailabilityInterface;
 
 use crate::resource::Resource;
 

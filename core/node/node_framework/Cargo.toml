@@ -23,7 +23,6 @@ zksync_object_store.workspace = true
 zksync_core.workspace = true
 zksync_storage.workspace = true
 zksync_eth_client.workspace = true
-zksync_da_client.workspace = true
 zksync_contracts.workspace = true
 zksync_web3_decl.workspace = true
 zksync_utils.workspace = true
@@ -35,6 +34,7 @@ zksync_commitment_generator.workspace = true
 zksync_house_keeper.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_eth_sender.workspace = true
+zksync_da.workspace = true
 
 tracing.workspace = true
 thiserror.workspace = true
