@@ -961,3 +961,5 @@ vec
 zksync_merkle_tree
 TreeMetadata
 delegator
+preloaded
+e2e
