@@ -216,13 +216,18 @@ jobs:
       - name: Snapshot recovery test
         # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
-        # (e.g., DATABASE_URL).
+        # (e.g., DATABASE_URL). Since `base_token` doesn't meaningfully influence the test, we use it as a flag for
+        # enabling / disabling tree during pruning.
         run: |
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk config compile ext-node-validium
             ci_run zk config compile ext-node-validium-docker
           fi
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run yarn snapshot-recovery-test snapshot-recovery-test
+          ENABLE_CONSENSUS=${{ matrix.consensus }} \
+          DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING" \
+            ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
       - name: Fee projection tests
         run: ci_run zk test i fees
