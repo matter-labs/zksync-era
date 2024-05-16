@@ -492,7 +492,7 @@ impl ZksNamespace {
             .state
             .tree_api
             .as_deref()
-            .ok_or(Web3Error::TreeApiUnavailable)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         let proofs_result = tree_api.get_proofs(l1_batch_number, hashed_keys).await;
         let proofs = match proofs_result {
             Ok(proofs) => proofs,
@@ -536,7 +536,7 @@ impl ZksNamespace {
         self.state
             .api_config
             .base_token_address
-            .ok_or(Web3Error::NotImplemented)
+            .ok_or(Web3Error::MethodNotImplemented)
     }
 
     #[tracing::instrument(skip(self))]

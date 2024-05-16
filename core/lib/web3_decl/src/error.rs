@@ -39,11 +39,12 @@ pub enum Web3Error {
     LogsLimitExceeded(usize, u32, u32),
     #[error("invalid filter: if blockHash is supplied fromBlock and toBlock must not be")]
     InvalidFilterBlockHash,
-    #[error("Not implemented")]
-    NotImplemented,
-    /// This covers both transient unavailability (e.g., due to connection issues) and unavailability
-    /// caused by node configuration.
-    #[error("Tree API is not available")]
+    /// Weaker form of a "method not found" error; the method implementation is technically present,
+    /// but the node configuration prevents the method from functioning.
+    #[error("Method not implemented")]
+    MethodNotImplemented,
+    /// Unavailability caused by node configuration is returned as [`Self::MethodNotImplemented`].
+    #[error("Tree API is temporarily unavailable")]
     TreeApiUnavailable,
     #[error("Internal error")]
     InternalError(#[from] anyhow::Error),
