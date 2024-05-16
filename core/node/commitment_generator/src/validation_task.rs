@@ -121,10 +121,9 @@ impl L1BatchCommitmentModeValidationTask {
 mod tests {
     use std::{mem, sync::Mutex};
 
-    use jsonrpsee::types::ErrorObject;
     use zksync_eth_client::clients::MockEthereum;
     use zksync_types::{ethabi, U256};
-    use zksync_web3_decl::error::EnrichedClientError;
+    use zksync_web3_decl::{error::EnrichedClientError, jsonrpsee::types::ErrorObject};
 
     use super::*;
 

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{num::NonZeroU32, ops, time::Duration};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -11,7 +11,7 @@ use zksync_types::{
     blob::num_blobs_required,
     commitment::{
         AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
-        L1BatchCommitment, L1BatchCommitmentMode,
+        L1BatchCommitment, L1BatchCommitmentArtifacts, L1BatchCommitmentMode,
     },
     event::convert_vm_events_to_log_queries,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -35,6 +35,7 @@ pub struct CommitmentGenerator {
     connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     commitment_mode: L1BatchCommitmentMode,
+    parallelism: NonZeroU32,
 }
 
 impl CommitmentGenerator {
@@ -46,7 +47,14 @@ impl CommitmentGenerator {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
             commitment_mode,
+            parallelism: Self::default_parallelism(),
         }
+    }
+
+    fn default_parallelism() -> NonZeroU32 {
+        // Leave at least one core free to handle other blocking tasks. `unwrap()`s are safe by design.
+        let cpus = u32::try_from(num_cpus::get().saturating_sub(1).clamp(1, 16)).unwrap();
+        NonZeroU32::new(cpus).unwrap()
     }
 
     pub fn health_check(&self) -> ReactiveHealthCheck {
@@ -262,7 +270,10 @@ impl CommitmentGenerator {
         Ok(input)
     }
 
-    async fn step(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<()> {
+    async fn process_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<L1BatchCommitmentArtifacts> {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
         let input = self.prepare_input(l1_batch_number).await?;
@@ -278,22 +289,45 @@ impl CommitmentGenerator {
         tracing::debug!(
             "Generated commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
         );
+        Ok(artifacts)
+    }
+
+    async fn step(
+        &self,
+        l1_batch_numbers: ops::RangeInclusive<L1BatchNumber>,
+    ) -> anyhow::Result<()> {
+        let iterable_numbers =
+            (l1_batch_numbers.start().0..=l1_batch_numbers.end().0).map(L1BatchNumber);
+        let batch_futures = iterable_numbers.map(|number| async move {
+            let artifacts = self
+                .process_batch(number)
+                .await
+                .with_context(|| format!("failed processing L1 batch #{number}"))?;
+            anyhow::Ok((number, artifacts))
+        });
+        let artifacts = futures::future::try_join_all(batch_futures).await?;
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
-        self.connection_pool
+        let mut connection = self
+            .connection_pool
             .connection_tagged("commitment_generator")
-            .await?
-            .blocks_dal()
-            .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
             .await?;
+        // Transactionality is not required here; since we save batches in order, if we encounter a DB error,
+        // the commitment generator will be able to recover gracefully.
+        for (l1_batch_number, artifacts) in artifacts {
+            connection
+                .blocks_dal()
+                .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
+                .await?;
+        }
         let latency = latency.observe();
         tracing::debug!(
-            "Stored commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
+            "Stored commitment artifacts for L1 batches #{l1_batch_numbers:?} in {latency:?}"
         );
 
         let health_details = serde_json::json!({
-            "l1_batch_number": l1_batch_number,
+            "l1_batch_number": *l1_batch_numbers.end(),
         });
         self.health_updater
             .update(Health::from(HealthStatus::Ready).with_details(health_details));
@@ -335,6 +369,34 @@ impl CommitmentGenerator {
         }
     }
 
+    async fn next_batch_range(&self) -> anyhow::Result<Option<ops::RangeInclusive<L1BatchNumber>>> {
+        let mut connection = self
+            .connection_pool
+            .connection_tagged("commitment_generator")
+            .await?;
+        let Some(next_batch_number) = connection
+            .blocks_dal()
+            .get_next_l1_batch_ready_for_commitment_generation()
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let sealed_batch_number = connection
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await?
+            .context("there is a batch without commitments, but no sealed batches")?;
+        anyhow::ensure!(
+            next_batch_number <= sealed_batch_number,
+            "Unexpected node state: next L1 batch w/o commitment (#{next_batch_number}) is greater than \
+             the last sealed L1 batch (#{sealed_batch_number})"
+        );
+        let last_batch_number =
+            sealed_batch_number.min(next_batch_number + self.parallelism.get() - 1);
+        Ok(Some(next_batch_number..=last_batch_number))
+    }
+
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater.update(HealthStatus::Ready.into());
         loop {
@@ -343,21 +405,14 @@ impl CommitmentGenerator {
                 break;
             }
 
-            let Some(l1_batch_number) = self
-                .connection_pool
-                .connection_tagged("commitment_generator")
-                .await?
-                .blocks_dal()
-                .get_next_l1_batch_ready_for_commitment_generation()
-                .await?
-            else {
+            let Some(l1_batch_numbers) = self.next_batch_range().await? else {
                 tokio::time::sleep(SLEEP_INTERVAL).await;
                 continue;
             };
 
-            tracing::info!("Started commitment generation for L1 batch #{l1_batch_number}");
-            self.step(l1_batch_number).await?;
-            tracing::info!("Finished commitment generation for L1 batch #{l1_batch_number}");
+            tracing::info!("Started commitment generation for L1 batches #{l1_batch_numbers:?}");
+            self.step(l1_batch_numbers.clone()).await?;
+            tracing::info!("Finished commitment generation for L1 batches #{l1_batch_numbers:?}");
         }
         Ok(())
     }
