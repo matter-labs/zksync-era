@@ -1,6 +1,5 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use backon::{ConstantBuilder, Retryable};
 use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use tokio::{
     sync::{watch, RwLock},
@@ -11,13 +10,13 @@ use zksync_core::state_keeper::UpdatesManager;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::L1BatchNumber;
 
+use crate::tests::wait;
 use crate::{
     tests::{IoMock, TestOutputFactory},
     ConcurrentOutputHandlerFactory, OutputHandlerFactory,
 };
 
 struct OutputHandlerTester {
-    io: Arc<RwLock<IoMock>>,
     output_factory: ConcurrentOutputHandlerFactory<Arc<RwLock<IoMock>>, TestOutputFactory>,
     tasks: Vec<JoinHandle<()>>,
     stop_sender: watch::Sender<bool>,
@@ -30,13 +29,11 @@ impl OutputHandlerTester {
         delays: HashMap<L1BatchNumber, Duration>,
     ) -> Self {
         let test_factory = TestOutputFactory { delays };
-        let (output_factory, task) =
-            ConcurrentOutputHandlerFactory::new(pool, io.clone(), test_factory);
+        let (output_factory, task) = ConcurrentOutputHandlerFactory::new(pool, io, test_factory);
         let (stop_sender, stop_receiver) = watch::channel(false);
         let join_handle = tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
         let tasks = vec![join_handle];
         Self {
-            io,
             output_factory,
             tasks,
             stop_sender,
@@ -92,64 +89,6 @@ impl OutputHandlerTester {
         Ok(())
     }
 
-    async fn wait_for_batch(
-        &self,
-        l1_batch_number: L1BatchNumber,
-        timeout: Duration,
-    ) -> anyhow::Result<()> {
-        const RETRY_INTERVAL: Duration = Duration::from_millis(500);
-
-        let max_tries = (timeout.as_secs_f64() / RETRY_INTERVAL.as_secs_f64()).ceil() as u64;
-        (|| async {
-            let current = self.io.read().await.current;
-            anyhow::ensure!(
-                current == l1_batch_number,
-                "Batch #{} has not been processed yet (current is #{})",
-                l1_batch_number,
-                current
-            );
-            Ok(())
-        })
-        .retry(
-            &ConstantBuilder::default()
-                .with_delay(RETRY_INTERVAL)
-                .with_max_times(max_tries as usize),
-        )
-        .await
-    }
-
-    async fn wait_for_batch_progressively(
-        &self,
-        l1_batch_number: L1BatchNumber,
-        timeout: Duration,
-    ) -> anyhow::Result<()> {
-        const SLEEP_INTERVAL: Duration = Duration::from_millis(500);
-
-        let mut current = self.io.read().await.current;
-        let max_tries = (timeout.as_secs_f64() / SLEEP_INTERVAL.as_secs_f64()).ceil() as u64;
-        let mut try_num = 0;
-        loop {
-            tokio::time::sleep(SLEEP_INTERVAL).await;
-            try_num += 1;
-            if try_num >= max_tries {
-                anyhow::bail!("Timeout");
-            }
-            let new_current = self.io.read().await.current;
-            // Ensure we did not go back in latest processed batch
-            if new_current < current {
-                anyhow::bail!(
-                    "Latest processed batch regressed to #{} back from #{}",
-                    new_current,
-                    current
-                );
-            }
-            current = new_current;
-            if current >= l1_batch_number {
-                return Ok(());
-            }
-        }
-    }
-
     async fn stop_and_wait_for_all_tasks(self) -> anyhow::Result<()> {
         self.stop_sender.send(true)?;
         futures::future::join_all(self.tasks).await;
@@ -177,9 +116,7 @@ async fn monotonically_progress_processed_batches() -> anyhow::Result<()> {
     }
     assert_eq!(io.read().await.current, L1BatchNumber(0));
     for i in 1..10 {
-        tester
-            .wait_for_batch(i.into(), Duration::from_secs(10))
-            .await?;
+        wait::for_batch(io.clone(), i.into(), Duration::from_secs(10)).await?;
     }
     tester.stop_and_wait_for_all_tasks().await?;
     assert_eq!(io.read().await.current, L1BatchNumber(9));
@@ -203,9 +140,7 @@ async fn do_not_progress_with_gaps() -> anyhow::Result<()> {
         tester.spawn_test_task(i.into()).await?;
     }
     assert_eq!(io.read().await.current, L1BatchNumber(0));
-    tester
-        .wait_for_batch_progressively(L1BatchNumber(9), Duration::from_secs(60))
-        .await?;
+    wait::for_batch_progressively(io.clone(), L1BatchNumber(9), Duration::from_secs(60)).await?;
     tester.stop_and_wait_for_all_tasks().await?;
     assert_eq!(io.read().await.current, L1BatchNumber(9));
     Ok(())

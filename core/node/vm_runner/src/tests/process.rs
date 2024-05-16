@@ -8,13 +8,20 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_test_account::Account;
 use zksync_types::L2ChainId;
 
+use crate::tests::wait;
 use crate::{
     tests::{fund, store_l2_blocks, IoMock, TestOutputFactory},
     ConcurrentOutputHandlerFactory, VmRunner, VmRunnerStorage,
 };
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 10)]
-async fn simple() -> anyhow::Result<()> {
+// Testing more than a one-batch scenario is pretty difficult as that requires storage to have
+// completely valid state after each L2 block execution (current block number, hash, rolling txs
+// hash etc written to the correct places). To achieve this we could run state keeper e2e but that
+// is pretty difficult to set up.
+//
+// Instead, we rely on integration tests to verify the correctness of VM runner main process.
+#[tokio::test]
+async fn process_one_batch() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = connection_pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
@@ -36,14 +43,14 @@ async fn simple() -> anyhow::Result<()> {
     .await?;
     drop(conn);
 
-    let io_mock = Arc::new(RwLock::new(IoMock {
+    let io = Arc::new(RwLock::new(IoMock {
         current: 0.into(),
         max: 1,
     }));
     let (storage, task) = VmRunnerStorage::new(
         connection_pool.clone(),
         TempDir::new().unwrap().path().to_str().unwrap().to_owned(),
-        io_mock.clone(),
+        io.clone(),
         L2ChainId::default(),
     )
     .await?;
@@ -54,7 +61,7 @@ async fn simple() -> anyhow::Result<()> {
         delays: HashMap::new(),
     };
     let (output_factory, task) =
-        ConcurrentOutputHandlerFactory::new(connection_pool.clone(), io_mock.clone(), test_factory);
+        ConcurrentOutputHandlerFactory::new(connection_pool.clone(), io.clone(), test_factory);
     let output_stop_receiver = stop_receiver.clone();
     tokio::task::spawn(async move { task.run(output_stop_receiver).await.unwrap() });
 
@@ -62,14 +69,16 @@ async fn simple() -> anyhow::Result<()> {
     let batch_executor = MainBatchExecutor::new(storage.clone(), false, false);
     let vm_runner = VmRunner::new(
         connection_pool,
-        Box::new(io_mock),
+        Box::new(io.clone()),
         storage,
         Box::new(output_factory),
         Box::new(batch_executor),
     );
     tokio::task::spawn(async move { vm_runner.run(&stop_receiver).await.unwrap() });
 
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    for batch in batches {
+        wait::for_batch(io.clone(), batch.number, Duration::from_secs(1)).await?;
+    }
 
     Ok(())
 }
