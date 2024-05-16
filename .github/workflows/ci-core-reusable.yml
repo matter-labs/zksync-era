@@ -89,6 +89,9 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
 
+      - name: Cache Docker
+        uses: ./.github/actions/cache-docker-images
+
       - name: Start services
         run: |
           ci_localnet_up
@@ -181,6 +184,9 @@ jobs:
           wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.13
           mv zkvyper-linux-amd64-musl-v1.3.13 $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
           chmod +x $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
+
+      - name: Cache Docker
+        uses: ./.github/actions/cache-docker-images
 
       - name: Start services
         run: |
@@ -302,6 +308,9 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
+
+      - name: Cache Docker
+        uses: ./.github/actions/cache-docker-images
 
       - name: Start services
         run: |
