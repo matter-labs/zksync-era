@@ -295,8 +295,7 @@ impl<S: ReadStorage> Vm<S> {
     /// Typically used to read the bootloader heap. We know that we're in the bootloader
     /// when a hook occurs, as they are only enabled when preprocessing bootloader code.
     pub(crate) fn read_heap_word(&self, word: usize) -> U256 {
-        self.inner.state.heaps[self.inner.state.current_frame.heap]
-            [word as usize * 32..(word as usize + 1) * 32]
+        self.inner.state.heaps[self.inner.state.current_frame.heap][word * 32..(word + 1) * 32]
             .into()
     }
 
@@ -355,7 +354,7 @@ impl<S: ReadStorage> Vm<S> {
                 self.inner
                     .world_diff
                     .get_storage_state()
-                    .get(&(KNOWN_CODES_STORAGE_ADDRESS.into(), h256_to_u256(hash)))
+                    .get(&(KNOWN_CODES_STORAGE_ADDRESS, h256_to_u256(hash)))
                     .map(|x| !x.is_zero())
                     .unwrap_or_else(|| self.world.storage.borrow_mut().is_bytecode_known(&hash))
             })

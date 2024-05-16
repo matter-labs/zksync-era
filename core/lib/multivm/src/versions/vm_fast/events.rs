@@ -15,7 +15,7 @@ impl EventAccumulator {
         VmEvent {
             location: (block_number, self.tx_number_in_block as u32),
             address: h256_to_account_address(&H256(self.topics[0])),
-            indexed_topics: self.topics[1..].into_iter().map(H256::from).collect(),
+            indexed_topics: self.topics[1..].iter().map(H256::from).collect(),
             value: self.data,
         }
     }
@@ -25,7 +25,7 @@ pub(crate) fn merge_events(events: &[Event], block_number: L1BatchNumber) -> Vec
     let mut result = vec![];
     let mut current: Option<(usize, u32, EventAccumulator)> = None;
 
-    for message in events.into_iter() {
+    for message in events.iter() {
         let Event {
             shard_id,
             is_first,
