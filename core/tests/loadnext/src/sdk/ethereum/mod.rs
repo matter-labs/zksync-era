@@ -122,16 +122,12 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .as_ref()
             .parse::<SensitiveUrl>()
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
-<<<<<<< lyova-fix-loadtest
-        let query_client = QueryClient::new(eth_web3_url)
-            .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
-=======
         let query_client = Client::http(eth_web3_url)
             .map_err(|err| ClientError::NetworkError(err.to_string()))?
             .for_network(l1_chain_id.into())
             .build();
->>>>>>> main
+
         let eth_client = SigningClient::new(
             Box::new(query_client).for_component("provider"),
             hyperchain_contract(),

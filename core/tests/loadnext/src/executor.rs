@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
-use zksync_eth_client::{clients::QueryClient, CallFunctionArgs, Options};
+use zksync_eth_client::{clients::Client, CallFunctionArgs, Options};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
@@ -81,7 +81,7 @@ impl Executor {
             .l2_shared_default_bridge
             .unwrap();
         let abi = load_contract(L2_SHARED_BRIDGE_ABI);
-        let query_client = QueryClient::new(config.l2_rpc_address.parse()?)?;
+        let query_client = Client::http(config.l2_rpc_address.parse()?)?.build();
         let l2_main_token = CallFunctionArgs::new("l2TokenAddress", (config.main_token,))
             .for_contract(l2_shared_bridge, &abi)
             .call(&query_client)
