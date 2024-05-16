@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import * as utils from './utils';
+import path from "path";
 
 export async function reset(opts: DbOpts) {
     await utils.confirmAction();
@@ -86,8 +87,9 @@ export async function drop(opts: DbOpts) {
 
 async function migrateForDal(dalPath: DalPath, dbUrl: string) {
     console.log(`Running migrations for ${dalPath}...`);
+    const migrationsDir = path.join(dalPath, "migrations")
     await utils.spawn(
-        `cd ${dalPath} && cargo sqlx database create --database-url ${dbUrl} && cargo sqlx migrate run --database-url ${dbUrl}`
+        `cargo sqlx database create --source ${migrationsDir} --database-url ${dbUrl} && cargo sqlx migrate run  --source ${migrationsDir}--database-url ${dbUrl}`
     );
 }
 
