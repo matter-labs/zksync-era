@@ -1,5 +1,3 @@
-# Will work locally only after prior universal setup key download
-
 FROM matterlabs/zksync-build-base:latest as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
