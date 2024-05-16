@@ -116,6 +116,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
 }
 
 use structopt::StructOpt;
+use zksync_config::configs::DatabaseSecrets;
 
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
@@ -134,9 +135,9 @@ async fn main() -> anyhow::Result<()> {
         listener_port: verifier_config.prometheus_port,
         ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets")?;
     let pool = ConnectionPool::<Core>::singleton(
-        postgres_config
+        database_secrets
             .master_url()
             .context("Master DB URL is absent")?,
     )

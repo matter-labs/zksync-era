@@ -176,9 +176,10 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
+    let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
 
-    if opt.genesis || is_genesis_needed(&postgres_config).await {
-        genesis_init(genesis.clone(), &postgres_config)
+    if opt.genesis || is_genesis_needed(&database_secrets).await {
+        genesis_init(genesis.clone(), &database_secrets)
             .await
             .context("genesis_init")?;
 
@@ -192,7 +193,7 @@ async fn main() -> anyhow::Result<()> {
                 &query_client,
                 contracts_config.diamond_proxy_addr,
                 ecosystem_contracts.state_transition_proxy_addr,
-                &postgres_config,
+                &database_secrets,
             )
             .await
             .context("Failed to save SetChainId upgrade transaction")?;

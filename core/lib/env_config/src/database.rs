@@ -1,7 +1,7 @@
 use std::{env, error, str::FromStr};
 
 use anyhow::Context as _;
-use zksync_config::{DBConfig, PostgresConfig};
+use zksync_config::{configs::DatabaseSecrets, DBConfig, PostgresConfig};
 
 use crate::{envy_load, FromEnv};
 
@@ -29,22 +29,33 @@ impl FromEnv for DBConfig {
     }
 }
 
+impl FromEnv for DatabaseSecrets {
+    fn from_env() -> anyhow::Result<Self> {
+        let server_url = env::var("DATABASE_URL")
+            .ok()
+            .map(|s| s.parse())
+            .transpose()?;
+        let server_replica_url = env::var("DATABASE_REPLICA_URL")
+            .ok()
+            .map(|s| s.parse())
+            .transpose()?
+            .or_else(|| server_url.clone());
+        let prover_url = env::var("DATABASE_PROVER_URL")
+            .ok()
+            .map(|s| s.parse())
+            .transpose()?
+            .or_else(|| server_url.clone());
+
+        Ok(Self {
+            server_url,
+            prover_url,
+            server_replica_url,
+        })
+    }
+}
+
 impl FromEnv for PostgresConfig {
     fn from_env() -> anyhow::Result<Self> {
-        // let master_url = env::var("DATABASE_URL")
-        //     .ok()
-        //     .map(|s| s.parse())
-        //     .transpose()?;
-        // let replica_url = env::var("DATABASE_REPLICA_URL")
-        //     .ok()
-        //     .map(|s| s.parse())
-        //     .transpose()?
-        //     .or_else(|| master_url.clone());
-        // let prover_url = env::var("DATABASE_PROVER_URL")
-        //     .ok()
-        //     .map(|s| s.parse())
-        //     .transpose()?
-        //     .or_else(|| master_url.clone());
         let test_server_url = env::var("TEST_DATABASE_URL").ok();
         let test_prover_url = env::var("TEST_DATABASE_PROVER_URL").ok();
         let max_connections = parse_optional_var("DATABASE_POOL_SIZE")?;

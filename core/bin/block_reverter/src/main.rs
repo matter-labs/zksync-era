@@ -11,7 +11,7 @@ use zksync_block_reverter::{
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
 use zksync_config::{
-    configs::{chain::NetworkConfig, ObservabilityConfig},
+    configs::{chain::NetworkConfig, DatabaseSecrets, ObservabilityConfig},
     ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
@@ -106,7 +106,8 @@ async fn main() -> anyhow::Result<()> {
         .default_priority_fee_per_gas;
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let network = NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let postgress_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let era_chain_id = env::var("CONTRACTS_ERA_CHAIN_ID")
         .context("`CONTRACTS_ERA_CHAIN_ID` env variable is not set")?
         .parse()
@@ -116,8 +117,8 @@ async fn main() -> anyhow::Result<()> {
     let config = BlockReverterEthConfig::new(&eth_sender, &contracts, &network, era_chain_id)?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
-        postgres_config.master_url()?,
-        postgres_config.max_connections()?,
+        database_secrets.master_url()?,
+        postgress_config.max_connections()?,
     )
     .build()
     .await

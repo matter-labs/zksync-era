@@ -1,3 +1,4 @@
+use anyhow::Context;
 use zksync_basic_types::url::SensitiveUrl;
 
 use crate::configs::consensus::ConsensusSecrets;
@@ -19,4 +20,23 @@ pub struct Secrets {
     pub consensus: Option<ConsensusSecrets>,
     pub database: Option<DatabaseSecrets>,
     pub l1: Option<L1Secrets>,
+}
+
+impl DatabaseSecrets {
+    /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
+    pub fn master_url(&self) -> anyhow::Result<SensitiveUrl> {
+        self.server_url.clone().context("Master DB URL is absent")
+    }
+
+    /// Returns a copy of the replica database URL as a `Result` to simplify error propagation.
+    pub fn replica_url(&self) -> anyhow::Result<SensitiveUrl> {
+        self.server_replica_url
+            .clone()
+            .context("Replica DB URL is absent")
+    }
+
+    /// Returns a copy of the prover database URL as a `Result` to simplify error propagation.
+    pub fn prover_url(&self) -> anyhow::Result<SensitiveUrl> {
+        self.prover_url.clone().context("Prover DB URL is absent")
+    }
 }

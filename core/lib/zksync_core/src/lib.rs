@@ -29,7 +29,7 @@ use zksync_config::{
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets,
         wallets::Wallets,
-        ContractsConfig, GeneralConfig, Secrets,
+        ContractsConfig, DatabaseSecrets, GeneralConfig, Secrets,
     },
     ApiConfig, DBConfig, EthWatchConfig, GenesisConfig, PostgresConfig,
 };
@@ -97,9 +97,9 @@ pub mod utils;
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
     genesis_config: GenesisConfig,
-    postgres_config: &PostgresConfig,
+    db_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
-    let db_url = postgres_config.master_url()?;
+    let db_url = db_secrets.master_url()?;
     let pool = ConnectionPool::<Core>::singleton(db_url)
         .build()
         .await
@@ -112,8 +112,8 @@ pub async fn genesis_init(
     Ok(())
 }
 
-pub async fn is_genesis_needed(postgres_config: &PostgresConfig) -> bool {
-    let db_url = postgres_config.master_url().unwrap();
+pub async fn is_genesis_needed(database_secrets: &DatabaseSecrets) -> bool {
+    let db_url = database_secrets.master_url().unwrap();
     let pool = ConnectionPool::<Core>::singleton(db_url)
         .build()
         .await
@@ -228,6 +228,7 @@ pub async fn initialize_components(
     let l2_chain_id = genesis_config.l2_chain_id;
     let db_config = configs.db_config.clone().context("db_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
+    let db_secrets = secrets.database.clone().context("database_secrets")?;
 
     if let Some(threshold) = postgres_config.slow_query_threshold() {
         ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
@@ -242,14 +243,14 @@ pub async fn initialize_components(
         .unwrap_or(pool_size);
 
     let connection_pool =
-        ConnectionPool::<Core>::builder(postgres_config.master_url()?, pool_size_master)
+        ConnectionPool::<Core>::builder(db_secrets.master_url()?, pool_size_master)
             .build()
             .await
             .context("failed to build connection_pool")?;
     // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
     // on Postgres.
     let replica_connection_pool =
-        ConnectionPool::<Core>::builder(postgres_config.replica_url()?, pool_size)
+        ConnectionPool::<Core>::builder(db_secrets.replica_url()?, pool_size)
             .set_acquire_timeout(postgres_config.acquire_timeout())
             .set_statement_timeout(postgres_config.statement_timeout())
             .build()
@@ -275,7 +276,7 @@ pub async fn initialize_components(
 
     let circuit_breaker_checker = CircuitBreakerChecker::new(
         Arc::new(
-            circuit_breakers_for_components(components, &postgres_config, &circuit_breaker_config)
+            circuit_breakers_for_components(components, &db_secrets, &circuit_breaker_config)
                 .await
                 .context("circuit_breakers_for_components")?,
         ),
@@ -388,7 +389,7 @@ pub async fn initialize_components(
             run_http_api(
                 &mut task_futures,
                 &app_health,
-                &postgres_config,
+                &db_secrets,
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -437,7 +438,7 @@ pub async fn initialize_components(
             run_ws_api(
                 &mut task_futures,
                 &app_health,
-                &postgres_config,
+                &db_secrets,
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -504,7 +505,7 @@ pub async fn initialize_components(
         ));
         add_state_keeper_to_task_futures(
             &mut task_futures,
-            &postgres_config,
+            &db_secrets,
             contracts_config,
             state_keeper_config,
             wallets
@@ -566,7 +567,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
-        let eth_watch_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+        let eth_watch_pool = ConnectionPool::<Core>::singleton(db_secrets.master_url()?)
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
@@ -598,7 +599,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
-        let eth_sender_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+        let eth_sender_pool = ConnectionPool::<Core>::singleton(db_secrets.master_url()?)
             .build()
             .await
             .context("failed to build eth_sender_pool")?;
@@ -665,7 +666,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxManager) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxManager");
-        let eth_manager_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+        let eth_manager_pool = ConnectionPool::<Core>::singleton(db_secrets.master_url()?)
             .build()
             .await
             .context("failed to build eth_manager_pool")?;
@@ -722,6 +723,7 @@ pub async fn initialize_components(
 
     add_trees_to_task_futures(
         configs,
+        secrets,
         &mut task_futures,
         &app_health,
         components,
@@ -732,11 +734,10 @@ pub async fn initialize_components(
     .context("add_trees_to_task_futures()")?;
 
     if components.contains(&Component::TeeVerifierInputProducer) {
-        let singleton_connection_pool =
-            ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
-                .build()
-                .await
-                .context("failed to build singleton connection_pool")?;
+        let singleton_connection_pool = ConnectionPool::<Core>::singleton(db_secrets.master_url()?)
+            .build()
+            .await
+            .context("failed to build singleton connection_pool")?;
         add_tee_verifier_input_producer_to_task_futures(
             &mut task_futures,
             &singleton_connection_pool,
@@ -749,9 +750,14 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::Housekeeper) {
-        add_house_keeper_to_task_futures(configs, &mut task_futures, stop_receiver.clone())
-            .await
-            .context("add_house_keeper_to_task_futures()")?;
+        add_house_keeper_to_task_futures(
+            configs,
+            &secrets,
+            &mut task_futures,
+            stop_receiver.clone(),
+        )
+        .await
+        .context("add_house_keeper_to_task_futures()")?;
     }
 
     if components.contains(&Component::ProofDataHandler) {
@@ -768,11 +774,10 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::CommitmentGenerator) {
-        let commitment_generator_pool =
-            ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
-                .build()
-                .await
-                .context("failed to build commitment_generator_pool")?;
+        let commitment_generator_pool = ConnectionPool::<Core>::singleton(db_secrets.master_url()?)
+            .build()
+            .await
+            .context("failed to build commitment_generator_pool")?;
         let commitment_generator = CommitmentGenerator::new(
             commitment_generator_pool,
             genesis_config.l1_batch_commit_data_generator_mode,
@@ -799,7 +804,7 @@ pub async fn initialize_components(
 #[allow(clippy::too_many_arguments)]
 async fn add_state_keeper_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    postgres_config: &PostgresConfig,
+    database_secrets: &DatabaseSecrets,
     contracts_config: &ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     state_keeper_wallets: wallets::StateKeeper,
@@ -809,7 +814,7 @@ async fn add_state_keeper_to_task_futures(
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let state_keeper_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+    let state_keeper_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
         .build()
         .await
         .context("failed to build state_keeper_pool")?;
@@ -825,7 +830,7 @@ async fn add_state_keeper_to_task_futures(
 
     // L2 Block sealing process is parallelized, so we have to provide enough pooled connections.
     let l2_block_sealer_pool = ConnectionPool::<Core>::builder(
-        postgres_config.master_url()?,
+        database_secrets.master_url()?,
         L2BlockSealProcess::subtasks_len(),
     )
     .build()
@@ -842,7 +847,7 @@ async fn add_state_keeper_to_task_futures(
 
     // One (potentially held long-term) connection for `AsyncCatchupTask` and another connection
     // to access `AsyncRocksdbCache` as a storage.
-    let async_cache_pool = ConnectionPool::<Core>::builder(postgres_config.master_url()?, 2)
+    let async_cache_pool = ConnectionPool::<Core>::builder(database_secrets.master_url()?, 2)
         .build()
         .await
         .context("failed to build async_cache_pool")?;
@@ -879,7 +884,7 @@ async fn add_state_keeper_to_task_futures(
     }));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
-    let mempool_fetcher_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+    let mempool_fetcher_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
         .build()
         .await
         .context("failed to build mempool_fetcher_pool")?;
@@ -926,6 +931,7 @@ pub async fn start_eth_watch(
 
 async fn add_trees_to_task_futures(
     configs: &GeneralConfig,
+    secrets: &Secrets,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     components: &[Component],
@@ -941,6 +947,7 @@ async fn add_trees_to_task_futures(
     }
 
     let db_config = configs.db_config.clone().context("db_config")?;
+    let db_secrets = secrets.database.clone().context("database_secrets")?;
     let operation_config = configs
         .operations_manager_config
         .clone()
@@ -950,7 +957,6 @@ async fn add_trees_to_task_futures(
         .clone()
         .context("api_config")?
         .merkle_tree;
-    let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
     let api_config = components
         .contains(&Component::TreeApi)
         .then_some(&api_config);
@@ -963,7 +969,7 @@ async fn add_trees_to_task_futures(
     run_tree(
         task_futures,
         app_health,
-        &postgres_config,
+        &db_secrets,
         &db_config.merkle_tree,
         api_config,
         &operation_config,
@@ -978,7 +984,7 @@ async fn add_trees_to_task_futures(
 async fn run_tree(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
-    postgres_config: &PostgresConfig,
+    db_secrets: &DatabaseSecrets,
     merkle_tree_config: &MerkleTreeConfig,
     api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
@@ -994,13 +1000,13 @@ async fn run_tree(
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
     let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
-    let pool = ConnectionPool::singleton(postgres_config.master_url()?)
+    let pool = ConnectionPool::singleton(db_secrets.master_url()?)
         .build()
         .await
         .context("failed to build connection pool for Merkle tree")?;
     // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
     // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
-    let recovery_pool = ConnectionPool::builder(postgres_config.replica_url()?, 10)
+    let recovery_pool = ConnectionPool::builder(db_secrets.replica_url()?, 10)
         .build()
         .await
         .context("failed to build connection pool for Merkle tree recovery")?;
@@ -1057,6 +1063,7 @@ async fn add_tee_verifier_input_producer_to_task_futures(
 
 async fn add_house_keeper_to_task_futures(
     configs: &GeneralConfig,
+    secrets: &Secrets,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -1065,13 +1072,12 @@ async fn add_house_keeper_to_task_futures(
         .clone()
         .context("house_keeper_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
-    let connection_pool = ConnectionPool::<Core>::builder(
-        postgres_config.replica_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a connection pool")?;
+    let secrets = secrets.database.clone().context("database_secrets")?;
+    let connection_pool =
+        ConnectionPool::<Core>::builder(secrets.replica_url()?, postgres_config.max_connections()?)
+            .build()
+            .await
+            .context("failed to build a connection pool")?;
 
     let pool_for_metrics = connection_pool.clone();
     let mut stop_receiver_for_metrics = stop_receiver.clone();
@@ -1093,7 +1099,7 @@ async fn add_house_keeper_to_task_futures(
     );
 
     let prover_connection_pool = ConnectionPool::<Prover>::builder(
-        postgres_config.prover_url()?,
+        secrets.prover_url()?,
         postgres_config.max_connections()?,
     )
     .build()
@@ -1259,7 +1265,7 @@ async fn build_tx_sender(
 async fn run_http_api(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
-    postgres_config: &PostgresConfig,
+    database_secrets: &DatabaseSecrets,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
     internal_api: &InternalApiConfig,
@@ -1289,7 +1295,7 @@ async fn run_http_api(
     }
     namespaces.push(Namespace::Snapshots);
 
-    let updaters_pool = ConnectionPool::<Core>::builder(postgres_config.replica_url()?, 2)
+    let updaters_pool = ConnectionPool::<Core>::builder(database_secrets.replica_url()?, 2)
         .build()
         .await
         .context("failed to build updaters_pool")?;
@@ -1325,7 +1331,7 @@ async fn run_http_api(
 async fn run_ws_api(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
-    postgres_config: &PostgresConfig,
+    database_secrets: &DatabaseSecrets,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
     internal_api: &InternalApiConfig,
@@ -1347,7 +1353,7 @@ async fn run_ws_api(
         storage_caches,
     )
     .await;
-    let updaters_pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
+    let updaters_pool = ConnectionPool::<Core>::singleton(database_secrets.replica_url()?)
         .build()
         .await
         .context("failed to build updaters_pool")?;
@@ -1391,7 +1397,7 @@ async fn run_ws_api(
 
 async fn circuit_breakers_for_components(
     components: &[Component],
-    postgres_config: &PostgresConfig,
+    database_secrets: &DatabaseSecrets,
     circuit_breaker_config: &CircuitBreakerConfig,
 ) -> anyhow::Result<CircuitBreakers> {
     let circuit_breakers = CircuitBreakers::default();
@@ -1400,7 +1406,7 @@ async fn circuit_breakers_for_components(
         .iter()
         .any(|c| matches!(c, Component::EthTxAggregator | Component::EthTxManager))
     {
-        let pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
+        let pool = ConnectionPool::<Core>::singleton(database_secrets.replica_url()?)
             .build()
             .await
             .context("failed to build a connection pool")?;
@@ -1415,7 +1421,7 @@ async fn circuit_breakers_for_components(
             Component::HttpApi | Component::WsApi | Component::ContractVerificationApi
         )
     }) {
-        let pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
+        let pool = ConnectionPool::<Core>::singleton(database_secrets.replica_url()?)
             .build()
             .await?;
         circuit_breakers
