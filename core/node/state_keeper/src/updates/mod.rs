@@ -41,7 +41,7 @@ pub struct UpdatesManager {
 }
 
 impl UpdatesManager {
-    pub(crate) fn new(l1_batch_env: &L1BatchEnv, system_env: &SystemEnv) -> Self {
+    pub fn new(l1_batch_env: &L1BatchEnv, system_env: &SystemEnv) -> Self {
         let protocol_version = system_env.version;
         Self {
             batch_timestamp: l1_batch_env.timestamp,

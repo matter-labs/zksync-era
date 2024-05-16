@@ -176,8 +176,9 @@ impl ZkSyncStateKeeper {
             let finished_batch = batch_executor.finish_batch().await;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
+            let mut next_cursor = updates_manager.io_cursor();
             self.output_handler
-                .handle_l1_batch(&updates_manager)
+                .handle_l1_batch(Arc::new(updates_manager))
                 .await
                 .with_context(|| format!("failed sealing L1 batch {l1_batch_env:?}"))?;
 
@@ -187,7 +188,6 @@ impl ZkSyncStateKeeper {
             l1_batch_seal_delta = Some(Instant::now());
 
             // Start the new batch.
-            let mut next_cursor = updates_manager.io_cursor();
             next_cursor.l1_batch += 1;
             (system_env, l1_batch_env) = self.wait_for_new_batch_env(&next_cursor).await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);

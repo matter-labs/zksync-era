@@ -20,6 +20,7 @@ pub use self::{
     seal_criteria::SequencerSealer,
     state_keeper_storage::AsyncRocksdbCache,
     types::MempoolGuard,
+    updates::UpdatesManager,
 };
 
 mod batch_executor;
