@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Context as _;
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
-use zksync_core::metadata_calculator::{
+use zksync_metadata_calculator::{
     LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
 };
 use zksync_storage::RocksDB;
