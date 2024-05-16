@@ -1,0 +1,48 @@
+name: Cache Docker Images
+
+on:
+  workflow_call:
+
+jobs:
+  cache-docker-images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Restore zk-environment Image Cache if it exists
+        id: cache-zk-environment
+        uses: actions/cache@v3
+        with:
+          path: ci/cache/docker/zk-environment
+          key: cache-docker-zk-environment-latest2.0-lightweight
+
+      - name: Restore PostgreSQL Image Cache if it exists
+        id: cache-postgres
+        uses: actions/cache@v3
+        with:
+          path: ci/cache/docker/postgres
+          key: cache-docker-postgres-14
+
+      - name: Update zk-environment Image Cache if cache miss
+        if: steps.cache-zk-environment.outputs.cache-hit != 'true'
+        run: |
+          docker pull matterlabs/zk-environment:latest2.0-lightweight
+          mkdir -p ci/cache/docker/zk-environment
+          docker image save matterlabs/zk-environment:latest2.0-lightweight --output ./ci/cache/docker/zk-environment/zk-environment-latest2.0-lightweight.tar
+
+      - name: Update PostgreSQL Image Cache if cache miss
+        if: steps.cache-postgres.outputs.cache-hit != 'true'
+        run: |
+          docker pull postgres:14
+          mkdir -p ci/cache/docker/postgres
+          docker image save postgres:14 --output ./ci/cache/docker/postgres/postgres-14.tar
+
+      - name: Use zk-environment Image Cache if cache hit
+        if: steps.cache-zk-environment.outputs.cache-hit == 'true'
+        run: docker image load --input ./ci/cache/docker/zk-environment/zk-environment-latest2.0-lightweight.tar
+
+      - name: Use PostgreSQL Image Cache if cache hit
+        if: steps.cache-postgres.outputs.cache-hit == 'true'
+        run: docker image load --input ./ci/cache/docker/postgres/postgres-14.tar
