@@ -107,7 +107,7 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
-      - name: Cache Docker Images
+      - name: Cache Docker
         uses: ./.github/actions/cache-docker-images
 
       - name: start-services
