@@ -1,27 +1,22 @@
 use std::sync::Arc;
 
-use anyhow::Context;
 use axum::{
     extract::Path,
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
-use tokio::runtime::Handle;
-use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::api::{
-    SubmitProofRequest, SubmitProofResponse, TeeProofGenerationData, TeeProofGenerationDataRequest,
-    TeeProofGenerationDataResponse,
+    GenericProofGenerationDataResponse, SubmitProofRequest, SubmitProofResponse,
+    TeeProofGenerationDataRequest,
 };
-use zksync_state::{PostgresStorage, ReadStorage};
-use zksync_types::{
-    block::L1BatchHeader, commitment::serialize_commitments, web3::keccak256, L1BatchNumber,
-    L2BlockNumber, L2ChainId, H256,
-};
-use zksync_utils::u256_to_h256;
+use zksync_tee_verifier::TeeVerifierInput;
+use zksync_types::{commitment::serialize_commitments, web3::keccak256, L1BatchNumber, H256};
+
+pub type TeeProofGenerationDataResponse = GenericProofGenerationDataResponse<TeeVerifierInput>;
 
 #[derive(Clone)]
 pub(crate) struct TeeRequestProcessor {
@@ -81,109 +76,25 @@ impl TeeRequestProcessor {
     ) -> Result<Json<TeeProofGenerationDataResponse>, TeeRequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let mut connection = self.pool.connection().await.unwrap();
-
-        let l1_batch_number_result = connection
-            .proof_generation_dal()
-            .get_next_block_to_be_proven(self.config.proof_generation_timeout())
-            .await;
+        // TODO: Replace this line with an appropriate method to get the next batch number to be proven.
+        // It's likely that a new SQL column needs to be added to the `proof_generation_details` table.
+        // Take self.config.proof_generation_timeout() into account when selecting the next batch to be proven!
+        let l1_batch_number_result = Option::from(L1BatchNumber::from(1));
 
         let l1_batch_number = match l1_batch_number_result {
             Some(number) => number,
             None => return Ok(Json(TeeProofGenerationDataResponse::Success(None))),
         };
 
-        let blob = self
+        let tee_verifier_input: TeeVerifierInput = self
             .blob_store
             .get(l1_batch_number)
             .await
             .map_err(TeeRequestProcessorError::ObjectStore)?;
 
-        let l1_batch_header = connection
-            .blocks_dal()
-            .get_l1_batch_header(l1_batch_number)
-            .await
-            .unwrap()
-            .expect(&format!("Missing header for {}", l1_batch_number));
-
-        let l2_blocks_execution_data = connection
-            .transactions_dal()
-            .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number)
-            .await
-            .unwrap();
-
-        let last_batch_miniblock_number = l2_blocks_execution_data.first().unwrap().number - 1;
-
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection).await.unwrap();
-
-        let first_miniblock_in_batch = l1_batch_params_provider
-            .load_first_l2_block_in_batch(&mut connection, l1_batch_number)
-            .await
-            .unwrap()
-            .unwrap();
-
-        let validation_computational_gas_limit = u32::MAX;
-
-        let (system_env, l1_batch_env) = l1_batch_params_provider
-            .load_l1_batch_params(
-                &mut connection,
-                &first_miniblock_in_batch,
-                validation_computational_gas_limit,
-                L2ChainId::default(), // TODO: pass correct chain id
-                                      // l2_chain_id,
-            )
-            .await
-            .unwrap();
-
-        let rt_handle = Handle::current();
-
-        let pool = self.pool.clone();
-
-        // `PostgresStorage` needs a blocking context
-        let used_contracts = rt_handle
-            .spawn_blocking(move || {
-                Self::get_used_contracts(last_batch_miniblock_number, l1_batch_header, pool)
-            })
-            .await
-            .unwrap()
-            .unwrap();
-
-        let proof_gen_data = TeeProofGenerationData::new(
-            blob,
-            l2_blocks_execution_data,
-            l1_batch_env,
-            system_env,
-            used_contracts,
-        );
-
         Ok(Json(TeeProofGenerationDataResponse::Success(Some(
-            Box::new(proof_gen_data),
+            Box::new(tee_verifier_input),
         ))))
-    }
-
-    fn get_used_contracts(
-        last_batch_miniblock_number: L2BlockNumber,
-        l1_batch_header: L1BatchHeader,
-        connection_pool: ConnectionPool<Core>,
-    ) -> anyhow::Result<Vec<(H256, Vec<u8>)>> {
-        let rt_handle = Handle::current();
-
-        let connection = rt_handle
-            .block_on(connection_pool.connection())
-            .context("failed to get connection for TeeVerifierInputProducer")?;
-
-        let mut pg_storage =
-            PostgresStorage::new(rt_handle, connection, last_batch_miniblock_number, true);
-
-        Ok(l1_batch_header
-            .used_contract_hashes
-            .into_iter()
-            .filter_map(|hash| {
-                pg_storage
-                    .load_factory_dep(u256_to_h256(hash))
-                    .map(|bytes| (u256_to_h256(hash), bytes))
-            })
-            .collect())
     }
 
     pub(crate) async fn submit_proof(
