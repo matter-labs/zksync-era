@@ -20,16 +20,17 @@ mod request_processor;
 pub async fn run_server(
     config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
-    pool: ConnectionPool<Core>,
+    connection_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting proof data handler server on {bind_address}");
     let get_tee_proof_gen_processor =
-        TeeRequestProcessor::new(blob_store.clone(), pool.clone(), config.clone());
+        TeeRequestProcessor::new(blob_store.clone(), connection_pool.clone(), config.clone());
     let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();
-    let get_proof_gen_processor = RequestProcessor::new(blob_store, pool, config, commitment_mode);
+    let get_proof_gen_processor =
+        RequestProcessor::new(blob_store, connection_pool, config, commitment_mode);
     let submit_proof_processor = get_proof_gen_processor.clone();
     let app = Router::new()
         .route(
