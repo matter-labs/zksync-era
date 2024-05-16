@@ -304,7 +304,7 @@ fn test_first_in_batch(
     let l1_tx = get_l1_noop();
 
     // Setting the values provided.
-    let storage_ptr = vm.vm.storage.clone();
+    let storage_ptr = vm.vm.world.storage.clone();
     let miniblock_info_slot = StorageKey::new(
         AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
         SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,

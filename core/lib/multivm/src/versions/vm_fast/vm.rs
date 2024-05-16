@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachine};
 use zk_evm_1_5_0::zkevm_opcode_defs::{
@@ -55,15 +55,13 @@ use crate::{
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
 pub struct Vm<S: ReadStorage> {
-    world: World<S>,
+    pub(crate) world: World<S>,
     pub(crate) inner: VirtualMachine,
     suspended_at: u16,
     gas_for_account_validation: u32,
 
     pub(crate) bootloader_state: BootloaderState,
-    pub(crate) storage: StoragePtr<S>,
 
-    pub(crate) program_cache: Rc<RefCell<HashMap<U256, Program>>>,
     bytecode_cache: HashMap<U256, Vec<u8>>,
 
     pub(crate) batch_env: L1BatchEnv,
@@ -320,8 +318,8 @@ impl<S: ReadStorage> Vm<S> {
     pub(crate) fn insert_bytecodes<'a>(&mut self, bytecodes: impl IntoIterator<Item = &'a [u8]>) {
         for code in bytecodes {
             let hash = h256_to_u256(hash_bytecode(code));
-            self.program_cache
-                .borrow_mut()
+            self.world
+                .program_cache
                 .insert(hash, bytecode_to_program(code));
             self.bytecode_cache.insert(hash, code.to_vec());
         }
@@ -359,7 +357,7 @@ impl<S: ReadStorage> Vm<S> {
                     .get_storage_state()
                     .get(&(KNOWN_CODES_STORAGE_ADDRESS.into(), h256_to_u256(hash)))
                     .map(|x| !x.is_zero())
-                    .unwrap_or_else(|| self.storage.borrow_mut().is_bytecode_known(&hash))
+                    .unwrap_or_else(|| self.world.storage.borrow_mut().is_bytecode_known(&hash))
             })
         };
 
@@ -378,7 +376,7 @@ impl<S: ReadStorage> Vm<S> {
     }
 
     fn compute_state_diffs(&self) -> Vec<StateDiffRecord> {
-        let mut storage = self.storage.borrow_mut();
+        let mut storage = self.world.storage.borrow_mut();
 
         self.inner
             .world_diff
@@ -422,10 +420,10 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
             .hash
             .into();
 
-        let program_cache = Rc::new(RefCell::new(HashMap::from([convert_system_contract_code(
+        let program_cache = HashMap::from([convert_system_contract_code(
             &system_env.base_system_smart_contracts.default_aa,
             false,
-        )])));
+        )]);
 
         let (_, bootloader) =
             convert_system_contract_code(&system_env.base_system_smart_contracts.bootloader, true);
@@ -456,7 +454,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
 
         let mut me = Self {
-            world: World::new(storage.clone(), program_cache.clone()),
+            world: World::new(storage, program_cache),
             inner,
             suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
@@ -465,10 +463,8 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                 bootloader_memory.clone(),
                 batch_env.first_l2_block,
             ),
-            storage,
             system_env,
             batch_env,
-            program_cache,
             bytecode_cache: HashMap::new(),
             snapshots: vec![],
         };
@@ -519,9 +515,14 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .get_storage_changes_after(&start)
                     .into_iter()
                     .map(|((address, key), change)| {
-                        let is_initial = self.storage.borrow_mut().is_write_initial(
-                            &StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                        );
+                        let is_initial =
+                            self.world
+                                .storage
+                                .borrow_mut()
+                                .is_write_initial(&StorageKey::new(
+                                    AccountTreeId::new(address),
+                                    u256_to_h256(key),
+                                ));
                         storage_log_query_from_change(((address, key), change), is_initial)
                     })
                     .collect(),
@@ -678,8 +679,8 @@ impl<S: ReadStorage> std::fmt::Debug for Vm<S> {
                 &self.gas_for_account_validation,
             )
             .field("bootloader_state", &self.bootloader_state)
-            .field("storage", &self.storage)
-            .field("program_cache", &self.program_cache)
+            .field("storage", &self.world.storage)
+            .field("program_cache", &self.world.program_cache)
             .field("bytecode_cache", &self.bytecode_cache)
             .field("batch_env", &self.batch_env)
             .field("system_env", &self.system_env)
@@ -688,16 +689,16 @@ impl<S: ReadStorage> std::fmt::Debug for Vm<S> {
     }
 }
 
-struct World<S: ReadStorage> {
-    storage: StoragePtr<S>,
+pub(crate) struct World<S: ReadStorage> {
+    pub(crate) storage: StoragePtr<S>,
 
     // TODO: It would be nice to store an LRU cache elsewhere.
     // This one is cleared on change of batch unfortunately.
-    program_cache: Rc<RefCell<HashMap<U256, Program>>>,
+    pub(crate) program_cache: HashMap<U256, Program>,
 }
 
 impl<S: ReadStorage> World<S> {
-    fn new(storage: StoragePtr<S>, program_cache: Rc<RefCell<HashMap<U256, Program>>>) -> Self {
+    fn new(storage: StoragePtr<S>, program_cache: HashMap<U256, Program>) -> Self {
         Self {
             storage,
             program_cache,
@@ -708,7 +709,6 @@ impl<S: ReadStorage> World<S> {
 impl<S: ReadStorage> vm2::World for World<S> {
     fn decommit(&mut self, hash: U256) -> Program {
         self.program_cache
-            .borrow_mut()
             .entry(hash)
             .or_insert_with(|| {
                 let bytecode = self
