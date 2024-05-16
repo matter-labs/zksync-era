@@ -344,7 +344,7 @@ export class TestContextOwner {
                             gasPrice,
                             this.reporter
                         );
-                        return baseTokenTransfers;
+                        return baseTokenTransfers.then((promises) => Promise.all(promises));
                     }
                 });
             l1TxPromises.push(baseDepositPromise);

@@ -9,6 +9,7 @@
 use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
+pub use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
@@ -572,10 +573,6 @@ impl L1BatchCommitment {
 
     pub fn meta_parameters(&self) -> L1BatchMetaParameters {
         self.meta_parameters.clone()
-    }
-
-    pub fn aux_output(&self) -> L1BatchAuxiliaryOutput {
-        self.auxiliary_output.clone()
     }
 
     pub fn l2_l1_logs_merkle_root(&self) -> H256 {

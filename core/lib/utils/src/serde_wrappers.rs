@@ -25,28 +25,70 @@ impl<P: Prefix> BytesToHexSerde<P> {
     where
         S: Serializer,
     {
-        // First, serialize to hexadecimal string.
-        let hex_value = format!("{}{}", P::prefix(), hex::encode(value));
+        if serializer.is_human_readable() {
+            // First, serialize to hexadecimal string.
+            let hex_value = format!("{}{}", P::prefix(), hex::encode(value));
 
-        // Then, serialize it using `Serialize` trait implementation for `String`.
-        String::serialize(&hex_value, serializer)
+            // Then, serialize it using `Serialize` trait implementation for `String`.
+            String::serialize(&hex_value, serializer)
+        } else {
+            <[u8]>::serialize(value, serializer)
+        }
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let deserialized_string = String::deserialize(deserializer)?;
+        if deserializer.is_human_readable() {
+            let deserialized_string = String::deserialize(deserializer)?;
 
-        if let Some(deserialized_string) = deserialized_string.strip_prefix(P::prefix()) {
-            hex::decode(deserialized_string).map_err(de::Error::custom)
+            if let Some(deserialized_string) = deserialized_string.strip_prefix(P::prefix()) {
+                hex::decode(deserialized_string).map_err(de::Error::custom)
+            } else {
+                Err(de::Error::custom(format!(
+                    "string value missing prefix: {:?}",
+                    P::prefix()
+                )))
+            }
         } else {
-            Err(de::Error::custom(format!(
-                "string value missing prefix: {:?}",
-                P::prefix()
-            )))
+            <Vec<u8>>::deserialize(deserializer)
         }
     }
 }
 
 pub type ZeroPrefixHexSerde = BytesToHexSerde<ZeroxPrefix>;
+
+#[cfg(test)]
+mod tests {
+    use serde::{Deserialize, Serialize};
+
+    use crate::ZeroPrefixHexSerde;
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct Execute {
+        #[serde(with = "ZeroPrefixHexSerde")]
+        pub calldata: Vec<u8>,
+    }
+
+    #[test]
+    fn test_hex_serde_bincode() {
+        let original = Execute {
+            calldata: vec![0, 1, 2, 3, 4],
+        };
+        let encoded: Vec<u8> = vec![5, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4];
+        let decoded: Execute = bincode::deserialize(&encoded).unwrap();
+        assert_eq!(original, decoded);
+    }
+
+    #[test]
+    fn test_hex_serde_json() {
+        let original = Execute {
+            calldata: vec![0, 1, 2, 3, 4],
+        };
+        let encoded = serde_json::to_string(&original).unwrap();
+        assert_eq!(r#"{"calldata":"0x0001020304"}"#, encoded);
+        let decoded: Execute = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(original, decoded);
+    }
+}
