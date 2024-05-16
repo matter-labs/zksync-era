@@ -1,5 +1,5 @@
 {
-  "name": "snapshot-recovery-test",
+  "name": "recovery-test",
   "version": "1.0.0",
   "license": "MIT",
   "mocha": {
