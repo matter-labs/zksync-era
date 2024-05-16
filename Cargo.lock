@@ -9409,6 +9409,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bigdecimal",
+ "bincode",
  "futures 0.3.28",
  "hex",
  "itertools 0.10.5",
