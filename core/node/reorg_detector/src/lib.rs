@@ -258,7 +258,7 @@ impl ReorgDetector {
         let mut storage = self.pool.connection().await.context("connection()")?;
         let Some(local_l1_batch) = storage
             .blocks_dal()
-            .get_last_l1_batch_number_with_metadata()
+            .get_last_l1_batch_number_with_tree_data()
             .await
             .map_err(DalError::generalize)?
         else {
