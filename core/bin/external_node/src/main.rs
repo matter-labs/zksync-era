@@ -8,41 +8,42 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    validation_task::L1BatchCommitmentModeValidationTask, CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
-use zksync_core::{
-    api_server::{
-        execution_sandbox::VmConcurrencyLimiter,
-        healthcheck::HealthCheckHandle,
-        tree::{TreeApiClient, TreeApiHttpClient},
-        tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
-        web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
-    },
-    consensus,
-    consistency_checker::ConsistencyChecker,
-    metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
-    reorg_detector::{self, ReorgDetector},
-    setup_sigint_handler,
-    state_keeper::{
-        seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
-        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
-    },
-    sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        tree_data_fetcher::TreeDataFetcher, ActionQueue, SyncState,
-    },
-    utils::L1BatchCommitmentModeValidationTask,
-};
+use zksync_consistency_checker::ConsistencyChecker;
+use zksync_core_leftovers::setup_sigint_handler;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
 use zksync_eth_client::EthInterface;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_metadata_calculator::{
+    api_server::{TreeApiClient, TreeApiHttpClient},
+    MetadataCalculator, MetadataCalculatorConfig,
+};
+use zksync_node_api_server::{
+    execution_sandbox::VmConcurrencyLimiter,
+    healthcheck::HealthCheckHandle,
+    tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
+    web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
+};
+use zksync_node_consensus as consensus;
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
+use zksync_node_sync::{
+    batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
+    tree_data_fetcher::TreeDataFetcher, ActionQueue, SyncState,
+};
+use zksync_reorg_detector::ReorgDetector;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
+use zksync_state_keeper::{
+    seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
+    StateKeeperPersistence, ZkSyncStateKeeper,
+};
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -977,7 +978,7 @@ async fn run_node(
         Ok(()) => {
             tracing::info!("Successfully checked no reorg compared to the main node");
         }
-        Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
+        Err(zksync_reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
             tracing::info!("Reverting to l1 batch number {last_correct_l1_batch}");
             reverter.roll_back(last_correct_l1_batch).await?;
             tracing::info!("Revert successfully completed");
