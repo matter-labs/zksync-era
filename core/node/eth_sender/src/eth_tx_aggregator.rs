@@ -1,14 +1,15 @@
-use std::{convert::TryInto, sync::Arc};
-
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
-    i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+    i_executor::{
+        commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+        methods::CommitBatches,
+    },
     multicall3::{Multicall3Call, Multicall3Result},
-    Detokenize, Tokenizable, Tokenize,
+    Tokenizable, Tokenize,
 };
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
@@ -19,13 +20,12 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
     pubdata_da::PubdataDA,
-    web3::{contract::Error as Web3ContractError, types::BlockNumber},
+    web3::{contract::Error as Web3ContractError, BlockNumber},
     Address, L2ChainId, ProtocolVersionId, H256, U256,
 };
 
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     metrics::{PubdataKind, METRICS},
     utils::agg_l1_batch_base_cost,
     zksync_functions::ZkSyncFunctions,
@@ -62,7 +62,6 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
-    l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 struct TxData {
@@ -82,7 +81,6 @@ impl EthTxAggregator {
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
-        l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
@@ -112,7 +110,6 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
-            l1_commit_data_generator,
         }
     }
 
@@ -141,13 +138,10 @@ impl EthTxAggregator {
         let calldata = self.generate_calldata_for_multicall();
         let args = CallFunctionArgs::new(&self.functions.aggregate3.name, calldata).for_contract(
             self.l1_multicall3_address,
-            self.functions.multicall_contract.clone(),
+            &self.functions.multicall_contract,
         );
-        let aggregate3_result = (*self.eth_client)
-            .as_ref()
-            .call_contract_function(args)
-            .await?;
-        self.parse_multicall_data(Token::from_tokens(aggregate3_result)?)
+        let aggregate3_result: Token = args.call((*self.eth_client).as_ref()).await?;
+        self.parse_multicall_data(aggregate3_result)
     }
 
     // Multicall's aggregate function accepts 1 argument - arrays of different contract calls.
@@ -336,13 +330,11 @@ impl EthTxAggregator {
         verifier_address: Address,
     ) -> Result<H256, ETHSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
-        let args = CallFunctionArgs::new(&get_vk_hash.name, ())
-            .for_contract(verifier_address, self.functions.verifier_contract.clone());
-        let vk_hash = (*self.eth_client)
-            .as_ref()
-            .call_contract_function(args)
+        let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, ())
+            .for_contract(verifier_address, &self.functions.verifier_contract)
+            .call((*self.eth_client).as_ref())
             .await?;
-        Ok(H256::from_tokens(vk_hash)?)
+        Ok(vk_hash)
     }
 
     #[tracing::instrument(skip(self, storage))]
@@ -385,14 +377,14 @@ impl EthTxAggregator {
             let tx = self
                 .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge)
                 .await?;
-            Self::report_eth_tx_saving(storage, agg_op, &tx).await;
+            Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
         }
         Ok(())
     }
 
     async fn report_eth_tx_saving(
         storage: &mut Connection<'_, Core>,
-        aggregated_op: AggregatedOperation,
+        aggregated_op: &AggregatedOperation,
         tx: &EthTx,
     ) {
         let l1_batch_number_range = aggregated_op.l1_batch_range();
@@ -402,7 +394,7 @@ impl EthTxAggregator {
             aggregated_op.get_action_caption()
         );
 
-        if let AggregatedOperation::Commit(_, l1_batches, _) = &aggregated_op {
+        if let AggregatedOperation::Commit(_, l1_batches, _) = aggregated_op {
             for batch in l1_batches {
                 METRICS.pubdata_size[&PubdataKind::StateDiffs]
                     .observe(batch.metadata.state_diffs_compressed.len());
@@ -437,13 +429,16 @@ impl EthTxAggregator {
 
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 
-        let (calldata, sidecar) = match op.clone() {
+        let (calldata, sidecar) = match op {
             AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
-                let commit_data_base = self.l1_commit_data_generator.l1_commit_batches(
-                    &last_committed_l1_batch,
-                    &l1_batches,
-                    &pubdata_da,
-                );
+                let commit_batches = CommitBatches {
+                    last_committed_l1_batch,
+                    l1_batches,
+                    pubdata_da: *pubdata_da,
+                    mode: self.aggregator.mode(),
+                };
+                let commit_data_base = commit_batches.into_tokens();
+
                 let (encoding_fn, commit_data) = if contracts_are_pre_shared_bridge {
                     (&self.functions.pre_shared_bridge_commit, commit_data_base)
                 } else {

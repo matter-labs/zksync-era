@@ -25,12 +25,14 @@ async function depositWithRichAccounts() {
     const gasPrice = await ethProvider.getGasPrice();
     const contract = new ethers.Contract(process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR, utils.BRIDGEHUB_ABI, ethProvider);
 
-    const expectedCost = await contract.l2TransactionBaseCost(
-        chainId,
-        gasPrice,
-        DEPOSIT_L2_GAS_LIMIT,
-        utils.DEFAULT_GAS_PER_PUBDATA_LIMIT
-    );
+    const expectedCost =
+        (await contract.l2TransactionBaseCost(
+            chainId,
+            gasPrice,
+            DEPOSIT_L2_GAS_LIMIT,
+            utils.DEFAULT_GAS_PER_PUBDATA_LIMIT
+        )) * 1.5;
+    // We multiply the expected cost with 1.5 (in case gas price changes a little between calls - especially when we send 10 in a row).
 
     for (const wallet of wallets) {
         if (!(await isOperator(chainId, wallet.address))) {

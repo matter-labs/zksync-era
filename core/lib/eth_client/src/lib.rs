@@ -3,19 +3,18 @@ use std::fmt;
 use async_trait::async_trait;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
+    ethabi, web3,
     web3::{
-        ethabi,
-        types::{
-            AccessList, Address, BlockId, BlockNumber, Filter, Log, Transaction,
-            TransactionCondition, TransactionReceipt, H160, H256, U256, U64,
-        },
+        AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
+        TransactionReceipt,
     },
-    L1ChainId,
+    Address, L1ChainId, H160, H256, U256, U64,
 };
+pub use zksync_web3_decl::{error::EnrichedClientError, jsonrpsee::core::ClientError};
 
 pub use crate::types::{
-    encode_blob_tx_with_sidecar, Block, CallFunctionArgs, ContractCall, Error, ExecutedTxStatus,
-    FailureInfo, RawTransactionBytes, SignedCallResult,
+    encode_blob_tx_with_sidecar, CallFunctionArgs, ContractCall, ContractError, Error,
+    ExecutedTxStatus, FailureInfo, RawTransactionBytes, SignedCallResult,
 };
 
 pub mod clients;
@@ -137,8 +136,11 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     async fn eth_balance(&self, address: Address) -> Result<U256, Error>;
 
     /// Invokes a function on a contract specified by `contract_address` / `contract_abi` using `eth_call`.
-    async fn call_contract_function(&self, call: ContractCall)
-        -> Result<Vec<ethabi::Token>, Error>;
+    async fn call_contract_function(
+        &self,
+        request: web3::CallRequest,
+        block: Option<BlockId>,
+    ) -> Result<web3::Bytes, Error>;
 
     /// Returns the logs for the specified filter.
     async fn logs(&self, filter: Filter) -> Result<Vec<Log>, Error>;
@@ -198,7 +200,7 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
         &self,
         token_address: Address,
         address: Address,
-        erc20_abi: ethabi::Contract,
+        erc20_abi: &ethabi::Contract,
     ) -> Result<U256, Error>;
 
     /// Signs the transaction and sends it to the Ethereum network.
@@ -248,15 +250,6 @@ impl dyn BoundEthInterface {
     /// Returns the ETH balance of `Self::sender_account()`.
     pub async fn sender_eth_balance(&self) -> Result<U256, Error> {
         self.as_ref().eth_balance(self.sender_account()).await
-    }
-
-    /// Invokes a function on a contract specified by `Self::contract()` / `Self::contract_addr()`.
-    pub async fn call_main_contract_function(
-        &self,
-        args: CallFunctionArgs,
-    ) -> Result<Vec<ethabi::Token>, Error> {
-        let args = args.for_contract(self.contract_addr(), self.contract().clone());
-        self.as_ref().call_contract_function(args).await
     }
 
     /// Encodes a function using the `Self::contract()` ABI.

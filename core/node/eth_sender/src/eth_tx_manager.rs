@@ -5,18 +5,15 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
-    encode_blob_tx_with_sidecar, BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options,
-    RawTransactionBytes, SignedCallResult,
+    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError, Error,
+    EthInterface, ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar},
-    web3::{
-        error::Error as Web3Error,
-        types::{BlockId, BlockNumber},
-    },
+    web3::{BlockId, BlockNumber},
     Address, L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
@@ -225,7 +222,12 @@ impl EthTxManager {
                 previous_base_fee,
                 next_block_minimal_base_fee
             );
-            return Err(ETHSenderError::from(Error::from(Web3Error::Internal)));
+            let err = ClientError::Custom("base_fee_per_gas is too low".into());
+            let err = EnrichedClientError::new(err, "increase_priority_fee")
+                .with_arg("base_fee_per_gas", &base_fee_per_gas)
+                .with_arg("previous_base_fee", &previous_base_fee)
+                .with_arg("next_block_minimal_base_fee", &next_block_minimal_base_fee);
+            return Err(ETHSenderError::from(Error::EthereumGateway(err)));
         }
 
         // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
@@ -471,7 +473,13 @@ impl EthTxManager {
 
         // Not confirmed transactions, ordered by nonce
         for tx in inflight_txs {
-            tracing::trace!("Checking tx id: {}", tx.id,);
+            tracing::trace!(
+                "Checking tx id: {}, operator_nonce: {:?}, tx nonce: {}",
+                tx.id,
+                operator_nonce,
+                tx.nonce,
+            );
+
             if tx.from_addr != operator_address {
                 continue;
             }

@@ -320,17 +320,17 @@ impl PruningDal<'_, '_> {
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
-            DELETE FROM storage_logs USING (
-                SELECT
-                    *
-                FROM
-                    storage_logs
-                WHERE
-                    miniblock_number BETWEEN $1 AND $2
-            ) AS batches_to_prune
+            DELETE FROM storage_logs
             WHERE
                 storage_logs.miniblock_number < $1
-                AND batches_to_prune.hashed_key = storage_logs.hashed_key
+                AND hashed_key IN (
+                    SELECT
+                        hashed_key
+                    FROM
+                        storage_logs
+                    WHERE
+                        miniblock_number BETWEEN $1 AND $2
+                )
             "#,
             i64::from(l2_blocks_to_prune.start().0),
             i64::from(l2_blocks_to_prune.end().0)
@@ -448,7 +448,7 @@ impl PruningDal<'_, '_> {
     pub async fn run_vacuum_after_hard_pruning(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
-            VACUUM l1_batches,
+            VACUUM FREEZE l1_batches,
             miniblocks,
             storage_logs,
             events,

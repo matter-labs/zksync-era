@@ -15,6 +15,7 @@ use crate::{
     account_pool::AccountPool,
     config::{ExecutionConfig, LoadtestConfig, RequestLimiters},
     constants::*,
+    metrics::LOADTEST_METRICS,
     report::ReportBuilder,
     report_collector::{LoadtestResult, ReportCollector},
     sdk::{
@@ -22,7 +23,7 @@ use crate::{
         utils::{
             get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
         },
-        web3::types::TransactionReceipt,
+        web3::TransactionReceipt,
         EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
     },
     utils::format_eth,
@@ -114,10 +115,9 @@ impl Executor {
             self.pool.master_wallet.address(),
             format_eth(eth_balance)
         );
-        metrics::gauge!(
-            "loadtest.master_account_balance",
-            eth_balance.as_u128() as f64
-        );
+        LOADTEST_METRICS
+            .master_account_balance
+            .set(eth_balance.as_u128() as u64);
 
         Ok(())
     }

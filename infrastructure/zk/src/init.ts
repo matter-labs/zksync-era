@@ -133,6 +133,13 @@ const makeEraChainIdSameAsCurrent = async () => {
     env.reload();
 };
 
+const makeEraAddressSameAsCurrent = async () => {
+    console.log('Making era address same as current address');
+    const initEnv = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
+    env.modify('CONTRACTS_ERA_DIAMOND_PROXY_ADDR', process.env.CONTRACTS_DIAMOND_PROXY_ADDR!, initEnv, false);
+    env.reload();
+};
+
 // ########################### Command Actions ###########################
 type InitDevCmdActionOptions = InitSetupOptions & {
     skipTestTokenDeployment?: boolean;
@@ -163,6 +170,9 @@ export const initDevCmdAction = async ({
     await initBridgehubStateTransition();
     await initDatabase({ skipVerifierDeployment: true });
     await initHyperchain({ includePaymaster: true, baseTokenName, localLegacyBridgeTesting, deploymentMode });
+    if (localLegacyBridgeTesting) {
+        await makeEraAddressSameAsCurrent();
+    }
 };
 
 const lightweightInitCmdAction = async (): Promise<void> => {

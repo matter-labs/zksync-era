@@ -17,6 +17,7 @@ use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_semantic_conventions::resource::SERVICE_NAME;
 pub use sentry::{capture_message, Level as AlertLevel};
 use sentry::{types::Dsn, ClientInitGuard};
+use serde::{de::Error, Deserialize, Deserializer};
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::{
     filter::Filtered,
@@ -36,6 +37,15 @@ pub enum LogFormat {
     #[default]
     Plain,
     Json,
+}
+
+impl std::fmt::Display for LogFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Plain => f.write_str("plain"),
+            Self::Json => f.write_str("json"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -58,6 +68,13 @@ impl FromStr for LogFormat {
             "json" => Ok(LogFormat::Json),
             _ => Err(LogFormatError("invalid log format")),
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for LogFormat {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        s.parse::<Self>().map_err(D::Error::custom)
     }
 }
 

@@ -7,20 +7,21 @@ use zksync_types::{
     api,
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
-    web3::types::{BlockHeader, U64},
-    Bytes, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H2048, H256, U256,
+    web3::{BlockHeader, Bytes},
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H2048, H256, U256, U64,
 };
 use zksync_utils::bigdecimal_to_u256;
 
 use crate::{
     models::{
+        parse_protocol_version,
         storage_block::{
             ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
             LEGACY_BLOCK_GAS_LIMIT,
         },
         storage_transaction::CallTrace,
     },
-    Core, CoreDal,
+    Core,
 };
 
 #[derive(Debug)]
@@ -486,12 +487,27 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         block_number: L2BlockNumber,
     ) -> DalResult<Vec<Call>> {
-        let protocol_version = self
-            .storage
-            .blocks_dal()
-            .get_l2_block_protocol_version_id(block_number)
-            .await?
-            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let protocol_version = sqlx::query!(
+            r#"
+            SELECT
+                protocol_version
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .try_map(|row| row.protocol_version.map(parse_protocol_version).transpose())
+        .instrument("get_traces_for_l2_block#get_l2_block_protocol_version_id")
+        .with_arg("l2_block_number", &block_number)
+        .fetch_optional(self.storage)
+        .await?;
+        let Some(protocol_version) = protocol_version else {
+            return Ok(Vec::new());
+        };
+        let protocol_version =
+            protocol_version.unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
         Ok(sqlx::query_as!(
             CallTrace,
@@ -694,7 +710,7 @@ mod tests {
             create_l2_block_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
         },
-        ConnectionPool, Core,
+        ConnectionPool, Core, CoreDal,
     };
 
     #[tokio::test]
@@ -912,7 +928,13 @@ mod tests {
             tx_results.push(tx_result);
         }
         conn.transactions_dal()
-            .mark_txs_as_executed_in_l2_block(L2BlockNumber(1), &tx_results, 1.into())
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(1),
+                &tx_results,
+                1.into(),
+                ProtocolVersionId::latest(),
+                false,
+            )
             .await
             .unwrap();
 
