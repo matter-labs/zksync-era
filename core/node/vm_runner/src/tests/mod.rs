@@ -65,6 +65,73 @@ impl VmRunnerIo for Arc<RwLock<IoMock>> {
     }
 }
 
+mod wait {
+    use crate::tests::IoMock;
+    use backon::{ConstantBuilder, Retryable};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::RwLock;
+    use zksync_types::L1BatchNumber;
+
+    pub(super) async fn for_batch(
+        io: Arc<RwLock<IoMock>>,
+        l1_batch_number: L1BatchNumber,
+        timeout: Duration,
+    ) -> anyhow::Result<()> {
+        const RETRY_INTERVAL: Duration = Duration::from_millis(500);
+
+        let max_tries = (timeout.as_secs_f64() / RETRY_INTERVAL.as_secs_f64()).ceil() as u64;
+        (|| async {
+            let current = io.read().await.current;
+            anyhow::ensure!(
+                current == l1_batch_number,
+                "Batch #{} has not been processed yet (current is #{})",
+                l1_batch_number,
+                current
+            );
+            Ok(())
+        })
+        .retry(
+            &ConstantBuilder::default()
+                .with_delay(RETRY_INTERVAL)
+                .with_max_times(max_tries as usize),
+        )
+        .await
+    }
+
+    pub(super) async fn for_batch_progressively(
+        io: Arc<RwLock<IoMock>>,
+        l1_batch_number: L1BatchNumber,
+        timeout: Duration,
+    ) -> anyhow::Result<()> {
+        const SLEEP_INTERVAL: Duration = Duration::from_millis(500);
+
+        let mut current = io.read().await.current;
+        let max_tries = (timeout.as_secs_f64() / SLEEP_INTERVAL.as_secs_f64()).ceil() as u64;
+        let mut try_num = 0;
+        loop {
+            tokio::time::sleep(SLEEP_INTERVAL).await;
+            try_num += 1;
+            if try_num >= max_tries {
+                anyhow::bail!("Timeout");
+            }
+            let new_current = io.read().await.current;
+            // Ensure we did not go back in latest processed batch
+            if new_current < current {
+                anyhow::bail!(
+                    "Latest processed batch regressed to #{} back from #{}",
+                    new_current,
+                    current
+                );
+            }
+            current = new_current;
+            if current >= l1_batch_number {
+                return Ok(());
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 struct TestOutputFactory {
     delays: HashMap<L1BatchNumber, Duration>,
