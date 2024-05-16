@@ -55,6 +55,7 @@ use crate::{
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
 pub struct Vm<S: ReadStorage> {
+    world: World<S>,
     pub(crate) inner: VirtualMachine,
     suspended_at: u16,
     gas_for_account_validation: u32,
@@ -71,7 +72,7 @@ pub struct Vm<S: ReadStorage> {
     snapshots: Vec<VmSnapshot>,
 }
 
-impl<S: ReadStorage + 'static> Vm<S> {
+impl<S: ReadStorage> Vm<S> {
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
@@ -84,7 +85,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
         let mut last_tx_result = None;
 
         let result = loop {
-            let hook = match self.inner.resume_from(self.suspended_at) {
+            let hook = match self.inner.resume_from(self.suspended_at, &mut self.world) {
                 ExecutionEnd::SuspendedOnHook {
                     hook,
                     pc_to_resume_from,
@@ -197,7 +198,8 @@ impl<S: ReadStorage + 'static> Vm<S> {
                         todo!("I have no idea what exit status to return here");
                     }
 
-                    let events = merge_events(self.inner.world.events(), self.batch_env.number);
+                    let events =
+                        merge_events(self.inner.world_diff.events(), self.batch_env.number);
 
                     let published_bytecodes = events
                         .iter()
@@ -247,6 +249,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
         loop {
             match self.inner.resume_with_additional_gas_limit(
                 self.suspended_at,
+                &mut self.world,
                 self.gas_for_account_validation,
             ) {
                 None => {
@@ -331,12 +334,12 @@ impl<S: ReadStorage + 'static> Vm<S> {
         (
             self.inner.state.clone(),
             self.inner
-                .world
+                .world_diff
                 .get_storage_state()
                 .iter()
                 .map(|(k, v)| (*k, *v))
                 .collect(),
-            self.inner.world.events().into(),
+            self.inner.world_diff.events().into(),
         )
     }
 
@@ -352,7 +355,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
         } else {
             compress_bytecodes(&tx.factory_deps, |hash| {
                 self.inner
-                    .world
+                    .world_diff
                     .get_storage_state()
                     .get(&(KNOWN_CODES_STORAGE_ADDRESS.into(), h256_to_u256(hash)))
                     .map(|x| !x.is_zero())
@@ -378,7 +381,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
         let mut storage = self.storage.borrow_mut();
 
         self.inner
-            .world
+            .world_diff
             .get_storage_state()
             .iter()
             .map(|(&(address, key), value)| {
@@ -401,11 +404,11 @@ impl<S: ReadStorage + 'static> Vm<S> {
     }
 
     pub(crate) fn get_decommitted_hashes(&self) -> impl Iterator<Item = &U256> + '_ {
-        self.inner.world.get_decommitted_hashes().keys()
+        self.inner.world_diff.get_decommitted_hashes().keys()
     }
 }
 
-impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
+impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
     type TracerDispatcher = ();
 
     fn new(
@@ -429,7 +432,6 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         let bootloader_memory = bootloader_initial_memory(&batch_env);
 
         let mut inner = VirtualMachine::new(
-            Box::new(World::new(storage.clone(), program_cache.clone())),
             BOOTLOADER_ADDRESS,
             bootloader,
             H160::zero(),
@@ -454,6 +456,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
 
         let mut me = Self {
+            world: World::new(storage.clone(), program_cache.clone()),
             inner,
             suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
@@ -491,12 +494,15 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             track_refunds = true;
         }
 
-        let start = self.inner.world.snapshot();
+        let start = self.inner.world_diff.snapshot();
         let pubdata_before = self.inner.state.current_frame.total_pubdata_spent;
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
 
-        let events = merge_events(self.inner.world.events_after(&start), self.batch_env.number);
+        let events = merge_events(
+            self.inner.world_diff.events_after(&start),
+            self.batch_env.number,
+        );
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
             .into_iter()
             .map(Into::into)
@@ -509,7 +515,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             logs: VmExecutionLogs {
                 storage_logs: self
                     .inner
-                    .world
+                    .world_diff
                     .get_storage_changes_after(&start)
                     .into_iter()
                     .map(|((address, key), change)| {
@@ -523,7 +529,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 user_l2_to_l1_logs,
                 system_l2_to_l1_logs: self
                     .inner
-                    .world
+                    .world_diff
                     .l2_to_l1_logs_after(&start)
                     .iter()
                     .map(|x| x.glue_into())
@@ -572,7 +578,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
         // TODO fill all fields
-        let events = merge_events(self.inner.world.events(), self.batch_env.number);
+        let events = merge_events(self.inner.world_diff.events(), self.batch_env.number);
 
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
             .into_iter()
@@ -584,7 +590,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             events,
             deduplicated_storage_log_queries: self
                 .inner
-                .world
+                .world_diff
                 .get_storage_changes()
                 .iter()
                 .map(|(&a, &b)| (a, b))
@@ -593,7 +599,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             used_contract_hashes: vec![],
             system_logs: self
                 .inner
-                .world
+                .world_diff
                 .l2_to_l1_logs()
                 .iter()
                 .map(|x| x.glue_into())
@@ -623,7 +629,7 @@ struct VmSnapshot {
     gas_for_account_validation: u32,
 }
 
-impl<S: ReadStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
+impl<S: ReadStorage> VmInterfaceHistoryEnabled<S> for Vm<S> {
     fn make_snapshot(&mut self) {
         self.snapshots.push(VmSnapshot {
             vm_snapshot: self.inner.snapshot(),
@@ -655,11 +661,30 @@ impl<S: ReadStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
     }
 }
 
-impl<S: ReadStorage + 'static> Vm<S> {
+impl<S: ReadStorage> Vm<S> {
     fn delete_history_if_appropriate(&mut self) {
         if self.snapshots.is_empty() && self.inner.state.previous_frames.is_empty() {
-            self.inner.world.delete_history();
+            self.inner.world_diff.delete_history();
         }
+    }
+}
+
+impl<S: ReadStorage> std::fmt::Debug for Vm<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Vm")
+            .field("suspended_at", &self.suspended_at)
+            .field(
+                "gas_for_account_validation",
+                &self.gas_for_account_validation,
+            )
+            .field("bootloader_state", &self.bootloader_state)
+            .field("storage", &self.storage)
+            .field("program_cache", &self.program_cache)
+            .field("bytecode_cache", &self.bytecode_cache)
+            .field("batch_env", &self.batch_env)
+            .field("system_env", &self.system_env)
+            .field("snapshots", &self.snapshots.len())
+            .finish()
     }
 }
 

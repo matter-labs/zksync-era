@@ -92,7 +92,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
         AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
         &recipient_address,
         vm.vm.storage.clone(),
-        vm.vm.inner.world.get_storage_state(),
+        vm.vm.inner.world_diff.get_storage_state(),
     );
 
     assert_eq!(new_recipient_balance, value);

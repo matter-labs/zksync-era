@@ -10,3 +10,5 @@ mod refund;
 mod tests;
 mod transaction_data;
 mod vm;
+
+pub use vm::Vm;

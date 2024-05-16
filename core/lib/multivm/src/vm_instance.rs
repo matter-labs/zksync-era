@@ -23,6 +23,7 @@ pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
     Vm1_4_1(crate::vm_1_4_1::Vm<S, H>),
     Vm1_4_2(crate::vm_1_4_2::Vm<S, H>),
     Vm1_5_0(crate::vm_latest::Vm<S, H>),
+    VmFast(crate::vm_fast::Vm<S>),
 }
 
 macro_rules! dispatch_vm {
@@ -37,6 +38,7 @@ macro_rules! dispatch_vm {
             VmInstance::Vm1_4_1(vm) => vm.$function($($params)*),
             VmInstance::Vm1_4_2(vm) => vm.$function($($params)*),
             VmInstance::Vm1_5_0(vm) => vm.$function($($params)*),
+            VmInstance::VmFast(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -47,7 +49,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage_view: StoragePtr<S>) -> Self {
         let protocol_version = system_env.version;
         let vm_version: VmVersion = protocol_version.into();
-        Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
+        Self::new_fast_with_specific_version(batch_env, system_env, storage_view, vm_version)
     }
 
     /// Push tx into memory for the future execution
@@ -234,6 +236,20 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
                 );
                 VmInstance::Vm1_5_0(vm)
             }
+        }
+    }
+
+    pub fn new_fast_with_specific_version(
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage_view: StoragePtr<S>,
+        vm_version: VmVersion,
+    ) -> Self {
+        match vm_version {
+            VmVersion::Vm1_5_0IncreasedBootloaderMemory => VmInstance::VmFast(
+                crate::vm_fast::Vm::new(l1_batch_env, system_env, storage_view),
+            ),
+            _ => unimplemented!("version not supported by fast VM"),
         }
     }
 }
