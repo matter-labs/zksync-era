@@ -30,7 +30,7 @@ runs:
     - name: Use zk-environment Image Cache if cache hit
       shell: bash
       if: steps.cache-zk-environment.outputs.cache-hit == 'true'
-      run: docker image load --input ./ci/cache/docker/zk-environment/zk-environment-${{ inputs.zk-environment-tag }}.tar
+      run: time docker image load --input ./ci/cache/docker/zk-environment/zk-environment-${{ inputs.zk-environment-tag }}.tar
 
     - name: Restore PostgreSQL Image Cache if it exists
       id: cache-postgres
@@ -50,4 +50,4 @@ runs:
     - name: Use PostgreSQL Image Cache if cache hit
       shell: bash
       if: steps.cache-postgres.outputs.cache-hit == 'true'
-      run: docker image load --input ./ci/cache/docker/postgres/postgres-${{ inputs.postgres-tag }}.tar
+      run: time docker image load --input ./ci/cache/docker/postgres/postgres-${{ inputs.postgres-tag }}.tar
