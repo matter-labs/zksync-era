@@ -7,7 +7,7 @@ import { Token } from '../../src/types';
 
 import * as zksync from 'zksync-ethers';
 import { ethers } from 'ethers';
-import { BOOTLOADER_FORMAL_ADDRESS } from 'zksync-ethers/build/src/utils';
+import { BOOTLOADER_FORMAL_ADDRESS } from 'zksync-ethers/build/utils';
 import fs from 'fs';
 
 describe('Debug methods', () => {

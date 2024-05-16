@@ -289,7 +289,7 @@ impl StateKeeperIO for MempoolIO {
     }
 
     async fn load_base_system_contracts(
-        &mut self,
+        &self,
         protocol_version: ProtocolVersionId,
         _cursor: &IoCursor,
     ) -> anyhow::Result<BaseSystemContracts> {
@@ -308,7 +308,7 @@ impl StateKeeperIO for MempoolIO {
     }
 
     async fn load_batch_version_id(
-        &mut self,
+        &self,
         number: L1BatchNumber,
     ) -> anyhow::Result<ProtocolVersionId> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
@@ -320,7 +320,7 @@ impl StateKeeperIO for MempoolIO {
     }
 
     async fn load_upgrade_tx(
-        &mut self,
+        &self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
@@ -331,10 +331,7 @@ impl StateKeeperIO for MempoolIO {
             .map_err(Into::into)
     }
 
-    async fn load_batch_state_hash(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<H256> {
+    async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
         tracing::trace!("Getting L1 batch hash for L1 batch #{l1_batch_number}");
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
 

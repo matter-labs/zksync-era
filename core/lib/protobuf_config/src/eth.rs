@@ -68,10 +68,6 @@ impl ProtoRepr for proto::Eth {
             sender: read_optional_repr(&self.sender).context("sender")?,
             gas_adjuster: read_optional_repr(&self.gas_adjuster).context("gas_adjuster")?,
             watcher: read_optional_repr(&self.watcher).context("watcher")?,
-            web3_url: required(&self.web3_url)
-                .context("web3_url")?
-                .parse()
-                .context("web3_url")?,
         })
     }
 
@@ -80,7 +76,6 @@ impl ProtoRepr for proto::Eth {
             sender: this.sender.as_ref().map(ProtoRepr::build),
             gas_adjuster: this.gas_adjuster.as_ref().map(ProtoRepr::build),
             watcher: this.watcher.as_ref().map(ProtoRepr::build),
-            web3_url: Some(this.web3_url.expose_str().to_owned()),
         }
     }
 }

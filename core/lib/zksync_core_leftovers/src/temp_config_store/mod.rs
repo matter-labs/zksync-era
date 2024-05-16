@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -6,7 +5,6 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
-        consensus::ConsensusSecrets,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
@@ -18,9 +16,6 @@ use zksync_config::{
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_protobuf::{repr::ProtoRepr, ProtoFmt};
-use zksync_protobuf_config::read_optional_repr;
-
-use crate::proto;
 
 pub fn decode_yaml<T: ProtoFmt>(yaml: &str) -> anyhow::Result<T> {
     let d = serde_yaml::Deserializer::from_str(yaml);
@@ -66,26 +61,6 @@ pub struct TempConfigStore {
     pub object_store_config: Option<ObjectStoreConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
-}
-
-#[derive(Debug)]
-pub struct Secrets {
-    pub consensus: Option<ConsensusSecrets>,
-}
-
-impl ProtoFmt for Secrets {
-    type Proto = proto::Secrets;
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            consensus: read_optional_repr(&r.consensus).context("consensus")?,
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            consensus: self.consensus.as_ref().map(ProtoRepr::build),
-        }
-    }
 }
 
 impl TempConfigStore {

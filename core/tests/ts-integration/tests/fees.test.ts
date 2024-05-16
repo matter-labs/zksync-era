@@ -163,7 +163,7 @@ testFees('Test fees', () => {
 
         // Firstly, let's test a successful transaction.
         const largeData = ethers.utils.randomBytes(90_000);
-        const tx = await l1Messenger.sendToL1(largeData);
+        const tx = await l1Messenger.sendToL1(largeData, { type: 0 });
         expect(tx.gasLimit.gt(UINT32_MAX)).toBeTruthy();
         const receipt = await tx.wait();
         expect(receipt.gasUsed.gt(UINT32_MAX)).toBeTruthy();
@@ -174,7 +174,8 @@ testFees('Test fees', () => {
         const largerData = ethers.utils.randomBytes(91_000);
         const gasToPass = receipt.gasUsed;
         const unsuccessfulTx = await l1Messenger.sendToL1(largerData, {
-            gasLimit: gasToPass
+            gasLimit: gasToPass,
+            type: 0
         });
 
         try {

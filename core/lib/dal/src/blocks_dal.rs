@@ -143,7 +143,7 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
-    pub async fn get_last_l1_batch_number_with_metadata(
+    pub async fn get_last_l1_batch_number_with_tree_data(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
@@ -156,7 +156,7 @@ impl BlocksDal<'_, '_> {
                 hash IS NOT NULL
             "#
         )
-        .instrument("get_last_block_number_with_metadata")
+        .instrument("get_last_block_number_with_tree_data")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
@@ -805,33 +805,12 @@ impl BlocksDal<'_, '_> {
         if update_result.rows_affected() == 0 {
             tracing::debug!("L1 batch #{number}: tree data wasn't updated as it's already present");
 
-            // Batch was already processed. Verify that existing hash matches
-            let matched: i64 = sqlx::query!(
-                r#"
-                SELECT
-                    COUNT(*) AS "count!"
-                FROM
-                    l1_batches
-                WHERE
-                    number = $1
-                    AND hash = $2
-                "#,
-                i64::from(number.0),
-                tree_data.hash.as_bytes(),
-            )
-            .instrument("get_matching_batch_hash")
-            .with_arg("number", &number)
-            .report_latency()
-            .fetch_one(self.storage)
-            .await?
-            .count;
-
+            // Batch was already processed. Verify that the existing tree data matches.
+            let existing_tree_data = self.get_l1_batch_tree_data(number).await?;
             anyhow::ensure!(
-                matched == 1,
-                "Root hash verification failed. Hash for L1 batch #{} does not match the expected value \
-                 (expected root hash: {:?})",
-                number,
-                tree_data.hash,
+                existing_tree_data.as_ref() == Some(tree_data),
+                "Root hash verification failed. Tree data for L1 batch #{number} does not match the expected value \
+                 (expected: {tree_data:?}, existing: {existing_tree_data:?})",
             );
         }
         Ok(())

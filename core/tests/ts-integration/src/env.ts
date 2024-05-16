@@ -4,7 +4,7 @@ import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import { TestEnvironment } from './types';
 import { Reporter } from './reporter';
-import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/src/utils';
+import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
 
 /**
  * Attempts to connect to server.

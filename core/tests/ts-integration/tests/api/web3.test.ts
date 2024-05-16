@@ -9,7 +9,8 @@ import { serialize } from '@ethersproject/transactions';
 import { deployContract, getTestContract, waitForNewL1Batch, anyTransaction } from '../../src/helpers';
 import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
 import fetch, { RequestInit } from 'node-fetch';
-import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/src/utils';
+import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/utils';
+
 // Regular expression to match variable-length hex number.
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
@@ -174,6 +175,7 @@ describe('web3 API compatibility tests', () => {
             return;
         }
 
+        const EIP1559_TX_TYPE = 2;
         const amount = 1;
         const erc20ABI = ['function transfer(address to, uint256 amount)'];
         const erc20contract = new ethers.Contract(l2Token, erc20ABI, alice);
@@ -196,7 +198,7 @@ describe('web3 API compatibility tests', () => {
         expect(tx1.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(tx1.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(tx1.chainId).toEqual(+process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
-        expect(tx1.type).toEqual(0);
+        expect(tx1.type).toEqual(EIP1559_TX_TYPE);
 
         expect(receipt.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(receipt.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
@@ -210,7 +212,7 @@ describe('web3 API compatibility tests', () => {
             expect(txInBlock.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
             expect(txInBlock.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
             expect(txInBlock.chainId).toEqual(+process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
-            expect([0, EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE]).toContain(txInBlock.type);
+            expect([0, EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, EIP1559_TX_TYPE]).toContain(txInBlock.type);
         });
     });
 
@@ -607,7 +609,7 @@ describe('web3 API compatibility tests', () => {
         const from = new MockMetamask(alice);
         const to = alice.address;
         const web3Provider = new zksync.Web3Provider(from);
-        const signer = web3Provider.getSigner();
+        const signer = zksync.Signer.from(web3Provider.getSigner(), alice.provider);
 
         // Check to ensure that tx was correctly processed.
         const feeCheck = await shouldOnlyTakeFee(alice);
