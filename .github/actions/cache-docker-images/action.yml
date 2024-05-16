@@ -12,9 +12,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-
     - name: Restore zk-environment Image Cache if it exists
       id: cache-zk-environment
       uses: actions/cache@v3
