@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_core::api_server::tree::TreeApiHttpClient;
+use zksync_metadata_calculator::api_server::TreeApiHttpClient;
 
 use crate::{
     implementations::resources::{

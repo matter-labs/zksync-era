@@ -18,7 +18,7 @@ use zksync_config::{
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
-use zksync_core::{
+use zksync_core_leftovers::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
     temp_config_store::{decode_yaml, decode_yaml_repr, Secrets, TempConfigStore},
     Component, Components,

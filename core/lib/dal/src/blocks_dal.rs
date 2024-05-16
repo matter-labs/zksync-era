@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     convert::{Into, TryInto},
     ops,
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use anyhow::Context as _;
@@ -2206,6 +2207,39 @@ impl BlocksDal<'_, '_> {
         self.delete_initial_writes_inner(None).await?;
         self.delete_logs_inner().await?;
         Ok(())
+    }
+
+    /// Obtains a protocol version projected to be applied for the next L2 block. This is either the version used by the last
+    /// sealed L2 block, or (if there are no L2 blocks), one referenced in the snapshot recovery record.
+    pub async fn pending_protocol_version(&mut self) -> anyhow::Result<ProtocolVersionId> {
+        static WARNED_ABOUT_NO_VERSION: AtomicBool = AtomicBool::new(false);
+
+        let last_l2_block = self
+            .storage
+            .blocks_dal()
+            .get_last_sealed_l2_block_header()
+            .await?;
+        if let Some(last_l2_block) = last_l2_block {
+            return Ok(last_l2_block.protocol_version.unwrap_or_else(|| {
+                // Protocol version should be set for the most recent L2 block even in cases it's not filled
+                // for old L2 blocks, hence the warning. We don't want to rely on this assumption, so we treat
+                // the lack of it as in other similar places, replacing with the default value.
+                if !WARNED_ABOUT_NO_VERSION.fetch_or(true, Ordering::Relaxed) {
+                    tracing::warn!(
+                        "Protocol version not set for recent L2 block: {last_l2_block:?}"
+                    );
+                }
+                ProtocolVersionId::last_potentially_undefined()
+            }));
+        }
+        // No L2 blocks in the storage; use snapshot recovery information.
+        let snapshot_recovery = self
+            .storage
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await?
+            .context("storage contains neither L2 blocks, nor snapshot recovery info")?;
+        Ok(snapshot_recovery.protocol_version)
     }
 }
 
