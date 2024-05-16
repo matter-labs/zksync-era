@@ -645,7 +645,7 @@ mod tests {
     use zksync_dal::{ConnectionPool, Core};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
-    use zksync_types::{StorageKey, StorageLog};
+    use zksync_types::{writes::TreeWrite, StorageKey, StorageLog};
 
     use super::*;
     use crate::tests::{extend_db_state, gen_storage_logs, mock_config, reset_db_state};
@@ -734,8 +734,49 @@ mod tests {
         reset_db_state(&pool, 5).await;
 
         let mut storage = pool.connection().await.unwrap();
+        let mut tree_writes = Vec::new();
+
+        // Check equivalence in case `tree_writes` are not present in DB.
         for l1_batch_number in 0..=5 {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
+            let batch_with_logs =
+                L1BatchWithLogs::new(&mut storage, l1_batch_number, MerkleTreeMode::Full)
+                    .await
+                    .unwrap()
+                    .expect("no L1 batch");
+            let slow_batch_with_logs = L1BatchWithLogs::slow(&mut storage, l1_batch_number)
+                .await
+                .unwrap();
+            assert_eq!(batch_with_logs, slow_batch_with_logs);
+
+            let writes = batch_with_logs
+                .storage_logs
+                .into_iter()
+                .filter_map(|instruction| match instruction {
+                    TreeInstruction::Write(tree_entry) => Some(TreeWrite {
+                        address: tree_entry.key.address().0,
+                        key: tree_entry.key.key().0,
+                        value: tree_entry.value.0,
+                        leaf_index: tree_entry.leaf_index,
+                    }),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            tree_writes.push(writes);
+        }
+
+        // Insert `tree_writes` and check again.
+        for l1_batch_number in 0..5 {
+            let l1_batch_number = L1BatchNumber(l1_batch_number);
+            storage
+                .blocks_dal()
+                .set_tree_writes(
+                    l1_batch_number,
+                    tree_writes[l1_batch_number.0 as usize].clone(),
+                )
+                .await
+                .unwrap();
+
             let batch_with_logs =
                 L1BatchWithLogs::new(&mut storage, l1_batch_number, MerkleTreeMode::Full)
                     .await

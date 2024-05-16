@@ -2289,6 +2289,31 @@ impl BlocksDal<'_, '_> {
             .context("storage contains neither L2 blocks, nor snapshot recovery info")?;
         Ok(snapshot_recovery.protocol_version)
     }
+
+    pub async fn set_tree_writes(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        tree_writes: Vec<TreeWrite>,
+    ) -> DalResult<()> {
+        let tree_writes = bincode::serialize(&tree_writes).unwrap();
+
+        sqlx::query!(
+            r#"
+            UPDATE l1_batches
+            SET
+                tree_writes = $1
+            WHERE
+                number = $2
+            "#,
+            &tree_writes,
+            i64::from(l1_batch_number.0),
+        )
+        .instrument("set_tree_writes")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

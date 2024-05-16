@@ -281,6 +281,12 @@ mod tests {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
+        let initial_writes_in_genesis_batch = storage
+            .storage_logs_dedup_dal()
+            .max_enumeration_index()
+            .await
+            .unwrap()
+            .unwrap();
         // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
         storage
             .blocks_dal()
@@ -328,6 +334,17 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(protective_reads.len(), 1, "{protective_reads:?}");
+        let tree_writes = storage
+            .blocks_dal()
+            .get_tree_writes(L1BatchNumber(1))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(tree_writes.len(), 1, "{tree_writes:?}");
+        // This write is initial and should have the next index.
+        let actual_index = tree_writes[0].leaf_index;
+        let expected_index = initial_writes_in_genesis_batch + 1;
+        assert_eq!(actual_index, expected_index);
     }
 
     async fn execute_mock_batch(persistence: &mut StateKeeperPersistence) -> H256 {
