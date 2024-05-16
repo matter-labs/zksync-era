@@ -89,7 +89,7 @@ async function migrateForDal(dalPath: DalPath, dbUrl: string) {
     console.log(`Running migrations for ${dalPath}...`);
     const migrationsDir = path.join(dalPath, 'migrations');
     await utils.spawn(
-        `cargo sqlx database create --source ${migrationsDir} --database-url ${dbUrl} && cargo sqlx migrate run  --source ${migrationsDir}--database-url ${dbUrl}`
+        `cargo sqlx database create --database-url ${dbUrl} && cargo sqlx migrate run --source ${migrationsDir}--database-url ${dbUrl}`
     );
 }
 
@@ -122,7 +122,7 @@ export async function generateMigration(dbType: DbType, name: string) {
 }
 
 export async function setupForDal(dalPath: DalPath, dbUrl: string) {
-    process.chdir(dalPath);
+    const migrationsDir = path.join(dalPath, 'migrations');
     const localDbUrl = 'postgres://postgres:notsecurepassword@localhost';
     if (dbUrl.startsWith(localDbUrl)) {
         console.log(`Using localhost database -- ${dbUrl}`);
@@ -131,7 +131,7 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string) {
         console.log(`WARNING! Using prod db!`);
     }
     await utils.spawn(`cargo sqlx database create --database-url ${dbUrl}`);
-    await utils.spawn(`cargo sqlx migrate run --database-url ${dbUrl}`);
+    await utils.spawn(`cargo sqlx migrate run --source ${migrationsDir} --database-url ${dbUrl}`);
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
 
     if (dbUrl.startsWith(localDbUrl) && !isLocalSetup) {
