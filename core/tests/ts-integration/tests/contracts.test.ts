@@ -425,7 +425,7 @@ async function invalidBytecodeTestTransaction(
         maxFeePerGas: gasPrice,
 
         customData: {
-            gasPerPubdataByte: zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+            gasPerPubdata: zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
             factoryDeps,
             customSignature: new Uint8Array(17)
         }

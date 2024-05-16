@@ -14,7 +14,7 @@ import {
     L1_MESSENGER,
     L1_MESSENGER_ADDRESS,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT
-} from 'zksync-ethers/build/src/utils';
+} from 'zksync-ethers/build/utils';
 
 const SYSTEM_CONFIG = require(`${process.env.ZKSYNC_HOME}/contracts/SystemConfig.json`);
 

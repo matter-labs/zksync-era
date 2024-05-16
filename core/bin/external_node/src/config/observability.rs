@@ -33,7 +33,7 @@ impl ObservabilityENConfig {
         10_000
     }
 
-    pub fn from_env() -> envy::Result<Self> {
+    pub(super) fn from_env() -> envy::Result<Self> {
         Self::new(&Environment)
     }
 
