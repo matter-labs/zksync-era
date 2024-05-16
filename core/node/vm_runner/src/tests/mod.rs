@@ -1,22 +1,26 @@
 use std::{collections::HashMap, ops, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use multivm::zk_evm_latest::ethereum_types::{H160, H256};
-use rand::Rng;
+use rand::{prelude::SliceRandom, Rng};
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_core::state_keeper::{StateKeeperOutputHandler, UpdatesManager};
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_test_utils::{
-    create_l1_batch_metadata, create_l2_block, create_l2_transaction, execute_l2_transaction,
+    create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
+use zksync_test_account::Account;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, L2BlockHasher},
-    fee::TransactionExecutionMetrics,
-    AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind,
-    StorageValue,
+    fee::{Fee, TransactionExecutionMetrics},
+    get_intrinsic_constants,
+    l2::L2Tx,
+    utils::storage_key_for_standard_token_balance,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
+    StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
+use zksync_utils::u256_to_h256;
 
 use super::{OutputHandlerFactory, VmRunnerIo};
 
@@ -100,10 +104,35 @@ impl OutputHandlerFactory for TestOutputFactory {
     }
 }
 
+/// Creates an L2 transaction with randomized parameters.
+pub fn create_l2_transaction(
+    account: &mut Account,
+    fee_per_gas: u64,
+    gas_per_pubdata: u64,
+) -> L2Tx {
+    let fee = Fee {
+        gas_limit: (get_intrinsic_constants().l2_tx_intrinsic_gas * 10).into(),
+        max_fee_per_gas: fee_per_gas.into(),
+        max_priority_fee_per_gas: 0_u64.into(),
+        gas_per_pubdata_limit: gas_per_pubdata.into(),
+    };
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Address::random(),
+            calldata: vec![],
+            value: Default::default(),
+            factory_deps: None,
+        },
+        Some(fee),
+    );
+    L2Tx::try_from(tx).unwrap()
+}
+
 async fn store_l2_blocks(
     conn: &mut Connection<'_, Core>,
     numbers: ops::RangeInclusive<u32>,
     contract_hashes: BaseSystemContractsHashes,
+    accounts: &mut [Account],
 ) -> anyhow::Result<Vec<L1BatchHeader>> {
     let mut rng = rand::thread_rng();
     let mut batches = Vec::new();
@@ -114,14 +143,20 @@ async fn store_l2_blocks(
         .map(|m| m.number)
         .unwrap_or_default()
         + 1;
-    let mut last_l2_block = conn
-        .blocks_dal()
-        .get_l2_block_header(l2_block_number - 1)
-        .await?
-        .unwrap();
+    let mut last_l2_block_hash = if l2_block_number == 1.into() {
+        // First L2 block ever has a special `prev_l2_block_hash`
+        L2BlockHasher::legacy_hash(L2BlockNumber(0))
+    } else {
+        conn.blocks_dal()
+            .get_l2_block_header(l2_block_number - 1)
+            .await?
+            .unwrap()
+            .hash
+    };
     for l1_batch_number in numbers {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
-        let tx = create_l2_transaction(10, 100);
+        let account = accounts.choose_mut(&mut rng).unwrap();
+        let tx = create_l2_transaction(account, 1000000, 100);
         conn.transactions_dal()
             .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await?;
@@ -155,7 +190,7 @@ async fn store_l2_blocks(
         let mut digest = L2BlockHasher::new(
             new_l2_block.number,
             new_l2_block.timestamp,
-            last_l2_block.hash,
+            last_l2_block_hash,
         );
         digest.push_tx_hash(tx.hash());
         new_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
@@ -164,20 +199,28 @@ async fn store_l2_blocks(
         new_l2_block.base_system_contracts_hashes = contract_hashes;
         new_l2_block.l2_tx_count = 1;
         conn.blocks_dal().insert_l2_block(&new_l2_block).await?;
-        last_l2_block = new_l2_block.clone();
-        let tx_result = execute_l2_transaction(tx);
+        last_l2_block_hash = new_l2_block.hash;
+        let tx_result = execute_l2_transaction(tx.clone());
         conn.transactions_dal()
             .mark_txs_as_executed_in_l2_block(new_l2_block.number, &[tx_result.clone()], 1.into())
             .await?;
 
         // Insert a fictive L2 block at the end of the batch
-        // let fictive_l2_block = create_l2_block(l2_block_number.0);
-        // l2_block_number += 1;
-        // conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
+        let mut fictive_l2_block = create_l2_block(l2_block_number.0);
+        let mut digest = L2BlockHasher::new(
+            fictive_l2_block.number,
+            fictive_l2_block.timestamp,
+            last_l2_block_hash,
+        );
+        digest.push_tx_hash(tx.hash());
+        fictive_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
+        l2_block_number += 1;
+        conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
+        last_l2_block_hash = fictive_l2_block.hash;
 
         let header = L1BatchHeader::new(
             l1_batch_number,
-            l2_block_number.0 as u64 - 1, // Matches the first L2 block in the batch
+            l2_block_number.0 as u64 - 2, // Matches the first L2 block in the batch
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
         );
@@ -210,4 +253,36 @@ async fn store_l2_blocks(
     }
 
     Ok(batches)
+}
+
+async fn fund(pool: &ConnectionPool<Core>, accounts: &[Account]) {
+    let mut conn = pool.connection().await.unwrap();
+
+    let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
+
+    for account in accounts {
+        let key = storage_key_for_standard_token_balance(
+            AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
+            &account.address,
+        );
+        let value = u256_to_h256(eth_amount);
+        let storage_log = StorageLog::new_write_log(key, value);
+
+        conn.storage_logs_dal()
+            .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![storage_log])])
+            .await
+            .unwrap();
+        if conn
+            .storage_logs_dedup_dal()
+            .filter_written_slots(&[storage_log.key.hashed_key()])
+            .await
+            .unwrap()
+            .is_empty()
+        {
+            conn.storage_logs_dedup_dal()
+                .insert_initial_writes(L1BatchNumber(0), &[storage_log.key])
+                .await
+                .unwrap();
+        }
+    }
 }

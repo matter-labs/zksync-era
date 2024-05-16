@@ -99,8 +99,7 @@ impl VmRunner {
                             ..
                         } = exec_result
                         else {
-                            tracing::error!("Unexpected non-successful transaction");
-                            break;
+                            panic!("Unexpected non-successful transaction");
                         };
                         let ExecutionMetricsForCriteria {
                             l1_gas: tx_l1_gas_this_tx,

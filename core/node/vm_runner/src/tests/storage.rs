@@ -10,11 +10,12 @@ use tokio::{
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_state::{PgOrRocksdbStorage, PostgresStorage, ReadStorage, ReadStorageFactory};
+use zksync_test_account::Account;
 use zksync_types::{AccountTreeId, L1BatchNumber, L2ChainId, StorageKey};
 
 use crate::{
     storage::StorageLoader,
-    tests::{store_l2_blocks, IoMock},
+    tests::{fund, store_l2_blocks, IoMock},
     BatchExecuteData, VmRunnerIo, VmRunnerStorage,
 };
 
@@ -42,7 +43,7 @@ impl StorageTester {
             self.pool.clone(),
             self.db_dir.path().to_str().unwrap().to_owned(),
             io_mock,
-            L2ChainId::from(270),
+            L2ChainId::default(),
         )
         .await?;
         let handle = tokio::task::spawn(async move {
@@ -121,12 +122,17 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
         .await
         .unwrap();
     drop(conn);
+    let alice = Account::random();
+    let bob = Account::random();
+    let mut accounts = vec![alice, bob];
+    fund(&connection_pool, &accounts).await;
 
     // Generate 10 batches worth of data and persist it in Postgres
     let batches = store_l2_blocks(
         &mut connection_pool.connection().await?,
         1u32..=10u32,
         genesis_params.base_system_contracts().hashes(),
+        &mut accounts,
     )
     .await?;
 
@@ -207,6 +213,10 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
         .await
         .unwrap();
     drop(conn);
+    let alice = Account::random();
+    let bob = Account::random();
+    let mut accounts = vec![alice, bob];
+    fund(&connection_pool, &accounts).await;
 
     let mut tester = StorageTester::new(connection_pool.clone());
     let io_mock = Arc::new(RwLock::new(IoMock::default()));
@@ -219,6 +229,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
         &mut connection_pool.connection().await?,
         1u32..=1u32,
         genesis_params.base_system_contracts().hashes(),
+        &mut accounts,
     )
     .await?;
     io_mock.write().await.max += 1;
@@ -242,6 +253,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
         &mut connection_pool.connection().await?,
         2u32..=2u32,
         genesis_params.base_system_contracts().hashes(),
+        &mut accounts,
     )
     .await?;
     io_mock.write().await.max += 1;
@@ -273,6 +285,10 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
         .await
         .unwrap();
     drop(conn);
+    let alice = Account::random();
+    let bob = Account::random();
+    let mut accounts = vec![alice, bob];
+    fund(&connection_pool, &accounts).await;
 
     // Generate 10 batches worth of data and persist it in Postgres
     let batch_range = 1u32..=10u32;
@@ -280,6 +296,7 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
         &mut connection_pool.connection().await?,
         batch_range,
         genesis_params.base_system_contracts().hashes(),
+        &mut accounts,
     )
     .await?;
 

@@ -9118,7 +9118,9 @@ dependencies = [
  "zksync_node_test_utils",
  "zksync_state",
  "zksync_storage",
+ "zksync_test_account",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

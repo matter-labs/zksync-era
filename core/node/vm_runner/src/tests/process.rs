@@ -5,11 +5,11 @@ use tokio::sync::{watch, RwLock};
 use zksync_core::state_keeper::MainBatchExecutor;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_test_account::Account;
 use zksync_types::L2ChainId;
 
 use crate::{
-    storage::StorageLoader,
-    tests::{store_l2_blocks, IoMock, TestOutputFactory},
+    tests::{fund, store_l2_blocks, IoMock, TestOutputFactory},
     ConcurrentOutputHandlerFactory, VmRunner, VmRunnerStorage,
 };
 
@@ -21,12 +21,17 @@ async fn simple() -> anyhow::Result<()> {
     insert_genesis_batch(&mut conn, &genesis_params)
         .await
         .unwrap();
+    let alice = Account::random();
+    let bob = Account::random();
+    let mut accounts = vec![alice, bob];
+    fund(&connection_pool, &accounts).await;
 
     // Generate 10 batches worth of data and persist it in Postgres
     let batches = store_l2_blocks(
         &mut conn,
-        1u32..=10u32,
+        1u32..=1u32,
         genesis_params.base_system_contracts().hashes(),
+        &mut accounts,
     )
     .await?;
     drop(conn);
@@ -39,7 +44,7 @@ async fn simple() -> anyhow::Result<()> {
         connection_pool.clone(),
         TempDir::new().unwrap().path().to_str().unwrap().to_owned(),
         io_mock.clone(),
-        L2ChainId::from(270),
+        L2ChainId::default(),
     )
     .await?;
     let (_, stop_receiver) = watch::channel(false);
