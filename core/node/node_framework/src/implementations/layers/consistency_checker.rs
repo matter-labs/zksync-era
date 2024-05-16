@@ -1,4 +1,4 @@
-use zksync_core::consistency_checker::ConsistencyChecker;
+use zksync_consistency_checker::ConsistencyChecker;
 use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
 use crate::{

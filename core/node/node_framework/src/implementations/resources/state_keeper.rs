@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_core::state_keeper::{
+use zksync_state_keeper::{
     seal_criteria::ConditionalSealer, BatchExecutor, OutputHandler, StateKeeperIO,
 };
 
