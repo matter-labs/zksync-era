@@ -8,14 +8,9 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::{
-    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
-    CommitmentGenerator,
-};
+use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
-use zksync_config::configs::{
-    api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
-};
+use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -36,17 +31,13 @@ use zksync_core::{
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
-    utils::ensure_l1_batch_commit_data_generation_mode,
+    utils::L1BatchCommitmentModeValidationTask,
 };
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
-use zksync_eth_client::{clients::QueryClient, EthInterface};
-use zksync_eth_sender::l1_batch_commit_data_generator::{
-    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-    ValidiumModeL1BatchCommitDataGenerator,
-};
+use zksync_eth_client::EthInterface;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
@@ -55,7 +46,7 @@ use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_web3_decl::{
-    client::{BoxedL2Client, L2Client},
+    client::{Client, DynClient, L2},
     jsonrpsee,
     namespaces::EnNamespaceClient,
 };
@@ -86,7 +77,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
@@ -196,6 +187,7 @@ async fn run_tree(
             tree_reader
                 .wait()
                 .await
+                .context("Cannot initialize tree reader")?
                 .run_api_server(address, stop_receiver)
                 .await
         }));
@@ -211,9 +203,9 @@ async fn run_tree(
 async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
-    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
@@ -285,7 +277,7 @@ async fn run_core(
             // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let ctx = ctx::root();
             scope::run!(&ctx, |ctx, s| async move {
-                s.spawn_bg(consensus::era::run_fetcher(
+                s.spawn_bg(consensus::era::run_en(
                     ctx,
                     cfg,
                     pool,
@@ -339,26 +331,14 @@ async fn run_core(
         remote_diamond_proxy_addr
     };
 
-    ensure_l1_batch_commit_data_generation_mode(
-        config.optional.l1_batch_commit_data_generator_mode,
+    // Run validation asynchronously: the node starting shouldn't depend on Ethereum client availability,
+    // and the impact of a failed async check is reasonably low (the commitment mode is only used in consistency checker).
+    let validation_task = L1BatchCommitmentModeValidationTask::new(
         diamond_proxy_addr,
-        eth_client.as_ref(),
-    )
-    .await?;
-
-    let (l1_batch_commit_data_generator, input_generator): (
-        Arc<dyn L1BatchCommitDataGenerator>,
-        Box<dyn InputGenerator>,
-    ) = match config.optional.l1_batch_commit_data_generator_mode {
-        L1BatchCommitDataGeneratorMode::Rollup => (
-            Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-            Box::new(RollupInputGenerator),
-        ),
-        L1BatchCommitDataGeneratorMode::Validium => (
-            Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-            Box::new(ValidiumInputGenerator),
-        ),
-    };
+        config.optional.l1_batch_commit_data_generator_mode,
+        eth_client.clone(),
+    );
+    task_handles.push(tokio::spawn(validation_task.run(stop_receiver.clone())));
 
     let consistency_checker = ConsistencyChecker::new(
         eth_client,
@@ -367,7 +347,7 @@ async fn run_core(
             .build()
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
-        l1_batch_commit_data_generator,
+        config.optional.l1_batch_commit_data_generator_mode,
     )
     .context("cannot initialize consistency checker")?
     .with_diamond_proxy_addr(diamond_proxy_addr);
@@ -388,7 +368,10 @@ async fn run_core(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool, input_generator);
+    let commitment_generator = CommitmentGenerator::new(
+        commitment_generator_pool,
+        config.optional.l1_batch_commit_data_generator_mode,
+    );
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
@@ -414,7 +397,7 @@ async fn run_api(
     stop_receiver: watch::Receiver<bool>,
     sync_state: SyncState,
     tree_reader: Option<Arc<dyn TreeApiClient>>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     singleton_pool_builder: &ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &HashSet<Component>,
@@ -588,7 +571,7 @@ async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -703,11 +686,9 @@ async fn init_tasks(
 }
 
 async fn shutdown_components(
-    stop_sender: watch::Sender<bool>,
     tasks: ManagedTasks,
     healthcheck_handle: HealthCheckHandle,
 ) -> anyhow::Result<()> {
-    stop_sender.send(true).ok();
     task::spawn_blocking(RocksDB::await_rocksdb_termination)
         .await
         .context("error waiting for RocksDB instances to drop")?;
@@ -795,20 +776,25 @@ async fn main() -> anyhow::Result<()> {
     // Build L1 and L2 clients.
     let main_node_url = &required_config.main_node_url;
     tracing::info!("Main node URL is: {main_node_url:?}");
-    let main_node_client = L2Client::http(main_node_url.clone())
+    let main_node_client = Client::http(main_node_url.clone())
         .context("Failed creating JSON-RPC client for main node")?
+        .for_network(required_config.l2_chain_id.into())
         .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
         .build();
-    let main_node_client = BoxedL2Client::new(main_node_client);
+    let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 
     let eth_client_url = &required_config.eth_client_url;
-    let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
+    let eth_client = Client::http(eth_client_url.clone())
+        .context("failed creating JSON-RPC client for Ethereum")?
+        .for_network(required_config.l1_chain_id.into())
+        .build();
+    let eth_client = Box::new(eth_client);
 
     let mut config = ExternalNodeConfig::new(
         required_config,
         optional_config,
         observability_config,
-        &main_node_client,
+        main_node_client.as_ref(),
     )
     .await
     .context("Failed to load external node config")?;
@@ -871,12 +857,13 @@ async fn run_node(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
-    let (stop_sender, stop_receiver) = watch::channel(false);
+    let (stop_sender, mut stop_receiver) = watch::channel(false);
+    let stop_sender = Arc::new(stop_sender);
 
     let app_health = Arc::new(AppHealthCheck::new(
         config.optional.healthcheck_slow_time_limit(),
@@ -943,6 +930,16 @@ async fn run_node(
     )
     .await?;
     let sigint_receiver = env.setup_sigint_handler();
+    // Spawn reacting to signals in a separate task so that the node is responsive to signals right away
+    // (e.g., during the initial reorg detection).
+    tokio::spawn({
+        let stop_sender = stop_sender.clone();
+        async move {
+            sigint_receiver.await.ok();
+            tracing::info!("Stop signal received, shutting down");
+            stop_sender.send_replace(true);
+        }
+    });
 
     // Revert the storage if needed.
     let mut reverter = BlockReverter::new(NodeRole::External, connection_pool.clone());
@@ -958,8 +955,15 @@ async fn run_node(
     // the node lifecycle, the node will exit the same way as it does with any other critical error,
     // and would restart. Then, on the 2nd launch reorg would be detected here, then processed and the node
     // will be able to operate normally afterwards.
-    match reorg_detector.check_consistency().await {
-        Ok(()) => {}
+    match reorg_detector.run_once(stop_receiver.clone()).await {
+        Ok(()) if *stop_receiver.borrow() => {
+            tracing::info!("Stop signal received during initial reorg detection; shutting down");
+            healthcheck_handle.stop().await;
+            return Ok(());
+        }
+        Ok(()) => {
+            tracing::info!("Successfully checked no reorg compared to the main node");
+        }
         Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
             tracing::info!("Reverting to l1 batch number {last_correct_l1_batch}");
             reverter.roll_back(last_correct_l1_batch).await?;
@@ -1011,15 +1015,14 @@ async fn run_node(
 
     let mut tasks = ManagedTasks::new(task_handles);
     tokio::select! {
-        _ = tasks.wait_single() => {},
-        _ = sigint_receiver => {
-            tracing::info!("Stop signal received, shutting down");
-        },
+        () = tasks.wait_single() => {},
+        _ = stop_receiver.changed() => {},
     };
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
-    // Broadcast the stop signal to all actors and exit.
-    shutdown_components(stop_sender, tasks, healthcheck_handle).await?;
+    // Broadcast the stop signal (in case it wasn't broadcast previously) to all actors and exit.
+    stop_sender.send_replace(true);
+    shutdown_components(tasks, healthcheck_handle).await?;
     tracing::info!("Stopped");
     Ok(())
 }

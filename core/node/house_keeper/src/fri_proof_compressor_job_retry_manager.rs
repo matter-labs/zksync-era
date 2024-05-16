@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 
-use crate::periodic_job::PeriodicJob;
+use crate::{metrics::PROVER_FRI_METRICS, periodic_job::PeriodicJob};
 
 #[derive(Debug)]
 pub struct FriProofCompressorJobRetryManager {
@@ -48,7 +48,9 @@ impl PeriodicJob for FriProofCompressorJobRetryManager {
         for stuck_job in stuck_jobs {
             tracing::info!("re-queuing fri proof compressor job {:?}", stuck_job);
         }
-        metrics::counter!("prover_fri.proof_compressor.requeued_jobs", job_len as u64);
+        PROVER_FRI_METRICS
+            .proof_compressor_requeued_jobs
+            .inc_by(job_len as u64);
         Ok(())
     }
 

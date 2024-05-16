@@ -22,7 +22,8 @@ zksync_types.workspace = true
 anyhow.workspace = true
 prost.workspace = true
 rand.workspace = true
-hex = "0.4.3"
+hex.workspace = true
+secrecy.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

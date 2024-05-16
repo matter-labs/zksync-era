@@ -8,7 +8,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
@@ -18,12 +18,27 @@ use crate::utils::binary_search_with;
 #[cfg(test)]
 mod tests;
 
+/// Data missing on the main node.
+#[derive(Debug, thiserror::Error)]
+#[cfg_attr(test, derive(Clone, Copy))] // deriving these traits for errors is usually a bad idea, so we scope derivation to tests
+pub enum MissingData {
+    /// The main node lacks a requested L2 block.
+    #[error("no requested L2 block")]
+    L2Block,
+    /// The main node lacks a requested L1 batch.
+    #[error("no requested L1 batch")]
+    Batch,
+    /// The main node lacks a root hash for a requested L1 batch; the batch itself is present on the node.
+    #[error("no root hash for L1 batch")]
+    RootHash,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum HashMatchError {
     #[error("RPC error calling main node")]
     Rpc(#[from] EnrichedClientError),
-    #[error("remote hash is missing")]
-    RemoteHashMissing,
+    #[error("missing data on main node")]
+    MissingData(#[from] MissingData),
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
@@ -54,7 +69,7 @@ impl HashMatchError {
     pub fn is_transient(&self) -> bool {
         match self {
             Self::Rpc(err) => err.is_transient(),
-            Self::RemoteHashMissing => true,
+            Self::MissingData(_) => true,
             Self::Internal(_) => false,
         }
     }
@@ -86,12 +101,14 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 
     async fn l2_block_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>>;
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber)
-        -> EnrichedClientResult<Option<H256>>;
+    async fn l1_batch_root_hash(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Result<H256, MissingData>>;
 }
 
 #[async_trait]
-impl MainNodeClient for BoxedL2Client {
+impl MainNodeClient for Box<DynClient<L2>> {
     async fn sealed_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber> {
         let number = self
             .get_block_number()
@@ -126,13 +143,16 @@ impl MainNodeClient for BoxedL2Client {
     async fn l1_batch_root_hash(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<H256>> {
-        Ok(self
+    ) -> EnrichedClientResult<Result<H256, MissingData>> {
+        let Some(batch) = self
             .get_l1_batch_details(number)
             .rpc_context("l1_batch_root_hash")
             .with_arg("number", &number)
             .await?
-            .and_then(|batch| batch.base.root_hash))
+        else {
+            return Ok(Err(MissingData::Batch));
+        };
+        Ok(batch.base.root_hash.ok_or(MissingData::RootHash))
     }
 }
 
@@ -221,7 +241,7 @@ pub struct ReorgDetector {
 impl ReorgDetector {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: BoxedL2Client, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
         let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
             client: Box::new(client.for_component("reorg_detector")),
@@ -236,9 +256,7 @@ impl ReorgDetector {
         &self.health_check
     }
 
-    /// Returns `Ok(())` if no reorg was detected.
-    /// Returns `Err::ReorgDetected()` if a reorg was detected.
-    pub async fn check_consistency(&mut self) -> Result<(), Error> {
+    async fn check_consistency(&mut self) -> Result<(), Error> {
         let mut storage = self.pool.connection().await.context("connection()")?;
         let Some(local_l1_batch) = storage
             .blocks_dal()
@@ -294,7 +312,7 @@ impl ReorgDetector {
         match self.root_hashes_match(first_l1_batch).await {
             Ok(true) => {}
             Ok(false) => return Err(Error::EarliestL1BatchMismatch(first_l1_batch)),
-            Err(HashMatchError::RemoteHashMissing) => {
+            Err(HashMatchError::MissingData(_)) => {
                 return Err(Error::EarliestL1BatchTruncated(first_l1_batch));
             }
             Err(err) => return Err(err.into()),
@@ -323,7 +341,7 @@ impl ReorgDetector {
             // Lack of the hash on the main node is treated as a hash match,
             // We need to wait for our knowledge of main node to catch up.
             tracing::info!("Remote L2 block #{l2_block} is missing");
-            return Err(HashMatchError::RemoteHashMissing);
+            return Err(MissingData::L2Block.into());
         };
 
         if remote_hash != local_hash {
@@ -346,11 +364,7 @@ impl ReorgDetector {
             .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 
-        let Some(remote_hash) = self.client.l1_batch_root_hash(l1_batch).await? else {
-            tracing::info!("Remote L1 batch #{l1_batch} is missing");
-            return Err(HashMatchError::RemoteHashMissing);
-        };
-
+        let remote_hash = self.client.l1_batch_root_hash(l1_batch).await??;
         if remote_hash != local_hash {
             tracing::warn!(
                 "Reorg detected: local root hash {local_hash:?} doesn't match the state hash from \
@@ -373,7 +387,7 @@ impl ReorgDetector {
             diverged_l1_batch.0,
             |number| async move {
                 match self.root_hashes_match(L1BatchNumber(number)).await {
-                    Err(HashMatchError::RemoteHashMissing) => Ok(true),
+                    Err(HashMatchError::MissingData(_)) => Ok(true),
                     res => res,
                 }
             },
@@ -382,19 +396,49 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
+    /// Runs this detector *once* checking whether there is a reorg. This method will return:
+    ///
+    /// - `Ok(())` if there is no reorg, or if a stop signal is received.
+    /// - `Err(ReorgDetected(_))` if a reorg was detected.
+    /// - `Err(_)` for fatal errors.
+    ///
+    /// Transient errors are retried indefinitely accounting for a stop signal.
+    pub async fn run_once(&mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
+        self.run_inner(true, stop_receiver).await
+    }
+
+    /// Runs this detector continuously checking for a reorg until a fatal error occurs (including if a reorg is detected),
+    /// or a stop signal is received.
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
         self.event_handler.initialize();
+        self.run_inner(false, stop_receiver).await?;
+        self.event_handler.start_shutting_down();
+        tracing::info!("Shutting down reorg detector");
+        Ok(())
+    }
+
+    async fn run_inner(
+        &mut self,
+        stop_after_success: bool,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> Result<(), Error> {
         while !*stop_receiver.borrow_and_update() {
-            match self.check_consistency().await {
+            let sleep_interval = match self.check_consistency().await {
+                Err(Error::HashMatch(HashMatchError::MissingData(MissingData::RootHash))) => {
+                    tracing::debug!("Last L1 batch on the main node doesn't have a state root hash; waiting until it is computed");
+                    self.sleep_interval / 10
+                }
                 Err(err) if err.is_transient() => {
                     tracing::warn!("Following transient error occurred: {err}");
                     tracing::info!("Trying again after a delay");
+                    self.sleep_interval
                 }
                 Err(err) => return Err(err),
-                Ok(()) => {}
-            }
+                Ok(()) if stop_after_success => return Ok(()),
+                Ok(()) => self.sleep_interval,
+            };
 
-            if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+            if tokio::time::timeout(sleep_interval, stop_receiver.changed())
                 .await
                 .is_ok()
             {
@@ -403,8 +447,6 @@ impl ReorgDetector {
                 break;
             }
         }
-        self.event_handler.start_shutting_down();
-        tracing::info!("Shutting down reorg detector");
         Ok(())
     }
 }
