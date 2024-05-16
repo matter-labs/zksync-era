@@ -33,7 +33,6 @@ jobs:
       matrix:
           components:
             - contract-verifier
-            - verified-sources-fetcher
           platforms:
             - linux/amd64
 
@@ -154,8 +153,6 @@ jobs:
       matrix:
         component:
           - name: contract-verifier
-            platform: linux/amd64
-          - name: verified-sources-fetcher
             platform: linux/amd64
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}

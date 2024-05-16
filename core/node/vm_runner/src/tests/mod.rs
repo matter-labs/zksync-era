@@ -24,18 +24,18 @@ use zksync_types::{
     StorageLogKind, StorageValue, H160, H256,
 };
 
-use super::{BatchExecuteData, VmRunnerIo, VmRunnerStorage};
+use super::{BatchExecuteData, VmRunnerStorage, VmRunnerStorageLoader};
 
 #[derive(Debug, Default)]
-struct IoMock {
+struct LoaderMock {
     current: L1BatchNumber,
     max: L1BatchNumber,
 }
 
 #[async_trait]
-impl VmRunnerIo for Arc<RwLock<IoMock>> {
+impl VmRunnerStorageLoader for Arc<RwLock<LoaderMock>> {
     fn name() -> &'static str {
-        "io_mock"
+        "loader_mock"
     }
 
     async fn latest_processed_batch(
@@ -50,14 +50,6 @@ impl VmRunnerIo for Arc<RwLock<IoMock>> {
         _conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L1BatchNumber> {
         Ok(self.read().await.max)
-    }
-
-    async fn mark_l1_batch_as_completed(
-        &self,
-        _conn: &mut Connection<'_, Core>,
-        _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<()> {
-        Ok(())
     }
 }
 
@@ -79,12 +71,12 @@ impl VmRunnerTester {
 
     async fn create_storage(
         &mut self,
-        io_mock: Arc<RwLock<IoMock>>,
-    ) -> anyhow::Result<VmRunnerStorage<Arc<RwLock<IoMock>>>> {
+        loader_mock: Arc<RwLock<LoaderMock>>,
+    ) -> anyhow::Result<VmRunnerStorage<Arc<RwLock<LoaderMock>>>> {
         let (vm_runner_storage, task) = VmRunnerStorage::new(
             self.pool.clone(),
             self.db_dir.path().to_str().unwrap().to_owned(),
-            io_mock,
+            loader_mock,
             L2ChainId::from(270),
         )
         .await?;
@@ -97,7 +89,7 @@ impl VmRunnerTester {
     }
 }
 
-impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
+impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
     async fn load_batch_eventually(
         &self,
         number: L1BatchNumber,
@@ -274,11 +266,11 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     .await?;
 
     let mut tester = VmRunnerTester::new(connection_pool.clone());
-    let io_mock = Arc::new(RwLock::new(IoMock {
+    let loader_mock = Arc::new(RwLock::new(LoaderMock {
         current: 0.into(),
         max: 10.into(),
     }));
-    let storage = tester.create_storage(io_mock.clone()).await?;
+    let storage = tester.create_storage(loader_mock.clone()).await?;
     // Check that existing batches are returned in the exact same order with the exact same data
     for batch in &batches {
         let batch_data = storage.load_batch_eventually(batch.number).await?;
@@ -329,7 +321,7 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     }
 
     // "Mark" these batches as processed
-    io_mock.write().await.current += batches.len() as u32;
+    loader_mock.write().await.current += batches.len() as u32;
 
     // All old batches should no longer be loadable
     for batch in batches {
@@ -352,8 +344,8 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     drop(conn);
 
     let mut tester = VmRunnerTester::new(connection_pool.clone());
-    let io_mock = Arc::new(RwLock::new(IoMock::default()));
-    let storage = tester.create_storage(io_mock.clone()).await?;
+    let loader_mock = Arc::new(RwLock::new(LoaderMock::default()));
+    let storage = tester.create_storage(loader_mock.clone()).await?;
     // No batches available yet
     assert!(storage.load_batch(L1BatchNumber(1)).await?.is_none());
 
@@ -364,7 +356,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
         genesis_params.base_system_contracts().hashes(),
     )
     .await?;
-    io_mock.write().await.max += 1;
+    loader_mock.write().await.max += 1;
 
     // Load batch and mark it as processed
     assert_eq!(
@@ -375,7 +367,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
             .number,
         L1BatchNumber(1)
     );
-    io_mock.write().await.current += 1;
+    loader_mock.write().await.current += 1;
 
     // No more batches after that
     assert!(storage.batch_stays_unloaded(L1BatchNumber(2)).await);
@@ -387,7 +379,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
         genesis_params.base_system_contracts().hashes(),
     )
     .await?;
-    io_mock.write().await.max += 1;
+    loader_mock.write().await.max += 1;
 
     // Load batch and mark it as processed
 
@@ -399,7 +391,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
             .number,
         L1BatchNumber(2)
     );
-    io_mock.write().await.current += 1;
+    loader_mock.write().await.current += 1;
 
     // No more batches after that
     assert!(storage.batch_stays_unloaded(L1BatchNumber(3)).await);
@@ -439,14 +431,14 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
 
     let (_sender, receiver) = watch::channel(false);
     let mut tester = VmRunnerTester::new(connection_pool.clone());
-    let io_mock = Arc::new(RwLock::new(IoMock {
+    let loader_mock = Arc::new(RwLock::new(LoaderMock {
         current: 0.into(),
         max: 10.into(),
     }));
     let rt_handle = Handle::current();
     let handle = tokio::task::spawn_blocking(move || {
         let vm_runner_storage =
-            rt_handle.block_on(async { tester.create_storage(io_mock.clone()).await.unwrap() });
+            rt_handle.block_on(async { tester.create_storage(loader_mock.clone()).await.unwrap() });
         for i in 1..=10 {
             let mut conn = rt_handle.block_on(connection_pool.connection()).unwrap();
             let (_, last_l2_block_number) = rt_handle

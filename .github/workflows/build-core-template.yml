@@ -168,7 +168,6 @@ jobs:
             platform: linux/amd64,linux/arm64
           - name: snapshots-creator
             platform: linux/amd64
-
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:

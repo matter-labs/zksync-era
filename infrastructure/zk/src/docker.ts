@@ -15,8 +15,7 @@ const IMAGES = [
     'witness-vector-generator',
     'prover-fri-gateway',
     'proof-fri-compressor',
-    'snapshots-creator',
-    'verified-sources-fetcher'
+    'snapshots-creator'
 ];
 
 const DOCKER_REGISTRIES = ['us-docker.pkg.dev/matterlabs-infra/matterlabs-docker', 'matterlabs'];

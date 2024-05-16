@@ -1,4 +1,4 @@
-use zksync_node_sync::ActionQueueSender;
+use zksync_core::sync_layer::ActionQueueSender;
 
 use crate::resource::{Resource, Unique};
 

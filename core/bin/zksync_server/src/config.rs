@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
+use zksync_core::temp_config_store::decode_yaml_repr;
 use zksync_protobuf_config::proto;
 
 pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {

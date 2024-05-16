@@ -8,8 +8,9 @@ use zksync_config::{
     },
     ContractsConfig,
 };
-use zksync_state_keeper::{
-    MempoolFetcher, MempoolGuard, MempoolIO, OutputHandler, SequencerSealer, StateKeeperPersistence,
+use zksync_core::state_keeper::{
+    self, MempoolFetcher, MempoolGuard, MempoolIO, OutputHandler, SequencerSealer,
+    StateKeeperPersistence,
 };
 
 use crate::{
@@ -132,7 +133,7 @@ impl WiringLayer for MempoolIOLayer {
 }
 
 #[derive(Debug)]
-struct L2BlockSealerTask(zksync_state_keeper::L2BlockSealerTask);
+struct L2BlockSealerTask(state_keeper::L2BlockSealerTask);
 
 #[async_trait::async_trait]
 impl Task for L2BlockSealerTask {
