@@ -643,7 +643,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#19988079852ea22576da6b09e39365e6cdc1368f"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#cd631c9"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -7501,7 +7501,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#0448e26ffd8e2f1935ff8cd3303fe5a504cd5d7b"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#c42da15"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -7631,7 +7631,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#e554cfaab0821582e289724e8dc2a8fd145ed217"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#a93a3a5"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
