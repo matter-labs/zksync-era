@@ -19,36 +19,35 @@ runs:
         path: ci/cache/docker/zk-environment
         key: cache-docker-zk-environment-${{ inputs.zk-environment-tag }}
 
-#    - name: Update zk-environment Image Cache if cache miss
-#      shell: bash
-#      if: steps.cache-zk-environment.outputs.cache-hit != 'true'
-#      run: |
-#        docker pull matterlabs/zk-environment:${{ inputs.zk-environment-tag }}
-#        mkdir -p ci/cache/docker/zk-environment
-#        docker image save matterlabs/zk-environment:${{ inputs.zk-environment-tag }} --output ./ci/cache/docker/zk-environment/zk-environment-${{ inputs.zk-environment-tag }}.tar
-#
-#    - name: Use zk-environment Image Cache if cache hit
-#      shell: bash
-#      if: steps.cache-zk-environment.outputs.cache-hit == 'true'
-#      run: docker image load --input ./ci/cache/docker/zk-environment/zk-environment-${{ inputs.zk-environment-tag }}.tar
-#
-#    - name: Restore PostgreSQL Image Cache if it exists
-#      shell: bash
-#      id: cache-postgres
-#      uses: actions/cache@v3
-#      with:
-#        path: ci/cache/docker/postgres
-#        key: cache-docker-postgres-${{ inputs.postgres-tag }}
-#
-#    - name: Update PostgreSQL Image Cache if cache miss
-#      shell: bash
-#      if: steps.cache-postgres.outputs.cache-hit != 'true'
-#      run: |
-#        docker pull postgres:${{ inputs.postgres-tag }}
-#        mkdir -p ci/cache/docker/postgres
-#        docker image save postgres:${{ inputs.postgres-tag }} --output ./ci/cache/docker/postgres/postgres-${{ inputs.postgres-tag }}.tar
-#
-#    - name: Use PostgreSQL Image Cache if cache hit
-#      shell: bash
-#      if: steps.cache-postgres.outputs.cache-hit == 'true'
-#      run: docker image load --input ./ci/cache/docker/postgres/postgres-${{ inputs.postgres-tag }}.tar
+    - name: Update zk-environment Image Cache if cache miss
+      shell: bash
+      if: steps.cache-zk-environment.outputs.cache-hit != 'true'
+      run: |
+        docker pull matterlabs/zk-environment:${{ inputs.zk-environment-tag }}
+        mkdir -p ci/cache/docker/zk-environment
+        docker image save matterlabs/zk-environment:${{ inputs.zk-environment-tag }} --output ./ci/cache/docker/zk-environment/zk-environment-${{ inputs.zk-environment-tag }}.tar
+
+    - name: Use zk-environment Image Cache if cache hit
+      shell: bash
+      if: steps.cache-zk-environment.outputs.cache-hit == 'true'
+      run: docker image load --input ./ci/cache/docker/zk-environment/zk-environment-${{ inputs.zk-environment-tag }}.tar
+
+    - name: Restore PostgreSQL Image Cache if it exists
+      id: cache-postgres
+      uses: actions/cache@v3
+      with:
+        path: ci/cache/docker/postgres
+        key: cache-docker-postgres-${{ inputs.postgres-tag }}
+
+    - name: Update PostgreSQL Image Cache if cache miss
+      shell: bash
+      if: steps.cache-postgres.outputs.cache-hit != 'true'
+      run: |
+        docker pull postgres:${{ inputs.postgres-tag }}
+        mkdir -p ci/cache/docker/postgres
+        docker image save postgres:${{ inputs.postgres-tag }} --output ./ci/cache/docker/postgres/postgres-${{ inputs.postgres-tag }}.tar
+
+    - name: Use PostgreSQL Image Cache if cache hit
+      shell: bash
+      if: steps.cache-postgres.outputs.cache-hit == 'true'
+      run: docker image load --input ./ci/cache/docker/postgres/postgres-${{ inputs.postgres-tag }}.tar
