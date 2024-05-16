@@ -108,6 +108,7 @@ jobs:
           done
 
       - name: Cache Docker
+        if: matrix.component.platforms == 'linux/amd64'
         uses: ./.github/actions/cache-docker-images
 
       - name: start-services

@@ -17,6 +17,9 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
 
+      - name: Cache Docker
+        uses: ./.github/actions/cache-docker-images
+
       - name: Start services
         run: |
           mkdir -p ./volumes/postgres

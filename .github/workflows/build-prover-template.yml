@@ -64,6 +64,9 @@ jobs:
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
+      - name: Cache Docker
+        uses: ./.github/actions/cache-docker-images
+
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
