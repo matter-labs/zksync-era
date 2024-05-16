@@ -14,7 +14,7 @@ use zksync_config::{
         house_keeper::HouseKeeperConfig,
         wallets::Wallets,
         DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
-        ObservabilityConfig, ProofDataHandlerConfig,
+        L1Secrets, ObservabilityConfig, ProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
@@ -105,9 +105,9 @@ impl MainNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = GenesisConfig::from_env()?;
-        let eth_config = EthConfig::from_env()?;
+        let eth_config = L1Secrets::from_env()?;
         let query_eth_client_layer =
-            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.web3_url);
+            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.l1_rpc_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }

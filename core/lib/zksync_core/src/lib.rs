@@ -269,6 +269,7 @@ pub async fn initialize_components(
     ));
 
     let eth = configs.eth.clone().context("eth")?;
+    let l1_secrets = secrets.l1.clone().context("l1_secrets")?;
     let circuit_breaker_config = configs
         .circuit_breaker_config
         .clone()
@@ -286,7 +287,7 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = Client::http(eth.web3_url.clone())
+    let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
         .context("Ethereum client")?
         .for_network(genesis_config.l1_chain_id.into())
         .build();
@@ -296,7 +297,7 @@ pub async fn initialize_components(
 
     let mut gas_adjuster = GasAdjusterSingleton::new(
         genesis_config.l1_chain_id,
-        eth.web3_url.clone(),
+        l1_secrets.l1_rpc_url.clone(),
         gas_adjuster_config,
         sender.pubdata_sending_mode,
         genesis_config.l1_batch_commit_data_generator_mode,

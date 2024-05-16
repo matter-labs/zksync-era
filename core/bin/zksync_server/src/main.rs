@@ -184,8 +184,8 @@ async fn main() -> anyhow::Result<()> {
             .context("genesis_init")?;
 
         if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
-            let eth_config = configs.eth.as_ref().context("eth config")?;
-            let query_client = Client::http(eth_config.web3_url.clone())
+            let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
+            let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
                 .context("Ethereum client")?
                 .for_network(genesis.l1_chain_id.into())
                 .build();

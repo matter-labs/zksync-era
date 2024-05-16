@@ -11,7 +11,7 @@ use zksync_block_reverter::{
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
 use zksync_config::{
-    configs::{chain::NetworkConfig, DatabaseSecrets, ObservabilityConfig},
+    configs::{chain::NetworkConfig, DatabaseSecrets, L1Secrets, ObservabilityConfig},
     ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
@@ -107,6 +107,7 @@ async fn main() -> anyhow::Result<()> {
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let network = NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
     let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let l1_secrets = L1Secrets::from_env().context("L1Secrets::from_env()")?;
     let postgress_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let era_chain_id = env::var("CONTRACTS_ERA_CHAIN_ID")
         .context("`CONTRACTS_ERA_CHAIN_ID` env variable is not set")?
@@ -130,7 +131,7 @@ async fn main() -> anyhow::Result<()> {
             json,
             operator_address,
         } => {
-            let eth_client = Client::http(eth_sender.web3_url.clone())
+            let eth_client = Client::http(l1_secrets.l1_rpc_url.clone())
                 .context("Ethereum client")?
                 .build();
 
@@ -148,7 +149,7 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let eth_client = Client::http(eth_sender.web3_url.clone())
+            let eth_client = Client::http(l1_secrets.l1_rpc_url.clone())
                 .context("Ethereum client")?
                 .build();
             #[allow(deprecated)]
