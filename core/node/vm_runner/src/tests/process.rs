@@ -8,9 +8,8 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_test_account::Account;
 use zksync_types::L2ChainId;
 
-use crate::tests::wait;
 use crate::{
-    tests::{fund, store_l2_blocks, IoMock, TestOutputFactory},
+    tests::{fund, store_l2_blocks, wait, IoMock, TestOutputFactory},
     ConcurrentOutputHandlerFactory, VmRunner, VmRunnerStorage,
 };
 
