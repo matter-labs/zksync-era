@@ -48,9 +48,6 @@ jobs:
       - name: Cache Docker
         uses: ./.github/actions/cache-docker-images
 
-      - name: Cache Docker
-        uses: ./.github/actions/cache-docker-images
-
       - name: Start services
         run: |
           ci_localnet_up
