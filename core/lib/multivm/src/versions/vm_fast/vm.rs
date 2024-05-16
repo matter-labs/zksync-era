@@ -1,7 +1,9 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachine};
-use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
+use zk_evm_1_5_0::zkevm_opcode_defs::{
+    system_params::INITIAL_FRAME_FORMAL_EH_LOCATION, FatPointer,
+};
 use zksync_contracts::SystemContractCode;
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
@@ -162,9 +164,14 @@ impl<S: ReadStorage + 'static> Vm<S> {
                 }
                 PostResult => {
                     let result = self.get_hook_params()[0];
+                    let value = self.get_hook_params()[1];
+                    let fp = FatPointer::from_u256(value);
 
-                    // TODO get latest return data
-                    let return_data = vec![];
+                    assert!(fp.offset == 0);
+
+                    let return_data = self.inner.state.heaps[fp.memory_page]
+                        [fp.start as usize..(fp.start + fp.length) as usize]
+                        .to_vec();
 
                     last_tx_result = Some(if result.is_zero() {
                         ExecutionResult::Revert {
