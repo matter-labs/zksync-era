@@ -9442,11 +9442,11 @@ dependencies = [
  "tracing",
  "vm_utils",
  "zksync_contracts",
- "zksync_core",
  "zksync_dal",
  "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_state",
+ "zksync_state_keeper",
  "zksync_storage",
  "zksync_types",
 ]

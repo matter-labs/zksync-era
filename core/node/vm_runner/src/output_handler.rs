@@ -12,8 +12,8 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
-use zksync_core::state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::L1BatchNumber;
 
 use crate::VmRunnerIo;
@@ -261,8 +261,8 @@ mod tests {
         task::JoinHandle,
     };
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
-    use zksync_core::state_keeper::{StateKeeperOutputHandler, UpdatesManager};
     use zksync_dal::{Connection, ConnectionPool, Core};
+    use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
     use zksync_types::L1BatchNumber;
 
     use crate::{ConcurrentOutputHandlerFactory, OutputHandlerFactory, VmRunnerIo};

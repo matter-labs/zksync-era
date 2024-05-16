@@ -16,7 +16,7 @@ zksync_dal.workspace = true
 zksync_contracts.workspace = true
 zksync_state.workspace = true
 zksync_storage.workspace = true
-zksync_core.workspace = true
+zksync_state_keeper.workspace = true
 vm_utils.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
