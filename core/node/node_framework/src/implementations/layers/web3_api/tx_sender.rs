@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use zksync_core::api_server::{
+use zksync_node_api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
     tx_sender::{ApiContracts, TxSenderBuilder, TxSenderConfig},
 };

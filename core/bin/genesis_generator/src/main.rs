@@ -9,7 +9,7 @@ use clap::Parser;
 use serde_yaml::Serializer;
 use zksync_config::{GenesisConfig, PostgresConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_core::temp_config_store::decode_yaml_repr;
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
