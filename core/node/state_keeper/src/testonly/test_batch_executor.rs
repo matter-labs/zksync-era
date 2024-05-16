@@ -532,13 +532,16 @@ impl StateKeeperOutputHandler for TestPersistence {
         Ok(())
     }
 
-    async fn handle_l1_batch(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+    async fn handle_l1_batch(
+        &mut self,
+        updates_manager: Arc<UpdatesManager>,
+    ) -> anyhow::Result<()> {
         let action = self.pop_next_item("seal_l1_batch");
         let ScenarioItem::BatchSeal(_, check_fn) = action else {
             anyhow::bail!("Unexpected action: {:?}", action);
         };
         if let Some(check_fn) = check_fn {
-            check_fn(updates_manager);
+            check_fn(&updates_manager);
         }
         Ok(())
     }
