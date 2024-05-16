@@ -6,7 +6,15 @@ import { ChildProcess, spawn } from 'node:child_process';
 import path from 'node:path';
 import * as zksync from 'zksync-ethers';
 
-import { getExternalNodeHealth, sleep, externalNodeArgs, killExternalNode, stopExternalNode } from '../src';
+import {
+    getExternalNodeHealth,
+    sleep,
+    externalNodeArgs,
+    killExternalNode,
+    stopExternalNode,
+    waitForProcess,
+    NodeComponents
+} from '../src';
 
 interface AllSnapshotsResponse {
     readonly snapshotsL1BatchNumbers: number[];
