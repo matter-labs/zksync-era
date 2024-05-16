@@ -41,7 +41,8 @@ pub enum Web3Error {
     InvalidFilterBlockHash,
     #[error("Not implemented")]
     NotImplemented,
-
+    /// This covers both transient unavailability (e.g., due to connection issues) and unavailability
+    /// caused by node configuration.
     #[error("Tree API is not available")]
     TreeApiUnavailable,
     #[error("Internal error")]

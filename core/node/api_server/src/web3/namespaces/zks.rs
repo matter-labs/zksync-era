@@ -496,7 +496,7 @@ impl ZksNamespace {
         let proofs_result = tree_api.get_proofs(l1_batch_number, hashed_keys).await;
         let proofs = match proofs_result {
             Ok(proofs) => proofs,
-            Err(TreeApiError::NotReady) => return Err(Web3Error::TreeApiUnavailable),
+            Err(TreeApiError::NotReady(_)) => return Err(Web3Error::TreeApiUnavailable),
             Err(TreeApiError::NoVersion(err)) => {
                 return if err.missing_version > err.version_count {
                     Ok(None)
