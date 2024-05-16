@@ -402,7 +402,7 @@ impl BlocksDal<'_, '_> {
         number_range: ops::RangeInclusive<L1BatchNumber>,
         eth_tx_id: u32,
         aggregation_type: AggregatedActionType,
-    ) -> anyhow::Result<()> {
+    ) -> DalResult<()> {
         match aggregation_type {
             AggregatedActionType::Commit => {
                 let result = sqlx::query!(
@@ -426,9 +426,16 @@ impl BlocksDal<'_, '_> {
                 .await?;
 
                 if result.rows_affected() == 0 {
-                    return Err(anyhow::anyhow!(
-                        "Update eth_commit_tx_id that is is not null is not allowed"
-                    ));
+                    let err = Instrumented::new("set_eth_tx_id#commit")
+                        .with_arg("number_range", &number_range)
+                        .with_arg("eth_tx_id", &eth_tx_id)
+                        .arg_error(
+                            "eth_tx_id",
+                            anyhow::anyhow!(
+                                "Update eth_commit_tx_id that is is not null is not allowed"
+                            ),
+                        );
+                    return Err(err);
                 }
             }
             AggregatedActionType::PublishProofOnchain => {
@@ -453,9 +460,16 @@ impl BlocksDal<'_, '_> {
                 .await?;
 
                 if result.rows_affected() == 0 {
-                    return Err(anyhow::anyhow!(
-                        "Update eth_prove_tx_id that is is not null is not allowed"
-                    ));
+                    let err = Instrumented::new("set_eth_tx_id#prove")
+                        .with_arg("number_range", &number_range)
+                        .with_arg("eth_tx_id", &eth_tx_id)
+                        .arg_error(
+                            "eth_tx_id",
+                            anyhow::anyhow!(
+                                "Update eth_prove_tx_id that is is not null is not allowed"
+                            ),
+                        );
+                    return Err(err);
                 }
             }
             AggregatedActionType::Execute => {
@@ -480,9 +494,16 @@ impl BlocksDal<'_, '_> {
                 .await?;
 
                 if result.rows_affected() == 0 {
-                    return Err(anyhow::anyhow!(
-                        "Update eth_execute_tx_id that is is not null is not allowed"
-                    ));
+                    let err = Instrumented::new("set_eth_tx_id#execute")
+                        .with_arg("number_range", &number_range)
+                        .with_arg("eth_tx_id", &eth_tx_id)
+                        .arg_error(
+                            "eth_tx_id",
+                            anyhow::anyhow!(
+                                "Update eth_execute_tx_id that is is not null is not allowed"
+                            ),
+                        );
+                    return Err(err);
                 }
             }
         }
