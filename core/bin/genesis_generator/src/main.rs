@@ -7,7 +7,7 @@ use std::fs;
 use anyhow::Context as _;
 use clap::Parser;
 use serde_yaml::Serializer;
-use zksync_config::{configs::DatabaseSecrets, GenesisConfig, PostgresConfig};
+use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::temp_config_store::decode_yaml_repr;
 use zksync_dal::{ConnectionPool, Core, CoreDal};

@@ -175,7 +175,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
+    let _postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
     let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
 
     if opt.genesis || is_genesis_needed(&database_secrets).await {

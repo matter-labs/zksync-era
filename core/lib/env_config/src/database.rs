@@ -192,12 +192,6 @@ mod tests {
         lock.set_env(config);
 
         let postgres_config = PostgresConfig::from_env().unwrap();
-        assert_eq!(
-            postgres_config.master_url().unwrap(),
-            "postgres://postgres:notsecurepassword@localhost/zksync_local"
-                .parse()
-                .unwrap()
-        );
         assert_eq!(postgres_config.max_connections().unwrap(), 50);
         assert_eq!(
             postgres_config.statement_timeout(),
@@ -214,6 +208,36 @@ mod tests {
         assert_eq!(
             postgres_config.slow_query_threshold(),
             Some(Duration::from_millis(150))
+        );
+    }
+    #[test]
+    fn db_secrets_from_env() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DATABASE_URL=postgres://postgres:notsecurepassword@localhost/zksync_local
+            DATABASE_REPLICA_URL=postgres://postgres:notsecurepassword@localhost/zksync_replica_local
+            DATABASE_PROVER_URL=postgres://postgres:notsecurepassword@localhost/zksync_prover_local
+        "#;
+        lock.set_env(config);
+
+        let postgres_config = DatabaseSecrets::from_env().unwrap();
+        assert_eq!(
+            postgres_config.replica_url().unwrap(),
+            "postgres://postgres:notsecurepassword@localhost/zksync_replica_local"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            postgres_config.master_url().unwrap(),
+            "postgres://postgres:notsecurepassword@localhost/zksync_local"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            postgres_config.prover_url().unwrap(),
+            "postgres://postgres:notsecurepassword@localhost/zksync_prover_local"
+                .parse()
+                .unwrap()
         );
     }
 }

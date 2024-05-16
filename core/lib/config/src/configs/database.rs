@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::url::SensitiveUrl;
 
 use crate::configs::ExperimentalDBConfig;
 

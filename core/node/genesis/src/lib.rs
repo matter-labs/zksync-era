@@ -6,7 +6,7 @@ use std::fmt::Formatter;
 
 use anyhow::Context as _;
 use multivm::utils::get_max_gas_per_pubdata_byte;
-use zksync_config::{configs::DatabaseSecrets, GenesisConfig, PostgresConfig};
+use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;

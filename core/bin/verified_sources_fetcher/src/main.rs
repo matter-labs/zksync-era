@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use zksync_config::{configs::DatabaseSecrets, PostgresConfig};
+use zksync_config::configs::DatabaseSecrets;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_types::contract_verification_api::SourceCodeData;

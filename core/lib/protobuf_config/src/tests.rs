@@ -23,7 +23,8 @@ fn test_encoding() {
     test_encode_all_formats::<ReprConv<proto::consensus::WeightedValidator>>(rng);
     test_encode_all_formats::<ReprConv<proto::consensus::GenesisSpec>>(rng);
     test_encode_all_formats::<ReprConv<proto::consensus::Config>>(rng);
-    test_encode_all_formats::<ReprConv<proto::consensus::Secrets>>(rng);
+    test_encode_all_formats::<ReprConv<proto::secrets::ConsensusSecrets>>(rng);
+    test_encode_all_formats::<ReprConv<proto::secrets::Secrets>>(rng);
     test_encode_all_formats::<ReprConv<proto::contract_verifier::ContractVerifier>>(rng);
     test_encode_all_formats::<ReprConv<proto::contracts::Contracts>>(rng);
     test_encode_all_formats::<ReprConv<proto::database::MerkleTree>>(rng);

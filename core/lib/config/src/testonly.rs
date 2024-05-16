@@ -745,3 +745,34 @@ impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
         }
     }
 }
+
+impl Distribution<configs::secrets::L1Secrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::L1Secrets {
+        use configs::secrets::L1Secrets;
+        L1Secrets {
+            l1_rpc_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
+        }
+    }
+}
+
+impl Distribution<configs::secrets::DatabaseSecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DatabaseSecrets {
+        use configs::secrets::DatabaseSecrets;
+        DatabaseSecrets {
+            server_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            server_replica_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            prover_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+        }
+    }
+}
+
+impl Distribution<configs::secrets::Secrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::Secrets {
+        use configs::secrets::Secrets;
+        Secrets {
+            consensus: self.sample_opt(|| self.sample(rng)),
+            database: self.sample_opt(|| self.sample(rng)),
+            l1: self.sample_opt(|| self.sample(rng)),
+        }
+    }
+}

@@ -6,7 +6,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{ObservabilityConfig, PrometheusConfig},
-    ApiConfig, ContractVerifierConfig, PostgresConfig,
+    ApiConfig, ContractVerifierConfig,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;

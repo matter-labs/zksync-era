@@ -13,8 +13,8 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::Wallets,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
-        ProofDataHandlerConfig,
+        DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
+        ObservabilityConfig, ProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
@@ -80,7 +80,8 @@ impl MainNodeBuilder {
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = PostgresConfig::from_env()?;
-        let pools_layer = PoolsLayerBuilder::empty(config)
+        let secrets = DatabaseSecrets::from_env()?;
+        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
             .with_prover(true)
@@ -367,8 +368,10 @@ impl MainNodeBuilder {
             };
             let secrets = std::fs::read_to_string(&path).context(path)?;
             Ok(Some(
-                decode_yaml_repr::<proto::consensus::Secrets>(&secrets)
-                    .context("failed decoding YAML")?,
+                decode_yaml_repr::<proto::secrets::Secrets>(&secrets)
+                    .context("failed decoding YAML")?
+                    .consensus
+                    .context("No consensus in secrets")?,
             ))
         }
 
