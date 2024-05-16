@@ -66,12 +66,13 @@ impl VmRunnerIo for Arc<RwLock<IoMock>> {
 }
 
 mod wait {
-    use crate::tests::IoMock;
+    use std::{sync::Arc, time::Duration};
+
     use backon::{ConstantBuilder, Retryable};
-    use std::sync::Arc;
-    use std::time::Duration;
     use tokio::sync::RwLock;
     use zksync_types::L1BatchNumber;
+
+    use crate::tests::IoMock;
 
     pub(super) async fn for_batch(
         io: Arc<RwLock<IoMock>>,
