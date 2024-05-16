@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_core::api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy::TxProxy};
+use zksync_node_api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy::TxProxy};
 
 use crate::{
     implementations::resources::{
