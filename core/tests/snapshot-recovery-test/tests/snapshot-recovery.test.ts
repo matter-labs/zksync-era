@@ -1,12 +1,12 @@
 import { expect } from 'chai';
-import fetch, { FetchError } from 'node-fetch';
 import * as protobuf from 'protobufjs';
 import * as zlib from 'zlib';
 import fs, { FileHandle } from 'node:fs/promises';
-import { ChildProcess, spawn, exec } from 'node:child_process';
+import { ChildProcess, spawn } from 'node:child_process';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import * as zksync from 'zksync-ethers';
+
+import { getExternalNodeHealth, sleep, externalNodeArgs, killExternalNode, stopExternalNode } from '../src';
 
 interface AllSnapshotsResponse {
     readonly snapshotsL1BatchNumbers: number[];
@@ -37,54 +37,6 @@ interface StorageLog {
 interface TokenInfo {
     readonly l1_address: string;
     readonly l2_address: string;
-}
-
-interface Health<T> {
-    readonly status: string;
-    readonly details?: T;
-}
-
-interface SnapshotRecoveryDetails {
-    readonly snapshot_l1_batch: number;
-    readonly snapshot_l2_block: number;
-    readonly factory_deps_recovered: boolean;
-    readonly tokens_recovered: boolean;
-    readonly storage_logs_chunks_left_to_process: number;
-}
-
-interface ConsistencyCheckerDetails {
-    readonly first_checked_batch?: number;
-    readonly last_checked_batch?: number;
-}
-
-interface ReorgDetectorDetails {
-    readonly last_correct_l1_batch?: number;
-    readonly last_correct_l2_block?: number;
-}
-
-interface TreeDetails {
-    readonly min_l1_batch_number?: number | null;
-}
-
-interface DbPrunerDetails {
-    readonly last_soft_pruned_l1_batch?: number;
-    readonly last_hard_pruned_l1_batch?: number;
-}
-
-interface TreeDataFetcherDetails {
-    readonly last_updated_l1_batch?: number;
-}
-
-interface HealthCheckResponse {
-    readonly components: {
-        snapshot_recovery?: Health<SnapshotRecoveryDetails>;
-        consistency_checker?: Health<ConsistencyCheckerDetails>;
-        reorg_detector?: Health<ReorgDetectorDetails>;
-        tree?: Health<TreeDetails>;
-        db_pruner?: Health<DbPrunerDetails>;
-        tree_pruner?: Health<{}>;
-        tree_data_fetcher?: Health<TreeDataFetcherDetails>;
-    };
 }
 
 /**
@@ -423,7 +375,7 @@ describe('snapshot recovery', () => {
             const receipt = await transactionResponse.wait();
             console.log('Got finalized transaction receipt', receipt);
 
-            // Wait until an L1 batch number with the transaction is sealed.
+            // Wait until an L1 batch with the transaction is sealed.
             let newL1BatchNumber: number;
             while ((newL1BatchNumber = await mainNode.getL1BatchNumber()) <= pastL1BatchNumber) {
                 await sleep(1000);
@@ -462,21 +414,6 @@ describe('snapshot recovery', () => {
     });
 });
 
-async function waitForProcess(childProcess: ChildProcess) {
-    await new Promise((resolve, reject) => {
-        childProcess.on('error', (error) => {
-            reject(error);
-        });
-        childProcess.on('exit', (code) => {
-            if (code === 0) {
-                resolve(undefined);
-            } else {
-                reject(new Error(`Process exited with non-zero code: ${code}`));
-            }
-        });
-    });
-}
-
 async function decompressGzip(filePath: string): Promise<Buffer> {
     const readStream = (await fs.open(filePath)).createReadStream();
     return new Promise((resolve, reject) => {
@@ -488,76 +425,4 @@ async function decompressGzip(filePath: string): Promise<Buffer> {
         gunzip.on('error', reject);
         readStream.pipe(gunzip);
     });
-}
-
-async function sleep(millis: number) {
-    await new Promise((resolve) => setTimeout(resolve, millis));
-}
-
-async function getExternalNodeHealth() {
-    const EXTERNAL_NODE_HEALTH_URL = 'http://127.0.0.1:3081/health';
-
-    try {
-        const response: HealthCheckResponse = await fetch(EXTERNAL_NODE_HEALTH_URL).then((response) => response.json());
-        return response;
-    } catch (e) {
-        let displayedError = e;
-        if (e instanceof FetchError && e.code === 'ECONNREFUSED') {
-            displayedError = '(connection refused)'; // Don't spam logs with "connection refused" messages
-        }
-        console.log(
-            `Request to EN health check server failed ${displayedError}, in CI you can see more details 
-            in "Show snapshot-creator.log logs" and "Show contract_verifier.log logs" steps`
-        );
-        return null;
-    }
-}
-
-enum NodeComponents {
-    STANDARD = 'all',
-    WITH_TREE_FETCHER = 'all,tree_fetcher',
-    WITH_TREE_FETCHER_AND_NO_TREE = 'core,api,tree_fetcher'
-}
-
-function externalNodeArgs(components: NodeComponents = NodeComponents.STANDARD) {
-    const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-    const args = ['external-node', '--', `--components=${components}`];
-    if (enableConsensus) {
-        args.push('--enable-consensus');
-    }
-    return args;
-}
-
-async function stopExternalNode() {
-    interface ChildProcessError extends Error {
-        readonly code: number | null;
-    }
-
-    try {
-        await promisify(exec)('killall -q -INT zksync_external_node');
-    } catch (err) {
-        const typedErr = err as ChildProcessError;
-        if (typedErr.code === 1) {
-            // No matching processes were found; this is fine.
-        } else {
-            throw err;
-        }
-    }
-}
-
-async function killExternalNode() {
-    interface ChildProcessError extends Error {
-        readonly code: number | null;
-    }
-
-    try {
-        await promisify(exec)('killall -q -KILL zksync_external_node');
-    } catch (err) {
-        const typedErr = err as ChildProcessError;
-        if (typedErr.code === 1) {
-            // No matching processes were found; this is fine.
-        } else {
-            throw err;
-        }
-    }
 }
