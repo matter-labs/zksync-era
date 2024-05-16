@@ -14,7 +14,7 @@ runs:
   steps:
     - name: Restore zk-environment Image Cache if it exists
       id: cache-zk-environment
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ci/cache/docker/zk-environment
         key: cache-docker-zk-environment-${{ inputs.zk-environment-tag }}
@@ -34,7 +34,7 @@ runs:
 
     - name: Restore PostgreSQL Image Cache if it exists
       id: cache-postgres
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ci/cache/docker/postgres
         key: cache-docker-postgres-${{ inputs.postgres-tag }}
