@@ -64,4 +64,5 @@ fn verify_file_parsing() {
     decode_yaml_repr::<proto::genesis::Genesis>(&base_path.join("genesis.yaml"), true).unwrap();
     decode_yaml_repr::<proto::contracts::Contracts>(&base_path.join("contracts.yaml"), true)
         .unwrap();
+    decode_yaml_repr::<proto::secrets::Secrets>(&base_path.join("secrets.yaml"), true).unwrap();
 }

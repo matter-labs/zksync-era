@@ -17,17 +17,17 @@ impl ProtoRepr for proto::Secrets {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            consensus: read_optional_repr(&self.consensus_secrets).context("consensus_secrets")?,
+            consensus: read_optional_repr(&self.consensus).context("consensus")?,
             database: read_optional_repr(&self.database).context("database")?,
-            l1: read_optional_repr(&self.l1_secrets).context("l1_secrets")?,
+            l1: read_optional_repr(&self.l1).context("l1")?,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
             database: this.database.as_ref().map(ProtoRepr::build),
-            l1_secrets: this.l1.as_ref().map(ProtoRepr::build),
-            consensus_secrets: this.consensus.as_ref().map(ProtoRepr::build),
+            l1: this.l1.as_ref().map(ProtoRepr::build),
+            consensus: this.consensus.as_ref().map(ProtoRepr::build),
         }
     }
 }
