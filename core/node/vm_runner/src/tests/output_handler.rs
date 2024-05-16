@@ -6,8 +6,8 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
-use zksync_core::state_keeper::UpdatesManager;
 use zksync_dal::{ConnectionPool, Core};
+use zksync_state_keeper::UpdatesManager;
 use zksync_types::L1BatchNumber;
 
 use crate::{

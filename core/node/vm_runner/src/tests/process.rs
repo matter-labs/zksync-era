@@ -2,9 +2,9 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use tempfile::TempDir;
 use tokio::sync::{watch, RwLock};
-use zksync_core::state_keeper::MainBatchExecutor;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_state_keeper::MainBatchExecutor;
 use zksync_test_account::Account;
 use zksync_types::L2ChainId;
 

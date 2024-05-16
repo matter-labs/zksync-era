@@ -2,10 +2,10 @@ use std::{sync::Arc, time::Duration};
 
 use multivm::interface::L2BlockEnv;
 use tokio::sync::watch;
-use zksync_core::state_keeper::{
+use zksync_dal::{ConnectionPool, Core};
+use zksync_state_keeper::{
     BatchExecutor, ExecutionMetricsForCriteria, L2BlockParams, TxExecutionResult, UpdatesManager,
 };
-use zksync_dal::{ConnectionPool, Core};
 
 use crate::{storage::StorageLoader, OutputHandlerFactory, VmRunnerIo};
 
