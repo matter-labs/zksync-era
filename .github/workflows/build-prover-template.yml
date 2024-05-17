@@ -82,7 +82,7 @@ jobs:
       - name: download CRS
         if: matrix.component == 'proof-fri-compressor'
         run: |
-          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+          ci_run curl --retry 5 --retry-all-errors -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: login to Docker registries
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
@@ -101,7 +101,7 @@ jobs:
           retry_count=0
 
           while [[ $retry_count -lt $max_retries ]]; do
-            response=$(curl --retry 5 -s -w "%{http_code}" -o temp.json "$api_endpoint")
+            response=$(curl --retry 5 --retry-all-errors -s -w "%{http_code}" -o temp.json "$api_endpoint")
             http_code=$(echo "$response" | tail -n1)
 
             if [[ "$http_code" == "200" ]]; then
