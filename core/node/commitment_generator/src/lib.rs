@@ -30,6 +30,7 @@ pub mod validation_task;
 
 const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 
+/// Component resposible for generating commitments for L1 batches.
 #[derive(Debug)]
 pub struct CommitmentGenerator {
     connection_pool: ConnectionPool<Core>,
@@ -39,6 +40,7 @@ pub struct CommitmentGenerator {
 }
 
 impl CommitmentGenerator {
+    /// Creates a commitment generator with the provided mode.
     pub fn new(
         connection_pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
@@ -57,6 +59,7 @@ impl CommitmentGenerator {
         NonZeroU32::new(cpus).unwrap()
     }
 
+    /// Returns a health check for this generator.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
     }
@@ -307,8 +310,6 @@ impl CommitmentGenerator {
         });
         let artifacts = futures::future::try_join_all(batch_futures).await?;
 
-        let latency =
-            METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
         let mut connection = self
             .connection_pool
             .connection_tagged("commitment_generator")
@@ -316,15 +317,17 @@ impl CommitmentGenerator {
         // Transactionality is not required here; since we save batches in order, if we encounter a DB error,
         // the commitment generator will be able to recover gracefully.
         for (l1_batch_number, artifacts) in artifacts {
+            let latency =
+                METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
             connection
                 .blocks_dal()
                 .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
                 .await?;
+            let latency = latency.observe();
+            tracing::debug!(
+                "Stored commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
+            );
         }
-        let latency = latency.observe();
-        tracing::debug!(
-            "Stored commitment artifacts for L1 batches #{l1_batch_numbers:?} in {latency:?}"
-        );
 
         let health_details = serde_json::json!({
             "l1_batch_number": *l1_batch_numbers.end(),
@@ -397,8 +400,16 @@ impl CommitmentGenerator {
         Ok(Some(next_batch_number..=last_batch_number))
     }
 
+    /// Runs this commitment generator indefinitely. It will process L1 batches added to the database
+    /// processed by the Merkle tree (or a tree fetcher), with a previously configured max parallelism.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::info!(
+            "Starting commitment generator with mode {:?} and parallelism {}",
+            self.commitment_mode,
+            self.parallelism
+        );
         self.health_updater.update(HealthStatus::Ready.into());
+
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, commitment generator is shutting down");
@@ -411,8 +422,12 @@ impl CommitmentGenerator {
             };
 
             tracing::info!("Started commitment generation for L1 batches #{l1_batch_numbers:?}");
+            let step_latency = METRICS.step_latency.start();
             self.step(l1_batch_numbers.clone()).await?;
-            tracing::info!("Finished commitment generation for L1 batches #{l1_batch_numbers:?}");
+            let step_latency = step_latency.observe();
+            let batch_count = l1_batch_numbers.end().0 - l1_batch_numbers.start().0 + 1;
+            METRICS.step_batch_count.observe(batch_count.into());
+            tracing::info!("Finished commitment generation for L1 batches #{l1_batch_numbers:?} in {step_latency:?} ({:?} per batch)", step_latency / batch_count);
         }
         Ok(())
     }
