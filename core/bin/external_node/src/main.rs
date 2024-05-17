@@ -864,7 +864,7 @@ async fn run_node(
     main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
 ) -> anyhow::Result<()> {
-    tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
+    tracing::warn!("The external node is in the beta phase, and should be used with caution.");
     tracing::info!("Started the external node");
     let (stop_sender, mut stop_receiver) = watch::channel(false);
     let stop_sender = Arc::new(stop_sender);
