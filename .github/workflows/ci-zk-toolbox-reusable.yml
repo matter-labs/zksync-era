@@ -18,6 +18,11 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
 
+      - name: Start services
+        run: |
+          docker-compose -f ${RUNNER_COMPOSE_FILE} pull
+          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk
+
       - name: Build tool
         working-directory: zk_toolbox
         run: |
@@ -54,6 +59,11 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
           echo $(pwd)/zk_toolbox_bin >> $GITHUB_PATH
+
+      - name: Start services
+        run: |
+          docker-compose -f ${RUNNER_COMPOSE_FILE} pull
+          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk
 
       - name: Create ecosystem
         run: |
