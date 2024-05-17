@@ -66,7 +66,7 @@ jobs:
           filtered_tag=""
           while [ true ]; do
             echo "Page: $page"
-            tags=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
+            tags=$(curl --retry 5 -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/matter-labs/era-contracts/tags?per_page=100&page=${page}" | jq .)
             if [ $(jq length <<<"$tags") -eq 0 ]; then
               echo "No tag found on all pages."
