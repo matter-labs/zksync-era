@@ -1,10 +1,11 @@
-import { TestMaster } from '../../src/index';
+import {TestMaster} from '../../src/index';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import fetch from 'node-fetch';
 import fs from 'fs';
-import { deployContract, getContractSource, getTestContract } from '../../src/helpers';
-import { sleep } from 'zksync-ethers/build/utils';
+import {deployContract, getContractSource, getTestContract} from '../../src/helpers';
+import {sleep} from 'zksync-ethers/build/utils';
+import {NodeMode} from "../../src/types";
 
 // Regular expression to match ISO dates.
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
@@ -44,7 +45,7 @@ describe('Tests for the contract verification API', () => {
             testMaster = TestMaster.getInstance(__filename);
             alice = testMaster.mainAccount();
 
-            if (testMaster.environment().externalNode) {
+            if (testMaster.environment().nodeMode == NodeMode.External) {
                 console.warn("You are trying to run contract verification tests on external node. It's not supported.");
             }
         });
@@ -113,7 +114,7 @@ describe('Tests for the contract verification API', () => {
                     }
                 },
                 settings: {
-                    optimizer: { enabled: true },
+                    optimizer: {enabled: true},
                     isSystem: true
                 }
             };

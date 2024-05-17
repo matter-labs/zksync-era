@@ -11,15 +11,15 @@
  */
 import * as utils from 'zk/build/utils';
 import * as fs from 'fs';
-import { TestMaster } from '../src/index';
+import {TestMaster} from '../src/index';
 
 import * as zksync from 'zksync-ethers';
-import { BigNumber, ethers } from 'ethers';
-import { Token } from '../src/types';
+import {BigNumber, ethers} from 'ethers';
+import {DataAvailabityMode, Token} from '../src/types';
 
 const UINT32_MAX = BigNumber.from(2).pow(32).sub(1);
 
-const logs = fs.createWriteStream('fees.log', { flags: 'a' });
+const logs = fs.createWriteStream('fees.log', {flags: 'a'});
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
 const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
@@ -28,22 +28,22 @@ const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
 // For CI we use only 2 gas prices to not slow it down too much.
 const L1_GAS_PRICES_TO_TEST = process.env.CI
     ? [
-          5_000_000_000, // 5 gwei
-          10_000_000_000 // 10 gwei
-      ]
+        5_000_000_000, // 5 gwei
+        10_000_000_000 // 10 gwei
+    ]
     : [
-          1_000_000_000, // 1 gwei
-          5_000_000_000, // 5 gwei
-          10_000_000_000, // 10 gwei
-          25_000_000_000, // 25 gwei
-          50_000_000_000, // 50 gwei
-          100_000_000_000, // 100 gwei
-          200_000_000_000, // 200 gwei
-          400_000_000_000, // 400 gwei
-          800_000_000_000, // 800 gwei
-          1_000_000_000_000, // 1000 gwei
-          2_000_000_000_000 // 2000 gwei
-      ];
+        1_000_000_000, // 1 gwei
+        5_000_000_000, // 5 gwei
+        10_000_000_000, // 10 gwei
+        25_000_000_000, // 25 gwei
+        50_000_000_000, // 50 gwei
+        100_000_000_000, // 100 gwei
+        200_000_000_000, // 200 gwei
+        400_000_000_000, // 400 gwei
+        800_000_000_000, // 800 gwei
+        1_000_000_000_000, // 1000 gwei
+        2_000_000_000_000 // 2000 gwei
+    ];
 
 testFees('Test fees', () => {
     let testMaster: TestMaster;
@@ -134,7 +134,7 @@ testFees('Test fees', () => {
     });
 
     test('Test gas consumption under large L1 gas price', async () => {
-        if (testMaster.environment().l1BatchCommitDataGeneratorMode === 'Validium') {
+        if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Validium) {
             // We skip this test for Validium mode, since L1 gas price has little impact on the gasLimit in this mode.
             return;
         }
@@ -163,7 +163,7 @@ testFees('Test fees', () => {
 
         // Firstly, let's test a successful transaction.
         const largeData = ethers.utils.randomBytes(90_000);
-        const tx = await l1Messenger.sendToL1(largeData, { type: 0 });
+        const tx = await l1Messenger.sendToL1(largeData, {type: 0});
         expect(tx.gasLimit.gt(UINT32_MAX)).toBeTruthy();
         const receipt = await tx.wait();
         expect(receipt.gasUsed.gt(UINT32_MAX)).toBeTruthy();
@@ -283,7 +283,8 @@ async function setInternalL1GasPrice(
     // Make sure server isn't running.
     try {
         await killServerAndWaitForShutdown(provider);
-    } catch (_) {}
+    } catch (_) {
+    }
 
     // Run server in background.
     let command = 'zk server --components api,tree,eth,state_keeper';
