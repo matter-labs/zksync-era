@@ -1,14 +1,13 @@
-import {ethers} from 'ethers';
+import { ethers } from 'ethers';
 
 export enum NodeMode {
     Main,
     External
 }
 
-
 export enum DataAvailabityMode {
-    Rollup = "Rollup",
-    Validium = "Validium"
+    Rollup = 'Rollup',
+    Validium = 'Validium'
 }
 
 /**

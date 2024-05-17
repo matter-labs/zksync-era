@@ -2,10 +2,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
-import {DataAvailabityMode, NodeMode, TestEnvironment} from './types';
-import {Reporter} from './reporter';
-import {L2_BASE_TOKEN_ADDRESS} from 'zksync-ethers/build/utils';
-
+import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
+import { Reporter } from './reporter';
+import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
 
 /**
  * Attempts to connect to server.
@@ -55,7 +54,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     let mainWalletPK;
     if (network == 'localhost') {
         const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
-        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, {encoding: 'utf-8'}));
+        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
         mainWalletPK = ethers.Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/0").privateKey;
     } else {
         mainWalletPK = ensureVariable(process.env.MASTER_WALLET_PK, 'Main wallet private key');
@@ -106,7 +105,8 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
-    const l1BatchCommitDataGeneratorMode = process.env.CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE! as DataAvailabityMode;
+    const l1BatchCommitDataGeneratorMode = process.env
+        .CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE! as DataAvailabityMode;
     const minimalL2GasPrice = ethers.BigNumber.from(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);
     let nodeMode;
     if (process.env.EN_MAIN_NODE_URL !== undefined) {

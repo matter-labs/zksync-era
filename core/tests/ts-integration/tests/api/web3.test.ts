@@ -1,16 +1,16 @@
 /**
  * This suite contains tests for the Web3 API compatibility and zkSync-specific extensions.
  */
-import {TestMaster} from '../../src';
+import { TestMaster } from '../../src';
 import * as zksync from 'zksync-ethers';
-import {types} from 'zksync-ethers';
-import {BigNumberish, ethers, Event} from 'ethers';
-import {serialize} from '@ethersproject/transactions';
-import {anyTransaction, deployContract, getTestContract, waitForNewL1Batch} from '../../src/helpers';
-import {shouldOnlyTakeFee} from '../../src/modifiers/balance-checker';
-import fetch, {RequestInit} from 'node-fetch';
-import {EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE} from 'zksync-ethers/build/utils';
-import {NodeMode} from "../../src/types";
+import { types } from 'zksync-ethers';
+import { BigNumberish, ethers, Event } from 'ethers';
+import { serialize } from '@ethersproject/transactions';
+import { anyTransaction, deployContract, getTestContract, waitForNewL1Batch } from '../../src/helpers';
+import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
+import fetch, { RequestInit } from 'node-fetch';
+import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/utils';
+import { NodeMode } from '../../src/types';
 
 // Regular expression to match variable-length hex number.
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
@@ -130,7 +130,7 @@ describe('web3 API compatibility tests', () => {
         expect(batchDetails.number).toEqual(block.l1BatchNumber);
         // zks_estimateFee
         const response = await alice.provider.send('zks_estimateFee', [
-            {from: alice.address, to: alice.address, value: '0x1'}
+            { from: alice.address, to: alice.address, value: '0x1' }
         ]);
         const expectedResponse = {
             gas_limit: expect.stringMatching(HEX_VALUE_REGEX),
@@ -664,19 +664,19 @@ describe('web3 API compatibility tests', () => {
 
         // There are around `0.5 * maxLogsLimit` logs in [tx1Receipt.blockNumber, tx1Receipt.blockNumber] range,
         // so query with such filter should succeed.
-        await expect(alice.provider.getLogs({fromBlock: tx1Receipt.blockNumber, toBlock: tx1Receipt.blockNumber}))
+        await expect(alice.provider.getLogs({ fromBlock: tx1Receipt.blockNumber, toBlock: tx1Receipt.blockNumber }))
             .resolves;
 
         // There are at least `1.5 * maxLogsLimit` logs in [tx1Receipt.blockNumber, tx3Receipt.blockNumber] range,
         // so query with such filter should fail.
         await expect(
-            alice.provider.getLogs({fromBlock: tx1Receipt.blockNumber, toBlock: tx3Receipt.blockNumber})
+            alice.provider.getLogs({ fromBlock: tx1Receipt.blockNumber, toBlock: tx3Receipt.blockNumber })
         ).rejects.toThrow(`Query returned more than ${maxLogsLimit} results.`);
     });
 
     test('Should throw error for estimate gas for account with balance < tx.value', async () => {
         let poorBob = testMaster.newEmptyAccount();
-        expect(poorBob.estimateGas({value: 1, to: alice.address})).toBeRejected('insufficient balance for transfer');
+        expect(poorBob.estimateGas({ value: 1, to: alice.address })).toBeRejected('insufficient balance for transfer');
     });
 
     test('Should check API returns correct block for every tag', async () => {
@@ -958,7 +958,7 @@ export class MockMetamask {
 
     // EIP-1193
     async request(req: { method: string; params?: any[] }) {
-        let {method, params} = req;
+        let { method, params } = req;
         params ??= [];
 
         switch (method) {
