@@ -92,10 +92,8 @@ where
                 let rp = MethodResponse::error(
                     request.id,
                     ErrorObject::borrowed(
-                        ErrorCode::ServerError(
-                            reqwest::StatusCode::TOO_MANY_REQUESTS.as_u16().into(),
-                        )
-                        .code(),
+                        ErrorCode::ServerError(http::StatusCode::TOO_MANY_REQUESTS.as_u16().into())
+                            .code(),
                         "Too many requests",
                         None,
                     ),
@@ -336,10 +334,10 @@ where
 mod tests {
     use std::time::Duration;
 
-    use jsonrpsee::helpers::MethodResponseResult;
     use rand::{thread_rng, Rng};
     use test_casing::{test_casing, Product};
     use zksync_types::api;
+    use zksync_web3_decl::jsonrpsee::helpers::MethodResponseResult;
 
     use super::*;
 
