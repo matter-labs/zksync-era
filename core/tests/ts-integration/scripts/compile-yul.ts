@@ -2,10 +2,10 @@ import * as hre from 'hardhat';
 import * as fs from 'fs';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { exec as _exec, spawn as _spawn } from 'child_process';
-
 import { getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
 import { getCompilersDir } from 'hardhat/internal/util/global-dir';
 import path from 'path';
+import { needsRecompilation, setCompilationTime, CONTRACTS_DIR, TIMESTAMP_FILE_YUL } from './utils';
 
 const COMPILER_VERSION = '1.3.21';
 const IS_COMPILER_PRE_RELEASE = false;
@@ -84,9 +84,20 @@ class CompilerPaths {
     }
 }
 
+// Caching is performed while compiling yul and zkasm contracts
 async function main() {
-    await compileFolder('contracts/yul', 'yul');
-    await compileFolder('contracts/zkasm', 'zkasm');
+    const timestampFilePath = path.join(process.cwd(), TIMESTAMP_FILE_YUL); // File stores the timestamp of last compilation
+    const folderToCheck = path.join(process.cwd(), CONTRACTS_DIR); // Directory to check if files & imports were changed after last compilation
+
+    if (needsRecompilation(folderToCheck, timestampFilePath)) {
+        console.log('Compilation needed.');
+        await compileFolder('contracts/yul', 'yul');
+        await compileFolder('contracts/zkasm', 'zkasm');
+        setCompilationTime(timestampFilePath);
+    } else {
+        console.log('Compilation not needed.');
+        return;
+    }
 }
 
 main()
