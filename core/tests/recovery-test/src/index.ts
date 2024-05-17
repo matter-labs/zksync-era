@@ -72,8 +72,8 @@ export async function getExternalNodeHealth() {
             displayedError = '(connection refused)'; // Don't spam logs with "connection refused" messages
         }
         console.log(
-            `Request to EN health check server failed ${displayedError}, in CI you can see more details 
-            in "Show snapshot-creator.log logs" and "Show contract_verifier.log logs" steps`
+            `Request to EN health check server failed: ${displayedError}. In CI, you can see more details ` +
+                'in "Show * logs" steps'
         );
         return null;
     }

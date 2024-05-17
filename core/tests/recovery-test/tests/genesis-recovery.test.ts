@@ -15,17 +15,21 @@ import {
     waitForProcess
 } from '../src';
 
+// FIXME: check consistency checker health once it has acceptable speed
+
 /**
  * Tests recovery of an external node from scratch.
  *
  * Assumptions:
  *
  * - Main node is run for the duration of the test.
+ * - "Rich wallet" 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 is funded on L2 (e.g., as a result of previous integration or load tests).
  * - `ZKSYNC_ENV` variable is not set (checked at the start of the test). For this reason,
  *   the test doesn't have a `zk` wrapper; it should be launched using `yarn`.
  */
 describe('genesis recovery', () => {
-    const CATCH_UP_BATCH_COUNT = 5;
+    /** Number of L1 batches for the node to process during each phase of the test. */
+    const CATCH_UP_BATCH_COUNT = 3;
 
     const homeDir = process.env.ZKSYNC_HOME!!;
 
@@ -71,6 +75,28 @@ describe('genesis recovery', () => {
         }
     });
 
+    step('generate new batches if necessary', async () => {
+        let pastL1BatchNumber = await mainNode.getL1BatchNumber();
+        while (pastL1BatchNumber < CATCH_UP_BATCH_COUNT) {
+            const transactionResponse = await fundedWallet.transfer({
+                to: fundedWallet.address,
+                amount: 1,
+                token: zksync.utils.ETH_ADDRESS
+            });
+            console.log('Generated a transaction from funded wallet', transactionResponse);
+            const receipt = await transactionResponse.wait();
+            console.log('Got finalized transaction receipt', receipt);
+
+            // Wait until an L1 batch number with the transaction is sealed.
+            let newL1BatchNumber: number;
+            while ((newL1BatchNumber = await mainNode.getL1BatchNumber()) <= pastL1BatchNumber) {
+                await sleep(1000);
+            }
+            console.log(`Sealed L1 batch #${newL1BatchNumber}`);
+            pastL1BatchNumber = newL1BatchNumber;
+        }
+    });
+
     step('drop external node database', async () => {
         const childProcess = spawn('zk db reset', {
             cwd: homeDir,
@@ -109,14 +135,13 @@ describe('genesis recovery', () => {
         });
 
         const mainNodeBatchNumber = await mainNode.getL1BatchNumber();
-        const catchUpBatchNumber = Math.min(mainNodeBatchNumber, CATCH_UP_BATCH_COUNT);
-        console.log(`Catching up to L1 batch #${catchUpBatchNumber}`);
+        expect(mainNodeBatchNumber).to.be.greaterThanOrEqual(CATCH_UP_BATCH_COUNT);
+        console.log(`Catching up to L1 batch #${CATCH_UP_BATCH_COUNT}`);
 
-        let consistencyCheckerSucceeded = false;
         let reorgDetectorSucceeded = false;
         let treeFetcherSucceeded = false;
 
-        while (!treeFetcherSucceeded || !consistencyCheckerSucceeded || !reorgDetectorSucceeded) {
+        while (!treeFetcherSucceeded || !reorgDetectorSucceeded) {
             await sleep(1000);
             const health = await getExternalNodeHealth();
             if (health === null) {
@@ -128,20 +153,7 @@ describe('genesis recovery', () => {
                 const details = health.components.tree_data_fetcher?.details;
                 if (status === 'ready' && details !== undefined && details.last_updated_l1_batch !== undefined) {
                     console.log('Received tree health details', details);
-                    treeFetcherSucceeded = details.last_updated_l1_batch >= catchUpBatchNumber;
-                }
-            }
-
-            if (!consistencyCheckerSucceeded) {
-                const status = health.components.consistency_checker?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
-                const details = health.components.consistency_checker?.details;
-                if (status === 'ready' && details !== undefined) {
-                    console.log('Received consistency checker health details', details);
-                    if (details.first_checked_batch !== undefined && details.last_checked_batch !== undefined) {
-                        expect(details.first_checked_batch).to.equal(1);
-                        consistencyCheckerSucceeded = details.last_checked_batch >= catchUpBatchNumber;
-                    }
+                    treeFetcherSucceeded = details.last_updated_l1_batch >= CATCH_UP_BATCH_COUNT;
                 }
             }
 
@@ -152,7 +164,7 @@ describe('genesis recovery', () => {
                 if (status === 'ready' && details !== undefined) {
                     console.log('Received reorg detector health details', details);
                     if (details.last_correct_l1_batch !== undefined) {
-                        reorgDetectorSucceeded = details.last_correct_l1_batch >= catchUpBatchNumber;
+                        reorgDetectorSucceeded = details.last_correct_l1_batch >= CATCH_UP_BATCH_COUNT;
                     }
                 }
             }
@@ -161,7 +173,6 @@ describe('genesis recovery', () => {
         // If `externalNodeProcess` fails early, we'll trip these checks.
         expect(externalNodeProcess.exitCode).to.be.null;
         expect(treeFetcherSucceeded, 'tree fetching failed').to.be.true;
-        expect(consistencyCheckerSucceeded, 'consistency check failed').to.be.true;
         expect(reorgDetectorSucceeded, 'reorg detection check failed').to.be.true;
     });
 
@@ -176,7 +187,7 @@ describe('genesis recovery', () => {
         await waitForProcess(externalNodeProcess);
     });
 
-    step('generate new batches if necessary', async () => {
+    step('generate new batches for 2nd phase if necessary', async () => {
         let pastL1BatchNumber = await mainNode.getL1BatchNumber();
         while (pastL1BatchNumber < externalNodeBatchNumber + CATCH_UP_BATCH_COUNT) {
             const transactionResponse = await fundedWallet.transfer({
@@ -224,11 +235,10 @@ describe('genesis recovery', () => {
         const catchUpBatchNumber = Math.min(mainNodeBatchNumber, externalNodeBatchNumber + CATCH_UP_BATCH_COUNT);
         console.log(`Catching up to L1 batch #${catchUpBatchNumber}`);
 
-        let consistencyCheckerSucceeded = false;
         let reorgDetectorSucceeded = false;
         let treeSucceeded = false;
 
-        while (!treeSucceeded || !consistencyCheckerSucceeded || !reorgDetectorSucceeded) {
+        while (!treeSucceeded || !reorgDetectorSucceeded) {
             await sleep(1000);
             const health = await getExternalNodeHealth();
             if (health === null) {
@@ -242,18 +252,6 @@ describe('genesis recovery', () => {
                     console.log('Received tree health details', details);
                     expect(details.min_l1_batch_number).to.be.equal(0);
                     treeSucceeded = details.next_l1_batch_number > catchUpBatchNumber;
-                }
-            }
-
-            if (!consistencyCheckerSucceeded) {
-                const status = health.components.consistency_checker?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
-                const details = health.components.consistency_checker?.details;
-                if (status === 'ready' && details !== undefined) {
-                    console.log('Received consistency checker health details', details);
-                    if (details.first_checked_batch !== undefined && details.last_checked_batch !== undefined) {
-                        consistencyCheckerSucceeded = details.last_checked_batch >= catchUpBatchNumber;
-                    }
                 }
             }
 

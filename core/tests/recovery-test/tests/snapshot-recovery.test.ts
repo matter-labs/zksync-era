@@ -53,6 +53,7 @@ interface TokenInfo {
  * Assumptions:
  *
  * - Main node is run for the duration of the test.
+ * - "Rich wallet" 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 is funded on L2 (e.g., as a result of previous integration or load tests).
  * - `ZKSYNC_ENV` variable is not set (checked at the start of the test). For this reason,
  *   the test doesn't have a `zk` wrapper; it should be launched using `yarn`.
  */
