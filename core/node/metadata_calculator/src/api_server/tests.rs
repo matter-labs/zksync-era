@@ -1,9 +1,13 @@
 //! Tests for the Merkle tree API.
 
-use std::net::Ipv4Addr;
+use std::{net::Ipv4Addr, time::Duration};
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
+use tokio::{
+    io::AsyncWriteExt,
+    net::{TcpListener, TcpSocket},
+};
 use zksync_dal::{ConnectionPool, Core};
 
 use super::*;
@@ -73,6 +77,40 @@ async fn merkle_tree_api() {
 }
 
 #[tokio::test]
+async fn api_client_connection_error() {
+    // Use an address that will definitely fail on a timeout.
+    let socket = TcpSocket::new_v4().unwrap();
+    socket.bind((Ipv4Addr::LOCALHOST, 0).into()).unwrap();
+    let local_addr = socket.local_addr().unwrap();
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(1))
+        .build()
+        .unwrap();
+    let api_client = TreeApiHttpClient::from_client(client, &format!("http://{local_addr}"));
+    let err = api_client.get_info().await.unwrap_err();
+    assert_matches!(err, TreeApiError::NotReady(Some(_)));
+}
+
+#[tokio::test]
+async fn api_client_unparesable_response_error() {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let local_addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            stream
+                .write_all(b"HTTP/1.1 200 OK\ncontent-type: application/json\ncontent-length: 13\n\nNot JSON, lol")
+                .await
+                .ok();
+        }
+    });
+
+    let api_client = TreeApiHttpClient::new(&format!("http://{local_addr}"));
+    let err = api_client.get_info().await.unwrap_err();
+    assert_matches!(err, TreeApiError::Internal(_));
+}
+
+#[tokio::test]
 async fn local_merkle_tree_client() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
@@ -82,7 +120,7 @@ async fn local_merkle_tree_client() {
     let tree_reader = calculator.tree_reader();
 
     let err = tree_reader.get_info().await.unwrap_err();
-    assert_matches!(err, TreeApiError::NotReady);
+    assert_matches!(err, TreeApiError::NotReady(None));
 
     // Wait until the calculator processes initial L1 batches.
     run_calculator(calculator).await;

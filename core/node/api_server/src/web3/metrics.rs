@@ -185,7 +185,7 @@ impl Web3ErrorKind {
             Web3Error::LogsLimitExceeded(..) => Self::LogsLimitExceeded,
             Web3Error::InvalidFilterBlockHash => Self::InvalidFilterBlockHash,
             Web3Error::TreeApiUnavailable => Self::TreeApiUnavailable,
-            Web3Error::InternalError(_) | Web3Error::NotImplemented => Self::Internal,
+            Web3Error::InternalError(_) | Web3Error::MethodNotImplemented => Self::Internal,
         }
     }
 }
