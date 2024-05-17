@@ -63,6 +63,10 @@ impl CommitmentGenerator {
         NonZeroU32::new(cpus).unwrap()
     }
 
+    pub fn set_max_parallelism(&mut self, parallelism: NonZeroU32) {
+        self.parallelism = parallelism;
+    }
+
     /// Returns a health check for this generator.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
@@ -319,7 +323,7 @@ impl CommitmentGenerator {
             .connection_pool
             .connection_tagged("commitment_generator")
             .await?;
-        // Transactionality is not required here; since we save batches in order, if we encounter a DB error,
+        // Saving changes atomically is not required here; since we save batches in order, if we encounter a DB error,
         // the commitment generator will be able to recover gracefully.
         for (l1_batch_number, artifacts) in artifacts {
             let latency =
