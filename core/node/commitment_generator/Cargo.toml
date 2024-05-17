@@ -39,3 +39,5 @@ serde_json.workspace = true
 zksync_web3_decl.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
+
+rand.workspace = true

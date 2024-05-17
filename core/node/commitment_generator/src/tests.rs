@@ -2,11 +2,13 @@
 
 use std::thread;
 
-use zk_evm_1_5_0::ethereum_types::Address;
+use rand::{thread_rng, Rng};
 use zksync_dal::Connection;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
-use zksync_types::{block::L1BatchTreeData, zk_evm_types::LogQuery, AccountTreeId, StorageLog};
+use zksync_types::{
+    block::L1BatchTreeData, zk_evm_types::LogQuery, AccountTreeId, Address, StorageLog,
+};
 
 use super::*;
 
@@ -44,7 +46,9 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
         .mark_l2_blocks_as_executed_in_l1_batch(number)
         .await
         .unwrap();
+}
 
+async fn save_l1_batch_tree_data(storage: &mut Connection<'_, Core>, number: L1BatchNumber) {
     let tree_data = L1BatchTreeData {
         hash: H256::from_low_u64_be(number.0.into()),
         rollup_last_leaf_index: 20 + 10 * u64::from(number.0),
@@ -107,6 +111,57 @@ fn processed_batch(health: &Health, expected_number: L1BatchNumber) -> bool {
 }
 
 #[tokio::test]
+async fn determining_batch_range() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let mut generator = create_commitment_generator(pool.clone());
+    generator.parallelism = NonZeroU32::new(4).unwrap(); // to be deterministic
+    assert_eq!(generator.next_batch_range().await.unwrap(), None);
+
+    seal_l1_batch(&mut storage, L1BatchNumber(1)).await;
+    assert_eq!(generator.next_batch_range().await.unwrap(), None); // No tree data for L1 batch #1
+
+    save_l1_batch_tree_data(&mut storage, L1BatchNumber(1)).await;
+    assert_eq!(
+        generator.next_batch_range().await.unwrap(),
+        Some(L1BatchNumber(1)..=L1BatchNumber(1))
+    );
+
+    seal_l1_batch(&mut storage, L1BatchNumber(2)).await;
+    assert_eq!(
+        generator.next_batch_range().await.unwrap(),
+        Some(L1BatchNumber(1)..=L1BatchNumber(1))
+    );
+
+    save_l1_batch_tree_data(&mut storage, L1BatchNumber(2)).await;
+    assert_eq!(
+        generator.next_batch_range().await.unwrap(),
+        Some(L1BatchNumber(1)..=L1BatchNumber(2))
+    );
+
+    for number in 3..=5 {
+        seal_l1_batch(&mut storage, L1BatchNumber(number)).await;
+    }
+    assert_eq!(
+        generator.next_batch_range().await.unwrap(),
+        Some(L1BatchNumber(1)..=L1BatchNumber(2))
+    );
+
+    for number in 3..=5 {
+        save_l1_batch_tree_data(&mut storage, L1BatchNumber(number)).await;
+    }
+    // L1 batch #5 is excluded because of the parallelism limit
+    assert_eq!(
+        generator.next_batch_range().await.unwrap(),
+        Some(L1BatchNumber(1)..=L1BatchNumber(4))
+    );
+}
+
+#[tokio::test]
 async fn commitment_generator_normal_operation() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
@@ -122,6 +177,7 @@ async fn commitment_generator_normal_operation() {
     for number in 1..=5 {
         let number = L1BatchNumber(number);
         seal_l1_batch(&mut storage, number).await;
+        save_l1_batch_tree_data(&mut storage, number).await;
         // Wait until the batch is processed by the generator
         health_check
             .wait_for(|health| processed_batch(health, number))
@@ -157,6 +213,7 @@ async fn commitment_generator_bulk_processing() {
 
     for number in 1..=5 {
         seal_l1_batch(&mut storage, L1BatchNumber(number)).await;
+        save_l1_batch_tree_data(&mut storage, L1BatchNumber(number)).await;
     }
 
     let mut generator = create_commitment_generator(pool.clone());
@@ -185,6 +242,60 @@ async fn commitment_generator_bulk_processing() {
         );
     }
 
+    stop_sender.send_replace(true);
+    generator_handle.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn commitment_generator_with_tree_emulation() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+    drop(storage);
+
+    // Emulates adding new batches to the storage.
+    let new_batches_pool = pool.clone();
+    let new_batches_handle = tokio::spawn(async move {
+        for number in 1..=10 {
+            let sleep_delay = Duration::from_millis(thread_rng().gen_range(1..20));
+            tokio::time::sleep(sleep_delay).await;
+            let mut storage = new_batches_pool.connection().await.unwrap();
+            seal_l1_batch(&mut storage, L1BatchNumber(number)).await;
+        }
+    });
+
+    let tree_emulator_pool = pool.clone();
+    let tree_emulator_handle = tokio::spawn(async move {
+        for number in 1..=10 {
+            let mut storage = tree_emulator_pool.connection().await.unwrap();
+            while storage
+                .blocks_dal()
+                .get_sealed_l1_batch_number()
+                .await
+                .unwrap()
+                < Some(L1BatchNumber(number))
+            {
+                let sleep_delay = Duration::from_millis(thread_rng().gen_range(5..10));
+                tokio::time::sleep(sleep_delay).await;
+            }
+            save_l1_batch_tree_data(&mut storage, L1BatchNumber(number)).await;
+        }
+    });
+
+    let mut generator = create_commitment_generator(pool.clone());
+    generator.parallelism = NonZeroU32::new(10).unwrap(); // enough to process all batches at once
+    let mut health_check = generator.health_check();
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let generator_handle = tokio::spawn(generator.run(stop_receiver));
+
+    health_check
+        .wait_for(|health| processed_batch(health, L1BatchNumber(10)))
+        .await;
+
+    new_batches_handle.await.unwrap();
+    tree_emulator_handle.await.unwrap();
     stop_sender.send_replace(true);
     generator_handle.await.unwrap().unwrap();
 }

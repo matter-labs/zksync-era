@@ -394,18 +394,20 @@ impl CommitmentGenerator {
             return Ok(None);
         };
 
-        let sealed_batch_number = connection
+        let Some(last_batch_number) = connection
             .blocks_dal()
-            .get_sealed_l1_batch_number()
+            .get_last_l1_batch_ready_for_commitment_generation()
             .await?
-            .context("there is a batch without commitments, but no sealed batches")?;
+        else {
+            return Ok(None);
+        };
         anyhow::ensure!(
-            next_batch_number <= sealed_batch_number,
-            "Unexpected node state: next L1 batch w/o commitment (#{next_batch_number}) is greater than \
-             the last sealed L1 batch (#{sealed_batch_number})"
+            next_batch_number <= last_batch_number,
+            "Unexpected node state: next L1 batch ready for commitment generation (#{next_batch_number}) is greater than \
+             the last L1 batch ready for commitment generation (#{last_batch_number})"
         );
         let last_batch_number =
-            sealed_batch_number.min(next_batch_number + self.parallelism.get() - 1);
+            last_batch_number.min(next_batch_number + self.parallelism.get() - 1);
         Ok(Some(next_batch_number..=last_batch_number))
     }
 

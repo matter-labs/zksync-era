@@ -8078,6 +8078,7 @@ dependencies = [
  "itertools 0.10.5",
  "multivm",
  "num_cpus",
+ "rand 0.8.5",
  "serde_json",
  "tokio",
  "tracing",
