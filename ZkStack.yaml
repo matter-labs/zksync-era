@@ -1,0 +1,10 @@
+name: zksync
+l1_network: Localhost
+link_to_code: .
+hyperchains: ./hyperchains
+config: ./configs/
+default_hyperchain: era
+l1_rpc_url: http://localhost:8545
+era_chain_id: 270
+prover_version: NoProofs
+wallet_creation: Localhost

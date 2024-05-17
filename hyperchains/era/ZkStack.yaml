@@ -1,0 +1,12 @@
+id: 1
+name: era
+chain_id: 271
+prover_version: NoProofs
+configs: ./hyperchains/era/configs/
+rocks_db_path: ./hyperchains/era/db/
+l1_batch_commit_data_generator_mode: Rollup
+wallet_creation: Localhost
+base_token:
+  address: '0x0000000000000000000000000000000000000001'
+  nominator: 1
+  denominator: 1
