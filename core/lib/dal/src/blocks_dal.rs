@@ -405,7 +405,11 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<()> {
         match aggregation_type {
             AggregatedActionType::Commit => {
-                let result = sqlx::query!(
+                let instrumentation = Instrumented::new("set_eth_tx_id#commit")
+                    .with_arg("number_range", &number_range)
+                    .with_arg("eth_tx_id", &eth_tx_id);
+
+                let query = sqlx::query!(
                     r#"
                     UPDATE l1_batches
                     SET
@@ -418,28 +422,25 @@ impl BlocksDal<'_, '_> {
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
                     i64::from(number_range.end().0)
-                )
-                .instrument("set_eth_tx_id#commit")
-                .with_arg("number_range", &number_range)
-                .with_arg("eth_tx_id", &eth_tx_id)
-                .execute(self.storage)
-                .await?;
+                );
+                let result = instrumentation
+                    .clone()
+                    .with(query)
+                    .execute(self.storage)
+                    .await?;
 
                 if result.rows_affected() == 0 {
-                    let err = Instrumented::new("set_eth_tx_id#commit")
-                        .with_arg("number_range", &number_range)
-                        .with_arg("eth_tx_id", &eth_tx_id)
-                        .arg_error(
-                            "eth_tx_id",
-                            anyhow::anyhow!(
-                                "Update eth_commit_tx_id that is is not null is not allowed"
-                            ),
-                        );
+                    let err = instrumentation.constraint_error(anyhow::anyhow!(
+                        "Update eth_commit_tx_id that is is not null is not allowed"
+                    ));
                     return Err(err);
                 }
             }
             AggregatedActionType::PublishProofOnchain => {
-                let result = sqlx::query!(
+                let instrumentation = Instrumented::new("set_eth_tx_id#prove")
+                    .with_arg("number_range", &number_range)
+                    .with_arg("eth_tx_id", &eth_tx_id);
+                let query = sqlx::query!(
                     r#"
                     UPDATE l1_batches
                     SET
@@ -452,28 +453,27 @@ impl BlocksDal<'_, '_> {
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
                     i64::from(number_range.end().0)
-                )
-                .instrument("set_eth_tx_id#prove")
-                .with_arg("number_range", &number_range)
-                .with_arg("eth_tx_id", &eth_tx_id)
-                .execute(self.storage)
-                .await?;
+                );
+
+                let result = instrumentation
+                    .clone()
+                    .with(query)
+                    .execute(self.storage)
+                    .await?;
 
                 if result.rows_affected() == 0 {
-                    let err = Instrumented::new("set_eth_tx_id#prove")
-                        .with_arg("number_range", &number_range)
-                        .with_arg("eth_tx_id", &eth_tx_id)
-                        .arg_error(
-                            "eth_tx_id",
-                            anyhow::anyhow!(
-                                "Update eth_prove_tx_id that is is not null is not allowed"
-                            ),
-                        );
+                    let err = instrumentation.constraint_error(anyhow::anyhow!(
+                        "Update eth_prove_tx_id that is is not null is not allowed"
+                    ));
                     return Err(err);
                 }
             }
             AggregatedActionType::Execute => {
-                let result = sqlx::query!(
+                let instrumentation = Instrumented::new("set_eth_tx_id#execute")
+                    .with_arg("number_range", &number_range)
+                    .with_arg("eth_tx_id", &eth_tx_id);
+
+                let query = sqlx::query!(
                     r#"
                     UPDATE l1_batches
                     SET
@@ -486,23 +486,18 @@ impl BlocksDal<'_, '_> {
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
                     i64::from(number_range.end().0)
-                )
-                .instrument("set_eth_tx_id#execute")
-                .with_arg("number_range", &number_range)
-                .with_arg("eth_tx_id", &eth_tx_id)
-                .execute(self.storage)
-                .await?;
+                );
+
+                let result = instrumentation
+                    .clone()
+                    .with(query)
+                    .execute(self.storage)
+                    .await?;
 
                 if result.rows_affected() == 0 {
-                    let err = Instrumented::new("set_eth_tx_id#execute")
-                        .with_arg("number_range", &number_range)
-                        .with_arg("eth_tx_id", &eth_tx_id)
-                        .arg_error(
-                            "eth_tx_id",
-                            anyhow::anyhow!(
-                                "Update eth_execute_tx_id that is is not null is not allowed"
-                            ),
-                        );
+                    let err = instrumentation.constraint_error(anyhow::anyhow!(
+                        "Update eth_execute_tx_id that is is not null is not allowed"
+                    ));
                     return Err(err);
                 }
             }
