@@ -22,7 +22,7 @@ export function getTestContract(name: string): ZkSyncArtifact {
  * @returns Conta
  */
 export function getContractSource(relativePath: string): string {
-    const contractPath = `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/contracts/${relativePath}`;
+    const contractPath = `${__dirname}/../contracts/${relativePath}`;
     const source = fs.readFileSync(contractPath, 'utf8');
     return source;
 }
@@ -77,6 +77,7 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
     }
     return await wallet.provider.getTransactionReceipt(oldReceipt.transactionHash);
 }
+
 /**
  * Waits until the requested block is finalized.
  *

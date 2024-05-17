@@ -1,5 +1,15 @@
 import { ethers } from 'ethers';
 
+export enum NodeMode {
+    Main,
+    External
+}
+
+export enum DataAvailabityMode {
+    Rollup = 'Rollup',
+    Validium = 'Validium'
+}
+
 /**
  * Description of an ERC20 token.
  */
@@ -15,6 +25,38 @@ export interface Token {
  * Description of the environment the integration tests are being run in.
  */
 export interface TestEnvironment {
+    /*
+     * Max Logs limit
+     */
+    maxLogsLimit: number;
+    /*
+     * Gas limit for priority txs
+     */
+    priorityTxMaxGasLimit: number;
+    /*
+     * Gas limit for computations
+     */
+    validationComputationalGasLimit: number;
+    /*
+     * Minimal gas price of l2
+     */
+    minimalL2GasPrice: ethers.BigNumber;
+    /*
+     * Data availability mode
+     */
+    l1BatchCommitDataGeneratorMode: DataAvailabityMode;
+    /*
+     * Path to code home directory
+     */
+    pathToHome: string;
+    /**
+     * Chain Id of the L2 Network
+     */
+    l2ChainId: number;
+    /*
+     * Mode of the l2 node
+     */
+    nodeMode: NodeMode;
     /**
      * Plaintext name of the L1 network name (i.e. `localhost` or `goerli`).
      */
