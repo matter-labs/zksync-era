@@ -1,0 +1,61 @@
+name: Workflow template for zk-toolbox CI jobs
+on:
+  workflow_call:
+
+
+jobs:
+  build:
+    runs-on: [matterlabs-ci-runner]
+
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
+
+      - name: Build tool
+        working-directory: zk_toolbox
+        run: |
+          cargo build --release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: zk_toolbox
+          path: |
+            zk_toolbox/target/release/zk_inception
+            zk_toolbox/target/release/zk_supervisor
+
+  create_ecosystem:
+    runs-on: [matterlabs-ci-runner]
+
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: zk_toolbox
+          path: zk_toolbox_bin
+
+      - name: Add binaries to PATH
+        run: |
+          echo $(pwd)/zk_toolbox_bin >> $GITHUB_PATH
+
+      - name: Create ecosystem
+        run: |
+          zk_inception ecosystem create --ecosystem-name="ecosystem" --link-to-code="" \
+            --l1-network="localhost" --l1-rpc-url="http://localhost:8545" --hyperchain-name="hyperchain" \
+            --chain-id="271" --wallet-creation="localhost" --prover-mode="no-proofs" \
+            --l1-batch-commit-data-generator-mode="rollup" \
+            --base-token-address="0x0000000000000000000000000000000000000001" \
+            --base-token-price-nominator="1" --base-token-price-denominator="1" --start-containers
+
+      - name: Initialize ecosystem
+        working-directory: ecosystem
+        run: |
+          zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --use-default

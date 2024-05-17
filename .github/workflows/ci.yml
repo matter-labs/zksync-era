@@ -64,6 +64,11 @@ jobs:
               - '**/*.md'
               - '**/*.MD'
               - '.github/workflows/ci-docs-reusable.yml'
+            zk_toolbox:
+              - 'zk_toolbox/**'
+              - '.github/workflows/ci-zk-toolbox-reusable.yml'
+              - '!**/*.md'
+              - '!**/*.MD'
             all:
               - '.github/workflows/ci.yml'
               - 'bin/**'
@@ -103,6 +108,12 @@ jobs:
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for Common Components (prover or core)
     uses: ./.github/workflows/ci-common-reusable.yml
+
+  ci-for-zk-toolbox:
+    needs: changed_files
+    if: needs.changed_files.outputs.zk_toolbox == 'true'
+    name: CI for zk_toolbox
+    uses: ./.github/workflows/ci-zk-toolbox-reusable.yml
 
   build-core-images:
     name: Build core images
