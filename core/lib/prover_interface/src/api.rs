@@ -36,12 +36,14 @@ pub enum GenericProofGenerationDataResponse<T> {
 pub type ProofGenerationDataResponse = GenericProofGenerationDataResponse<ProofGenerationData>;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum SubmitProofRequest {
-    Proof(Box<L1BatchProofForL1>),
-    TeeProof(Box<L1BatchTeeProofForL1>),
+pub enum GenericSubmitProofRequest<T> {
+    Proof(Box<T>),
     // The proof generation was skipped due to sampling
     SkippedProofGeneration,
 }
+
+pub type SubmitProofRequest = GenericSubmitProofRequest<L1BatchProofForL1>;
+pub type SubmitTeeProofRequest = GenericSubmitProofRequest<L1BatchTeeProofForL1>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofResponse {

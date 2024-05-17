@@ -7,15 +7,17 @@ use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
-    ProofGenerationDataRequest, SubmitProofRequest, TeeProofGenerationDataRequest,
+    ProofGenerationDataRequest, SubmitProofRequest, SubmitTeeProofRequest,
+    TeeProofGenerationDataRequest,
 };
 use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::request_processor::RequestProcessor;
-mod tee_request_processor;
 use crate::tee_request_processor::TeeRequestProcessor;
 
+mod errors;
 mod request_processor;
+mod tee_request_processor;
 
 pub async fn run_server(
     config: ProofDataHandlerConfig,
@@ -66,9 +68,9 @@ pub async fn run_server(
             ),
         )
         .route(
-            "/submit_tee_proof/:l1_batch_number",
+            "/submit_tee_proof/:l1_batch_number", // add TEE type as a parameter
             post(
-                move |l1_batch_number: Path<u32>, payload: Json<SubmitProofRequest>| async move {
+                move |l1_batch_number: Path<u32>, payload: Json<SubmitTeeProofRequest>| async move {
                     submit_tee_proof_processor
                         .submit_proof(l1_batch_number, payload)
                         .await

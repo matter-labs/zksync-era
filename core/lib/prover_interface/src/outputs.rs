@@ -15,7 +15,8 @@ pub struct L1BatchProofForL1 {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct L1BatchTeeProofForL1 {
-    // TBD Remote Attestation Report / Signature should be here
+    // TODO revisit what else is needed here
+    signature: Vec<u8>,
 }
 
 impl fmt::Debug for L1BatchProofForL1 {
