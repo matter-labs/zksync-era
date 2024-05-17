@@ -52,7 +52,7 @@ jobs:
           - prover-fri-gateway
           - proof-fri-compressor
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
 
@@ -68,6 +68,7 @@ jobs:
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
           mkdir -p ./volumes/postgres
+          run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run sccache --start-server
 
@@ -101,7 +102,7 @@ jobs:
           retry_count=0
 
           while [[ $retry_count -lt $max_retries ]]; do
-            response=$(curl -s -w "%{http_code}" -o temp.json "$api_endpoint")
+            response=$(curl --retry 5 -s -w "%{http_code}" -o temp.json "$api_endpoint")
             http_code=$(echo "$response" | tail -n1)
 
             if [[ "$http_code" == "200" ]]; then
