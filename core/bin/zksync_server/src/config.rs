@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_core::temp_config_store::decode_yaml_repr;
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_protobuf_config::proto;
 
 pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
@@ -10,7 +10,8 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets
     };
     let secrets = std::fs::read_to_string(&path).context(path)?;
     Ok(Some(
-        decode_yaml_repr::<proto::consensus::Secrets>(&secrets).context("failed decoding YAML")?,
+        decode_yaml_repr::<proto::secrets::ConsensusSecrets>(&secrets)
+            .context("failed decoding YAML")?,
     ))
 }
 

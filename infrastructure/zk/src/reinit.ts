@@ -12,6 +12,7 @@ const reinitDevCmdAction = async (): Promise<void> => {
     await initDevCmdAction({
         skipEnvSetup: true,
         skipSubmodulesCheckout: true,
+        skipVerifier: true,
         skipTestTokenDeployment: true,
         // TODO(EVM-573): support Validium mode
         runObservability: true,

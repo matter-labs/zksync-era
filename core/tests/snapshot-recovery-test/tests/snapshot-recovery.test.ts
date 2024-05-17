@@ -2,7 +2,6 @@ import { expect } from 'chai';
 import fetch, { FetchError } from 'node-fetch';
 import * as protobuf from 'protobufjs';
 import * as zlib from 'zlib';
-import * as zkweb3 from 'zksync-web3';
 import fs, { FileHandle } from 'node:fs/promises';
 import { ChildProcess, spawn, exec } from 'node:child_process';
 import path from 'node:path';
@@ -111,18 +110,18 @@ describe('snapshot recovery', () => {
     };
 
     let snapshotMetadata: GetSnapshotResponse;
-    let mainNode: zkweb3.Provider;
-    let externalNode: zkweb3.Provider;
+    let mainNode: zksync.Provider;
+    let externalNode: zksync.Provider;
     let externalNodeLogs: FileHandle;
     let externalNodeProcess: ChildProcess;
 
-    let fundedWallet: zkweb3.Wallet;
+    let fundedWallet: zksync.Wallet;
 
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
             .to.be.undefined;
-        mainNode = new zkweb3.Provider('http://127.0.0.1:3050');
-        externalNode = new zkweb3.Provider('http://127.0.0.1:3060');
+        mainNode = new zksync.Provider('http://127.0.0.1:3050');
+        externalNode = new zksync.Provider('http://127.0.0.1:3060');
         await killExternalNode();
     });
 
@@ -130,7 +129,7 @@ describe('snapshot recovery', () => {
         const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
         const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
         const mnemonic = ethTestConfig.test_mnemonic as string;
-        fundedWallet = zkweb3.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0").connect(mainNode);
+        fundedWallet = zksync.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0").connect(mainNode);
     });
 
     after(async () => {
@@ -151,7 +150,7 @@ describe('snapshot recovery', () => {
         return output as GetSnapshotResponse;
     }
 
-    async function getAllTokens(provider: zkweb3.Provider, atBlock?: number) {
+    async function getAllTokens(provider: zksync.Provider, atBlock?: number) {
         const output = await provider.send('en_syncTokens', atBlock ? [atBlock] : []);
         return output as TokenInfo[];
     }

@@ -294,9 +294,6 @@ impl Distribution<configs::database::DBConfig> for EncodeDist {
 impl Distribution<configs::database::PostgresConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::PostgresConfig {
         configs::database::PostgresConfig {
-            master_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
-            replica_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
-            prover_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
             max_connections: self.sample(rng),
             max_connections_master: self.sample(rng),
             acquire_timeout_sec: self.sample(rng),
@@ -315,7 +312,6 @@ impl Distribution<configs::EthConfig> for EncodeDist {
             sender: self.sample(rng),
             gas_adjuster: self.sample(rng),
             watcher: self.sample(rng),
-            web3_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
         }
     }
 }
@@ -745,6 +741,37 @@ impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
         ConsensusSecrets {
             validator_key: self.sample_opt(|| ValidatorSecretKey(String::into(self.sample(rng)))),
             node_key: self.sample_opt(|| NodeSecretKey(String::into(self.sample(rng)))),
+        }
+    }
+}
+
+impl Distribution<configs::secrets::L1Secrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::L1Secrets {
+        use configs::secrets::L1Secrets;
+        L1Secrets {
+            l1_rpc_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
+        }
+    }
+}
+
+impl Distribution<configs::secrets::DatabaseSecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DatabaseSecrets {
+        use configs::secrets::DatabaseSecrets;
+        DatabaseSecrets {
+            server_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            server_replica_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            prover_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+        }
+    }
+}
+
+impl Distribution<configs::secrets::Secrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::Secrets {
+        use configs::secrets::Secrets;
+        Secrets {
+            consensus: self.sample_opt(|| self.sample(rng)),
+            database: self.sample_opt(|| self.sample(rng)),
+            l1: self.sample_opt(|| self.sample(rng)),
         }
     }
 }

@@ -3,7 +3,7 @@ use clap::Args as ClapArgs;
 use prover_dal::{
     fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
 };
-use zksync_config::PostgresConfig;
+use zksync_config::configs::DatabaseSecrets;
 use zksync_env_config::FromEnv;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
@@ -23,7 +23,7 @@ pub(crate) struct Args {
 }
 
 pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
-    let config = PostgresConfig::from_env()?;
+    let config = DatabaseSecrets::from_env()?;
     let prover_connection_pool = ConnectionPool::<Prover>::singleton(config.prover_url()?)
         .build()
         .await
