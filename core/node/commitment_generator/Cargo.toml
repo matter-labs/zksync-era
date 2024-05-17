@@ -37,3 +37,5 @@ serde_json.workspace = true
 
 [dev-dependencies]
 zksync_web3_decl.workspace = true
+zksync_node_genesis.workspace = true
+zksync_node_test_utils.workspace = true

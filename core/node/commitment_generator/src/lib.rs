@@ -1,4 +1,4 @@
-use std::{num::NonZeroU32, ops, time::Duration};
+use std::{num::NonZeroU32, ops, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -21,18 +21,21 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     metrics::{CommitmentStage, METRICS},
-    utils::{bootloader_initial_content_commitment, events_queue_commitment},
+    utils::{CommitmentComputer, RealCommitmentComputer},
 };
 
 mod metrics;
+#[cfg(test)]
+mod tests;
 mod utils;
 pub mod validation_task;
 
 const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 
-/// Component resposible for generating commitments for L1 batches.
+/// Component responsible for generating commitments for L1 batches.
 #[derive(Debug)]
 pub struct CommitmentGenerator {
+    computer: Arc<dyn CommitmentComputer>,
     connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     commitment_mode: L1BatchCommitmentMode,
@@ -46,6 +49,7 @@ impl CommitmentGenerator {
         commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
+            computer: Arc::new(RealCommitmentComputer),
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
             commitment_mode,
@@ -93,25 +97,26 @@ impl CommitmentGenerator {
             })?;
         drop(connection);
 
+        let computer = self.computer.clone();
         let events_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
                 let latency = METRICS.events_queue_commitment_latency.start();
                 let events_queue_commitment =
-                    events_queue_commitment(&events_queue, protocol_version)
-                        .context("Events queue commitment is required for post-boojum batch")?;
+                    computer.events_queue_commitment(&events_queue, protocol_version)?;
                 latency.observe();
 
                 Ok(events_queue_commitment)
             });
 
+        let computer = self.computer.clone();
         let bootloader_memory_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
                 let latency = METRICS.bootloader_content_commitment_latency.start();
-                let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
-                    &initial_bootloader_contents,
-                    protocol_version,
-                )
-                .context("Bootloader content commitment is required for post-boojum batch")?;
+                let bootloader_initial_content_commitment = computer
+                    .bootloader_initial_content_commitment(
+                        &initial_bootloader_contents,
+                        protocol_version,
+                    )?;
                 latency.observe();
 
                 Ok(bootloader_initial_content_commitment)
