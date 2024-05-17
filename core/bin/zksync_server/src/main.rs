@@ -263,9 +263,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         state_keeper_config: StateKeeperConfig::from_env().ok(),
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
-        fri_prover_config: FriProverConfig::from_env()
-            .context("fri_prover_config")
-            .ok(),
+        fri_prover_config: FriProverConfig::from_env().ok(),
         fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
         fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
         fri_witness_vector_generator: FriWitnessVectorGeneratorConfig::from_env().ok(),

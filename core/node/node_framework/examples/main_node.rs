@@ -356,6 +356,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    #[allow(dead_code)] // Temporary disabled due to changes in the config loading approach.
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         // Copy-pasted from the zksync_server codebase.
 
@@ -435,7 +436,7 @@ fn main() -> anyhow::Result<()> {
         .add_house_keeper_layer()?
         .add_commitment_generator_layer()?
         .add_contract_verification_api_layer()?
-        .add_consensus_layer()?
+        // .add_consensus_layer()? // Temporarily disabled due to changes in the config loading approach.
         .build()?
         .run()?;
 
