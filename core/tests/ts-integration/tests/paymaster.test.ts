@@ -87,7 +87,8 @@ describe('Paymaster tests', () => {
             alice,
             paymaster.address,
             erc20Address,
-            correctSignature
+            correctSignature,
+            testMaster.environment().l2ChainId
         );
         await expect(txPromise).toBeAccepted([
             checkReceipt(
@@ -122,13 +123,15 @@ describe('Paymaster tests', () => {
         // should not be required from the users. We still do it here for the purpose of the test.
         tx.gasLimit = tx.gasLimit!.add(300000);
 
+        testMaster.environment().l2ChainId;
         const txPromise = sendTxWithTestPaymasterParams(
             tx,
             alice.provider,
             alice,
             paymaster.address,
             erc20Address,
-            correctSignature
+            correctSignature,
+            testMaster.environment().l2ChainId
         );
         await expect(txPromise).toBeAccepted([
             checkReceipt(
@@ -231,7 +234,8 @@ describe('Paymaster tests', () => {
                 alice,
                 paymaster.address,
                 erc20Address,
-                incorrectSignature
+                incorrectSignature,
+                testMaster.environment().l2ChainId
             )
         ).toBeRejected('Paymaster validation error');
     });
@@ -430,12 +434,13 @@ async function sendTxWithTestPaymasterParams(
     sender: Wallet,
     paymasterAddress: string,
     token: string,
-    paymasterSignature: ethers.BytesLike
+    paymasterSignature: ethers.BytesLike,
+    l2ChainId: number
 ) {
     const gasPrice = await web3Provider.getGasPrice();
 
     tx.gasPrice = gasPrice;
-    tx.chainId = parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!, 10);
+    tx.chainId = l2ChainId;
     tx.value = ethers.BigNumber.from(0);
     tx.nonce = await web3Provider.getTransactionCount(sender.address);
     tx.type = 113;
