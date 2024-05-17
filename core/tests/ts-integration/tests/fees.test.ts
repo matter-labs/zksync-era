@@ -15,7 +15,7 @@ import { TestMaster } from '../src/index';
 
 import * as zksync from 'zksync-ethers';
 import { BigNumber, ethers } from 'ethers';
-import { Token } from '../src/types';
+import { DataAvailabityMode, Token } from '../src/types';
 
 const UINT32_MAX = BigNumber.from(2).pow(32).sub(1);
 
@@ -134,7 +134,7 @@ testFees('Test fees', () => {
     });
 
     test('Test gas consumption under large L1 gas price', async () => {
-        if (process.env.CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE === 'Validium') {
+        if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Validium) {
             // We skip this test for Validium mode, since L1 gas price has little impact on the gasLimit in this mode.
             return;
         }
@@ -144,7 +144,7 @@ testFees('Test fees', () => {
 
         // In this test we will set gas per pubdata byte to its maximum value, while publishing a large L1->L2 message.
 
-        const minimalL2GasPrice = ethers.BigNumber.from(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);
+        const minimalL2GasPrice = BigNumber.from(testMaster.environment().minimalL2GasPrice);
 
         // We want the total gas limit to be over u32::MAX, so we need the gas per pubdata to be 50k.
         //
