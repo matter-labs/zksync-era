@@ -7,9 +7,6 @@ on:
         description: "Tag of an image"
         type: string
         required: true
-  push:
-    branches:
-      - fix-release-stable-en
 
 jobs:
   release:
@@ -23,7 +20,7 @@ jobs:
       - name: Check if alpha image exists
         run: |
           set +e
-          docker manifest inspect matterlabs/external-node:v24.2.0-alpha >/dev/null 2>&1
+          docker manifest inspect matterlabs/external-node:${{ inputs.tag_name }}-alpha >/dev/null 2>&1
           exitcode=$?
           set -e
           if [[ "$exitcode" -eq "1" ]]; then
@@ -35,7 +32,7 @@ jobs:
         run: |
           docker_repositories=("matterlabs/external-node" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/external-node")
           platforms=linux/amd64,linux/arm64
-          tag_name="v24.2.0"
+          tag_name="${{ inputs.tag_name }}"
           for repo in "${docker_repositories[@]}"; do
             platform_tags=""
             for platform in ${platforms//,/ }; do
