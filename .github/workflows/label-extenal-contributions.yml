@@ -22,7 +22,7 @@ jobs:
 
         if [[ "$IS_FORK" == "true" ]]; then
             echo "This PR is created from a fork."
-            HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}\n" \
+            HTTP_STATUS=$(curl --retry 5 -o /dev/null -s -w "%{http_code}\n" \
             -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \

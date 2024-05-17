@@ -30,6 +30,7 @@ jobs:
 
       - name: Start services
         run: |
+          run_retried docker compose pull zk
           docker compose up -d zk
 
       - name: Build zk

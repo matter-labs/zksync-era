@@ -111,6 +111,7 @@ jobs:
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
           mkdir -p ./volumes/postgres
+          run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run sccache --start-server
 
