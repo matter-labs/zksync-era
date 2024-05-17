@@ -496,9 +496,10 @@ impl StorageApiTransaction {
             .signature
             .and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
 
-        let address = match serde_json::from_value(self.execute_contract_address) {
-            Ok(value) => Some(value),
-            Err(e) => None,
+        let to = if let Ok(address) = serde_json::from_value(self.execute_contract_address) {
+            Some(address)
+        } else {
+            Some(Address::zero())
         };
 
         let mut tx = api::Transaction {
@@ -508,7 +509,7 @@ impl StorageApiTransaction {
             block_number: self.block_number.map(|number| U64::from(number as u64)),
             transaction_index: self.index_in_block.map(|idx| U64::from(idx as u64)),
             from: Some(Address::from_slice(&self.initiator_address)),
-            to: address,
+            to,
             value: bigdecimal_to_u256(self.value),
             gas_price: Some(bigdecimal_to_u256(
                 self.effective_gas_price
