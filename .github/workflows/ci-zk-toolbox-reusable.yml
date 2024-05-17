@@ -44,9 +44,6 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
