@@ -282,7 +282,7 @@ async fn log_filter_changes_with_block_boundaries() {
 fn assert_not_implemented<T: Debug>(result: Result<T, Error>) {
     assert_matches!(result, Err(Error::Call(e)) => {
         assert_eq!(e.code(), ErrorCode::MethodNotFound.code());
-        assert_eq!(e.message(), "Not implemented");
+        assert_eq!(e.message(), "Method not implemented");
     });
 }
 
