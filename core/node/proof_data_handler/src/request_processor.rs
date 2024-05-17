@@ -1,14 +1,10 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::Path,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Json,
-};
+use crate::errors::RequestProcessorError;
+use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, Core, CoreDal, SqlxError};
-use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
     SubmitProofRequest, SubmitProofResponse,
@@ -26,38 +22,6 @@ pub(crate) struct RequestProcessor {
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
-}
-
-pub(crate) enum RequestProcessorError {
-    ObjectStore(ObjectStoreError),
-    Sqlx(SqlxError),
-}
-
-impl IntoResponse for RequestProcessorError {
-    fn into_response(self) -> Response {
-        let (status_code, message) = match self {
-            RequestProcessorError::ObjectStore(err) => {
-                tracing::error!("GCS error: {:?}", err);
-                (
-                    StatusCode::BAD_GATEWAY,
-                    "Failed fetching/saving from GCS".to_owned(),
-                )
-            }
-            RequestProcessorError::Sqlx(err) => {
-                tracing::error!("Sqlx error: {:?}", err);
-                match err {
-                    SqlxError::RowNotFound => {
-                        (StatusCode::NOT_FOUND, "Non existing L1 batch".to_owned())
-                    }
-                    _ => (
-                        StatusCode::BAD_GATEWAY,
-                        "Failed fetching/saving from db".to_owned(),
-                    ),
-                }
-            }
-        };
-        (status_code, message).into_response()
-    }
 }
 
 impl RequestProcessor {
@@ -251,7 +215,6 @@ impl RequestProcessor {
                     .await
                     .map_err(RequestProcessorError::Sqlx)?;
             }
-            SubmitProofRequest::TeeProof(_proof) => { /* TBD */ }
             SubmitProofRequest::SkippedProofGeneration => {
                 self.pool
                     .connection()
