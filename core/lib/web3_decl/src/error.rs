@@ -11,7 +11,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use jsonrpsee::core::ClientError;
+use jsonrpsee::{core::ClientError, types::error::ErrorCode};
 use pin_project_lite::pin_project;
 use thiserror::Error;
 use zksync_types::{api::SerializationTransactionError, L1BatchNumber, L2BlockNumber};
@@ -87,10 +87,15 @@ impl EnrichedClientError {
 
     /// Whether the error should be considered transient.
     pub fn is_transient(&self) -> bool {
-        matches!(
-            self.as_ref(),
-            ClientError::Transport(_) | ClientError::RequestTimeout
-        )
+        match self.as_ref() {
+            ClientError::Transport(_) | ClientError::RequestTimeout => true,
+            ClientError::Call(err) => {
+                // At least some RPC providers use "internal error" in case of the server being overloaded
+                err.code() == ErrorCode::ServerIsBusy.code()
+                    || err.code() == ErrorCode::InternalError.code()
+            }
+            _ => false,
+        }
     }
 }
 
