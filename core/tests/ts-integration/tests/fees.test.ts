@@ -144,7 +144,7 @@ testFees('Test fees', () => {
 
         // In this test we will set gas per pubdata byte to its maximum value, while publishing a large L1->L2 message.
 
-        const minimalL2GasPrice = testMaster.environment().minimalL2GasPrice;
+        const minimalL2GasPrice = BigNumber.from(testMaster.environment().minimalL2GasPrice);
 
         // We want the total gas limit to be over u32::MAX, so we need the gas per pubdata to be 50k.
         //

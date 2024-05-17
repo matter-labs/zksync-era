@@ -108,6 +108,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     const l1BatchCommitDataGeneratorMode = process.env
         .CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE! as DataAvailabityMode;
     const minimalL2GasPrice = ethers.BigNumber.from(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);
+    minimalL2GasPrice.mul(2);
     let nodeMode;
     if (process.env.EN_MAIN_NODE_URL !== undefined) {
         nodeMode = NodeMode.External;
