@@ -15,7 +15,7 @@ jobs:
       - name: Build tool
         working-directory: zk_toolbox
         run: |
-          cargo build --release
+          ci_run cargo build --release
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -48,7 +48,7 @@ jobs:
 
       - name: Create ecosystem
         run: |
-          zk_inception ecosystem create --ecosystem-name="ecosystem" --link-to-code="" \
+          ci_run zk_inception ecosystem create --ecosystem-name="ecosystem" --link-to-code="" \
             --l1-network="localhost" --l1-rpc-url="http://localhost:8545" --hyperchain-name="hyperchain" \
             --chain-id="271" --wallet-creation="localhost" --prover-mode="no-proofs" \
             --l1-batch-commit-data-generator-mode="rollup" \
@@ -58,4 +58,4 @@ jobs:
       - name: Initialize ecosystem
         working-directory: ecosystem
         run: |
-          zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --use-default
+          ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --use-default
