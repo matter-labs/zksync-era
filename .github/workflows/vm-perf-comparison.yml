@@ -38,6 +38,7 @@ jobs:
 
       - name: init
         run: |
+          run_retried docker compose pull zk
           docker compose up -d zk
 
       - name: run benchmarks on base branch
