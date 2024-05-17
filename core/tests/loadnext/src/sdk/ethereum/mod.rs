@@ -208,22 +208,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .await
     }
 
-    pub async fn l2_token_address(
-        &self,
-        l1_token_address: Address,
-        bridge: Option<Address>,
-    ) -> Result<Address, ClientError> {
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
-        CallFunctionArgs::new("l2TokenAddress", l1_token_address)
-            .for_contract(bridge, &self.l1_erc20_bridge_abi)
-            .call(self.query_client())
-            .await
-            .map_err(|err| match err {
-                Error::EthereumGateway(err) => ClientError::NetworkError(err.to_string()),
-                _ => ClientError::MalformedResponse(err.to_string()),
-            })
-    }
-
     /// Checks whether ERC20 of a certain token deposit with limit is approved for account.
     pub async fn is_limited_erc20_deposit_approved(
         &self,
