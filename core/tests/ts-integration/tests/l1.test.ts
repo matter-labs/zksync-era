@@ -396,8 +396,8 @@ function calculateAccumulatedRoot(
 }
 
 function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: number): number {
-    // // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
-    // // using binary search.
+    // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
+    // using binary search.
     const overhead = getOverheadForTransaction(
         // We can just pass 0 as `encodingLength` because the overhead for the transaction's slot
         // will be greater than `overheadForLength` for a typical transacction

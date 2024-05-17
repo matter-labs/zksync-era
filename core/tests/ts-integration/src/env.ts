@@ -107,8 +107,12 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     const l2ChainId = parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
     const l1BatchCommitDataGeneratorMode = process.env
         .CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE! as DataAvailabityMode;
-    const minimalL2GasPrice = ethers.BigNumber.from(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);
-    minimalL2GasPrice.mul(2);
+    let minimalL2GasPrice;
+    if (process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE !== undefined) {
+        minimalL2GasPrice = ethers.BigNumber.from(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);
+    } else {
+        minimalL2GasPrice = ethers.BigNumber.from(0);
+    }
     let nodeMode;
     if (process.env.EN_MAIN_NODE_URL !== undefined) {
         nodeMode = NodeMode.External;
