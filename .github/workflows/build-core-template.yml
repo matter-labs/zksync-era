@@ -47,7 +47,7 @@ jobs:
               platforms: linux/arm64
 
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
 
@@ -111,6 +111,7 @@ jobs:
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
           mkdir -p ./volumes/postgres
+          run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run sccache --start-server
 
@@ -172,7 +173,7 @@ jobs:
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
 
       - name: login to Docker registries
         run: |
