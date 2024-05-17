@@ -44,7 +44,7 @@ pub async fn run_en(
     let en = en::EN {
         pool: ConnectionPool(pool),
         sync_state: sync_state.clone(),
-        client: main_node_client,
+        client: main_node_client.for_component("block_fetcher"),
     };
     let res = match cfg {
         Some((cfg, secrets)) => en.run(ctx, actions, cfg, secrets).await,
