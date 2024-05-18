@@ -9,18 +9,16 @@ use clap::Parser;
 use serde_yaml::Serializer;
 use zksync_config::{GenesisConfig, PostgresConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_core::{
-    genesis::{insert_genesis_batch, GenesisParams},
-    temp_config_store::decode_yaml_repr,
-};
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_protobuf::{
     build::{prost_reflect, prost_reflect::ReflectMessage},
     ProtoRepr,
 };
 use zksync_protobuf_config::proto::genesis::Genesis;
-use zksync_types::ProtocolVersionId;
+use zksync_types::{url::SensitiveUrl, ProtocolVersionId};
 
 const DEFAULT_GENESIS_FILE_PATH: &str = "./etc/env/file_based/genesis.yaml";
 
@@ -68,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn generate_new_config(
-    db_url: &str,
+    db_url: SensitiveUrl,
     genesis_config: GenesisConfig,
 ) -> anyhow::Result<GenesisConfig> {
     let pool = ConnectionPool::<Core>::singleton(db_url)

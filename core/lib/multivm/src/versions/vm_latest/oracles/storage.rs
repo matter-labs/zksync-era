@@ -377,17 +377,19 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         query.read_value = read_value;
 
         let pubdata_cost = if query.aux_byte == STORAGE_AUX_BYTE && query.rw_flag {
-            // It is considered that the user has paid for the whole base price for the writes
-            let to_pay_by_user = self.base_price_for_write_query(&query);
-            let prepaid = self.prepaid_for_write(&storage_key);
+            let current_price = self.base_price_for_write_query(&query);
+            let previous_price = self.prepaid_for_write(&storage_key);
 
-            // Note, that the diff may be negative, e.g. in case the new write returns to the previous value.
-            let diff = (to_pay_by_user as i32) - (prepaid as i32);
+            // Note, that the diff may be negative, e.g. in case the new write returns to the original value.
+            // The end result is that users pay as much pubdata in total as would have been required to set
+            // the slots to their final values.
+            // The only case where users may overpay is when a previous transaction ends up with a negative pubdata total.
+            let diff = (current_price as i32) - (previous_price as i32);
 
             self.paid_changes.apply_historic_record(
                 HashMapHistoryEvent {
                     key: storage_key,
-                    value: Some(to_pay_by_user),
+                    value: Some(current_price),
                 },
                 query.timestamp,
             );

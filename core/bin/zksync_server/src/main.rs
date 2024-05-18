@@ -18,13 +18,14 @@ use zksync_config::{
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
-use zksync_core::{
-    delete_l1_txs_history, genesis, genesis_init, initialize_components, is_genesis_needed,
+use zksync_core_leftovers::{
+    delete_l1_txs_history, genesis_init, initialize_components, is_genesis_needed,
     setup_sigint_handler,
     temp_config_store::{decode_yaml, decode_yaml_repr, Secrets, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
+use zksync_eth_client::clients::Client;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -48,7 +49,7 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator"
+        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator"
     )]
     components: ComponentsToRun,
     /// Path to the yaml config. If set, it will be used instead of env vars.
@@ -183,9 +184,13 @@ async fn main() -> anyhow::Result<()> {
             .context("genesis_init")?;
 
         if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
-            let eth_client = configs.eth.as_ref().context("eth config")?;
-            genesis::save_set_chain_id_tx(
-                &eth_client.web3_url,
+            let eth_config = configs.eth.as_ref().context("eth config")?;
+            let query_client = Client::http(eth_config.web3_url.clone())
+                .context("Ethereum client")?
+                .for_network(genesis.l1_chain_id.into())
+                .build();
+            zksync_node_genesis::save_set_chain_id_tx(
+                &query_client,
                 contracts_config.diamond_proxy_addr,
                 ecosystem_contracts.state_transition_proxy_addr,
                 &postgres_config,

@@ -1,10 +1,11 @@
 //! Various Ethereum client implementations.
 
-mod generic;
 mod http;
 mod mock;
 
+pub use zksync_web3_decl::client::{Client, L1};
+
 pub use self::{
-    http::{PKSigningClient, QueryClient, SigningClient},
+    http::{PKSigningClient, SigningClient},
     mock::MockEthereum,
 };

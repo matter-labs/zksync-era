@@ -15,13 +15,14 @@ zksync_dal.workspace = true
 zksync_health_check.workspace = true
 zksync_types.workspace = true
 zksync_object_store.workspace = true
-zksync_web3_decl.workspace = true
+zksync_web3_decl = { workspace = true, features = ["client"] }
 zksync_utils.workspace = true
 
 vise.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
+futures.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 thiserror.workspace = true

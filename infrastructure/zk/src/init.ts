@@ -42,13 +42,17 @@ type InitSetupOptions = {
     skipEnvSetup: boolean;
     skipSubmodulesCheckout: boolean;
     runObservability: boolean;
-    validiumMode: boolean;
+    deploymentMode: DeploymentMode;
 };
 const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
-    runObservability
+    runObservability,
+    deploymentMode
 }: InitSetupOptions): Promise<void> => {
+    await announced(
+        `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
+    );
     if (!skipSubmodulesCheckout) {
         await announced('Checkout submodules', submoduleUpdate());
     }
@@ -92,20 +96,27 @@ const deployTestTokens = async (options?: DeployTestTokensOptions) => {
 
 // Deploys and verifies L1 contracts and initializes governance
 const initBridgehubStateTransition = async () => {
-    await announced('Deploying L1 contracts', contract.deployL1(['']));
+    await announced('Running server genesis setup', server.genesisFromSources());
+    await announced('Deploying L1 contracts', contract.deployL1());
     await announced('Verifying L1 contracts', contract.verifyL1Contracts());
     await announced('Initializing governance', contract.initializeGovernance());
     await announced('Reloading env', env.reload());
 };
 
 // Registers a hyperchain and deploys L2 contracts through L1
-type InitHyperchainOptions = { includePaymaster: boolean; baseTokenName?: string; localLegacyBridgeTesting?: boolean };
+type InitHyperchainOptions = {
+    includePaymaster: boolean;
+    baseTokenName?: string;
+    localLegacyBridgeTesting?: boolean;
+    deploymentMode: DeploymentMode;
+};
 const initHyperchain = async ({
     includePaymaster,
     baseTokenName,
-    localLegacyBridgeTesting
+    localLegacyBridgeTesting,
+    deploymentMode
 }: InitHyperchainOptions): Promise<void> => {
-    await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName }));
+    await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName, deploymentMode }));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced(
@@ -122,11 +133,19 @@ const makeEraChainIdSameAsCurrent = async () => {
     env.reload();
 };
 
+const makeEraAddressSameAsCurrent = async () => {
+    console.log('Making era address same as current address');
+    const initEnv = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
+    env.modify('CONTRACTS_ERA_DIAMOND_PROXY_ADDR', process.env.CONTRACTS_DIAMOND_PROXY_ADDR!, initEnv, false);
+    env.reload();
+};
+
 // ########################### Command Actions ###########################
 type InitDevCmdActionOptions = InitSetupOptions & {
     skipTestTokenDeployment?: boolean;
     testTokenOptions?: DeployTestTokensOptions;
     baseTokenName?: string;
+    validiumMode?: boolean;
     localLegacyBridgeTesting?: boolean;
 };
 export const initDevCmdAction = async ({
@@ -142,14 +161,18 @@ export const initDevCmdAction = async ({
     if (localLegacyBridgeTesting) {
         await makeEraChainIdSameAsCurrent();
     }
-    await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, validiumMode });
+    let deploymentMode = validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
+    await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, deploymentMode });
     await initDatabase({ skipVerifierDeployment: false });
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
     }
     await initBridgehubStateTransition();
     await initDatabase({ skipVerifierDeployment: true });
-    await initHyperchain({ includePaymaster: true, baseTokenName, localLegacyBridgeTesting });
+    await initHyperchain({ includePaymaster: true, baseTokenName, localLegacyBridgeTesting, deploymentMode });
+    if (localLegacyBridgeTesting) {
+        await makeEraAddressSameAsCurrent();
+    }
 };
 
 const lightweightInitCmdAction = async (): Promise<void> => {
@@ -159,8 +182,7 @@ const lightweightInitCmdAction = async (): Promise<void> => {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
     await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth({ command: 'dev' }));
-    // TODO(EVM-573): support Validium mode
-    await announced('Deploying L1 contracts', contract.redeployL1(false, DeploymentMode.Rollup));
+    await announced('Deploying L1 contracts', contract.redeployL1(false));
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster: true }));
     await announced('Initializing governance', contract.initializeGovernance());
 };
@@ -177,14 +199,14 @@ type InitHyperCmdActionOptions = {
     bumpChainId: boolean;
     baseTokenName?: string;
     runObservability: boolean;
-    validiumMode: boolean;
+    deploymentMode: DeploymentMode;
 };
 export const initHyperCmdAction = async ({
     skipSetupCompletely,
     bumpChainId,
     baseTokenName,
     runObservability,
-    validiumMode
+    deploymentMode
 }: InitHyperCmdActionOptions): Promise<void> => {
     console.log('ZKSYNC_ENV : ', process.env.ZKSYNC_ENV);
     console.log('DB URL : ', process.env.DATABASE_URL);
@@ -192,10 +214,10 @@ export const initHyperCmdAction = async ({
         config.bumpChainId();
     }
     if (!skipSetupCompletely) {
-        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, validiumMode });
+        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, deploymentMode });
     }
     await initDatabase({ skipVerifierDeployment: true });
-    await initHyperchain({ includePaymaster: true, baseTokenName });
+    await initHyperchain({ includePaymaster: true, baseTokenName, deploymentMode });
 };
 
 // ########################### Command Definitions ###########################

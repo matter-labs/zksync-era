@@ -200,10 +200,24 @@ impl StorageLogsDal<'_, '_> {
                     FROM
                         storage_logs
                     WHERE
-                        storage_logs.hashed_key = $1
+                        hashed_key = $1
+                        AND miniblock_number <= COALESCE(
+                            (
+                                SELECT
+                                    MAX(number)
+                                FROM
+                                    miniblocks
+                            ),
+                            (
+                                SELECT
+                                    miniblock_number
+                                FROM
+                                    snapshot_recovery
+                            )
+                        )
                     ORDER BY
-                        storage_logs.miniblock_number DESC,
-                        storage_logs.operation_number DESC
+                        miniblock_number DESC,
+                        operation_number DESC
                     LIMIT
                         1
                 ) sl
@@ -247,6 +261,20 @@ impl StorageLogsDal<'_, '_> {
             WHERE
                 hashed_key = ANY ($1)
                 AND miniblock_number <= $2
+                AND miniblock_number <= COALESCE(
+                    (
+                        SELECT
+                            MAX(number)
+                        FROM
+                            miniblocks
+                    ),
+                    (
+                        SELECT
+                            miniblock_number
+                        FROM
+                            snapshot_recovery
+                    )
+                )
             ORDER BY
                 hashed_key,
                 miniblock_number DESC,
@@ -1049,15 +1077,13 @@ mod tests {
 
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        // If deployment fails then two writes are issued, one that writes `bytecode_hash` to the "correct" value,
-        // and the next write reverts its value back to `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`.
-        conn.storage_logs_dal()
-            .insert_storage_logs(
-                L2BlockNumber(1),
-                &[(H256::zero(), vec![successful_deployment, failed_deployment])],
-            )
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
+        // If deployment fails then two writes are issued, one that writes `bytecode_hash` to the "correct" value,
+        // and the next write reverts its value back to `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`.
+        insert_l2_block(&mut conn, 1, vec![successful_deployment, failed_deployment]).await;
 
         let tested_l2_blocks = [
             None,
@@ -1080,13 +1106,7 @@ mod tests {
             );
         }
 
-        conn.storage_logs_dal()
-            .insert_storage_logs(
-                L2BlockNumber(2),
-                &[(H256::zero(), vec![successful_deployment])],
-            )
-            .await
-            .unwrap();
+        insert_l2_block(&mut conn, 2, vec![successful_deployment]).await;
 
         for old_l2_block in [L2BlockNumber(0), L2BlockNumber(1)] {
             let deployed_map = conn
@@ -1121,13 +1141,7 @@ mod tests {
             get_code_key(&other_contract_address),
             H256::repeat_byte(0xff),
         );
-        conn.storage_logs_dal()
-            .insert_storage_logs(
-                L2BlockNumber(3),
-                &[(H256::zero(), vec![other_successful_deployment])],
-            )
-            .await
-            .unwrap();
+        insert_l2_block(&mut conn, 3, vec![other_successful_deployment]).await;
 
         for old_l2_block in [L2BlockNumber(0), L2BlockNumber(1)] {
             let deployed_map = conn

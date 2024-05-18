@@ -11,7 +11,10 @@ impl FromEnv for EthConfig {
             sender: SenderConfig::from_env().ok(),
             gas_adjuster: GasAdjusterConfig::from_env().ok(),
             watcher: EthWatchConfig::from_env().ok(),
-            web3_url: std::env::var("ETH_CLIENT_WEB3_URL").context("ETH_CLIENT_WEB3_URL")?,
+            web3_url: std::env::var("ETH_CLIENT_WEB3_URL")
+                .context("ETH_CLIENT_WEB3_URL")?
+                .parse()
+                .context("ETH_CLIENT_WEB3_URL")?,
         })
     }
 }
@@ -81,7 +84,7 @@ mod tests {
                 confirmations_for_eth_event: Some(0),
                 eth_node_poll_interval: 300,
             }),
-            web3_url: "http://127.0.0.1:8545".to_string(),
+            web3_url: "http://127.0.0.1:8545".parse().unwrap(),
         }
     }
 

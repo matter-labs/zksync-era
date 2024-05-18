@@ -24,7 +24,6 @@ import { command as verifyUpgrade } from './verify-upgrade';
 import { proverCommand } from './prover_setup';
 import { command as status } from './status';
 import { command as spellcheck } from './spellcheck';
-import { command as linkcheck } from './linkcheck';
 import { command as setupEn } from './setup_en';
 import { command as dev2 } from './dev2';
 import * as env from './env';
@@ -53,7 +52,6 @@ const COMMANDS = [
     env.command,
     status,
     spellcheck,
-    linkcheck,
     setupEn,
     dev2,
     completion(program as Command)

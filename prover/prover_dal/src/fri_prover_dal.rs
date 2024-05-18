@@ -1,10 +1,13 @@
 #![doc = include_str!("../doc/FriProverDal.md")]
-use std::{collections::HashMap, convert::TryFrom, time::Duration};
+use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::ProtocolVersionId,
-    prover_dal::{FriProverJobMetadata, JobCountStatistics, StuckJobs},
+    prover_dal::{
+        correct_circuit_id, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo,
+        ProverJobStatus, StuckJobs,
+    },
     L1BatchNumber,
 };
 use zksync_db_connection::{
@@ -48,10 +51,9 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_next_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: &ProtocolVersionId,
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
             UPDATE prover_jobs_fri
@@ -69,7 +71,7 @@ impl FriProverDal<'_, '_> {
                         prover_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         aggregation_round DESC,
                         l1_batch_number ASC,
@@ -88,7 +90,7 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri.depth,
                 prover_jobs_fri.is_node_final_proof
             "#,
-            &protocol_versions[..],
+            *protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -109,14 +111,13 @@ impl FriProverDal<'_, '_> {
     pub async fn get_next_job_for_circuit_id_round(
         &mut self,
         circuits_to_pick: &[CircuitIdRoundTuple],
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: &ProtocolVersionId,
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
         let circuit_ids: Vec<_> = circuits_to_pick
             .iter()
             .map(|tuple| i16::from(tuple.circuit_id))
             .collect();
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let aggregation_rounds: Vec<_> = circuits_to_pick
             .iter()
             .map(|tuple| i16::from(tuple.aggregation_round))
@@ -148,7 +149,7 @@ impl FriProverDal<'_, '_> {
                                 prover_jobs_fri AS pj
                             WHERE
                                 pj.status = 'queued'
-                                AND pj.protocol_version = ANY ($3)
+                                AND pj.protocol_version = $3
                                 AND pj.circuit_id = tuple.circuit_id
                                 AND pj.aggregation_round = tuple.round
                             ORDER BY
@@ -177,7 +178,7 @@ impl FriProverDal<'_, '_> {
             "#,
             &circuit_ids[..],
             &aggregation_rounds[..],
-            &protocol_versions[..],
+            *protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -324,7 +325,8 @@ impl FriProverDal<'_, '_> {
                 RETURNING
                     id,
                     status,
-                    attempts
+                    attempts,
+                    circuit_id
                 "#,
                 &processing_timeout,
                 max_attempts as i32,
@@ -337,6 +339,7 @@ impl FriProverDal<'_, '_> {
                 id: row.id as u64,
                 status: row.status,
                 attempts: row.attempts as u64,
+                circuit_id: Some(row.circuit_id as u32),
             })
             .collect()
         }
@@ -641,5 +644,178 @@ impl FriProverDal<'_, '_> {
         .into_iter()
         .map(|row| (row.circuit_id as u8, row.id as u32))
         .collect()
+    }
+
+    pub async fn get_prover_jobs_stats_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        aggregation_round: AggregationRound,
+    ) -> Vec<ProverJobFriInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND aggregation_round = $2
+            "#,
+            i64::from(l1_batch_number.0),
+            aggregation_round as i16
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| ProverJobFriInfo {
+            id: row.id as u32,
+            l1_batch_number,
+            // It is necessary to correct the circuit IDs due to the discrepancy between different aggregation rounds.
+            circuit_id: correct_circuit_id(row.circuit_id, aggregation_round),
+            circuit_blob_url: row.circuit_blob_url.clone(),
+            aggregation_round,
+            sequence_number: row.sequence_number as u32,
+            status: ProverJobStatus::from_str(&row.status).unwrap(),
+            error: row.error.clone(),
+            attempts: row.attempts as u8,
+            processing_started_at: row.processing_started_at,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            time_taken: row.time_taken,
+            is_blob_cleaned: row.is_blob_cleaned,
+            depth: row.depth as u32,
+            is_node_final_proof: row.is_node_final_proof,
+            proof_blob_url: row.proof_blob_url.clone(),
+            protocol_version: row.protocol_version.map(|protocol_version| {
+                ProtocolVersionId::try_from(protocol_version as u16).unwrap()
+            }),
+            picked_by: row.picked_by.clone(),
+        })
+        .collect()
+    }
+
+    pub async fn protocol_version_for_job(&mut self, job_id: u32) -> ProtocolVersionId {
+        sqlx::query!(
+            r#"
+            SELECT protocol_version
+            FROM prover_jobs_fri
+            WHERE id = $1
+            "#,
+            job_id as i32
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .protocol_version
+        .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
+        .unwrap()
+    }
+
+    pub async fn delete_prover_jobs_fri_batch_data(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1;
+            
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete_prover_jobs_fri_archive_batch_data(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                prover_jobs_fri_archive
+            WHERE
+                l1_batch_number = $1;
+            
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete_batch_data(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_prover_jobs_fri_batch_data(l1_batch_number)
+            .await?;
+        self.delete_prover_jobs_fri_archive_batch_data(l1_batch_number)
+            .await
+    }
+
+    pub async fn delete_prover_jobs_fri(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!("DELETE FROM prover_jobs_fri")
+            .execute(self.storage.conn())
+            .await
+    }
+
+    pub async fn delete_prover_jobs_fri_archive(
+        &mut self,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!("DELETE FROM prover_jobs_fri_archive")
+            .execute(self.storage.conn())
+            .await
+    }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_prover_jobs_fri().await?;
+        self.delete_prover_jobs_fri_archive().await
+    }
+
+    pub async fn requeue_stuck_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        {
+            sqlx::query!(
+                r#"
+                UPDATE prover_jobs_fri
+                SET
+                    status = 'queued',
+                    error = 'Manually requeued',
+                    attempts = 2,
+                    updated_at = NOW(),
+                    processing_started_at = NOW()
+                WHERE
+                    l1_batch_number = $1
+                    AND attempts >= $2
+                    AND (status = 'in_progress' OR status = 'failed')
+                RETURNING
+                    id,
+                    status,
+                    attempts,
+                    circuit_id
+                "#,
+                i64::from(block_number.0),
+                max_attempts as i32,
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.id as u64,
+                status: row.status,
+                attempts: row.attempts as u64,
+                circuit_id: Some(row.circuit_id as u32),
+            })
+            .collect()
+        }
     }
 }
