@@ -1019,9 +1019,12 @@ async fn run_node(
 
     let mut tasks = ManagedTasks::new(task_handles);
     tokio::select! {
-        () = tasks.wait_single() => {},
+        // We don't want to log unnecessary warnings in `tasks.wait_single()` if we have received a stop signal.
+        biased;
+
         _ = stop_receiver.changed() => {},
-    };
+        () = tasks.wait_single() => {},
+    }
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal (in case it wasn't broadcast previously) to all actors and exit.

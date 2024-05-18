@@ -127,11 +127,24 @@ impl IntoResponse for TreeApiServerError {
 pub enum TreeApiError {
     #[error(transparent)]
     NoVersion(NoVersionError),
-    #[error("tree API is temporarily not available because the Merkle tree isn't initialized; repeat request later")]
-    NotReady,
+    #[error("tree API is temporarily unavailable")]
+    NotReady(#[source] Option<anyhow::Error>),
     /// Catch-all variant for internal errors.
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
+}
+
+impl TreeApiError {
+    fn for_request(err: reqwest::Error, request_description: impl fmt::Display) -> Self {
+        let is_not_ready = err.is_timeout() || err.is_connect();
+        let err =
+            anyhow::Error::new(err).context(format!("failed requesting {request_description}"));
+        if is_not_ready {
+            Self::NotReady(Some(err))
+        } else {
+            Self::Internal(err)
+        }
+    }
 }
 
 /// Client accessing Merkle tree API.
@@ -155,7 +168,7 @@ impl TreeApiClient for LazyAsyncTreeReader {
         if let Some(reader) = self.read() {
             Ok(reader.info().await)
         } else {
-            Err(TreeApiError::NotReady)
+            Err(TreeApiError::NotReady(None))
         }
     }
 
@@ -170,7 +183,7 @@ impl TreeApiClient for LazyAsyncTreeReader {
                 .await
                 .map_err(TreeApiError::NoVersion)
         } else {
-            Err(TreeApiError::NotReady)
+            Err(TreeApiError::NotReady(None))
         }
     }
 }
@@ -184,9 +197,15 @@ pub struct TreeApiHttpClient {
 }
 
 impl TreeApiHttpClient {
+    /// Creates a new HTTP client with default settings.
     pub fn new(url_base: &str) -> Self {
+        Self::from_client(reqwest::Client::new(), url_base)
+    }
+
+    /// Wraps a provided HTTP client.
+    pub fn from_client(client: reqwest::Client, url_base: &str) -> Self {
         Self {
-            inner: reqwest::Client::new(),
+            inner: client,
             info_url: url_base.to_owned(),
             proofs_url: format!("{url_base}/proofs"),
         }
@@ -202,9 +221,11 @@ impl CheckHealth for TreeApiHttpClient {
     async fn check_health(&self) -> Health {
         match self.get_info().await {
             Ok(info) => Health::from(HealthStatus::Ready).with_details(info),
-            Err(TreeApiError::NotReady) => HealthStatus::Affected.into(),
-            Err(err) => Health::from(HealthStatus::NotReady).with_details(serde_json::json!({
+            // Tree API is not a critical component, so its errors are not considered fatal for the app health.
+            Err(err) => Health::from(HealthStatus::Affected).with_details(serde_json::json!({
                 "error": err.to_string(),
+                // Transient error detection is a best-effort estimate
+                "is_transient_error": matches!(err, TreeApiError::NotReady(_)),
             })),
         }
     }
@@ -218,7 +239,7 @@ impl TreeApiClient for TreeApiHttpClient {
             .get(&self.info_url)
             .send()
             .await
-            .context("Failed requesting tree info")?;
+            .map_err(|err| TreeApiError::for_request(err, "tree info"))?;
         let response = response
             .error_for_status()
             .context("Requesting tree info returned non-OK response")?;
@@ -242,7 +263,12 @@ impl TreeApiClient for TreeApiHttpClient {
             })
             .send()
             .await
-            .with_context(|| format!("failed requesting proofs for L1 batch #{l1_batch_number}"))?;
+            .map_err(|err| {
+                TreeApiError::for_request(
+                    err,
+                    format_args!("proofs for L1 batch #{l1_batch_number}"),
+                )
+            })?;
 
         let is_problem = response
             .headers()

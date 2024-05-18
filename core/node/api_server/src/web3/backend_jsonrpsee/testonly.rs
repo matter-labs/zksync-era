@@ -2,7 +2,7 @@
 
 use std::{mem, sync::Mutex};
 
-use jsonrpsee::{helpers::MethodResponseResult, MethodResponse};
+use zksync_web3_decl::jsonrpsee::{helpers::MethodResponseResult, MethodResponse};
 
 use super::metadata::MethodMetadata;
 
