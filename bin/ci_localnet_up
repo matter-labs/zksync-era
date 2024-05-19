@@ -5,7 +5,7 @@ set -e
 cd $ZKSYNC_HOME
 
 docker build -t zk-environment-full:latest -f docker/zk-environment-full/Dockerfile  .
-docker save docker/zk-environment-full/Dockerfile -o image.tgz
+docker save zk-environment-full:latest -o image.tgz
 du -h image.tgz
 
 mkdir -p ./volumes/postgres ./volumes/reth/data
