@@ -26,7 +26,7 @@ RUN yarn install --frozen-lockfile
 # as repository directory must be empty node_modules need to moved somewhere and then restored after git checkout
 RUN mkdir ../node_modules_backup
 ENV NODE_MODULES_BACKUP_DIR=/usr/src/node_modules_backup
-RUN (for node_dir in . etc/contracts-test-data contracts; do mkdir -p ../node_modules_backup/$node_dir; mv -r $node_dir/node_modules ../node_modules_backup/$node_dir; done)
+RUN (for node_dir in . etc/contracts-test-data contracts; do mkdir -p ../node_modules_backup/$node_dir; mv $node_dir/node_modules ../node_modules_backup/$node_dir; done)
 
 # Contracts compilers
 
