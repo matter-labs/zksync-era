@@ -1,4 +1,4 @@
-FROM matterlabs/zk-environment:latest2.0-lightweight
+FROM matterlabs/zk-environment:latest2.0-lightweight-nightly
 
 RUN git clone https://github.com/matter-labs/zksync-era
 
@@ -63,3 +63,5 @@ RUN (for ver in solc-linux-amd64-v0.8.20+commit.a1b79de6 solc-linux-amd64-v0.8.2
 
 RUN chmod -R +x /root/.cache/hardhat-nodejs/
 
+RUN cd .. && rmdir -rf zksync-era
+WORKDIR /usr/src/zksync
