@@ -1,5 +1,7 @@
 FROM matterlabs/zk-environment:latest2.0-lightweight-nightly
 
+WORKDIR /usr/src
+
 RUN git clone https://github.com/matter-labs/zksync-era
 
 WORKDIR zksync-era
@@ -17,6 +19,11 @@ RUN cd prover && cargo fetch
 
 # yarn packages
 RUN yarn install --frozen-lockfile
+
+# as repository directory must be empty node_modules need to moved somewhere and then restored after git checkout
+RUN mkdir ../node_modules_backup
+ENV NODE_MODULES_BACKUP_DIR=/usr/src/node_modules_backup
+RUN (for node_dir in . etc/system-contracts etc/contracts-test-data contracts; do mkdir -p ../node_modules_backup/$node_dir; cp -r $node_dir/node_modules ../node_modules_backup/$node_dir; done)
 
 # Contracts compilers
 
@@ -63,5 +70,5 @@ RUN (for ver in solc-linux-amd64-v0.8.20+commit.a1b79de6 solc-linux-amd64-v0.8.2
 
 RUN chmod -R +x /root/.cache/hardhat-nodejs/
 
-RUN cd .. && rmdir -rf zksync-era
+RUN cd .. && rm -rf zksync-era
 WORKDIR /usr/src/zksync
