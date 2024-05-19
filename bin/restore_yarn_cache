@@ -4,5 +4,5 @@ for node_dir in . etc/contracts-test-data contracts;
 do
   mkdir -p $node_dir
   echo "Restoring node_modules from ../node_modules_backup/$node_dir/node_modules to $node_dir"
-  cp -r ../node_modules_backup/$node_dir/node_modules $node_dir
+  mv -r ../node_modules_backup/$node_dir/node_modules $node_dir
 done
