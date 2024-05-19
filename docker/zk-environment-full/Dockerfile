@@ -13,7 +13,7 @@ RUN SERVER_RUST_VERSION=$(cat rust-toolchain) && rustup install $SERVER_RUST_VER
 RUN cargo fetch
 
 RUN PROVER_RUST_VERSION=$(cat prover/rust-toolchain) && rustup install $PROVER_RUST_VERSION
-RUN cargo fetch --manifest-path prover
+RUN cd prover && cargo fetch
 
 # yarn packages
 RUN yarn install --frozen-lockfile
