@@ -1,10 +1,13 @@
-FROM matterlabs/zk-environment:latest2.0-lightweight-nightly
+FROM matterlabs/zk-environment:latest2.0-lightweight
 
 WORKDIR /usr/src
 
 RUN git clone https://github.com/matter-labs/zksync-era
 
 WORKDIR zksync-era
+
+# get rid of already installed rust
+RUN rustup uninstall stable
 
 # git submodule
 RUN git submodule init
