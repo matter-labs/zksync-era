@@ -40,7 +40,6 @@ jobs:
             - server-v2
             - external-node
             - snapshots-creator
-            - zk-environment-full
           platforms:
             - linux/amd64
           include:
@@ -169,8 +168,6 @@ jobs:
           - name: external-node
             platform: linux/amd64,linux/arm64
           - name: snapshots-creator
-            platform: linux/amd64
-          - name: zk-environment-full
             platform: linux/amd64
 
     env:
