@@ -5,8 +5,6 @@ set -e
 cd $ZKSYNC_HOME
 
 docker build -t zk-environment-full:latest -f docker/zk-environment-full/Dockerfile  .
-docker save zk-environment-full:latest -o image.tgz
-du -h image.tgz
 
 mkdir -p ./volumes/postgres ./volumes/reth/data
 run_retried docker-compose pull

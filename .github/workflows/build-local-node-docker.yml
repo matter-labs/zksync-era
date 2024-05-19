@@ -52,7 +52,6 @@ jobs:
       - name: start-services
         run: |
           mkdir -p ./volumes/postgres
-          run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
 
       - name: init
