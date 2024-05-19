@@ -7,10 +7,6 @@ cd $ZKSYNC_HOME
 docker build -t zk-environment-full:latest -f docker/zk-environment-full/Dockerfile  .
 
 mkdir -p ./volumes/postgres ./volumes/reth/data
-
-compose_file="${RUNNER_COMPOSE_FILE:-docker-compose.yml}"
-echo "Used runner: ${compose_file}"
-
 run_retried docker-compose pull
 docker-compose --profile runner up -d --wait
 
