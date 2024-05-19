@@ -179,7 +179,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         // We clone the filter to not hold the filter lock for an extended period of time.
         let maybe_filter = installed_filters.lock().await.get_and_update_stats(idx);
 
@@ -483,7 +483,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         let mut storage = self.state.acquire_connection().await?;
         let last_block_number = storage
             .blocks_dal()
@@ -505,7 +505,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         if let Some(topics) = filter.topics.as_ref() {
             if topics.len() > EVENT_TOPIC_NUMBER_LIMIT {
                 return Err(Web3Error::TooManyTopics);
@@ -525,7 +525,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         Ok(installed_filters
             .lock()
             .await
@@ -539,7 +539,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         let mut filter = installed_filters
             .lock()
             .await
@@ -565,7 +565,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         Ok(installed_filters.lock().await.remove(idx))
     }
 
