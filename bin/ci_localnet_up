@@ -5,7 +5,7 @@ set -e
 cd $ZKSYNC_HOME
 
 cd docker/zk-environment-full
-docker build --progress=plain -t zk-environment-full:latest -f docker/zk-environment-full/Dockerfile  .
+docker build -t zk-environment-full:latest -f docker/zk-environment-full/Dockerfile  .
 cd ../..
 
 mkdir -p ./volumes/postgres ./volumes/reth/data
