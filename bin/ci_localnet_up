@@ -14,4 +14,4 @@ echo "Used runner: ${compose_file}"
 run_retried docker-compose pull
 docker-compose --profile runner up -d --wait
 
-#ci_run /usr/src/zksync/bin/restore_yarn_cache
+ci_run restore_yarn_cache
