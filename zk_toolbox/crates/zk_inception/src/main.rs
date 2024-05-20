@@ -1,7 +1,7 @@
 use clap::{command, Parser, Subcommand};
 use common::{
     check_prerequisites,
-    config::{init_global_config, GlobalConfig},
+    config::{global_config, init_global_config, GlobalConfig},
     init_prompt_theme, logger,
 };
 use xshell::Shell;
@@ -53,6 +53,9 @@ struct InceptionGlobalArgs {
     /// Hyperchain to use
     #[clap(long, global = true)]
     hyperchain: Option<String>,
+    /// Ignores prerequisites checks
+    #[clap(long, global = true)]
+    ignore_prerequisites: bool,
 }
 
 #[tokio::main]
@@ -69,7 +72,9 @@ async fn main() -> anyhow::Result<()> {
 
     init_global_config_inner(&shell, &inception_args.global)?;
 
-    check_prerequisites(&shell);
+    if !global_config().ignore_prerequisites {
+        check_prerequisites(&shell);
+    }
 
     match run_subcommand(inception_args, &shell).await {
         Ok(_) => {}
@@ -124,6 +129,7 @@ fn init_global_config_inner(
     init_global_config(GlobalConfig {
         verbose: inception_args.verbose,
         hyperchain_name: inception_args.hyperchain.clone(),
+        ignore_prerequisites: inception_args.ignore_prerequisites,
     });
     Ok(())
 }

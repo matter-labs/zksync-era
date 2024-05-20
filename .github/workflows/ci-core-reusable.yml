@@ -12,6 +12,44 @@ jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
+
+  build-zk-toolbox:
+    name: Build zk_toolbox
+    runs-on: [matterlabs-ci-runner]
+
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+
+      - name: Start services
+        run: |
+          ci_localnet_up
+
+      - name: Build zk_toolbox
+        run: |
+          ci_run bash -c "cd zk_toolbox && cargo build --release"
+
+      # Compress with tar to avoid permission loss
+      # https://github.com/actions/upload-artifact?tab=readme-ov-file#permission-loss
+      - name: Tar zk_toolbox binaries
+        run: |
+          tar -C ./zk_toolbox/target/release -cvf zk_toolbox.tar zk_inception zk_supervisor
+
+      - name: Upload zk_toolbox binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: zk_toolbox
+          path: zk_toolbox.tar
+          compression-level: 0
+
   unit-tests:
     runs-on: [matterlabs-ci-runner]
 
@@ -66,12 +104,23 @@ jobs:
 
   loadtest:
     runs-on: [matterlabs-ci-runner]
+    needs: [build-zk-toolbox]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
+
+      - name: Download zk_toolbox binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: zk_toolbox
+          path: .
+
+      - name: Extract zk_toolbox binaries
+        run: |
+          tar -xvf zk_toolbox.tar -C ./bin
 
       - name: Setup environment
         run: |
@@ -99,7 +148,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zk init --local-legacy-bridge-testing
+          ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --use-default --ignore-prerequisites
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
@@ -232,7 +281,6 @@ jobs:
           ci_run pkill zksync_server || true
           ci_run sleep 2
           ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
-
 
         # This test should be the last one as soon as it
         # finished bootloader will be different

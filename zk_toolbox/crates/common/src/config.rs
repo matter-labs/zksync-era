@@ -14,4 +14,5 @@ pub fn global_config() -> &'static GlobalConfig {
 pub struct GlobalConfig {
     pub verbose: bool,
     pub hyperchain_name: Option<String>,
+    pub ignore_prerequisites: bool,
 }
