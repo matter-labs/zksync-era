@@ -228,13 +228,13 @@ impl<Net: Network, C: ClientBase> ForNetwork for Client<Net, C> {
     fn network(&self) -> Self::Net {
         self.network
     }
-}
 
-impl<Net: Network, C: ClientBase> TaggedClient for Client<Net, C> {
     fn component(&self) -> &'static str {
         self.component_name
     }
+}
 
+impl<Net: Network, C: ClientBase> TaggedClient for Client<Net, C> {
     fn set_component(&mut self, component_name: &'static str) {
         self.component_name = component_name;
     }
