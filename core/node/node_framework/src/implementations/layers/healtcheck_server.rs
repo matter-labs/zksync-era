@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use zksync_config::configs::api::HealthCheckConfig;
-use zksync_core::api_server::healthcheck::HealthCheckHandle;
 use zksync_health_check::AppHealthCheck;
+use zksync_node_api_server::healthcheck::HealthCheckHandle;
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,

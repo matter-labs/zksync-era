@@ -961,3 +961,4 @@ storages
 vec
 zksync_merkle_tree
 TreeMetadata
+delegator

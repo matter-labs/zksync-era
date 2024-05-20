@@ -8,54 +8,52 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    validation_task::L1BatchCommitmentModeValidationTask, CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
-use zksync_core::{
-    api_server::{
-        execution_sandbox::VmConcurrencyLimiter,
-        healthcheck::HealthCheckHandle,
-        tree::{TreeApiClient, TreeApiHttpClient},
-        tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
-        web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
-    },
-    consensus,
-    consistency_checker::ConsistencyChecker,
-    metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
-    reorg_detector::{self, ReorgDetector},
-    setup_sigint_handler,
-    state_keeper::{
-        seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
-        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
-    },
-    sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
-    },
-    utils::L1BatchCommitmentModeValidationTask,
-};
+use zksync_consistency_checker::ConsistencyChecker;
+use zksync_core_leftovers::setup_sigint_handler;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
-use zksync_eth_client::EthInterface;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_metadata_calculator::{
+    api_server::{TreeApiClient, TreeApiHttpClient},
+    MetadataCalculator, MetadataCalculatorConfig,
+};
+use zksync_node_api_server::{
+    execution_sandbox::VmConcurrencyLimiter,
+    healthcheck::HealthCheckHandle,
+    tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
+    web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
+};
+use zksync_node_consensus as consensus;
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
+use zksync_node_sync::{
+    batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
+    tree_data_fetcher::TreeDataFetcher, ActionQueue, SyncState,
+};
+use zksync_reorg_detector::ReorgDetector;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
+use zksync_state_keeper::{
+    seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
+    StateKeeperPersistence, ZkSyncStateKeeper,
+};
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_web3_decl::{
-    client::{Client, DynClient, L2},
+    client::{Client, DynClient, L1, L2},
     jsonrpsee,
     namespaces::EnNamespaceClient,
 };
 
 use crate::{
-    config::{
-        observability::ObservabilityENConfig, ExternalNodeConfig, OptionalENConfig,
-        RequiredENConfig,
-    },
+    config::ExternalNodeConfig,
     helpers::{EthClientHealthCheck, MainNodeHealthCheck, ValidateChainIdsTask},
     init::ensure_storage_initialized,
     metrics::RUST_METRICS,
@@ -134,8 +132,8 @@ async fn run_tree(
         db_path: config.required.merkle_tree_path.clone(),
         max_open_files: config.optional.merkle_tree_max_open_files,
         mode: MerkleTreeMode::Lightweight,
-        delay_interval: config.optional.metadata_calculator_delay(),
-        max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
+        delay_interval: config.optional.merkle_tree_processing_delay(),
+        max_l1_batches_per_iter: config.optional.merkle_tree_max_l1_batches_per_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
         include_indices_and_filters_in_block_cache: config
@@ -204,7 +202,7 @@ async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,
-    eth_client: Box<dyn EthInterface>,
+    eth_client: Box<DynClient<L1>>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -222,7 +220,7 @@ async fn run_core(
             .remote
             .l2_shared_bridge_addr
             .expect("L2 shared bridge address is not set"),
-        config.optional.miniblock_seal_queue_capacity,
+        config.optional.l2_block_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
 
@@ -572,7 +570,7 @@ async fn init_tasks(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: Box<DynClient<L2>>,
-    eth_client: Box<dyn EthInterface>,
+    eth_client: Box<DynClient<L1>>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -623,6 +621,16 @@ async fn init_tasks(
     } else {
         None
     };
+
+    if components.contains(&Component::TreeFetcher) {
+        tracing::warn!(
+            "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
+             This is an experimental feature; do not use unless you know what you're doing"
+        );
+        let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone());
+        app_health.insert_component(fetcher.health_check())?;
+        task_handles.push(tokio::spawn(fetcher.run(stop_receiver.clone())));
+    }
 
     let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
 
@@ -721,6 +729,7 @@ pub enum Component {
     WsApi,
     Tree,
     TreeApi,
+    TreeFetcher,
     Core,
 }
 
@@ -732,6 +741,7 @@ impl Component {
             "ws_api" => Ok(&[Component::WsApi]),
             "tree" => Ok(&[Component::Tree]),
             "tree_api" => Ok(&[Component::TreeApi]),
+            "tree_fetcher" => Ok(&[Component::TreeFetcher]),
             "core" => Ok(&[Component::Core]),
             "all" => Ok(&[
                 Component::HttpApi,
@@ -767,40 +777,33 @@ async fn main() -> anyhow::Result<()> {
     // Initial setup.
     let opt = Cli::parse();
 
-    let observability_config =
-        ObservabilityENConfig::from_env().context("ObservabilityENConfig::from_env()")?;
-    let _guard = observability_config.build_observability()?;
-    let required_config = RequiredENConfig::from_env()?;
-    let optional_config = OptionalENConfig::from_env()?;
-
-    // Build L1 and L2 clients.
-    let main_node_url = &required_config.main_node_url;
-    tracing::info!("Main node URL is: {main_node_url:?}");
-    let main_node_client = Client::http(main_node_url.clone())
-        .context("Failed creating JSON-RPC client for main node")?
-        .for_network(required_config.l2_chain_id.into())
-        .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
-        .build();
-    let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
-
-    let eth_client_url = &required_config.eth_client_url;
-    let eth_client = Client::http(eth_client_url.clone())
-        .context("failed creating JSON-RPC client for Ethereum")?
-        .for_network(required_config.l1_chain_id.into())
-        .build();
-    let eth_client = Box::new(eth_client);
-
-    let mut config = ExternalNodeConfig::new(
-        required_config,
-        optional_config,
-        observability_config,
-        main_node_client.as_ref(),
-    )
-    .await
-    .context("Failed to load external node config")?;
+    let mut config = ExternalNodeConfig::new().context("Failed to load node configuration")?;
     if !opt.enable_consensus {
         config.consensus = None;
     }
+    let _guard = config.observability.build_observability()?;
+
+    // Build L1 and L2 clients.
+    let main_node_url = &config.required.main_node_url;
+    tracing::info!("Main node URL is: {main_node_url:?}");
+    let main_node_client = Client::http(main_node_url.clone())
+        .context("failed creating JSON-RPC client for main node")?
+        .for_network(config.required.l2_chain_id.into())
+        .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
+        .build();
+    let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
+
+    let eth_client_url = &config.required.eth_client_url;
+    let eth_client = Client::http(eth_client_url.clone())
+        .context("failed creating JSON-RPC client for Ethereum")?
+        .for_network(config.required.l1_chain_id.into())
+        .build();
+    let eth_client = Box::new(eth_client);
+
+    let config = config
+        .fetch_remote(main_node_client.as_ref())
+        .await
+        .context("failed fetching remote part of node config from main node")?;
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
     }
@@ -858,7 +861,7 @@ async fn run_node(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: Box<DynClient<L2>>,
-    eth_client: Box<dyn EthInterface>,
+    eth_client: Box<DynClient<L1>>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
@@ -964,7 +967,7 @@ async fn run_node(
         Ok(()) => {
             tracing::info!("Successfully checked no reorg compared to the main node");
         }
-        Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
+        Err(zksync_reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
             tracing::info!("Reverting to l1 batch number {last_correct_l1_batch}");
             reverter.roll_back(last_correct_l1_batch).await?;
             tracing::info!("Revert successfully completed");
@@ -1015,9 +1018,12 @@ async fn run_node(
 
     let mut tasks = ManagedTasks::new(task_handles);
     tokio::select! {
-        () = tasks.wait_single() => {},
+        // We don't want to log unnecessary warnings in `tasks.wait_single()` if we have received a stop signal.
+        biased;
+
         _ = stop_receiver.changed() => {},
-    };
+        () = tasks.wait_single() => {},
+    }
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal (in case it wasn't broadcast previously) to all actors and exit.

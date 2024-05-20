@@ -6,7 +6,7 @@
   "dependencies": {
     "ethers": "~5.7.0",
     "ts-node": "^10.7.0",
-    "zksync-ethers": "https://github.com/zksync-sdk/zksync-ethers#ethers-v5-feat/bridgehub"
+    "zksync-ethers": "5.8.0-beta.5"
   },
   "devDependencies": {
     "typescript": "^4.5.5",
