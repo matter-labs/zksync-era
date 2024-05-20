@@ -467,9 +467,12 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "url",
  "zksync_basic_types",
  "zksync_contracts",
+ "zksync_dal",
  "zksync_eth_client",
+ "zksync_l1_contract_interface",
  "zksync_types",
  "zksync_web3_decl",
 ]

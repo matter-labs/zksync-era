@@ -16,6 +16,8 @@ zksync_contracts.workspace = true
 zksync_types.workspace = true
 zksync_web3_decl = { workspace = true, features = ["client"] }
 zksync_eth_client.workspace = true
+zksync_dal.workspace = true
+zksync_l1_contract_interface.workspace = true
 
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
@@ -23,4 +25,4 @@ tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 serde_json.workspace = true
-
+url.workspace = true
