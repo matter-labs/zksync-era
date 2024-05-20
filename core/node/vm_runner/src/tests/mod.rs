@@ -233,15 +233,7 @@ async fn store_l2_blocks(
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(
-                &header,
-                &[],
-                predicted_gas,
-                &[],
-                &[],
-                Default::default(),
-                Some(Vec::new()),
-            )
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
             .await?;
         conn.blocks_dal()
             .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)

@@ -239,8 +239,11 @@ impl UpdatesManager {
                 &finished_batch.final_execution_state.storage_refunds,
                 &finished_batch.final_execution_state.pubdata_costs,
                 self.pending_execution_metrics().circuit_statistic,
-                Some(tree_input),
             )
+            .await?;
+        transaction
+            .blocks_dal()
+            .set_tree_writes(l1_batch.number, tree_input)
             .await?;
         progress.observe(None);
 
