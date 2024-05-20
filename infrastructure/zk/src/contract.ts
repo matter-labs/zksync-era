@@ -52,7 +52,7 @@ export async function prepareSyncLayer(): Promise<void> {
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const args = [privateKey ? `--private-key ${privateKey}` : ''];
     await utils.spawn(
-        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer deploy-sync-layer-contracts ${args} | tee sync-layer-prep.log`
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer deploy-sync-layer-contracts ${args} | tee sync-layer-prep.log`
     );
 
     const paramsFromEnv = [
@@ -81,14 +81,14 @@ export async function prepareSyncLayer(): Promise<void> {
 }
 
 async function registerSyncLayer() {
-    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer register-sync-layer`);
+    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer register-sync-layer`);
 }
 
 async function migrateToSyncLayer() {
     await utils.confirmAction();
 
     await utils.spawn(
-        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer migrate-to-sync-layer | tee sync-layer-migration.log`
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer migrate-to-sync-layer | tee sync-layer-migration.log`
     );
 
     const migrationLog = fs.readFileSync('sync-layer-migration.log').toString();
@@ -101,12 +101,12 @@ async function migrateToSyncLayer() {
 }
 
 async function prepareValidatorsOnSyncLayer() {
-    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer prepare-validators`);
+    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer prepare-validators`);
 }
 
 async function recoverFromFailedMigrationToSyncLayer(failedTxSLHash: string) {
     await utils.spawn(
-        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer recover-from-failed-migration --failed-tx-l2-hash ${failedTxSLHash}`
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer recover-from-failed-migration --failed-tx-l2-hash ${failedTxSLHash}`
     );
 }
 
