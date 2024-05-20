@@ -1,10 +1,10 @@
 # zk_toolbox
 
-Toolkit for creating and managing the ZK Stack.
+Toolkit for creating and managing ZK Stack chains.
 
-## Zk Inception
+## ZK Inception
 
-Zk Inception facilitates the creation and management of ZK stacks. All commands are interactive, but you can also pass
+ZK Inception facilitates the creation and management of ZK Stacks. All commands are interactive, but you can also pass
 all necessary arguments via the command line.
 
 ### Foundry Integration
@@ -14,10 +14,9 @@ integration.
 
 ### Ecosystem
 
-The Zk Stack allows you to either create a new ecosystem or connect to an existing one, including shared bridges with
-state transition managers.
+ZK Stack allows you to either create a new ecosystem or connect to an existing one. An ecosystem includes the components that connects all ZK chains, like the BridgeHub, the shared bridges, and state transition managers. [Learn more](https://docs.zksync.io/zk-stack/components/shared-bridges.html). 
 
-To create a Zk Stack project, you must first create an ecosystem:
+To create a ZK Stack project, you must first create an ecosystem:
 
 `zk_inception ecosystem create`
 
@@ -27,28 +26,28 @@ If the ecosystem has never been deployed before, initialization is required:
 
 `zk_inception ecosystem init`
 
-This command also initializes the first hyperchain. Note that the very first hyperchain becomes the default one, but you
-can override it with another by using the `--hyperchain <name>` flag.
+This command also initializes the first ZK chain. Note that the very first chain becomes the default one, but you
+can override it with another by using the `--chain <name>` flag.
 
-To change the default hyperchain, use:
+To change the default ZK chain, use:
 
-`zk_inception ecosystem change-default-hyperchain`
+`zk_inception ecosystem change-default-chain`
 
-### Hyperchain
+### ZK Chain
 
-Upon ecosystem creation, the first hyperchain is automatically generated. However, you can create additional hyperchains
+Upon ecosystem creation, the first ZK chain is automatically generated. However, you can create additional chains
 and switch between them:
 
-`zk_inception hyperchain create`
+`zk_inception chain create`
 
-Once created, contracts for the hyperchain must be deployed:
+Once created, contracts for the ZK chain must be deployed:
 
-`zk_inception hyperchain init`
+`zk_inception chain init`
 
-Initialization utilizes the ecosystem's governance to register it in the shared bridge.
+Initialization utilizes the ecosystem's governance to register it in the BridgeHub.
 
 If contracts were deployed by a third party (e.g., MatterLabs), you may need to run the genesis process locally:
 
-`zk_inception hyperchain genesis`
+`zk_inception chain genesis`
 
 This ensures proper initialization of the server.
