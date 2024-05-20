@@ -2,7 +2,7 @@ use anyhow::Context;
 use clap::Args as ClapArgs;
 use dialoguer::{theme::ColorfulTheme, Input};
 use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
-use zksync_config::PostgresConfig;
+use zksync_config::configs::DatabaseSecrets;
 use zksync_env_config::FromEnv;
 use zksync_types::L1BatchNumber;
 
@@ -33,8 +33,8 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let config = PostgresConfig::from_env()?;
-    let prover_connection_pool = ConnectionPool::<Prover>::singleton(config.prover_url()?)
+    let secrets = DatabaseSecrets::from_env()?;
+    let prover_connection_pool = ConnectionPool::<Prover>::singleton(secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;

@@ -1,4 +1,4 @@
-use zksync_config::configs::PostgresConfig;
+use zksync_config::configs::{DatabaseSecrets, PostgresConfig};
 
 use crate::{
     implementations::resources::pools::{MasterPool, PoolResource, ProverPool, ReplicaPool},
@@ -12,15 +12,17 @@ pub struct PoolsLayerBuilder {
     with_master: bool,
     with_replica: bool,
     with_prover: bool,
+    secrets: DatabaseSecrets,
 }
 
 impl PoolsLayerBuilder {
-    pub fn empty(config: PostgresConfig) -> Self {
+    pub fn empty(config: PostgresConfig, database_secrets: DatabaseSecrets) -> Self {
         Self {
             config,
             with_master: false,
             with_replica: false,
             with_prover: false,
+            secrets: database_secrets,
         }
     }
 
@@ -42,6 +44,7 @@ impl PoolsLayerBuilder {
     pub fn build(self) -> PoolsLayer {
         PoolsLayer {
             config: self.config,
+            secrets: self.secrets,
             with_master: self.with_master,
             with_replica: self.with_replica,
             with_prover: self.with_prover,
@@ -52,6 +55,7 @@ impl PoolsLayerBuilder {
 #[derive(Debug)]
 pub struct PoolsLayer {
     config: PostgresConfig,
+    secrets: DatabaseSecrets,
     with_master: bool,
     with_replica: bool,
     with_prover: bool,
@@ -72,7 +76,7 @@ impl WiringLayer for PoolsLayer {
 
         if self.with_master {
             context.insert_resource(PoolResource::<MasterPool>::new(
-                self.config.master_url()?,
+                self.secrets.master_url()?,
                 self.config.max_connections()?,
                 self.config.statement_timeout(),
             ))?;
@@ -80,7 +84,7 @@ impl WiringLayer for PoolsLayer {
 
         if self.with_replica {
             context.insert_resource(PoolResource::<ReplicaPool>::new(
-                self.config.replica_url()?,
+                self.secrets.replica_url()?,
                 self.config.max_connections()?,
                 self.config.statement_timeout(),
             ))?;
@@ -88,7 +92,7 @@ impl WiringLayer for PoolsLayer {
 
         if self.with_prover {
             context.insert_resource(PoolResource::<ProverPool>::new(
-                self.config.prover_url()?,
+                self.secrets.prover_url()?,
                 self.config.max_connections()?,
                 self.config.statement_timeout(),
             ))?;

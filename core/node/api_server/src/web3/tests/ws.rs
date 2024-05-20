@@ -3,8 +3,7 @@
 use std::collections::HashSet;
 
 use async_trait::async_trait;
-use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
-use reqwest::StatusCode;
+use http::StatusCode;
 use tokio::sync::watch;
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
@@ -12,7 +11,11 @@ use zksync_types::{api, Address, L1BatchNumber, H256, U64};
 use zksync_web3_decl::{
     client::{WsClient, L2},
     jsonrpsee::{
-        core::client::{Subscription, SubscriptionClientT},
+        core::{
+            client::{ClientT, Subscription, SubscriptionClientT},
+            params::BatchRequestBuilder,
+            ClientError,
+        },
         rpc_params,
     },
     namespaces::{EthNamespaceClient, ZksNamespaceClient},

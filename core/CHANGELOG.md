@@ -1,5 +1,33 @@
 # Changelog
 
+## [24.3.0](https://github.com/matter-labs/zksync-era/compare/core-v24.2.0...core-v24.3.0) (2024-05-16)
+
+
+### Features
+
+* Added support for making EN a (non-leader) consensus validator (BFT-426) ([#1905](https://github.com/matter-labs/zksync-era/issues/1905)) ([9973629](https://github.com/matter-labs/zksync-era/commit/9973629e35cec9af9eac81452631a2526dd336a8))
+* **configs:** Extract secrets to an additional config  ([#1956](https://github.com/matter-labs/zksync-era/issues/1956)) ([bab4d65](https://github.com/matter-labs/zksync-era/commit/bab4d6579828e484453c84df417550bbaf1013b6))
+* **en:** Fetch L1 batch root hashes from main node ([#1923](https://github.com/matter-labs/zksync-era/issues/1923)) ([72a3571](https://github.com/matter-labs/zksync-era/commit/72a357147391b6f7e6e1ee44bb2c22462316732b))
+* **eth-client:** Generalize RPC client ([#1898](https://github.com/matter-labs/zksync-era/issues/1898)) ([a4e099f](https://github.com/matter-labs/zksync-era/commit/a4e099fe961f329ff2d604d657862819732446b4))
+* **Prover CLI:** `requeue` cmd ([#1719](https://github.com/matter-labs/zksync-era/issues/1719)) ([f722df7](https://github.com/matter-labs/zksync-era/commit/f722df7c0ae429f43d047ff79e24bca39f81230c))
+* **Prover CLI:** `status batch --verbose` ([#1899](https://github.com/matter-labs/zksync-era/issues/1899)) ([cf80184](https://github.com/matter-labs/zksync-era/commit/cf80184941a1fc62c3a755b99571d370949d8566))
+* **pruning:** Vacuum freeze started daily ([#1929](https://github.com/matter-labs/zksync-era/issues/1929)) ([5c85e9f](https://github.com/matter-labs/zksync-era/commit/5c85e9fad350751c85cf6f2d1a9eb79d0e4503df))
+* Remove metrics crate ([#1902](https://github.com/matter-labs/zksync-era/issues/1902)) ([5f7bda7](https://github.com/matter-labs/zksync-era/commit/5f7bda78c3fef7f324f8cbeaed2d7d41b7169d16))
+* **state-keeper:** Parallel l2 block sealing ([#1801](https://github.com/matter-labs/zksync-era/issues/1801)) ([9b06dd8](https://github.com/matter-labs/zksync-era/commit/9b06dd848e85e20f2e94d2a0e858c3f207da5f47))
+* tee_verifier_input_producer ([#1860](https://github.com/matter-labs/zksync-era/issues/1860)) ([fea7f16](https://github.com/matter-labs/zksync-era/commit/fea7f165cfb96bf673353ef562fb5c06f3e49736))
+* **vm-runner:** implement output handler for VM runner ([#1856](https://github.com/matter-labs/zksync-era/issues/1856)) ([1e4aeb5](https://github.com/matter-labs/zksync-era/commit/1e4aeb57d36b347f9b1c7f2112b0af0471a6dbc9))
+
+
+### Bug Fixes
+
+* **basic_types:** bincode deserialization for `web3::Bytes` ([#1928](https://github.com/matter-labs/zksync-era/issues/1928)) ([406ec8c](https://github.com/matter-labs/zksync-era/commit/406ec8cb61ff2b7870ea0a1572e825133304048a))
+* **config:** Fix data-handler-config ([#1919](https://github.com/matter-labs/zksync-era/issues/1919)) ([b6bb041](https://github.com/matter-labs/zksync-era/commit/b6bb041693811813f05dee0587b678afdc1d97a1))
+* **en:** Delete old txs by (init_addr, nonce) ([#1942](https://github.com/matter-labs/zksync-era/issues/1942)) ([fa5f4a7](https://github.com/matter-labs/zksync-era/commit/fa5f4a7e442d4343ed112b448a035c6a0b8f1504))
+* **en:** Fix reorg detector logic for dealing with last L1 batch ([#1906](https://github.com/matter-labs/zksync-era/issues/1906)) ([3af5f5b](https://github.com/matter-labs/zksync-era/commit/3af5f5b3f663c8586cf15698eee168918333a966))
+* parentHash in websocket blocks subscription is shown as 0x0 ([#1946](https://github.com/matter-labs/zksync-era/issues/1946)) ([fc2efad](https://github.com/matter-labs/zksync-era/commit/fc2efad56e1a194b8945abf3fff1abfcd0b7da54))
+* **Prover CLI:** `status batch` bugs ([#1865](https://github.com/matter-labs/zksync-era/issues/1865)) ([09682f2](https://github.com/matter-labs/zksync-era/commit/09682f2951f5f62fa0942057e96f855d78bf67c8))
+* **utils:** bincode ser-/deserialization for `BytesToHexSerde` ([#1947](https://github.com/matter-labs/zksync-era/issues/1947)) ([a75b917](https://github.com/matter-labs/zksync-era/commit/a75b9174b73b1293f0b7f696daa6b21183fd7d19))
+
 ## [24.2.0](https://github.com/matter-labs/zksync-era/compare/core-v24.1.0...core-v24.2.0) (2024-05-14)
 
 
