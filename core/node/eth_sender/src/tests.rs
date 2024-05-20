@@ -490,7 +490,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
 #[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
 async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
-    let mut connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut tester = EthSenderTester::new(
         connection_pool.clone(),
         vec![100; 100],
