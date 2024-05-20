@@ -27,7 +27,7 @@ zksync_snapshots_applier.workspace = true
 zksync_object_store.workspace = true
 prometheus_exporter.workspace = true
 zksync_health_check.workspace = true
-zksync_web3_decl = { workspace = true, features = ["client"] }
+zksync_web3_decl.workspace = true
 zksync_types.workspace = true
 zksync_block_reverter.workspace = true
 zksync_shared_metrics.workspace = true

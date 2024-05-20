@@ -3,10 +3,7 @@ use std::fmt;
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
 use zksync_types::{web3, Address, L1ChainId, H256, U256, U64};
-use zksync_web3_decl::{
-    client::{TaggedClient, L1},
-    error::{ClientRpcContext, EnrichedClientError},
-};
+use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError};
 
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
 use crate::{
@@ -17,17 +14,8 @@ use crate::{
 #[async_trait]
 impl<T> EthInterface for T
 where
-    T: TaggedClient<Net = L1> + L1EthNamespaceClient + Clone + fmt::Debug + Send + Sync + 'static,
+    T: L1EthNamespaceClient + fmt::Debug + Send + Sync,
 {
-    fn clone_boxed(&self) -> Box<dyn EthInterface> {
-        Box::new(self.clone())
-    }
-
-    fn for_component(mut self: Box<Self>, component_name: &'static str) -> Box<dyn EthInterface> {
-        self.set_component(component_name);
-        self
-    }
-
     async fn fetch_chain_id(&self) -> Result<L1ChainId, Error> {
         COUNTERS.call[&(Method::ChainId, self.component())].inc();
         let latency = LATENCIES.direct[&Method::ChainId].start();
@@ -326,21 +314,5 @@ where
         };
         latency.observe();
         Ok(block)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use zksync_web3_decl::client::Client;
-
-    use super::*;
-
-    #[test]
-    fn client_can_be_cloned() {
-        let client = Client::<L1>::http("http://localhost".parse().unwrap())
-            .unwrap()
-            .build();
-        let client: Box<dyn EthInterface> = Box::new(client);
-        let _ = client.clone();
     }
 }
