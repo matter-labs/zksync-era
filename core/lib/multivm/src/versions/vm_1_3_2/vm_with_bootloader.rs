@@ -454,7 +454,7 @@ pub fn get_bootloader_memory(
             execution_mode,
             already_included_txs_size,
             predefined_refunds[tx_index_in_block],
-            block_gas_price_per_pubdata.as_u64() as u32,
+            block_gas_price_per_pubdata.as_u32(),
             previous_compressed,
             compressed_bytecodes,
         );
@@ -477,7 +477,7 @@ pub fn push_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage>(
 ) {
     let tx: TransactionData = tx.clone().into();
     let block_gas_per_pubdata_byte = vm.block_context.context.block_gas_price_per_pubdata();
-    let overhead = tx.overhead_gas(block_gas_per_pubdata_byte.as_u64() as u32);
+    let overhead = tx.overhead_gas(block_gas_per_pubdata_byte.as_u32());
     push_raw_transaction_to_bootloader_memory(
         vm,
         tx,
@@ -546,7 +546,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
         .populate(codes_for_decommiter, timestamp);
 
     let block_gas_price_per_pubdata = vm.block_context.context.block_gas_price_per_pubdata();
-    let trusted_ergs_limit = tx.trusted_gas_limit(block_gas_price_per_pubdata.as_u64() as u32);
+    let trusted_ergs_limit = tx.trusted_gas_limit(block_gas_price_per_pubdata.as_u32());
     let encoded_tx = tx.into_tokens();
     let encoded_tx_size = encoded_tx.len();
 

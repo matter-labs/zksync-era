@@ -8011,7 +8011,6 @@ dependencies = [
  "tracing",
  "vlog",
  "zksync_config",
- "zksync_dal",
  "zksync_protobuf_config",
 ]
 

@@ -244,7 +244,7 @@ mod tests {
     // To test that overflow never happens, we'll use giant L1 gas price, i.e.
     // almost realistic very large value of 100k gwei. Since it is so large, we'll also
     // use it for the L1 pubdata price.
-    const GIANT_L1_GAS_PRICE: U256 = U256::max_value();
+    const GIANT_L1_GAS_PRICE: U256 = U256::MAX;
 
     // As a small small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: U256 = U256::one();

@@ -88,7 +88,7 @@ impl BatchFeeInput {
             BatchFeeInput::PubdataIndependent(input) => input,
             BatchFeeInput::L1Pegged(input) => PubdataIndependentBatchFeeModelInput {
                 fair_l2_gas_price: input.fair_l2_gas_price,
-                fair_pubdata_price: input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE,
+                fair_pubdata_price: input.l1_gas_price * U256::from(L1_GAS_PER_PUBDATA_BYTE),
                 l1_gas_price: input.l1_gas_price,
             },
         }

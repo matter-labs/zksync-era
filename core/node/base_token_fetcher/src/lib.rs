@@ -160,6 +160,7 @@ impl ConversionRateFetcher for BaseTokenFetcher {
                 .unwrap()
                 .process(anyhow::anyhow!(err)),
         }
+
         Ok(())
     }
 }

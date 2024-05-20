@@ -99,7 +99,7 @@ pub(crate) fn precompile_calls_count_after_timestamp(
 pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: U256) -> U256 {
     // This value will typically be a lot less than u64
     // unless the gas price on L1 goes beyond tens of millions of gwei
-    l1_gas_price * L1_GAS_PER_PUBDATA_BYTE
+    l1_gas_price * U256::from(L1_GAS_PER_PUBDATA_BYTE)
 }
 
 pub(crate) fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(

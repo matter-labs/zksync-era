@@ -206,7 +206,7 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
         block_number: 1u32,
         block_timestamp: 1000,
         l1_gas_price: U256::from("50000000000"),    // 50 gwei
-        fair_l2_gas_price: U256::from(250_000_000), // 0.25 gwei
+        fair_l2_gas_price: U256::from("250000000"), // 0.25 gwei
         operator_address: H160::zero(),
     };
 

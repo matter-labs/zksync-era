@@ -12,7 +12,6 @@ categories.workspace = true
 [dependencies]
 zksync_config.workspace = true
 zksync_protobuf_config.workspace = true
-zksync_dal.workspace = true
 vlog.workspace = true
 metrics.workspace = true
 

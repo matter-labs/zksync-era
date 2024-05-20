@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, str::FromStr};
+use std::marker::PhantomData;
 
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
@@ -253,8 +253,8 @@ pub(crate) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
         number,
         timestamp,
         fee_input: BatchFeeInput::l1_pegged(
-            U256::from_str("500000000000").unwrap(), // 50 gwei
-            U256::from(250_000_000),                 // 0.25 gwei
+            U256::from("50000000000"), // 50 gwei
+            U256::from("250000000"),   // 0.25 gwei
         ),
         fee_account: Address::random(),
         enforced_base_fee: None,
