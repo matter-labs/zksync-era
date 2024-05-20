@@ -6,8 +6,8 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::{DynClient, L1},
-    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError, Error,
-    EthInterface, ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
+    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError, EthInterface,
+    ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
@@ -19,7 +19,7 @@ use zksync_types::{
 };
 use zksync_utils::time::seconds_since_epoch;
 
-use super::{metrics::METRICS, ETHSenderError};
+use super::{metrics::METRICS, EthSenderError};
 
 #[derive(Debug)]
 struct EthFee {
@@ -85,7 +85,7 @@ impl EthTxManager {
     async fn get_tx_status(
         &self,
         tx_hash: H256,
-    ) -> Result<Option<ExecutedTxStatus>, ETHSenderError> {
+    ) -> Result<Option<ExecutedTxStatus>, EthSenderError> {
         self.query_client()
             .get_tx_status(tx_hash)
             .await
@@ -125,7 +125,7 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         tx: &EthTx,
         time_in_mempool: u32,
-    ) -> Result<EthFee, ETHSenderError> {
+    ) -> Result<EthFee, EthSenderError> {
         let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
         let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
         let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
@@ -200,7 +200,7 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         eth_tx_id: u32,
         base_fee_per_gas: u64,
-    ) -> Result<u64, ETHSenderError> {
+    ) -> Result<u64, EthSenderError> {
         let previous_sent_tx = storage
             .eth_sender_dal()
             .get_last_sent_eth_tx(eth_tx_id)
@@ -228,7 +228,7 @@ impl EthTxManager {
                 .with_arg("base_fee_per_gas", &base_fee_per_gas)
                 .with_arg("previous_base_fee", &previous_base_fee)
                 .with_arg("next_block_minimal_base_fee", &next_block_minimal_base_fee);
-            return Err(ETHSenderError::from(Error::EthereumGateway(err)));
+            return Err(err.into());
         }
 
         // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
@@ -242,7 +242,7 @@ impl EthTxManager {
         tx: &EthTx,
         time_in_mempool: u32,
         current_block: L1BlockNumber,
-    ) -> Result<H256, ETHSenderError> {
+    ) -> Result<H256, EthSenderError> {
         let EthFee {
             base_fee_per_gas,
             priority_fee_per_gas,
@@ -310,7 +310,7 @@ impl EthTxManager {
         tx_history_id: u32,
         raw_tx: RawTransactionBytes,
         current_block: L1BlockNumber,
-    ) -> Result<H256, ETHSenderError> {
+    ) -> Result<H256, EthSenderError> {
         match self.query_client().send_raw_tx(raw_tx).await {
             Ok(tx_hash) => {
                 storage
@@ -334,7 +334,7 @@ impl EthTxManager {
     async fn get_operator_nonce(
         &self,
         block_numbers: L1BlockNumbers,
-    ) -> Result<OperatorNonce, ETHSenderError> {
+    ) -> Result<OperatorNonce, EthSenderError> {
         let finalized = self
             .ethereum_gateway
             .nonce_at(block_numbers.finalized.0.into())
@@ -354,7 +354,7 @@ impl EthTxManager {
     async fn get_blobs_operator_nonce(
         &self,
         block_numbers: L1BlockNumbers,
-    ) -> Result<Option<OperatorNonce>, ETHSenderError> {
+    ) -> Result<Option<OperatorNonce>, EthSenderError> {
         match &self.ethereum_gateway_blobs {
             None => Ok(None),
             Some(gateway) => {
@@ -374,7 +374,7 @@ impl EthTxManager {
         }
     }
 
-    async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, ETHSenderError> {
+    async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, EthSenderError> {
         let (finalized, safe) = if let Some(confirmations) = self.config.wait_confirmations {
             let latest_block_number = self.query_client().block_number().await?.as_u64();
 
@@ -418,7 +418,7 @@ impl EthTxManager {
         &mut self,
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
-    ) -> Result<Option<(EthTx, u32)>, ETHSenderError> {
+    ) -> Result<Option<(EthTx, u32)>, EthSenderError> {
         METRICS.track_block_numbers(&l1_block_numbers);
         let operator_nonce = self.get_operator_nonce(l1_block_numbers).await?;
         let blobs_operator_nonce = self.get_blobs_operator_nonce(l1_block_numbers).await?;
@@ -458,7 +458,7 @@ impl EthTxManager {
         l1_block_numbers: L1BlockNumbers,
         operator_nonce: OperatorNonce,
         operator_address: Option<Address>,
-    ) -> Result<Option<(EthTx, u32)>, ETHSenderError> {
+    ) -> Result<Option<(EthTx, u32)>, EthSenderError> {
         let inflight_txs = storage.eth_sender_dal().get_inflight_txs().await.unwrap();
         METRICS.number_of_inflight_txs.set(inflight_txs.len());
 
@@ -799,7 +799,7 @@ impl EthTxManager {
         &mut self,
         storage: &mut Connection<'_, Core>,
         previous_block: L1BlockNumber,
-    ) -> Result<L1BlockNumber, ETHSenderError> {
+    ) -> Result<L1BlockNumber, EthSenderError> {
         let l1_block_numbers = self.get_l1_block_numbers().await?;
 
         self.send_new_eth_txs(storage, l1_block_numbers.latest)

@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::sync::watch;
 use zksync_eth_client::{
     clients::{DynClient, L1},
-    CallFunctionArgs, ClientError, Error as EthClientError,
+    CallFunctionArgs, ClientError, ContractCallError,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
@@ -66,14 +66,14 @@ impl L1BatchCommitmentModeValidationTask {
                 // Getters contract does not support `getPubdataPricingMode` method.
                 // This case is accepted for backwards compatibility with older contracts, but emits a
                 // warning in case the wrong contract address was passed by the caller.
-                Err(EthClientError::EthereumGateway(err))
+                Err(ContractCallError::EthereumGateway(err))
                     if matches!(err.as_ref(), ClientError::Call(_)) =>
                 {
                     tracing::warn!("Contract {diamond_proxy_address:?} does not support getPubdataPricingMode method: {err}");
                     return Ok(());
                 }
 
-                Err(EthClientError::EthereumGateway(err)) if err.is_transient() => {
+                Err(ContractCallError::EthereumGateway(err)) if err.is_transient() => {
                     tracing::warn!(
                         "Transient error validating commitment mode, will retry after {:?}: {err}",
                         self.retry_interval
@@ -92,7 +92,7 @@ impl L1BatchCommitmentModeValidationTask {
     async fn get_pubdata_pricing_mode(
         diamond_proxy_address: Address,
         eth_client: &DynClient<L1>,
-    ) -> Result<L1BatchCommitmentMode, EthClientError> {
+    ) -> Result<L1BatchCommitmentMode, ContractCallError> {
         CallFunctionArgs::new("getPubdataPricingMode", ())
             .for_contract(
                 diamond_proxy_address,

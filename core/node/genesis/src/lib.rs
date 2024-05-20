@@ -426,7 +426,7 @@ pub async fn save_set_chain_id_tx(
         .from_block(from.into())
         .to_block(BlockNumber::Latest)
         .build();
-    let mut logs = query_client.logs(filter).await?;
+    let mut logs = query_client.logs(&filter).await?;
     anyhow::ensure!(
         logs.len() == 1,
         "Expected a single set_chain_id event, got these {}: {:?}",

@@ -7,7 +7,7 @@ use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::{DynClient, L1},
-    CallFunctionArgs, Error as L1ClientError, EthInterface,
+    CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
 };
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
@@ -29,7 +29,9 @@ mod tests;
 #[derive(Debug, thiserror::Error)]
 enum CheckError {
     #[error("Web3 error communicating with L1")]
-    Web3(#[from] L1ClientError),
+    Web3(#[from] EnrichedClientError),
+    #[error("error calling L1 contract")]
+    ContractCall(#[from] ContractCallError),
     /// Error that is caused by the main node providing incorrect information etc.
     #[error("failed validating commit transaction")]
     Validation(anyhow::Error),
@@ -42,7 +44,7 @@ impl CheckError {
     fn is_transient(&self) -> bool {
         matches!(
             self,
-            Self::Web3(L1ClientError::EthereumGateway(err)) if err.is_transient()
+            Self::Web3(err) if err.is_transient()
         )
     }
 }

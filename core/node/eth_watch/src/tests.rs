@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto, sync::Arc};
 use tokio::sync::RwLock;
 use zksync_contracts::{governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
@@ -12,10 +13,7 @@ use zksync_types::{
     ProtocolVersionId, Transaction, H256, U256,
 };
 
-use crate::{
-    client::{EthClient, EthClientError},
-    EthWatch,
-};
+use crate::{client::EthClient, EthWatch};
 
 #[derive(Debug)]
 struct FakeEthClientData {
@@ -105,7 +103,7 @@ impl EthClient for MockEthClient {
         from: BlockNumber,
         to: BlockNumber,
         _retries_left: usize,
-    ) -> Result<Vec<Log>, EthClientError> {
+    ) -> EnrichedClientResult<Vec<Log>> {
         let from = self.block_to_number(from).await;
         let to = self.block_to_number(to).await;
         let mut logs = vec![];
@@ -125,11 +123,14 @@ impl EthClient for MockEthClient {
 
     fn set_topics(&mut self, _topics: Vec<Hash>) {}
 
-    async fn scheduler_vk_hash(&self, _verifier_address: Address) -> Result<H256, EthClientError> {
+    async fn scheduler_vk_hash(
+        &self,
+        _verifier_address: Address,
+    ) -> Result<H256, ContractCallError> {
         Ok(H256::zero())
     }
 
-    async fn finalized_block_number(&self) -> Result<u64, EthClientError> {
+    async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 }
