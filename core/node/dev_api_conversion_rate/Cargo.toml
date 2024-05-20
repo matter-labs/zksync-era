@@ -1,0 +1,25 @@
+[package]
+name = "zksync_dev_api_conversion_rate"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_config.workspace = true
+bigdecimal.workspace = true
+
+tokio.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+axum = { workspace = true, features = [
+    "http1",
+    "json",
+    "tokio",
+] }
+
+tracing.workspace = true

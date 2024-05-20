@@ -23,9 +23,18 @@ members = [
     "core/node/eth_sender",
     "core/node/vm_runner",
     "core/node/test_utils",
+    "core/node/state_keeper",
+    "core/node/reorg_detector",
+    "core/node/consistency_checker",
+    "core/node/metadata_calculator",
+    "core/node/node_sync",
+    "core/node/consensus",
+    "core/node/contract_verification_server",
+    "core/node/api_server",
+    "core/node/tee_verifier_input_producer",
     # Libraries
     "core/lib/db_connection",
-    "core/lib/zksync_core",
+    "core/lib/zksync_core_leftovers",
     "core/lib/basic_types",
     "core/lib/config",
     "core/lib/constants",
@@ -96,6 +105,7 @@ clap = "4.2.2"
 codegen = "0.2.0"
 criterion = "0.4.0"
 ctrlc = "3.1"
+dashmap = "5.5.3"
 derive_more = "=1.0.0-beta.6"
 envy = "0.4"
 ethabi = "18.0.0"
@@ -202,7 +212,7 @@ zksync_basic_types = { path = "core/lib/basic_types" }
 zksync_circuit_breaker = { path = "core/lib/circuit_breaker" }
 zksync_config = { path = "core/lib/config" }
 zksync_contracts = { path = "core/lib/contracts" }
-zksync_core = { path = "core/lib/zksync_core" }
+zksync_core_leftovers = { path = "core/lib/zksync_core_leftovers" }
 zksync_crypto = { path = "core/lib/crypto" }
 zksync_dal = { path = "core/lib/dal" }
 zksync_db_connection = { path = "core/lib/db_connection" }
@@ -239,8 +249,18 @@ zksync_commitment_generator = { path = "core/node/commitment_generator" }
 zksync_house_keeper = { path = "core/node/house_keeper" }
 zksync_node_genesis = { path = "core/node/genesis" }
 zksync_base_token_fetcher = { path = "core/node/base_token_fetcher" }
+zksync_dev_api_conversion_rate = { path = "core/node/dev_api_conversion_rate" }
 zksync_eth_sender = { path = "core/node/eth_sender" }
 zksync_node_db_pruner = { path = "core/node/db_pruner" }
 zksync_node_fee_model = { path = "core/node/fee_model" }
 zksync_vm_runner = { path = "core/node/vm_runner" }
 zksync_node_test_utils = { path = "core/node/test_utils" }
+zksync_state_keeper = { path = "core/node/state_keeper" }
+zksync_reorg_detector = { path = "core/node/reorg_detector" }
+zksync_consistency_checker = { path = "core/node/consistency_checker" }
+zksync_metadata_calculator = { path = "core/node/metadata_calculator" }
+zksync_node_sync = { path = "core/node/node_sync" }
+zksync_node_consensus = { path = "core/node/consensus" }
+zksync_contract_verification_server = { path = "core/node/contract_verification_server" }
+zksync_node_api_server = { path = "core/node/api_server" }
+zksync_tee_verifier_input_producer = { path = "core/node/tee_verifier_input_producer" }

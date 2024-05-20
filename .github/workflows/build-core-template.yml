@@ -47,7 +47,7 @@ jobs:
               platforms: linux/arm64
 
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
 
@@ -66,7 +66,7 @@ jobs:
           filtered_tag=""
           while [ true ]; do
             echo "Page: $page"
-            tags=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
+            tags=$(curl --retry 5 -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/matter-labs/era-contracts/tags?per_page=100&page=${page}" | jq .)
             if [ $(jq length <<<"$tags") -eq 0 ]; then
               echo "No tag found on all pages."
@@ -111,6 +111,7 @@ jobs:
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
           mkdir -p ./volumes/postgres
+          run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run sccache --start-server
 
@@ -168,10 +169,11 @@ jobs:
             platform: linux/amd64,linux/arm64
           - name: snapshots-creator
             platform: linux/amd64
+
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
 
       - name: login to Docker registries
         run: |

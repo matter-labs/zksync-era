@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-use zksync_basic_types::url::SensitiveUrl;
 use zksync_config::configs;
 use zksync_protobuf::{
     repr::{read_required_repr, ProtoRepr},
@@ -103,32 +102,7 @@ impl ProtoRepr for proto::Postgres {
             .map(|x| (x.server_url.clone(), x.prover_url.clone()))
             .unwrap_or_default();
 
-        let master_url = self
-            .server_url
-            .as_deref()
-            .map(str::parse::<SensitiveUrl>)
-            .transpose()
-            .context("master_url")?;
-        let mut replica_url = self
-            .server_replica_url
-            .as_deref()
-            .map(str::parse::<SensitiveUrl>)
-            .transpose()
-            .context("replica_url")?;
-        if replica_url.is_none() {
-            replica_url = master_url.clone();
-        }
-        let prover_url = self
-            .prover_url
-            .as_deref()
-            .map(str::parse::<SensitiveUrl>)
-            .transpose()
-            .context("prover_url")?;
-
         Ok(Self::Type {
-            master_url,
-            replica_url,
-            prover_url,
             max_connections: self.max_connections,
             max_connections_master: self.max_connections_master,
             acquire_timeout_sec: self.acquire_timeout_sec,
@@ -142,18 +116,6 @@ impl ProtoRepr for proto::Postgres {
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            server_url: this
-                .master_url
-                .as_ref()
-                .map(|url| url.expose_str().to_owned()),
-            server_replica_url: this
-                .replica_url
-                .as_ref()
-                .map(|url| url.expose_str().to_owned()),
-            prover_url: this
-                .prover_url
-                .as_ref()
-                .map(|url| url.expose_str().to_owned()),
             max_connections: this.max_connections,
             max_connections_master: this.max_connections_master,
             acquire_timeout_sec: this.acquire_timeout_sec,

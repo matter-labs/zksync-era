@@ -12,6 +12,7 @@ use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_dal::BigDecimal;
 use zksync_eth_client::{Error, EthInterface};
 use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
+use zksync_web3_decl::client::{DynClient, L1};
 
 use self::metrics::METRICS;
 use super::L1TxParamsProvider;
@@ -32,14 +33,14 @@ pub struct GasAdjuster {
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
-    eth_client: Box<dyn EthInterface>,
     base_token_fetcher: Arc<dyn ConversionRateFetcher>,
+    eth_client: Box<DynClient<L1>>,
     commitment_mode: L1BatchCommitmentMode,
 }
 
 impl GasAdjuster {
     pub async fn new(
-        eth_client: Box<dyn EthInterface>,
+        eth_client: Box<DynClient<L1>>,
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         base_token_fetcher: Arc<dyn ConversionRateFetcher>,
@@ -178,16 +179,14 @@ impl GasAdjuster {
         let calculated_price =
             (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
 
-        let gas_price = BigDecimal::from(self.bound_gas_price(calculated_price));
         let conversion_rate = self
             .base_token_fetcher
             .conversion_rate()
-            .unwrap_or(BigDecimal::from(BigDecimal::from(1)));
+            .unwrap_or(BigDecimal::from(1));
+        let bound_gas_price = BigDecimal::from(self.bound_gas_price(calculated_price));
 
-        // Casting directly from BigDecimal to U256 is not possible,
-        // so we first remove the fractional part, convert to string and then to U256.
         U256::from_dec_str(
-            &match (gas_price * conversion_rate).round(0) {
+            &match (conversion_rate * bound_gas_price).round(0) {
                 zero if zero == BigDecimal::from(0) => BigDecimal::from(1),
                 val => val,
             }
@@ -220,7 +219,21 @@ impl GasAdjuster {
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_pubdata_pricing_multiplier;
 
-                self.bound_blob_base_fee(calculated_price).into()
+                let conversion_rate = self
+                    .base_token_fetcher
+                    .conversion_rate()
+                    .unwrap_or(BigDecimal::from(1));
+                let bound_blob_base_fee =
+                    BigDecimal::from(self.bound_blob_base_fee(calculated_price));
+
+                U256::from_dec_str(
+                    &match (conversion_rate * bound_blob_base_fee).round(0) {
+                        zero if zero == BigDecimal::from(0) => BigDecimal::from(1),
+                        val => val,
+                    }
+                    .to_string(),
+                )
+                .unwrap_or(U256::max_value()) // assume overflow (should never happen)
             }
             PubdataSendingMode::Calldata => {
                 self.estimate_effective_gas_price() * self.pubdata_byte_gas()
@@ -252,7 +265,7 @@ impl GasAdjuster {
     /// Returns vector of base fees and blob base fees for given block range.
     /// Note, that data for pre-dencun blocks won't be included in the vector returned.
     async fn get_base_fees_history(
-        eth_client: &dyn EthInterface,
+        eth_client: &DynClient<L1>,
         block_range: RangeInclusive<usize>,
     ) -> Result<(Vec<u64>, Vec<U256>), Error> {
         let mut base_fee_history = Vec::new();

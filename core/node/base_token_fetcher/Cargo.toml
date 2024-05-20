@@ -19,6 +19,7 @@ metrics.workspace = true
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 async-trait.workspace = true
+bigdecimal.workspace = true
 
 reqwest = { workspace = true, features = ["blocking", "json"] }
 hex.workspace = true

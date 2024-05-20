@@ -1,16 +1,16 @@
 use std::{
     cmp::min,
     str::FromStr,
-    sync::{Arc, Mutex as StdMutex},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use async_trait::async_trait;
+use bigdecimal::BigDecimal;
 use hex::ToHex;
-use tokio::{sync::Mutex, time::sleep};
+use tokio::time::sleep;
 use zksync_config::configs::BaseTokenFetcherConfig;
-use zksync_dal::BigDecimal;
 
 const MAX_CONVERSION_RATE_FETCH_RETRIES: u8 = 10;
 
@@ -51,7 +51,7 @@ impl ConversionRateFetcher for NoOpConversionRateFetcher {
 #[derive(Debug)]
 pub struct BaseTokenFetcher {
     pub config: BaseTokenFetcherConfig,
-    pub latest_to_eth_conversion_rate: Arc<StdMutex<BigDecimal>>,
+    pub latest_to_eth_conversion_rate: Arc<Mutex<BigDecimal>>,
     http_client: reqwest::Client,
     error_reporter: Arc<Mutex<ErrorReporter>>,
 }
@@ -78,7 +78,7 @@ impl BaseTokenFetcher {
 
         Ok(Self {
             config,
-            latest_to_eth_conversion_rate: Arc::new(StdMutex::new(conversion_rate)),
+            latest_to_eth_conversion_rate: Arc::new(Mutex::new(conversion_rate)),
             http_client,
             error_reporter,
         })
@@ -112,14 +112,14 @@ impl BaseTokenFetcher {
             }
         }
 
-        let conversion_rate =
-            BigDecimal::from_str(&conversion_rate_str.ok_or_else(|| {
-                anyhow::anyhow!("Failed to fetch the native token conversion rate")
-            })?)?;
+        let conversion_rate = conversion_rate_str
+            .ok_or_else(|| anyhow::anyhow!("Failed to fetch the native token conversion rate"))?;
+        let conversion_rate = BigDecimal::from_str(&conversion_rate)
+            .context("Unable to parse the response of the native token conversion rate server")?;
         let error_reporter = Arc::new(Mutex::new(ErrorReporter::new()));
         Ok(Self {
             config,
-            latest_to_eth_conversion_rate: Arc::new(StdMutex::new(conversion_rate)),
+            latest_to_eth_conversion_rate: Arc::new(Mutex::new(conversion_rate)),
             http_client,
             error_reporter,
         })
@@ -129,20 +129,7 @@ impl BaseTokenFetcher {
 #[async_trait]
 impl ConversionRateFetcher for BaseTokenFetcher {
     fn conversion_rate(&self) -> anyhow::Result<BigDecimal> {
-        let lock = match self.latest_to_eth_conversion_rate.lock() {
-            Ok(lock) => lock,
-            Err(err) => {
-                tracing::error!(
-                    "Error while getting lock of latest conversion rate: {:?}",
-                    err,
-                );
-                return Err(anyhow!(
-                    "Error while getting lock of latest conversion rate: {:?}",
-                    err,
-                ));
-            }
-        };
-        anyhow::Ok(lock.clone())
+        Ok(self.latest_to_eth_conversion_rate.lock().unwrap().clone())
     }
 
     async fn update(&self) -> anyhow::Result<()> {
@@ -160,31 +147,17 @@ impl ConversionRateFetcher for BaseTokenFetcher {
                 let conversion_rate_str = response.json::<String>().await.context(
                     "Unable to parse the response of the native token conversion rate server",
                 )?;
-                let conversion_rate = BigDecimal::from_str(&conversion_rate_str).context(
-                    "Unable to parse the response of the native token conversion rate server",
-                )?;
-                match self.latest_to_eth_conversion_rate.lock() {
-                    Ok(mut lock) => {
-                        *lock = conversion_rate;
-                    }
-                    Err(err) => {
-                        tracing::error!(
-                            "Error while getting lock of latest conversion rate: {:?}",
-                            err,
-                        );
-                        return Err(anyhow!(
-                            "Error while getting lock of latest conversion rate: {:?}",
-                            err,
-                        ));
-                    }
-                }
+                *self.latest_to_eth_conversion_rate.lock().unwrap() =
+                    BigDecimal::from_str(&conversion_rate_str).context(
+                        "Unable to parse the response of the native token conversion rate server",
+                    )?;
 
-                self.error_reporter.lock().await.reset();
+                self.error_reporter.lock().unwrap().reset();
             }
             Err(err) => self
                 .error_reporter
                 .lock()
-                .await
+                .unwrap()
                 .process(anyhow::anyhow!(err)),
         }
         Ok(())

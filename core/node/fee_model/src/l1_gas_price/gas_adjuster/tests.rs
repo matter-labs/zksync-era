@@ -33,26 +33,26 @@ fn samples_queue() {
 #[test_casing(2, [L1BatchCommitmentMode::Rollup, L1BatchCommitmentMode::Validium])]
 #[tokio::test]
 async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
-    let eth_client = Box::new(
-        MockEthereum::default()
-            .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
-            .with_excess_blob_gas_history(vec![
-                393216,
-                393216 * 2,
-                393216,
-                393216 * 2,
-                393216,
-                393216 * 2,
-                393216 * 3,
-                393216 * 4,
-            ]),
-    );
-    eth_client.advance_block_number(5);
+    let eth_client = MockEthereum::builder()
+        .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
+        .with_excess_blob_gas_history(vec![
+            393216,
+            393216 * 2,
+            393216,
+            393216 * 2,
+            393216,
+            393216 * 2,
+            393216 * 3,
+            393216 * 4,
+        ])
+        .build();
+    // 5 sampled blocks + additional block to account for latest block subtraction
+    eth_client.advance_block_number(6);
 
     let base_token_fetcher = Arc::new(NoOpConversionRateFetcher {});
 
     let adjuster = GasAdjuster::new(
-        eth_client.clone(),
+        Box::new(eth_client.clone().into_client()),
         GasAdjusterConfig {
             default_priority_fee_per_gas: 5,
             max_base_fee_samples: 5,

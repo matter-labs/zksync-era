@@ -14,15 +14,13 @@ use zksync_config::{
     },
     ObjectStoreConfig,
 };
-use zksync_core::{
-    api_server::{
-        tx_sender::TxSenderConfig,
-        web3::{state::InternalApiConfig, Namespace},
-    },
-    temp_config_store::decode_yaml_repr,
-};
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
+use zksync_node_api_server::{
+    tx_sender::TxSenderConfig,
+    web3::{state::InternalApiConfig, Namespace},
+};
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
@@ -214,9 +212,12 @@ pub(crate) struct OptionalENConfig {
     /// Max possible limit of entities to be requested via API at once.
     #[serde(default = "OptionalENConfig::default_req_entities_limit")]
     pub req_entities_limit: usize,
-    /// Max possible size of an ABI encoded tx (in bytes).
-    #[serde(default = "OptionalENConfig::default_max_tx_size")]
-    pub max_tx_size: usize,
+    /// Max possible size of an ABI-encoded transaction supplied to `eth_sendRawTransaction`.
+    #[serde(
+        alias = "max_tx_size",
+        default = "OptionalENConfig::default_max_tx_size_bytes"
+    )]
+    pub max_tx_size_bytes: usize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
@@ -236,12 +237,12 @@ pub(crate) struct OptionalENConfig {
     max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
     // Other API config settings
-    /// Interval between polling DB for pubsub (in ms).
+    /// Interval between polling DB for Web3 subscriptions.
     #[serde(
-        rename = "pubsub_polling_interval",
+        alias = "pubsub_polling_interval",
         default = "OptionalENConfig::default_polling_interval"
     )]
-    polling_interval: u64,
+    pubsub_polling_interval_ms: u64,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     #[serde(default = "OptionalENConfig::default_max_nonce_ahead")]
     pub max_nonce_ahead: u32,
@@ -272,10 +273,13 @@ pub(crate) struct OptionalENConfig {
     #[serde(default)]
     pub filters_disabled: bool,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
-    /// In milliseconds. Default is 50 milliseconds.
-    #[serde(default = "OptionalENConfig::default_mempool_cache_update_interval")]
-    pub mempool_cache_update_interval: u64,
-    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    /// Default is 50 milliseconds.
+    #[serde(
+        alias = "mempool_cache_update_interval",
+        default = "OptionalENConfig::default_mempool_cache_update_interval_ms"
+    )]
+    pub mempool_cache_update_interval_ms: u64,
+    /// Maximum number of transactions to be stored in the mempool cache.
     #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
     pub mempool_cache_size: usize,
     /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
@@ -292,26 +296,33 @@ pub(crate) struct OptionalENConfig {
     healthcheck_hard_time_limit_ms: Option<u64>,
 
     // Gas estimation config
-    /// The factor by which to scale the gasLimit
+    /// The factor by which to scale the gas limit.
     #[serde(default = "OptionalENConfig::default_estimate_gas_scale_factor")]
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
-    /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
+    /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block.
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
     pub gas_price_scale_factor: f64,
 
     // Merkle tree config
-    #[serde(default = "OptionalENConfig::default_metadata_calculator_delay")]
-    metadata_calculator_delay: u64,
-    /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
+    /// Processing delay between processing L1 batches in the Merkle tree.
+    #[serde(
+        alias = "metadata_calculator_delay",
+        default = "OptionalENConfig::default_merkle_tree_processing_delay_ms"
+    )]
+    merkle_tree_processing_delay_ms: u64,
+    /// Maximum number of L1 batches to be processed by the Merkle tree at a time. L1 batches are processed in a bulk
+    /// only if they are readily available (i.e., mostly during node catch-up). Increasing this value reduces the number
+    /// of I/O operations at the cost of requiring more RAM (order of 100 MB / batch).
     #[serde(
         alias = "max_blocks_per_tree_batch",
-        default = "OptionalENConfig::default_max_l1_batches_per_tree_iter"
+        alias = "max_l1_batches_per_tree_iter",
+        default = "OptionalENConfig::default_merkle_tree_max_l1_batches_per_iter"
     )]
-    pub max_l1_batches_per_tree_iter: usize,
+    pub merkle_tree_max_l1_batches_per_iter: usize,
     /// Maximum number of files concurrently opened by Merkle tree RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the tree.
     pub merkle_tree_max_open_files: Option<NonZeroU32>,
@@ -338,16 +349,20 @@ pub(crate) struct OptionalENConfig {
 
     // Postgres config (new parameters)
     /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
+    /// If not specified, such logging will be disabled.
     database_long_connection_threshold_ms: Option<u64>,
-    /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
+    /// Threshold in milliseconds to denote a DB query as "slow" and log its details. If not specified, such logging will be disabled.
     database_slow_query_threshold_ms: Option<u64>,
 
     // Other config settings
-    /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
-    /// sealing will block until some of the miniblocks from the queue are processed.
+    /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
+    /// sealing will block until some of the L2 blocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
-    #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
-    pub miniblock_seal_queue_capacity: usize,
+    #[serde(
+        alias = "miniblock_seal_queue_capacity",
+        default = "OptionalENConfig::default_l2_block_seal_queue_capacity"
+    )]
+    pub l2_block_seal_queue_capacity: usize,
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
@@ -411,7 +426,7 @@ impl OptionalENConfig {
         1_024
     }
 
-    const fn default_max_tx_size() -> usize {
+    const fn default_max_tx_size_bytes() -> usize {
         1_000_000
     }
 
@@ -435,11 +450,11 @@ impl OptionalENConfig {
         50
     }
 
-    const fn default_metadata_calculator_delay() -> u64 {
+    const fn default_merkle_tree_processing_delay_ms() -> u64 {
         100
     }
 
-    const fn default_max_l1_batches_per_tree_iter() -> usize {
+    const fn default_merkle_tree_max_l1_batches_per_iter() -> usize {
         20
     }
 
@@ -490,7 +505,7 @@ impl OptionalENConfig {
         10
     }
 
-    const fn default_miniblock_seal_queue_capacity() -> usize {
+    const fn default_l2_block_seal_queue_capacity() -> usize {
         10
     }
 
@@ -498,7 +513,7 @@ impl OptionalENConfig {
         true
     }
 
-    const fn default_mempool_cache_update_interval() -> u64 {
+    const fn default_mempool_cache_update_interval_ms() -> u64 {
         50
     }
 
@@ -530,18 +545,18 @@ impl OptionalENConfig {
         3_600 // 1 hour
     }
 
-    pub fn from_env() -> anyhow::Result<Self> {
+    fn from_env() -> anyhow::Result<Self> {
         envy::prefixed("EN_")
             .from_env()
             .context("could not load external node config")
     }
 
     pub fn polling_interval(&self) -> Duration {
-        Duration::from_millis(self.polling_interval)
+        Duration::from_millis(self.pubsub_polling_interval_ms)
     }
 
-    pub fn metadata_calculator_delay(&self) -> Duration {
-        Duration::from_millis(self.metadata_calculator_delay)
+    pub fn merkle_tree_processing_delay(&self) -> Duration {
+        Duration::from_millis(self.merkle_tree_processing_delay_ms)
     }
 
     /// Returns the size of factory dependencies cache in bytes.
@@ -609,7 +624,7 @@ impl OptionalENConfig {
     }
 
     pub fn mempool_cache_update_interval(&self) -> Duration {
-        Duration::from_millis(self.mempool_cache_update_interval)
+        Duration::from_millis(self.mempool_cache_update_interval_ms)
     }
 
     pub fn pruning_removal_delay(&self) -> Duration {
@@ -654,7 +669,7 @@ pub(crate) struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    fn from_env() -> anyhow::Result<Self> {
         envy::prefixed("EN_")
             .from_env()
             .context("could not load external node config")
@@ -693,7 +708,7 @@ pub(crate) struct PostgresConfig {
 }
 
 impl PostgresConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             database_url: env::var("DATABASE_URL")
                 .context("DATABASE_URL env variable is not set")?
@@ -758,7 +773,8 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
     Ok(Some(
-        decode_yaml_repr::<proto::consensus::Secrets>(&cfg).context("failed decoding YAML")?,
+        decode_yaml_repr::<proto::secrets::ConsensusSecrets>(&cfg)
+            .context("failed decoding YAML")?,
     ))
 }
 
@@ -805,55 +821,63 @@ pub struct TreeComponentConfig {
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
 #[derive(Debug)]
-pub(crate) struct ExternalNodeConfig {
+pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub observability: ObservabilityENConfig,
-    pub remote: RemoteENConfig,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
+    pub remote: R,
 }
 
-impl ExternalNodeConfig {
-    /// Loads config from the environment variables and fetches contracts addresses from the main node.
-    pub async fn new(
-        required: RequiredENConfig,
-        optional: OptionalENConfig,
-        observability: ObservabilityENConfig,
-        main_node_client: &DynClient<L2>,
-    ) -> anyhow::Result<Self> {
-        let experimental = envy::prefixed("EN_EXPERIMENTAL_")
-            .from_env::<ExperimentalENConfig>()
-            .context("could not load external node config (experimental params)")?;
-
-        let api_component_config = envy::prefixed("EN_API_")
-            .from_env::<ApiComponentConfig>()
-            .context("could not load external node config (API component params)")?;
-        let tree_component_config = envy::prefixed("EN_TREE_")
-            .from_env::<TreeComponentConfig>()
-            .context("could not load external node config (tree component params)")?;
-
-        let remote = RemoteENConfig::fetch(main_node_client)
-            .await
-            .context("Unable to fetch required config values from the main node")?;
-
-        let postgres = PostgresConfig::from_env()?;
+impl ExternalNodeConfig<()> {
+    /// Parses the local part of node configuration from the environment.
+    pub fn new() -> anyhow::Result<Self> {
         Ok(Self {
-            remote,
-            postgres,
-            required,
-            optional,
-            experimental,
-            observability,
+            required: RequiredENConfig::from_env()?,
+            postgres: PostgresConfig::from_env()?,
+            optional: OptionalENConfig::from_env()?,
+            observability: ObservabilityENConfig::from_env()?,
+            experimental: envy::prefixed("EN_EXPERIMENTAL_")
+                .from_env::<ExperimentalENConfig>()
+                .context("could not load external node config (experimental params)")?,
             consensus: read_consensus_config().context("read_consensus_config()")?,
-            tree_component: tree_component_config,
-            api_component: api_component_config,
+            api_component: envy::prefixed("EN_API_")
+                .from_env::<ApiComponentConfig>()
+                .context("could not load external node config (API component params)")?,
+            tree_component: envy::prefixed("EN_TREE_")
+                .from_env::<TreeComponentConfig>()
+                .context("could not load external node config (tree component params)")?,
+            remote: (),
         })
     }
 
+    /// Fetches contracts addresses from the main node, completing the configuration.
+    pub async fn fetch_remote(
+        self,
+        main_node_client: &DynClient<L2>,
+    ) -> anyhow::Result<ExternalNodeConfig> {
+        let remote = RemoteENConfig::fetch(main_node_client)
+            .await
+            .context("Unable to fetch required config values from the main node")?;
+        Ok(ExternalNodeConfig {
+            required: self.required,
+            postgres: self.postgres,
+            optional: self.optional,
+            observability: self.observability,
+            experimental: self.experimental,
+            consensus: self.consensus,
+            tree_component: self.tree_component,
+            api_component: self.api_component,
+            remote,
+        })
+    }
+}
+
+impl ExternalNodeConfig {
     #[cfg(test)]
     pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
         Self {
@@ -877,7 +901,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
         Self {
             l1_chain_id: config.required.l1_chain_id,
             l2_chain_id: config.required.l2_chain_id,
-            max_tx_size: config.optional.max_tx_size,
+            max_tx_size: config.optional.max_tx_size_bytes,
             estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: config
                 .optional

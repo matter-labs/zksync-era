@@ -16,8 +16,8 @@ zksync_dal.workspace = true
 zksync_config.workspace = true
 zksync_eth_client.workspace = true
 zksync_utils.workspace = true
-zksync_web3_decl = { workspace = true, features = ["client"] }
 zksync_base_token_fetcher.workspace = true
+zksync_web3_decl.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true

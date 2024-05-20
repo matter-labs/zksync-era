@@ -643,7 +643,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#19988079852ea22576da6b09e39365e6cdc1368f"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#cd631c9a1d61ec21d7bd22eb74949d43ecfad0fd"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -1398,7 +1398,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#19988079852ea22576da6b09e39365e6cdc1368f"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#cd631c9a1d61ec21d7bd22eb74949d43ecfad0fd"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.78",
@@ -7501,7 +7501,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#0448e26ffd8e2f1935ff8cd3303fe5a504cd5d7b"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#c42da1512334c3d95869198e41ee4f0da68812b4"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -7631,7 +7631,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#e554cfaab0821582e289724e8dc2a8fd145ed217"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#a93a3a5c34ec1ec31d73191d11ab00b4d8215a3f"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
@@ -7770,7 +7770,6 @@ dependencies = [
  "num_enum 0.7.2",
  "serde",
  "serde_json",
- "sqlx",
  "strum",
  "thiserror",
  "tiny-keccak 2.0.2",

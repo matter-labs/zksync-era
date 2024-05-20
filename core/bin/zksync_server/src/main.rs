@@ -12,16 +12,16 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        ContractsConfig, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig,
+        ContractsConfig, DatabaseSecrets, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, Secrets,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
-use zksync_core::{
+use zksync_core_leftovers::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
-    temp_config_store::{decode_yaml, decode_yaml_repr, Secrets, TempConfigStore},
+    temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
@@ -144,10 +144,13 @@ async fn main() -> anyhow::Result<()> {
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml(&yaml).context("failed decoding secrets YAML config")?
+            decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
+                .context("failed decoding secrets YAML config")?
         }
         None => Secrets {
             consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
+            database: DatabaseSecrets::from_env().ok(),
+            l1: L1Secrets::from_env().ok(),
         },
     };
 
@@ -173,16 +176,16 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
+    let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
 
-    if opt.genesis || is_genesis_needed(&postgres_config).await {
-        genesis_init(genesis.clone(), &postgres_config)
+    if opt.genesis || is_genesis_needed(&database_secrets).await {
+        genesis_init(genesis.clone(), &database_secrets)
             .await
             .context("genesis_init")?;
 
         if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
-            let eth_config = configs.eth.as_ref().context("eth config")?;
-            let query_client = Client::http(eth_config.web3_url.clone())
+            let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
+            let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
                 .context("Ethereum client")?
                 .for_network(genesis.l1_chain_id.into())
                 .build();
@@ -190,7 +193,7 @@ async fn main() -> anyhow::Result<()> {
                 &query_client,
                 contracts_config.diamond_proxy_addr,
                 ecosystem_contracts.state_transition_proxy_addr,
-                &postgres_config,
+                &database_secrets,
             )
             .await
             .context("Failed to save SetChainId upgrade transaction")?;

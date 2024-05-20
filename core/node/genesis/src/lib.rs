@@ -6,7 +6,7 @@ use std::fmt::Formatter;
 
 use anyhow::Context as _;
 use multivm::utils::get_max_gas_per_pubdata_byte;
-use zksync_config::{GenesisConfig, PostgresConfig};
+use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
@@ -407,9 +407,9 @@ pub async fn save_set_chain_id_tx(
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
-    postgres_config: &PostgresConfig,
+    database_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
-    let db_url = postgres_config.master_url()?;
+    let db_url = database_secrets.master_url()?;
     let pool = ConnectionPool::<Core>::singleton(db_url).build().await?;
     let mut storage = pool.connection().await?;
 
