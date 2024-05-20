@@ -17,6 +17,7 @@ pub use self::{
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
+    secrets::{DatabaseSecrets, L1Secrets, Secrets},
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
 };
@@ -42,6 +43,7 @@ pub mod house_keeper;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
+pub mod secrets;
 pub mod snapshots_creator;
 pub mod utils;
 pub mod wallets;

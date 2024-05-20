@@ -4,7 +4,10 @@ use zksync_config::configs::fri_witness_generator::WitnessGenerationTimeouts;
 use zksync_dal::ConnectionPool;
 use zksync_types::prover_dal::StuckJobs;
 
-use crate::periodic_job::PeriodicJob;
+use crate::{
+    metrics::{WitnessType, SERVER_METRICS},
+    periodic_job::PeriodicJob,
+};
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorJobRetryManager {
@@ -33,10 +36,8 @@ impl FriWitnessGeneratorJobRetryManager {
         for stuck_job in stuck_jobs {
             tracing::info!("re-queuing {:?} {:?}", witness_type, stuck_job);
         }
-        metrics::counter!(
-            format!("server.{:?}.requeued_jobs", witness_type),
-            stuck_jobs.len() as u64
-        );
+        SERVER_METRICS.requeued_jobs[&WitnessType::from(witness_type)]
+            .inc_by(stuck_jobs.len() as u64);
     }
 
     pub async fn requeue_stuck_witness_inputs_jobs(&mut self) {

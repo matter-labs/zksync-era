@@ -53,7 +53,7 @@ jobs:
           - proof-fri-compressor
           - proof-gpu-fri-compressor
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
 
@@ -69,6 +69,7 @@ jobs:
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
           mkdir -p ./volumes/postgres
+          run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run sccache --start-server
 
@@ -84,6 +85,7 @@ jobs:
         if: matrix.component == 'proof-fri-compressor' || matrix.component == 'proof-gpu-fri-compressor'
         run: |
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
+
 
       - name: login to Docker registries
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
@@ -102,7 +104,7 @@ jobs:
           retry_count=0
 
           while [[ $retry_count -lt $max_retries ]]; do
-            response=$(curl -s -w "%{http_code}" -o temp.json "$api_endpoint")
+            response=$(curl --retry 5 -s -w "%{http_code}" -o temp.json "$api_endpoint")
             http_code=$(echo "$response" | tail -n1)
 
             if [[ "$http_code" == "200" ]]; then

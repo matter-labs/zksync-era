@@ -8,8 +8,8 @@ use prover_dal::ConnectionPool;
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProverConfig, FriWitnessVectorGeneratorConfig,
-    ObservabilityConfig, PostgresConfig,
+    fri_prover_group::FriProverGroupConfig, DatabaseSecrets, FriProverConfig,
+    FriWitnessVectorGeneratorConfig, ObservabilityConfig,
 };
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
@@ -67,8 +67,8 @@ async fn main() -> anyhow::Result<()> {
     let specialized_group_id = config.specialized_group_id;
     let exporter_config = PrometheusExporterConfig::pull(config.prometheus_listener_port);
 
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let pool = ConnectionPool::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
