@@ -110,9 +110,8 @@ jobs:
       - name: Deploy legacy era contracts
         run: ci_run zk contract setup-legacy-bridge-era
 
-      - name: Perform loadtest - DISABLED (EVM-541)
-        run: ls
-        # ci_run zk run loadtest
+      - name: Perform loadtest
+        run: ci_run zk run loadtest
 
       - name: Show server.log logs
         if: always()
@@ -228,7 +227,7 @@ jobs:
       - name: Fee projection tests
         run: ci_run zk test i fees
 
-      - name: Run revert test - DISABLED (EVM-539)
+      - name: Run revert test
         run: |
           ci_run pkill zksync_server || true
           ci_run sleep 2
@@ -341,7 +340,7 @@ jobs:
       - name: Integration tests
         run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
 
-      - name: Run revert test - DISABLED (EVM-539)
+      - name: Run revert test
         run: |
           ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
           # test terminates the nodes, so we restart them.
