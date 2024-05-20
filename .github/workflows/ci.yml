@@ -23,7 +23,7 @@ jobs:
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           fetch-depth: 2
           submodules: "recursive"
@@ -146,7 +146,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
+    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images]
     steps:
       - name: Status
         run: |

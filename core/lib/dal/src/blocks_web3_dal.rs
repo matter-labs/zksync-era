@@ -168,15 +168,17 @@ impl BlocksWeb3Dal<'_, '_> {
         let rows = sqlx::query!(
             r#"
             SELECT
-                hash,
-                number,
-                timestamp
+                miniblocks.hash,
+                miniblocks.number,
+                prev_miniblock.hash AS "parent_hash?",
+                miniblocks.timestamp
             FROM
                 miniblocks
+                LEFT JOIN miniblocks prev_miniblock ON prev_miniblock.number = miniblocks.number - 1
             WHERE
-                number > $1
+                miniblocks.number > $1
             ORDER BY
-                number ASC
+                miniblocks.number ASC
             "#,
             i64::from(from_block.0),
         )
@@ -187,7 +189,10 @@ impl BlocksWeb3Dal<'_, '_> {
 
         let blocks = rows.into_iter().map(|row| BlockHeader {
             hash: Some(H256::from_slice(&row.hash)),
-            parent_hash: H256::zero(),
+            parent_hash: row
+                .parent_hash
+                .as_deref()
+                .map_or_else(H256::zero, H256::from_slice),
             uncles_hash: EMPTY_UNCLES_HASH,
             author: H160::zero(),
             state_root: H256::zero(),

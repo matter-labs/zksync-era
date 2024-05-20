@@ -737,6 +737,7 @@ async function configDemoHyperchain(cmd: Command) {
     await init.initDevCmdAction({
         skipEnvSetup: cmd.skipEnvSetup,
         skipSubmodulesCheckout: false,
+        skipVerifier: false,
         testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! },
         // TODO(EVM-573): support Validium mode
         runObservability: false,

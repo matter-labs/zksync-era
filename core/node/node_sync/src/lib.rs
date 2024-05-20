@@ -9,6 +9,7 @@ mod sync_state;
 pub mod testonly;
 #[cfg(test)]
 mod tests;
+pub mod tree_data_fetcher;
 
 pub use self::{
     client::MainNodeClient,

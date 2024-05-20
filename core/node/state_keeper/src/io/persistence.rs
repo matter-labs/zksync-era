@@ -1,6 +1,6 @@
 //! State keeper persistence logic.
 
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -162,7 +162,10 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         Ok(())
     }
 
-    async fn handle_l1_batch(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+    async fn handle_l1_batch(
+        &mut self,
+        updates_manager: Arc<UpdatesManager>,
+    ) -> anyhow::Result<()> {
         // We cannot start sealing an L1 batch until we've sealed all L2 blocks included in it.
         self.wait_for_all_commands().await;
 
@@ -372,7 +375,10 @@ mod tests {
         );
 
         updates.finish_batch(batch_result);
-        persistence.handle_l1_batch(&updates).await.unwrap();
+        persistence
+            .handle_l1_batch(Arc::new(updates))
+            .await
+            .unwrap();
 
         tx_hash
     }

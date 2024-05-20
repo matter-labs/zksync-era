@@ -15,7 +15,7 @@ use zksync_types::{
 
 use super::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
-    io::{IoCursor, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
+    io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution},
     types::ExecutionMetricsForCriteria,
@@ -176,8 +176,9 @@ impl ZkSyncStateKeeper {
             let finished_batch = batch_executor.finish_batch().await;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
+            let mut next_cursor = updates_manager.io_cursor();
             self.output_handler
-                .handle_l1_batch(&updates_manager)
+                .handle_l1_batch(Arc::new(updates_manager))
                 .await
                 .with_context(|| format!("failed sealing L1 batch {l1_batch_env:?}"))?;
 
@@ -187,7 +188,6 @@ impl ZkSyncStateKeeper {
             l1_batch_seal_delta = Some(Instant::now());
 
             // Start the new batch.
-            let mut next_cursor = updates_manager.io_cursor();
             next_cursor.l1_batch += 1;
             (system_env, l1_batch_env) = self.wait_for_new_batch_env(&next_cursor).await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
@@ -274,21 +274,48 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
+    async fn wait_for_new_batch_params(
+        &mut self,
+        cursor: &IoCursor,
+    ) -> Result<L1BatchParams, Error> {
+        while !self.is_canceled() {
+            if let Some(params) = self
+                .io
+                .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
+                .await?
+            {
+                return Ok(params);
+            }
+        }
+        Err(Error::Canceled)
+    }
+
     async fn wait_for_new_batch_env(
         &mut self,
         cursor: &IoCursor,
     ) -> Result<(SystemEnv, L1BatchEnv), Error> {
-        while !self.is_canceled() {
-            if let Some(envs) = self
-                .io
-                .wait_for_new_batch_env(cursor, POLL_WAIT_DURATION)
-                .await
-                .context("error waiting for new L1 batch environment")?
-            {
-                return Ok(envs);
+        // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
+        // until we get the rest of parameters from I/O or receive a stop signal.
+        let params = self.wait_for_new_batch_params(cursor).await?;
+        let contracts = self
+            .io
+            .load_base_system_contracts(params.protocol_version, cursor)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading system contracts for protocol version {:?}",
+                    params.protocol_version
+                )
+            })?;
+
+        // `select!` is safe to use here; `io.load_batch_state_hash(..)` is cancel-safe by contract
+        tokio::select! {
+            hash_result = self.io.load_batch_state_hash(cursor.l1_batch - 1) => {
+                let previous_batch_hash = hash_result.context("cannot load state hash for previous L1 batch")?;
+                Ok(params.into_env(self.io.chain_id(), contracts, cursor, previous_batch_hash))
             }
+            _ = self.stop_receiver.changed() => Err(Error::Canceled),
         }
-        Err(Error::Canceled)
     }
 
     async fn wait_for_new_l2_block_params(

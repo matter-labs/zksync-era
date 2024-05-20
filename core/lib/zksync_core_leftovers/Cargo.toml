@@ -9,8 +9,6 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-links = "zksync_core_leftovers_proto"
-
 [dependencies]
 vise.workspace = true
 zksync_state.workspace = true
@@ -98,6 +96,7 @@ axum = { workspace = true, features = [
     "tokio",
 ] }
 once_cell.workspace = true
+dashmap.workspace = true
 
 tracing.workspace = true
 

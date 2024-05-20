@@ -196,7 +196,7 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
             origin,
             &stats,
         );
-        tracing::warn!(
+        tracing::debug!(
             network = network_label,
             component = self.component_name,
             %origin,
