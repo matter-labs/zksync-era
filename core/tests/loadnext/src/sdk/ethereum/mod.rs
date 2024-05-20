@@ -31,7 +31,6 @@ use crate::sdk::{
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
 const HYPERCHAIN_INTERFACE: &str = include_str!("../abi/IZkSyncHyperchain.json");
 const BRIDGEHUB_INTERFACE: &str = include_str!("../abi/IBridgehub.json");
-const L1_ERC20_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1ERC20Bridge.json");
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
 
 // The `gasPerPubdata` to be used in L1->L2 requests. It may be almost any number, but here we 800
@@ -48,10 +47,6 @@ pub fn ierc20_contract() -> ethabi::Contract {
     load_contract(IERC20_INTERFACE)
 }
 
-pub fn l1_erc20_bridge_contract() -> ethabi::Contract {
-    load_contract(L1_ERC20_BRIDGE_INTERFACE)
-}
-
 pub fn bridgehub_abi() -> ethabi::Contract {
     load_contract(BRIDGEHUB_INTERFACE)
 }
@@ -65,7 +60,6 @@ pub struct EthereumProvider<S: EthereumSigner> {
     eth_client: SigningClient<S>,
     default_bridges: BridgeAddresses,
     erc20_abi: ethabi::Contract,
-    l1_erc20_bridge_abi: ethabi::Contract,
     bridgehub_abi: ethabi::Contract,
     bridgehub_address: Option<Address>,
     confirmation_timeout: Duration,
@@ -143,7 +137,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             l2_chain_id,
             default_bridges,
             erc20_abi: ierc20_contract(),
-            l1_erc20_bridge_abi: l1_erc20_bridge_contract(),
             bridgehub_abi: bridgehub_abi(),
             bridgehub_address,
             confirmation_timeout: Duration::from_secs(10),
