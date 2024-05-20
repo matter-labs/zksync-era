@@ -85,6 +85,7 @@ jobs:
         if: matrix.component == 'proof-fri-compressor' || matrix.component == 'proof-gpu-fri-compressor'
         run: |
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
+          ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
 
       - name: login to Docker registries
