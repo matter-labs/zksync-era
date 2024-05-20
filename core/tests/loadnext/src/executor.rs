@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
-use zksync_eth_client::Options;
+use zksync_eth_client::{EthInterface, Options};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
@@ -15,6 +15,7 @@ use crate::{
     account_pool::AccountPool,
     config::{ExecutionConfig, LoadtestConfig, RequestLimiters},
     constants::*,
+    metrics::LOADTEST_METRICS,
     report::ReportBuilder,
     report_collector::{LoadtestResult, ReportCollector},
     sdk::{
@@ -114,10 +115,9 @@ impl Executor {
             self.pool.master_wallet.address(),
             format_eth(eth_balance)
         );
-        metrics::gauge!(
-            "loadtest.master_account_balance",
-            eth_balance.as_u128() as f64
-        );
+        LOADTEST_METRICS
+            .master_account_balance
+            .set(eth_balance.as_u128() as u64);
 
         Ok(())
     }

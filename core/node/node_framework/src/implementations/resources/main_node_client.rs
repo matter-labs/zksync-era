@@ -1,9 +1,9 @@
-use zksync_web3_decl::client::BoxedL2Client;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::resource::Resource;
 
 #[derive(Debug, Clone)]
-pub struct MainNodeClientResource(pub BoxedL2Client);
+pub struct MainNodeClientResource(pub Box<DynClient<L2>>);
 
 impl Resource for MainNodeClientResource {
     fn name() -> String {

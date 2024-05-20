@@ -12,7 +12,7 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BigNumberish, BytesLike } from 'ethers';
-import { serialize, hashBytecode } from 'zksync-ethers/build/src/utils';
+import { hashBytecode, serialize } from 'zksync-ethers/build/utils';
 import { getTestContract } from '../src/helpers';
 
 const contracts = {
@@ -345,7 +345,9 @@ describe('System behavior checks', () => {
     function bootloaderUtilsContract() {
         const BOOTLOADER_UTILS_ADDRESS = '0x000000000000000000000000000000000000800c';
         const BOOTLOADER_UTILS = new ethers.utils.Interface(
-            require(`${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/BootloaderUtilities.sol/BootloaderUtilities.json`).abi
+            require(`${
+                testMaster.environment().pathToHome
+            }/contracts/system-contracts/artifacts-zk/contracts-preprocessed/BootloaderUtilities.sol/BootloaderUtilities.json`).abi
         );
 
         return new ethers.Contract(BOOTLOADER_UTILS_ADDRESS, BOOTLOADER_UTILS, alice);

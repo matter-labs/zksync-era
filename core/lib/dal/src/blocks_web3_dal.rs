@@ -14,13 +14,14 @@ use zksync_utils::bigdecimal_to_u256;
 
 use crate::{
     models::{
+        parse_protocol_version,
         storage_block::{
             ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
             LEGACY_BLOCK_GAS_LIMIT,
         },
         storage_transaction::CallTrace,
     },
-    Core, CoreDal,
+    Core,
 };
 
 #[derive(Debug)]
@@ -167,15 +168,17 @@ impl BlocksWeb3Dal<'_, '_> {
         let rows = sqlx::query!(
             r#"
             SELECT
-                hash,
-                number,
-                timestamp
+                miniblocks.hash,
+                miniblocks.number,
+                prev_miniblock.hash AS "parent_hash?",
+                miniblocks.timestamp
             FROM
                 miniblocks
+                LEFT JOIN miniblocks prev_miniblock ON prev_miniblock.number = miniblocks.number - 1
             WHERE
-                number > $1
+                miniblocks.number > $1
             ORDER BY
-                number ASC
+                miniblocks.number ASC
             "#,
             i64::from(from_block.0),
         )
@@ -186,7 +189,10 @@ impl BlocksWeb3Dal<'_, '_> {
 
         let blocks = rows.into_iter().map(|row| BlockHeader {
             hash: Some(H256::from_slice(&row.hash)),
-            parent_hash: H256::zero(),
+            parent_hash: row
+                .parent_hash
+                .as_deref()
+                .map_or_else(H256::zero, H256::from_slice),
             uncles_hash: EMPTY_UNCLES_HASH,
             author: H160::zero(),
             state_root: H256::zero(),
@@ -486,12 +492,27 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         block_number: L2BlockNumber,
     ) -> DalResult<Vec<Call>> {
-        let protocol_version = self
-            .storage
-            .blocks_dal()
-            .get_l2_block_protocol_version_id(block_number)
-            .await?
-            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let protocol_version = sqlx::query!(
+            r#"
+            SELECT
+                protocol_version
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .try_map(|row| row.protocol_version.map(parse_protocol_version).transpose())
+        .instrument("get_traces_for_l2_block#get_l2_block_protocol_version_id")
+        .with_arg("l2_block_number", &block_number)
+        .fetch_optional(self.storage)
+        .await?;
+        let Some(protocol_version) = protocol_version else {
+            return Ok(Vec::new());
+        };
+        let protocol_version =
+            protocol_version.unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
         Ok(sqlx::query_as!(
             CallTrace,
@@ -694,7 +715,7 @@ mod tests {
             create_l2_block_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
         },
-        ConnectionPool, Core,
+        ConnectionPool, Core, CoreDal,
     };
 
     #[tokio::test]
@@ -912,7 +933,13 @@ mod tests {
             tx_results.push(tx_result);
         }
         conn.transactions_dal()
-            .mark_txs_as_executed_in_l2_block(L2BlockNumber(1), &tx_results, 1.into())
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(1),
+                &tx_results,
+                1.into(),
+                ProtocolVersionId::latest(),
+                false,
+            )
             .await
             .unwrap();
 

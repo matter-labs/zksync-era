@@ -3,9 +3,9 @@
 //!
 //! # Overview
 //!
-//! - [`L2Client`] is the main client implementation. It's parameterized by the transport (e.g., HTTP or WS),
+//! - [`Client`] is the main client implementation. It's parameterized by the transport (e.g., HTTP or WS),
 //!   with HTTP being the default option.
-//! - [`MockL2Client`] is a mock client useful for testing. Bear in mind that because of the client being generic,
+//! - [`MockClient`] is a mock client useful for testing. Bear in mind that because of the client being generic,
 //!   mock tooling is fairly low-level. Prefer defining a domain-specific wrapper trait for the client functionality and mock it
 //!   where it's possible.
 //! - [`BoxedL2Client`] is a generic client (essentially, a wrapper around a trait object). Use it for dependency injection
@@ -28,17 +28,25 @@ use jsonrpsee::{
         traits::ToRpcParams,
     },
     http_client::{HttpClient, HttpClientBuilder},
+    ws_client,
 };
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
 use zksync_types::url::SensitiveUrl;
 
 use self::metrics::{L2ClientMetrics, METRICS};
-pub use self::{boxed::BoxedL2Client, mock::MockL2Client};
+pub use self::{
+    boxed::{DynClient, ObjectSafeClient},
+    mock::MockClient,
+    network::{ForNetwork, Network, TaggedClient, L1, L2},
+    shared::Shared,
+};
 
 mod boxed;
 mod metrics;
 mod mock;
+mod network;
+mod shared;
 #[cfg(test)]
 mod tests;
 
@@ -82,17 +90,12 @@ impl fmt::Display for CallOrigin<'_> {
     }
 }
 
-/// Trait encapsulating requirements for the L2 client base.
-pub trait L2ClientBase: SubscriptionClientT + Clone + fmt::Debug + Send + Sync + 'static {}
+/// Trait encapsulating requirements for the client base.
+pub trait ClientBase: ClientT + Clone + fmt::Debug + Send + Sync + 'static {}
 
-impl<T: SubscriptionClientT + Clone + fmt::Debug + Send + Sync + 'static> L2ClientBase for T {}
+impl<T: ClientT + Clone + fmt::Debug + Send + Sync + 'static> ClientBase for T {}
 
-pub trait TaggedClient {
-    /// Sets the component operating this client. This is used in logging etc.
-    fn for_component(self, component_name: &'static str) -> Self;
-}
-
-/// JSON-RPC client for the main node with built-in middleware support.
+/// JSON-RPC client for the main node or Ethereum node with built-in middleware support.
 ///
 /// The client should be used instead of `HttpClient` etc. A single instance of the client should be built
 /// and shared among all tasks run by the node in order to correctly rate-limit requests.
@@ -107,37 +110,54 @@ pub trait TaggedClient {
 //   [a boxed cloneable version of services](https://docs.rs/tower/latest/tower/util/struct.BoxCloneService.html),
 //   but it doesn't fit (it's unconditionally `!Sync`, and `Sync` is required for `HttpClient<_>` to implement RPC traits).
 #[derive(Clone)]
-pub struct L2Client<C = HttpClient> {
+pub struct Client<Net, C = HttpClient> {
     inner: C,
     url: SensitiveUrl,
     rate_limit: SharedRateLimit,
     component_name: &'static str,
     metrics: &'static L2ClientMetrics,
+    network: Net,
 }
 
-impl<C: 'static> fmt::Debug for L2Client<C> {
+/// Client using the WebSocket transport.
+pub type WsClient<Net> = Client<Net, Shared<ws_client::WsClient>>;
+
+impl<Net: fmt::Debug, C: 'static> fmt::Debug for Client<Net, C> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("L2Client")
+            .debug_struct("Client")
             // Do not expose the entire client `Debug` representation, which may (and in case of `HttpClient`, does)
             // include potentially sensitive URL and/or HTTP headers
             .field("inner", &any::type_name::<C>())
             .field("url", &self.url)
             .field("rate_limit", &self.rate_limit)
             .field("component_name", &self.component_name)
+            .field("network", &self.network)
             .finish_non_exhaustive()
     }
 }
 
-impl L2Client {
-    /// Creates an HTTP-backed L2 client.
-    pub fn http(url: SensitiveUrl) -> anyhow::Result<L2ClientBuilder> {
+impl<Net: Network> Client<Net> {
+    /// Creates an HTTP-backed client.
+    pub fn http(url: SensitiveUrl) -> anyhow::Result<ClientBuilder<Net>> {
         let client = HttpClientBuilder::default().build(url.expose_str())?;
-        Ok(L2ClientBuilder::new(client, url))
+        Ok(ClientBuilder::new(client, url))
     }
 }
 
-impl<C: L2ClientBase> L2Client<C> {
+impl<Net: Network> WsClient<Net> {
+    /// Creates a WS-backed client.
+    pub async fn ws(
+        url: SensitiveUrl,
+    ) -> anyhow::Result<ClientBuilder<Net, Shared<ws_client::WsClient>>> {
+        let client = ws_client::WsClientBuilder::default()
+            .build(url.expose_str())
+            .await?;
+        Ok(ClientBuilder::new(Shared::new(client), url))
+    }
+}
+
+impl<Net: Network, C: ClientBase> Client<Net, C> {
     async fn limit_rate(&self, origin: CallOrigin<'_>) -> Result<(), Error> {
         const RATE_LIMIT_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -146,11 +166,17 @@ impl<C: L2ClientBase> L2Client<C> {
             self.rate_limit.acquire(origin.request_count()),
         )
         .await;
+
+        let network_label = self.network.metric_label();
         let stats = match rate_limit_result {
             Err(_) => {
-                self.metrics
-                    .observe_rate_limit_timeout(self.component_name, origin);
+                self.metrics.observe_rate_limit_timeout(
+                    &network_label,
+                    self.component_name,
+                    origin,
+                );
                 tracing::warn!(
+                    network = network_label,
                     component = self.component_name,
                     %origin,
                     "Request to {origin} by component `{}` timed out during rate limiting using policy {} reqs/{:?}",
@@ -164,9 +190,14 @@ impl<C: L2ClientBase> L2Client<C> {
             Ok(stats) => stats,
         };
 
-        self.metrics
-            .observe_rate_limit_latency(self.component_name, origin, &stats);
-        tracing::warn!(
+        self.metrics.observe_rate_limit_latency(
+            &network_label,
+            self.component_name,
+            origin,
+            &stats,
+        );
+        tracing::debug!(
+            network = network_label,
             component = self.component_name,
             %origin,
             "Request to {origin} by component `{}` was rate-limited using policy {} reqs/{:?}: {stats:?}",
@@ -183,21 +214,34 @@ impl<C: L2ClientBase> L2Client<C> {
         call_result: Result<T, Error>,
     ) -> Result<T, Error> {
         if let Err(err) = &call_result {
-            self.metrics.observe_error(self.component_name, origin, err);
+            let network_label = self.network.metric_label();
+            self.metrics
+                .observe_error(&network_label, self.component_name, origin, err);
         }
         call_result
     }
 }
 
-impl<C: L2ClientBase> TaggedClient for L2Client<C> {
-    fn for_component(mut self, component_name: &'static str) -> Self {
+impl<Net: Network, C: ClientBase> ForNetwork for Client<Net, C> {
+    type Net = Net;
+
+    fn network(&self) -> Self::Net {
+        self.network
+    }
+
+    fn component(&self) -> &'static str {
+        self.component_name
+    }
+}
+
+impl<Net: Network, C: ClientBase> TaggedClient for Client<Net, C> {
+    fn set_component(&mut self, component_name: &'static str) {
         self.component_name = component_name;
-        self
     }
 }
 
 #[async_trait]
-impl<C: L2ClientBase> ClientT for L2Client<C> {
+impl<Net: Network, C: ClientBase> ClientT for Client<Net, C> {
     async fn notification<Params>(&self, method: &str, params: Params) -> Result<(), Error>
     where
         Params: ToRpcParams + Send,
@@ -231,7 +275,7 @@ impl<C: L2ClientBase> ClientT for L2Client<C> {
 }
 
 #[async_trait]
-impl<C: L2ClientBase> SubscriptionClientT for L2Client<C> {
+impl<Net: Network, C: ClientBase + SubscriptionClientT> SubscriptionClientT for Client<Net, C> {
     async fn subscribe<'a, Notif, Params>(
         &self,
         subscribe_method: &'a str,
@@ -264,32 +308,41 @@ impl<C: L2ClientBase> SubscriptionClientT for L2Client<C> {
     }
 }
 
-/// Builder for the [`L2Client`].
-pub struct L2ClientBuilder<C = HttpClient> {
+/// Builder for the [`Client`].
+pub struct ClientBuilder<Net, C = HttpClient> {
     client: C,
     url: SensitiveUrl,
     rate_limit: (usize, Duration),
+    network: Net,
 }
 
-impl<C: 'static> fmt::Debug for L2ClientBuilder<C> {
+impl<Net: fmt::Debug, C: 'static> fmt::Debug for ClientBuilder<Net, C> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("L2ClientBuilder")
             .field("client", &any::type_name::<C>())
             .field("url", &self.url)
             .field("rate_limit", &self.rate_limit)
+            .field("network", &self.network)
             .finish_non_exhaustive()
     }
 }
 
-impl<C: L2ClientBase> L2ClientBuilder<C> {
+impl<Net: Network, C: ClientBase> ClientBuilder<Net, C> {
     /// Wraps the provided client.
     fn new(client: C, url: SensitiveUrl) -> Self {
         Self {
             client,
             url,
             rate_limit: (1, Duration::ZERO),
+            network: Net::default(),
         }
+    }
+
+    /// Specifies the network to be used by the client. The network is logged and is used as a metrics label.
+    pub fn for_network(mut self, network: Net) -> Self {
+        self.network = network;
+        self
     }
 
     /// Sets the rate limit for the client. The rate limit is applied across all client instances,
@@ -309,21 +362,23 @@ impl<C: L2ClientBase> L2ClientBuilder<C> {
     }
 
     /// Builds the client.
-    pub fn build(self) -> L2Client<C> {
+    pub fn build(self) -> Client<Net, C> {
         tracing::info!(
-            "Creating JSON-RPC client with inner client: {:?} and rate limit: {:?}",
+            "Creating JSON-RPC client for network {:?} with inner client: {:?} and rate limit: {:?}",
+            self.network,
             self.client,
             self.rate_limit
         );
         let rate_limit = SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1);
-        METRICS.observe_config(&rate_limit);
+        METRICS.observe_config(self.network.metric_label(), &rate_limit);
 
-        L2Client {
+        Client {
             inner: self.client,
             url: self.url,
             rate_limit,
             component_name: "",
             metrics: &METRICS,
+            network: self.network,
         }
     }
 }
