@@ -9052,7 +9052,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "mime",
+ "serde_json",
  "tokio",
+ "tower",
  "tracing",
  "vm_utils",
  "zksync_config",
@@ -9126,6 +9129,7 @@ dependencies = [
  "chrono",
  "circuit_sequencer_api 0.1.50",
  "serde",
+ "serde_json",
  "serde_with",
  "strum",
  "tokio",

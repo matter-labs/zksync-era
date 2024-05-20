@@ -28,13 +28,36 @@ pub async fn run_server(
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting proof data handler server on {bind_address}");
+    let app = create_proof_processing_router(blob_store, connection_pool, config, commitment_mode);
+
+    axum::Server::bind(&bind_address)
+        .serve(app.into_make_service())
+        .with_graceful_shutdown(async move {
+            if stop_receiver.changed().await.is_err() {
+                tracing::warn!("Stop signal sender for proof data handler server was dropped without sending a signal");
+            }
+            tracing::info!("Stop signal received, proof data handler server is shutting down");
+        })
+        .await
+        .context("Proof data handler server failed")?;
+    tracing::info!("Proof data handler server shut down");
+    Ok(())
+}
+
+fn create_proof_processing_router(
+    blob_store: Arc<dyn ObjectStore>,
+    connection_pool: ConnectionPool<Core>,
+    config: ProofDataHandlerConfig,
+    commitment_mode: L1BatchCommitmentMode,
+) -> Router {
     let get_tee_proof_gen_processor =
         TeeRequestProcessor::new(blob_store.clone(), connection_pool.clone(), config.clone());
     let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();
     let get_proof_gen_processor =
         RequestProcessor::new(blob_store, connection_pool, config, commitment_mode);
     let submit_proof_processor = get_proof_gen_processor.clone();
-    let app = Router::new()
+
+    Router::new()
         .route(
             "/proof_generation_data",
             post(
@@ -68,7 +91,7 @@ pub async fn run_server(
             ),
         )
         .route(
-            "/submit_tee_proof/:l1_batch_number", // add TEE type as a parameter
+            "/submit_tee_proof/:l1_batch_number", // add TEE type as a parameter (and pubkey?)
             post(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitTeeProofRequest>| async move {
                     submit_tee_proof_processor
@@ -76,18 +99,61 @@ pub async fn run_server(
                         .await
                 },
             ),
-        );
+        )
+}
 
-    axum::Server::bind(&bind_address)
-        .serve(app.into_make_service())
-        .with_graceful_shutdown(async move {
-            if stop_receiver.changed().await.is_err() {
-                tracing::warn!("Stop signal sender for proof data handler server was dropped without sending a signal");
-            }
-            tracing::info!("Stop signal received, proof data handler server is shutting down");
-        })
-        .await
-        .context("Proof data handler server failed")?;
-    tracing::info!("Proof data handler server shut down");
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use crate::{create_proof_processing_router, ConnectionPool};
+    use axum::{
+        body::Body,
+        http::{self, Method, Request, StatusCode},
+    };
+    use serde_json::json;
+    use tower::ServiceExt;
+    use zksync_config::configs::ProofDataHandlerConfig;
+    use zksync_object_store::ObjectStoreFactory;
+    use zksync_types::commitment::L1BatchCommitmentMode;
+
+    // TODO https://github.com/tokio-rs/axum/blob/main/examples/testing/src/main.rs#L58
+
+    #[tokio::test]
+    async fn invalid_json_syntax() {
+        let blob_store = ObjectStoreFactory::mock().create_store().await;
+        let connection_pool = ConnectionPool::test_pool().await;
+        let app = create_proof_processing_router(
+            blob_store,
+            connection_pool,
+            ProofDataHandlerConfig {
+                http_port: 1337,
+                proof_generation_timeout_in_secs: 10,
+            },
+            L1BatchCommitmentMode::Rollup,
+        );
+        let data = json!({});
+        print!(
+            "{:?}",
+            Request::builder()
+                .method(Method::POST)
+                .uri("/tee_proof_generation_data")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .body(Body::from(serde_json::to_vec(&data).unwrap(),))
+                .unwrap()
+        );
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/tee_proof_generation_data")
+                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                    .body(Body::from(serde_json::to_vec(&data).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        println!("{:?}", response);
+        println!("{:?}", response);
+        println!("{:?}", response.status());
+        assert_eq!(response.status(), StatusCode::OK);
+    }
 }

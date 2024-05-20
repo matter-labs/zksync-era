@@ -24,3 +24,4 @@ chrono = { workspace = true, features = ["serde"] }
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 bincode.workspace = true
+serde_json.workspace = true

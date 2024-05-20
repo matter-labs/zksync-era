@@ -13,10 +13,10 @@ pub struct L1BatchProofForL1 {
     pub protocol_version: ProtocolSemanticVersion,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct L1BatchTeeProofForL1 {
     // TODO revisit what else is needed here
-    signature: Vec<u8>,
+    pub signature: Vec<u8>,
 }
 
 impl fmt::Debug for L1BatchProofForL1 {

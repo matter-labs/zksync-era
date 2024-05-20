@@ -23,3 +23,8 @@ tracing.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tower.workspace = true
+mime = "0.3.16"
