@@ -8,7 +8,10 @@ use zksync_types::{
     api, ethabi, fee_model::FeeParams, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
     H256, U64,
 };
-use zksync_web3_decl::{client::MockClient, jsonrpsee::core::ClientError};
+use zksync_web3_decl::{
+    client::{MockClient, L1},
+    jsonrpsee::core::ClientError,
+};
 
 use super::*;
 
@@ -96,8 +99,8 @@ fn expected_health_components(components: &ComponentsToRun) -> Vec<&'static str>
     output
 }
 
-fn mock_eth_client(diamond_proxy_addr: Address) -> MockEthereum {
-    MockEthereum::default().with_call_handler(move |call, _| {
+fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
+    let mock = MockEthereum::builder().with_call_handler(move |call, _| {
         tracing::info!("L1 call: {call:?}");
         if call.to == Some(diamond_proxy_addr) {
             let call_signature = &call.data.as_ref().unwrap().0[..4];
@@ -121,7 +124,8 @@ fn mock_eth_client(diamond_proxy_addr: Address) -> MockEthereum {
             }
         }
         panic!("Unexpected L1 call: {call:?}");
-    })
+    });
+    mock.build().into_client()
 }
 
 #[test_casing(5, ["all", "core", "api", "tree", "tree,tree_api"])]

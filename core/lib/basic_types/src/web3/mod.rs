@@ -476,6 +476,28 @@ impl Serialize for BlockId {
     }
 }
 
+impl<'de> Deserialize<'de> for BlockId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum BlockIdRepresentation {
+            Number(BlockNumber),
+            Hash {
+                #[serde(rename = "blockHash")]
+                block_hash: H256,
+            },
+        }
+
+        Ok(match BlockIdRepresentation::deserialize(deserializer)? {
+            BlockIdRepresentation::Number(number) => Self::Number(number),
+            BlockIdRepresentation::Hash { block_hash } => Self::Hash(block_hash),
+        })
+    }
+}
+
 impl From<U64> for BlockId {
     fn from(num: U64) -> Self {
         BlockNumber::Number(num).into()

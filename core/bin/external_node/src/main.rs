@@ -19,7 +19,6 @@ use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
-use zksync_eth_client::EthInterface;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_metadata_calculator::{
     api_server::{TreeApiClient, TreeApiHttpClient},
@@ -48,7 +47,7 @@ use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_web3_decl::{
-    client::{Client, DynClient, L2},
+    client::{Client, DynClient, L1, L2},
     jsonrpsee,
     namespaces::EnNamespaceClient,
 };
@@ -203,11 +202,10 @@ async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,
-    eth_client: Box<dyn EthInterface>,
+    eth_client: Box<DynClient<L1>>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
-    fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     singleton_pool_builder: &ConnectionPoolBuilder<Core>,
 ) -> anyhow::Result<SyncState> {
     // Create components.
@@ -312,8 +310,6 @@ async fn run_core(
     }
 
     let sk_handle = task::spawn(state_keeper.run());
-    let fee_params_fetcher_handle =
-        tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
     let remote_diamond_proxy_addr = config.remote.diamond_proxy_addr;
     let diamond_proxy_addr = if let Some(addr) = config.optional.contracts_diamond_proxy_addr {
         anyhow::ensure!(
@@ -378,7 +374,6 @@ async fn run_core(
 
     task_handles.extend([
         sk_handle,
-        fee_params_fetcher_handle,
         consistency_checker_handle,
         commitment_generator_handle,
         updater_handle,
@@ -432,6 +427,10 @@ async fn run_api(
         proxy_cache_updater_pool.clone(),
         stop_receiver.clone(),
     )));
+
+    let fee_params_fetcher_handle =
+        tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
+    task_handles.push(fee_params_fetcher_handle);
 
     let tx_sender_builder =
         TxSenderBuilder::new(config.into(), connection_pool.clone(), Arc::new(tx_proxy));
@@ -571,7 +570,7 @@ async fn init_tasks(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: Box<DynClient<L2>>,
-    eth_client: Box<dyn EthInterface>,
+    eth_client: Box<DynClient<L1>>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -633,8 +632,6 @@ async fn init_tasks(
         task_handles.push(tokio::spawn(fetcher.run(stop_receiver.clone())));
     }
 
-    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
-
     let sync_state = if components.contains(&Component::Core) {
         run_core(
             config,
@@ -644,7 +641,6 @@ async fn init_tasks(
             task_handles,
             app_health,
             stop_receiver.clone(),
-            fee_params_fetcher.clone(),
             &singleton_pool_builder,
         )
         .await?
@@ -661,6 +657,7 @@ async fn init_tasks(
     };
 
     if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
+        let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
         run_api(
             task_handles,
             config,
@@ -862,7 +859,7 @@ async fn run_node(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: Box<DynClient<L2>>,
-    eth_client: Box<dyn EthInterface>,
+    eth_client: Box<DynClient<L1>>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
