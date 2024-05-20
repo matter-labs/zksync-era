@@ -419,6 +419,14 @@ impl CommitmentGenerator {
             self.commitment_mode,
             self.parallelism
         );
+        if self.connection_pool.max_size() < self.parallelism.get() {
+            tracing::warn!(
+                "Connection pool for commitment generation has fewer connections ({pool_size}) than \
+                 configured max parallelism ({parallelism}); commitment generation may be slowed down as a result",
+                pool_size = self.connection_pool.max_size(),
+                parallelism = self.parallelism.get()
+            );
+        }
         self.health_updater.update(HealthStatus::Ready.into());
 
         loop {
