@@ -1,0 +1,26 @@
+[package]
+name = "batch_proof"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+zksync_basic_types.workspace = true
+zksync_contracts.workspace = true
+zksync_types.workspace = true
+zksync_web3_decl = { workspace = true, features = ["client"] }
+zksync_eth_client.workspace = true
+
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+serde_json.workspace = true
+
