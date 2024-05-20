@@ -41,6 +41,8 @@ RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /
 # copy VK required for proof wrapping
 COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
 
+COPY --from=builder /usr/src/zksync/keys/setup/setup_2\^24.key keys/setup_2\^24.key
+
 COPY --from=builder /usr/src/zksync/prover/target/release/zksync_proof_fri_compressor /usr/bin/
 
 ENTRYPOINT ["zksync_proof_fri_compressor"]

@@ -4633,7 +4633,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "circuit_definitions",
+ "circuit_definitions 1.5.0",
  "clap 4.4.6",
  "colored",
  "dialoguer",
