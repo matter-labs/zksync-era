@@ -8003,6 +8003,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bigdecimal",
  "hex",
  "metrics",
  "reqwest",
@@ -8530,6 +8531,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "bigdecimal",
  "tokio",
  "tracing",
  "zksync_config",

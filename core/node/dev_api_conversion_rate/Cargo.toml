@@ -11,6 +11,7 @@ categories.workspace = true
 
 [dependencies]
 zksync_config.workspace = true
+bigdecimal.workspace = true
 
 tokio.workspace = true
 anyhow.workspace = true

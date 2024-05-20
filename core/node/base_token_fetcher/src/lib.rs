@@ -1,10 +1,15 @@
-use std::{cmp::min, sync::Arc, time::Duration};
+use std::{
+    cmp::min,
+    str::FromStr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use anyhow::Context;
 use async_trait::async_trait;
+use bigdecimal::BigDecimal;
 use hex::ToHex;
-use metrics::atomics::AtomicU64;
-use tokio::{sync::Mutex, time::sleep};
+use tokio::time::sleep;
 use zksync_config::configs::BaseTokenFetcherConfig;
 
 const MAX_CONVERSION_RATE_FETCH_RETRIES: u8 = 10;
@@ -13,7 +18,7 @@ const MAX_CONVERSION_RATE_FETCH_RETRIES: u8 = 10;
 /// determine gas prices, as they partially depend on L1 gas prices, denominated in `eth`.
 #[async_trait]
 pub trait ConversionRateFetcher: 'static + std::fmt::Debug + Send + Sync {
-    fn conversion_rate(&self) -> anyhow::Result<u64>;
+    fn conversion_rate(&self) -> anyhow::Result<BigDecimal>;
     async fn update(&self) -> anyhow::Result<()>;
 }
 
@@ -32,8 +37,8 @@ impl NoOpConversionRateFetcher {
 
 #[async_trait]
 impl ConversionRateFetcher for NoOpConversionRateFetcher {
-    fn conversion_rate(&self) -> anyhow::Result<u64> {
-        Ok(1)
+    fn conversion_rate(&self) -> anyhow::Result<BigDecimal> {
+        Ok(BigDecimal::from(1))
     }
 
     async fn update(&self) -> anyhow::Result<()> {
@@ -46,7 +51,7 @@ impl ConversionRateFetcher for NoOpConversionRateFetcher {
 #[derive(Debug)]
 pub struct BaseTokenFetcher {
     pub config: BaseTokenFetcherConfig,
-    pub latest_to_eth_conversion_rate: AtomicU64,
+    pub latest_to_eth_conversion_rate: Arc<Mutex<BigDecimal>>,
     http_client: reqwest::Client,
     error_reporter: Arc<Mutex<ErrorReporter>>,
 }
@@ -55,7 +60,7 @@ impl BaseTokenFetcher {
     pub async fn new(config: BaseTokenFetcherConfig) -> anyhow::Result<Self> {
         let http_client = reqwest::Client::new();
 
-        let conversion_rate = http_client
+        let conversion_rate_str = http_client
             .get(format!(
                 "{}/conversion_rate/0x{}",
                 config.host,
@@ -63,15 +68,17 @@ impl BaseTokenFetcher {
             ))
             .send()
             .await?
-            .json::<u64>()
+            .json::<String>()
             .await
+            .context("Unable to parse the response of the native token conversion rate server")?;
+        let conversion_rate = BigDecimal::from_str(&conversion_rate_str)
             .context("Unable to parse the response of the native token conversion rate server")?;
 
         let error_reporter = Arc::new(Mutex::new(ErrorReporter::new()));
 
         Ok(Self {
             config,
-            latest_to_eth_conversion_rate: AtomicU64::new(conversion_rate),
+            latest_to_eth_conversion_rate: Arc::new(Mutex::new(conversion_rate)),
             http_client,
             error_reporter,
         })
@@ -81,9 +88,9 @@ impl BaseTokenFetcher {
     pub async fn new_with_timeout(config: BaseTokenFetcherConfig) -> anyhow::Result<Self> {
         let http_client = reqwest::Client::new();
 
-        let mut conversion_rate = None;
+        let mut conversion_rate_str = None;
         let mut tries = 0;
-        while conversion_rate.is_none() && tries < MAX_CONVERSION_RATE_FETCH_RETRIES {
+        while conversion_rate_str.is_none() && tries < MAX_CONVERSION_RATE_FETCH_RETRIES {
             match http_client
                 .get(format!(
                     "{}/conversion_rate/0x{}",
@@ -94,7 +101,7 @@ impl BaseTokenFetcher {
                 .await
             {
                 Ok(res) => {
-                    conversion_rate = Some(res.json::<u64>().await.context(
+                    conversion_rate_str = Some(res.json::<String>().await.context(
                         "Unable to parse the response of the native token conversion rate server",
                     )?);
                 }
@@ -105,12 +112,14 @@ impl BaseTokenFetcher {
             }
         }
 
-        let conversion_rate = conversion_rate
+        let conversion_rate = conversion_rate_str
             .ok_or_else(|| anyhow::anyhow!("Failed to fetch the native token conversion rate"))?;
+        let conversion_rate = BigDecimal::from_str(&conversion_rate)
+            .context("Unable to parse the response of the native token conversion rate server")?;
         let error_reporter = Arc::new(Mutex::new(ErrorReporter::new()));
         Ok(Self {
             config,
-            latest_to_eth_conversion_rate: AtomicU64::new(conversion_rate),
+            latest_to_eth_conversion_rate: Arc::new(Mutex::new(conversion_rate)),
             http_client,
             error_reporter,
         })
@@ -119,11 +128,8 @@ impl BaseTokenFetcher {
 
 #[async_trait]
 impl ConversionRateFetcher for BaseTokenFetcher {
-    fn conversion_rate(&self) -> anyhow::Result<u64> {
-        anyhow::Ok(
-            self.latest_to_eth_conversion_rate
-                .load(std::sync::atomic::Ordering::Relaxed),
-        )
+    fn conversion_rate(&self) -> anyhow::Result<BigDecimal> {
+        Ok(self.latest_to_eth_conversion_rate.lock().unwrap().clone())
     }
 
     async fn update(&self) -> anyhow::Result<()> {
@@ -138,17 +144,20 @@ impl ConversionRateFetcher for BaseTokenFetcher {
             .await
         {
             Ok(response) => {
-                let conversion_rate = response.json::<u64>().await.context(
+                let conversion_rate_str = response.json::<String>().await.context(
                     "Unable to parse the response of the native token conversion rate server",
                 )?;
-                self.latest_to_eth_conversion_rate
-                    .store(conversion_rate, std::sync::atomic::Ordering::Relaxed);
-                self.error_reporter.lock().await.reset();
+                *self.latest_to_eth_conversion_rate.lock().unwrap() =
+                    BigDecimal::from_str(&conversion_rate_str).context(
+                        "Unable to parse the response of the native token conversion rate server",
+                    )?;
+
+                self.error_reporter.lock().unwrap().reset();
             }
             Err(err) => self
                 .error_reporter
                 .lock()
-                .await
+                .unwrap()
                 .process(anyhow::anyhow!(err)),
         }
 

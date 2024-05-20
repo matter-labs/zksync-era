@@ -9,6 +9,7 @@ use std::{
 use tokio::sync::watch;
 use zksync_base_token_fetcher::ConversionRateFetcher;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+use zksync_dal::BigDecimal;
 use zksync_eth_client::{Error, EthInterface};
 use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
 use zksync_web3_decl::client::{DynClient, L1};
@@ -178,9 +179,21 @@ impl GasAdjuster {
         let calculated_price =
             (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
 
-        let conversion_rate = self.base_token_fetcher.conversion_rate().unwrap_or(1);
+        let conversion_rate = self
+            .base_token_fetcher
+            .conversion_rate()
+            .unwrap_or(BigDecimal::from(1));
+        let bound_gas_price = BigDecimal::from(self.bound_gas_price(calculated_price));
 
-        self.bound_gas_price(calculated_price) * conversion_rate
+        U256::from_dec_str(
+            &match (conversion_rate * bound_gas_price).round(0) {
+                zero if zero == BigDecimal::from(0) => BigDecimal::from(1),
+                val => val,
+            }
+            .to_string(),
+        )
+        .unwrap()
+        .as_u64()
     }
 
     pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
@@ -207,9 +220,22 @@ impl GasAdjuster {
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_pubdata_pricing_multiplier;
 
-                let conversion_rate = self.base_token_fetcher.conversion_rate().unwrap_or(1);
+                let conversion_rate = self
+                    .base_token_fetcher
+                    .conversion_rate()
+                    .unwrap_or(BigDecimal::from(1));
+                let bound_blob_base_fee =
+                    BigDecimal::from(self.bound_blob_base_fee(calculated_price));
 
-                self.bound_blob_base_fee(calculated_price) * conversion_rate
+                U256::from_dec_str(
+                    &match (conversion_rate * bound_blob_base_fee).round(0) {
+                        zero if zero == BigDecimal::from(0) => BigDecimal::from(1),
+                        val => val,
+                    }
+                    .to_string(),
+                )
+                .unwrap()
+                .as_u64()
             }
             PubdataSendingMode::Calldata => {
                 self.estimate_effective_gas_price() * self.pubdata_byte_gas()
