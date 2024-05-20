@@ -51,6 +51,7 @@ jobs:
           - witness-vector-generator
           - prover-fri-gateway
           - proof-fri-compressor
+          - proof-gpu-fri-compressor
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -80,10 +81,9 @@ jobs:
 
       # We need the CRS only for the fri compressor.
       - name: download CRS
-        if: matrix.component == 'proof-fri-compressor'
+        if: matrix.component == 'proof-fri-compressor' || matrix.component == 'proof-gpu-fri-compressor'
         run: |
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
-          ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: login to Docker registries
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
