@@ -40,7 +40,7 @@ use zksync_config::{
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
-use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface, EthInterface};
+use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
 use zksync_eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
@@ -78,7 +78,7 @@ use zksync_state_keeper::{
 };
 use zksync_tee_verifier_input_producer::TeeVerifierInputProducer;
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
-use zksync_web3_decl::client::Client;
+use zksync_web3_decl::client::{Client, DynClient, L1};
 
 pub mod temp_config_store;
 
@@ -946,7 +946,7 @@ async fn add_state_keeper_to_task_futures(
 pub async fn start_eth_watch(
     config: EthWatchConfig,
     pool: ConnectionPool<Core>,
-    eth_gateway: Box<dyn EthInterface>,
+    eth_gateway: Box<DynClient<L1>>,
     diamond_proxy_addr: Address,
     state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),

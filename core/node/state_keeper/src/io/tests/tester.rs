@@ -48,8 +48,9 @@ impl Tester {
     }
 
     async fn create_gas_adjuster(&self) -> GasAdjuster {
-        let eth_client =
-            MockEthereum::default().with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9]);
+        let eth_client = MockEthereum::builder()
+            .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
+            .build();
 
         let gas_adjuster_config = GasAdjusterConfig {
             default_priority_fee_per_gas: 10,
@@ -69,7 +70,7 @@ impl Tester {
         let base_token_fetcher = Arc::new(NoOpConversionRateFetcher);
 
         GasAdjuster::new(
-            Box::new(eth_client),
+            Box::new(eth_client.into_client()),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
             base_token_fetcher,
