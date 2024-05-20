@@ -118,10 +118,9 @@ impl<S> RefundsTracer<S> {
         let effective_gas_price = get_batch_base_fee(&self.l1_batch);
 
         let bootloader_eth_price_per_pubdata_byte =
-            U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
+            effective_gas_price * U256::from(current_ergs_per_pubdata_byte);
 
-        let fair_eth_price_per_pubdata_byte =
-            U256::from(self.l1_batch.fee_input.fair_pubdata_price());
+        let fair_eth_price_per_pubdata_byte = self.l1_batch.fee_input.fair_pubdata_price();
 
         // For now, L1 originated transactions are allowed to pay less than fair fee per pubdata,
         // so we should take it into account.
@@ -131,9 +130,9 @@ impl<S> RefundsTracer<S> {
         );
 
         let fair_fee_eth = U256::from(gas_spent_on_computation)
-            * U256::from(self.l1_batch.fee_input.fair_l2_gas_price())
+            * self.l1_batch.fee_input.fair_l2_gas_price()
             + U256::from(pubdata_published) * eth_price_per_pubdata_byte_for_calculation;
-        let pre_paid_eth = U256::from(tx_gas_limit) * U256::from(effective_gas_price);
+        let pre_paid_eth = U256::from(tx_gas_limit) * effective_gas_price;
         let refund_eth = pre_paid_eth.checked_sub(fair_fee_eth).unwrap_or_else(|| {
             tracing::error!(
                 "Fair fee is greater than pre paid. Fair fee: {} wei, pre paid: {} wei",
@@ -152,7 +151,7 @@ impl<S> RefundsTracer<S> {
         tracing::trace!("Gas spent on pubdata: {}", gas_spent_on_pubdata);
         tracing::trace!("Pubdata published: {}", pubdata_published);
 
-        ceil_div_u256(refund_eth, effective_gas_price.into()).as_u64()
+        ceil_div_u256(refund_eth, effective_gas_price).as_u64()
     }
 
     pub(crate) fn pubdata_published(&self) -> u32 {

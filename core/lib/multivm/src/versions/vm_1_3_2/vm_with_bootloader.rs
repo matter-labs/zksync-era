@@ -347,12 +347,9 @@ impl BlockContextMode {
                 Self::NEW_BLOCK_NUMBER_SLOT,
                 U256::from(context.block_number),
             ),
-            (Self::L1_GAS_PRICE_SLOT, U256::from(context.l1_gas_price)),
-            (
-                Self::FAIR_L2_GAS_PRICE_SLOT,
-                U256::from(context.fair_l2_gas_price),
-            ),
-            (Self::EXPECTED_BASE_FEE_SLOT, U256::from(base_fee)),
+            (Self::L1_GAS_PRICE_SLOT, context.l1_gas_price),
+            (Self::FAIR_L2_GAS_PRICE_SLOT, context.fair_l2_gas_price),
+            (Self::EXPECTED_BASE_FEE_SLOT, base_fee),
             (Self::SHOULD_SET_NEW_BLOCK_SLOT, U256::from(0u32)),
         ]
         .into_iter()

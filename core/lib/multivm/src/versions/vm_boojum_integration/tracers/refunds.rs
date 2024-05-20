@@ -120,7 +120,7 @@ impl<S> RefundsTracer<S> {
         let effective_gas_price = get_batch_base_fee(&self.l1_batch);
 
         let bootloader_eth_price_per_pubdata_byte =
-            U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
+            effective_gas_price * U256::from(current_ergs_per_pubdata_byte);
 
         let fair_eth_price_per_pubdata_byte =
             eth_price_per_pubdata_byte(self.l1_batch.fee_input.l1_gas_price());
@@ -145,7 +145,7 @@ impl<S> RefundsTracer<S> {
             U256::zero()
         });
 
-        ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
+        ceil_div_u256(refund_eth, effective_gas_price).as_u32()
     }
 
     pub(crate) fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {

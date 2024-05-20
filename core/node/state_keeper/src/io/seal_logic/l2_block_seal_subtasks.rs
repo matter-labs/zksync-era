@@ -122,7 +122,7 @@ impl L2BlockSealSubtask for MarkTransactionsInL2BlockSubtask {
             .mark_txs_as_executed_in_l2_block(
                 command.l2_block.number,
                 &command.l2_block.executed_transactions,
-                command.base_fee_per_gas.into(),
+                command.base_fee_per_gas,
                 command.l2_block.protocol_version,
                 command.pre_insert_txs,
             )

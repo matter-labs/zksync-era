@@ -138,7 +138,7 @@ impl RefundsTracer {
             U256::zero()
         });
 
-        ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
+        ceil_div_u256(refund_eth, effective_gas_price).as_u32()
     }
 
     pub(crate) fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {

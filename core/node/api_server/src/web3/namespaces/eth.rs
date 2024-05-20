@@ -109,7 +109,7 @@ impl EthNamespace {
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
         let gas_price = self.state.tx_sender.gas_price().await?;
-        tx.common_data.fee.max_fee_per_gas = gas_price.into();
+        tx.common_data.fee.max_fee_per_gas = gas_price;
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
 
         // Modify the l1 gas price with the scale factor
@@ -127,7 +127,7 @@ impl EthNamespace {
 
     pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
         let gas_price = self.state.tx_sender.gas_price().await?;
-        Ok(gas_price.into())
+        Ok(gas_price)
     }
 
     pub async fn get_balance_impl(

@@ -58,12 +58,12 @@ impl ProtoFmt for Payload {
             ),
             timestamp: *required(&message.timestamp).context("timestamp")?,
             l1_gas_price: U256::from_str(
-                &*required(&message.l1_gas_price)
+                &required(&message.l1_gas_price)
                     .context("l1_gas_price")?
                     .to_string(),
             )?,
             l2_fair_gas_price: U256::from_str(
-                &*required(&message.l2_fair_gas_price)
+                &required(&message.l2_fair_gas_price)
                     .context("l2_fair_gas_price")?
                     .to_string(),
             )?,
@@ -89,11 +89,9 @@ impl ProtoFmt for Payload {
             timestamp: Some(self.timestamp),
             l1_gas_price: Some(self.l1_gas_price.to_string()),
             l2_fair_gas_price: Some(self.l2_fair_gas_price.to_string()),
-            fair_pubdata_price: if let Some(price_u256) = self.fair_pubdata_price {
-                Some(price_u256.to_string())
-            } else {
-                None
-            },
+            fair_pubdata_price: self
+                .fair_pubdata_price
+                .map(|price_u256| price_u256.to_string()),
             virtual_blocks: Some(self.virtual_blocks),
             operator_address: Some(self.operator_address.as_bytes().into()),
             // Transactions are stored in execution order, therefore order is deterministic.
