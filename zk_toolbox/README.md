@@ -33,6 +33,8 @@ To change the default ZK chain, use:
 
 `zk_inception ecosystem change-default-chain`
 
+IMPORTANT: It is not yet possible to use an existing ecosystem and register a chain to it. this feature will be added in the future.
+
 ### ZK Chain
 
 Upon ecosystem creation, the first ZK chain is automatically generated. However, you can create additional chains
