@@ -427,10 +427,8 @@ impl EthInterface for MockEthereum {
                     .excess_blob_gas_history
                     .get(number.as_usize())
                     .map(|excess_blob_gas| (*excess_blob_gas).into());
-                let base_fee_per_gas = self
-                    .base_fee_history
-                    .get(number.as_usize())
-                    .map(|base_fee| (*base_fee).into());
+                let base_fee_per_gas =
+                    (*self.base_fee_history.get(number.as_usize()).unwrap()).into();
 
                 Ok(Some(web3::Block {
                     number: Some(number),

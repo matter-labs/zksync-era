@@ -147,8 +147,8 @@ where
         };
 
         latency.observe();
-        // base_fee_per_gas always exists after London fork
-        Ok(block.base_fee_per_gas.unwrap())
+
+        Ok(block.base_fee_per_gas)
     }
 
     async fn get_tx_status(&self, hash: H256) -> Result<Option<ExecutedTxStatus>, Error> {
