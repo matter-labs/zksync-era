@@ -406,7 +406,7 @@ impl MainNodeBuilder {
             .add_query_eth_client_layer()?
             .add_sequencer_l1_gas_layer()?;
 
-        // Sort the components, so that the components thay may depend on each other are added in the correct order.
+        // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
             // API consumes the resource provided by other layers (multiple ones), so it has to come the last.
             Component::HttpApi | Component::WsApi => 1,
