@@ -1,6 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 use common::{cmd::Cmd, logger, spinner::Spinner};
 use xshell::{cmd, Shell};
 
@@ -14,10 +14,7 @@ use crate::{
         hyperchain::create_hyperchain_inner,
     },
     configs::{EcosystemConfig, EcosystemConfigFromFileError, SaveConfig},
-    consts::{
-        CONFIG_NAME, DOCKER_COMPOSE_FILE, ERA_CHAIN_ID, LOCAL_CONFIGS_PATH, WALLETS_FILE,
-        ZKSYNC_ERA_GIT_REPO,
-    },
+    consts::{CONFIG_NAME, ERA_CHAIN_ID, LOCAL_CONFIGS_PATH, WALLETS_FILE, ZKSYNC_ERA_GIT_REPO},
     wallets::create_wallets,
 };
 
@@ -85,7 +82,6 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         args.wallet_creation,
         args.wallet_path,
     )?;
-    init_docker(shell, link_to_code.clone())?;
     ecosystem_config.save(shell, CONFIG_NAME)?;
     spinner.finish();
 
@@ -100,29 +96,6 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     }
 
     logger::outro("Ecosystem created successfully");
-    Ok(())
-}
-
-fn init_docker(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
-    let docker_compose_file = link_to_code.join(DOCKER_COMPOSE_FILE);
-
-    let docker_compose_text = shell.read_file(&docker_compose_file).map_err(|err| {
-        anyhow!(
-            "Failed to read docker compose file from {:?}: {}",
-            &docker_compose_file,
-            err
-        )
-    })?;
-    let original_source = "./etc/reth/chaindata";
-    let new_source = link_to_code.join(original_source);
-    let new_source = new_source.to_str().unwrap();
-
-    let data = docker_compose_text.replace(original_source, new_source);
-    shell.write_file(DOCKER_COMPOSE_FILE, data)?;
-    shell.create_dir("volumes")?;
-    shell.create_dir("volumes/postgres")?;
-    shell.create_dir("volumes/reth")?;
-    shell.create_dir("volumes/reth/data")?;
     Ok(())
 }
 

@@ -1,7 +1,7 @@
 use crate::{cmd::Cmd, logger};
 use xshell::{cmd, Shell};
 
-const PREREQUISITES: [Prerequisite; 5] = [
+const PREREQUISITES: [Prerequisite; 6] = [
     Prerequisite {
         name: "git",
         download_link: "https://git-scm.com/book/en/v2/Getting-Started-Installing-Git",
@@ -10,10 +10,10 @@ const PREREQUISITES: [Prerequisite; 5] = [
         name: "docker",
         download_link: "https://docs.docker.com/get-docker/",
     },
-    // Prerequisite {
-    //     name: "docker-compose",
-    //     download_link: "https://docs.docker.com/compose/install/",
-    // },
+    Prerequisite {
+        name: "docker-compose",
+        download_link: "https://docs.docker.com/compose/install/",
+    },
     Prerequisite {
         name: "forge",
         download_link: "https://book.getfoundry.sh/getting-started/installation",
