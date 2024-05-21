@@ -243,3 +243,9 @@ zksync_node_db_pruner = { path = "core/node/db_pruner" }
 zksync_node_fee_model = { path = "core/node/fee_model" }
 zksync_vm_runner = { path = "core/node/vm_runner" }
 zksync_node_test_utils = { path = "core/node/test_utils" }
+
+[patch."https://github.com/matter-labs/vm2"]
+vm2 = {path = "../vm2"}
+
+[patch."https://github.com/matter-labs/era-zk_evm"]
+zk_evm_1_5_0 = {path = "../zk_evm", package = "zk_evm" }

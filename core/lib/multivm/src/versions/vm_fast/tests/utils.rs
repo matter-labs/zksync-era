@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use ethabi::Contract;
 use once_cell::sync::Lazy;
-use vm2::State;
+use vm2::{HeapId, State};
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
@@ -29,7 +29,7 @@ pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     }
 }*/
 
-pub(crate) fn verify_required_memory(state: &State, required_values: Vec<(U256, u32, u32)>) {
+pub(crate) fn verify_required_memory(state: &State, required_values: Vec<(U256, HeapId, u32)>) {
     for (required_value, memory_page, cell) in required_values {
         let current_value = &state.heaps[memory_page][cell as usize * 32..(cell as usize + 1) * 32];
         let mut bytes = [0; 32];

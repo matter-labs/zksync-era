@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachine};
-use zk_evm_1_5_0::zkevm_opcode_defs::{
-    system_params::INITIAL_FRAME_FORMAL_EH_LOCATION, FatPointer,
+use vm2::{
+    decode::decode_program, fat_pointer::FatPointer, ExecutionEnd, Program, Settings,
+    VirtualMachine,
 };
+use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
@@ -132,8 +133,7 @@ impl<S: ReadStorage> Vm<S> {
                             .read_heap_word(tx_description_offset + TX_GAS_LIMIT_OFFSET)
                             .as_u64();
 
-                        let pubdata_published =
-                            self.inner.state.current_frame.total_pubdata_spent as u32;
+                        let pubdata_published = self.inner.world_diff.pubdata.0 as u32;
 
                         refund.operator_suggested_refund = compute_refund(
                             &self.batch_env,
@@ -164,7 +164,7 @@ impl<S: ReadStorage> Vm<S> {
                 PostResult => {
                     let result = self.get_hook_params()[0];
                     let value = self.get_hook_params()[1];
-                    let fp = FatPointer::from_u256(value);
+                    let fp = FatPointer::from(value);
 
                     assert!(fp.offset == 0);
 
@@ -444,11 +444,11 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
 
         inner.state.current_frame.sp = 0;
 
-        // The bootloader shouldn't pay for growing memory and it writes results
-        // to the end of its heap, so it makes sense to preallocate it in its entirety.
-        const BOOTLOADER_MAX_MEMORY_SIZE: usize = get_used_bootloader_memory_bytes(VM_VERSION);
-        inner.state.heaps[vm2::FIRST_HEAP].resize(BOOTLOADER_MAX_MEMORY_SIZE, 0);
-        inner.state.heaps[vm2::FIRST_HEAP + 1].resize(BOOTLOADER_MAX_MEMORY_SIZE, 0);
+        // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
+        inner.state.heaps[vm2::FIRST_HEAP].resize(get_used_bootloader_memory_bytes(VM_VERSION), 0);
+
+        inner.state.current_frame.heap_size = u32::MAX;
+        inner.state.current_frame.aux_heap_size = u32::MAX;
 
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
 
@@ -490,7 +490,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         }
 
         let start = self.inner.world_diff.snapshot();
-        let pubdata_before = self.inner.state.current_frame.total_pubdata_spent;
+        let pubdata_before = self.inner.world_diff.pubdata.0;
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
 
@@ -503,7 +503,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
             .map(Into::into)
             .map(UserL2ToL1Log)
             .collect();
-        let pubdata_after = self.inner.state.current_frame.total_pubdata_spent;
+        let pubdata_after = self.inner.world_diff.pubdata.0;
 
         VmExecutionResultAndLogs {
             result,
