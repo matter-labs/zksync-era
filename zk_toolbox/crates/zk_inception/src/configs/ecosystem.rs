@@ -93,7 +93,7 @@ impl EcosystemConfig {
     }
 
     pub fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
-        let path = PathBuf::from(CONFIG_NAME);
+        let path = PathBuf::from(format!("./{}", CONFIG_NAME));
         dbg!(&path);
         if !path.exists() {
             return Err(EcosystemConfigFromFileError::NotExists);
