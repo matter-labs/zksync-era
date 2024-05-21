@@ -103,7 +103,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 fn clone_era_repo(shell: &Shell) -> anyhow::Result<PathBuf> {
     Cmd::new(cmd!(
         shell,
-        "git clone -b deniallugo-update-contracts1 --recurse-submodules {ZKSYNC_ERA_GIT_REPO}"
+        "git clone --recurse-submodules {ZKSYNC_ERA_GIT_REPO}"
     ))
     .run()?;
     Ok(shell.current_dir().join("zksync-era"))
