@@ -222,7 +222,8 @@ impl TreeDataProvider for L1DataProvider {
                     number = number.0,
                     "Guessed L1 block number for L1 batch #{number} commit: {approximate_block}"
                 );
-                approximate_block.saturating_sub(5_000.into()) // FIXME: extract to a constant?
+                // Subtract to account for imprecise L1 and L2 timestamps etc.
+                approximate_block.saturating_sub(Self::L1_BLOCK_ACCURACY)
             }
         };
 
