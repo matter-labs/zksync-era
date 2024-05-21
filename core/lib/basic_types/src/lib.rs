@@ -22,6 +22,7 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 #[macro_use]
 mod macros;
 pub mod basic_fri_types;
+pub mod commitment;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;

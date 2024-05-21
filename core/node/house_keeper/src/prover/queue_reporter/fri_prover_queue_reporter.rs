@@ -4,7 +4,7 @@ use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::ProtocolVersionId;
 
-use crate::periodic_job::PeriodicJob;
+use crate::{metrics::FRI_PROVER_METRICS, periodic_job::PeriodicJob};
 
 /// `FriProverQueueReporter` is a task that periodically reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
@@ -86,11 +86,9 @@ impl PeriodicJob for FriProverQueueReporter {
             .await;
 
         for ((circuit_id, aggregation_round), l1_batch_number) in lag_by_circuit_type {
-            metrics::gauge!(
-              "fri_prover.block_number", l1_batch_number.0 as f64,
-              "circuit_id" => circuit_id.to_string(),
-              "aggregation_round" => aggregation_round.to_string(),
-            );
+            FRI_PROVER_METRICS.block_number
+                [&(circuit_id.to_string(), aggregation_round.to_string())]
+                .set(l1_batch_number.0 as u64);
         }
 
         // FIXME: refactor metrics here
@@ -102,7 +100,7 @@ impl PeriodicJob for FriProverQueueReporter {
             .get_oldest_unpicked_batch()
             .await
         {
-            Some(l1_batch_number) => l1_batch_number.0 as f64,
+            Some(l1_batch_number) => l1_batch_number.0 as u64,
             // if there is no unpicked batch in database, we use sealed batch number as a result
             None => {
                 db_conn
@@ -111,20 +109,21 @@ impl PeriodicJob for FriProverQueueReporter {
                     .await
                     .unwrap()
                     .unwrap()
-                    .0 as f64
+                    .0 as u64
             }
         };
-        metrics::gauge!("fri_prover.oldest_unpicked_batch", oldest_unpicked_batch);
+        FRI_PROVER_METRICS
+            .oldest_unpicked_batch
+            .set(oldest_unpicked_batch);
 
         if let Some(l1_batch_number) = db_conn
             .proof_generation_dal()
             .get_oldest_not_generated_batch()
             .await
         {
-            metrics::gauge!(
-                "fri_prover.oldest_not_generated_batch",
-                l1_batch_number.0 as f64
-            )
+            FRI_PROVER_METRICS
+                .oldest_not_generated_batch
+                .set(l1_batch_number.0 as u64);
         }
 
         for aggregation_round in 0..3 {
@@ -133,11 +132,9 @@ impl PeriodicJob for FriProverQueueReporter {
                 .min_unproved_l1_batch_number_for_aggregation_round(aggregation_round.into())
                 .await
             {
-                metrics::gauge!(
-                    "fri_prover.oldest_unprocessed_block_by_round",
-                    l1_batch_number.0 as f64,
-                    "aggregation_round" => aggregation_round.to_string()
-                )
+                FRI_PROVER_METRICS.oldest_unprocessed_block_by_round
+                    [&aggregation_round.to_string()]
+                    .set(l1_batch_number.0 as u64);
             }
         }
 

@@ -3,9 +3,10 @@ use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 use zksync_types::{prover_dal::JobCountStatistics, ProtocolVersionId};
 
-use crate::periodic_job::PeriodicJob;
-
-const PROOF_COMPRESSOR_SERVICE_NAME: &str = "proof_compressor";
+use crate::{
+    metrics::{JobStatus, PROVER_FRI_METRICS},
+    periodic_job::PeriodicJob,
+};
 
 /// `FriProofCompressorQueueReporter` is a task that periodically reports compression jobs status.
 /// Note: these values will be used for auto-scaling proof compressor
@@ -72,13 +73,9 @@ impl PeriodicJob for FriProofCompressorQueueReporter {
             .await;
 
         if let Some(l1_batch_number) = oldest_not_compressed_batch {
-            metrics::gauge!(
-                format!(
-                    "prover_fri.{}.oldest_not_compressed_batch",
-                    PROOF_COMPRESSOR_SERVICE_NAME
-                ),
-                l1_batch_number.0 as f64
-            );
+            PROVER_FRI_METRICS
+                .proof_compressor_oldest_uncompressed_batch
+                .set(l1_batch_number.0 as u64);
         }
 
         Ok(())

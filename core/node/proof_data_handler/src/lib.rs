@@ -7,6 +7,7 @@ use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
+use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::request_processor::RequestProcessor;
 
@@ -16,11 +17,12 @@ pub async fn run_server(
     config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
+    commitment_mode: L1BatchCommitmentMode,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting proof data handler server on {bind_address}");
-    let get_proof_gen_processor = RequestProcessor::new(blob_store, pool, config);
+    let get_proof_gen_processor = RequestProcessor::new(blob_store, pool, config, commitment_mode);
     let submit_proof_processor = get_proof_gen_processor.clone();
     let app = Router::new()
         .route(

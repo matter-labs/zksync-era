@@ -7,9 +7,7 @@ use zksync_types::{
     basic_fri_types::AggregationRound, prover_dal::JobCountStatistics, ProtocolVersionId,
 };
 
-use crate::periodic_job::PeriodicJob;
-
-const FRI_WITNESS_GENERATOR_SERVICE_NAME: &str = "fri_witness_generator";
+use crate::{metrics::SERVER_METRICS, periodic_job::PeriodicJob};
 
 /// `FriWitnessGeneratorQueueReporter` is a task that periodically reports witness generator jobs status.
 /// Note: these values will be used for auto-scaling witness generators (Basic, Leaf, Node, Recursion Tip and Scheduler).
@@ -74,19 +72,10 @@ fn emit_metrics_for_round(round: AggregationRound, stats: JobCountStatistics) {
         );
     }
 
-    metrics::gauge!(
-        format!("server.{}.jobs", FRI_WITNESS_GENERATOR_SERVICE_NAME),
-        stats.queued as f64,
-        "type" => "queued",
-        "round" => format!("{:?}", round)
-    );
-
-    metrics::gauge!(
-        format!("server.{}.jobs", FRI_WITNESS_GENERATOR_SERVICE_NAME),
-        stats.in_progress as f64,
-        "type" => "in_progress",
-        "round" => format!("{:?}", round)
-    );
+    SERVER_METRICS.witness_generator_jobs_by_round[&("queued", format!("{:?}", round))]
+        .set(stats.queued as u64);
+    SERVER_METRICS.witness_generator_jobs_by_round[&("in_progress", format!("{:?}", round))]
+        .set(stats.queued as u64);
 }
 
 #[async_trait]

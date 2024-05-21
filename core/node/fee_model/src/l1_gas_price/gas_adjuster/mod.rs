@@ -9,10 +9,11 @@ use std::{
 use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::{Error, EthInterface};
-use zksync_types::{U256, U64};
+use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
+use zksync_web3_decl::client::{DynClient, L1};
 
 use self::metrics::METRICS;
-use super::{L1TxParamsProvider, PubdataPricing};
+use super::L1TxParamsProvider;
 
 mod metrics;
 #[cfg(test)]
@@ -30,16 +31,16 @@ pub struct GasAdjuster {
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
-    eth_client: Box<dyn EthInterface>,
-    pubdata_pricing: Arc<dyn PubdataPricing>,
+    eth_client: Box<DynClient<L1>>,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl GasAdjuster {
     pub async fn new(
-        eth_client: Box<dyn EthInterface>,
+        eth_client: Box<DynClient<L1>>,
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
-        pubdata_pricing: Arc<dyn PubdataPricing>,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> Result<Self, Error> {
         let eth_client = eth_client.for_component("gas_adjuster");
 
@@ -74,7 +75,7 @@ impl GasAdjuster {
             config,
             pubdata_sending_mode,
             eth_client,
-            pubdata_pricing,
+            commitment_mode,
         })
     }
 
@@ -194,11 +195,31 @@ impl GasAdjuster {
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_pubdata_pricing_multiplier;
 
-                self.pubdata_pricing
-                    .bound_blob_base_fee(calculated_price, self.config.max_blob_base_fee())
+                self.bound_blob_base_fee(calculated_price)
             }
             PubdataSendingMode::Calldata => {
-                self.estimate_effective_gas_price() * self.pubdata_pricing.pubdata_byte_gas()
+                self.estimate_effective_gas_price() * self.pubdata_byte_gas()
+            }
+        }
+    }
+
+    fn pubdata_byte_gas(&self) -> u64 {
+        match self.commitment_mode {
+            L1BatchCommitmentMode::Validium => 0,
+            L1BatchCommitmentMode::Rollup => L1_GAS_PER_PUBDATA_BYTE.into(),
+        }
+    }
+
+    fn bound_blob_base_fee(&self, blob_base_fee: f64) -> u64 {
+        let max_blob_base_fee = self.config.max_blob_base_fee();
+        match self.commitment_mode {
+            L1BatchCommitmentMode::Validium => 0,
+            L1BatchCommitmentMode::Rollup => {
+                if blob_base_fee > max_blob_base_fee as f64 {
+                    tracing::error!("Blob base fee is too high: {blob_base_fee}, using max allowed: {max_blob_base_fee}");
+                    return max_blob_base_fee;
+                }
+                blob_base_fee as u64
             }
         }
     }
@@ -206,7 +227,7 @@ impl GasAdjuster {
     /// Returns vector of base fees and blob base fees for given block range.
     /// Note, that data for pre-dencun blocks won't be included in the vector returned.
     async fn get_base_fees_history(
-        eth_client: &dyn EthInterface,
+        eth_client: &DynClient<L1>,
         block_range: RangeInclusive<usize>,
     ) -> Result<(Vec<u64>, Vec<U256>), Error> {
         let mut base_fee_history = Vec::new();

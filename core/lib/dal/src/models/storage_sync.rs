@@ -13,7 +13,7 @@ use crate::{
 pub(crate) struct StorageSyncBlock {
     pub number: i64,
     pub l1_batch_number: i64,
-    pub last_batch_miniblock: Option<i64>,
+    pub tx_count: i32,
     pub timestamp: i64,
     // L1 gas price assumed in the corresponding batch
     pub l1_gas_price: i64,
@@ -55,7 +55,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                     .try_into()
                     .decode_column("l1_batch_number")?,
             ),
-            last_in_batch: block.last_batch_miniblock == Some(block.number),
+            last_in_batch: block.tx_count == 0,
             timestamp: block.timestamp.try_into().decode_column("timestamp")?,
             l1_gas_price: block
                 .l1_gas_price

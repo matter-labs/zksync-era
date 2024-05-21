@@ -1,0 +1,41 @@
+[package]
+name = "zksync_node_consensus"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_config.workspace = true
+zksync_concurrency.workspace = true
+zksync_consensus_crypto.workspace = true
+zksync_consensus_network.workspace = true
+zksync_consensus_roles.workspace = true
+zksync_consensus_storage.workspace = true
+zksync_consensus_executor.workspace = true
+zksync_consensus_bft.workspace = true
+zksync_consensus_utils.workspace = true
+zksync_protobuf.workspace = true
+zksync_dal.workspace = true
+zksync_state_keeper.workspace = true
+zksync_node_sync.workspace = true
+zksync_types.workspace = true
+zksync_web3_decl.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+secrecy.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+zksync_node_genesis.workspace = true
+zksync_node_test_utils.workspace = true
+zksync_node_api_server.workspace = true
+
+tokio.workspace = true
+test-casing.workspace = true
+rand.workspace = true
