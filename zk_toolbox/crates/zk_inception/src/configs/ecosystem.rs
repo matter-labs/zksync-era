@@ -94,8 +94,11 @@ impl EcosystemConfig {
 
     pub fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
         let path = PathBuf::from(CONFIG_NAME);
+        dbg!(&path);
         if !path.exists() {
             return Err(EcosystemConfigFromFileError::NotExists);
+        } else {
+            println!("file exists");
         }
 
         let mut config = EcosystemConfig::read(shell, CONFIG_NAME)
