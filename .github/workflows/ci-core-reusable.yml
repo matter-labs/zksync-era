@@ -161,11 +161,11 @@ jobs:
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
+          ci_run ./zk_toolbox/target/release/zk_inception server --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
           ci_run sleep 60
 
-      - name: Deploy legacy era contracts
-        run: ci_run zk contract setup-legacy-bridge-era
+      #      - name: Deploy legacy era contracts
+      #        run: ci_run zk contract setup-legacy-bridge-era
 
       - name: Perform loadtest
         run: ci_run zk run loadtest
