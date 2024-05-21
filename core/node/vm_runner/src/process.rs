@@ -1,7 +1,9 @@
+use anyhow::Context;
 use std::{sync::Arc, time::Duration};
 
 use multivm::interface::L2BlockEnv;
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::ReadStorageFactory;
 use zksync_state_keeper::{
@@ -64,12 +66,25 @@ impl VmRunner {
     pub async fn run(mut self, stop_receiver: &watch::Receiver<bool>) -> anyhow::Result<()> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
+        let mut handles = Vec::<JoinHandle<anyhow::Result<()>>>::new();
         let mut next_batch = self
             .io
             .latest_processed_batch(&mut self.pool.connection().await?)
             .await?
             + 1;
         loop {
+            let mut retained_handles = Vec::new();
+            for handle in handles {
+                if handle.is_finished() {
+                    handle
+                        .await
+                        .context("Failed to join a task to process a batch")?
+                        .context("Failed to process a batch")?;
+                } else {
+                    retained_handles.push(handle);
+                }
+            }
+            handles = retained_handles;
             let last_ready_batch = self
                 .io
                 .last_ready_to_be_loaded_batch(&mut self.pool.connection().await?)
@@ -104,7 +119,7 @@ impl VmRunner {
                 .create_handler(next_batch)
                 .await?;
 
-            tokio::task::spawn(async move {
+            let handle = tokio::task::spawn(async move {
                 for (i, l2_block) in batch_data.l2_blocks.into_iter().enumerate() {
                     if i > 0 {
                         // First L2 block in every batch is already preloaded
@@ -126,7 +141,7 @@ impl VmRunner {
                             ..
                         } = exec_result
                         else {
-                            panic!("Unexpected non-successful transaction");
+                            anyhow::bail!("Unexpected non-successful transaction");
                         };
                         let ExecutionMetricsForCriteria {
                             l1_gas: tx_l1_gas_this_tx,
@@ -144,14 +159,16 @@ impl VmRunner {
                     output_handler
                         .handle_l2_block(&updates_manager)
                         .await
-                        .expect("VM runner failed to handle L2 block");
+                        .context("VM runner failed to handle L2 block")?;
                 }
                 handler.finish_batch().await;
                 output_handler
                     .handle_l1_batch(Arc::new(updates_manager))
                     .await
-                    .expect("VM runner failed to handle L1 batch");
+                    .context("VM runner failed to handle L1 batch")?;
+                Ok(())
             });
+            handles.push(handle);
 
             next_batch += 1;
         }
