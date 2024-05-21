@@ -7,7 +7,7 @@ use xshell::{cmd, Shell};
 use crate::{
     commands::{
         chain::create_chain_inner,
-        containers::start_containers,
+        containers::{initialize_docker, start_containers},
         ecosystem::{
             args::create::EcosystemCreateArgs,
             create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
@@ -91,6 +91,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 
     if args.start_containers {
         let spinner = Spinner::new("Starting containers...");
+        initialize_docker(shell, &ecosystem_config)?;
         start_containers(shell)?;
         spinner.finish();
     }

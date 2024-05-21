@@ -9,22 +9,30 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem =
         EcosystemConfig::from_file(shell).context("Failed to find ecosystem folder.")?;
 
-    if !shell.path_exists("volumes") {
-        create_docker_folders(shell)?;
-    };
-
-    if !shell.path_exists(DOCKER_COMPOSE_FILE) {
-        copy_dockerfile(shell, ecosystem.link_to_code)?;
-    };
+    initialize_docker(shell, &ecosystem)?;
 
     logger::info("Starting containers");
 
     let spinner = Spinner::new("Starting containers using docker...");
     start_containers(shell)?;
     spinner.finish();
+
     logger::outro("Containers started successfully");
     Ok(())
 }
+
+pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
+    if !shell.path_exists("volumes") {
+        create_docker_folders(shell)?;
+    };
+
+    if !shell.path_exists(DOCKER_COMPOSE_FILE) {
+        copy_dockerfile(shell, ecosystem.link_to_code.clone())?;
+    };
+
+    Ok(())
+}
+
 pub fn start_containers(shell: &Shell) -> anyhow::Result<()> {
     docker::up(shell, DOCKER_COMPOSE_FILE).context("Failed to start containers")
 }
