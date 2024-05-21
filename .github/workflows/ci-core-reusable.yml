@@ -128,6 +128,7 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo $(pwd)/zk_toolbox/target/release >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          echo $(pwd)
 
       - name: Loadtest configuration
         run: |
@@ -143,6 +144,7 @@ jobs:
 
       - name: Build zk_toolbox
         run: |
+          ci_run bash -c "echo $(pwd)"
           ci_run bash -c "cd zk_toolbox && cargo build --release"
 
       - name: Init
