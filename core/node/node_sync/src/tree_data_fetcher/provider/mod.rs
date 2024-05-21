@@ -31,6 +31,8 @@ pub(crate) enum MissingData {
 #[async_trait]
 pub(crate) trait TreeDataProvider: fmt::Debug + Send + Sync + 'static {
     /// Fetches a state root hash for the L1 batch with the specified number.
+    ///
+    /// It is guaranteed that this method will be called with monotonically increasing `number`s (although not necessarily sequential ones).
     async fn batch_details(
         &mut self,
         number: L1BatchNumber,
@@ -70,10 +72,10 @@ struct PastL1BatchInfo {
 ///
 /// To limit the range of L1 blocks for `eth_getLogs` calls, the provider assumes that an L1 block with a `BlockCommit` event
 /// for a certain L1 batch is relatively close to L1 batch sealing. Thus, the provider finds an approximate L1 block number
-/// for the event using binary search, or uses an L1 block number of the `BlockCommit` event for the previous L1 batch
+/// for the event using binary search, or uses an L1 block number of the `BlockCommit` event for the previously queried L1 batch
 /// (provided it's not too far behind the seal timestamp of the batch).
 #[derive(Debug)]
-pub(crate) struct L1DataProvider {
+pub(super) struct L1DataProvider {
     pool: ConnectionPool<Core>,
     eth_client: Box<DynClient<L1>>,
     diamond_proxy_address: Address,
@@ -172,6 +174,14 @@ impl L1DataProvider {
         })?;
         Ok((number, block.timestamp))
     }
+
+    pub fn with_fallback(self, fallback: Box<dyn TreeDataProvider>) -> CombinedDataProvider {
+        CombinedDataProvider {
+            l1: self,
+            should_call_l1: true,
+            fallback,
+        }
+    }
 }
 
 #[async_trait]
@@ -261,5 +271,47 @@ impl TreeDataProvider for L1DataProvider {
                 Ok(Err(MissingData::RootHash))
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct CombinedDataProvider {
+    l1: L1DataProvider,
+    should_call_l1: bool,
+    fallback: Box<dyn TreeDataProvider>,
+}
+
+#[async_trait]
+impl TreeDataProvider for CombinedDataProvider {
+    async fn batch_details(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> TreeDataFetcherResult<Result<H256, MissingData>> {
+        if self.should_call_l1 {
+            match self.l1.batch_details(number).await {
+                Err(err) => {
+                    if err.is_transient() {
+                        tracing::info!(
+                            number = number.0,
+                            "Transient error calling L1 data provider: {err}"
+                        );
+                    } else {
+                        tracing::warn!(number = number.0, "Error calling L1 data provider: {err}");
+                        self.should_call_l1 = false;
+                    }
+                }
+                Ok(Ok(root_hash)) => return Ok(Ok(root_hash)),
+                Ok(Err(missing_data)) => {
+                    tracing::debug!(
+                        number = number.0,
+                        "L1 data provider misses batch data: {missing_data}"
+                    );
+                    // No sense of calling the L1 provider in the future; the L2 provider will very likely get information
+                    // about batches significantly faster.
+                    self.should_call_l1 = false;
+                }
+            }
+        }
+        self.fallback.batch_details(number).await
     }
 }

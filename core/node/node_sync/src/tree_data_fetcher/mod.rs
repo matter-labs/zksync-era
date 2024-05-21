@@ -116,17 +116,20 @@ impl TreeDataFetcher {
         }
     }
 
+    /// Attempts to fetch root hashes from L1 (namely, `BlockCommit` events emitted by the diamond proxy) if possible.
+    /// The main node will still be used as a fallback in case communicating with L1 fails, or for newer batches,
+    /// which may not be committed on L1.
     pub fn with_l1_data(
         mut self,
         eth_client: Box<DynClient<L1>>,
         diamond_proxy_address: Address,
     ) -> anyhow::Result<Self> {
-        // FIXME: use combined provider
-        self.data_provider = Box::new(L1DataProvider::new(
+        let l1_provider = L1DataProvider::new(
             self.pool.clone(),
             eth_client.for_component("tree_data_fetcher"),
             diamond_proxy_address,
-        )?);
+        )?;
+        self.data_provider = Box::new(l1_provider.with_fallback(self.data_provider));
         Ok(self)
     }
 

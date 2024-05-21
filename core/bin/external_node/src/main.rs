@@ -627,7 +627,8 @@ async fn init_tasks(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone());
+        let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone())
+            .with_l1_data(eth_client.clone(), config.remote.diamond_proxy_addr)?;
         app_health.insert_component(fetcher.health_check())?;
         task_handles.push(tokio::spawn(fetcher.run(stop_receiver.clone())));
     }
