@@ -5,15 +5,12 @@
 #![allow(dead_code)] // TODO Temporary, for less noisy development.
 
 use anyhow::Context;
+use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{
-    configs::{
-        consensus::{ConsensusConfig, ConsensusSecrets},
-        wallets::Wallets,
-        GeneralConfig, Secrets,
-    },
+    configs::{consensus::ConsensusConfig, wallets::Wallets, GeneralConfig, Secrets},
     ContractsConfig, GenesisConfig,
 };
-use zksync_core_leftovers::{temp_config_store::decode_yaml_repr, Component};
+use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::{ApiContracts, TxSenderConfig},
@@ -34,6 +31,7 @@ use zksync_node_framework::{
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
+        prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
         sigint::SigintHandlerLayer,
@@ -51,7 +49,6 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder, ZkStackServiceError},
 };
-use zksync_protobuf_config::proto;
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
@@ -67,7 +64,6 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     contracts_config: ContractsConfig,
-    components: Vec<Component>,
     secrets: Secrets,
     consensus_config: Option<ConsensusConfig>,
 }
@@ -78,7 +74,6 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
-        components: Vec<Component>,
         secrets: Secrets,
         consensus_config: Option<ConsensusConfig>,
     ) -> Self {
@@ -88,7 +83,6 @@ impl MainNodeBuilder {
             wallets,
             genesis_config,
             contracts_config,
-            components,
             secrets,
             consensus_config,
         }
@@ -102,12 +96,19 @@ impl MainNodeBuilder {
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = load_config!(self.configs.postgres_config);
         let secrets = load_config!(self.secrets.database);
+        // No prover layer required.
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
-            .with_prover(true)
             .build();
         self.node.add_layer(pools_layer);
+        Ok(self)
+    }
+
+    fn add_prometheus_exporter_layer(mut self) -> anyhow::Result<Self> {
+        let prom_config = load_config!(self.configs.prometheus_config);
+        let prom_config = PrometheusExporterConfig::pull(prom_config.listener_port);
+        self.node.add_layer(PrometheusExporterLayer(prom_config));
         Ok(self)
     }
 
@@ -379,26 +380,81 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    pub fn build(mut self) -> Result<ZkStackService, ZkStackServiceError> {
+    pub fn build(
+        mut self,
+        mut components: Vec<Component>,
+    ) -> Result<ZkStackService, ZkStackServiceError> {
         // Add "base" layers (resources and helper tasks).
+        self = self
+            .add_sigint_handler_layer()?
+            .add_pools_layer()?
+            .add_object_store_layer()?
+            .add_circuit_breaker_checker_layer()?
+            .add_healthcheck_layer()?
+            .add_prometheus_exporter_layer()?
+            .add_query_eth_client_layer()?
+            .add_sequencer_l1_gas_layer()?;
+
+        // Sort the components, so that the components thay may depend on each other are added in the correct order.
+        components.sort_unstable_by_key(|component| match component {
+            // API consumes the resource provided by other layers (multiple ones), so it has to come the last.
+            Component::HttpApi | Component::WsApi => 1,
+            // Default priority.
+            _ => 0,
+        });
 
         // Add "component-specific" layers.
-        for component in self.components {
+        // Note that the layers are added only once, so it's fine to add the same layer multiple times.
+        for component in components {
             match component {
-                Component::HttpApi => todo!(),
-                Component::WsApi => todo!(),
-                Component::ContractVerificationApi => todo!(),
-                Component::Tree => todo!(),
-                Component::TreeApi => todo!(),
-                Component::EthWatcher => todo!(),
-                Component::EthTxAggregator => todo!(),
-                Component::EthTxManager => todo!(),
-                Component::StateKeeper => todo!(),
-                Component::TeeVerifierInputProducer => todo!(),
-                Component::Housekeeper => todo!(),
-                Component::ProofDataHandler => todo!(),
-                Component::Consensus => todo!(),
-                Component::CommitmentGenerator => todo!(),
+                Component::HttpApi => {
+                    self = self
+                        .add_tx_sender_layer()?
+                        .add_tree_api_client_layer()?
+                        .add_api_caches_layer()?
+                        .add_http_web3_api_layer()?;
+                }
+                Component::WsApi => {
+                    self = self
+                        .add_tx_sender_layer()?
+                        .add_tree_api_client_layer()?
+                        .add_api_caches_layer()?
+                        .add_ws_web3_api_layer()?;
+                }
+                Component::ContractVerificationApi => {
+                    self = self.add_contract_verification_api_layer()?;
+                }
+                Component::Tree => {
+                    self = self.add_metadata_calculator_layer()?;
+                }
+                Component::TreeApi => {
+                    todo!("TreeApi");
+                }
+                Component::EthWatcher => {
+                    self = self.add_eth_watch_layer()?;
+                }
+                Component::EthTxAggregator | Component::EthTxManager => {
+                    // TODO (in this PR): Clarify that these components always have to run together.
+                    self = self.add_eth_sender_layer()?;
+                }
+                Component::StateKeeper => {
+                    self = self.add_state_keeper_layer()?;
+                }
+                Component::TeeVerifierInputProducer => {
+                    todo!();
+                }
+                Component::Housekeeper => {
+                    self = self.add_house_keeper_layer()?;
+                }
+                Component::ProofDataHandler => {
+                    self = self.add_proof_data_handler_layer()?;
+                }
+                Component::Consensus => {
+                    self = self.add_consensus_layer()?;
+                }
+                Component::CommitmentGenerator => {
+                    self = self.add_commitment_generator_layer()?;
+                }
             }
         }
         self.node.build()

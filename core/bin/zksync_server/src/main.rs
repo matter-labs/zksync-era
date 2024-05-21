@@ -224,11 +224,10 @@ async fn main() -> anyhow::Result<()> {
                 wallets,
                 genesis,
                 contracts_config,
-                components,
                 secrets,
                 consensus,
             )
-            .build()?;
+            .build(components)?;
             node.run()?;
             Ok(())
         })
