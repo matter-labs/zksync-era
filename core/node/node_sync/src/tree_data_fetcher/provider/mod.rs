@@ -65,6 +65,13 @@ struct PastL1BatchInfo {
 /// Provider of tree data loading it from L1 `BlockCommit` events emitted by the diamond proxy contract.
 /// Should be used together with an L2 provider because L1 data can be missing for latest batches,
 /// and the provider implementation uses assumptions that can break in some corner cases.
+///
+/// # Implementation details
+///
+/// To limit the range of L1 blocks for `eth_getLogs` calls, the provider assumes that an L1 block with a `BlockCommit` event
+/// for a certain L1 batch is relatively close to L1 batch sealing. Thus, the provider finds an approximate L1 block number
+/// for the event using binary search, or uses an L1 block number of the `BlockCommit` event for the previous L1 batch
+/// (provided it's not too far behind the seal timestamp of the batch).
 #[derive(Debug)]
 pub(crate) struct L1DataProvider {
     pool: ConnectionPool<Core>,
@@ -78,7 +85,7 @@ impl L1DataProvider {
     /// Accuracy when guessing L1 block number by L1 batch timestamp.
     const L1_BLOCK_ACCURACY: U64 = U64([1_000]);
     /// Range of L1 blocks queried via `eth_getLogs`. Should be at least several times greater than
-    /// `L1_BLOCK_ACCURACY`.
+    /// `L1_BLOCK_ACCURACY`, but not large enough to trigger request limiting on the L1 RPC provider.
     const L1_BLOCK_RANGE: U64 = U64([20_000]);
 
     pub fn new(
@@ -132,7 +139,7 @@ impl L1DataProvider {
             return Ok(earliest_number); // No better estimate at this point
         }
 
-        // At this point, we have earliest_timestamp <= l1_batch_seal_timestamp <= latest_timestamp.
+        // At this point, we have `earliest_timestamp <= l1_batch_seal_timestamp <= latest_timestamp`.
         // Binary-search the range until we're sort of accurate.
         let mut left = earliest_number;
         let mut right = latest_number;
@@ -231,6 +238,7 @@ impl TreeDataProvider for L1DataProvider {
                     let err = "Bogus `BlockCommit` event, does not have the root hash topic";
                     EnrichedClientError::new(ClientError::Custom(err.into()), "batch_details")
                         .with_arg("filter", &filter)
+                        .with_arg("log", &log)
                 })?;
                 // `unwrap()` is safe due to the filtering above
                 let l1_commit_block_number = log.block_number.unwrap();
