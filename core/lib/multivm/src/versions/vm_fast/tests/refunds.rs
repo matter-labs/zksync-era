@@ -56,7 +56,7 @@ fn test_predetermined_refunded_gas() {
         .build();
 
     vm.vm
-        .push_transaction_inner(tx.clone(), result.refunds.gas_refunded);
+        .push_transaction_inner(tx.clone(), result.refunds.gas_refunded, true);
 
     let result_with_predefined_refunds = vm.vm.execute(VmExecutionMode::Batch);
     let mut current_state_with_predefined_refunds = vm.vm.get_current_execution_state();
@@ -107,7 +107,7 @@ fn test_predetermined_refunded_gas() {
 
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
-        .push_transaction_inner(tx, changed_operator_suggested_refund);
+        .push_transaction_inner(tx, changed_operator_suggested_refund, true);
     let result = vm.vm.execute(VmExecutionMode::Batch);
     let mut current_state_with_changed_predefined_refunds = vm.vm.get_current_execution_state();
 

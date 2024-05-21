@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use vm2::{
-    decode::decode_program, fat_pointer::FatPointer, ExecutionEnd, Program, Settings,
+    decode::decode_program, fat_pointer::FatPointer, ExecutionEnd, HeapId, Program, Settings,
     VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
@@ -34,7 +34,10 @@ use super::{
 };
 use crate::{
     glue::GlueInto,
-    interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason},
+    interface::{
+        BytecodeCompressionError, Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled,
+        VmRevertReason,
+    },
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
         events::merge_events,
@@ -340,13 +343,18 @@ impl<S: ReadStorage> Vm<S> {
         )
     }
 
-    pub(crate) fn push_transaction_inner(&mut self, tx: zksync_types::Transaction, refund: u64) {
+    pub(crate) fn push_transaction_inner(
+        &mut self,
+        tx: zksync_types::Transaction,
+        refund: u64,
+        with_compression: bool,
+    ) {
         let tx: TransactionData = tx.into();
         let overhead = tx.overhead_gas();
 
         self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
 
-        let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) {
+        let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) || !with_compression {
             // L1 transactions do not need compression
             vec![]
         } else {
@@ -446,10 +454,8 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
 
         // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
         inner.state.heaps[vm2::FIRST_HEAP].resize(get_used_bootloader_memory_bytes(VM_VERSION), 0);
-
         inner.state.current_frame.heap_size = u32::MAX;
         inner.state.current_frame.aux_heap_size = u32::MAX;
-
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
 
         let mut me = Self {
@@ -474,7 +480,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
     }
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
-        self.push_transaction_inner(tx, 0);
+        self.push_transaction_inner(tx, 0, true);
     }
 
     fn inspect(
@@ -559,7 +565,17 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         Result<(), crate::interface::BytecodeCompressionError>,
         VmExecutionResultAndLogs,
     ) {
-        todo!()
+        self.push_transaction_inner(tx, 0, with_compression);
+        let result = self.inspect(tracer, VmExecutionMode::OneTx);
+
+        if self.has_unpublished_bytecodes() {
+            (
+                Err(BytecodeCompressionError::BytecodeCompressionFailed),
+                result,
+            )
+        } else {
+            (Ok(()), result)
+        }
     }
 
     fn get_bootloader_memory(&self) -> BootloaderMemory {
