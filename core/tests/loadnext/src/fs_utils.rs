@@ -1,13 +1,13 @@
 //! Utilities used for reading tokens, contracts bytecode and ABI from the
 //! filesystem.
 
-use std::{fs::File, io::BufReader, path::Path};
+use std::{collections::HashMap, fs::File, io::BufReader, path::Path};
 
 use serde::Deserialize;
 use zksync_types::{ethabi::Contract, network::Network, Address};
 
 /// A token stored in `etc/tokens/{network}.json` files.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Token {
     pub name: String,
     pub symbol: String,
@@ -25,7 +25,24 @@ pub struct TestContract {
     pub factory_deps: Vec<Vec<u8>>,
 }
 
-pub fn read_tokens(network: Network) -> anyhow::Result<Vec<Token>> {
+#[derive(Deserialize, Clone)]
+pub struct Tokens {
+    tokens: HashMap<String, Token>,
+}
+
+pub fn read_tokens(_network: Network) -> anyhow::Result<Vec<Token>> {
+    let home = std::env::var("ZKSYNC_HOME")?;
+    let path = Path::new(&home);
+    let path = path.join(format!("configs/erc20.yaml"));
+
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let tokens: Tokens = serde_yaml::from_reader(reader)?;
+
+    Ok(tokens.tokens.values().cloned().collect())
+}
+
+pub fn read_tokens_legacy(network: Network) -> anyhow::Result<Vec<Token>> {
     let home = std::env::var("ZKSYNC_HOME")?;
     let path = Path::new(&home);
     let path = path.join(format!("etc/tokens/{network}.json"));

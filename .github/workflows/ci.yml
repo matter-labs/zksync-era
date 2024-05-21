@@ -57,6 +57,7 @@ jobs:
               - '.github/workflows/ci-core-lint-reusable.yml'
               - 'Cargo.toml'
               - 'Cargo.lock'
+              - 'zk_toolbox/**'
               - '!**/*.md'
               - '!**/*.MD'
               - 'docker-compose.yml'

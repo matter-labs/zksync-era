@@ -10,7 +10,7 @@
 node_modules
 *.log
 target
-a.out 
+a.out
 .gitconfig
 cobertura.xml
 tags
@@ -30,6 +30,7 @@ Cargo.lock
 !/Cargo.lock
 !/infrastructure/zksync-crypto/Cargo.lock
 !/prover/Cargo.lock
+!/zk_toolbox/Cargo.lock
 
 /etc/env/target/*
 /etc/env/.current
@@ -96,3 +97,7 @@ hyperchain-*.yml
 
 # Prover keys that should not be commited
 prover/vk_setup_data_generator_server_fri/data/setup_*
+
+# Zk Toolbox
+hyperchains/era/configs/*
+configs/*

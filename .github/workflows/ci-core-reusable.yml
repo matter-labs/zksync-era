@@ -12,8 +12,46 @@ jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
+
+  #  build-zk-toolbox:
+  #    name: Build zk_toolbox
+  #    runs-on: [ matterlabs-ci-runner ]
+  #
+  #    steps:
+  #      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+  #        with:
+  #          submodules: "recursive"
+  #          fetch-depth: 0
+  #
+  #      - name: Setup environment
+  #        run: |
+  #          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+  #          echo $(pwd)/bin >> $GITHUB_PATH
+  #          echo IN_DOCKER=1 >> .env
+  #
+  #      - name: Start services
+  #        run: |
+  #          ci_localnet_up
+  #
+  #      - name: Build zk_toolbox
+  #        run: |
+  #          ci_run bash -c "cd zk_toolbox && cargo build --release"
+  #
+  #      # Compress with tar to avoid permission loss
+  #      # https://github.com/actions/upload-artifact?tab=readme-ov-file#permission-loss
+  #      - name: Tar zk_toolbox binaries
+  #        run: |
+  #          tar -C ./zk_toolbox/target/release -cvf zk_toolbox.tar zk_inception zk_supervisor
+  #
+  #      - name: Upload zk_toolbox binaries
+  #        uses: actions/upload-artifact@v4
+  #        with:
+  #          name: zk_toolbox
+  #          path: zk_toolbox.tar
+  #          compression-level: 0
+
   unit-tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -65,7 +103,8 @@ jobs:
         run: ci_run zk test rust
 
   loadtest:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
+    #    needs: [ build-zk-toolbox ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -73,11 +112,23 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
+      #      - name: Download zk_toolbox binaries
+      #        uses: actions/download-artifact@v4
+      #        with:
+      #          name: zk_toolbox
+      #          path: .
+      #
+      #      - name: Extract zk_toolbox binaries
+      #        run: |
+      #          tar -xvf zk_toolbox.tar -C ./bin
+      #
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo $(pwd)/zk_toolbox/target/release >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          echo $(pwd)
 
       - name: Loadtest configuration
         run: |
@@ -91,6 +142,11 @@ jobs:
           ci_localnet_up
           ci_run sccache --start-server
 
+      - name: Build zk_toolbox
+        run: |
+          ci_run bash -c "echo $(pwd)"
+          ci_run bash -c "cd zk_toolbox && cargo build --release"
+
       - name: Init
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
@@ -98,13 +154,14 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
+          ci_run ./zk_toolbox/target/release/zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --server-db-url=postgres://postgres:notsecurepassword@postgres --server-db-name="zksync_local" --prover-db-url=postgres://postgres:notsecurepassword@postgres --prover-db-name="prover_zksync_local"  --verbose
           ci_run zk
-          ci_run zk init
+          ci_run zk contract build
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
+          ci_run ./zk_toolbox/target/release/zk_inception server --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
           ci_run sleep 60
 
       - name: Perform loadtest
@@ -127,13 +184,13 @@ jobs:
       # To be consistent with the rest of the workflow we disable it explicitly.
       fail-fast: false
       matrix:
-        consensus: [false, true]
-        base_token: ["Eth", "Custom"]
-        deployment_mode: ["Rollup", "Validium"]
+        consensus: [ false, true ]
+        base_token: [ "Eth", "Custom" ]
+        deployment_mode: [ "Rollup", "Validium" ]
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -230,7 +287,6 @@ jobs:
           ci_run sleep 2
           ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
 
-
         # This test should be the last one as soon as it
         # finished bootloader will be different
       - name: Run upgrade test
@@ -273,10 +329,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        consensus: [false, true]
-        base_token: ["Eth", "Custom"]
-        deployment_mode: ["Rollup", "Validium"]
-    runs-on: [matterlabs-ci-runner]
+        consensus: [ false, true ]
+        base_token: [ "Eth", "Custom" ]
+        deployment_mode: [ "Rollup", "Validium" ]
+    runs-on: [ matterlabs-ci-runner ]
 
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
