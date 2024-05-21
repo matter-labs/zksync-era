@@ -173,14 +173,13 @@ fn compute_batch_fee_model_input_v2(
     } = config;
 
     // Firstly, we scale the gas price and pubdata price in case it is needed.
-    let l1_gas_price =
-        U256::from((l1_gas_price.as_u64() as f64 * l1_gas_price_scale_factor) as u64); // TODO: this might overflow
+    let l1_gas_price = (l1_gas_price.as_u64() as f64 * l1_gas_price_scale_factor) as u64;
     let l1_pubdata_price =
-        U256::from((l1_pubdata_price.as_u64() as f64 * l1_pubdata_price_scale_factor) as u64); // TODO: this might overflow
+        (l1_pubdata_price.as_u64() as f64 * l1_pubdata_price_scale_factor) as u64;
 
     // While the final results of the calculations are not expected to have any overflows, the intermediate computations
     // might, so we use U256 for them.
-    let l1_batch_overhead_wei = l1_gas_price * U256::from(batch_overhead_l1_gas);
+    let l1_batch_overhead_wei = U256::from(l1_gas_price) * U256::from(batch_overhead_l1_gas);
 
     let fair_l2_gas_price = {
         // Firstly, we calculate which part of the overall overhead overhead each unit of L2 gas should cover.
@@ -205,18 +204,17 @@ fn compute_batch_fee_model_input_v2(
         // Then, we multiply by the `pubdata_overhead_part` to get the overhead for each pubdata byte.
         // Also, this means that if we almost never close batches because of pubdata, the `pubdata_overhead_part` should be zero and so
         // it is possible that the pubdata costs include no overhead.
-        let pubdata_overhead_wei = U256::from(
-            (l1_batch_overhead_per_pubdata.as_u64() as f64 * pubdata_overhead_part) as u64,
-        );
+        let pubdata_overhead_wei =
+            (l1_batch_overhead_per_pubdata.as_u64() as f64 * pubdata_overhead_part) as u64;
 
         // We sum up the raw L1 pubdata price (i.e. the expected price of publishing a single pubdata byte) and the overhead for batch being closed.
         l1_pubdata_price + pubdata_overhead_wei
     };
 
     PubdataIndependentBatchFeeModelInput {
-        l1_gas_price,
+        l1_gas_price: U256::from(l1_gas_price),
         fair_l2_gas_price,
-        fair_pubdata_price,
+        fair_pubdata_price: U256::from(fair_pubdata_price),
     }
 }
 

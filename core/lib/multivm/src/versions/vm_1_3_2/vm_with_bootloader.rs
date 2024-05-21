@@ -104,7 +104,10 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_l2_gas_price,
-        ceil_div_u256(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE.into()),
+        ceil_div_u256(
+            eth_price_per_pubdata_byte,
+            U256::from(MAX_GAS_PER_PUBDATA_BYTE),
+        ),
     );
 
     (
