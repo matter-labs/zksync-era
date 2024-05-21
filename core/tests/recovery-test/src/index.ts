@@ -6,6 +6,10 @@ import fs, { FileHandle } from 'node:fs/promises';
 import fetch, { FetchError } from 'node-fetch';
 import { promisify } from 'node:util';
 import { ChildProcess, exec, spawn } from 'node:child_process';
+import * as zksync from 'zksync-ethers';
+import { ethers } from 'ethers';
+import path from 'node:path';
+import { expect } from 'chai';
 
 export interface Health<T> {
     readonly status: string;
@@ -190,4 +194,66 @@ async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean
             }
         });
     });
+}
+
+/**
+ * Funded wallet wrapper that can be used to generate L1 batches.
+ */
+export class FundedWallet {
+    static async create(mainNode: zksync.Provider, eth: ethers.providers.Provider): Promise<FundedWallet> {
+        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
+        const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
+        const mnemonic = ethTestConfig.test_mnemonic as string;
+        const wallet = zksync.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0").connect(mainNode).connectToL1(eth);
+        return new FundedWallet(wallet);
+    }
+
+    private constructor(private readonly wallet: zksync.Wallet) {}
+
+    /** Ensure that this wallet is funded on L2, depositing funds from L1 if necessary. */
+    async ensureIsFunded() {
+        const balance = await this.wallet.getBalance();
+        const minExpectedBalance = ethers.utils.parseEther('0.001');
+        if (balance.gte(minExpectedBalance)) {
+            console.log('Wallet has acceptable balance on L2', balance);
+            return;
+        }
+
+        const l1Balance = await this.wallet.getBalanceL1();
+        expect(l1Balance.gte(minExpectedBalance), 'L1 balance of funded wallet is too small').to.be.true;
+
+        const baseTokenAddress = await this.wallet.getBaseToken();
+        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        const depositParams = {
+            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
+            amount: minExpectedBalance,
+            to: this.wallet.address,
+            approveBaseERC20: true,
+            approveERC20: true
+        };
+        console.log('Depositing funds on L2', depositParams);
+        const depositTx = await this.wallet.deposit(depositParams);
+        await depositTx.waitFinalize();
+    }
+
+    /** Generates at least one L1 batch by transfering funds to itself. */
+    async generateL1Batch(): Promise<number> {
+        const transactionResponse = await this.wallet.transfer({
+            to: this.wallet.address,
+            amount: 1,
+            token: zksync.utils.ETH_ADDRESS
+        });
+        console.log('Generated a transaction from funded wallet', transactionResponse);
+        const receipt = await transactionResponse.wait();
+        console.log('Got finalized transaction receipt', receipt);
+
+        // Wait until an L1 batch with the transaction is sealed.
+        const pastL1BatchNumber = await this.wallet.provider.getL1BatchNumber();
+        let newL1BatchNumber: number;
+        while ((newL1BatchNumber = await this.wallet.provider.getL1BatchNumber()) <= pastL1BatchNumber) {
+            await sleep(1000);
+        }
+        console.log(`Sealed L1 batch #${newL1BatchNumber}`);
+        return newL1BatchNumber;
+    }
 }

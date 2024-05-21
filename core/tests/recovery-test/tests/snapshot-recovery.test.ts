@@ -3,6 +3,7 @@ import * as protobuf from 'protobufjs';
 import * as zlib from 'zlib';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { ethers } from 'ethers';
 import * as zksync from 'zksync-ethers';
 
 import {
@@ -12,7 +13,8 @@ import {
     NodeProcess,
     dropNodeDatabase,
     dropNodeStorage,
-    executeCommandWithLogs
+    executeCommandWithLogs,
+    FundedWallet
 } from '../src';
 
 interface AllSnapshotsResponse {
@@ -52,7 +54,8 @@ interface TokenInfo {
  * Assumptions:
  *
  * - Main node is run for the duration of the test.
- * - "Rich wallet" 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 is funded on L2 (e.g., as a result of previous integration or load tests).
+ * - "Rich wallet" 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 is funded on L1. This is always true if the environment
+ *   was initialized via `zk init`.
  * - `ZKSYNC_ENV` variable is not set (checked at the start of the test). For this reason,
  *   the test doesn't have a `zk` wrapper; it should be launched using `yarn`.
  */
@@ -82,7 +85,7 @@ describe('snapshot recovery', () => {
     let externalNode: zksync.Provider;
     let externalNodeProcess: NodeProcess;
 
-    let fundedWallet: zksync.Wallet;
+    let fundedWallet: FundedWallet;
 
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
@@ -93,10 +96,9 @@ describe('snapshot recovery', () => {
     });
 
     before('create test wallet', async () => {
-        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
-        const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
-        const mnemonic = ethTestConfig.test_mnemonic as string;
-        fundedWallet = zksync.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0").connect(mainNode);
+        // FIXME: won't work in Docker
+        const eth = new ethers.providers.JsonRpcProvider('http://127.0.0.1:8545');
+        fundedWallet = await FundedWallet.create(mainNode, eth);
     });
 
     after(async () => {
@@ -326,25 +328,9 @@ describe('snapshot recovery', () => {
     // The logic below works fine if there is other transaction activity on the test network; we still
     // create *at least* `PRUNED_BATCH_COUNT + 1` L1 batches; thus, at least `PRUNED_BATCH_COUNT` of them
     // should be pruned eventually.
-    step(`generate ${PRUNED_BATCH_COUNT + 1} transactions`, async () => {
-        let pastL1BatchNumber = snapshotMetadata.l1BatchNumber;
+    step(`generate ${PRUNED_BATCH_COUNT + 1} L1 batches`, async () => {
         for (let i = 0; i < PRUNED_BATCH_COUNT + 1; i++) {
-            const transactionResponse = await fundedWallet.transfer({
-                to: fundedWallet.address,
-                amount: 1,
-                token: zksync.utils.ETH_ADDRESS
-            });
-            console.log('Generated a transaction from funded wallet', transactionResponse);
-            const receipt = await transactionResponse.wait();
-            console.log('Got finalized transaction receipt', receipt);
-
-            // Wait until an L1 batch with the transaction is sealed.
-            let newL1BatchNumber: number;
-            while ((newL1BatchNumber = await mainNode.getL1BatchNumber()) <= pastL1BatchNumber) {
-                await sleep(1000);
-            }
-            console.log(`Sealed L1 batch #${newL1BatchNumber}`);
-            pastL1BatchNumber = newL1BatchNumber;
+            await fundedWallet.generateL1Batch();
         }
     });
 

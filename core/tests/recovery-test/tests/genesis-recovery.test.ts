@@ -1,10 +1,16 @@
 import { expect } from 'chai';
-import * as zkweb3 from 'zksync-web3';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import * as zksync from 'zksync-ethers';
+import { ethers } from 'ethers';
 
-import { NodeProcess, dropNodeDatabase, dropNodeStorage, getExternalNodeHealth, NodeComponents, sleep } from '../src';
+import {
+    NodeProcess,
+    dropNodeDatabase,
+    dropNodeStorage,
+    getExternalNodeHealth,
+    NodeComponents,
+    sleep,
+    FundedWallet
+} from '../src';
 
 // FIXME: check consistency checker health once it has acceptable speed
 
@@ -14,7 +20,8 @@ import { NodeProcess, dropNodeDatabase, dropNodeStorage, getExternalNodeHealth, 
  * Assumptions:
  *
  * - Main node is run for the duration of the test.
- * - "Rich wallet" 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 is funded on L2 (e.g., as a result of previous integration or load tests).
+ * - "Rich wallet" 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 is funded on L1. This is always true if the environment
+ *   was initialized via `zk init`.
  * - `ZKSYNC_ENV` variable is not set (checked at the start of the test). For this reason,
  *   the test doesn't have a `zk` wrapper; it should be launched using `yarn`.
  */
@@ -33,26 +40,25 @@ describe('genesis recovery', () => {
         EN_SNAPSHOTS_RECOVERY_ENABLED: 'false'
     };
 
-    let mainNode: zkweb3.Provider;
-    let externalNode: zkweb3.Provider;
+    let mainNode: zksync.Provider;
+    let externalNode: zksync.Provider;
     let externalNodeProcess: NodeProcess;
     let externalNodeBatchNumber: number;
 
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
             .to.be.undefined;
-        mainNode = new zkweb3.Provider('http://127.0.0.1:3050');
-        externalNode = new zkweb3.Provider('http://127.0.0.1:3060');
+        mainNode = new zksync.Provider('http://127.0.0.1:3050');
+        externalNode = new zksync.Provider('http://127.0.0.1:3060');
         await NodeProcess.stopAll('KILL');
     });
 
-    let fundedWallet: zkweb3.Wallet;
+    let fundedWallet: FundedWallet;
 
     before('create test wallet', async () => {
-        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
-        const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
-        const mnemonic = ethTestConfig.test_mnemonic as string;
-        fundedWallet = zkweb3.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0").connect(mainNode);
+        // FIXME: won't work in Docker
+        const eth = new ethers.providers.JsonRpcProvider('http://127.0.0.1:8545');
+        fundedWallet = await FundedWallet.create(mainNode, eth);
     });
 
     after(async () => {
@@ -62,25 +68,14 @@ describe('genesis recovery', () => {
         }
     });
 
+    step('ensure that wallet has L2 funds', async () => {
+        await fundedWallet.ensureIsFunded();
+    });
+
     step('generate new batches if necessary', async () => {
         let pastL1BatchNumber = await mainNode.getL1BatchNumber();
         while (pastL1BatchNumber < CATCH_UP_BATCH_COUNT) {
-            const transactionResponse = await fundedWallet.transfer({
-                to: fundedWallet.address,
-                amount: 1,
-                token: zksync.utils.ETH_ADDRESS
-            });
-            console.log('Generated a transaction from funded wallet', transactionResponse);
-            const receipt = await transactionResponse.wait();
-            console.log('Got finalized transaction receipt', receipt);
-
-            // Wait until an L1 batch number with the transaction is sealed.
-            let newL1BatchNumber: number;
-            while ((newL1BatchNumber = await mainNode.getL1BatchNumber()) <= pastL1BatchNumber) {
-                await sleep(1000);
-            }
-            console.log(`Sealed L1 batch #${newL1BatchNumber}`);
-            pastL1BatchNumber = newL1BatchNumber;
+            pastL1BatchNumber = await fundedWallet.generateL1Batch();
         }
     });
 
@@ -154,22 +149,7 @@ describe('genesis recovery', () => {
     step('generate new batches for 2nd phase if necessary', async () => {
         let pastL1BatchNumber = await mainNode.getL1BatchNumber();
         while (pastL1BatchNumber < externalNodeBatchNumber + CATCH_UP_BATCH_COUNT) {
-            const transactionResponse = await fundedWallet.transfer({
-                to: fundedWallet.address,
-                amount: 1,
-                token: zksync.utils.ETH_ADDRESS
-            });
-            console.log('Generated a transaction from funded wallet', transactionResponse);
-            const receipt = await transactionResponse.wait();
-            console.log('Got finalized transaction receipt', receipt);
-
-            // Wait until an L1 batch number with the transaction is sealed.
-            let newL1BatchNumber: number;
-            while ((newL1BatchNumber = await mainNode.getL1BatchNumber()) <= pastL1BatchNumber) {
-                await sleep(1000);
-            }
-            console.log(`Sealed L1 batch #${newL1BatchNumber}`);
-            pastL1BatchNumber = newL1BatchNumber;
+            pastL1BatchNumber = await fundedWallet.generateL1Batch();
         }
     });
 
