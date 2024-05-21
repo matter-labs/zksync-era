@@ -1,19 +1,18 @@
 import { expect } from 'chai';
 import * as protobuf from 'protobufjs';
 import * as zlib from 'zlib';
-import fs, { FileHandle } from 'node:fs/promises';
-import { ChildProcess, spawn } from 'node:child_process';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import * as zksync from 'zksync-ethers';
 
 import {
     getExternalNodeHealth,
     sleep,
-    externalNodeArgs,
-    killExternalNode,
-    stopExternalNode,
-    waitForProcess,
-    NodeComponents
+    NodeComponents,
+    NodeProcess,
+    dropNodeDatabase,
+    dropNodeStorage,
+    executeCommandWithLogs
 } from '../src';
 
 interface AllSnapshotsResponse {
@@ -81,8 +80,7 @@ describe('snapshot recovery', () => {
     let snapshotMetadata: GetSnapshotResponse;
     let mainNode: zksync.Provider;
     let externalNode: zksync.Provider;
-    let externalNodeLogs: FileHandle;
-    let externalNodeProcess: ChildProcess;
+    let externalNodeProcess: NodeProcess;
 
     let fundedWallet: zksync.Wallet;
 
@@ -91,7 +89,7 @@ describe('snapshot recovery', () => {
             .to.be.undefined;
         mainNode = new zksync.Provider('http://127.0.0.1:3050');
         externalNode = new zksync.Provider('http://127.0.0.1:3060');
-        await killExternalNode();
+        await NodeProcess.stopAll('KILL');
     });
 
     before('create test wallet', async () => {
@@ -103,9 +101,8 @@ describe('snapshot recovery', () => {
 
     after(async () => {
         if (externalNodeProcess) {
-            externalNodeProcess.kill();
-            await killExternalNode();
-            await externalNodeLogs.close();
+            await externalNodeProcess.stopAndWait('KILL');
+            await externalNodeProcess.logs.close();
         }
     });
 
@@ -125,18 +122,7 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        const logs = await fs.open('snapshot-creator.log', 'w');
-        const childProcess = spawn('zk run snapshots-creator', {
-            cwd: homeDir,
-            stdio: [null, logs.fd, logs.fd],
-            shell: true
-        });
-        try {
-            await waitForProcess(childProcess);
-        } finally {
-            childProcess.kill();
-            await logs.close();
-        }
+        await executeCommandWithLogs('zk run snapshots-creator', 'snapshot-creator.log');
     });
 
     step('validate snapshot', async () => {
@@ -186,41 +172,15 @@ describe('snapshot recovery', () => {
     });
 
     step('drop external node database', async () => {
-        const childProcess = spawn('zk db reset', {
-            cwd: homeDir,
-            stdio: 'inherit',
-            shell: true,
-            env: externalNodeEnv
-        });
-        try {
-            await waitForProcess(childProcess);
-        } finally {
-            childProcess.kill();
-        }
+        await dropNodeDatabase(externalNodeEnv);
     });
 
     step('drop external node storage', async () => {
-        const childProcess = spawn('zk clean --database', {
-            cwd: homeDir,
-            stdio: 'inherit',
-            shell: true,
-            env: externalNodeEnv
-        });
-        try {
-            await waitForProcess(childProcess);
-        } finally {
-            childProcess.kill();
-        }
+        await dropNodeStorage(externalNodeEnv);
     });
 
     step('initialize external node', async () => {
-        externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
-        externalNodeProcess = spawn('zk', externalNodeArgs(), {
-            cwd: homeDir,
-            stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
-            shell: true,
-            env: externalNodeEnv
-        });
+        externalNodeProcess = await NodeProcess.spawn(externalNodeEnv, 'snapshot-recovery.log');
 
         let recoveryFinished = false;
         let consistencyCheckerSucceeded = false;
@@ -283,7 +243,7 @@ describe('snapshot recovery', () => {
         }
 
         // If `externalNodeProcess` fails early, we'll trip these checks.
-        expect(externalNodeProcess.exitCode).to.be.null;
+        expect(externalNodeProcess.exitCode()).to.be.null;
         expect(consistencyCheckerSucceeded, 'consistency check failed').to.be.true;
         expect(reorgDetectorSucceeded, 'reorg detection check failed').to.be.true;
     });
@@ -317,8 +277,7 @@ describe('snapshot recovery', () => {
 
     step('restart EN', async () => {
         console.log('Stopping external node');
-        await stopExternalNode();
-        await waitForProcess(externalNodeProcess);
+        await externalNodeProcess.stopAndWait();
 
         const components = disableTreeDuringPruning
             ? NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE
@@ -331,12 +290,7 @@ describe('snapshot recovery', () => {
         };
         externalNodeEnv = { ...externalNodeEnv, ...pruningParams };
         console.log('Starting EN with pruning params', pruningParams);
-        externalNodeProcess = spawn('zk', externalNodeArgs(components), {
-            cwd: homeDir,
-            stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
-            shell: true,
-            env: externalNodeEnv
-        });
+        externalNodeProcess = await NodeProcess.spawn(externalNodeEnv, externalNodeProcess.logs, components);
 
         let isDbPrunerReady = false;
         let isTreePrunerReady = disableTreeDuringPruning; // skip health checks if we don't run the tree

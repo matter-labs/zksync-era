@@ -1,19 +1,10 @@
 import { expect } from 'chai';
 import * as zkweb3 from 'zksync-web3';
-import fs, { FileHandle } from 'node:fs/promises';
-import { ChildProcess, spawn } from 'node:child_process';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import * as zksync from 'zksync-ethers';
 
-import {
-    externalNodeArgs,
-    getExternalNodeHealth,
-    killExternalNode,
-    NodeComponents,
-    sleep,
-    stopExternalNode,
-    waitForProcess
-} from '../src';
+import { NodeProcess, dropNodeDatabase, dropNodeStorage, getExternalNodeHealth, NodeComponents, sleep } from '../src';
 
 // FIXME: check consistency checker health once it has acceptable speed
 
@@ -31,8 +22,6 @@ describe('genesis recovery', () => {
     /** Number of L1 batches for the node to process during each phase of the test. */
     const CATCH_UP_BATCH_COUNT = 3;
 
-    const homeDir = process.env.ZKSYNC_HOME!!;
-
     const externalNodeEnvProfile =
         'ext-node' +
         (process.env.DEPLOYMENT_MODE === 'Validium' ? '-validium' : '') +
@@ -46,8 +35,7 @@ describe('genesis recovery', () => {
 
     let mainNode: zkweb3.Provider;
     let externalNode: zkweb3.Provider;
-    let externalNodeLogs: FileHandle;
-    let externalNodeProcess: ChildProcess;
+    let externalNodeProcess: NodeProcess;
     let externalNodeBatchNumber: number;
 
     before('prepare environment', async () => {
@@ -55,7 +43,7 @@ describe('genesis recovery', () => {
             .to.be.undefined;
         mainNode = new zkweb3.Provider('http://127.0.0.1:3050');
         externalNode = new zkweb3.Provider('http://127.0.0.1:3060');
-        await killExternalNode();
+        await NodeProcess.stopAll('KILL');
     });
 
     let fundedWallet: zkweb3.Wallet;
@@ -69,9 +57,8 @@ describe('genesis recovery', () => {
 
     after(async () => {
         if (externalNodeProcess) {
-            externalNodeProcess.kill();
-            await killExternalNode();
-            await externalNodeLogs.close();
+            await externalNodeProcess.stopAndWait('KILL');
+            await externalNodeProcess.logs.close();
         }
     });
 
@@ -98,41 +85,19 @@ describe('genesis recovery', () => {
     });
 
     step('drop external node database', async () => {
-        const childProcess = spawn('zk db reset', {
-            cwd: homeDir,
-            stdio: 'inherit',
-            shell: true,
-            env: externalNodeEnv
-        });
-        try {
-            await waitForProcess(childProcess);
-        } finally {
-            childProcess.kill();
-        }
+        await dropNodeDatabase(externalNodeEnv);
     });
 
     step('drop external node storage', async () => {
-        const childProcess = spawn('zk clean --database', {
-            cwd: homeDir,
-            stdio: 'inherit',
-            shell: true,
-            env: externalNodeEnv
-        });
-        try {
-            await waitForProcess(childProcess);
-        } finally {
-            childProcess.kill();
-        }
+        await dropNodeStorage(externalNodeEnv);
     });
 
     step('initialize external node w/o a tree', async () => {
-        externalNodeLogs = await fs.open('genesis-recovery.log', 'w');
-        externalNodeProcess = spawn('zk', externalNodeArgs(NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE), {
-            cwd: homeDir,
-            stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
-            shell: true,
-            env: externalNodeEnv
-        });
+        externalNodeProcess = await NodeProcess.spawn(
+            externalNodeEnv,
+            'genesis-recovery.log',
+            NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE
+        );
 
         const mainNodeBatchNumber = await mainNode.getL1BatchNumber();
         expect(mainNodeBatchNumber).to.be.greaterThanOrEqual(CATCH_UP_BATCH_COUNT);
@@ -171,7 +136,7 @@ describe('genesis recovery', () => {
         }
 
         // If `externalNodeProcess` fails early, we'll trip these checks.
-        expect(externalNodeProcess.exitCode).to.be.null;
+        expect(externalNodeProcess.exitCode()).to.be.null;
         expect(treeFetcherSucceeded, 'tree fetching failed').to.be.true;
         expect(reorgDetectorSucceeded, 'reorg detection check failed').to.be.true;
     });
@@ -183,8 +148,7 @@ describe('genesis recovery', () => {
     });
 
     step('stop EN', async () => {
-        await stopExternalNode();
-        await waitForProcess(externalNodeProcess);
+        await externalNodeProcess.stopAndWait();
     });
 
     step('generate new batches for 2nd phase if necessary', async () => {
@@ -210,12 +174,11 @@ describe('genesis recovery', () => {
     });
 
     step('restart EN', async () => {
-        externalNodeProcess = spawn('zk', externalNodeArgs(NodeComponents.WITH_TREE_FETCHER), {
-            cwd: homeDir,
-            stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
-            shell: true,
-            env: externalNodeEnv
-        });
+        externalNodeProcess = await NodeProcess.spawn(
+            externalNodeEnv,
+            externalNodeProcess.logs,
+            NodeComponents.WITH_TREE_FETCHER
+        );
 
         let isNodeReady = false;
         while (!isNodeReady) {
