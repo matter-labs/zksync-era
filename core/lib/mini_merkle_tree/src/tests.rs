@@ -28,6 +28,8 @@ fn hash_of_empty_tree_with_single_item() {
         println!("checking tree with {len} items");
         let tree = MiniMerkleTree::new(iter::once([0_u8; 88]), Some(len));
         assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
+        // tree.pop(1);
+        // assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
     }
 }
 
@@ -44,6 +46,8 @@ fn hash_of_large_empty_tree_with_multiple_items() {
         let tree = MiniMerkleTree::new(leaves, None);
         let depth = tree_depth_by_size(tree_size);
         assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
+        // tree.pop(len / 2);
+        // assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
     }
 }
 
@@ -217,3 +221,52 @@ fn merkle_proofs_are_valid_in_very_small_trees() {
         }
     }
 }
+
+#[test]
+fn dynamic_merkle_tree_growth() {
+    let mut tree = MiniMerkleTree::new(iter::empty(), None);
+    assert_eq!(tree.binary_tree_size, 1);
+
+    for len in 1..=8_usize {
+        tree.push([0; 88]);
+        assert_eq!(tree.binary_tree_size, len.next_power_of_two());
+    }
+
+    // Shouldn't shink after popping
+    tree.cache(6);
+    assert_eq!(tree.binary_tree_size, 8);
+}
+
+#[test]
+fn merkle_tree_popping() {
+    let leaves = (1_u8..=50).map(|byte| [byte; 88]);
+    let mut tree = MiniMerkleTree::new(leaves.clone(), None);
+
+    let expected_root_hash: H256 =
+        "0x2da23c4270b612710106f3e02e9db9fa42663751869f48d952fa7a0eaaa92475"
+            .parse()
+            .unwrap();
+
+    let expected_path = [
+        "0x39f19437665159060317aab8b417352df18779f50b68a6bf6bc9c94dff8c98ca",
+        "0xc3d03eebfd83049991ea3d3e358b6712e7aa2e2e63dc2d4b438987cec28ac8d0",
+        "0xe3697c7f33c31a9b0f0aeb8542287d0d21e8c4cf82163d0c44c7a98aa11aa111",
+        "0x199cc5812543ddceeddd0fc82807646a4899444240db2c0d2f20c3cceb5f51fa",
+        "0x6edd774c0492cb4c825e4684330fd1c3259866606d47241ebf2a29af0190b5b1",
+        "0x29694afc5d76ad6ee48e9382b1cf724c503c5742aa905700e290845c56d1b488",
+    ]
+    .map(|s| s.parse::<H256>().unwrap());
+
+    for i in 0..50 {
+        let (root_hash, path) = tree.merkle_root_and_path(49 - i);
+        assert_eq!(root_hash, expected_root_hash);
+        assert_eq!(path, expected_path);
+        tree.cache(1);
+    }
+}
+
+// TODO:
+// - test for `push` and `pop` with different parities of arrays
+// - test for getting & proving intervals
+// - test for extremes (1, 2 nodes, caching everything, etc.)
+// - empty tree
