@@ -6,6 +6,7 @@ use zksync_types::{prover_dal::JobCountStatistics, ProtocolVersionId};
 use crate::{
     metrics::{JobStatus, PROVER_FRI_METRICS},
     periodic_job::PeriodicJob,
+    prover::metrics::JobStatus,
 };
 
 /// `FriProofCompressorQueueReporter` is a task that periodically reports compression jobs status.
@@ -49,19 +50,17 @@ impl PeriodicJob for FriProofCompressorQueueReporter {
             );
         }
 
-        metrics::gauge!(
-            format!("prover_fri.{}.jobs", PROOF_COMPRESSOR_SERVICE_NAME),
-            stats.queued as f64,
-            "type" => "queued",
-            "protocol_version" => ProtocolVersionId::current_prover_version().to_string(),
-        );
+        PROVER_FRI_METRICS.proof_compressor_jobs[&(
+            JobStatus::Queued,
+            ProtocolVersionId::current_prover_version().to_string(),
+        )]
+            .set(stats.queued as u64);
 
-        metrics::gauge!(
-            format!("prover_fri.{}.jobs", PROOF_COMPRESSOR_SERVICE_NAME),
-            stats.in_progress as f64,
-            "type" => "in_progress",
-            "protocol_version" => ProtocolVersionId::current_prover_version().to_string(),
-        );
+        PROVER_FRI_METRICS.proof_compressor_jobs[&(
+            JobStatus::InProgress,
+            ProtocolVersionId::current_prover_version().to_string(),
+        )]
+            .set(stats.in_progress as u64);
 
         let oldest_not_compressed_batch = self
             .pool

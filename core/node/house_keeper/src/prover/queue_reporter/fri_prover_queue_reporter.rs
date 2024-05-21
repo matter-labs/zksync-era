@@ -59,24 +59,22 @@ impl PeriodicJob for FriProverQueueReporter {
                 .get_group_id_for_circuit_id_and_aggregation_round(circuit_id, aggregation_round)
                 .unwrap_or(u8::MAX);
 
-            metrics::gauge!(
-              "fri_prover.prover.jobs",
-              stats.queued as f64,
-              "type" => "queued",
-              "circuit_id" => circuit_id.to_string(),
-              "aggregation_round" => aggregation_round.to_string(),
-              "prover_group_id" => group_id.to_string(),
-              "protocol_version" => ProtocolVersionId::current_prover_version().to_string(),
+            FRI_PROVER_METRICS.report_prover_jobs(
+                "queued",
+                circuit_id,
+                aggregation_round,
+                group_id,
+                ProtocolVersionId::current_prover_version(),
+                stats.queued as u64,
             );
 
-            metrics::gauge!(
-              "fri_prover.prover.jobs",
-              stats.in_progress as f64,
-              "type" => "in_progress",
-              "circuit_id" => circuit_id.to_string(),
-              "aggregation_round" => aggregation_round.to_string(),
-              "prover_group_id" => group_id.to_string(),
-              "protocol_version" => ProtocolVersionId::current_prover_version().to_string(),
+            FRI_PROVER_METRICS.report_prover_jobs(
+                "in_progress",
+                circuit_id,
+                aggregation_round,
+                group_id,
+                ProtocolVersionId::current_prover_version(),
+                stats.in_progress as u64,
             );
         }
 

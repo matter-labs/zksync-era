@@ -98,19 +98,18 @@ impl PeriodicJob for FriWitnessGeneratorQueueReporter {
             );
         }
 
-        metrics::gauge!(
-            format!("server.{}.jobs", FRI_WITNESS_GENERATOR_SERVICE_NAME),
-            aggregated.queued as f64,
-            "type" => "queued",
-            "protocol_version" => ProtocolVersionId::current_prover_version().to_string(),
-        );
+        SERVER_METRICS.witness_generator_jobs[&(
+            "queued",
+            ProtocolVersionId::current_prover_version().to_string(),
+        )]
+            .set(aggregated.queued as u64);
 
-        metrics::gauge!(
-            format!("server.{}.jobs", FRI_WITNESS_GENERATOR_SERVICE_NAME),
-            aggregated.in_progress as f64,
-            "type" => "in_progress",
-            "protocol_version" => ProtocolVersionId::current_prover_version().to_string(),
-        );
+        SERVER_METRICS.witness_generator_jobs[&(
+            "in_progress",
+            ProtocolVersionId::current_prover_version().to_string(),
+        )]
+            .set(aggregated.in_progress as u64);
+
         Ok(())
     }
 
