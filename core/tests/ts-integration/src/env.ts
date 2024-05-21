@@ -69,6 +69,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
 
     const l1NodeUrl = ensureVariable(process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL, 'L1 node URL');
+    console.log('l1NodeUrl', l1NodeUrl);
     const wsL2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_WS_API_URL || process.env.API_WEB3_JSON_RPC_WS_URL,
         'WS L2 node URL'
