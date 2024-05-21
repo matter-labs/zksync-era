@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use zksync_core::api_server::web3::mempool_cache::{self, MempoolCache};
+use zksync_node_api_server::web3::mempool_cache::{self, MempoolCache};
 
 use crate::{
     implementations::resources::{

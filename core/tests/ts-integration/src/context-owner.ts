@@ -166,7 +166,7 @@ export class TestContextOwner {
         this.reporter.startAction(`Cancelling allowances transactions`);
         // Since some tx may be pending on stage, we don't want to get stuck because of it.
         // In order to not get stuck transactions, we manually cancel all the pending txs.
-        const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        const chainId = this.env.l2ChainId;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
         const erc20Bridge = await bridgehub.sharedBridge();
@@ -275,7 +275,7 @@ export class TestContextOwner {
     ) {
         this.reporter.startAction(`Distributing base tokens on L1`);
         if (baseTokenAddress != zksync.utils.ETH_ADDRESS_IN_CONTRACTS) {
-            const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+            const chainId = this.env.l2ChainId;
             const l1startNonce = await this.mainEthersWallet.getTransactionCount();
             this.reporter.debug(`Start nonce is ${l1startNonce}`);
             const ethIsBaseToken =
@@ -365,7 +365,7 @@ export class TestContextOwner {
         l2erc20DepositAmount: ethers.BigNumber,
         baseTokenAddress: zksync.types.Address
     ) {
-        const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        const chainId = this.env.l2ChainId;
         this.reporter.startAction(`Distributing tokens on L1`);
         const l1startNonce = await this.mainEthersWallet.getTransactionCount();
         this.reporter.debug(`Start nonce is ${l1startNonce}`);

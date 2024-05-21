@@ -83,17 +83,22 @@ describe('Tests for the custom account behavior', () => {
         ]);
 
         // Check that transaction succeeds.
-        await expect(sendCustomAccountTransaction(tx, alice.provider, customAccount.address)).toBeAccepted([
-            erc20BalanceChange,
-            feeCheck
-        ]);
+        await expect(
+            sendCustomAccountTransaction(tx, alice.provider, customAccount.address, testMaster.environment().l2ChainId)
+        ).toBeAccepted([erc20BalanceChange, feeCheck]);
     });
 
     test('Should fail the validation with incorrect signature', async () => {
         const tx = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
         const fakeSignature = new Uint8Array(12);
         await expect(
-            sendCustomAccountTransaction(tx, alice.provider, customAccount.address, fakeSignature)
+            sendCustomAccountTransaction(
+                tx,
+                alice.provider,
+                customAccount.address,
+                testMaster.environment().l2ChainId,
+                fakeSignature
+            )
         ).toBeRejected('failed to validate the transaction.');
     });
 
@@ -118,9 +123,14 @@ describe('Tests for the custom account behavior', () => {
             .then((tx) => tx.wait());
 
         let tx = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
-        await expect(sendCustomAccountTransaction(tx, alice.provider, badCustomAccount.address)).toBeRejected(
-            'Violated validation rules'
-        );
+        await expect(
+            sendCustomAccountTransaction(
+                tx,
+                alice.provider,
+                badCustomAccount.address,
+                testMaster.environment().l2ChainId
+            )
+        ).toBeRejected('Violated validation rules');
     });
 
     test('Should not execute from non-account', async () => {
@@ -140,9 +150,9 @@ describe('Tests for the custom account behavior', () => {
             .then((tx) => tx.wait());
 
         let tx = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
-        await expect(sendCustomAccountTransaction(tx, alice.provider, nonAccount.address)).toBeRejected(
-            "invalid sender. can't start a transaction from a non-account"
-        );
+        await expect(
+            sendCustomAccountTransaction(tx, alice.provider, nonAccount.address, testMaster.environment().l2ChainId)
+        ).toBeRejected("invalid sender. can't start a transaction from a non-account");
     });
 
     test('Should provide correct tx.origin for EOA and custom accounts', async () => {
@@ -153,7 +163,14 @@ describe('Tests for the custom account behavior', () => {
 
         // For custom accounts, the tx.origin should be the bootloader address
         const customAATx = await contextContract.populateTransaction.checkTxOrigin(utils.BOOTLOADER_FORMAL_ADDRESS);
-        await expect(sendCustomAccountTransaction(customAATx, alice.provider, customAccount.address)).toBeAccepted([]);
+        await expect(
+            sendCustomAccountTransaction(
+                customAATx,
+                alice.provider,
+                customAccount.address,
+                testMaster.environment().l2ChainId
+            )
+        ).toBeAccepted([]);
     });
 
     test('API should reject validation that takes too many computational ergs', async () => {
@@ -182,13 +199,18 @@ describe('Tests for the custom account behavior', () => {
             .then((tx) => tx.wait());
 
         // Set flag to do many calculations during validation.
-        const validationGasLimit = +process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT!;
+        const validationGasLimit = testMaster.environment().validationComputationalGasLimit;
         await badCustomAccount.setGasToSpent(validationGasLimit).then((tx: any) => tx.wait());
 
         let tx = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
-        await expect(sendCustomAccountTransaction(tx, alice.provider, badCustomAccount.address)).toBeRejected(
-            'Violated validation rules: Took too many computational gas'
-        );
+        await expect(
+            sendCustomAccountTransaction(
+                tx,
+                alice.provider,
+                badCustomAccount.address,
+                testMaster.environment().l2ChainId
+            )
+        ).toBeRejected('Violated validation rules: Took too many computational gas');
     });
 
     test('State keeper should reject validation that takes too many computational ergs', async () => {
@@ -225,15 +247,23 @@ describe('Tests for the custom account behavior', () => {
             transfer,
             alice.provider,
             badCustomAccount.address,
+            testMaster.environment().l2ChainId,
             undefined,
             nonce + 1
         );
 
         // Increase nonce and set flag to do many calculations during validation.
-        const validationGasLimit = +process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT!;
+        const validationGasLimit = testMaster.environment().validationComputationalGasLimit;
         const tx = await badCustomAccount.populateTransaction.setGasToSpent(validationGasLimit);
         await expect(
-            sendCustomAccountTransaction(tx, alice.provider, badCustomAccount.address, undefined, nonce)
+            sendCustomAccountTransaction(
+                tx,
+                alice.provider,
+                badCustomAccount.address,
+                testMaster.environment().l2ChainId,
+                undefined,
+                nonce
+            )
         ).toBeAccepted();
 
         // We don't have a good check that tx was indeed rejected.
@@ -257,6 +287,7 @@ async function sendCustomAccountTransaction(
     tx: ethers.PopulatedTransaction,
     web3Provider: zksync.Provider,
     accountAddress: string,
+    chainId: number,
     customSignature?: Uint8Array,
     nonce?: number
 ) {
@@ -268,7 +299,7 @@ async function sendCustomAccountTransaction(
 
     tx.gasLimit = gasLimit;
     tx.gasPrice = gasPrice;
-    tx.chainId = parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!, 10);
+    tx.chainId = chainId;
     tx.value = ethers.BigNumber.from(0);
     tx.nonce = nonce ?? (await web3Provider.getTransactionCount(accountAddress));
     tx.type = 113;

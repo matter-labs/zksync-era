@@ -2,7 +2,10 @@ use std::fmt;
 
 use zksync_contracts::verifier_contract;
 pub(super) use zksync_eth_client::Error as EthClientError;
-use zksync_eth_client::{CallFunctionArgs, ClientError, EnrichedClientError, EthInterface};
+use zksync_eth_client::{
+    clients::{DynClient, L1},
+    CallFunctionArgs, ClientError, EnrichedClientError, EthInterface,
+};
 use zksync_types::{
     ethabi::Contract,
     web3::{BlockId, BlockNumber, FilterBuilder, Log},
@@ -34,7 +37,7 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
 #[derive(Debug)]
 pub struct EthHttpQueryClient {
-    client: Box<dyn EthInterface>,
+    client: Box<DynClient<L1>>,
     topics: Vec<H256>,
     diamond_proxy_addr: Address,
     governance_address: Address,
@@ -46,7 +49,7 @@ pub struct EthHttpQueryClient {
 
 impl EthHttpQueryClient {
     pub fn new(
-        client: Box<dyn EthInterface>,
+        client: Box<DynClient<L1>>,
         diamond_proxy_addr: Address,
         state_transition_manager_address: Option<Address>,
         governance_address: Address,

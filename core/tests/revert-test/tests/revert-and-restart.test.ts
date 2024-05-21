@@ -1,6 +1,6 @@
 import * as utils from 'zk/build/utils';
 import { Tester } from './tester';
-import * as zkweb3 from 'zksync-ethers';
+import * as zksync from 'zksync-ethers';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { expect } from 'chai';
 import fs from 'fs';
@@ -55,7 +55,7 @@ const depositAmount = ethers.utils.parseEther('0.001');
 
 describe('Block reverting test', function () {
     let tester: Tester;
-    let alice: zkweb3.Wallet;
+    let alice: zksync.Wallet;
     let mainContract: Contract;
     let blocksCommittedBeforeRevert: number;
     let logs: fs.WriteStream;
@@ -110,7 +110,7 @@ describe('Block reverting test', function () {
         // it gets updated with some batch logs only at the start of the next batch.
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
         const firstDepositHandle = await tester.syncWallet.deposit({
-            token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
+            token: tester.isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true,
@@ -121,7 +121,7 @@ describe('Block reverting test', function () {
             await utils.sleep(1);
         }
         const secondDepositHandle = await tester.syncWallet.deposit({
-            token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
+            token: tester.isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true,
@@ -194,7 +194,7 @@ describe('Block reverting test', function () {
 
         // Execute a transaction
         const depositHandle = await tester.syncWallet.deposit({
-            token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
+            token: tester.isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true,
@@ -244,12 +244,13 @@ describe('Block reverting test', function () {
     });
 });
 
-async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
+async function checkedRandomTransfer(sender: zksync.Wallet, amount: BigNumber) {
     const senderBalanceBefore = await sender.getBalance();
-    const receiver = zkweb3.Wallet.createRandom().connect(sender.provider);
+    const receiver = zksync.Wallet.createRandom().connect(sender.provider);
     const transferHandle = await sender.sendTransaction({
         to: receiver.address,
-        value: amount
+        value: amount,
+        type: 0
     });
 
     // ethers doesn't work well with block reversions, so we poll for the receipt manually.
