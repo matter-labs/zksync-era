@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Duration};
 use multivm::interface::L2BlockEnv;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
+use zksync_state::ReadStorageFactory;
 use zksync_state_keeper::{
     BatchExecutor, ExecutionMetricsForCriteria, L2BlockParams, TxExecutionResult, UpdatesManager,
 };
@@ -24,7 +25,8 @@ use crate::{storage::StorageLoader, OutputHandlerFactory, VmRunnerIo};
 pub struct VmRunner {
     pool: ConnectionPool<Core>,
     io: Box<dyn VmRunnerIo>,
-    storage: Arc<dyn StorageLoader>,
+    storage: Arc<dyn ReadStorageFactory>,
+    loader: Arc<dyn StorageLoader>,
     output_handler_factory: Box<dyn OutputHandlerFactory>,
     batch_processor: Box<dyn BatchExecutor>,
 }
@@ -39,7 +41,11 @@ impl VmRunner {
     pub fn new(
         pool: ConnectionPool<Core>,
         io: Box<dyn VmRunnerIo>,
-        storage: Arc<dyn StorageLoader>,
+        // Normally `storage` and `loader` would be the same object, but it is awkward to deal with
+        // them as such due to Rust's limitations on upcasting coercion. See
+        // https://github.com/rust-lang/rust/issues/65991.
+        storage: Arc<dyn ReadStorageFactory>,
+        loader: Arc<dyn StorageLoader>,
         output_handler_factory: Box<dyn OutputHandlerFactory>,
         batch_processor: Box<dyn BatchExecutor>,
     ) -> Self {
@@ -47,6 +53,7 @@ impl VmRunner {
             pool,
             io,
             storage,
+            loader,
             output_handler_factory,
             batch_processor,
         }
@@ -72,7 +79,7 @@ impl VmRunner {
                 tokio::time::sleep(SLEEP_INTERVAL).await;
                 continue;
             }
-            let Some(batch_data) = self.storage.load_batch(next_batch).await? else {
+            let Some(batch_data) = self.loader.load_batch(next_batch).await? else {
                 // Next batch has not been loaded yet
                 tokio::time::sleep(SLEEP_INTERVAL).await;
                 continue;
@@ -82,6 +89,7 @@ impl VmRunner {
             let Some(handler) = self
                 .batch_processor
                 .init_batch(
+                    self.storage.clone(),
                     batch_data.l1_batch_env,
                     batch_data.system_env,
                     stop_receiver,

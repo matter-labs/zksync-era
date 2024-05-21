@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
 use multivm::interface::{
@@ -8,6 +8,7 @@ use tokio::{
     sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
+use zksync_state::ReadStorageFactory;
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -58,6 +59,7 @@ impl TxExecutionResult {
 pub trait BatchExecutor: 'static + Send + Sync + fmt::Debug {
     async fn init_batch(
         &mut self,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         stop_receiver: &watch::Receiver<bool>,

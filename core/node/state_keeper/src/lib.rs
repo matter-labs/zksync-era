@@ -50,11 +50,7 @@ pub async fn create_state_keeper(
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
-    let batch_executor_base = MainBatchExecutor::new(
-        Arc::new(async_cache),
-        state_keeper_config.save_call_traces,
-        false,
-    );
+    let batch_executor_base = MainBatchExecutor::new(state_keeper_config.save_call_traces, false);
 
     let io = MempoolIO::new(
         mempool,
@@ -76,5 +72,6 @@ pub async fn create_state_keeper(
         Box::new(batch_executor_base),
         output_handler,
         Arc::new(sealer),
+        Arc::new(async_cache),
     )
 }
