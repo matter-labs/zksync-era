@@ -90,7 +90,6 @@ impl FromStr for ComponentsToRun {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-    let sigint_receiver = setup_sigint_handler();
 
     // Load env config and use it if file config is not provided
     let tmp_config = load_env_config()?;
@@ -238,6 +237,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Run core actors.
+    let sigint_receiver = setup_sigint_handler();
     let (core_task_handles, stop_sender, health_check_handle) = initialize_components(
         &configs,
         &wallets,

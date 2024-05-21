@@ -196,6 +196,7 @@ impl ZkStackService {
             tracing::info!("Remaining tasks finished without reaching timeouts");
         }
 
+        tracing::info!("Exiting the service");
         result?;
         Ok(())
     }

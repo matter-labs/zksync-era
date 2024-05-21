@@ -101,6 +101,7 @@ impl MainNodeBuilder {
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
+            .with_prover(true)
             .build();
         self.node.add_layer(pools_layer);
         Ok(self)
@@ -450,7 +451,7 @@ impl MainNodeBuilder {
                 }
                 Component::EthTxAggregator | Component::EthTxManager => {
                     // TODO (in this PR): Clarify that these components always have to run together.
-                    self = self.add_eth_sender_layer()?;
+                    self = self.add_pk_signing_client_layer()?.add_eth_sender_layer()?;
                 }
                 Component::StateKeeper => {
                     self = self.add_state_keeper_layer()?;
