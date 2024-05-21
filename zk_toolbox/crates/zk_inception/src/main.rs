@@ -68,7 +68,6 @@ async fn main() -> anyhow::Result<()> {
     logger::intro();
 
     let shell = Shell::new().unwrap();
-    dbg!(shell.current_dir());
     let inception_args = Inception::parse();
 
     init_global_config_inner(&shell, &inception_args.global)?;

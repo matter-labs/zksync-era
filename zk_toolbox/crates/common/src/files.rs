@@ -10,7 +10,7 @@ pub fn save_yaml_file(
     comment: impl ToString,
 ) -> anyhow::Result<()> {
     let data = format!(
-        "{}/n{}",
+        "{}{}",
         comment.to_string(),
         serde_yaml::to_string(&content)?
     );
@@ -24,7 +24,7 @@ pub fn save_toml_file(
     content: impl Serialize,
     comment: impl ToString,
 ) -> anyhow::Result<()> {
-    let data = format!("{}/n{}", comment.to_string(), toml::to_string(&content)?);
+    let data = format!("{}{}", comment.to_string(), toml::to_string(&content)?);
     shell.write_file(file_path, data)?;
     Ok(())
 }

@@ -9,7 +9,6 @@ use xshell::Shell;
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
 pub trait ReadConfig: DeserializeOwned + Clone {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        println!("print read {:?},", path.as_ref());
         let file = shell.read_file(&path).with_context(|| {
             format!(
                 "Failed to open config file. Please check if the file exists: {:?}",
