@@ -15,6 +15,7 @@ const IMAGES = [
     'witness-vector-generator',
     'prover-fri-gateway',
     'proof-fri-compressor',
+    'proof-fri-gpu-compressor',
     'snapshots-creator',
     'verified-sources-fetcher'
 ];
@@ -79,6 +80,7 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         'witness-vector-generator',
         'prover-fri-gateway',
         'proof-fri-compressor',
+        'proof-fri-gpu-compressor',
         'snapshots-creator'
     ].includes(image)
         ? ['latest', 'latest2.0', `2.0-${imageTagSha}`, `${imageTagSha}`, `2.0-${imageTagShaTS}`, `${imageTagShaTS}`]
