@@ -25,6 +25,11 @@ axum.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+http-body-util = "0.1.0"
+hyper = { version = "0.14", features = ["full"] }
+mime = "0.3.16"
+multivm.workspace = true
 serde_json.workspace = true
 tower.workspace = true
-mime = "0.3.16"
+zksync_basic_types.workspace = true
+zksync_contracts.workspace = true

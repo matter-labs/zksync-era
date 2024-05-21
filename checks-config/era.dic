@@ -973,3 +973,7 @@ uncached
 untrimmed
 UNNEST
 semver
+TeeRequestProcessor
+l1_batch_number
+RequestProcessorError
+map_err
