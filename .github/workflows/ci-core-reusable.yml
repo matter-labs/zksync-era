@@ -15,7 +15,7 @@ jobs:
 
   build-zk-toolbox:
     name: Build zk_toolbox
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -51,7 +51,7 @@ jobs:
           compression-level: 0
 
   unit-tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -103,8 +103,8 @@ jobs:
         run: ci_run zk test rust
 
   loadtest:
-    runs-on: [matterlabs-ci-runner]
-    needs: [build-zk-toolbox]
+    runs-on: [ matterlabs-ci-runner ]
+    needs: [ build-zk-toolbox ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -148,7 +148,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --use-default --ignore-prerequisites
+          ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --use-default --verbose
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
@@ -179,13 +179,13 @@ jobs:
       # To be consistent with the rest of the workflow we disable it explicitly.
       fail-fast: false
       matrix:
-        consensus: [false, true]
-        base_token: ["Eth", "Custom"]
-        deployment_mode: ["Rollup", "Validium"]
+        consensus: [ false, true ]
+        base_token: [ "Eth", "Custom" ]
+        deployment_mode: [ "Rollup", "Validium" ]
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -324,10 +324,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        consensus: [false, true]
-        base_token: ["Eth", "Custom"]
-        deployment_mode: ["Rollup", "Validium"]
-    runs-on: [matterlabs-ci-runner]
+        consensus: [ false, true ]
+        base_token: [ "Eth", "Custom" ]
+        deployment_mode: [ "Rollup", "Validium" ]
+    runs-on: [ matterlabs-ci-runner ]
 
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
