@@ -81,8 +81,13 @@ jobs:
           ci_run zk
 
       # We need the CRS only for the fri compressor.
-      - name: download CRS
-        if: matrix.component == 'proof-fri-compressor' || matrix.component == 'proof-gpu-fri-compressor'
+      - name: download CRS for CPU compressor
+        if: matrix.component == 'proof-fri-compressor'
+        run: |
+          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+
+      - name: download CRS for GPU compressor
+        if: matrix.component == 'proof-gpu-fri-compressor'
         run: |
           ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
 

@@ -123,7 +123,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk || true
           ci_run yarn zk build
-          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
+          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'
