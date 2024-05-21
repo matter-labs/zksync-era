@@ -47,7 +47,7 @@ use zksync_node_framework::{
             tx_sink::TxSinkLayer,
         },
     },
-    service::{ZkStackService, ZkStackServiceBuilder, ZkStackServiceError},
+    service::{ZkStackService, ZkStackServiceBuilder},
 };
 
 /// Macro that looks into a path to fetch an optional config,
@@ -158,15 +158,19 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_metadata_calculator_layer(mut self) -> anyhow::Result<Self> {
+    fn add_metadata_calculator_layer(mut self, with_tree_api: bool) -> anyhow::Result<Self> {
         let merkle_tree_env_config = load_config!(self.configs.db_config).merkle_tree;
         let operations_manager_env_config = load_config!(self.configs.operations_manager_config);
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
         );
-        self.node
-            .add_layer(MetadataCalculatorLayer::new(metadata_calculator_config));
+        let mut layer = MetadataCalculatorLayer::new(metadata_calculator_config);
+        if with_tree_api {
+            let merkle_tree_api_config = load_config!(self.configs.api_config).merkle_tree;
+            layer = layer.with_tree_api_config(merkle_tree_api_config);
+        }
+        self.node.add_layer(layer);
         Ok(self)
     }
 
@@ -380,10 +384,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    pub fn build(
-        mut self,
-        mut components: Vec<Component>,
-    ) -> Result<ZkStackService, ZkStackServiceError> {
+    pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
         self = self
             .add_sigint_handler_layer()?
@@ -405,7 +406,7 @@ impl MainNodeBuilder {
 
         // Add "component-specific" layers.
         // Note that the layers are added only once, so it's fine to add the same layer multiple times.
-        for component in components {
+        for component in &components {
             match component {
                 Component::HttpApi => {
                     self = self
@@ -425,10 +426,15 @@ impl MainNodeBuilder {
                     self = self.add_contract_verification_api_layer()?;
                 }
                 Component::Tree => {
-                    self = self.add_metadata_calculator_layer()?;
+                    let with_tree_api = components.contains(&Component::TreeApi);
+                    self = self.add_metadata_calculator_layer(with_tree_api)?;
                 }
                 Component::TreeApi => {
-                    todo!("TreeApi");
+                    anyhow::ensure!(
+                        components.contains(&Component::Tree),
+                        "Merkle tree API cannot be started without a tree component"
+                    );
+                    // Do nothing, will be handled by the `Tree` component.
                 }
                 Component::EthWatcher => {
                     self = self.add_eth_watch_layer()?;
@@ -457,6 +463,6 @@ impl MainNodeBuilder {
                 }
             }
         }
-        self.node.build()
+        Ok(self.node.build()?)
     }
 }
