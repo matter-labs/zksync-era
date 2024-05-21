@@ -2,25 +2,18 @@
 //! This example defines a `ResourceProvider` that works using the main node env config, and
 //! initializes a single task with a health check server.
 
+#![allow(dead_code)] // TODO Temporary, for less noisy development.
+
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        chain::{
-            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig,
-        },
         consensus::{ConsensusConfig, ConsensusSecrets},
-        fri_prover_group::FriProverGroupConfig,
-        house_keeper::HouseKeeperConfig,
         wallets::Wallets,
-        DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
-        L1Secrets, ObservabilityConfig, ProofDataHandlerConfig,
+        GeneralConfig, Secrets,
     },
-    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
-    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
+    ContractsConfig, GenesisConfig,
 };
-use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
-use zksync_env_config::FromEnv;
+use zksync_core_leftovers::{temp_config_store::decode_yaml_repr, Component};
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::{ApiContracts, TxSenderConfig},
@@ -60,14 +53,44 @@ use zksync_node_framework::{
 };
 use zksync_protobuf_config::proto;
 
-struct MainNodeBuilder {
+/// Macro that looks into a path to fetch an optional config,
+/// and clones it into a variable.
+macro_rules! load_config {
+    ($path:expr) => {
+        $path.as_ref().context(stringify!($path))?.clone()
+    };
+}
+
+pub struct MainNodeBuilder {
     node: ZkStackServiceBuilder,
+    configs: GeneralConfig,
+    wallets: Wallets,
+    genesis_config: GenesisConfig,
+    contracts_config: ContractsConfig,
+    components: Vec<Component>,
+    secrets: Secrets,
+    consensus_config: Option<ConsensusConfig>,
 }
 
 impl MainNodeBuilder {
-    fn new() -> Self {
+    pub fn new(
+        configs: GeneralConfig,
+        wallets: Wallets,
+        genesis_config: GenesisConfig,
+        contracts_config: ContractsConfig,
+        components: Vec<Component>,
+        secrets: Secrets,
+        consensus_config: Option<ConsensusConfig>,
+    ) -> Self {
         Self {
             node: ZkStackServiceBuilder::new(),
+            configs,
+            wallets,
+            genesis_config,
+            contracts_config,
+            components,
+            secrets,
+            consensus_config,
         }
     }
 
@@ -77,8 +100,8 @@ impl MainNodeBuilder {
     }
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
-        let config = PostgresConfig::from_env()?;
-        let secrets = DatabaseSecrets::from_env()?;
+        let config = load_config!(self.configs.postgres_config);
+        let secrets = load_config!(self.secrets.database);
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
@@ -89,21 +112,20 @@ impl MainNodeBuilder {
     }
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
-        let genesis = GenesisConfig::from_env()?;
-        let eth_config = EthConfig::from_env()?;
-        let wallets = Wallets::from_env()?;
+        let eth_config = load_config!(self.configs.eth);
+        let wallets = load_config!(self.wallets.eth_sender);
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
-            ContractsConfig::from_env()?,
-            genesis.l1_chain_id,
-            wallets.eth_sender.context("Eth sender configs")?,
+            self.contracts_config.clone(),
+            self.genesis_config.l1_chain_id,
+            wallets,
         ));
         Ok(self)
     }
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
-        let genesis = GenesisConfig::from_env()?;
-        let eth_config = L1Secrets::from_env()?;
+        let genesis = self.genesis_config.clone();
+        let eth_config = load_config!(self.secrets.l1);
         let query_eth_client_layer =
             QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.l1_rpc_url);
         self.node.add_layer(query_eth_client_layer);
@@ -111,33 +133,33 @@ impl MainNodeBuilder {
     }
 
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
-        let gas_adjuster_config = GasAdjusterConfig::from_env()?;
-        let state_keeper_config = StateKeeperConfig::from_env()?;
-        let genesis_config = GenesisConfig::from_env()?;
-        let eth_sender_config = EthConfig::from_env()?;
+        let gas_adjuster_config = load_config!(self.configs.eth)
+            .gas_adjuster
+            .context("Gas adjuster")?;
+        let state_keeper_config = load_config!(self.configs.state_keeper_config);
+        let eth_sender_config = load_config!(self.configs.eth);
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
-            genesis_config,
+            self.genesis_config.clone(),
             state_keeper_config,
-            eth_sender_config
-                .sender
-                .context("eth_sender")?
-                .pubdata_sending_mode,
+            load_config!(eth_sender_config.sender).pubdata_sending_mode,
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
     }
 
     fn add_object_store_layer(mut self) -> anyhow::Result<Self> {
-        let object_store_config = ObjectStoreConfig::from_env()?;
+        let object_store_config = load_config!(self.configs.prover_config)
+            .object_store
+            .context("object_store_config")?;
         self.node
             .add_layer(ObjectStoreLayer::new(object_store_config));
         Ok(self)
     }
 
     fn add_metadata_calculator_layer(mut self) -> anyhow::Result<Self> {
-        let merkle_tree_env_config = DBConfig::from_env()?.merkle_tree;
-        let operations_manager_env_config = OperationsManagerConfig::from_env()?;
+        let merkle_tree_env_config = load_config!(self.configs.db_config).merkle_tree;
+        let operations_manager_env_config = load_config!(self.configs.operations_manager_config);
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
@@ -148,16 +170,18 @@ impl MainNodeBuilder {
     }
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
-        let wallets = Wallets::from_env()?;
+        let wallets = self.wallets.clone();
+        let sk_config = load_config!(self.configs.state_keeper_config);
         let mempool_io_layer = MempoolIOLayer::new(
-            NetworkConfig::from_env()?.zksync_network_id,
-            ContractsConfig::from_env()?,
-            StateKeeperConfig::from_env()?,
-            MempoolConfig::from_env()?,
-            wallets.state_keeper.context("State keeper wallets")?,
+            self.genesis_config.l2_chain_id,
+            self.contracts_config.clone(),
+            sk_config.clone(),
+            load_config!(self.configs.mempool_config),
+            load_config!(wallets.state_keeper),
         );
+        let db_config = load_config!(self.configs.db_config);
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(DBConfig::from_env()?, StateKeeperConfig::from_env()?);
+            MainBatchExecutorLayer::new(db_config, sk_config);
         let state_keeper_layer = StateKeeperLayer;
         self.node
             .add_layer(mempool_io_layer)
@@ -167,51 +191,47 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
+        let eth_config = load_config!(self.configs.eth);
         self.node.add_layer(EthWatchLayer::new(
-            EthWatchConfig::from_env()?,
-            ContractsConfig::from_env()?,
+            load_config!(eth_config.watcher),
+            self.contracts_config.clone(),
         ));
         Ok(self)
     }
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
-        let genesis_config = GenesisConfig::from_env()?;
         self.node.add_layer(ProofDataHandlerLayer::new(
-            ProofDataHandlerConfig::from_env()?,
-            genesis_config.l1_batch_commit_data_generator_mode,
+            load_config!(self.configs.proof_data_handler_config),
+            self.genesis_config.l1_batch_commit_data_generator_mode,
         ));
         Ok(self)
     }
 
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
-        let healthcheck_config = ApiConfig::from_env()?.healthcheck;
+        let healthcheck_config = load_config!(self.configs.api_config).healthcheck;
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
         Ok(self)
     }
 
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
-        let state_keeper_config = StateKeeperConfig::from_env()?;
-        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
-        let network_config = NetworkConfig::from_env()?;
+        let sk_config = load_config!(self.configs.state_keeper_config);
+        let rpc_config = load_config!(self.configs.api_config).web3_json_rpc;
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
         };
-        let wallets = Wallets::from_env()?;
 
         // On main node we always use master pool sink.
         self.node.add_layer(TxSinkLayer::MasterPoolSink);
         self.node.add_layer(TxSenderLayer::new(
             TxSenderConfig::new(
-                &state_keeper_config,
+                &sk_config,
                 &rpc_config,
-                wallets
-                    .state_keeper
-                    .context("StateKeeper wallets")?
+                load_config!(self.wallets.state_keeper)
                     .fee_account
                     .address(),
-                network_config.zksync_network_id,
+                self.genesis_config.l2_chain_id,
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
@@ -221,7 +241,7 @@ impl MainNodeBuilder {
     }
 
     fn add_api_caches_layer(mut self) -> anyhow::Result<Self> {
-        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
+        let rpc_config = load_config!(self.configs.api_config).web3_json_rpc;
         self.node.add_layer(MempoolCacheLayer::new(
             rpc_config.mempool_cache_size(),
             rpc_config.mempool_cache_update_interval(),
@@ -230,18 +250,16 @@ impl MainNodeBuilder {
     }
 
     fn add_tree_api_client_layer(mut self) -> anyhow::Result<Self> {
-        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
+        let rpc_config = load_config!(self.configs.api_config).web3_json_rpc;
         self.node
             .add_layer(TreeApiClientLayer::http(rpc_config.tree_api_url));
         Ok(self)
     }
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
-        let contracts_config = ContractsConfig::from_env()?;
-        let state_keeper_config = StateKeeperConfig::from_env()?;
+        let rpc_config = load_config!(self.configs.api_config).web3_json_rpc;
+        let state_keeper_config = load_config!(self.configs.state_keeper_config);
         let with_debug_namespace = state_keeper_config.save_call_traces;
-        let genesis_config = GenesisConfig::from_env()?;
 
         let mut namespaces = Namespace::DEFAULT.to_vec();
         if with_debug_namespace {
@@ -259,7 +277,7 @@ impl MainNodeBuilder {
         };
         self.node.add_layer(Web3ServerLayer::http(
             rpc_config.http_port,
-            InternalApiConfig::new(&rpc_config, &contracts_config, &genesis_config),
+            InternalApiConfig::new(&rpc_config, &self.contracts_config, &self.genesis_config),
             optional_config,
         ));
 
@@ -267,11 +285,9 @@ impl MainNodeBuilder {
     }
 
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
-        let contracts_config = ContractsConfig::from_env()?;
-        let genesis_config = GenesisConfig::from_env()?;
-        let state_keeper_config = StateKeeperConfig::from_env()?;
-        let circuit_breaker_config = CircuitBreakerConfig::from_env()?;
+        let rpc_config = load_config!(self.configs.api_config).web3_json_rpc;
+        let state_keeper_config = load_config!(self.configs.state_keeper_config);
+        let circuit_breaker_config = load_config!(self.configs.circuit_breaker_config);
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
         let mut namespaces = Namespace::DEFAULT.to_vec();
@@ -293,34 +309,32 @@ impl MainNodeBuilder {
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
-            InternalApiConfig::new(&rpc_config, &contracts_config, &genesis_config),
+            InternalApiConfig::new(&rpc_config, &self.contracts_config, &self.genesis_config),
             optional_config,
         ));
 
         Ok(self)
     }
+
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = EthConfig::from_env()?;
-        let contracts_config = ContractsConfig::from_env()?;
-        let network_config = NetworkConfig::from_env()?;
-        let genesis_config = GenesisConfig::from_env()?;
+        let eth_sender_config = load_config!(self.configs.eth);
 
         self.node.add_layer(EthSenderLayer::new(
             eth_sender_config,
-            contracts_config,
-            network_config.zksync_network_id,
-            genesis_config.l1_batch_commit_data_generator_mode,
+            self.contracts_config.clone(),
+            self.genesis_config.l2_chain_id,
+            self.genesis_config.l1_batch_commit_data_generator_mode,
         ));
 
         Ok(self)
     }
 
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
-        let house_keeper_config = HouseKeeperConfig::from_env()?;
-        let fri_prover_config = FriProverConfig::from_env()?;
-        let fri_witness_generator_config = FriWitnessGeneratorConfig::from_env()?;
-        let fri_prover_group_config = FriProverGroupConfig::from_env()?;
-        let fri_proof_compressor_config = FriProofCompressorConfig::from_env()?;
+        let house_keeper_config = load_config!(self.configs.house_keeper_config);
+        let fri_prover_config = load_config!(self.configs.prover_config);
+        let fri_witness_generator_config = load_config!(self.configs.witness_generator);
+        let fri_prover_group_config = load_config!(self.configs.prover_group_config);
+        let fri_proof_compressor_config = load_config!(self.configs.proof_compressor_config);
 
         self.node.add_layer(HouseKeeperLayer::new(
             house_keeper_config,
@@ -334,16 +348,15 @@ impl MainNodeBuilder {
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        let genesis = GenesisConfig::from_env()?;
         self.node.add_layer(CommitmentGeneratorLayer::new(
-            genesis.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l1_batch_commit_data_generator_mode,
         ));
 
         Ok(self)
     }
 
     fn add_circuit_breaker_checker_layer(mut self) -> anyhow::Result<Self> {
-        let circuit_breaker_config = CircuitBreakerConfig::from_env()?;
+        let circuit_breaker_config = load_config!(self.configs.circuit_breaker_config);
         self.node
             .add_layer(CircuitBreakerCheckerLayer(circuit_breaker_config));
 
@@ -351,94 +364,43 @@ impl MainNodeBuilder {
     }
 
     fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
-        let config = ContractVerifierConfig::from_env()?;
+        let config = load_config!(self.configs.contract_verifier);
         self.node.add_layer(ContractVerificationApiLayer(config));
         Ok(self)
     }
 
-    #[allow(dead_code)] // Temporary disabled due to changes in the config loading approach.
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
-        // Copy-pasted from the zksync_server codebase.
-
-        fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
-            // Read public config.
-            let Ok(path) = std::env::var("CONSENSUS_SECRETS_PATH") else {
-                return Ok(None);
-            };
-            let secrets = std::fs::read_to_string(&path).context(path)?;
-            Ok(Some(
-                decode_yaml_repr::<proto::secrets::Secrets>(&secrets)
-                    .context("failed decoding YAML")?
-                    .consensus
-                    .context("No consensus in secrets")?,
-            ))
-        }
-
-        fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
-            // Read public config.
-            let Ok(path) = std::env::var("CONSENSUS_CONFIG_PATH") else {
-                return Ok(None);
-            };
-            let cfg = std::fs::read_to_string(&path).context(path)?;
-            Ok(Some(
-                decode_yaml_repr::<proto::consensus::Config>(&cfg)
-                    .context("failed decoding YAML")?,
-            ))
-        }
-
-        let config = read_consensus_config().context("read_consensus_config()")?;
-        let secrets = read_consensus_secrets().context("read_consensus_secrets()")?;
-
         self.node.add_layer(ConsensusLayer {
             mode: ConsensusMode::Main,
-            config,
-            secrets,
+            config: self.consensus_config.clone(),
+            secrets: self.secrets.consensus.clone(),
         });
 
         Ok(self)
     }
 
-    fn build(mut self) -> Result<ZkStackService, ZkStackServiceError> {
+    pub fn build(mut self) -> Result<ZkStackService, ZkStackServiceError> {
+        // Add "base" layers (resources and helper tasks).
+
+        // Add "component-specific" layers.
+        for component in self.components {
+            match component {
+                Component::HttpApi => todo!(),
+                Component::WsApi => todo!(),
+                Component::ContractVerificationApi => todo!(),
+                Component::Tree => todo!(),
+                Component::TreeApi => todo!(),
+                Component::EthWatcher => todo!(),
+                Component::EthTxAggregator => todo!(),
+                Component::EthTxManager => todo!(),
+                Component::StateKeeper => todo!(),
+                Component::TeeVerifierInputProducer => todo!(),
+                Component::Housekeeper => todo!(),
+                Component::ProofDataHandler => todo!(),
+                Component::Consensus => todo!(),
+                Component::CommitmentGenerator => todo!(),
+            }
+        }
         self.node.build()
     }
-}
-
-fn main() -> anyhow::Result<()> {
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
-    let _guard = vlog::ObservabilityBuilder::new()
-        .with_log_format(log_format)
-        .build();
-
-    MainNodeBuilder::new()
-        .add_sigint_handler_layer()?
-        .add_pools_layer()?
-        .add_circuit_breaker_checker_layer()?
-        .add_query_eth_client_layer()?
-        .add_sequencer_l1_gas_layer()?
-        .add_object_store_layer()?
-        .add_metadata_calculator_layer()?
-        .add_state_keeper_layer()?
-        .add_eth_watch_layer()?
-        .add_pk_signing_client_layer()?
-        .add_eth_sender_layer()?
-        .add_proof_data_handler_layer()?
-        .add_healthcheck_layer()?
-        .add_tx_sender_layer()?
-        .add_tree_api_client_layer()?
-        .add_api_caches_layer()?
-        .add_http_web3_api_layer()?
-        .add_ws_web3_api_layer()?
-        .add_house_keeper_layer()?
-        .add_commitment_generator_layer()?
-        .add_contract_verification_api_layer()?
-        // .add_consensus_layer()? // Temporarily disabled due to changes in the config loading approach.
-        .build()?
-        .run()?;
-
-    Ok(())
 }

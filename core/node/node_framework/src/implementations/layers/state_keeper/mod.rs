@@ -90,7 +90,7 @@ impl Task for StateKeeperTask {
         let result = state_keeper.run().await;
 
         // Wait for all the instances of RocksDB to be destroyed.
-        tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+        tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination) // TODO (in this PR: wouldn't work if it's state keeper who causes the termination)
             .await
             .unwrap();
 

@@ -1,9 +1,9 @@
 use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::{chain::NetworkConfig, eth_sender::EthConfig, ContractsConfig};
+use zksync_config::configs::{eth_sender::EthConfig, ContractsConfig};
 use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
-use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -22,7 +22,7 @@ use crate::{
 pub struct EthSenderLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    network_config: NetworkConfig,
+    zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
@@ -30,13 +30,13 @@ impl EthSenderLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        network_config: NetworkConfig,
+        zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
-            network_config,
+            zksync_network_id,
             l1_batch_commit_data_generator_mode,
         }
     }
@@ -87,7 +87,7 @@ impl WiringLayer for EthSenderLayer {
             self.contracts_config.validator_timelock_addr,
             self.contracts_config.l1_multicall3_addr,
             self.contracts_config.diamond_proxy_addr,
-            self.network_config.zksync_network_id,
+            self.zksync_network_id,
             eth_client_blobs_addr,
         )
         .await;
