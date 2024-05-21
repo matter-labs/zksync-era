@@ -98,7 +98,7 @@ impl EcosystemConfig {
         }
 
         let mut config = EcosystemConfig::read(shell, CONFIG_NAME)
-            .map_err(|_| EcosystemConfigFromFileError::InvalidConfig)?;
+            .map_err(|e| EcosystemConfigFromFileError::InvalidConfig { source: e.into() })?;
         config.shell = shell.clone().into();
 
         Ok(config)
@@ -192,10 +192,9 @@ impl EcosystemConfig {
 
 /// Result of checking if the ecosystem exists.
 #[derive(Error, Debug)]
-
 pub enum EcosystemConfigFromFileError {
-    #[error("Invalid ecosystem configuration")]
-    InvalidConfig,
     #[error("Ecosystem configuration not found")]
     NotExists,
+    #[error("Invalid ecosystem configuration")]
+    InvalidConfig { source: anyhow::Error },
 }

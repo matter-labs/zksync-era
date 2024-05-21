@@ -21,7 +21,7 @@ use crate::{
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     match EcosystemConfig::from_file(shell) {
         Ok(_) => bail!("Ecosystem already exists"),
-        Err(EcosystemConfigFromFileError::InvalidConfig) => {
+        Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
             bail!("Invalid ecosystem configuration")
         }
         Err(EcosystemConfigFromFileError::NotExists) => create(args, shell)?,
