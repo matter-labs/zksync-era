@@ -31,7 +31,7 @@ use crate::{
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
 
 /// Logged arguments for an SQL query.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 struct QueryArgs<'a> {
     inner: Vec<(&'static str, &'a ThreadSafeDebug<'a>)>,
 }
@@ -180,7 +180,7 @@ impl ActiveCopy<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct InstrumentedData<'a> {
     name: &'static str,
     location: &'static Location<'static>,
@@ -278,7 +278,7 @@ impl<'a> InstrumentedData<'a> {
 ///   included in the case of a slow query, plus the error info.
 /// - Slow and erroneous queries are also reported using metrics (`dal.request.slow` and `dal.request.error`,
 ///   respectively). The query name is included as a metric label; args are not included for obvious reasons.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Instrumented<'a, Q> {
     query: Q,
     data: InstrumentedData<'a>,
