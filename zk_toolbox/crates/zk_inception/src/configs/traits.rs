@@ -62,13 +62,13 @@ pub trait SaveConfigWithComment: SaveConfig {
             Some("toml") => "#",
             _ => bail!("Unsupported file extension for config file."),
         };
-        let comment_lines = comment
-            .lines()
-            .map(|line| format!("{comment_char} {line}"))
-            .chain(std::iter::once("".to_string())) // Add a newline after the comment
-            .collect::<Vec<_>>();
+        // let comment_lines = comment
+        //     .lines()
+        //     .map(|line| format!("{comment_char} {line}"))
+        //     .chain(std::iter::once("".to_string())) // Add a newline after the comment
+        //     .collect::<Vec<_>>();
 
-        prepend_file(path, comment_lines.join("\n").as_bytes())?;
+        // prepend_file(path, comment_lines.join("\n").as_bytes())?;
 
         Ok(())
     }
