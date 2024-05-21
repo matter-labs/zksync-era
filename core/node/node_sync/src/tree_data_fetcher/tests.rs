@@ -11,7 +11,7 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use test_casing::test_casing;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_node_test_utils::{create_l1_batch, prepare_recovery_snapshot};
+use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, StorageLog, H256};
 use zksync_web3_decl::jsonrpsee::core::ClientError;
 
@@ -42,12 +42,37 @@ impl TreeDataProvider for MockMainNodeClient {
 }
 
 async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber) {
+    seal_l1_batch_with_timestamp(storage, number, number.0.into()).await;
+}
+
+pub(super) async fn seal_l1_batch_with_timestamp(
+    storage: &mut Connection<'_, Core>,
+    number: L1BatchNumber,
+    timestamp: u64,
+) {
     let mut transaction = storage.start_transaction().await.unwrap();
+    // Insert a single L2 block belonging to the batch.
+    let mut block_header = create_l2_block(number.0);
+    block_header.timestamp = timestamp;
     transaction
         .blocks_dal()
-        .insert_mock_l1_batch(&create_l1_batch(number.0))
+        .insert_l2_block(&block_header)
         .await
         .unwrap();
+
+    let mut batch_header = create_l1_batch(number.0);
+    batch_header.timestamp = timestamp;
+    transaction
+        .blocks_dal()
+        .insert_mock_l1_batch(&batch_header)
+        .await
+        .unwrap();
+    transaction
+        .blocks_dal()
+        .mark_l2_blocks_as_executed_in_l1_batch(batch_header.number)
+        .await
+        .unwrap();
+
     // One initial write per L1 batch
     let initial_writes = [StorageKey::new(
         AccountTreeId::new(Address::repeat_byte(1)),

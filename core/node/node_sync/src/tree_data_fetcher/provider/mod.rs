@@ -14,6 +14,9 @@ use zksync_web3_decl::{
 
 use super::TreeDataFetcherResult;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum MissingData {
     /// The provider lacks a requested L1 batch.
@@ -73,7 +76,7 @@ pub(crate) struct L1DataProvider {
 
 impl L1DataProvider {
     /// Accuracy when guessing L1 block number by L1 batch timestamp.
-    const L1_BLOCK_ACCURACY: u64 = 1_000;
+    const L1_BLOCK_ACCURACY: U64 = U64([1_000]);
     /// Range of L1 blocks queried via `eth_getLogs`. Should be at least several times greater than
     /// `L1_BLOCK_ACCURACY`.
     const L1_BLOCK_RANGE: U64 = U64([20_000]);
@@ -96,39 +99,48 @@ impl L1DataProvider {
         })
     }
 
-    async fn l1_batch_timestamp(&self, number: L1BatchNumber) -> anyhow::Result<u64> {
+    async fn l1_batch_seal_timestamp(&self, number: L1BatchNumber) -> anyhow::Result<u64> {
         let mut storage = self.pool.connection_tagged("tree_data_fetcher").await?;
-        let header = storage.blocks_dal().get_l1_batch_header(number).await?;
-        let header =
-            header.with_context(|| format!("L1 batch #{number} disappeared from Postgres"))?;
-        Ok(header.timestamp)
+        let (_, last_l2_block_number) = storage
+            .blocks_dal()
+            .get_l2_block_range_of_l1_batch(number)
+            .await?
+            .with_context(|| format!("L1 batch #{number} does not have L2 blocks"))?;
+        let block_header = storage
+            .blocks_dal()
+            .get_l2_block_header(last_l2_block_number)
+            .await?
+            .with_context(|| format!("L2 block #{last_l2_block_number} (last block in L1 batch #{number}) disappeared"))?;
+        Ok(block_header.timestamp)
     }
 
     /// Guesses the number of an L1 block with a `BlockCommit` event for the specified L1 batch.
     /// The guess is based on the L1 batch timestamp.
     async fn guess_l1_commit_block_number(
-        &self,
-        l1_batch_timestamp: u64,
+        eth_client: &DynClient<L1>,
+        l1_batch_seal_timestamp: u64,
     ) -> EnrichedClientResult<U64> {
-        let l1_batch_timestamp = U256::from(l1_batch_timestamp);
-        let (latest_number, latest_timestamp) = self.get_block(web3::BlockNumber::Latest).await?;
-        if latest_timestamp < l1_batch_timestamp {
+        let l1_batch_seal_timestamp = U256::from(l1_batch_seal_timestamp);
+        let (latest_number, latest_timestamp) =
+            Self::get_block(eth_client, web3::BlockNumber::Latest).await?;
+        if latest_timestamp < l1_batch_seal_timestamp {
             return Ok(latest_number); // No better estimate at this point
         }
         let (earliest_number, earliest_timestamp) =
-            self.get_block(web3::BlockNumber::Earliest).await?;
-        if earliest_timestamp > l1_batch_timestamp {
+            Self::get_block(eth_client, web3::BlockNumber::Earliest).await?;
+        if earliest_timestamp > l1_batch_seal_timestamp {
             return Ok(earliest_number); // No better estimate at this point
         }
 
-        // At this point, we have earliest_timestamp <= l1_batch_timestamp <= latest_timestamp.
+        // At this point, we have earliest_timestamp <= l1_batch_seal_timestamp <= latest_timestamp.
         // Binary-search the range until we're sort of accurate.
         let mut left = earliest_number;
         let mut right = latest_number;
-        while left + U64::from(Self::L1_BLOCK_ACCURACY) < right {
+        while left + Self::L1_BLOCK_ACCURACY < right {
             let middle = (left + right) / 2;
-            let (_, middle_timestamp) = self.get_block(web3::BlockNumber::Number(middle)).await?;
-            if middle_timestamp <= l1_batch_timestamp {
+            let (_, middle_timestamp) =
+                Self::get_block(eth_client, web3::BlockNumber::Number(middle)).await?;
+            if middle_timestamp <= l1_batch_seal_timestamp {
                 left = middle;
             } else {
                 right = middle;
@@ -137,8 +149,11 @@ impl L1DataProvider {
         Ok(left)
     }
 
-    async fn get_block(&self, number: web3::BlockNumber) -> EnrichedClientResult<(U64, U256)> {
-        let block = self.eth_client.block(number.into()).await?.ok_or_else(|| {
+    async fn get_block(
+        eth_client: &DynClient<L1>,
+        number: web3::BlockNumber,
+    ) -> EnrichedClientResult<(U64, U256)> {
+        let block = eth_client.block(number.into()).await?.ok_or_else(|| {
             let err = "block is missing on L1 RPC provider";
             EnrichedClientError::new(ClientError::Custom(err.into()), "get_block")
                 .with_arg("number", &number)
@@ -158,18 +173,18 @@ impl TreeDataProvider for L1DataProvider {
         &mut self,
         number: L1BatchNumber,
     ) -> TreeDataFetcherResult<Result<H256, MissingData>> {
-        let l1_batch_timestamp = self.l1_batch_timestamp(number).await?;
+        let l1_batch_seal_timestamp = self.l1_batch_seal_timestamp(number).await?;
         let from_block = self.past_l1_batch.and_then(|info| {
             assert!(
                 info.number < number,
                 "`batch_details()` must be called with monotonically increasing numbers"
             );
             let threshold_timestamp = info.l1_commit_block_timestamp + Self::L1_BLOCK_RANGE.as_u64() / 2;
-            if U256::from(l1_batch_timestamp) > threshold_timestamp {
+            if U256::from(l1_batch_seal_timestamp) > threshold_timestamp {
                 tracing::debug!(
                     number = number.0,
-                    "L1 batch #{number} timestamp ({l1_batch_timestamp}) is too far ahead of the previous processed L1 batch ({info:?}); \
-                     dropping L1 batch info"
+                    "L1 batch #{number} seal timestamp ({l1_batch_seal_timestamp}) is too far ahead \
+                     of the previous processed L1 batch ({info:?}); not using L1 batch info"
                 );
                 None
             } else {
@@ -181,12 +196,14 @@ impl TreeDataProvider for L1DataProvider {
         let from_block = match from_block {
             Some(number) => number,
             None => {
-                let approximate_block = self
-                    .guess_l1_commit_block_number(l1_batch_timestamp)
-                    .await?;
+                let approximate_block = Self::guess_l1_commit_block_number(
+                    self.eth_client.as_ref(),
+                    l1_batch_seal_timestamp,
+                )
+                .await?;
                 tracing::debug!(
                     number = number.0,
-                    "Guessed L1 block number for L1 batch #{number} commit: {approximate_block:?}"
+                    "Guessed L1 block number for L1 batch #{number} commit: {approximate_block}"
                 );
                 approximate_block.saturating_sub(5_000.into()) // FIXME: extract to a constant?
             }
