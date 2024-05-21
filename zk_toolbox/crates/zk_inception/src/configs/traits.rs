@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::{bail, Context};
-use common::files::{prepend_file, save_json_file, save_toml_file, save_yaml_file};
+use common::files::{save_json_file, save_toml_file, save_yaml_file};
 use serde::{de::DeserializeOwned, Serialize};
 use xshell::Shell;
 
@@ -33,41 +33,45 @@ pub trait ReadConfig: DeserializeOwned + Clone {
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
 pub trait SaveConfig: Serialize + Sized {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        match path.as_ref().extension().and_then(|ext| ext.to_str()) {
-            Some("yaml") | Some("yml") => save_yaml_file(shell, path, self),
-            Some("toml") => save_toml_file(shell, path, self),
-            Some("json") => save_json_file(shell, path, self),
-            _ => bail!("Unsupported file extension for config file."),
-        }
+        save_with_comment(shell, path, self, "")
     }
 }
 
 /// Saves a config file to a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`.
-/// This trait extends `SaveConfig` with a method that allows to save a config file with a comment on
-/// top of the file.
-pub trait SaveConfigWithComment: SaveConfig {
+pub trait SaveConfigWithComment: Serialize + Sized {
     fn save_with_comment(
         &self,
         shell: &Shell,
         path: impl AsRef<Path>,
         comment: &str,
     ) -> anyhow::Result<()> {
-        self.save(shell, &path)?;
-
         let comment_char = match path.as_ref().extension().and_then(|ext| ext.to_str()) {
-            Some("yaml") | Some("yml") => "#",
-            Some("toml") => "#",
+            Some("yaml") | Some("yml") | Some("toml") => "#",
             _ => bail!("Unsupported file extension for config file."),
         };
         let comment_lines = comment
             .lines()
             .map(|line| format!("{comment_char} {line}"))
             .chain(std::iter::once("".to_string())) // Add a newline after the comment
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+            .join("\n");
 
-        prepend_file(path, comment_lines.join("\n").as_bytes())?;
-
-        Ok(())
+        save_with_comment(shell, path, self, comment_lines)
     }
+}
+
+fn save_with_comment(
+    shell: &Shell,
+    path: impl AsRef<Path>,
+    data: impl Serialize,
+    comment: impl ToString,
+) -> anyhow::Result<()> {
+    match path.as_ref().extension().and_then(|ext| ext.to_str()) {
+        Some("yaml") | Some("yml") => save_yaml_file(shell, path, data, comment)?,
+        Some("toml") => save_toml_file(shell, path, data, comment)?,
+        Some("json") => save_json_file(shell, path, data)?,
+        _ => bail!("Unsupported file extension for config file."),
+    }
+    Ok(())
 }

@@ -532,7 +532,6 @@ dependencies = [
  "sqlx",
  "strum 0.26.2",
  "strum_macros 0.26.2",
- "tempfile",
  "toml",
  "url",
  "xshell",
