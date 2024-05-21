@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 
-use crate::{metrics::PROVER_FRI_METRICS, periodic_job::PeriodicJob};
+use crate::{periodic_job::PeriodicJob, prover::metrics::PROVER_FRI_METRICS};
 
 /// `FriProofCompressorJobRetryManager` is a task that periodically queues stuck compressor jobs.
 #[derive(Debug)]

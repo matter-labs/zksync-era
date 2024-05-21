@@ -5,8 +5,8 @@ use zksync_dal::ConnectionPool;
 use zksync_types::prover_dal::StuckJobs;
 
 use crate::{
-    metrics::{WitnessType, SERVER_METRICS},
     periodic_job::PeriodicJob,
+    prover::metrics::{WitnessType, SERVER_METRICS},
 };
 
 /// `FriWitnessGeneratorJobRetryManager` is a task that periodically queues stuck prover jobs.

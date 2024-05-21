@@ -7,7 +7,7 @@ use zksync_types::{
     basic_fri_types::AggregationRound, prover_dal::JobCountStatistics, ProtocolVersionId,
 };
 
-use crate::{metrics::SERVER_METRICS, periodic_job::PeriodicJob};
+use crate::{periodic_job::PeriodicJob, prover::metrics::SERVER_METRICS};
 
 /// `FriWitnessGeneratorQueueReporter` is a task that periodically reports witness generator jobs status.
 /// Note: these values will be used for auto-scaling witness generators (Basic, Leaf, Node, Recursion Tip and Scheduler).

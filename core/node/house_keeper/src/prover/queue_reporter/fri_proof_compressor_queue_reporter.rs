@@ -4,9 +4,8 @@ use zksync_dal::ConnectionPool;
 use zksync_types::{prover_dal::JobCountStatistics, ProtocolVersionId};
 
 use crate::{
-    metrics::{JobStatus, PROVER_FRI_METRICS},
     periodic_job::PeriodicJob,
-    prover::metrics::JobStatus,
+    prover::metrics::{JobStatus, PROVER_FRI_METRICS},
 };
 
 /// `FriProofCompressorQueueReporter` is a task that periodically reports compression jobs status.

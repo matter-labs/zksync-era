@@ -4,7 +4,7 @@ use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::ProtocolVersionId;
 
-use crate::{metrics::FRI_PROVER_METRICS, periodic_job::PeriodicJob};
+use crate::{periodic_job::PeriodicJob, prover::metrics::FRI_PROVER_METRICS};
 
 /// `FriProverQueueReporter` is a task that periodically reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
