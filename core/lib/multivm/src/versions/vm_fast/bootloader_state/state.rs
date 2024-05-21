@@ -30,7 +30,7 @@ use crate::{
 pub struct BootloaderState {
     /// ID of the next transaction to be executed.
     /// See the structure doc-comment for a better explanation of purpose.
-    pub tx_to_execute: usize,
+    tx_to_execute: usize,
     /// Stored txs in bootloader memory
     l2_blocks: Vec<BootloaderL2Block>,
     /// The number of 32-byte words spent on the already included compressed bytecodes.
@@ -51,7 +51,6 @@ impl BootloaderState {
         initial_memory: BootloaderMemory,
         first_l2_block: L2BlockEnv,
     ) -> Self {
-        println!("\n\nnew bootloader {first_l2_block:?}\n\n");
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
         Self {
             tx_to_execute: 0,

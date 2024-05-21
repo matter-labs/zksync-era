@@ -89,7 +89,6 @@ impl StorageWritesDeduplicator {
     ) -> Vec<UpdateItem> {
         let mut updates = Vec::new();
         for log in logs.into_iter().filter(|log| log.log_query.rw_flag) {
-            println!("log {log:?}");
             let key = StorageKey::new(
                 AccountTreeId::new(log.log_query.address),
                 u256_to_h256(log.log_query.key),

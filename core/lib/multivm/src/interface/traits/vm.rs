@@ -138,15 +138,13 @@ pub trait VmInterface<S, H: HistoryMode> {
         let result = self.execute(VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.get_bootloader_memory();
-        let finished_l1_batch = FinishedL1Batch {
+        FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
             pubdata_input: None,
             initially_written_slots: None,
-        };
-
-        finished_l1_batch
+        }
     }
 }
 
