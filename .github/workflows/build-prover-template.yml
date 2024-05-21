@@ -51,7 +51,7 @@ jobs:
           - witness-vector-generator
           - prover-fri-gateway
           - proof-fri-compressor
-          - proof-gpu-fri-compressor
+          - proof-fri-gpu-compressor
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -87,7 +87,7 @@ jobs:
           ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: download CRS for GPU compressor
-        if: matrix.component == 'proof-gpu-fri-compressor'
+        if: matrix.component == 'proof-fri-gpu-compressor'
         run: |
           ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
 

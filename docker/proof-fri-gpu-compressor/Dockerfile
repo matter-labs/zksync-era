@@ -41,6 +41,8 @@ COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_gener
 
 COPY setup_2\^24.key /setup_2\^24.key
 
+ENV CRS_FILE=/setup_2\^24.key
+
 COPY --from=builder /usr/src/zksync/prover/target/release/zksync_proof_fri_compressor /usr/bin/
 
 ENTRYPOINT ["zksync_proof_fri_compressor"]
