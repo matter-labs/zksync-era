@@ -5,8 +5,7 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::must_use_candidate, clippy::similar_names)]
 
-use std::collections::VecDeque;
-use std::iter;
+use std::{collections::VecDeque, iter};
 
 use once_cell::sync::Lazy;
 
@@ -195,10 +194,8 @@ where
                 right_path.push(sibling_hash(right_index));
             }
 
-            let parity = head_index % 2;
-
             if let Some(new_cache) = new_cache.as_deref_mut() {
-                new_cache[level] = if (parity + right_index) % 2 == 0 {
+                new_cache[level] = if (head_index + right_index) % 2 == 0 {
                     hashes[right_index]
                 } else if right_index == 0 {
                     self.left_cache[level]
@@ -207,24 +204,25 @@ where
                 };
             }
 
-            if parity == 1 {
-                hashes[0] = self.hasher.compress(&self.left_cache[level], &hashes[0]);
-            }
+            let parity = head_index % 2;
+            let next_level_len = level_len / 2 + (parity | (level_len % 2));
 
-            for i in parity..((level_len + parity) / 2) {
-                hashes[i] = self
-                    .hasher
-                    .compress(&hashes[2 * i - parity], &hashes[2 * i + 1 - parity]);
-            }
-
-            if (level_len + parity) % 2 == 1 {
-                hashes[level_len / 2] = self
-                    .hasher
-                    .compress(&hashes[level_len - 1], &empty_hash_at_level);
+            for i in 0..next_level_len {
+                let lhs = if i == 0 && parity == 1 {
+                    self.left_cache[level]
+                } else {
+                    hashes[2 * i - parity]
+                };
+                let rhs = if i == next_level_len - 1 && (level_len - parity) % 2 == 1 {
+                    empty_hash_at_level
+                } else {
+                    hashes[2 * i + 1 - parity]
+                };
+                hashes[i] = self.hasher.compress(&lhs, &rhs);
             }
 
             right_index = (right_index + parity) / 2;
-            level_len = level_len / 2 + (parity | (level_len % 2));
+            level_len = next_level_len;
             head_index /= 2;
         }
         hashes[0]
