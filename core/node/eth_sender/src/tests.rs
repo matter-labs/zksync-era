@@ -24,7 +24,7 @@ use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     pubdata_da::PubdataDA,
     web3::contract::Error,
-    Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
+    Address, L1BatchNumber, L1ChainId, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -184,6 +184,7 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             Address::random(),
             Default::default(),
+            L1ChainId(1),
             None,
         )
         .await;

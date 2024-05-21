@@ -80,6 +80,18 @@ impl Network {
         }
     }
 
+    pub fn is_known_l1_network(&self) -> bool {
+        match self {
+            Self::Mainnet
+            | Self::Rinkeby
+            | Self::Ropsten
+            | Self::Goerli
+            | Self::Sepolia
+            | Self::Localhost => true,
+            _ => false,
+        }
+    }
+
     /// Returns the network chain ID on the Ethereum side.
     pub fn chain_id(self) -> L1ChainId {
         match self {

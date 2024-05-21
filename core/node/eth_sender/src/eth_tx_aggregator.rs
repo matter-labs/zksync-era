@@ -21,7 +21,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
     pubdata_da::PubdataDA,
     web3::{contract::Error as Web3ContractError, BlockNumber},
-    Address, L2ChainId, ProtocolVersionId, H256, U256,
+    Address, L1ChainId, L2ChainId, ProtocolVersionId, H256, U256,
 };
 
 use super::aggregated_operations::AggregatedOperation;
@@ -62,6 +62,8 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
+
+    l1_chain_id: L1ChainId,
 }
 
 struct TxData {
@@ -80,6 +82,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
+        l1_chain_id: L1ChainId,
         custom_commit_sender_addr: Option<Address>,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
@@ -110,6 +113,7 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
+            l1_chain_id,
         }
     }
 
@@ -572,6 +576,7 @@ impl EthTxAggregator {
                 eth_tx_predicted_gas,
                 sender_addr,
                 encoded_aggregated_op.sidecar,
+                self.l1_chain_id,
             )
             .await
             .unwrap();
@@ -592,7 +597,7 @@ impl EthTxAggregator {
     ) -> Result<u64, ETHSenderError> {
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce(from_addr)
+            .get_next_nonce(from_addr, self.l1_chain_id)
             .await
             .unwrap()
             .unwrap_or(0);

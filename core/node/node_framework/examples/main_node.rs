@@ -310,6 +310,7 @@ impl MainNodeBuilder {
             contracts_config,
             network_config,
             genesis_config.l1_batch_commit_data_generator_mode,
+            genesis_config.l1_chain_id,
         ));
 
         Ok(self)

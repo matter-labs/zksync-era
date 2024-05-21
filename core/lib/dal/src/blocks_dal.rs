@@ -2264,7 +2264,7 @@ mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-        Address, ProtocolVersion, ProtocolVersionId,
+        Address, L1ChainId, ProtocolVersion, ProtocolVersionId,
     };
 
     use super::*;
@@ -2272,7 +2272,16 @@ mod tests {
 
     async fn save_mock_eth_tx(action_type: AggregatedActionType, conn: &mut Connection<'_, Core>) {
         conn.eth_sender_dal()
-            .save_eth_tx(1, vec![], action_type, Address::default(), 1, None, None)
+            .save_eth_tx(
+                1,
+                vec![],
+                action_type,
+                Address::default(),
+                1,
+                None,
+                None,
+                L1ChainId(9),
+            )
             .await
             .unwrap();
     }
