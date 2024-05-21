@@ -23,7 +23,7 @@ const contracts = {
 
 const BUILTIN_CREATE2_FACTORY_ADDRESS = '0x0000000000000000000000000000000000010000';
 
-describe.skip('System behavior checks', () => {
+describe('System behavior checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 
