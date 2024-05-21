@@ -171,19 +171,23 @@ fn verify_interval_merkle_proof(
 
     for (left_item, right_item) in left_path.iter().zip(right_path.iter()) {
         let parity = index % 2;
-        if parity == 1 {
-            hashes[0] = hasher.compress(left_item, &hashes[0]);
+        let next_level_len = level_len / 2 + (parity | (level_len % 2));
+
+        for i in 0..next_level_len {
+            let lhs = if i == 0 && parity == 1 {
+                left_item
+            } else {
+                &hashes[2 * i - parity]
+            };
+            let rhs = if i == next_level_len - 1 && (level_len - parity) % 2 == 1 {
+                right_item
+            } else {
+                &hashes[2 * i + 1 - parity]
+            };
+            hashes[i] = hasher.compress(lhs, rhs);
         }
 
-        for i in parity..((level_len + parity) / 2) {
-            hashes[i] = hasher.compress(&hashes[2 * i - parity], &hashes[2 * i + 1 - parity]);
-        }
-
-        if (level_len + parity) % 2 == 1 {
-            hashes[level_len / 2] = hasher.compress(&hashes[level_len - 1], right_item);
-        }
-
-        level_len = level_len / 2 + (parity | (level_len % 2));
+        level_len = next_level_len;
         index /= 2;
     }
 
@@ -275,7 +279,7 @@ fn merkle_proofs_are_valid_in_very_small_trees() {
 fn dynamic_merkle_tree_growth() {
     let mut tree = MiniMerkleTree::new(iter::empty(), None);
     assert_eq!(tree.binary_tree_size, 1);
-    assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(1));
+    assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(0));
 
     for len in 1..=8_usize {
         tree.push([0; 88]);
