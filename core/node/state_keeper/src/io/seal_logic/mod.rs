@@ -143,9 +143,9 @@ impl UpdatesManager {
                         diff.enumeration_index
                     };
                     TreeWrite {
-                        address: diff.address.0,
-                        key: u256_to_h256(diff.key).0,
-                        value: u256_to_h256(diff.final_value).0,
+                        address: diff.address,
+                        key: u256_to_h256(diff.key),
+                        value: u256_to_h256(diff.final_value),
                         leaf_index,
                     }
                 })
@@ -188,9 +188,9 @@ impl UpdatesManager {
                             next_index - 1
                         };
                     TreeWrite {
-                        address: log.address.0,
-                        key: u256_to_h256(log.key).0,
-                        value: u256_to_h256(log.written_value).0,
+                        address: log.address,
+                        key: u256_to_h256(log.key),
+                        value: u256_to_h256(log.written_value),
                         leaf_index,
                     }
                 })

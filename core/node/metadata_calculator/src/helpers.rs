@@ -25,7 +25,7 @@ use zksync_merkle_tree::{
     TreeEntryWithProof, TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
-use zksync_types::{block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, StorageKey, H256};
+use zksync_types::{block::L1BatchHeader, AccountTreeId, L1BatchNumber, StorageKey, H256};
 
 use super::{
     metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
@@ -560,11 +560,9 @@ impl L1BatchWithLogs {
         let storage_logs = if let Some(tree_writes) = tree_writes {
             // If tree writes are present in DB then simply use them.
             let writes = tree_writes.into_iter().map(|tree_write| {
-                let storage_key = StorageKey::new(
-                    AccountTreeId::new(Address::from_slice(&tree_write.address)),
-                    H256(tree_write.key),
-                );
-                TreeInstruction::write(storage_key, tree_write.leaf_index, H256(tree_write.value))
+                let storage_key =
+                    StorageKey::new(AccountTreeId::new(tree_write.address), tree_write.key);
+                TreeInstruction::write(storage_key, tree_write.leaf_index, tree_write.value)
             });
             let reads = protective_reads.into_iter().map(TreeInstruction::Read);
             writes.chain(reads).collect::<Vec<_>>()
@@ -754,9 +752,9 @@ mod tests {
                 .into_iter()
                 .filter_map(|instruction| match instruction {
                     TreeInstruction::Write(tree_entry) => Some(TreeWrite {
-                        address: tree_entry.key.address().0,
-                        key: tree_entry.key.key().0,
-                        value: tree_entry.value.0,
+                        address: *tree_entry.key.address(),
+                        key: *tree_entry.key.key(),
+                        value: tree_entry.value,
                         leaf_index: tree_entry.leaf_index,
                     }),
                     _ => None,

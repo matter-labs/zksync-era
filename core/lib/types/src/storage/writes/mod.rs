@@ -189,16 +189,75 @@ fn prepend_header(compressed_state_diffs: Vec<u8>) -> Vec<u8> {
 }
 
 /// Struct for storing tree writes in DB.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TreeWrite {
-    /// `address` part of storage key. Represented as byte array so `bincode` serialization format is shorter.
-    pub address: [u8; 20],
-    /// `key` part of storage key. Represented as byte array so `bincode` serialization format is shorter.
-    pub key: [u8; 32],
-    /// Value written. Represented as byte array so `bincode` serialization format is shorter.
-    pub value: [u8; 32],
+    /// `address` part of storage key.
+    pub address: Address,
+    /// `key` part of storage key.
+    pub key: H256,
+    /// Value written.
+    pub value: H256,
     /// Leaf index of the slot.
     pub leaf_index: u64,
+}
+
+impl TreeWrite {
+    const TREE_WRITE_BYTES_SIZE: usize = 20 + 32 + 32 + 8;
+
+    fn extend_with_bytes(&self, vec: &mut Vec<u8>) {
+        vec.extend_from_slice(&self.address.0);
+        vec.extend_from_slice(&self.key.0);
+        vec.extend_from_slice(&self.value.0);
+        vec.extend_from_slice(&self.leaf_index.to_be_bytes());
+    }
+
+    pub fn from_slice(slice: &[u8]) -> anyhow::Result<Self> {
+        if slice.len() == Self::TREE_WRITE_BYTES_SIZE {
+            Ok(Self {
+                address: Address::from_slice(&slice[0..20]),
+                key: H256::from_slice(&slice[20..52]),
+                value: H256::from_slice(&slice[52..84]),
+                leaf_index: u64::from_be_bytes(slice[84..92].try_into().unwrap()),
+            })
+        } else {
+            anyhow::bail!(
+                "Incorrect slice len, expected: {}, got {}",
+                Self::TREE_WRITE_BYTES_SIZE,
+                slice.len()
+            );
+        }
+    }
+
+    pub fn vec_to_bytes(vec: Vec<Self>) -> Vec<u8> {
+        let size = Self::TREE_WRITE_BYTES_SIZE * vec.len();
+        let mut result = Vec::with_capacity(size);
+
+        for element in vec {
+            element.extend_with_bytes(&mut result);
+        }
+
+        result
+    }
+
+    pub fn vec_from_slice(slice: &[u8]) -> anyhow::Result<Vec<Self>> {
+        if slice.len() % Self::TREE_WRITE_BYTES_SIZE == 0 {
+            let mut result = Vec::with_capacity(slice.len() / Self::TREE_WRITE_BYTES_SIZE);
+            for i in 0..(slice.len() / Self::TREE_WRITE_BYTES_SIZE) {
+                result.push(Self::from_slice(
+                    &slice
+                        [i * Self::TREE_WRITE_BYTES_SIZE..((i + 1) * Self::TREE_WRITE_BYTES_SIZE)],
+                )?);
+            }
+
+            Ok(result)
+        } else {
+            anyhow::bail!(
+                "Incorrect slice len: expected to be divisible by {}, got {}",
+                Self::TREE_WRITE_BYTES_SIZE,
+                slice.len()
+            );
+        }
+    }
 }
 
 #[cfg(test)]
