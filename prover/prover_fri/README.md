@@ -60,9 +60,10 @@ installation as a pre-requisite, alongside these machine specs:
 
    Note that it will produce a first l1 batch that can be proven (should be batch 0).
 
-3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 20GB of disk. You
-   need to be in the `prover/` directory (for all commands from here onwards, you need to be in the `prover/` directory)
-   and run:
+3. Generate the GPU setup data (no need to regenerate if it's already there). If you want to use this with the GPU
+   compressors, you need to change the key in the file from `setup_2^26.key` to `setup_2^24.key`. This will consume
+   around 20GB of disk. You need to be in the `prover/` directory (for all commands from here onwards, you need to be in
+   the `prover/` directory) and run:
 
    ```console
    ./setup.sh gpu
