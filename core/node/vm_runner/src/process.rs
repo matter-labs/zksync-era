@@ -88,7 +88,7 @@ impl VmRunner {
                 )
                 .await
             else {
-                tracing::info!("Interrupted");
+                tracing::info!("VM runner was interrupted");
                 break;
             };
             let mut output_handler = self
