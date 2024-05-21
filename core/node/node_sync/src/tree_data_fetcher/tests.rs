@@ -18,9 +18,15 @@ use zksync_web3_decl::jsonrpsee::core::ClientError;
 use super::{metrics::StepOutcomeLabel, *};
 
 #[derive(Debug, Default)]
-struct MockMainNodeClient {
+pub(super) struct MockMainNodeClient {
     transient_error: Arc<AtomicBool>,
     batch_details_responses: HashMap<L1BatchNumber, H256>,
+}
+
+impl MockMainNodeClient {
+    pub fn insert_batch(&mut self, number: L1BatchNumber, root_hash: H256) {
+        self.batch_details_responses.insert(number, root_hash);
+    }
 }
 
 #[async_trait]

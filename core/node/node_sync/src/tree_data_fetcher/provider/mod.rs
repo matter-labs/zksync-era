@@ -124,7 +124,7 @@ impl L1DataProvider {
     }
 
     /// Guesses the number of an L1 block with a `BlockCommit` event for the specified L1 batch.
-    /// The guess is based on the L1 batch timestamp.
+    /// The guess is based on the L1 batch seal timestamp.
     async fn guess_l1_commit_block_number(
         eth_client: &DynClient<L1>,
         l1_batch_seal_timestamp: u64,
@@ -158,6 +158,7 @@ impl L1DataProvider {
         Ok(left)
     }
 
+    /// Gets a block that should be present on L1.
     async fn get_block(
         eth_client: &DynClient<L1>,
         number: web3::BlockNumber,
@@ -177,8 +178,7 @@ impl L1DataProvider {
 
     pub fn with_fallback(self, fallback: Box<dyn TreeDataProvider>) -> CombinedDataProvider {
         CombinedDataProvider {
-            l1: self,
-            should_call_l1: true,
+            l1: Some(self),
             fallback,
         }
     }
@@ -274,10 +274,10 @@ impl TreeDataProvider for L1DataProvider {
     }
 }
 
+/// Data provider combining [`L1DataProvider`] with a fallback provider.
 #[derive(Debug)]
 pub(super) struct CombinedDataProvider {
-    l1: L1DataProvider,
-    should_call_l1: bool,
+    l1: Option<L1DataProvider>,
     fallback: Box<dyn TreeDataProvider>,
 }
 
@@ -287,8 +287,8 @@ impl TreeDataProvider for CombinedDataProvider {
         &mut self,
         number: L1BatchNumber,
     ) -> TreeDataFetcherResult<Result<H256, MissingData>> {
-        if self.should_call_l1 {
-            match self.l1.batch_details(number).await {
+        if let Some(l1) = &mut self.l1 {
+            match l1.batch_details(number).await {
                 Err(err) => {
                     if err.is_transient() {
                         tracing::info!(
@@ -296,8 +296,11 @@ impl TreeDataProvider for CombinedDataProvider {
                             "Transient error calling L1 data provider: {err}"
                         );
                     } else {
-                        tracing::warn!(number = number.0, "Error calling L1 data provider: {err}");
-                        self.should_call_l1 = false;
+                        tracing::warn!(
+                            number = number.0,
+                            "Fatal error calling L1 data provider: {err}"
+                        );
+                        self.l1 = None;
                     }
                 }
                 Ok(Ok(root_hash)) => return Ok(Ok(root_hash)),
@@ -308,7 +311,7 @@ impl TreeDataProvider for CombinedDataProvider {
                     );
                     // No sense of calling the L1 provider in the future; the L2 provider will very likely get information
                     // about batches significantly faster.
-                    self.should_call_l1 = false;
+                    self.l1 = None;
                 }
             }
         }
