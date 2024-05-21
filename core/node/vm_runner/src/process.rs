@@ -1,9 +1,8 @@
-use anyhow::Context;
 use std::{sync::Arc, time::Duration};
 
+use anyhow::Context;
 use multivm::interface::L2BlockEnv;
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::ReadStorageFactory;
 use zksync_state_keeper::{
