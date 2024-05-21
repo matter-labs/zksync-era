@@ -316,7 +316,7 @@ async fn run_core(
     let sk_handle = task::spawn(state_keeper.run());
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
-    let remote_diamond_proxy_addr = config.remote.diamond_proxy_addr;
+    let remote_diamond_proxy_addr = config.remote.user_facing_diamond_proxy;
     let diamond_proxy_addr = if let Some(addr) = config.optional.contracts_diamond_proxy_addr {
         anyhow::ensure!(
             addr == remote_diamond_proxy_addr,

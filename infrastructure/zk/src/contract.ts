@@ -40,10 +40,17 @@ const syncLayerEnvVars = [
 
     'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
 
-    'SYNC_LAYER_L1_SHARED_BRIDGE_IMPL_ADDR',
-    'SYNC_LAYER_L1_SHARED_BRIDGE_PROXY_ADDR',
-    'SYNC_LAYER_L1_ERC20_BRIDGE_IMPL_ADDR',
-    'SYNC_LAYER_L1_ERC20_BRIDGE_PROXY_ADDR'
+    // 'SYNC_LAYER_L1_SHARED_BRIDGE_IMPL_ADDR',
+    // 'SYNC_LAYER_L1_SHARED_BRIDGE_PROXY_ADDR',
+    // 'SYNC_LAYER_L1_ERC20_BRIDGE_IMPL_ADDR',
+    // 'SYNC_LAYER_L1_ERC20_BRIDGE_PROXY_ADDR',
+
+    'SYNC_LAYER_DIAMOND_PROXY_ADDR'
+];
+
+const USER_FACING_ENV_VARS = [
+    'CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR',
+    'CONTRACTS_USER_FACING_BRIDGEHUB_PROXY_ADDR',
 ];
 
 export async function prepareSyncLayer(): Promise<void> {
@@ -91,13 +98,13 @@ async function migrateToSyncLayer() {
         `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer migrate-to-sync-layer | tee sync-layer-migration.log`
     );
 
-    const migrationLog = fs.readFileSync('sync-layer-migration.log').toString();
+    const migrationLog = fs.readFileSync('sync-layer-migration.log').toString().replace(/CONTRACTS/g, 'SYNC_LAYER');
 
     const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
     console.log('Writing to', envFile);
 
     // FIXME: consider creating new sync_layer_* variable.
-    updateContractsEnv(envFile, migrationLog, ['CONTRACTS_DIAMOND_PROXY_ADDR']);
+    updateContractsEnv(envFile, migrationLog, ['SYNC_LAYER_DIAMOND_PROXY_ADDR']);
 }
 
 async function prepareValidatorsOnSyncLayer() {
@@ -116,6 +123,12 @@ async function updateConfigOnSyncLayer() {
     const specialParams = ['SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL', 'SYNC_LAYER_CHAIN_ID'];
 
     const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
+
+    for(const userVar of USER_FACING_ENV_VARS) {
+        const originalVar = userVar.replace(/CONTRACTS_USER_FACING/g, 'CONTRACTS');
+        env.modify(userVar, process.env[originalVar]!, envFile, false);
+    }
+
     for (const envVar of syncLayerEnvVars) {
         if (specialParams.includes(envVar)) {
             continue;
@@ -124,7 +137,7 @@ async function updateConfigOnSyncLayer() {
         env.modify(contractsVar, process.env[envVar]!, envFile, false);
     }
     env.modify('ETH_CLIENT_WEB3_URL', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
-    env.modify('L1_RPC_ADDRESS', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    env.modify('L1_RPC_ADDRESS', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
     env.modify('ETH_CLIENT_CHAIN_ID', process.env.SYNC_LAYER_CHAIN_ID!, envFile, false);
 
     env.modify('CHAIN_ETH_NETWORK', 'localhostL2', envFile, false);
