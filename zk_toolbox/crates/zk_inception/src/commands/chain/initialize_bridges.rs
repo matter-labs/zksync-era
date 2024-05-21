@@ -14,21 +14,21 @@ use crate::{
         forge_interface::initialize_bridges::{
             input::InitializeBridgeInput, output::InitializeBridgeOutput,
         },
-        update_l2_shared_bridge, EcosystemConfig, HyperchainConfig, ReadConfig, SaveConfig,
+        update_l2_shared_bridge, ChainConfig, EcosystemConfig, ReadConfig, SaveConfig,
     },
     consts::INITIALIZE_BRIDGES,
     forge_utils::fill_forge_private_key,
 };
 
 pub fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let hyperchain_name = global_config().hyperchain_name.clone();
+    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let hyperchain_config = ecosystem_config
-        .load_hyperchain(hyperchain_name)
-        .context("Hyperchain not initialized. Please create a hyperchain first")?;
+    let chain_config = ecosystem_config
+        .load_chain(chain_name)
+        .context("Chain not initialized. Please create a chain first")?;
 
     let spinner = Spinner::new("Initializing bridges");
-    initialize_bridges(shell, &hyperchain_config, &ecosystem_config, args)?;
+    initialize_bridges(shell, &chain_config, &ecosystem_config, args)?;
     spinner.finish();
 
     Ok(())
@@ -36,17 +36,14 @@ pub fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
 pub fn initialize_bridges(
     shell: &Shell,
-    hyperchain_config: &HyperchainConfig,
+    chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
     build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
-    let input = InitializeBridgeInput::new(hyperchain_config, ecosystem_config.era_chain_id)?;
-    let foundry_contracts_path = hyperchain_config.path_to_foundry();
-    input.save(
-        shell,
-        INITIALIZE_BRIDGES.input(&hyperchain_config.link_to_code),
-    )?;
+    let input = InitializeBridgeInput::new(chain_config, ecosystem_config.era_chain_id)?;
+    let foundry_contracts_path = chain_config.path_to_foundry();
+    input.save(shell, INITIALIZE_BRIDGES.input(&chain_config.link_to_code))?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&INITIALIZE_BRIDGES.script(), forge_args.clone())
@@ -61,12 +58,10 @@ pub fn initialize_bridges(
 
     forge.run(shell)?;
 
-    let output = InitializeBridgeOutput::read(
-        shell,
-        INITIALIZE_BRIDGES.output(&hyperchain_config.link_to_code),
-    )?;
+    let output =
+        InitializeBridgeOutput::read(shell, INITIALIZE_BRIDGES.output(&chain_config.link_to_code))?;
 
-    update_l2_shared_bridge(shell, hyperchain_config, &output)?;
+    update_l2_shared_bridge(shell, chain_config, &output)?;
     Ok(())
 }
 

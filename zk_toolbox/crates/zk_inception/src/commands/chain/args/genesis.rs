@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{
-    configs::{DatabaseConfig, DatabasesConfig, HyperchainConfig},
+    configs::{ChainConfig, DatabaseConfig, DatabasesConfig},
     defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL, DATABASE_SERVER_URL},
 };
 
@@ -25,12 +25,12 @@ pub struct GenesisArgs {
 }
 
 impl GenesisArgs {
-    pub fn fill_values_with_prompt(self, config: &HyperchainConfig) -> GenesisArgsFinal {
+    pub fn fill_values_with_prompt(self, config: &ChainConfig) -> GenesisArgsFinal {
         let DBNames {
             server_name,
             prover_name,
         } = generate_db_names(config);
-        let hyperchain_name = config.name.clone();
+        let chain_name = config.name.clone();
         if self.use_default {
             GenesisArgsFinal {
                 server_db_url: DATABASE_SERVER_URL.to_string(),
@@ -42,28 +42,28 @@ impl GenesisArgs {
         } else {
             let server_db_url = self.server_db_url.unwrap_or_else(|| {
                 Prompt::new(&format!(
-                    "Please provide server database url for hyperchain {hyperchain_name}"
+                    "Please provide server database url for chain {chain_name}"
                 ))
                 .default(DATABASE_SERVER_URL)
                 .ask()
             });
             let server_db_name = self.server_db_name.unwrap_or_else(|| {
                 Prompt::new(&format!(
-                    "Please provide server database name for hyperchain {hyperchain_name}"
+                    "Please provide server database name for chain {chain_name}"
                 ))
                 .default(&server_name)
                 .ask()
             });
             let prover_db_url = self.prover_db_url.unwrap_or_else(|| {
                 Prompt::new(&format!(
-                    "Please provide prover database url for hyperchain {hyperchain_name}"
+                    "Please provide prover database url for chain {chain_name}"
                 ))
                 .default(DATABASE_PROVER_URL)
                 .ask()
             });
             let prover_db_name = self.prover_db_name.unwrap_or_else(|| {
                 Prompt::new(&format!(
-                    "Please provide prover database name for hyperchain {hyperchain_name}"
+                    "Please provide prover database name for chain {chain_name}"
                 ))
                 .default(&prover_name)
                 .ask()

@@ -4,7 +4,7 @@ use clap::Parser;
 use common::{forge::ForgeScriptArgs, PromptConfirm};
 use serde::{Deserialize, Serialize};
 
-use crate::commands::hyperchain::args::genesis::GenesisArgs;
+use crate::commands::chain::args::genesis::GenesisArgs;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemArgs {

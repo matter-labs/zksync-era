@@ -7,7 +7,7 @@ use common::{
 use xshell::Shell;
 
 use crate::{
-    commands::{args::RunServerArgs, ecosystem::EcosystemCommands, hyperchain::HyperchainCommands},
+    commands::{args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands},
     configs::EcosystemConfig,
 };
 
@@ -35,9 +35,9 @@ pub enum InceptionSubcommands {
     /// Ecosystem related commands
     #[command(subcommand)]
     Ecosystem(EcosystemCommands),
-    /// Hyperchain related commands
+    /// Chain related commands
     #[command(subcommand)]
-    Hyperchain(HyperchainCommands),
+    Chain(ChainCommands),
     /// Run server
     Server(RunServerArgs),
     /// Run containers for local development
@@ -50,9 +50,9 @@ struct InceptionGlobalArgs {
     /// Verbose mode
     #[clap(short, long, global = true)]
     verbose: bool,
-    /// Hyperchain to use
+    /// Chain to use
     #[clap(long, global = true)]
-    hyperchain: Option<String>,
+    chain: Option<String>,
 }
 
 #[tokio::main]
@@ -98,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
 async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Result<()> {
     match inception_args.command {
         InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(shell, args).await?,
-        InceptionSubcommands::Hyperchain(args) => commands::hyperchain::run(shell, args).await?,
+        InceptionSubcommands::Chain(args) => commands::chain::run(shell, args).await?,
         InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
         InceptionSubcommands::Containers => commands::containers::run(shell)?,
     }
@@ -109,21 +109,21 @@ fn init_global_config_inner(
     shell: &Shell,
     inception_args: &InceptionGlobalArgs,
 ) -> anyhow::Result<()> {
-    if let Some(name) = &inception_args.hyperchain {
+    if let Some(name) = &inception_args.chain {
         if let Ok(config) = EcosystemConfig::from_file(shell) {
-            let hyperchains = config.list_of_hyperchains();
-            if !hyperchains.contains(name) {
+            let chains = config.list_of_chains();
+            if !chains.contains(name) {
                 anyhow::bail!(
-                    "Hyperchain with name {} doesnt exist, please choose one of {:?}",
+                    "Chain with name {} doesnt exist, please choose one of {:?}",
                     name,
-                    &hyperchains
+                    &chains
                 );
             }
         }
     }
     init_global_config(GlobalConfig {
         verbose: inception_args.verbose,
-        hyperchain_name: inception_args.hyperchain.clone(),
+        chain_name: inception_args.chain.clone(),
     });
     Ok(())
 }

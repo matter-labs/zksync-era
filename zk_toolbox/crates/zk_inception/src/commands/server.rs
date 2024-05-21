@@ -4,30 +4,30 @@ use xshell::Shell;
 
 use crate::{
     commands::args::RunServerArgs,
-    configs::{EcosystemConfig, HyperchainConfig},
+    configs::{ChainConfig, EcosystemConfig},
     server::{RunServer, ServerMode},
 };
 
 pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let hyperchain = global_config().hyperchain_name.clone();
-    let hyperchain_config = ecosystem_config
-        .load_hyperchain(hyperchain)
-        .context("Hyperchain not initialized. Please create a hyperchain first")?;
+    let chain = global_config().chain_name.clone();
+    let chain_config = ecosystem_config
+        .load_chain(chain)
+        .context("Chain not initialized. Please create a chain first")?;
 
     logger::info("Starting server");
-    run_server(args, &hyperchain_config, shell)?;
+    run_server(args, &chain_config, shell)?;
 
     Ok(())
 }
 
 fn run_server(
     args: RunServerArgs,
-    hyperchain_config: &HyperchainConfig,
+    chain_config: &ChainConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let server = RunServer::new(args.components.clone(), hyperchain_config);
+    let server = RunServer::new(args.components.clone(), chain_config);
     let mode = if args.genesis {
         ServerMode::Genesis
     } else {

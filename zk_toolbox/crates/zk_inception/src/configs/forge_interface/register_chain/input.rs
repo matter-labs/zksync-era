@@ -5,7 +5,7 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    configs::{ContractsConfig, HyperchainConfig, ReadConfig, SaveConfig},
+    configs::{ChainConfig, ContractsConfig, ReadConfig, SaveConfig},
     types::{ChainId, L1BatchCommitDataGeneratorMode},
 };
 
@@ -31,16 +31,16 @@ struct Contracts {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct RegisterHyperchainL1Config {
+pub struct RegisterChainL1Config {
     contracts_config: Contracts,
     deployed_addresses: DeployedAddresses,
-    hyperchain: HyperchainL1Config,
+    chain: ChainL1Config,
     owner_address: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct HyperchainL1Config {
-    pub hyperchain_chain_id: ChainId,
+pub struct ChainL1Config {
+    pub chain_chain_id: ChainId,
     pub base_token_addr: Address,
     pub bridgehub_create_new_chain_salt: u64,
     pub validium_mode: bool,
@@ -52,17 +52,14 @@ pub struct HyperchainL1Config {
     pub governance_min_delay: u64,
 }
 
-impl ReadConfig for RegisterHyperchainL1Config {}
+impl ReadConfig for RegisterChainL1Config {}
 
-impl SaveConfig for RegisterHyperchainL1Config {}
+impl SaveConfig for RegisterChainL1Config {}
 
-impl RegisterHyperchainL1Config {
-    pub fn new(
-        hyperchain_config: &HyperchainConfig,
-        contracts: &ContractsConfig,
-    ) -> anyhow::Result<Self> {
-        let genesis_config = hyperchain_config.get_genesis_config()?;
-        let wallets_config = hyperchain_config.get_wallets_config()?;
+impl RegisterChainL1Config {
+    pub fn new(chain_config: &ChainConfig, contracts: &ContractsConfig) -> anyhow::Result<Self> {
+        let genesis_config = chain_config.get_genesis_config()?;
+        let wallets_config = chain_config.get_wallets_config()?;
         Ok(Self {
             contracts_config: Contracts {
                 diamond_cut_data: contracts.ecosystem_contracts.diamond_cut_data.clone(),
@@ -78,19 +75,17 @@ impl RegisterHyperchainL1Config {
                 },
                 validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
             },
-            hyperchain: HyperchainL1Config {
-                hyperchain_chain_id: genesis_config.l2_chain_id,
-                base_token_gas_price_multiplier_nominator: hyperchain_config.base_token.nominator,
-                base_token_gas_price_multiplier_denominator: hyperchain_config
-                    .base_token
-                    .denominator,
-                base_token_addr: hyperchain_config.base_token.address,
+            chain: ChainL1Config {
+                chain_chain_id: genesis_config.l2_chain_id,
+                base_token_gas_price_multiplier_nominator: chain_config.base_token.nominator,
+                base_token_gas_price_multiplier_denominator: chain_config.base_token.denominator,
+                base_token_addr: chain_config.base_token.address,
                 // TODO specify
                 governance_security_council_address: Default::default(),
                 governance_min_delay: 0,
                 // TODO verify
                 bridgehub_create_new_chain_salt: rand::thread_rng().gen_range(0..=i64::MAX) as u64,
-                validium_mode: hyperchain_config.l1_batch_commit_data_generator_mode
+                validium_mode: chain_config.l1_batch_commit_data_generator_mode
                     == L1BatchCommitDataGeneratorMode::Validium,
                 validator_sender_operator_commit_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,

@@ -3,7 +3,7 @@ use common::forge::ForgeScriptArgs;
 use serde::{Deserialize, Serialize};
 
 use super::genesis::GenesisArgsFinal;
-use crate::{commands::hyperchain::args::genesis::GenesisArgs, configs::HyperchainConfig};
+use crate::{commands::chain::args::genesis::GenesisArgs, configs::ChainConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct InitArgs {
@@ -19,7 +19,7 @@ pub struct InitArgs {
 }
 
 impl InitArgs {
-    pub fn fill_values_with_prompt(self, config: &HyperchainConfig) -> InitArgsFinal {
+    pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitArgsFinal {
         let deploy_paymaster = self.deploy_paymaster.unwrap_or_else(|| {
             common::PromptConfirm::new("Do you want to deploy paymaster contract?")
                 .default(true)

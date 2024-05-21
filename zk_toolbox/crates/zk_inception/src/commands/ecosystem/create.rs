@@ -6,12 +6,12 @@ use xshell::{cmd, Shell};
 
 use crate::{
     commands::{
+        chain::create_chain_inner,
         containers::start_containers,
         ecosystem::{
             args::create::EcosystemCreateArgs,
             create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
         },
-        hyperchain::create_hyperchain_inner,
     },
     configs::{EcosystemConfig, EcosystemConfigFromFileError, SaveConfig},
     consts::{
@@ -55,9 +55,9 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     };
 
     let spinner = Spinner::new("Creating initial configurations...");
-    let hyperchain_config = args.hyperchain_config();
-    let hyperchains_path = shell.create_dir("hyperchains")?;
-    let default_hyperchain_name = args.hyperchain_args.hyperchain_name.clone();
+    let chain_config = args.chain_config();
+    let chains_path = shell.create_dir("chains")?;
+    let default_chain_name = args.chain_args.chain_name.clone();
 
     create_initial_deployments_config(shell, &configs_path)?;
     create_erc20_deployment_config(shell, &configs_path)?;
@@ -66,12 +66,12 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         name: ecosystem_name.clone(),
         l1_network: args.l1_network,
         link_to_code: link_to_code.clone(),
-        hyperchains: hyperchains_path.clone(),
+        chains: chains_path.clone(),
         config: configs_path,
-        default_hyperchain: default_hyperchain_name.clone(),
+        default_chain: default_chain_name.clone(),
         l1_rpc_url: args.l1_rpc_url,
         era_chain_id: ERA_CHAIN_ID,
-        prover_version: hyperchain_config.prover_version,
+        prover_version: chain_config.prover_version,
         wallet_creation: args.wallet_creation,
         shell: shell.clone().into(),
     };
@@ -89,8 +89,8 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     ecosystem_config.save(shell, CONFIG_NAME)?;
     spinner.finish();
 
-    let spinner = Spinner::new("Creating default hyperchain...");
-    create_hyperchain_inner(hyperchain_config, &ecosystem_config, shell)?;
+    let spinner = Spinner::new("Creating default chain...");
+    create_chain_inner(chain_config, &ecosystem_config, shell)?;
     spinner.finish();
 
     if args.start_containers {

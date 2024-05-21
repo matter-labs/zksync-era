@@ -5,7 +5,7 @@ use common::cmd::Cmd;
 use xshell::{cmd, Shell};
 
 use crate::{
-    configs::HyperchainConfig,
+    configs::ChainConfig,
     consts::{CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE, WALLETS_FILE},
 };
 
@@ -25,16 +25,16 @@ pub enum ServerMode {
 }
 
 impl RunServer {
-    pub fn new(components: Option<Vec<String>>, hyperchain_config: &HyperchainConfig) -> Self {
-        let wallets = hyperchain_config.configs.join(WALLETS_FILE);
-        let general_config = hyperchain_config.configs.join(GENERAL_FILE);
-        let genesis = hyperchain_config.configs.join(GENESIS_FILE);
-        let contracts = hyperchain_config.configs.join(CONTRACTS_FILE);
-        let secrets = hyperchain_config.configs.join(SECRETS_FILE);
+    pub fn new(components: Option<Vec<String>>, chain_config: &ChainConfig) -> Self {
+        let wallets = chain_config.configs.join(WALLETS_FILE);
+        let general_config = chain_config.configs.join(GENERAL_FILE);
+        let genesis = chain_config.configs.join(GENESIS_FILE);
+        let contracts = chain_config.configs.join(CONTRACTS_FILE);
+        let secrets = chain_config.configs.join(SECRETS_FILE);
 
         Self {
             components,
-            code_path: hyperchain_config.link_to_code.clone(),
+            code_path: chain_config.link_to_code.clone(),
             wallets,
             contracts,
             general_config,

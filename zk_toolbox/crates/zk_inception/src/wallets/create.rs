@@ -24,7 +24,7 @@ pub fn create_wallets(
             WalletsConfig::random(rng)
         }
         WalletCreation::Empty => WalletsConfig::empty(),
-        // Use id of hyperchain for creating
+        // Use id of chain for creating
         WalletCreation::Localhost => create_localhost_wallets(shell, link_to_code, id)?,
         WalletCreation::InFile => {
             let path = initial_wallet_path.ok_or(anyhow::anyhow!(

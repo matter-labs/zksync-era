@@ -11,9 +11,9 @@ use xshell::Shell;
 
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
-    commands::hyperchain::args::genesis::GenesisArgs,
+    commands::chain::args::genesis::GenesisArgs,
     configs::{
-        update_general_config, update_secrets, DatabasesConfig, EcosystemConfig, HyperchainConfig,
+        update_general_config, update_secrets, ChainConfig, DatabasesConfig, EcosystemConfig,
     },
     server::{RunServer, ServerMode},
 };
@@ -22,14 +22,14 @@ const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
 const PROVER_MIGRATIONS: &str = "prover/prover_dal/migrations";
 
 pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
-    let hyperchain_name = global_config().hyperchain_name.clone();
+    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let hyperchain_config = ecosystem_config
-        .load_hyperchain(hyperchain_name)
-        .context("Hyperchain not initialized. Please create a hyperchain first")?;
-    let args = args.fill_values_with_prompt(&hyperchain_config);
+    let chain_config = ecosystem_config
+        .load_chain(chain_name)
+        .context("Chain not initialized. Please create a chain first")?;
+    let args = args.fill_values_with_prompt(&chain_config);
 
-    genesis(args, shell, &hyperchain_config, &ecosystem_config).await?;
+    genesis(args, shell, &chain_config, &ecosystem_config).await?;
     logger::outro("Genesis completed successfully");
 
     Ok(())
@@ -38,7 +38,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn genesis(
     args: GenesisArgsFinal,
     shell: &Shell,
-    config: &HyperchainConfig,
+    config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     // Clean the rocksdb
@@ -54,7 +54,7 @@ pub async fn genesis(
     logger::note(
         "Selected config:",
         logger::object_to_string(serde_json::json!({
-            "hyperchain_config": config,
+            "chain_config": config,
             "db_config": db_config,
         })),
     );
@@ -121,7 +121,7 @@ async fn initialize_databases(
     Ok(())
 }
 
-fn run_server_genesis(hyperchain_config: &HyperchainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let server = RunServer::new(None, hyperchain_config);
+fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
+    let server = RunServer::new(None, chain_config);
     server.run(shell, ServerMode::Genesis)
 }
