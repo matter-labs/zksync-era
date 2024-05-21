@@ -8,7 +8,7 @@ sync with the main node.
 The tests require that the main node is running; you can start it with a command like
 
 ```shell
-zk server --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
+zk server &>server.log &
 ```
 
 - [**Snapshot recovery test**](tests/snapshot-recovery.test.ts) can be run using
