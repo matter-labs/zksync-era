@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
-use zksync_eth_client::Options;
+use zksync_eth_client::{clients::Client, CallFunctionArgs, EthInterface, Options};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
@@ -22,11 +22,12 @@ use crate::{
         ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE},
         utils::{
             get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
+            load_contract,
         },
         web3::TransactionReceipt,
         EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
     },
-    utils::format_eth,
+    utils::format,
 };
 
 /// Executor is the entity capable of running the loadtest flow.
@@ -44,8 +45,11 @@ pub struct Executor {
     config: LoadtestConfig,
     execution_config: ExecutionConfig,
     l2_main_token: Address,
+    base_token: Option<Address>,
     pool: AccountPool,
 }
+
+const L2_SHARED_BRIDGE_ABI: &str = include_str!("sdk/abi/IL2SharedBridge.json");
 
 impl Executor {
     /// Creates a new Executor entity.
@@ -55,21 +59,40 @@ impl Executor {
     ) -> anyhow::Result<Self> {
         let pool = AccountPool::new(&config).await?;
 
+        let base_token = {
+            let token = pool
+                .master_wallet
+                .provider
+                .get_base_token_l1_address()
+                .await?;
+            if token == Address::from_low_u64_be(1) {
+                None // ETH
+            } else {
+                Some(token)
+            }
+        };
+
         // derive L2 main token address
-        let l2_main_token = pool
+        let l2_shared_bridge = pool
             .master_wallet
-            .ethereum(&config.l1_rpc_address)
-            .await
-            .expect("Can't get Ethereum client")
-            .l2_token_address(config.main_token, None)
-            .await
+            .provider
+            .get_bridge_contracts()
+            .await?
+            .l2_shared_default_bridge
             .unwrap();
+        let abi = load_contract(L2_SHARED_BRIDGE_ABI);
+        let query_client = Client::http(config.l2_rpc_address.parse()?)?.build();
+        let l2_main_token = CallFunctionArgs::new("l2TokenAddress", (config.main_token,))
+            .for_contract(l2_shared_bridge, &abi)
+            .call(&query_client)
+            .await?;
 
         Ok(Self {
             config,
             execution_config,
             pool,
             l2_main_token,
+            base_token,
         })
     }
 
@@ -86,11 +109,32 @@ impl Executor {
     async fn start_inner(&mut self) -> anyhow::Result<LoadtestResult> {
         tracing::info!("Initializing accounts");
         tracing::info!("Running for MASTER {:?}", self.pool.master_wallet.address());
-        self.check_onchain_balance().await?;
-        self.mint().await?;
-        self.deposit_to_master().await?;
 
-        self.deposit_eth_to_paymaster().await?;
+        if let Some(base_token) = self.base_token {
+            anyhow::ensure!(
+                base_token != self.config.main_token,
+                "Main testing token and chain's base token should be different"
+            );
+        }
+
+        tracing::info!(
+            "Running for chain based on {:?}",
+            self.base_token
+                .map(|token| token.to_string())
+                .unwrap_or("ETH".to_string())
+        );
+
+        self.check_onchain_balance().await?;
+
+        tracing::info!("Master Account: Minting Test ERC20 token...");
+        self.mint(self.config.main_token).await?;
+        if let Some(base_token) = self.base_token {
+            tracing::info!("Master Account: Minting Base ERC20 token...");
+            self.mint(base_token).await?;
+        }
+        self.deposit_base_token_to_paymaster(self.base_token)
+            .await?;
+        self.deposit_to_master().await?;
 
         let final_result = self.send_initial_transfers().await?;
         Ok(final_result)
@@ -106,14 +150,14 @@ impl Executor {
             anyhow::bail!(
                 "ETH balance on {:x} is too low to safely perform the loadtest: {} - at least {} is required",
                 ethereum.client().sender_account(),
-                format_eth(eth_balance),
-                format_eth(U256::from(MIN_MASTER_ACCOUNT_BALANCE))
+                format(eth_balance),
+                format(U256::from(MIN_MASTER_ACCOUNT_BALANCE))
             );
         }
         tracing::info!(
             "Master Account {} L1 balance is {}",
             self.pool.master_wallet.address(),
-            format_eth(eth_balance)
+            format(eth_balance)
         );
         LOADTEST_METRICS
             .master_account_balance
@@ -123,16 +167,13 @@ impl Executor {
     }
 
     /// Mints the ERC-20 token on the main wallet.
-    async fn mint(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Master Account: Minting ERC20 token...");
+    async fn mint(&mut self, token: Address) -> anyhow::Result<()> {
         let mint_amount = self.amount_to_deposit() + self.amount_for_l1_distribution();
 
         let master_wallet = &self.pool.master_wallet;
         let mut ethereum = master_wallet.ethereum(&self.config.l1_rpc_address).await?;
         ethereum.set_confirmation_timeout(ETH_CONFIRMATION_TIMEOUT);
         ethereum.set_polling_interval(ETH_POLLING_INTERVAL);
-
-        let token = self.config.main_token;
 
         let eth_balance = ethereum
             .erc20_balance(master_wallet.address(), token)
@@ -255,7 +296,10 @@ impl Executor {
         Ok(())
     }
 
-    async fn deposit_eth_to_paymaster(&mut self) -> anyhow::Result<()> {
+    async fn deposit_base_token_to_paymaster(
+        &mut self,
+        token: Option<Address>,
+    ) -> anyhow::Result<()> {
         tracing::info!("Master Account: Checking paymaster balance");
         let mut ethereum = self
             .pool
@@ -282,12 +326,24 @@ impl Executor {
 
         tracing::info!(
             "Paymaster balance is {}. Minimum amount {}",
-            format_eth(paymaster_balance),
-            format_eth(U256::from(MIN_PAYMASTER_BALANCE))
+            format(paymaster_balance),
+            format(U256::from(MIN_PAYMASTER_BALANCE))
         );
 
         if paymaster_balance >= U256::from(MIN_PAYMASTER_BALANCE) {
             return Ok(());
+        }
+
+        if let Some(token) = token {
+            let deposits_allowed = ethereum.is_erc20_deposit_approved(token, None).await?;
+            if !deposits_allowed {
+                // Approve ERC20 deposits.
+                let approve_tx_hash = ethereum.approve_erc20_token_deposits(token, None).await?;
+                let receipt = ethereum.wait_for_tx(approve_tx_hash).await?;
+                self.assert_eth_tx_success(&receipt).await;
+            }
+
+            tracing::info!("Approved Base token deposits");
         }
 
         let deposit_amount = U256::from(TARGET_PAYMASTER_BALANCE) - paymaster_balance;
@@ -296,7 +352,7 @@ impl Executor {
         let receipt = deposit_with_attempts(
             &ethereum,
             paymaster_address,
-            ETHEREUM_ADDRESS,
+            token.unwrap_or(ETHEREUM_ADDRESS),
             deposit_amount,
             3,
         )
@@ -329,7 +385,7 @@ impl Executor {
 
         tracing::info!(
             "Paymaster deposit complete. New balance: {}",
-            format_eth(paymaster_balance)
+            format(paymaster_balance)
         );
 
         Ok(())

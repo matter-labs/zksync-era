@@ -2,9 +2,10 @@ use std::ops::Div;
 
 use zksync_types::U256;
 
-pub fn format_eth(value: U256) -> String {
+/// Formats the token value, dividing it by 10^18.
+pub fn format(value: U256) -> String {
     format!(
-        "{:.2}ETH",
+        "{:.2} * 10^18",
         value.div(U256::from(10).pow(U256::from(16))).as_u128() as f64 / 100.0
     )
 }

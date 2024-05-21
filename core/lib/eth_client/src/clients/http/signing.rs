@@ -6,6 +6,7 @@ use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters}
 use zksync_types::{
     ethabi, web3, Address, K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE, H160, U256,
 };
+use zksync_web3_decl::client::{DynClient, L1};
 
 use super::{Method, LATENCIES};
 use crate::{
@@ -22,7 +23,7 @@ impl PKSigningClient {
         diamond_proxy_addr: Address,
         default_priority_fee_per_gas: u64,
         l1_chain_id: L1ChainId,
-        query_client: Box<dyn EthInterface>,
+        query_client: Box<DynClient<L1>>,
     ) -> Self {
         let operator_address = operator_private_key.address();
         let signer = PrivateKeySigner::new(operator_private_key);
@@ -49,7 +50,7 @@ const FALLBACK_GAS_LIMIT: u64 = 3_000_000;
 #[derive(Clone)]
 pub struct SigningClient<S: EthereumSigner> {
     inner: Arc<EthDirectClientInner<S>>,
-    query_client: Box<dyn EthInterface>,
+    query_client: Box<DynClient<L1>>,
 }
 
 struct EthDirectClientInner<S: EthereumSigner> {
@@ -73,8 +74,8 @@ impl<S: EthereumSigner> fmt::Debug for SigningClient<S> {
     }
 }
 
-impl<S: EthereumSigner> AsRef<dyn EthInterface> for SigningClient<S> {
-    fn as_ref(&self) -> &dyn EthInterface {
+impl<S: EthereumSigner> AsRef<DynClient<L1>> for SigningClient<S> {
+    fn as_ref(&self) -> &DynClient<L1> {
         self.query_client.as_ref()
     }
 }
@@ -210,7 +211,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
 
 impl<S: EthereumSigner> SigningClient<S> {
     pub fn new(
-        query_client: Box<dyn EthInterface>,
+        query_client: Box<DynClient<L1>>,
         contract: ethabi::Contract,
         operator_eth_addr: H160,
         eth_signer: S,

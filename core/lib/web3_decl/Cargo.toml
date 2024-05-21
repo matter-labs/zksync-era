@@ -16,7 +16,7 @@ rlp.workspace = true
 thiserror.workspace = true
 jsonrpsee = { workspace = true, features = [
     "macros",
-    "client-core",
+    "client",
 ] }
 pin-project-lite.workspace = true
 zksync_types.workspace = true
@@ -36,5 +36,5 @@ tokio = { workspace = true, features = ["rt", "test-util"] }
 
 [features]
 default = []
+# Enables server stubs
 server = ["jsonrpsee/server"]
-client = ["jsonrpsee/client"]

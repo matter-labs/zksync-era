@@ -183,13 +183,13 @@ impl<Net: Network> ForNetwork for MockClient<Net> {
     fn network(&self) -> Self::Net {
         self.network
     }
-}
 
-impl<Net: Network> TaggedClient for MockClient<Net> {
     fn component(&self) -> &'static str {
         self.component_name
     }
+}
 
+impl<Net: Network> TaggedClient for MockClient<Net> {
     fn set_component(&mut self, component_name: &'static str) {
         self.component_name = component_name;
     }

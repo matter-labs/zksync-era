@@ -17,7 +17,7 @@ use zksync_types::{
     Address, L1ChainId, L1TxCommonData, H160, H256, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_web3_decl::{
-    client::Client,
+    client::{Client, DynClient, L1},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -30,7 +30,7 @@ use crate::sdk::{
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
 const HYPERCHAIN_INTERFACE: &str = include_str!("../abi/IZkSyncHyperchain.json");
-const L1_ERC20_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1ERC20Bridge.json");
+const BRIDGEHUB_INTERFACE: &str = include_str!("../abi/IBridgehub.json");
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
 
 // The `gasPerPubdata` to be used in L1->L2 requests. It may be almost any number, but here we 800
@@ -47,8 +47,8 @@ pub fn ierc20_contract() -> ethabi::Contract {
     load_contract(IERC20_INTERFACE)
 }
 
-pub fn l1_erc20_bridge_contract() -> ethabi::Contract {
-    load_contract(L1_ERC20_BRIDGE_INTERFACE)
+pub fn bridgehub_abi() -> ethabi::Contract {
+    load_contract(BRIDGEHUB_INTERFACE)
 }
 
 /// `EthereumProvider` gains access to on-chain operations, such as deposits and full exits.
@@ -60,9 +60,12 @@ pub struct EthereumProvider<S: EthereumSigner> {
     eth_client: SigningClient<S>,
     default_bridges: BridgeAddresses,
     erc20_abi: ethabi::Contract,
-    l1_erc20_bridge_abi: ethabi::Contract,
+    bridgehub_abi: ethabi::Contract,
+    bridgehub_address: Option<Address>,
     confirmation_timeout: Duration,
     polling_interval: Duration,
+    l2_chain_id: u64,
+    base_token: Option<Address>,
 }
 
 // TODO (SMA-1623): create a way to pass `Options` (e.g. `nonce`, `gas_limit`, `priority_fee_per_gas`)
@@ -88,9 +91,24 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         })?;
         let l1_chain_id = L1ChainId(l1_chain_id);
 
+        let l2_chain_id = provider.chain_id().await?.as_u64();
         let contract_address = provider.get_main_contract().await?;
+        let base_token = {
+            let token = provider.get_base_token_l1_address().await?;
+            if token == Address::from_low_u64_be(1) {
+                None // ETH
+            } else {
+                Some(token)
+            }
+        };
+
         let default_bridges = provider
             .get_bridge_contracts()
+            .await
+            .map_err(|err| ClientError::NetworkError(err.to_string()))?;
+
+        let bridgehub_address = provider
+            .get_bridgehub_contract()
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
@@ -98,12 +116,15 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .as_ref()
             .parse::<SensitiveUrl>()
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
+
         let query_client = Client::http(eth_web3_url)
             .map_err(|err| ClientError::NetworkError(err.to_string()))?
             .for_network(l1_chain_id.into())
             .build();
+        let query_client: Box<DynClient<L1>> = Box::new(query_client);
+
         let eth_client = SigningClient::new(
-            Box::new(query_client).for_component("provider"),
+            query_client.for_component("provider"),
             hyperchain_contract(),
             eth_addr,
             eth_signer,
@@ -111,16 +132,17 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             DEFAULT_PRIORITY_FEE.into(),
             l1_chain_id,
         );
-        let erc20_abi = ierc20_contract();
-        let l1_erc20_bridge_abi = l1_erc20_bridge_contract();
 
         Ok(Self {
             eth_client,
+            l2_chain_id,
             default_bridges,
-            erc20_abi,
-            l1_erc20_bridge_abi,
+            erc20_abi: ierc20_contract(),
+            bridgehub_abi: bridgehub_abi(),
+            bridgehub_address,
             confirmation_timeout: Duration::from_secs(10),
             polling_interval: Duration::from_secs(1),
+            base_token,
         })
     }
 
@@ -129,7 +151,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         &self.eth_client
     }
 
-    pub fn query_client(&self) -> &dyn EthInterface {
+    pub fn query_client(&self) -> &DynClient<L1> {
         self.eth_client.as_ref()
     }
 
@@ -180,23 +202,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .await
     }
 
-    pub async fn l2_token_address(
-        &self,
-        l1_token_address: Address,
-        bridge: Option<Address>,
-    ) -> Result<Address, ClientError> {
-        // TODO(EVM-571): This should be moved to the shared bridge, which does not have `l2_token_address` on L1. Use L2 contracts instead.
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
-        CallFunctionArgs::new("l2TokenAddress", l1_token_address)
-            .for_contract(bridge, &self.l1_erc20_bridge_abi)
-            .call(self.query_client())
-            .await
-            .map_err(|err| match err {
-                Error::EthereumGateway(err) => ClientError::NetworkError(err.to_string()),
-                _ => ClientError::MalformedResponse(err.to_string()),
-            })
-    }
-
     /// Checks whether ERC20 of a certain token deposit with limit is approved for account.
     pub async fn is_limited_erc20_deposit_approved(
         &self,
@@ -204,8 +209,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         erc20_approve_threshold: U256,
         bridge: Option<Address>,
     ) -> Result<bool, ClientError> {
-        // TODO(EVM-571): This should be moved to the shared bridge,
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
+        let default_bridge = self.default_bridges.l1_shared_default_bridge;
+        let bridge = bridge.unwrap_or(default_bridge.unwrap());
         let current_allowance = self
             .client()
             .allowance_on_account(token_address, bridge, &self.erc20_abi)
@@ -232,8 +237,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         max_erc20_approve_amount: U256,
         bridge: Option<Address>,
     ) -> Result<H256, ClientError> {
-        // TODO(EVM-571): This should be moved to the shared bridge,
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
+        let default_bridge = self.default_bridges.l1_shared_default_bridge;
+        let bridge = bridge.unwrap_or(default_bridge.unwrap());
         let contract_function = self
             .erc20_abi
             .function("approve")
@@ -401,32 +406,45 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .await
             .map_err(|e| ClientError::NetworkError(e.to_string()))?;
         let value = base_cost + operator_tip + l2_value;
-        let tx_data = self.client().encode_tx_data(
-            "requestL2Transaction",
-            (
-                contract_address,
-                l2_value,
-                calldata,
-                gas_limit,
-                U256::from(L1_TO_L2_GAS_PER_PUBDATA),
-                factory_deps,
-                refund_recipient,
-            )
-                .into_tokens(),
+
+        let bridgehub_address = self.bridgehub_address.unwrap();
+        let contract_function = self
+            .bridgehub_abi
+            .function("requestL2TransactionDirect")
+            .expect("failed to get function");
+
+        let params = (
+            U256::from(self.l2_chain_id),
+            value,
+            contract_address,
+            l2_value,
+            calldata,
+            gas_limit,
+            U256::from(L1_TO_L2_GAS_PER_PUBDATA),
+            factory_deps,
+            refund_recipient,
         );
+
+        let data = contract_function
+            .encode_input(&[ethabi::Token::Tuple(params.into_tokens())])
+            .expect("failed to encode parameters");
 
         let tx = self
             .client()
-            .sign_prepared_tx(
-                tx_data,
+            .sign_prepared_tx_for_addr(
+                data,
+                bridgehub_address,
                 Options::with(|f| {
                     f.gas = Some(U256::from(300000));
-                    f.value = Some(value);
+                    f.value = match self.base_token {
+                        Some(_) => Some(0.into()),
+                        None => Some(value),
+                    };
                     f.gas_price = Some(gas_price)
                 }),
             )
             .await
-            .map_err(|e| ClientError::NetworkError(e.to_string()))?;
+            .map_err(|_| ClientError::IncorrectCredentials)?;
 
         let tx_hash = self
             .query_client()
@@ -439,6 +457,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
     /// Performs a deposit in zkSync network.
     /// For ERC20 tokens, a deposit must be approved beforehand via the `EthereumProvider::approve_erc20_token_deposits` method.
+    /// Cannot deposit ETH onto custom base token chains.
     #[allow(clippy::too_many_arguments)]
     pub async fn deposit(
         &self,
@@ -451,10 +470,13 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     ) -> Result<H256, ClientError> {
         let operator_tip = operator_tip.unwrap_or_default();
 
-        let is_eth_deposit = l1_token_address == Address::zero();
+        let is_base_token_deposit = match self.base_token {
+            None => l1_token_address == Address::zero(),
+            Some(base_token) => l1_token_address == base_token,
+        };
 
         // Calculate the gas limit for transaction: it may vary for different tokens.
-        let gas_limit = if is_eth_deposit {
+        let gas_limit = if is_base_token_deposit {
             400_000u64
         } else {
             let gas_limits: Map<String, Value> = serde_json::from_str(RAW_ERC20_DEPOSIT_GAS_LIMIT)
@@ -505,7 +527,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|e| ClientError::NetworkError(e.to_string()))?;
 
         // Calculate the amount of ether to be sent in the transaction.
-        let total_value = if is_eth_deposit {
+        let total_value = if is_base_token_deposit {
             // Both fee component and the deposit amount are represented as `msg.value`.
             base_cost + operator_tip + amount
         } else {
@@ -516,7 +538,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         options.value = Some(total_value);
         options.gas = Some(gas_limit.into());
 
-        let transaction_hash = if is_eth_deposit {
+        let transaction_hash = if is_base_token_deposit {
             self.request_execute(
                 to,
                 amount,
@@ -529,29 +551,44 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             )
             .await?
         } else {
-            // TODO(EVM-571): This should be moved to the shared bridge, and the `requestL2Transaction` method
             let bridge_address =
-                bridge_address.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
+                bridge_address.unwrap_or(self.default_bridges.l1_shared_default_bridge.unwrap());
+            let bridgehub_address = self.bridgehub_address.unwrap();
+
+            let bridge_calldata = ethabi::encode(&(l1_token_address, amount, to).into_tokens());
+
             let contract_function = self
-                .l1_erc20_bridge_abi
-                .function("deposit")
-                .expect("failed to get function parameters");
+                .bridgehub_abi
+                .function("requestL2TransactionTwoBridges")
+                .expect("failed to get function");
+
+            // Does not support depositing ETH onto custom base token chains.
             let params = (
-                to,
-                l1_token_address,
-                amount,
+                U256::from(self.l2_chain_id),
+                base_cost + operator_tip,
+                U256::zero(),
                 l2_gas_limit,
                 U256::from(L1_TO_L2_GAS_PER_PUBDATA),
+                Address::default(),
+                bridge_address,
+                U256::zero(),
+                bridge_calldata,
             );
+
             let data = contract_function
-                .encode_input(&params.into_tokens())
+                .encode_input(&[ethabi::Token::Tuple(params.into_tokens())])
                 .expect("failed to encode parameters");
 
+            if self.base_token.is_some() {
+                options.value = Some(0.into());
+            }
+
             let signed_tx = self
-                .eth_client
-                .sign_prepared_tx_for_addr(data, bridge_address, options)
+                .client()
+                .sign_prepared_tx_for_addr(data, bridgehub_address, options)
                 .await
                 .map_err(|_| ClientError::IncorrectCredentials)?;
+
             self.query_client()
                 .send_raw_tx(signed_tx.raw_tx)
                 .await
