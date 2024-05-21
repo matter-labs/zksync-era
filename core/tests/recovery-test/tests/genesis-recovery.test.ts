@@ -56,8 +56,9 @@ describe('genesis recovery', () => {
     let fundedWallet: FundedWallet;
 
     before('create test wallet', async () => {
-        // FIXME: won't work in Docker
-        const eth = new ethers.providers.JsonRpcProvider('http://127.0.0.1:8545');
+        const ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
+        console.log(`Using L1 RPC at ${ethRpcUrl}`);
+        const eth = new ethers.providers.JsonRpcProvider(ethRpcUrl);
         fundedWallet = await FundedWallet.create(mainNode, eth);
     });
 

@@ -228,14 +228,16 @@ jobs:
           ENABLE_CONSENSUS=${{ matrix.consensus }} \
           DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
           DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
-          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING" \
+          ETH_CLIENT_WEB3_URL="http://reth:8545" \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,ETH_CLIENT_WEB3_URL" \
             ci_run yarn recovery-test snapshot-recovery-test
 
       - name: Genesis recovery test
         run: |
           ENABLE_CONSENSUS=${{ matrix.consensus }} \
           DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
-          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" \
+          ETH_CLIENT_WEB3_URL="http://reth:8545" \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,ETH_CLIENT_WEB3_URL" \
             ci_run yarn recovery-test genesis-recovery-test
 
       - name: Fee projection tests
