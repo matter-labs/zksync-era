@@ -13,7 +13,7 @@ use test_casing::test_casing;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, prepare_recovery_snapshot};
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, StorageLog, H256};
-use zksync_web3_decl::{error::EnrichedClientResult, jsonrpsee::core::ClientError};
+use zksync_web3_decl::jsonrpsee::core::ClientError;
 
 use super::{metrics::StepOutcomeLabel, *};
 
@@ -28,10 +28,10 @@ impl TreeDataProvider for MockMainNodeClient {
     async fn batch_details(
         &mut self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>> {
+    ) -> TreeDataFetcherResult<Result<H256, MissingData>> {
         if self.transient_error.fetch_and(false, Ordering::Relaxed) {
             let err = ClientError::RequestTimeout;
-            return Err(EnrichedClientError::new(err, "batch_details"));
+            return Err(EnrichedClientError::new(err, "batch_details").into());
         }
         Ok(self
             .batch_details_responses
@@ -267,7 +267,7 @@ impl TreeDataProvider for SlowMainNode {
     async fn batch_details(
         &mut self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>> {
+    ) -> TreeDataFetcherResult<Result<H256, MissingData>> {
         if number != L1BatchNumber(1) {
             return Ok(Err(MissingData::Batch));
         }

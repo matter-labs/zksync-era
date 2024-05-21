@@ -9,15 +9,15 @@ use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{block::L1BatchTreeData, L1BatchNumber};
+use zksync_types::{block::L1BatchTreeData, Address, L1BatchNumber};
 use zksync_web3_decl::{
-    client::{DynClient, L2},
+    client::{DynClient, L1, L2},
     error::EnrichedClientError,
 };
 
 use self::{
     metrics::{ProcessingStage, TreeDataFetcherMetrics, METRICS},
-    provider::{MissingData, TreeDataProvider},
+    provider::{L1DataProvider, MissingData, TreeDataProvider},
 };
 
 mod metrics;
@@ -26,7 +26,7 @@ mod provider;
 mod tests;
 
 #[derive(Debug, thiserror::Error)]
-enum TreeDataFetcherError {
+pub(crate) enum TreeDataFetcherError {
     #[error("error fetching data from main node")]
     Rpc(#[from] EnrichedClientError),
     #[error("internal error")]
@@ -47,6 +47,8 @@ impl TreeDataFetcherError {
         }
     }
 }
+
+type TreeDataFetcherResult<T> = Result<T, TreeDataFetcherError>;
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
@@ -112,6 +114,20 @@ impl TreeDataFetcher {
             #[cfg(test)]
             updates_sender: mpsc::unbounded_channel().0,
         }
+    }
+
+    pub fn with_l1_data(
+        mut self,
+        eth_client: Box<DynClient<L1>>,
+        diamond_proxy_address: Address,
+    ) -> anyhow::Result<Self> {
+        // FIXME: use combined provider
+        self.data_provider = Box::new(L1DataProvider::new(
+            self.pool.clone(),
+            eth_client.for_component("tree_data_fetcher"),
+            diamond_proxy_address,
+        )?);
+        Ok(self)
     }
 
     /// Returns a health check for this fetcher.
