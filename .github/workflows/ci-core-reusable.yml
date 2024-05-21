@@ -156,6 +156,7 @@ jobs:
 
           ci_run ./zk_toolbox/target/release/zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --server-db-url=postgres://postgres:notsecurepassword@postgres --server-db-name="zksync_local" --prover-db-url=postgres://postgres:notsecurepassword@postgres --prover-db-name="prover_zksync_local"  --verbose
           ci_run zk
+          ci_run zk contract build
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server

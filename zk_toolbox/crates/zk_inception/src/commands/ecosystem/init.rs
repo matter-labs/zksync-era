@@ -283,8 +283,7 @@ fn deploy_ecosystem_inner(
         .script(&DEPLOY_ECOSYSTEM.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(config.l1_rpc_url.clone())
-        .with_broadcast()
-        .with_slow();
+        .with_broadcast();
 
     forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
 
