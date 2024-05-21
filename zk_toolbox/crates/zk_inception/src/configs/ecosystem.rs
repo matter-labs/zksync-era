@@ -9,8 +9,7 @@ use crate::{
         forge_interface::deploy_ecosystem::input::{
             Erc20DeploymentConfig, InitialDeploymentConfig,
         },
-        ContractsConfig, HyperchainConfig, HyperchainConfigInternal, ReadConfig, SaveConfig,
-        WalletsConfig,
+        ChainConfig, ChainConfigInternal, ContractsConfig, ReadConfig, SaveConfig, WalletsConfig,
     },
     consts::{
         CONFIG_NAME, CONTRACTS_FILE, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE,
@@ -20,32 +19,32 @@ use crate::{
     wallets::{create_localhost_wallets, WalletCreation},
 };
 
-/// Ecosystem configuration file. This file is created in the hyperchain
+/// Ecosystem configuration file. This file is created in the chain
 /// directory before network initialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EcosystemConfigInternal {
     pub name: String,
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,
-    pub hyperchains: PathBuf,
+    pub chains: PathBuf,
     pub config: PathBuf,
-    pub default_hyperchain: String,
+    pub default_chain: String,
     pub l1_rpc_url: String,
     pub era_chain_id: ChainId,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
 }
 
-/// Ecosystem configuration file. This file is created in the hyperchain
+/// Ecosystem configuration file. This file is created in the chain
 /// directory before network initialization.
 #[derive(Debug, Clone)]
 pub struct EcosystemConfig {
     pub name: String,
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,
-    pub hyperchains: PathBuf,
+    pub chains: PathBuf,
     pub config: PathBuf,
-    pub default_hyperchain: String,
+    pub default_chain: String,
     pub l1_rpc_url: String,
     pub era_chain_id: ChainId,
     pub prover_version: ProverMode,
@@ -72,9 +71,9 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
             name: config.name.clone(),
             l1_network: config.l1_network,
             link_to_code: config.link_to_code.clone(),
-            hyperchains: config.hyperchains.clone(),
+            chains: config.chains.clone(),
             config: config.config.clone(),
-            default_hyperchain: config.default_hyperchain.clone(),
+            default_chain: config.default_chain.clone(),
             l1_rpc_url: config.l1_rpc_url.clone(),
             era_chain_id: config.era_chain_id,
             prover_version: config.prover_version,
@@ -105,16 +104,16 @@ impl EcosystemConfig {
         Ok(config)
     }
 
-    pub fn load_hyperchain(&self, name: Option<String>) -> Option<HyperchainConfig> {
-        let name = name.unwrap_or(self.default_hyperchain.clone());
-        self.load_hyperchain_inner(&name)
+    pub fn load_chain(&self, name: Option<String>) -> Option<ChainConfig> {
+        let name = name.unwrap_or(self.default_chain.clone());
+        self.load_chain_inner(&name)
     }
 
-    fn load_hyperchain_inner(&self, name: &str) -> Option<HyperchainConfig> {
-        let path = self.hyperchains.join(name).join(CONFIG_NAME);
-        let config = HyperchainConfigInternal::read(self.get_shell(), path).ok()?;
+    fn load_chain_inner(&self, name: &str) -> Option<ChainConfig> {
+        let path = self.chains.join(name).join(CONFIG_NAME);
+        let config = ChainConfigInternal::read(self.get_shell(), path).ok()?;
 
-        Some(HyperchainConfig {
+        Some(ChainConfig {
             id: config.id,
             name: config.name,
             chain_id: config.chain_id,
@@ -160,9 +159,9 @@ impl EcosystemConfig {
         self.link_to_code.join(L1_CONTRACTS_FOUNDRY)
     }
 
-    pub fn list_of_hyperchains(&self) -> Vec<String> {
+    pub fn list_of_chains(&self) -> Vec<String> {
         self.get_shell()
-            .read_dir(&self.hyperchains)
+            .read_dir(&self.chains)
             .unwrap()
             .iter()
             .filter_map(|file| {
@@ -180,9 +179,9 @@ impl EcosystemConfig {
             name: self.name.clone(),
             l1_network: self.l1_network,
             link_to_code: self.link_to_code.clone(),
-            hyperchains: self.hyperchains.clone(),
+            chains: self.chains.clone(),
             config: self.config.clone(),
-            default_hyperchain: self.default_hyperchain.clone(),
+            default_chain: self.default_chain.clone(),
             l1_rpc_url: self.l1_rpc_url.clone(),
             era_chain_id: self.era_chain_id,
             prover_version: self.prover_version,

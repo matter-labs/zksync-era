@@ -14,7 +14,9 @@ integration.
 
 ### Ecosystem
 
-ZK Stack allows you to either create a new ecosystem or connect to an existing one. An ecosystem includes the components that connects all ZK chains, like the BridgeHub, the shared bridges, and state transition managers. [Learn more](https://docs.zksync.io/zk-stack/components/shared-bridges.html). 
+ZK Stack allows you to either create a new ecosystem or connect to an existing one. An ecosystem includes the components
+that connects all ZK chains, like the BridgeHub, the shared bridges, and state transition managers.
+[Learn more](https://docs.zksync.io/zk-stack/components/shared-bridges.html).
 
 To create a ZK Stack project, you must first create an ecosystem:
 
@@ -26,19 +28,20 @@ If the ecosystem has never been deployed before, initialization is required:
 
 `zk_inception ecosystem init`
 
-This command also initializes the first ZK chain. Note that the very first chain becomes the default one, but you
-can override it with another by using the `--chain <name>` flag.
+This command also initializes the first ZK chain. Note that the very first chain becomes the default one, but you can
+override it with another by using the `--chain <name>` flag.
 
 To change the default ZK chain, use:
 
 `zk_inception ecosystem change-default-chain`
 
-IMPORTANT: It is not yet possible to use an existing ecosystem and register a chain to it. this feature will be added in the future.
+IMPORTANT: It is not yet possible to use an existing ecosystem and register a chain to it. this feature will be added in
+the future.
 
 ### ZK Chain
 
-Upon ecosystem creation, the first ZK chain is automatically generated. However, you can create additional chains
-and switch between them:
+Upon ecosystem creation, the first ZK chain is automatically generated. However, you can create additional chains and
+switch between them:
 
 `zk_inception chain create`
 

@@ -78,7 +78,7 @@ pub const INITIALIZE_BRIDGES: ForgeScriptParams = ForgeScriptParams {
     script_path: "script/InitializeSharedBridgeOnL2.sol",
 };
 
-pub const REGISTER_HYPERCHAIN: ForgeScriptParams = ForgeScriptParams {
+pub const REGISTER_CHAIN: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/register-hyperchain.toml",
     output: "script-out/output-register-hyperchain.toml",
     script_path: "script/RegisterHyperchain.s.sol",

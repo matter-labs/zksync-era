@@ -8,7 +8,7 @@ use strum_macros::{Display, EnumIter};
 use url::Url;
 
 use crate::{
-    commands::hyperchain::{args::create::HyperchainCreateArgs, HyperchainCreateArgsFinal},
+    commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
     defaults::LOCAL_RPC_URL,
     types::L1Network,
     wallets::WalletCreation,
@@ -26,7 +26,7 @@ pub struct EcosystemCreateArgs {
     pub link_to_code: Option<String>,
     #[clap(flatten)]
     #[serde(flatten)]
-    pub hyperchain: HyperchainCreateArgs,
+    pub chain: ChainCreateArgs,
     #[clap(long, help = "Start reth and postgres containers after creation", default_missing_value = "true", num_args = 0..=1)]
     pub start_containers: Option<bool>,
 }
@@ -65,10 +65,10 @@ impl EcosystemCreateArgs {
                 .ask()
         });
 
-        // Make the only hyperchain as a default one
-        self.hyperchain.set_as_default = Some(true);
+        // Make the only chain as a default one
+        self.chain.set_as_default = Some(true);
 
-        let hyperchain = self.hyperchain.fill_values_with_prompt(0);
+        let chain = self.chain.fill_values_with_prompt(0);
 
         let start_containers = self.start_containers.unwrap_or_else(|| {
             PromptConfirm::new("Do you want to start containers after creating the ecosystem?")
@@ -80,10 +80,10 @@ impl EcosystemCreateArgs {
             ecosystem_name,
             l1_network,
             link_to_code,
-            wallet_creation: hyperchain.wallet_creation,
-            wallet_path: hyperchain.wallet_path.clone(),
+            wallet_creation: chain.wallet_creation,
+            wallet_path: chain.wallet_path.clone(),
             l1_rpc_url,
-            hyperchain_args: hyperchain,
+            chain_args: chain,
             start_containers,
         }
     }
@@ -97,13 +97,13 @@ pub struct EcosystemCreateArgsFinal {
     pub wallet_creation: WalletCreation,
     pub wallet_path: Option<PathBuf>,
     pub l1_rpc_url: String,
-    pub hyperchain_args: HyperchainCreateArgsFinal,
+    pub chain_args: ChainCreateArgsFinal,
     pub start_containers: bool,
 }
 
 impl EcosystemCreateArgsFinal {
-    pub fn hyperchain_config(&self) -> HyperchainCreateArgsFinal {
-        self.hyperchain_args.clone()
+    pub fn chain_config(&self) -> ChainCreateArgsFinal {
+        self.chain_args.clone()
     }
 }
 

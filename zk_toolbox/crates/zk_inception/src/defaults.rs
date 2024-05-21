@@ -1,4 +1,4 @@
-use crate::configs::HyperchainConfig;
+use crate::configs::ChainConfig;
 
 pub const DATABASE_SERVER_URL: &str = "postgres://postgres:notsecurepassword@localhost:5432";
 pub const DATABASE_PROVER_URL: &str = "postgres://postgres:notsecurepassword@localhost:5432";
@@ -15,7 +15,7 @@ pub struct DBNames {
     pub server_name: String,
     pub prover_name: String,
 }
-pub fn generate_db_names(config: &HyperchainConfig) -> DBNames {
+pub fn generate_db_names(config: &ChainConfig) -> DBNames {
     DBNames {
         server_name: format!(
             "zksync_server_{}_{}",

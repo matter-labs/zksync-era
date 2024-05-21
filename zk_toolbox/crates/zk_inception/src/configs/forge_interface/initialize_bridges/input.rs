@@ -2,7 +2,7 @@ use ethers::addressbook::Address;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    configs::{HyperchainConfig, ReadConfig, SaveConfig},
+    configs::{ChainConfig, ReadConfig, SaveConfig},
     types::ChainId,
 };
 
@@ -20,15 +20,12 @@ pub struct InitializeBridgeInput {
 }
 
 impl InitializeBridgeInput {
-    pub fn new(
-        hyperchain_config: &HyperchainConfig,
-        era_chain_id: ChainId,
-    ) -> anyhow::Result<Self> {
-        let contracts = hyperchain_config.get_contracts_config()?;
-        let wallets = hyperchain_config.get_wallets_config()?;
+    pub fn new(chain_config: &ChainConfig, era_chain_id: ChainId) -> anyhow::Result<Self> {
+        let contracts = chain_config.get_contracts_config()?;
+        let wallets = chain_config.get_wallets_config()?;
         Ok(Self {
             era_chain_id,
-            chain_id: hyperchain_config.chain_id,
+            chain_id: chain_config.chain_id,
             l1_shared_bridge: contracts.bridges.shared.l1_address,
             bridgehub: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             governance: wallets.governor.address,

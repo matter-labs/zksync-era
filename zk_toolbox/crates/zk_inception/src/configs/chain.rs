@@ -13,11 +13,11 @@ use crate::{
     wallets::{create_localhost_wallets, WalletCreation},
 };
 
-/// Hyperchain configuration file. This file is created in the hyperchain
+/// Chain configuration file. This file is created in the chain
 /// directory before network initialization.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct HyperchainConfigInternal {
-    // The id of hyperchain on this machine allows to easily setup multiple hyperchains,
+pub struct ChainConfigInternal {
+    // The id of chain on this machine allows to easily setup multiple chains,
     // needs for local setups only
     pub id: u32,
     pub name: String,
@@ -30,10 +30,10 @@ pub struct HyperchainConfigInternal {
     pub wallet_creation: WalletCreation,
 }
 
-/// Hyperchain configuration file. This file is created in the hyperchain
+/// Chain configuration file. This file is created in the chain
 /// directory before network initialization.
 #[derive(Debug)]
-pub struct HyperchainConfig {
+pub struct ChainConfig {
     pub id: u32,
     pub name: String,
     pub chain_id: ChainId,
@@ -48,7 +48,7 @@ pub struct HyperchainConfig {
     pub shell: OnceCell<Shell>,
 }
 
-impl Serialize for HyperchainConfig {
+impl Serialize for ChainConfig {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -57,7 +57,7 @@ impl Serialize for HyperchainConfig {
     }
 }
 
-impl HyperchainConfig {
+impl ChainConfig {
     pub(crate) fn get_shell(&self) -> &Shell {
         self.shell.get().expect("Not initialized")
     }
@@ -91,8 +91,8 @@ impl HyperchainConfig {
         config.save(shell, path)
     }
 
-    fn get_internal(&self) -> HyperchainConfigInternal {
-        HyperchainConfigInternal {
+    fn get_internal(&self) -> ChainConfigInternal {
+        ChainConfigInternal {
             id: self.id,
             name: self.name.clone(),
             chain_id: self.chain_id,
@@ -106,5 +106,5 @@ impl HyperchainConfig {
     }
 }
 
-impl ReadConfig for HyperchainConfigInternal {}
-impl SaveConfig for HyperchainConfigInternal {}
+impl ReadConfig for ChainConfigInternal {}
+impl SaveConfig for ChainConfigInternal {}

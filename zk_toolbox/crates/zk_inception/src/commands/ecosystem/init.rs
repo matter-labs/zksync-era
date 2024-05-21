@@ -18,10 +18,10 @@ use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgs
 use crate::{
     accept_ownership::accept_owner,
     commands::{
+        chain,
         ecosystem::create_configs::{
             create_erc20_deployment_config, create_initial_deployments_config,
         },
-        hyperchain,
     },
     configs::{
         forge_interface::deploy_ecosystem::{
@@ -30,7 +30,7 @@ use crate::{
             },
             output::{DeployErc20Output, DeployL1Output},
         },
-        ContractsConfig, EcosystemConfig, GenesisConfig, HyperchainConfig, ReadConfig, SaveConfig,
+        ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ReadConfig, SaveConfig,
     },
     consts::{
         AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, CONFIGS_PATH, CONTRACTS_FILE, DEPLOY_ECOSYSTEM,
@@ -76,63 +76,61 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         )?;
     }
 
-    // If the name of hyperchain passed then we deploy exactly this hyperchain otherwise deploy all hyperchains
-    let list_of_hyperchains = if let Some(name) = global_config().hyperchain_name.clone() {
+    // If the name of chain passed then we deploy exactly this chain otherwise deploy all chains
+    let list_of_chains = if let Some(name) = global_config().chain_name.clone() {
         vec![name]
     } else {
-        ecosystem_config.list_of_hyperchains()
+        ecosystem_config.list_of_chains()
     };
 
-    for hyperchain_name in &list_of_hyperchains {
-        logger::info(format!("Initializing hyperchain {hyperchain_name}"));
-        let hyperchain_config = ecosystem_config
-            .load_hyperchain(Some(hyperchain_name.clone()))
-            .context("Hyperchain not initialized. Please create a hyperchain first")?;
+    for chain_name in &list_of_chains {
+        logger::info(format!("Initializing chain {chain_name}"));
+        let chain_config = ecosystem_config
+            .load_chain(Some(chain_name.clone()))
+            .context("Chain not initialized. Please create a chain first")?;
 
-        let mut hyperchain_init_args = hyperchain::args::init::InitArgsFinal {
+        let mut chain_init_args = chain::args::init::InitArgsFinal {
             forge_args: final_ecosystem_args.forge_args.clone(),
-            genesis_args: genesis_args
-                .clone()
-                .fill_values_with_prompt(&hyperchain_config),
+            genesis_args: genesis_args.clone().fill_values_with_prompt(&chain_config),
             deploy_paymaster: final_ecosystem_args.deploy_paymaster,
         };
 
-        distribute_eth(&ecosystem_config, &hyperchain_config).await?;
+        distribute_eth(&ecosystem_config, &chain_config).await?;
 
-        hyperchain::init::init(
-            &mut hyperchain_init_args,
+        chain::init::init(
+            &mut chain_init_args,
             shell,
             &ecosystem_config,
-            &hyperchain_config,
+            &chain_config,
         )
         .await?;
     }
 
     logger::outro(format!(
-        "Ecosystem initialized successfully with hyperchains {}",
-        list_of_hyperchains.join(",")
+        "Ecosystem initialized successfully with chains {}",
+        list_of_chains.join(",")
     ));
 
     Ok(())
 }
 
-// Distribute eth to the hyperchain wallets for localhost environment
+// Distribute eth to the chain wallets for localhost environment
 pub async fn distribute_eth(
     ecosystem_config: &EcosystemConfig,
-    hyperchain_config: &HyperchainConfig,
+    chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
-    if hyperchain_config.wallet_creation == WalletCreation::Localhost
+    if chain_config.wallet_creation == WalletCreation::Localhost
         && ecosystem_config.l1_network == L1Network::Localhost
     {
         let spinner = Spinner::new("Distributing eth...");
         let wallets = ecosystem_config.get_wallets()?;
-        let hyperchain_wallets = hyperchain_config.get_wallets_config()?;
+        let chain_wallets = chain_config.get_wallets_config()?;
         let mut addresses = vec![
-            hyperchain_wallets.operator.address,
-            hyperchain_wallets.blob_operator.address,
-            hyperchain_wallets.governor.address,
+            chain_wallets.operator.address,
+            chain_wallets.blob_operator.address,
+            chain_wallets.governor.address,
         ];
-        if let Some(deployer) = hyperchain_wallets.deployer {
+        if let Some(deployer) = chain_wallets.deployer {
             addresses.push(deployer.address)
         }
         common::ethereum::distribute_eth(

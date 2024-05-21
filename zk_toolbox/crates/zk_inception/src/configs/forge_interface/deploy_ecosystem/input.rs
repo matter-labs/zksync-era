@@ -21,7 +21,7 @@ pub struct InitialDeploymentConfig {
     pub create2_factory_addr: Option<Address>,
     pub create2_factory_salt: H256,
     pub governance_min_delay: u64,
-    pub max_number_of_hyperchains: u64,
+    pub max_number_of_chains: u64,
     pub diamond_init_batch_overhead_l1_gas: u64,
     pub diamond_init_max_l2_gas_per_batch: u64,
     pub diamond_init_max_pubdata_per_batch: u64,
@@ -40,7 +40,7 @@ impl Default for InitialDeploymentConfig {
             create2_factory_addr: None,
             create2_factory_salt: H256::random(),
             governance_min_delay: 0,
-            max_number_of_hyperchains: 100,
+            max_number_of_chains: 100,
             diamond_init_batch_overhead_l1_gas: 1000000,
             diamond_init_max_l2_gas_per_batch: 80000000,
             diamond_init_max_pubdata_per_batch: 120000,
@@ -133,7 +133,7 @@ impl DeployL1Config {
                 // TODO verify correctnesss
                 governance_security_council_address: wallets_config.governor.address,
                 governance_min_delay: initial_deployment_config.governance_min_delay,
-                max_number_of_hyperchains: initial_deployment_config.max_number_of_hyperchains,
+                max_number_of_chains: initial_deployment_config.max_number_of_chains,
                 diamond_init_batch_overhead_l1_gas: initial_deployment_config
                     .diamond_init_batch_overhead_l1_gas,
                 diamond_init_max_l2_gas_per_batch: initial_deployment_config
@@ -170,7 +170,7 @@ impl DeployL1Config {
 pub struct ContractsDeployL1Config {
     pub governance_security_council_address: Address,
     pub governance_min_delay: u64,
-    pub max_number_of_hyperchains: u64,
+    pub max_number_of_chains: u64,
     pub create2_factory_salt: H256,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub create2_factory_addr: Option<Address>,

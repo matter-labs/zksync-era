@@ -14,9 +14,9 @@ use crate::{
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
-pub struct HyperchainCreateArgs {
+pub struct ChainCreateArgs {
     #[arg(long)]
-    pub hyperchain_name: Option<String>,
+    pub chain_name: Option<String>,
     #[arg(value_parser = clap::value_parser!(u32).range(1..))]
     pub chain_id: Option<u32>,
     #[clap(long, help = "Prover options", value_enum)]
@@ -33,19 +33,19 @@ pub struct HyperchainCreateArgs {
     pub base_token_price_nominator: Option<u64>,
     #[clap(long, help = "Base token denominator")]
     pub base_token_price_denominator: Option<u64>,
-    #[clap(long, help = "Set as default hyperchain", default_missing_value = "true", num_args = 0..=1)]
+    #[clap(long, help = "Set as default chain", default_missing_value = "true", num_args = 0..=1)]
     pub set_as_default: Option<bool>,
 }
 
-impl HyperchainCreateArgs {
-    pub fn fill_values_with_prompt(self, number_of_hyperchains: u32) -> HyperchainCreateArgsFinal {
-        let hyperchain_name = self
-            .hyperchain_name
-            .unwrap_or_else(|| Prompt::new("How do you want to name the hyperchain?").ask());
+impl ChainCreateArgs {
+    pub fn fill_values_with_prompt(self, number_of_chains: u32) -> ChainCreateArgsFinal {
+        let chain_name = self
+            .chain_name
+            .unwrap_or_else(|| Prompt::new("How do you want to name the chain?").ask());
 
         let chain_id = self.chain_id.unwrap_or_else(|| {
-            Prompt::new("What's the hyperchain id?")
-                .default(&(L2_CHAIN_ID + number_of_hyperchains).to_string())
+            Prompt::new("What's the chain id?")
+                .default(&(L2_CHAIN_ID + number_of_chains).to_string())
                 .ask()
         });
 
@@ -108,13 +108,13 @@ impl HyperchainCreateArgs {
         };
 
         let set_as_default = self.set_as_default.unwrap_or_else(|| {
-            PromptConfirm::new("Set this hyperchain as default?")
+            PromptConfirm::new("Set this chain as default?")
                 .default(true)
                 .ask()
         });
 
-        HyperchainCreateArgsFinal {
-            hyperchain_name,
+        ChainCreateArgsFinal {
+            chain_name,
             chain_id,
             prover_version,
             wallet_creation,
@@ -127,8 +127,8 @@ impl HyperchainCreateArgs {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct HyperchainCreateArgsFinal {
-    pub hyperchain_name: String,
+pub struct ChainCreateArgsFinal {
+    pub chain_name: String,
     pub chain_id: u32,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
