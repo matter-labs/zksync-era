@@ -2,18 +2,21 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_types::ProtocolVersionId;
 
-use crate::{metrics::FRI_PROVER_METRICS, periodic_job::PeriodicJob};
+use crate::{periodic_job::PeriodicJob, prover::metrics::FRI_PROVER_METRICS};
 
+/// `FriProverQueueReporter` is a task that periodically reports prover jobs status.
+/// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
 #[derive(Debug)]
-pub struct FriProverStatsReporter {
+pub struct FriProverQueueReporter {
     reporting_interval_ms: u64,
     prover_connection_pool: ConnectionPool<Prover>,
     db_connection_pool: ConnectionPool<Core>,
     config: FriProverGroupConfig,
 }
 
-impl FriProverStatsReporter {
+impl FriProverQueueReporter {
     pub fn new(
         reporting_interval_ms: u64,
         prover_connection_pool: ConnectionPool<Prover>,
@@ -29,10 +32,9 @@ impl FriProverStatsReporter {
     }
 }
 
-///  Invoked periodically to push prover queued/in-progress job statistics
 #[async_trait]
-impl PeriodicJob for FriProverStatsReporter {
-    const SERVICE_NAME: &'static str = "FriProverStatsReporter";
+impl PeriodicJob for FriProverQueueReporter {
+    const SERVICE_NAME: &'static str = "FriProverQueueReporter";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let mut conn = self.prover_connection_pool.connection().await.unwrap();
@@ -62,13 +64,16 @@ impl PeriodicJob for FriProverStatsReporter {
                 circuit_id,
                 aggregation_round,
                 group_id,
+                ProtocolVersionId::current_prover_version(),
                 stats.queued as u64,
             );
+
             FRI_PROVER_METRICS.report_prover_jobs(
                 "in_progress",
                 circuit_id,
                 aggregation_round,
                 group_id,
+                ProtocolVersionId::current_prover_version(),
                 stats.in_progress as u64,
             );
         }
