@@ -173,10 +173,12 @@ impl BlocksWeb3Dal<'_, '_> {
                 prev_miniblock.hash AS "parent_hash?",
                 miniblocks.timestamp,
                 miniblocks.base_fee_per_gas,
-                miniblocks.gas_limit AS "block_gas_limit?"
+                miniblocks.gas_limit AS "block_gas_limit?",
+                transactions.refunded_gas AS "refunded_gas?"
             FROM
                 miniblocks
                 LEFT JOIN miniblocks prev_miniblock ON prev_miniblock.number = miniblocks.number - 1
+                LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
             WHERE
                 miniblocks.number > $1
             ORDER BY
@@ -201,12 +203,20 @@ impl BlocksWeb3Dal<'_, '_> {
             transactions_root: H256::zero(),
             receipts_root: H256::zero(),
             number: Some(U64::from(row.number)),
-            gas_used: U256::zero(),
+            gas_used: {
+                if let (Some(gas_limit), Some(refunded_gas)) =
+                    (row.block_gas_limit, row.refunded_gas)
+                {
+                    bigdecimal_to_u256(gas_limit.into()) - U256::from(refunded_gas as u64)
+                } else {
+                    U256::zero()
+                }
+            },
             gas_limit: (row
                 .block_gas_limit
                 .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT)) as u64)
                 .into(),
-            base_fee_per_gas: bigdecimal_to_u256(row.base_fee_per_gas),
+            base_fee_per_gas: Some(bigdecimal_to_u256(row.base_fee_per_gas)),
             extra_data: Bytes::default(),
             // TODO: include logs
             logs_bloom: H2048::default(),

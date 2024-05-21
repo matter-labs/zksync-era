@@ -354,8 +354,8 @@ pub struct BlockHeader {
     #[serde(rename = "gasLimit", default)]
     pub gas_limit: U256,
     /// Base fee per unit of gas (if past London)
-    #[serde(rename = "baseFeePerGas")]
-    pub base_fee_per_gas: U256,
+    #[serde(rename = "baseFeePerGas", skip_serializing_if = "Option::is_none")]
+    pub base_fee_per_gas: Option<U256>,
     /// Extra data
     #[serde(rename = "extraData")]
     pub extra_data: Bytes,
@@ -406,8 +406,8 @@ pub struct Block<TX> {
     #[serde(rename = "gasLimit", default)]
     pub gas_limit: U256,
     /// Base fee per unit of gas (if past London)
-    #[serde(rename = "baseFeePerGas")]
-    pub base_fee_per_gas: U256,
+    #[serde(rename = "baseFeePerGas", skip_serializing_if = "Option::is_none")]
+    pub base_fee_per_gas: Option<U256>,
     /// Extra data
     #[serde(rename = "extraData")]
     pub extra_data: Bytes,

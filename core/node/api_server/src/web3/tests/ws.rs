@@ -311,14 +311,14 @@ impl WsTest for BasicSubscriptionsTest {
             received_block_header.number,
             Some(U64::from(new_l2_block.number.0))
         );
-        assert_eq!(received_block_header.gas_used, U256::zero());
+        assert_matches!(received_block_header.gas_used, U256(_));
         assert_eq!(
             received_block_header.gas_limit,
             new_l2_block.gas_limit.into()
         );
         assert_eq!(
             received_block_header.base_fee_per_gas,
-            new_l2_block.base_fee_per_gas.into()
+            Some(new_l2_block.base_fee_per_gas.into())
         );
         assert_eq!(received_block_header.extra_data, Bytes::default());
         assert_eq!(received_block_header.logs_bloom, H2048::default());

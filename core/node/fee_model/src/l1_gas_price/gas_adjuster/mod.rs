@@ -234,13 +234,15 @@ impl GasAdjuster {
         let mut blob_base_fee_history = Vec::new();
         for block_number in block_range {
             let header = eth_client.block(U64::from(block_number).into()).await?;
+            if let Some(base_fee_per_gas) =
+                header.as_ref().and_then(|header| header.base_fee_per_gas)
+            {
+                base_fee_history.push(base_fee_per_gas.as_u64())
+            }
 
-            if let Some(header) = header.as_ref() {
-                base_fee_history.push(header.base_fee_per_gas.as_u64());
-
-                if let Some(excess_blob_gas) = header.excess_blob_gas {
-                    blob_base_fee_history.push(Self::blob_base_fee(excess_blob_gas.as_u64()));
-                }
+            if let Some(excess_blob_gas) = header.as_ref().and_then(|header| header.excess_blob_gas)
+            {
+                blob_base_fee_history.push(Self::blob_base_fee(excess_blob_gas.as_u64()))
             }
         }
 
