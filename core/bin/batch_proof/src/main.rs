@@ -87,6 +87,8 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("batch[{last_batch}] = got {got_hash}, want {want_hash}");
     tracing::info!("store_root_hash = {}",batch.metadata.root_hash);
-    // Extract path
+    // contracts/system-contracts/contracts/SystemContext.sol
+    // we need deployment address and the offset of the interesting field.
+    // https://forum.soliditylang.org/t/storage-object-json-interface/378/8
     Ok(())
 }
