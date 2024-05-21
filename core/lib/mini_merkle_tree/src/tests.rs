@@ -28,8 +28,6 @@ fn hash_of_empty_tree_with_single_item() {
         println!("checking tree with {len} items");
         let tree = MiniMerkleTree::new(iter::once([0_u8; 88]), Some(len));
         assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
-        // tree.pop(1);
-        // assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
     }
 }
 
@@ -46,8 +44,6 @@ fn hash_of_large_empty_tree_with_multiple_items() {
         let tree = MiniMerkleTree::new(leaves, None);
         let depth = tree_depth_by_size(tree_size);
         assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
-        // tree.pop(len / 2);
-        // assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
     }
 }
 
@@ -226,20 +222,25 @@ fn merkle_proofs_are_valid_in_very_small_trees() {
 fn dynamic_merkle_tree_growth() {
     let mut tree = MiniMerkleTree::new(iter::empty(), None);
     assert_eq!(tree.binary_tree_size, 1);
+    assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(1));
 
     for len in 1..=8_usize {
         tree.push([0; 88]);
         assert_eq!(tree.binary_tree_size, len.next_power_of_two());
+
+        let depth = tree_depth_by_size(tree.binary_tree_size);
+        assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
     }
 
-    // Shouldn't shink after popping
+    // Shouldn't shink after caching
     tree.cache(6);
     assert_eq!(tree.binary_tree_size, 8);
+    assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(3));
 }
 
 #[test]
-fn merkle_tree_popping() {
-    let leaves = (1_u8..=50).map(|byte| [byte; 88]);
+fn caching_leaves() {
+    let leaves = (1..=50).map(|byte| [byte; 88]);
     let mut tree = MiniMerkleTree::new(leaves.clone(), None);
 
     let expected_root_hash: H256 =
@@ -263,10 +264,41 @@ fn merkle_tree_popping() {
         assert_eq!(path, expected_path);
         tree.cache(1);
     }
+
+    let mut tree = MiniMerkleTree::new(leaves, None);
+    for i in 0..10 {
+        let (root_hash, path) = tree.merkle_root_and_path(49 - i * 5);
+        assert_eq!(root_hash, expected_root_hash);
+        assert_eq!(path, expected_path);
+        tree.cache(5);
+    }
+}
+
+#[test]
+#[allow(clippy::cast_possible_truncation)] // truncation is intentional
+fn pushing_new_leaves() {
+    let mut tree = MiniMerkleTree::new(iter::empty(), None);
+
+    let expected_roots = [
+        "0x6f7a80e6ee852bd309ee9153c6157535092aa706f5c6e51ff199a4be012be1fd",
+        "0xda895440272a4c4a0b950753c77fd08db0ce57e21c98b75d154c341cbe5f31ac",
+        "0x74e62d47c142e2a5b0f2c71ea0f8bcca8d767f0edf7ec7b9134371f5bfef7b8a",
+        "0xe44bb0f3915370e8f432de0830c52d5dc7bbf1a46a21cccb462cefaf3f4cce4d",
+        "0x88443c3b1b9206955625b5722c06bca3207d39f6044780af885d5f09f6e615a1",
+    ]
+    .map(|s| s.parse::<H256>().unwrap());
+
+    for (i, expected_root) in expected_roots.iter().enumerate() {
+        let number = i as u8 + 1;
+        tree.push([number; 88]);
+        tree.push([number; 88]);
+        tree.push([number; 88]);
+        assert_eq!(tree.merkle_root(), *expected_root);
+
+        tree.cache(2);
+        assert_eq!(tree.merkle_root(), *expected_root);
+    }
 }
 
 // TODO:
-// - test for `push` and `pop` with different parities of arrays
 // - test for getting & proving intervals
-// - test for extremes (1, 2 nodes, caching everything, etc.)
-// - empty tree

@@ -103,18 +103,15 @@ where
             let depth = tree_depth_by_size(self.binary_tree_size);
             self.hasher.empty_subtree_hash(depth)
         } else {
-            self.compute_merkle_root_and_path((0, 0), None, None)
+            self.compute_merkle_root_and_path(0, None, None)
         }
     }
 
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
     pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
         let (mut left_path, mut right_path) = (vec![], vec![]);
-        let root_hash = self.compute_merkle_root_and_path(
-            (index, index),
-            Some((&mut left_path, &mut right_path)),
-            None,
-        );
+        let root_hash =
+            self.compute_merkle_root_and_path(index, Some((&mut left_path, &mut right_path)), None);
         (root_hash, right_path)
     }
 
@@ -134,12 +131,13 @@ where
     /// Does not affect the root hash, but makes it impossible to get the paths to the cached leaves.
     ///
     /// # Panics
+    ///
     /// Panics if `count` is greater than the number of non-cached leaves in the tree.
     pub fn cache(&mut self, count: usize) {
-        assert!(self.hashes.len() >= count, "not enough leaves to pop");
+        assert!(self.hashes.len() >= count, "not enough leaves to cache");
         let depth = tree_depth_by_size(self.binary_tree_size);
         let mut new_cache = vec![H256::default(); depth];
-        self.compute_merkle_root_and_path((0, count - 1), None, Some(&mut new_cache));
+        self.compute_merkle_root_and_path(count - 1, None, Some(&mut new_cache));
         self.hashes.drain(0..count);
         self.head_index += count;
         self.left_cache = new_cache;
@@ -147,14 +145,11 @@ where
 
     fn compute_merkle_root_and_path(
         &self,
-        (mut left, mut right): (usize, usize),
+        mut right_index: usize,
         mut merkle_paths: Option<(&mut Vec<H256>, &mut Vec<H256>)>,
         mut new_cache: Option<&mut Vec<H256>>,
     ) -> H256 {
-        // TODO: left is always 0
-
-        assert!(left < self.hashes.len(), "invalid tree leaf index");
-        assert!(right < self.hashes.len(), "invalid tree leaf index");
+        assert!(right_index < self.hashes.len(), "invalid tree leaf index");
 
         let depth = tree_depth_by_size(self.binary_tree_size);
         if let Some((left_path, right_path)) = &mut merkle_paths {
@@ -181,40 +176,39 @@ where
             };
 
             if let Some((left_path, right_path)) = &mut merkle_paths {
-                left_path.push(sibling_hash(left));
-                right_path.push(sibling_hash(right));
+                left_path.push(sibling_hash(0));
+                right_path.push(sibling_hash(right_index));
             }
 
-            let shift = head_index % 2;
+            let parity = head_index % 2;
 
             if let Some(new_cache) = new_cache.as_deref_mut() {
-                new_cache[level] = if (shift + right) % 2 == 0 {
-                    hashes[right]
-                } else if right == 0 {
+                new_cache[level] = if (parity + right_index) % 2 == 0 {
+                    hashes[right_index]
+                } else if right_index == 0 {
                     self.left_cache[level]
                 } else {
-                    hashes[right - 1]
+                    hashes[right_index - 1]
                 };
             }
 
-            if shift == 1 {
+            if parity == 1 {
                 hashes[0] = self.hasher.compress(&self.left_cache[level], &hashes[0]);
             }
 
-            for i in shift..((level_len + shift) / 2) {
+            for i in parity..((level_len + parity) / 2) {
                 hashes[i] = self
                     .hasher
-                    .compress(&hashes[2 * i - shift], &hashes[2 * i + 1 - shift]);
+                    .compress(&hashes[2 * i - parity], &hashes[2 * i + 1 - parity]);
             }
 
-            if (level_len + shift) % 2 == 1 {
+            if (level_len + parity) % 2 == 1 {
                 hashes[level_len / 2] = self
                     .hasher
                     .compress(&hashes[level_len - 1], &empty_hash_at_level);
             }
 
-            left = (left + shift) / 2; // TODO: it's always 0 anyway
-            right = (right + shift) / 2;
+            right_index = (right_index + parity) / 2;
             level_len = level_len / 2 + ((head_index % 2) | (level_len % 2));
             head_index /= 2;
         }
