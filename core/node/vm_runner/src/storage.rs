@@ -28,7 +28,7 @@ pub trait StorageLoader: ReadStorageFactory {
     /// to a sealed L1 batch (with state keeper being the source of truth). The order of the
     /// transactions is the same as it was when state keeper executed them.
     ///
-    /// Can return `None` if there are no batches to be processed.
+    /// Can return `None` if the requested batch is not available yet.
     ///
     /// # Errors
     ///
