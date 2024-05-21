@@ -37,21 +37,19 @@ use zksync_config::{
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
-use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface, EthInterface};
+use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
 use zksync_eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_house_keeper::{
-    blocks_state_reporter::L1BatchMetricsReporter, fri_gpu_prover_archiver::FriGpuProverArchiver,
-    fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
-    fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
-    fri_prover_job_retry_manager::FriProverJobRetryManager,
-    fri_prover_jobs_archiver::FriProverJobArchiver,
-    fri_prover_queue_monitor::FriProverStatsReporter,
-    fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
-    fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
+    blocks_state_reporter::L1BatchMetricsReporter,
     periodic_job::PeriodicJob,
-    waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
+    prover::{
+        FriGpuProverArchiver, FriProofCompressorJobRetryManager, FriProofCompressorQueueReporter,
+        FriProverJobRetryManager, FriProverJobsArchiver, FriProverQueueReporter,
+        FriWitnessGeneratorJobRetryManager, FriWitnessGeneratorQueueReporter,
+        WaitingToQueuedFriWitnessJobMover,
+    },
 };
 use zksync_metadata_calculator::{
     api_server::TreeApiHttpClient, MetadataCalculator, MetadataCalculatorConfig,
@@ -75,7 +73,7 @@ use zksync_state_keeper::{
 };
 use zksync_tee_verifier_input_producer::TeeVerifierInputProducer;
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
-use zksync_web3_decl::client::Client;
+use zksync_web3_decl::client::{Client, DynClient, L1};
 
 pub mod temp_config_store;
 
@@ -894,7 +892,7 @@ async fn add_state_keeper_to_task_futures(
 pub async fn start_eth_watch(
     config: EthWatchConfig,
     pool: ConnectionPool<Core>,
-    eth_gateway: Box<dyn EthInterface>,
+    eth_gateway: Box<DynClient<L1>>,
     diamond_proxy_addr: Address,
     state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),
@@ -1131,7 +1129,7 @@ async fn add_house_keeper_to_task_futures(
     let task = waiting_to_queued_fri_witness_job_mover.run(stop_receiver.clone());
     task_futures.push(tokio::spawn(task));
 
-    let fri_witness_generator_stats_reporter = FriWitnessGeneratorStatsReporter::new(
+    let fri_witness_generator_stats_reporter = FriWitnessGeneratorQueueReporter::new(
         prover_connection_pool.clone(),
         house_keeper_config.witness_generator_stats_reporting_interval_ms,
     );
@@ -1142,7 +1140,7 @@ async fn add_house_keeper_to_task_futures(
     if let Some((archiving_interval, archive_after)) =
         house_keeper_config.prover_job_archiver_params()
     {
-        let fri_prover_jobs_archiver = FriProverJobArchiver::new(
+        let fri_prover_jobs_archiver = FriProverJobsArchiver::new(
             prover_connection_pool.clone(),
             archiving_interval,
             archive_after,
@@ -1167,7 +1165,7 @@ async fn add_house_keeper_to_task_futures(
         .prover_group_config
         .clone()
         .context("fri_prover_group_config")?;
-    let fri_prover_stats_reporter = FriProverStatsReporter::new(
+    let fri_prover_stats_reporter = FriProverQueueReporter::new(
         house_keeper_config.prover_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
         connection_pool.clone(),
@@ -1180,7 +1178,7 @@ async fn add_house_keeper_to_task_futures(
         .proof_compressor_config
         .clone()
         .context("fri_proof_compressor_config")?;
-    let fri_proof_compressor_stats_reporter = FriProofCompressorStatsReporter::new(
+    let fri_proof_compressor_stats_reporter = FriProofCompressorQueueReporter::new(
         house_keeper_config.proof_compressor_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
     );

@@ -4,17 +4,18 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 
-use crate::{metrics::SERVER_METRICS, periodic_job::PeriodicJob};
+use crate::{periodic_job::PeriodicJob, prover::metrics::PROVER_FRI_METRICS};
 
+/// `FriProofCompressorJobRetryManager` is a task that periodically queues stuck compressor jobs.
 #[derive(Debug)]
-pub struct FriProverJobRetryManager {
+pub struct FriProofCompressorJobRetryManager {
     pool: ConnectionPool<Prover>,
     max_attempts: u32,
     processing_timeout: Duration,
     retry_interval_ms: u64,
 }
 
-impl FriProverJobRetryManager {
+impl FriProofCompressorJobRetryManager {
     pub fn new(
         max_attempts: u32,
         processing_timeout: Duration,
@@ -30,10 +31,9 @@ impl FriProverJobRetryManager {
     }
 }
 
-/// Invoked periodically to re-queue stuck fri prover jobs.
 #[async_trait]
-impl PeriodicJob for FriProverJobRetryManager {
-    const SERVICE_NAME: &'static str = "FriProverJobRetryManager";
+impl PeriodicJob for FriProofCompressorJobRetryManager {
+    const SERVICE_NAME: &'static str = "FriProofCompressorJobRetryManager";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stuck_jobs = self
@@ -41,15 +41,15 @@ impl PeriodicJob for FriProverJobRetryManager {
             .connection()
             .await
             .unwrap()
-            .fri_prover_jobs_dal()
+            .fri_proof_compressor_dal()
             .requeue_stuck_jobs(self.processing_timeout, self.max_attempts)
             .await;
         let job_len = stuck_jobs.len();
         for stuck_job in stuck_jobs {
-            tracing::info!("re-queuing fri prover job {:?}", stuck_job);
+            tracing::info!("re-queuing fri proof compressor job {:?}", stuck_job);
         }
-        SERVER_METRICS
-            .prover_fri_requeued_jobs
+        PROVER_FRI_METRICS
+            .proof_compressor_requeued_jobs
             .inc_by(job_len as u64);
         Ok(())
     }

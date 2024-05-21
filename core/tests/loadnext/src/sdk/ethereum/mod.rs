@@ -17,7 +17,7 @@ use zksync_types::{
     Address, L1ChainId, L1TxCommonData, H160, H256, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_web3_decl::{
-    client::Client,
+    client::{Client, DynClient, L1},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -102,8 +102,9 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|err| ClientError::NetworkError(err.to_string()))?
             .for_network(l1_chain_id.into())
             .build();
+        let query_client: Box<DynClient<L1>> = Box::new(query_client);
         let eth_client = SigningClient::new(
-            Box::new(query_client).for_component("provider"),
+            query_client.for_component("provider"),
             hyperchain_contract(),
             eth_addr,
             eth_signer,
@@ -129,7 +130,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         &self.eth_client
     }
 
-    pub fn query_client(&self) -> &dyn EthInterface {
+    pub fn query_client(&self) -> &DynClient<L1> {
         self.eth_client.as_ref()
     }
 

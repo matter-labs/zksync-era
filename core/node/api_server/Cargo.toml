@@ -22,7 +22,7 @@ zksync_shared_metrics.workspace = true
 zksync_state.workspace = true
 zksync_system_constants.workspace = true
 zksync_metadata_calculator.workspace = true
-zksync_web3_decl = { workspace = true, features = ["client", "server"] }
+zksync_web3_decl = { workspace = true, features = ["server"] }
 zksync_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_mini_merkle_tree.workspace = true
