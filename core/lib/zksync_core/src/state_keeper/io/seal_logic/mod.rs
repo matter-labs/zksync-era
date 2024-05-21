@@ -170,6 +170,12 @@ impl UpdatesManager {
             .await?;
         progress.observe(None);
 
+        println!(
+            "BATCH {:#?}",
+            finished_batch
+                .final_execution_state
+                .deduplicated_storage_log_queries
+        );
         let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = finished_batch
             .final_execution_state
             .deduplicated_storage_log_queries
@@ -235,11 +241,14 @@ impl UpdatesManager {
         progress.observe(None);
 
         let writes_metrics = self.storage_writes_deduplicator.metrics();
+        println!("DEDUP {:#?}", self.storage_writes_deduplicator);
         // Sanity check metrics.
         anyhow::ensure!(
             deduplicated_writes.len()
                 == writes_metrics.initial_storage_writes + writes_metrics.repeated_storage_writes,
-            "Results of in-flight and common deduplications are mismatched"
+            "Results of in-flight and common deduplications are mismatched {} {}",
+            deduplicated_writes.len(),
+            writes_metrics.initial_storage_writes + writes_metrics.repeated_storage_writes,
         );
 
         self.report_l1_batch_metrics(started_at, &writes_metrics);
@@ -422,11 +431,12 @@ impl L2BlockSealCommand {
                 "event transaction index {tx_index} is outside of the expected range {tx_index_range:?}"
             );
         }
+
         for storage_log in &self.l2_block.storage_logs {
             let tx_index = storage_log.log_query.tx_number_in_block as usize;
             anyhow::ensure!(
                 tx_index_range.contains(&tx_index),
-                "log transaction index {tx_index} is outside of the expected range {tx_index_range:?}"
+                "log transaction index {tx_index} is outside of the expected range {tx_index_range:?} {}", self.l2_block.number,
             );
         }
         Ok(())

@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use vm2::{
-    decode::decode_program, fat_pointer::FatPointer, ExecutionEnd, Program, Settings,
+    decode::decode_program, fat_pointer::FatPointer, ExecutionEnd, HeapId, Program, Settings,
     VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
@@ -34,7 +34,10 @@ use super::{
 };
 use crate::{
     glue::GlueInto,
-    interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason},
+    interface::{
+        BytecodeCompressionError, Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled,
+        VmRevertReason,
+    },
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
         events::merge_events,
@@ -84,6 +87,7 @@ impl<S: ReadStorage> Vm<S> {
         let mut last_tx_result = None;
 
         let result = loop {
+            println!("CURRENT TX {}", self.bootloader_state.current_tx());
             let hook = match self.inner.resume_from(self.suspended_at, &mut self.world) {
                 ExecutionEnd::SuspendedOnHook {
                     hook,
@@ -334,19 +338,24 @@ impl<S: ReadStorage> Vm<S> {
                 .world_diff
                 .get_storage_state()
                 .iter()
-                .map(|(k, v)| (*k, *v))
+                .map(|(k, v)| (*k, v.1))
                 .collect(),
             self.inner.world_diff.events().into(),
         )
     }
 
-    pub(crate) fn push_transaction_inner(&mut self, tx: zksync_types::Transaction, refund: u64) {
+    pub(crate) fn push_transaction_inner(
+        &mut self,
+        tx: zksync_types::Transaction,
+        refund: u64,
+        with_compression: bool,
+    ) {
         let tx: TransactionData = tx.into();
         let overhead = tx.overhead_gas();
 
         self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
 
-        let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) {
+        let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) || !with_compression {
             // L1 transactions do not need compression
             vec![]
         } else {
@@ -355,7 +364,7 @@ impl<S: ReadStorage> Vm<S> {
                     .world_diff
                     .get_storage_state()
                     .get(&(KNOWN_CODES_STORAGE_ADDRESS, h256_to_u256(hash)))
-                    .map(|x| !x.is_zero())
+                    .map(|x| !x.1.is_zero())
                     .unwrap_or_else(|| self.world.storage.borrow_mut().is_bytecode_known(&hash))
             })
         };
@@ -394,7 +403,7 @@ impl<S: ReadStorage> Vm<S> {
                         .get_enumeration_index(&storage_key)
                         .unwrap_or_default(),
                     initial_value: storage.read_value(&storage_key).as_bytes().into(),
-                    final_value: *value,
+                    final_value: value.1,
                 }
             })
             .collect()
@@ -446,10 +455,8 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
 
         // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
         inner.state.heaps[vm2::FIRST_HEAP].resize(get_used_bootloader_memory_bytes(VM_VERSION), 0);
-
         inner.state.current_frame.heap_size = u32::MAX;
         inner.state.current_frame.aux_heap_size = u32::MAX;
-
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
 
         let mut me = Self {
@@ -474,7 +481,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
     }
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
-        self.push_transaction_inner(tx, 0);
+        self.push_transaction_inner(tx, 0, true);
     }
 
     fn inspect(
@@ -483,9 +490,10 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
+        let mut a = 0;
         if let VmExecutionMode::OneTx = execution_mode {
             // Move the pointer to the next transaction
-            self.bootloader_state.move_tx_to_execute_pointer();
+            a = self.bootloader_state.move_tx_to_execute_pointer();
             track_refunds = true;
         }
 
@@ -505,7 +513,8 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
             .collect();
         let pubdata_after = self.inner.world_diff.pubdata.0;
 
-        VmExecutionResultAndLogs {
+        let mut duplicates = HashSet::new();
+        let vm_execution_result_and_logs = VmExecutionResultAndLogs {
             result,
             logs: VmExecutionLogs {
                 storage_logs: self
@@ -514,6 +523,11 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .get_storage_changes_after(&start)
                     .into_iter()
                     .map(|((address, key), change)| {
+                        if duplicates.contains(&(address, key)) {
+                            panic!("duplicate {} {}", address, key);
+                        } else {
+                            duplicates.insert((address, key));
+                        }
                         let is_initial =
                             self.world
                                 .storage
@@ -522,7 +536,11 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                                     AccountTreeId::new(address),
                                     u256_to_h256(key),
                                 ));
-                        storage_log_query_from_change(((address, key), change), is_initial)
+                        storage_log_query_from_change(
+                            change.1 .0,
+                            ((address, key), (change.0.map(|v| v.1), change.1 .1)),
+                            is_initial,
+                        )
                     })
                     .collect(),
                 events,
@@ -547,7 +565,12 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                 circuit_statistic: Default::default(), // TODO
             },
             refunds,
-        }
+        };
+        println!(
+            "EXECUTION {vm_execution_result_and_logs:#?} {}",
+            vm_execution_result_and_logs.logs.storage_logs.len()
+        );
+        vm_execution_result_and_logs
     }
 
     fn inspect_transaction_with_bytecode_compression(
@@ -559,7 +582,19 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         Result<(), crate::interface::BytecodeCompressionError>,
         VmExecutionResultAndLogs,
     ) {
-        todo!()
+        println!("A {}", self.bootloader_state.tx_to_execute);
+        tracing::error!("here");
+        self.push_transaction_inner(tx, 0, with_compression);
+        let result = self.inspect(tracer, VmExecutionMode::OneTx);
+
+        if self.has_unpublished_bytecodes() {
+            (
+                Err(BytecodeCompressionError::BytecodeCompressionFailed),
+                result,
+            )
+        } else {
+            (Ok(()), result)
+        }
     }
 
     fn get_bootloader_memory(&self) -> BootloaderMemory {
@@ -594,7 +629,15 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                 .get_storage_changes()
                 .iter()
                 .map(|(&a, &b)| (a, b))
-                .map(|((address, key), change)| log_query_from_change(((address, key), change)))
+                .map(|((address, key), change)| {
+                    log_query_from_change(
+                        self.bootloader_state
+                            .current_tx()
+                            .try_into()
+                            .expect("should not be executing more than u16::MAX transactions; qed"),
+                        ((address, key), (change.0.map(|v| v.1), change.1 .1)),
+                    )
+                })
                 .collect(),
             used_contract_hashes: vec![],
             system_logs: self
