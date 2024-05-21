@@ -156,14 +156,67 @@ fn verify_merkle_proof(
     assert_eq!(hash, merkle_root);
 }
 
+fn verify_interval_merkle_proof(
+    items: &[[u8; 88]],
+    mut index: usize,
+    left_path: &[H256],
+    right_path: &[H256],
+    merkle_root: H256,
+) {
+    assert_eq!(left_path.len(), right_path.len());
+
+    let hasher = KeccakHasher;
+    let mut hashes: Vec<_> = items.iter().map(|item| hasher.hash_bytes(item)).collect();
+    let mut level_len = hashes.len();
+
+    for (left_item, right_item) in left_path.iter().zip(right_path.iter()) {
+        let parity = index % 2;
+        if parity == 1 {
+            hashes[0] = hasher.compress(left_item, &hashes[0]);
+        }
+
+        for i in parity..((level_len + parity) / 2) {
+            hashes[i] = hasher.compress(&hashes[2 * i - parity], &hashes[2 * i + 1 - parity]);
+        }
+
+        if (level_len + parity) % 2 == 1 {
+            hashes[level_len / 2] = hasher.compress(&hashes[level_len - 1], right_item);
+        }
+
+        level_len = level_len / 2 + (parity | (level_len % 2));
+        index /= 2;
+    }
+
+    assert_eq!(hashes[0], merkle_root);
+}
+
 #[test]
 fn merkle_proofs_are_valid_in_small_tree() {
     let leaves = (1_u8..=50).map(|byte| [byte; 88]);
     let tree = MiniMerkleTree::new(leaves.clone(), None);
 
     for (i, item) in leaves.enumerate() {
-        let (merkle_root, path) = tree.clone().merkle_root_and_path(i);
+        let (merkle_root, path) = tree.merkle_root_and_path(i);
         verify_merkle_proof(&item, i, 50, &path, merkle_root);
+    }
+}
+
+#[test]
+fn merkle_proofs_are_valid_for_intervals() {
+    let mut leaves: Vec<_> = (1_u8..=50).map(|byte| [byte; 88]).collect();
+    let mut tree = MiniMerkleTree::new(leaves.clone().into_iter(), None);
+
+    for i in 1..=50 {
+        let (merkle_root, left_path, right_path) = tree.merkle_root_and_paths_for_interval(i);
+        verify_interval_merkle_proof(&leaves[..i], 0, &left_path, &right_path, merkle_root);
+    }
+
+    tree.cache(25);
+    leaves.drain(..25);
+
+    for i in 1..=25 {
+        let (merkle_root, left_path, right_path) = tree.merkle_root_and_paths_for_interval(i);
+        verify_interval_merkle_proof(&leaves[..i], 25, &left_path, &right_path, merkle_root);
     }
 }
 
@@ -173,7 +226,7 @@ fn merkle_proofs_are_valid_in_larger_tree() {
     let tree = MiniMerkleTree::new(leaves.clone(), Some(512));
 
     for (i, item) in leaves.enumerate() {
-        let (merkle_root, path) = tree.clone().merkle_root_and_path(i);
+        let (merkle_root, path) = tree.merkle_root_and_path(i);
         verify_merkle_proof(&item, i, 512, &path, merkle_root);
     }
 }
@@ -185,14 +238,14 @@ fn merkle_proofs_are_valid_in_very_large_tree() {
 
     let tree = MiniMerkleTree::new(leaves.clone(), None);
     for (i, item) in leaves.clone().enumerate().step_by(61) {
-        let (merkle_root, path) = tree.clone().merkle_root_and_path(i);
+        let (merkle_root, path) = tree.merkle_root_and_path(i);
         verify_merkle_proof(&item, i, 1 << 14, &path, merkle_root);
     }
 
     let tree_with_min_size = MiniMerkleTree::new(leaves.clone(), Some(512));
-    assert_eq!(tree_with_min_size.clone().merkle_root(), tree.merkle_root());
+    assert_eq!(tree_with_min_size.merkle_root(), tree.merkle_root());
     for (i, item) in leaves.enumerate().step_by(61) {
-        let (merkle_root, path) = tree_with_min_size.clone().merkle_root_and_path(i);
+        let (merkle_root, path) = tree_with_min_size.merkle_root_and_path(i);
         verify_merkle_proof(&item, i, 1 << 14, &path, merkle_root);
     }
 }
@@ -205,14 +258,14 @@ fn merkle_proofs_are_valid_in_very_small_trees() {
         let tree = MiniMerkleTree::new(leaves.clone(), None);
         let item_count = usize::from(item_count).next_power_of_two();
         for (i, item) in leaves.clone().enumerate() {
-            let (merkle_root, path) = tree.clone().merkle_root_and_path(i);
+            let (merkle_root, path) = tree.merkle_root_and_path(i);
             verify_merkle_proof(&item, i, item_count, &path, merkle_root);
         }
 
         let tree_with_min_size = MiniMerkleTree::new(leaves.clone(), Some(512));
-        assert_ne!(tree_with_min_size.clone().merkle_root(), tree.merkle_root());
+        assert_ne!(tree_with_min_size.merkle_root(), tree.merkle_root());
         for (i, item) in leaves.enumerate() {
-            let (merkle_root, path) = tree_with_min_size.clone().merkle_root_and_path(i);
+            let (merkle_root, path) = tree_with_min_size.merkle_root_and_path(i);
             verify_merkle_proof(&item, i, 512, &path, merkle_root);
         }
     }
