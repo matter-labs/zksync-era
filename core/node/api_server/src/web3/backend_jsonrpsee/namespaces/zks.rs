@@ -14,7 +14,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
-    namespaces::zks::ZksNamespaceServer,
+    namespaces::ZksNamespaceServer,
     types::Token,
 };
 

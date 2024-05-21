@@ -1,6 +1,6 @@
 [package]
 name = "zksync_external_node"
-version = "24.2.0" # x-release-please-version
+version = "24.3.0" # x-release-please-version
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -27,7 +27,7 @@ zksync_snapshots_applier.workspace = true
 zksync_object_store.workspace = true
 prometheus_exporter.workspace = true
 zksync_health_check.workspace = true
-zksync_web3_decl = { workspace = true, features = ["client"] }
+zksync_web3_decl.workspace = true
 zksync_types.workspace = true
 zksync_block_reverter.workspace = true
 zksync_shared_metrics.workspace = true

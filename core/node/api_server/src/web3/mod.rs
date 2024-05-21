@@ -645,10 +645,10 @@ impl ApiServer {
         let cors = is_http.then(|| {
             CorsLayer::new()
                 // Allow `POST` when accessing the resource
-                .allow_methods([reqwest::Method::POST])
+                .allow_methods([http::Method::POST])
                 // Allow requests from any origin
                 .allow_origin(tower_http::cors::Any)
-                .allow_headers([reqwest::header::CONTENT_TYPE])
+                .allow_headers([http::header::CONTENT_TYPE])
         });
         // Setup metrics for the number of in-flight requests.
         let (in_flight_requests, counter) = InFlightRequestsLayer::pair();
