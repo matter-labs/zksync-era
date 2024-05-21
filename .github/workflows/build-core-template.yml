@@ -36,15 +36,15 @@ jobs:
     runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
-          components:
-            - server-v2
-            - external-node
-            - snapshots-creator
-          platforms:
-            - linux/amd64
-          include:
-            - components: external-node
-              platforms: linux/arm64
+        components:
+          - server-v2
+          - external-node
+          - snapshots-creator
+        platforms:
+          - linux/amd64
+        include:
+          - components: external-node
+            platforms: linux/arm64
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -123,7 +123,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk || true
           ci_run yarn zk build
-          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
 
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'

@@ -39,7 +39,7 @@ RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /
 # copy VK required for proof wrapping
 COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
 
-RUN mkdir keys && cd keys && mkdir setup && cd setup && curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key
+COPY setup_2\^24.key /setup_2\^24.key
 
 COPY --from=builder /usr/src/zksync/prover/target/release/zksync_proof_fri_compressor /usr/bin/
 

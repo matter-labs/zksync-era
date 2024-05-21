@@ -84,8 +84,7 @@ jobs:
       - name: download CRS
         if: matrix.component == 'proof-fri-compressor' || matrix.component == 'proof-gpu-fri-compressor'
         run: |
-          ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
-          ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
 
 
       - name: login to Docker registries
