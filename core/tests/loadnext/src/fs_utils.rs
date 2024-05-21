@@ -33,7 +33,7 @@ pub struct Tokens {
 pub fn read_tokens(_network: Network) -> anyhow::Result<Vec<Token>> {
     let home = std::env::var("ZKSYNC_HOME")?;
     let path = Path::new(&home);
-    let path = path.join(format!("configs/erc20.yaml"));
+    let path = path.join("configs/erc20.yaml".to_string());
 
     let file = File::open(path)?;
     let reader = BufReader::new(file);
