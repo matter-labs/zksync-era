@@ -115,6 +115,21 @@ where
         (root_hash, right_path)
     }
 
+    /// Returns the root hash and the Merkle proof for an interval of leafs.
+    /// The interval is [0, `length`), where `0` is the leftmost uncached leaf.
+    pub fn merkle_root_and_paths_for_interval(
+        &self,
+        length: usize,
+    ) -> (H256, Vec<H256>, Vec<H256>) {
+        let (mut left_path, mut right_path) = (vec![], vec![]);
+        let root_hash = self.compute_merkle_root_and_path(
+            length - 1,
+            Some((&mut left_path, &mut right_path)),
+            None,
+        );
+        (root_hash, left_path, right_path)
+    }
+
     /// Adds a new leaf to the tree (replaces leftmost empty leaf).
     /// If the tree is full, its size is doubled.
     /// Note: empty leaves != zero leaves.
@@ -209,7 +224,7 @@ where
             }
 
             right_index = (right_index + parity) / 2;
-            level_len = level_len / 2 + ((head_index % 2) | (level_len % 2));
+            level_len = level_len / 2 + (parity | (level_len % 2));
             head_index /= 2;
         }
         hashes[0]
