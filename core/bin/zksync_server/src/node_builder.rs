@@ -39,6 +39,7 @@ use zksync_node_framework::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             StateKeeperLayer,
         },
+        tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         web3_api::{
             caches::MempoolCacheLayer,
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
@@ -384,6 +385,14 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_tee_verifier_input_producer_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(TeeVerifierInputProducerLayer::new(
+            self.genesis_config.l2_chain_id,
+        ));
+
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
         self = self
@@ -447,7 +456,7 @@ impl MainNodeBuilder {
                     self = self.add_state_keeper_layer()?;
                 }
                 Component::TeeVerifierInputProducer => {
-                    todo!();
+                    self = self.add_tee_verifier_input_producer_layer()?;
                 }
                 Component::Housekeeper => {
                     self = self.add_house_keeper_layer()?;
