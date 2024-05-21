@@ -168,7 +168,7 @@ describe('ERC20 contract checks', () => {
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
-    // FIXME: restore test 
+    // FIXME: restore test
     test.skip('Should claim failed deposit', async () => {
         if (testMaster.isFastMode()) {
             return;
