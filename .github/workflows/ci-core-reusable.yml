@@ -152,8 +152,8 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run zk
           ci_run ./zk_toolbox/target/release/zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --use-default --verbose
+          ci_run zk
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server

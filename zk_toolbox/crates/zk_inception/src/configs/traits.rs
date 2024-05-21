@@ -34,6 +34,7 @@ pub trait ReadConfig: DeserializeOwned + Clone {
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
 pub trait SaveConfig: Serialize + Sized {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        dbg!(path.as_ref());
         match path.as_ref().extension().and_then(|ext| ext.to_str()) {
             Some("yaml") | Some("yml") => save_yaml_file(shell, path, self),
             Some("toml") => save_toml_file(shell, path, self),
