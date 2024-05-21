@@ -57,12 +57,15 @@ impl CommitmentGenerator {
         }
     }
 
-    fn default_parallelism() -> NonZeroU32 {
+    /// Returns default parallelism for commitment generation based on the number of CPUs available.
+    pub fn default_parallelism() -> NonZeroU32 {
         // Leave at least one core free to handle other blocking tasks. `unwrap()`s are safe by design.
         let cpus = u32::try_from(num_cpus::get().saturating_sub(1).clamp(1, 16)).unwrap();
         NonZeroU32::new(cpus).unwrap()
     }
 
+    /// Sets the degree of parallelism to be used by this generator. A reasonable value can be obtained
+    /// using [`Self::default_parallelism()`].
     pub fn set_max_parallelism(&mut self, parallelism: NonZeroU32) {
         self.parallelism = parallelism;
     }
