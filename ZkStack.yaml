@@ -1,8 +1,8 @@
 name: zksync
 l1_network: Localhost
-link_to_code: .
-hyperchains: ./hyperchains
-config: ./configs/
+link_to_code: /usr/src/zksync
+hyperchains: /usr/src/zksync/hyperchains
+config: /usr/src/zksync/configs/
 default_hyperchain: era
 l1_rpc_url: http://localhost:8545
 era_chain_id: 270

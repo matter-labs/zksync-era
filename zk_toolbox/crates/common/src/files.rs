@@ -13,7 +13,9 @@ pub fn save_yaml_file(
     content: impl Serialize,
 ) -> anyhow::Result<()> {
     let data = serde_yaml::to_string(&content)?;
+    dbg!(file_path.as_ref());
     shell.write_file(file_path, data)?;
+    dbg!("saved");
     Ok(())
 }
 
