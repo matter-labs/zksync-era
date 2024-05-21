@@ -7,6 +7,7 @@ use zksync_config::{
     configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
@@ -20,9 +21,10 @@ use zksync_types::{
     },
     ethabi::Token,
     helpers::unix_timestamp_ms,
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     pubdata_da::PubdataDA,
     web3::contract::Error,
-    Address, L1BatchNumber, L1BlockNumber, ProtocolVersion, ProtocolVersionId, H256,
+    Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -43,10 +45,46 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
     })
 });
 
+fn get_dummy_operation(number: u32) -> AggregatedOperation {
+    AggregatedOperation::Execute(ExecuteBatches {
+        l1_batches: vec![L1BatchWithMetadata {
+            header: create_l1_batch(number),
+            metadata: default_l1_batch_metadata(),
+            raw_published_factory_deps: Vec::new(),
+        }],
+    })
+}
+
 const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
     L1BatchCommitmentMode::Rollup,
     L1BatchCommitmentMode::Validium,
 ];
+
+fn mock_l1_batch_header(number: u32) -> L1BatchHeader {
+    let mut header = L1BatchHeader::new(
+        L1BatchNumber(number),
+        100,
+        BaseSystemContractsHashes {
+            bootloader: H256::repeat_byte(1),
+            default_aa: H256::repeat_byte(42),
+        },
+        ProtocolVersionId::latest(),
+    );
+    header.l1_tx_count = 3;
+    header.l2_tx_count = 5;
+    header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
+        shard_id: 0,
+        is_service: false,
+        tx_number_in_block: 2,
+        sender: Address::repeat_byte(2),
+        key: H256::repeat_byte(3),
+        value: H256::zero(),
+    }));
+    header.l2_to_l1_messages.push(vec![22; 22]);
+    header.l2_to_l1_messages.push(vec![33; 33]);
+
+    header
+}
 
 fn mock_multicall_response() -> Token {
     Token::Array(vec![
@@ -92,7 +130,7 @@ impl EthSenderTester {
             ..eth_sender_config.clone().sender.unwrap()
         };
 
-        let gateway = MockEthereum::default()
+        let gateway = MockEthereum::builder()
             .with_fee_history(
                 std::iter::repeat(0)
                     .take(Self::WAIT_CONFIRMATIONS as usize)
@@ -103,13 +141,14 @@ impl EthSenderTester {
             .with_call_handler(move |call, _| {
                 assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
                 mock_multicall_response()
-            });
+            })
+            .build();
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway = Box::new(gateway);
 
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
-                gateway.clone(),
+                Box::new(gateway.clone().into_client()),
                 GasAdjusterConfig {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
@@ -170,7 +209,14 @@ impl EthSenderTester {
     }
 
     async fn get_block_numbers(&self) -> L1BlockNumbers {
-        let latest = self.gateway.block_number().await.unwrap().as_u32().into();
+        let latest = self
+            .manager
+            .query_client()
+            .block_number()
+            .await
+            .unwrap()
+            .as_u32()
+            .into();
         let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
         L1BlockNumbers {
             finalized,
@@ -220,7 +266,7 @@ async fn confirm_many(
 ) -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut tester = EthSenderTester::new(
-        connection_pool,
+        connection_pool.clone(),
         vec![10; 100],
         false,
         aggregator_operate_4844_mode,
@@ -230,12 +276,31 @@ async fn confirm_many(
 
     let mut hashes = vec![];
 
-    for _ in 0..5 {
+    connection_pool
+        .clone()
+        .connection()
+        .await
+        .unwrap()
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+
+    for number in 0..5 {
+        connection_pool
+            .clone()
+            .connection()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .insert_mock_l1_batch(&mock_l1_batch_header(number + 1))
+            .await
+            .unwrap();
         let tx = tester
             .aggregator
             .save_eth_tx(
                 &mut tester.conn.connection().await.unwrap(),
-                &DUMMY_OPERATION,
+                &get_dummy_operation(number + 1),
                 false,
             )
             .await?;
@@ -245,7 +310,7 @@ async fn confirm_many(
                 &mut tester.conn.connection().await.unwrap(),
                 &tx,
                 0,
-                L1BlockNumber(tester.gateway.block_number().await?.as_u32()),
+                tester.get_block_numbers().await.latest,
             )
             .await?;
         hashes.push(hash);
@@ -302,8 +367,9 @@ async fn confirm_many(
 #[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
 async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut tester = EthSenderTester::new(
-        ConnectionPool::<Core>::test_pool().await,
+        connection_pool.clone(),
         vec![7, 6, 5, 5, 5, 2, 1],
         false,
         false,
@@ -315,12 +381,33 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     tester.gateway.advance_block_number(3);
     tester.gas_adjuster.keep_updated().await?;
 
-    let block = L1BlockNumber(tester.gateway.block_number().await?.as_u32());
+    connection_pool
+        .clone()
+        .connection()
+        .await
+        .unwrap()
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+
+    connection_pool
+        .clone()
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&mock_l1_batch_header(1))
+        .await
+        .unwrap();
+
+    let block = tester.get_block_numbers().await.latest;
+
     let tx = tester
         .aggregator
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
-            &DUMMY_OPERATION,
+            &get_dummy_operation(1),
             false,
         )
         .await?;
@@ -345,7 +432,8 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     );
 
     let sent_tx = tester
-        .gateway
+        .manager
+        .query_client()
         .get_tx(hash)
         .await
         .unwrap()
@@ -393,7 +481,8 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     );
 
     let resent_tx = tester
-        .gateway
+        .manager
+        .query_client()
         .get_tx(resent_hash)
         .await
         .unwrap()
@@ -412,14 +501,35 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
 #[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
 async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut tester = EthSenderTester::new(
-        ConnectionPool::<Core>::test_pool().await,
+        connection_pool.clone(),
         vec![100; 100],
         false,
         false,
         commitment_mode,
     )
     .await;
+
+    connection_pool
+        .clone()
+        .connection()
+        .await
+        .unwrap()
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+
+    connection_pool
+        .clone()
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&mock_l1_batch_header(1))
+        .await
+        .unwrap();
 
     let tx = tester
         .aggregator
@@ -437,7 +547,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
             &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
-            L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
+            tester.get_block_numbers().await.latest,
         )
         .await
         .unwrap();
@@ -491,8 +601,9 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
 #[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
 async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut tester = EthSenderTester::new(
-        ConnectionPool::<Core>::test_pool().await,
+        connection_pool.clone(),
         vec![100; 100],
         false,
         false,
@@ -502,12 +613,31 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
 
     let mut hashes = vec![];
 
-    for _ in 0..3 {
+    connection_pool
+        .clone()
+        .connection()
+        .await
+        .unwrap()
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+
+    for number in 0..3 {
+        connection_pool
+            .clone()
+            .connection()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .insert_mock_l1_batch(&mock_l1_batch_header(number + 1))
+            .await
+            .unwrap();
         let tx = tester
             .aggregator
             .save_eth_tx(
                 &mut tester.conn.connection().await.unwrap(),
-                &DUMMY_OPERATION,
+                &get_dummy_operation(number + 1),
                 false,
             )
             .await
@@ -519,7 +649,7 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
                 &mut tester.conn.connection().await.unwrap(),
                 &tx,
                 0,
-                L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
+                tester.get_block_numbers().await.latest,
             )
             .await
             .unwrap();
@@ -571,14 +701,35 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
 #[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
 async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut tester = EthSenderTester::new(
-        ConnectionPool::<Core>::test_pool().await,
+        connection_pool.clone(),
         vec![100; 100],
         false,
         false,
         commitment_mode,
     )
     .await;
+
+    connection_pool
+        .clone()
+        .connection()
+        .await
+        .unwrap()
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+
+    connection_pool
+        .clone()
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&mock_l1_batch_header(1))
+        .await
+        .unwrap();
 
     let tx = tester
         .aggregator
@@ -596,7 +747,7 @@ async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
             &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
-            L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
+            tester.get_block_numbers().await.latest,
         )
         .await
         .unwrap();
@@ -1076,7 +1227,7 @@ async fn send_operation(
             &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
-            L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
+            tester.get_block_numbers().await.latest,
         )
         .await
         .unwrap();

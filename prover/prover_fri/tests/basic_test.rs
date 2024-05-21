@@ -79,6 +79,8 @@ async fn prover_and_assert_base_layer(
 //     prover_and_assert_base_layer(5176866, 1, L1BatchNumber(128623), 1086).await;
 // }
 
+// TODO(PLA-939): Enable this test when the test data is available.
+#[ignore]
 #[tokio::test]
 async fn test_base_layer_sha256_proof_gen() {
     prover_and_assert_base_layer(1293714, 6, L1BatchNumber(114499), 479)

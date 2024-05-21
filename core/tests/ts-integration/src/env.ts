@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
-import { TestEnvironment } from './types';
+import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
 
@@ -76,7 +76,8 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         ? process.env.CONTRACT_VERIFIER_URL!
         : ensureVariable(process.env.CONTRACT_VERIFIER_URL, 'Contract verification API');
 
-    const tokens = getTokens(process.env.CHAIN_ETH_NETWORK || 'localhost');
+    const pathToHome = path.join(__dirname, '../../../../');
+    const tokens = getTokens(pathToHome, process.env.CHAIN_ETH_NETWORK || 'localhost');
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
     // but if it's not available, we'll use the first token from the list.
@@ -103,8 +104,39 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     ).l2TokenAddress(weth.address);
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
+    const l2ChainId = parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
+    const l1BatchCommitDataGeneratorMode = process.env
+        .CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE! as DataAvailabityMode;
+    let minimalL2GasPrice;
+    if (process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE !== undefined) {
+        minimalL2GasPrice = ethers.BigNumber.from(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);
+    } else {
+        minimalL2GasPrice = ethers.BigNumber.from(0);
+    }
+    let nodeMode;
+    if (process.env.EN_MAIN_NODE_URL !== undefined) {
+        nodeMode = NodeMode.External;
+    } else {
+        nodeMode = NodeMode.Main;
+    }
+
+    const validationComputationalGasLimit = parseInt(
+        process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT!
+    );
+    const priorityTxMaxGasLimit = parseInt(process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!);
+    const maxLogsLimit = parseInt(
+        process.env.EN_REQ_ENTITIES_LIMIT ?? process.env.API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT!
+    );
 
     return {
+        maxLogsLimit,
+        pathToHome,
+        priorityTxMaxGasLimit,
+        validationComputationalGasLimit,
+        nodeMode,
+        minimalL2GasPrice,
+        l1BatchCommitDataGeneratorMode,
+        l2ChainId,
         network,
         mainWalletPK,
         l2NodeUrl,
@@ -152,8 +184,8 @@ type L1Token = {
     address: string;
 };
 
-function getTokens(network: string): L1Token[] {
-    const configPath = `${process.env.ZKSYNC_HOME}/etc/tokens/${network}.json`;
+function getTokens(pathToHome: string, network: string): L1Token[] {
+    const configPath = `${pathToHome}/etc/tokens/${network}.json`;
     if (!fs.existsSync(configPath)) {
         return [];
     }

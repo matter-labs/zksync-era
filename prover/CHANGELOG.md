@@ -1,5 +1,25 @@
 # Changelog
 
+## [14.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.1.1...prover-v14.2.0) (2024-05-17)
+
+
+### Features
+
+* Added support for making EN a (non-leader) consensus validator (BFT-426) ([#1905](https://github.com/matter-labs/zksync-era/issues/1905)) ([9973629](https://github.com/matter-labs/zksync-era/commit/9973629e35cec9af9eac81452631a2526dd336a8))
+* **configs:** Extract secrets to an additional config  ([#1956](https://github.com/matter-labs/zksync-era/issues/1956)) ([bab4d65](https://github.com/matter-labs/zksync-era/commit/bab4d6579828e484453c84df417550bbaf1013b6))
+* **eth-client:** Generalize RPC client ([#1898](https://github.com/matter-labs/zksync-era/issues/1898)) ([a4e099f](https://github.com/matter-labs/zksync-era/commit/a4e099fe961f329ff2d604d657862819732446b4))
+* **Prover CLI:** `delete` cmd ([#1802](https://github.com/matter-labs/zksync-era/issues/1802)) ([6e4a92e](https://github.com/matter-labs/zksync-era/commit/6e4a92eb93aacec8641770e15fc6faf6a78faafa))
+* **Prover CLI:** `requeue` cmd ([#1719](https://github.com/matter-labs/zksync-era/issues/1719)) ([f722df7](https://github.com/matter-labs/zksync-era/commit/f722df7c0ae429f43d047ff79e24bca39f81230c))
+* **Prover CLI:** `status batch --verbose` ([#1899](https://github.com/matter-labs/zksync-era/issues/1899)) ([cf80184](https://github.com/matter-labs/zksync-era/commit/cf80184941a1fc62c3a755b99571d370949d8566))
+* **state-keeper:** Parallel l2 block sealing ([#1801](https://github.com/matter-labs/zksync-era/issues/1801)) ([9b06dd8](https://github.com/matter-labs/zksync-era/commit/9b06dd848e85e20f2e94d2a0e858c3f207da5f47))
+* tee_verifier_input_producer ([#1860](https://github.com/matter-labs/zksync-era/issues/1860)) ([fea7f16](https://github.com/matter-labs/zksync-era/commit/fea7f165cfb96bf673353ef562fb5c06f3e49736))
+
+
+### Bug Fixes
+
+* **Prover CLI:** `status batch` bugs ([#1865](https://github.com/matter-labs/zksync-era/issues/1865)) ([09682f2](https://github.com/matter-labs/zksync-era/commit/09682f2951f5f62fa0942057e96f855d78bf67c8))
+* **prover:** Bump Cargo.lock and update VKs ([#1959](https://github.com/matter-labs/zksync-era/issues/1959)) ([367baad](https://github.com/matter-labs/zksync-era/commit/367baad77466769e7ad5e517cc78836f1e3c23d3))
+
 ## [14.1.1](https://github.com/matter-labs/zksync-era/compare/prover-v14.1.0...prover-v14.1.1) (2024-05-14)
 
 
