@@ -15,7 +15,7 @@ use zksync_types::{AccountTreeId, L1BatchNumber, L2ChainId, StorageKey};
 
 use crate::{
     storage::StorageLoader,
-    tests::{fund, store_l2_blocks, IoMock},
+    tests::{fund, store_l1_batches, IoMock},
     BatchExecuteData, VmRunnerIo, VmRunnerStorage,
 };
 
@@ -128,9 +128,9 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     fund(&connection_pool, &accounts).await;
 
     // Generate 10 batches worth of data and persist it in Postgres
-    let batches = store_l2_blocks(
+    let batches = store_l1_batches(
         &mut connection_pool.connection().await?,
-        1u32..=10u32,
+        1..=10,
         genesis_params.base_system_contracts().hashes(),
         &mut accounts,
     )
@@ -225,9 +225,9 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     assert!(storage.load_batch(L1BatchNumber(1)).await?.is_none());
 
     // Generate one batch and persist it in Postgres
-    store_l2_blocks(
+    store_l1_batches(
         &mut connection_pool.connection().await?,
-        1u32..=1u32,
+        1..=1,
         genesis_params.base_system_contracts().hashes(),
         &mut accounts,
     )
@@ -249,9 +249,9 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     assert!(storage.batch_stays_unloaded(L1BatchNumber(2)).await);
 
     // Generate one more batch and persist it in Postgres
-    store_l2_blocks(
+    store_l1_batches(
         &mut connection_pool.connection().await?,
-        2u32..=2u32,
+        2..=2,
         genesis_params.base_system_contracts().hashes(),
         &mut accounts,
     )
@@ -291,8 +291,8 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
     fund(&connection_pool, &accounts).await;
 
     // Generate 10 batches worth of data and persist it in Postgres
-    let batch_range = 1u32..=10u32;
-    store_l2_blocks(
+    let batch_range = 1..=10;
+    store_l1_batches(
         &mut connection_pool.connection().await?,
         batch_range,
         genesis_params.base_system_contracts().hashes(),

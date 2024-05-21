@@ -196,7 +196,7 @@ pub fn create_l2_transaction(
     L2Tx::try_from(tx).unwrap()
 }
 
-async fn store_l2_blocks(
+async fn store_l1_batches(
     conn: &mut Connection<'_, Core>,
     numbers: ops::RangeInclusive<u32>,
     contract_hashes: BaseSystemContractsHashes,
@@ -332,7 +332,7 @@ async fn store_l2_blocks(
 async fn fund(pool: &ConnectionPool<Core>, accounts: &[Account]) {
     let mut conn = pool.connection().await.unwrap();
 
-    let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
+    let eth_amount = U256::from(10).pow(U256::from(32)); //10^32 wei
 
     for account in accounts {
         let key = storage_key_for_standard_token_balance(

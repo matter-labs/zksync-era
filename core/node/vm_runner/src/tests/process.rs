@@ -9,7 +9,7 @@ use zksync_test_account::Account;
 use zksync_types::L2ChainId;
 
 use crate::{
-    tests::{fund, store_l2_blocks, wait, IoMock, TestOutputFactory},
+    tests::{fund, store_l1_batches, wait, IoMock, TestOutputFactory},
     ConcurrentOutputHandlerFactory, VmRunner, VmRunnerStorage,
 };
 
@@ -21,6 +21,7 @@ use crate::{
 // Instead, we rely on integration tests to verify the correctness of VM runner main process.
 #[tokio::test]
 async fn process_one_batch() -> anyhow::Result<()> {
+    let rocksdb_dir = TempDir::new()?;
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = connection_pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
@@ -32,10 +33,9 @@ async fn process_one_batch() -> anyhow::Result<()> {
     let mut accounts = vec![alice, bob];
     fund(&connection_pool, &accounts).await;
 
-    // Generate 10 batches worth of data and persist it in Postgres
-    let batches = store_l2_blocks(
+    let batches = store_l1_batches(
         &mut conn,
-        1u32..=1u32,
+        1..=1,
         genesis_params.base_system_contracts().hashes(),
         &mut accounts,
     )
@@ -48,7 +48,7 @@ async fn process_one_batch() -> anyhow::Result<()> {
     }));
     let (storage, task) = VmRunnerStorage::new(
         connection_pool.clone(),
-        TempDir::new().unwrap().path().to_str().unwrap().to_owned(),
+        rocksdb_dir.path().to_str().unwrap().to_owned(),
         io.clone(),
         L2ChainId::default(),
     )
