@@ -156,7 +156,7 @@ impl StorageLogsDedupDal<'_, '_> {
             .collect())
     }
 
-    pub async fn max_enumeration_index(&mut self) -> DalResult<Option<u64>> {
+    async fn max_enumeration_index(&mut self) -> DalResult<Option<u64>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -166,6 +166,47 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
         )
         .instrument("max_enumeration_index")
+        .fetch_one(self.storage)
+        .await?
+        .max
+        .map(|max| max as u64))
+    }
+
+    pub async fn max_enumeration_index_in_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<u64>> {
+        let Some(max_l1_batch_number) = sqlx::query!(
+            r#"
+            SELECT
+                MAX(l1_batch_number) AS "max?"
+            FROM
+                initial_writes
+            WHERE
+                l1_batch_number <= $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("max_enumeration_index_in_l1_batch#max_batch")
+        .fetch_one(self.storage)
+        .await?
+        .max
+        else {
+            return Ok(None);
+        };
+
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                MAX(INDEX) AS "max?"
+            FROM
+                initial_writes
+            WHERE
+                l1_batch_number = $1
+            "#,
+            max_l1_batch_number
+        )
+        .instrument("max_enumeration_index#max_index")
         .fetch_one(self.storage)
         .await?
         .max

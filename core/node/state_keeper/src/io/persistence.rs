@@ -281,7 +281,7 @@ impl StateKeeperOutputHandler for TreeWritesPersistence {
 
         let mut next_index = connection
             .storage_logs_dedup_dal()
-            .max_enumeration_index()
+            .max_enumeration_index_in_l1_batch(updates_manager.l1_batch.number - 1)
             .await?
             .unwrap_or(0)
             + 1;
@@ -376,6 +376,7 @@ mod tests {
             create_execution_result, create_transaction, create_updates_manager,
             default_l1_batch_env, default_system_env, Query,
         },
+        OutputHandler,
     };
 
     async fn test_l2_block_and_l1_batch_processing(
@@ -388,7 +389,7 @@ mod tests {
             .unwrap();
         let initial_writes_in_genesis_batch = storage
             .storage_logs_dedup_dal()
-            .max_enumeration_index()
+            .max_enumeration_index_in_l1_batch(L1BatchNumber(0))
             .await
             .unwrap()
             .unwrap();
@@ -400,10 +401,12 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        let (mut persistence, l2_block_sealer) =
+        let (persistence, l2_block_sealer) =
             StateKeeperPersistence::new(pool.clone(), Address::default(), l2_block_sealer_capacity);
+        let mut output_handler = OutputHandler::new(Box::new(persistence))
+            .with_handler(Box::new(TreeWritesPersistence::new(pool.clone())));
         tokio::spawn(l2_block_sealer.run());
-        execute_mock_batch(&mut persistence).await;
+        execute_mock_batch(&mut output_handler).await;
 
         // Check that L2 block #1 and L1 batch #1 are persisted.
         let mut storage = pool.connection().await.unwrap();
@@ -452,7 +455,7 @@ mod tests {
         assert_eq!(actual_index, expected_index);
     }
 
-    async fn execute_mock_batch(persistence: &mut StateKeeperPersistence) -> H256 {
+    async fn execute_mock_batch(output_handler: &mut OutputHandler) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
         let mut updates = UpdatesManager::new(&l1_batch_env, &default_system_env());
 
@@ -472,7 +475,7 @@ mod tests {
             ExecutionMetrics::default(),
             vec![],
         );
-        persistence.handle_l2_block(&updates).await.unwrap();
+        output_handler.handle_l2_block(&updates).await.unwrap();
         updates.push_l2_block(L2BlockParams {
             timestamp: 1,
             virtual_blocks: 1,
@@ -505,7 +508,7 @@ mod tests {
         );
 
         updates.finish_batch(batch_result);
-        persistence
+        output_handler
             .handle_l1_batch(Arc::new(updates))
             .await
             .unwrap();
@@ -543,9 +546,10 @@ mod tests {
         let (mut persistence, l2_block_sealer) =
             StateKeeperPersistence::new(pool.clone(), Address::default(), 1);
         persistence = persistence.with_tx_insertion().without_protective_reads();
+        let mut output_handler = OutputHandler::new(Box::new(persistence));
         tokio::spawn(l2_block_sealer.run());
 
-        let tx_hash = execute_mock_batch(&mut persistence).await;
+        let tx_hash = execute_mock_batch(&mut output_handler).await;
 
         // Check that the transaction is persisted.
         let mut storage = pool.connection().await.unwrap();
