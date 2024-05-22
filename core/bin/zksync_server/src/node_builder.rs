@@ -1,8 +1,5 @@
-//! An incomplete example of how node initialization looks like.
-//! This example defines a `ResourceProvider` that works using the main node env config, and
-//! initializes a single task with a health check server.
-
-#![allow(dead_code)] // TODO Temporary, for less noisy development.
+//! This module provides a "builder" for the main node,
+//! as well as an interface to run the node with the specified components.
 
 use anyhow::Context;
 use prometheus_exporter::PrometheusExporterConfig;
@@ -97,11 +94,10 @@ impl MainNodeBuilder {
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = load_config!(self.configs.postgres_config);
         let secrets = load_config!(self.secrets.database);
-        // No prover layer required.
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
-            .with_prover(true)
+            .with_prover(true) // Used by house keeper.
             .build();
         self.node.add_layer(pools_layer);
         Ok(self)
