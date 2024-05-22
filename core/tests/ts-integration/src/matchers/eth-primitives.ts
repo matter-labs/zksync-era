@@ -5,7 +5,7 @@ import { TestMessage } from './matcher-helpers';
 // For actual doc-comments, see `typings/jest.d.ts` file.
 
 export function toBeAddress(value: string, additionalInfo?: string) {
-    const pass = ethers.utils.isAddress(value);
+    const pass = ethers.isAddress(value);
 
     // Declare messages for normal case and case where matcher was preceded by `.not`.
     let passMessage = new TestMessage()
@@ -29,7 +29,7 @@ export function toBeAddress(value: string, additionalInfo?: string) {
 }
 
 export function toBeHexString(value: string, additionalInfo?: string) {
-    const pass = ethers.utils.isHexString(value);
+    const pass = ethers.isHexString(value);
 
     // Declare messages for normal case and case where matcher was preceded by `.not`.
     let passMessage = new TestMessage()
