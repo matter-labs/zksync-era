@@ -47,6 +47,22 @@ impl Args {
     }
 }
 
+pub async fn get_proofs_impl(
+    &self,
+    address: Address,
+    keys: Vec<H256>,
+    l1_batch_number: L1BatchNumber,
+) -> Result<Option<Proof>, Web3Error> {
+    // [0..12] = 0
+    // [12..32] = addr
+    // [32..64] = key.from_big_endian().to_big_endian()
+    // key = Blake2s256([0..64])
+    //
+    let key = StorageKey::new(AccountTreeId::new(address), key).hashed_key_u256();
+
+    let tree_api = self.state.tree_api.as_deref().unwrap().get_proofs(l1_batch_number, vec![key]).await.unwrap();
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(Registry::default().with(tracing_subscriber::fmt::layer()
@@ -87,8 +103,15 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("batch[{last_batch}] = got {got_hash}, want {want_hash}");
     tracing::info!("store_root_hash = {}",batch.metadata.root_hash);
-    // contracts/system-contracts/contracts/SystemContext.sol
+    // contracts/system-contracts/contracts-preprocessed/SystemContext.sol
     // we need deployment address and the offset of the interesting field.
     // https://forum.soliditylang.org/t/storage-object-json-interface/378/8
+    //
+    // ~/Downloads/solc-linux-amd64-v0.8.20+commit.a1b79de6 SystemContext.sol --storage-layout
+    // {"astId":71,"contract":"SystemContext.sol:SystemContext","label":"l2BlockHash","offset":0,"slot":"11","type":"t_array(t_bytes32)257_storage"}
+    // slot[block_number] = 11 + block_number%257
+    
+
+
     Ok(())
 }
