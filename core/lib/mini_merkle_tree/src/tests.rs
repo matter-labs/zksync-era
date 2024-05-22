@@ -158,7 +158,7 @@ fn verify_merkle_proof(
 
 fn verify_interval_merkle_proof(
     items: &[[u8; 88]],
-    mut index: usize,
+    mut head_index: usize,
     left_path: &[H256],
     right_path: &[H256],
     merkle_root: H256,
@@ -170,7 +170,7 @@ fn verify_interval_merkle_proof(
     let mut level_len = hashes.len();
 
     for (left_item, right_item) in left_path.iter().zip(right_path.iter()) {
-        let parity = index % 2;
+        let parity = head_index % 2;
         let next_level_len = level_len / 2 + (parity | (level_len % 2));
 
         for i in 0..next_level_len {
@@ -188,7 +188,7 @@ fn verify_interval_merkle_proof(
         }
 
         level_len = next_level_len;
-        index /= 2;
+        head_index /= 2;
     }
 
     assert_eq!(hashes[0], merkle_root);
@@ -357,5 +357,13 @@ fn pushing_new_leaves() {
     }
 }
 
-// TODO:
-// - test for getting & proving intervals
+#[test]
+fn cache_all_and_grow() {
+    let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(4), None);
+    tree.cache(4);
+    tree.push([1; 88]);
+    let expected_root = "0xfa4c924185122254742622b10b68df8de89d33f685ee579f37a50c552b0d245d"
+        .parse()
+        .unwrap();
+    assert_eq!(tree.merkle_root(), expected_root);
+}
