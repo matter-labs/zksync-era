@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-contract gasCaller {
+contract GasCaller {
     uint256 _resultGas;
 
     function callAndGetGas(address _to) external returns (uint256){
