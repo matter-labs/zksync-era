@@ -12,6 +12,10 @@ import { deployContract, getEVMArtifact, getEVMContractFactory, getTestContract 
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-web3';
 
+import fs, { PathLike } from 'fs';
+import csv from 'csv-parser';
+import { createObjectCsvWriter } from 'csv-writer';
+
 const contracts = {
     tester: getTestContract('TestEVMCreate'),
     erc20: getTestContract('ERC20'),
@@ -28,7 +32,12 @@ const artifacts = {
     uniswapV2Pair: getEVMArtifact('../contracts/uniswap-v2/UniswapV2Factory.sol', 'UniswapV2Pair.sol'),
     uniswapV2Factory: getEVMArtifact('../contracts/uniswap-v2/UniswapV2Factory.sol', 'UniswapV2Factory.sol'),
     opcodeTest: getEVMArtifact('../evm-contracts/OpcodeTest.sol'),
-    selfDestruct: getEVMArtifact('../evm-contracts/SelfDestruct.sol')
+    selfDestruct: getEVMArtifact('../evm-contracts/SelfDestruct.sol'),
+    gasCaller: getEVMArtifact('../evm-contracts/GasCaller.sol'),
+    counterFallback: getEVMArtifact('../evm-contracts/CounterFallback.sol'),
+    uniswapFallback: getEVMArtifact('../evm-contracts/UniswapFallback.sol'),
+    creatorFallback: getEVMArtifact('../evm-contracts/CreatorFallback.sol'),
+    opcodeTestFallback: getEVMArtifact('../evm-contracts/OpcodeTestFallback.sol')
 };
 
 const initBytecode = '0x69602a60005260206000f3600052600a6016f3';
@@ -57,6 +66,41 @@ describe('EVM equivalence contract', () => {
             zksync.utils.CONTRACT_DEPLOYER,
             alice.provider
         ).connect(alice);
+    });
+
+    describe('Gas consumption', () => {
+        test("Should compare gas against counter fallback contract's call", async () => {
+            const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
+
+            const counterContract = await deploygasCallerContract(alice, artifacts.counterFallback);
+
+            let result = (await gasCallerContract.callStatic.callAndGetGas(counterContract.address)).toString();
+
+            const expected_gas = '3617'; // Gas cost when run with solidity interpreter
+            expect(result).toEqual(expected_gas);
+        });
+
+        test("Should compare gas against creator fallback contract's call", async () => {
+            const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
+
+            const creatorContract = await deploygasCallerContract(alice, artifacts.creatorFallback);
+
+            let result = (await gasCallerContract.callStatic.callAndGetGas(creatorContract.address)).toString();
+
+            const expected_gas = '70601'; // Gas cost when run with solidity interpreter
+            expect(result).toEqual(expected_gas);
+        });
+
+        xtest("Should compare gas against opcode test fallback contract's call", async () => {
+            const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
+
+            const counterContract = await deploygasCallerContract(alice, artifacts.opcodeTestFallback);
+
+            let result = (await gasCallerContract.callStatic.callAndGetGas(counterContract.address)).toString();
+
+            const expected_gas = '34763'; // Gas cost when run with solidity interpreter
+            expect(result).toEqual(expected_gas);
+        });
     });
 
     describe('Contract creation', () => {
@@ -447,6 +491,25 @@ describe('EVM equivalence contract', () => {
             dumpOpcodeLogs(evmLiquidityTransfer.transactionHash, alice.provider);
             dumpOpcodeLogs(evmBurnReceipt.transactionHash, alice.provider);
         });
+
+        test("Should compare gas against uniswap fallback contract's call", async () => {
+            const gasCallerFactory = getEVMContractFactory(alice, artifacts.gasCaller);
+            const gasCallerContract = await gasCallerFactory.deploy();
+            await gasCallerContract.deployTransaction.wait();
+            await alice.provider.getTransactionReceipt(gasCallerContract.deployTransaction.hash);
+
+            const uniswapContract = await deploygasCallerContract(alice, artifacts.uniswapFallback);
+            await (await uniswapContract.setUniswapAddress(evmUniswapPair.address)).wait();
+            await (await uniswapContract.setAliceAddress(alice.address)).wait();
+
+            await (await evmToken1.transfer(evmUniswapPair.address, 10000)).wait();
+            await (await evmToken1.transfer(uniswapContract.address, 10000)).wait();
+
+            let result = (await gasCallerContract.callStatic.callAndGetGas(uniswapContract.address)).toString();
+
+            const expected_gas = '165939'; // Gas cost when run with solidity interpreter
+            expect(result).toEqual(expected_gas);
+        });
     });
 
     // NOTE: Gas cost comparisons should be done on a *fresh* chain that doesn't have e.g. bytecodes already published
@@ -472,6 +535,100 @@ describe('EVM equivalence contract', () => {
         }
     });
 });
+
+type BenchmarkResult = {
+    name: string;
+    used_zkevm_ergs: string;
+    used_evm_gas: string;
+    used_circuits: string;
+};
+
+async function saveBenchmark(name: string, filename: string, result: string) {
+    try {
+        const resultWithName = {
+            name: name,
+            used_zkevm_ergs: result,
+            used_evm_gas: '0',
+            used_circuits: '0'
+        };
+
+        let results: BenchmarkResult[] = [];
+
+        // Read existing CSV file
+        if (fs.existsSync(filename)) {
+            const existingResults: BenchmarkResult[] = await new Promise((resolve, reject) => {
+                const results: BenchmarkResult[] = [];
+                fs.createReadStream(filename)
+                    .pipe(csv())
+                    .on('data', (data) => results.push(data))
+                    .on('end', () => resolve(results))
+                    .on('error', reject);
+            });
+            results = existingResults.map((result) => ({
+                name: result.name,
+                used_zkevm_ergs: result.used_zkevm_ergs,
+                used_evm_gas: result.used_evm_gas,
+                used_circuits: result.used_circuits
+            }));
+        }
+
+        // Push the new result
+        results.push(resultWithName);
+
+        // Write results back to CSV
+        const csvWriter = createObjectCsvWriter({
+            path: filename,
+            header: [
+                { id: 'name', title: 'name' },
+                { id: 'used_zkevm_ergs', title: 'used_zkevm_ergs' },
+                { id: 'used_evm_gas', title: 'used_evm_gas' },
+                { id: 'used_circuits', title: 'used_circuits' }
+            ]
+        });
+        await csvWriter.writeRecords(results);
+
+        console.log('Benchmark saved successfully.');
+    } catch (error) {
+        console.error('Error saving benchmark:', error);
+    }
+}
+function zeroPad(num: number, places: number): string {
+    return String(num).padStart(places, '0');
+}
+
+async function startBenchmark(): Promise<string> {
+    try {
+        const now = new Date();
+        const year = now.getUTCFullYear();
+        const month = zeroPad(now.getUTCMonth() + 1, 2); // Months are zero-based, so add 1
+        const day = zeroPad(now.getUTCDate(), 2);
+        const hour = zeroPad(now.getUTCHours(), 2);
+        const minute = zeroPad(now.getUTCMinutes(), 2);
+        const second = zeroPad(now.getUTCSeconds(), 2);
+        const formattedTime = `${year}-${month}-${day}-${hour}-${minute}-${second}`;
+        const directoryPath = 'benchmarks';
+
+        if (!fs.existsSync(directoryPath)) {
+            // If it doesn't exist, create it
+            fs.mkdirSync(directoryPath);
+        }
+
+        const filename = `benchmarks/benchmark_integration_${formattedTime}.csv`;
+        return filename;
+    } catch (error) {
+        console.error('Error creating benchmark:', error);
+        return '';
+    }
+}
+
+async function deploygasCallerContract(alice: zksync.Wallet, contract: any, ...args: Array<any>) {
+    const counterFactory = getEVMContractFactory(alice, contract);
+    const counterContract = await counterFactory.deploy(...args);
+    await counterContract.deployTransaction.wait();
+    await alice.provider.getTransactionReceipt(counterContract.deployTransaction.hash);
+
+    return counterContract;
+}
 
 async function assertStoredBytecodeHash(
     deployer: zksync.Contract,

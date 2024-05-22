@@ -93,6 +93,7 @@ export function getEVMArtifact(contractPath: string, contractName: string | unde
     const artifact = JSON.parse(solc.compile(JSON.stringify(compilerParams))).contracts['contract'][
         contractName.split('.')[0]
     ];
+
     return artifact;
 }
 
