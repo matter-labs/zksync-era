@@ -60,6 +60,7 @@ impl PruneCondition for NextL1BatchWasExecutedCondition {
     }
 }
 
+// FIXME: non-existing batches satisfy this condition
 #[derive(Debug)]
 pub(super) struct NextL1BatchHasMetadataCondition {
     pub conn: ConnectionPool<Core>,

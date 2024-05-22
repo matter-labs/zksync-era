@@ -4,7 +4,7 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 use zksync_dal::{pruning_dal::PruningInfo, Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -36,7 +36,7 @@ pub struct DbPrunerConfig {
     pub minimum_l1_batch_age: Duration,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct DbPrunerHealth {
     #[serde(skip_serializing_if = "Option::is_none")]
     last_soft_pruned_l1_batch: Option<L1BatchNumber>,
