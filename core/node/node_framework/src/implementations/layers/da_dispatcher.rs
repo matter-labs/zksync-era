@@ -1,4 +1,7 @@
-use zksync_config::configs::da_dispatcher::DADispatcherConfig;
+use zksync_config::{
+    configs::{da_dispatcher::DADispatcherConfig, eth_sender::PubdataSendingMode},
+    EthConfig,
+};
 use zksync_da_layers::DataAvailabilityInterface;
 use zksync_dal::Core;
 use zksync_db_connection::connection_pool::ConnectionPool;
@@ -13,11 +16,15 @@ use crate::{
 #[derive(Debug)]
 pub struct DataAvailabilityDispatcherLayer {
     da_config: DADispatcherConfig,
+    eth_config: EthConfig,
 }
 
 impl DataAvailabilityDispatcherLayer {
-    pub fn new(da_config: DADispatcherConfig) -> Self {
-        Self { da_config }
+    pub fn new(da_config: DADispatcherConfig, eth_config: EthConfig) -> Self {
+        Self {
+            da_config,
+            eth_config,
+        }
     }
 }
 
@@ -31,13 +38,15 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
         let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let master_pool = master_pool_resource.get().await.unwrap();
 
-        let da_client = zksync_da_client::new_da_client(self.da_config.clone()).await;
+        if self.eth_config.sender.unwrap().pubdata_sending_mode == PubdataSendingMode::Custom {
+            let da_client = zksync_da_client::new_da_client(self.da_config.clone()).await;
 
-        context.add_task(Box::new(DataAvailabilityDispatcherTask {
-            main_pool: master_pool,
-            da_config: self.da_config,
-            client: da_client,
-        }));
+            context.add_task(Box::new(DataAvailabilityDispatcherTask {
+                main_pool: master_pool,
+                da_config: self.da_config,
+                client: da_client,
+            }));
+        }
 
         Ok(())
     }
