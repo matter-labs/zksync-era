@@ -13,9 +13,12 @@ import { checkReceipt } from '../src/modifiers/receipt-check';
 import * as zksync from 'zksync-ethers';
 import { BigNumber, Overrides } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
-import { ETH_ADDRESS_IN_CONTRACTS } from 'zksync-ethers/build/src/utils';
-
-const ETH_ADDRESS = zksync.utils.ETH_ADDRESS;
+import {
+    EIP712_TX_TYPE,
+    ETH_ADDRESS,
+    ETH_ADDRESS_IN_CONTRACTS,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT
+} from 'zksync-ethers/build/utils';
 
 describe('ETH token checks', () => {
     let testMaster: TestMaster;
@@ -31,9 +34,9 @@ describe('ETH token checks', () => {
         bob = testMaster.newEmptyAccount();
         // Get the information about base token address directly from the L2.
         baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
-        isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        isETHBasedChain = baseTokenAddress == ETH_ADDRESS_IN_CONTRACTS;
         console.log(`Starting checks for base token: ${baseTokenAddress} isEthBasedChain: ${isETHBasedChain}`);
-        l2EthTokenAddressNonBase = await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
+        l2EthTokenAddressNonBase = await alice.l2TokenAddress(ETH_ADDRESS_IN_CONTRACTS);
     });
 
     test('Can perform a deposit', async () => {
@@ -58,18 +61,16 @@ describe('ETH token checks', () => {
         const l1BaseTokenBalanceBefore = await alice.getBalanceL1(baseTokenAddress);
         const l2BaseTokenBalanceBefore = await alice.getBalance(); // Base token balance on L2
 
-        const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
-        const isBaseToken = isETHBasedChain;
+        const gasPerPubdataByte = REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
 
         const l2GasLimit = await zksync.utils.estimateDefaultBridgeDepositL2Gas(
             alice.providerL1!,
             alice.provider,
-            isETHBasedChain ? ETH_ADDRESS : ETH_ADDRESS_IN_CONTRACTS, // ToDo: fix sdk so if it receives ETH_ADDRESS it should use ETH_ADDRESS_IN_CONTRACTS
+            ETH_ADDRESS,
             amount,
             alice.address,
             alice.address,
-            gasPerPubdataByte,
-            isBaseToken
+            gasPerPubdataByte
         );
         const expectedL2Costs = await alice.getBaseCost({
             gasLimit: l2GasLimit,
@@ -173,13 +174,14 @@ describe('ETH token checks', () => {
             { wallet: bob, change: value }
         ]);
         const correctReceiptType = checkReceipt(
-            (receipt) => receipt.type == zksync.utils.EIP712_TX_TYPE,
+            (receipt) => receipt.type == EIP712_TX_TYPE,
             'Incorrect tx type in receipt'
         );
 
-        await expect(alice.sendTransaction({ type: zksync.utils.EIP712_TX_TYPE, to: bob.address, value })).toBeAccepted(
-            [ethBalanceChange, correctReceiptType]
-        );
+        await expect(alice.sendTransaction({ type: EIP712_TX_TYPE, to: bob.address, value })).toBeAccepted([
+            ethBalanceChange,
+            correctReceiptType
+        ]);
     });
 
     test('Can perform a transfer (EIP1559)', async () => {

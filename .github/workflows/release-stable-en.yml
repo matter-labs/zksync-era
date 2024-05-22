@@ -13,7 +13,9 @@ jobs:
     runs-on: [matterlabs-ci-runner]
     steps:
       - name: Login to Docker registries
-        run: docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: Check if alpha image exists
         run: |
@@ -22,13 +24,29 @@ jobs:
           exitcode=$?
           set -e
           if [[ "$exitcode" -eq "1" ]]; then
-            echo "Image matterlabs/external-node:${{ inputs.tag_name }} doesn't exist"
+            echo "Image matterlabs/external-node:${{ inputs.tag_name }}-alpha doesn't exist"
             exit 1
           fi
 
       - name: Push stable image
         run: |
-          docker pull matterlabs/external-node:${{ inputs.tag_name }}-alpha
-          docker tag matterlabs/external-node:${{ inputs.tag_name }}-alpha \
-            matterlabs/external-node:${{ inputs.tag_name }}
-          docker push matterlabs/external-node:${{ inputs.tag_name }}
+          docker_repositories=("matterlabs/external-node" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/external-node")
+          platforms=("linux/amd64" "linux/arm64")
+          tag_name="${{ inputs.tag_name }}"
+          for repo in "${docker_repositories[@]}"; do
+            platform_tags=""
+            for platform in "${platforms[@]}"; do
+              platform=$(echo $platform | tr '/' '-')
+              alpha_tag="${repo}:${tag_name}-alpha-${platform}"
+              tag="${repo}:${tag_name}-${platform}"
+              docker pull $alpha_tag
+              docker tag $alpha_tag $tag
+              docker push $tag
+               
+              platform_tags+=" --amend $tag"
+            done
+            for manifest in "${repo}:${tag_name}" "${repo}:2.0-${tag_name}"; do
+              docker manifest create ${manifest} ${platform_tags}
+              docker manifest push ${manifest}
+            done
+          done

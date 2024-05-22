@@ -8,6 +8,10 @@ use zksync_types::{
     },
     Address, EIP_4844_TX_TYPE, H256, U256,
 };
+use zksync_web3_decl::{
+    client::{DynClient, L1},
+    error::EnrichedClientError,
+};
 
 use crate::EthInterface;
 
@@ -75,7 +79,7 @@ impl ContractCall<'_> {
         &self.inner.params
     }
 
-    pub async fn call<Res: Detokenize>(&self, client: &dyn EthInterface) -> Result<Res, Error> {
+    pub async fn call<Res: Detokenize>(&self, client: &DynClient<L1>) -> Result<Res, Error> {
         let func = self
             .contract_abi
             .function(&self.inner.name)
@@ -159,13 +163,13 @@ pub enum ContractError {
 pub enum Error {
     /// Problem on the Ethereum client side (e.g. bad RPC call, network issues).
     #[error("Request to ethereum gateway failed: {0}")]
-    EthereumGateway(#[from] jsonrpsee::core::ClientError),
+    EthereumGateway(#[from] EnrichedClientError),
     /// Problem with a contract call.
     #[error("Call to contract failed: {0}")]
     Contract(#[from] ContractError),
     /// Problem with transaction signer.
     #[error("Transaction signing failed: {0}")]
-    Signer(#[from] zksync_eth_signer::error::SignerError),
+    Signer(#[from] zksync_eth_signer::SignerError),
     /// Incorrect fee provided for a transaction.
     #[error("Max fee {0} less than priority fee {1}")]
     WrongFeeProvided(U256, U256),
@@ -319,8 +323,7 @@ mod tests {
     use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
     use zksync_types::{
         eth_sender::{EthTxBlobSidecarV1, SidecarBlobV1},
-        web3::{self},
-        K256PrivateKey, EIP_4844_TX_TYPE, H256, U256, U64,
+        web3, K256PrivateKey, EIP_4844_TX_TYPE, H256, U256, U64,
     };
 
     use super::*;

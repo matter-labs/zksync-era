@@ -128,4 +128,44 @@ impl FriProtocolVersionsDal<'_, '_> {
             ),
         })
     }
+
+    pub async fn get_l1_verifier_config(&mut self) -> Result<L1VerifierConfig, sqlx::Error> {
+        let result = sqlx::query!(
+            r#"
+            SELECT
+                recursion_scheduler_level_vk_hash,
+                recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash
+            FROM
+                prover_fri_protocol_versions
+            ORDER BY
+                id DESC
+            LIMIT 1
+            "#,
+        )
+        .fetch_one(self.storage.conn())
+        .await?;
+
+        let params = VerifierParams {
+            recursion_node_level_vk_hash: H256::from_slice(&result.recursion_node_level_vk_hash),
+            recursion_leaf_level_vk_hash: H256::from_slice(&result.recursion_leaf_level_vk_hash),
+            recursion_circuits_set_vks_hash: H256::from_slice(
+                &result.recursion_circuits_set_vks_hash,
+            ),
+        };
+
+        Ok(L1VerifierConfig {
+            params,
+            recursion_scheduler_level_vk_hash: H256::from_slice(
+                &result.recursion_scheduler_level_vk_hash,
+            ),
+        })
+    }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!("DELETE FROM prover_fri_protocol_versions")
+            .execute(self.storage.conn())
+            .await
+    }
 }

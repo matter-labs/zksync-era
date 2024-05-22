@@ -61,9 +61,13 @@ impl Serialize for Bytes {
     where
         S: Serializer,
     {
-        let mut serialized = "0x".to_owned();
-        serialized.push_str(&hex::encode(&self.0));
-        serializer.serialize_str(serialized.as_ref())
+        if serializer.is_human_readable() {
+            let mut serialized = "0x".to_owned();
+            serialized.push_str(&hex::encode(&self.0));
+            serializer.serialize_str(serialized.as_ref())
+        } else {
+            self.0.serialize(serializer)
+        }
     }
 }
 
@@ -72,7 +76,11 @@ impl<'a> Deserialize<'a> for Bytes {
     where
         D: Deserializer<'a>,
     {
-        deserializer.deserialize_identifier(BytesVisitor)
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_identifier(BytesVisitor)
+        } else {
+            Vec::<u8>::deserialize(deserializer).map(Bytes)
+        }
     }
 }
 
@@ -110,6 +118,20 @@ impl<'a> Visitor<'a> for BytesVisitor {
         E: Error,
     {
         self.visit_str(value.as_ref())
+    }
+
+    fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(Bytes(value.to_vec()))
+    }
+
+    fn visit_byte_buf<E>(self, value: Vec<u8>) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(Bytes(value))
     }
 }
 
@@ -451,6 +473,28 @@ impl Serialize for BlockId {
             }
             BlockId::Number(ref num) => num.serialize(serializer),
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for BlockId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum BlockIdRepresentation {
+            Number(BlockNumber),
+            Hash {
+                #[serde(rename = "blockHash")]
+                block_hash: H256,
+            },
+        }
+
+        Ok(match BlockIdRepresentation::deserialize(deserializer)? {
+            BlockIdRepresentation::Number(number) => Self::Number(number),
+            BlockIdRepresentation::Hash { block_hash } => Self::Hash(block_hash),
+        })
     }
 }
 

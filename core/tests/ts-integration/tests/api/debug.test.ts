@@ -7,7 +7,7 @@ import { Token } from '../../src/types';
 
 import * as zksync from 'zksync-ethers';
 import { ethers } from 'ethers';
-import { BOOTLOADER_FORMAL_ADDRESS } from 'zksync-ethers/build/src/utils';
+import { BOOTLOADER_FORMAL_ADDRESS } from 'zksync-ethers/build/utils';
 import fs from 'fs';
 
 describe('Debug methods', () => {
@@ -27,7 +27,9 @@ describe('Debug methods', () => {
     });
 
     test('Should not fail for infinity recursion', async () => {
-        const bytecodePath = `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin`;
+        const bytecodePath = `${
+            testMaster.environment().pathToHome
+        }/core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin`;
         const bytecode = fs.readFileSync(bytecodePath);
 
         const contractFactory = new zksync.ContractFactory([], bytecode, testMaster.mainAccount());

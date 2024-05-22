@@ -1,12 +1,11 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::collections::VecDeque;
 
 use test_casing::test_casing;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::MockEthereum;
-use zksync_node_test_utils::DeploymentMode;
+use zksync_types::commitment::L1BatchCommitmentMode;
 
-use super::{GasAdjuster, GasStatisticsInner, PubdataPricing};
-use crate::l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing};
+use super::{GasAdjuster, GasStatisticsInner};
 
 /// Check that we compute the median correctly
 #[test]
@@ -30,32 +29,27 @@ fn samples_queue() {
 }
 
 /// Check that we properly fetch base fees as block are mined
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(2, [L1BatchCommitmentMode::Rollup, L1BatchCommitmentMode::Validium])]
 #[tokio::test]
-async fn kept_updated(deployment_mode: DeploymentMode) {
-    let eth_client = Box::new(
-        MockEthereum::default()
-            .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
-            .with_excess_blob_gas_history(vec![
-                393216,
-                393216 * 2,
-                393216,
-                393216 * 2,
-                393216,
-                393216 * 2,
-                393216 * 3,
-                393216 * 4,
-            ]),
-    );
-    eth_client.advance_block_number(5);
-
-    let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
-        DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
-        DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
-    };
+async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
+    let eth_client = MockEthereum::builder()
+        .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
+        .with_excess_blob_gas_history(vec![
+            393216,
+            393216 * 2,
+            393216,
+            393216 * 2,
+            393216,
+            393216 * 2,
+            393216 * 3,
+            393216 * 4,
+        ])
+        .build();
+    // 5 sampled blocks + additional block to account for latest block subtraction
+    eth_client.advance_block_number(6);
 
     let adjuster = GasAdjuster::new(
-        eth_client.clone(),
+        Box::new(eth_client.clone().into_client()),
         GasAdjusterConfig {
             default_priority_fee_per_gas: 5,
             max_base_fee_samples: 5,
@@ -71,7 +65,7 @@ async fn kept_updated(deployment_mode: DeploymentMode) {
             max_blob_base_fee: None,
         },
         PubdataSendingMode::Calldata,
-        pubdata_pricing,
+        commitment_mode,
     )
     .await
     .unwrap();

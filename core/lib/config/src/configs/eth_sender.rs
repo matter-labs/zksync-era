@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_basic_types::{url::SensitiveUrl, H256};
+use zksync_basic_types::H256;
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::EthWatchConfig;
@@ -15,7 +15,6 @@ pub struct EthConfig {
     /// Options related to the `GasAdjuster` submodule.
     pub gas_adjuster: Option<GasAdjusterConfig>,
     pub watcher: Option<EthWatchConfig>,
-    pub web3_url: SensitiveUrl,
 }
 
 impl EthConfig {
@@ -61,7 +60,6 @@ impl EthConfig {
                 confirmations_for_eth_event: None,
                 eth_node_poll_interval: 0,
             }),
-            web3_url: "localhost:8545".parse().unwrap(),
         }
     }
 }

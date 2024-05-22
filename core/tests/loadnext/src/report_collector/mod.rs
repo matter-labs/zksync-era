@@ -4,6 +4,7 @@ use futures::{channel::mpsc::Receiver, StreamExt};
 use operation_results_collector::OperationResultsCollector;
 
 use crate::{
+    metrics::LOADTEST_METRICS,
     report::{ActionType, Report, ReportLabel},
     report_collector::metrics_collector::MetricsCollector,
 };
@@ -40,11 +41,7 @@ impl Collectors {
         let actual_duration = self.start.elapsed();
         self.metrics.report();
         if !self.is_aborted {
-            metrics::gauge!(
-                "loadtest.tps",
-                self.operation_results.nominal_tps(),
-                "label" => prometheus_label,
-            );
+            LOADTEST_METRICS.tps[&prometheus_label].set(self.operation_results.nominal_tps());
         }
         self.operation_results.report(actual_duration);
     }
