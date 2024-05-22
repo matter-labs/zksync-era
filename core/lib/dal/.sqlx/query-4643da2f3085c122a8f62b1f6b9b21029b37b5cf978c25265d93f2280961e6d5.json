@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO data_availability\n            (l1_batch_number, blob_id, created_at, updated_at)\n            VALUES ($1, $2, NOW(), NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4643da2f3085c122a8f62b1f6b9b21029b37b5cf978c25265d93f2280961e6d5"
+}

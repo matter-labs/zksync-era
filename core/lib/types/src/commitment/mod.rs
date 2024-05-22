@@ -9,6 +9,7 @@
 use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::L1BatchNumber;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
@@ -726,4 +727,9 @@ pub struct L1BatchCommitmentArtifacts {
     pub compressed_repeated_writes: Option<Vec<u8>>,
     pub zkporter_is_available: bool,
     pub aux_commitments: Option<AuxCommitments>,
+}
+
+pub struct L1BatchDA {
+    pub pubdata: Vec<u8>,
+    pub l1_batch_number: L1BatchNumber,
 }

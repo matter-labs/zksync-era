@@ -15,8 +15,8 @@ use zksync_config::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
-    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
@@ -275,5 +275,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         object_store_config: ObjectStoreConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        da_dispatcher_config: DADispatcherConfig::from_env().ok(),
     })
 }

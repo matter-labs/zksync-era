@@ -200,6 +200,7 @@ impl GasAdjuster {
             PubdataSendingMode::Calldata => {
                 self.estimate_effective_gas_price() * self.pubdata_pricing.pubdata_byte_gas()
             }
+            PubdataSendingMode::Custom => todo!(),
         }
     }
 

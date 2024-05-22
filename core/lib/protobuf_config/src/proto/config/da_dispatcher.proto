@@ -14,4 +14,7 @@ message DataAvailabilityDispatcher {
     config.object_store.ObjectStore object_store = 1;
     DALayer da_layer = 2;
   }
+  optional uint32 polling_interval = 3;
+  optional uint32 query_rows_limit = 4;
+  optional uint32 max_retries = 5;
 }

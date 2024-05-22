@@ -16,7 +16,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHeader, StorageOracleInfo},
     circuit::CircuitStatistic,
-    commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
+    commitment::{L1BatchCommitmentArtifacts, L1BatchDA, L1BatchWithMetadata},
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
 
@@ -24,6 +24,7 @@ use crate::{
     models::{
         parse_protocol_version,
         storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader},
+        storage_data_availability::StorageDataAvailability,
         storage_oracle_info::DbStorageOracleInfo,
     },
     Core, CoreDal,
@@ -836,20 +837,20 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn save_l1_batch_da_data(
+    pub async fn save_l1_batch_inclusion_data(
         &mut self,
         number: L1BatchNumber,
         da_inclusion_data: Vec<u8>,
     ) -> anyhow::Result<()> {
         let update_result = sqlx::query!(
             r#"
-            UPDATE l1_batches
+            UPDATE data_availability
             SET
-                da_inclusion_data = $1,
+                inclusion_data = $1,
                 updated_at = NOW()
             WHERE
-                number = $2
-                AND da_inclusion_data IS NULL
+                l1_batch_number = $2
+                AND inclusion_data IS NULL
             "#,
             da_inclusion_data.as_slice(),
             i64::from(number.0),
@@ -869,10 +870,10 @@ impl BlocksDal<'_, '_> {
                 SELECT
                     COUNT(*) AS "count!"
                 FROM
-                    l1_batches
+                    data_availability
                 WHERE
-                    number = $1
-                    AND da_inclusion_data = $2
+                    l1_batch_number = $1
+                    AND inclusion_data = $2
                 "#,
                 i64::from(number.0),
                 da_inclusion_data.as_slice(),
@@ -887,6 +888,62 @@ impl BlocksDal<'_, '_> {
             anyhow::ensure!(
                 matched == 1,
                 "DA data verification failed. DA data for L1 batch #{number} does not match the expected value"
+            );
+        }
+        Ok(())
+    }
+
+    pub async fn insert_l1_batch_da(
+        &mut self,
+        number: L1BatchNumber,
+        blob_id: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        let update_result = sqlx::query!(
+            r#"
+            INSERT INTO
+                data_availability (l1_batch_number, blob_id, created_at, updated_at)
+            VALUES
+                ($1, $2, NOW(), NOW())
+            "#,
+            i64::from(number.0),
+            blob_id.as_slice(),
+        )
+        .instrument("insert_l1_batch_da")
+        .with_arg("number", &number)
+        .with_arg("blob_id", &blob_id)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        if update_result.rows_affected() == 0 {
+            tracing::debug!(
+                "L1 batch #{number}: DA blob_id wasn't updated as it's already present"
+            );
+
+            // Batch was already processed. Verify that existing DA blob_id matches
+            let matched: i64 = sqlx::query!(
+                r#"
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    data_availability
+                WHERE
+                    l1_batch_number = $1
+                    AND blob_id = $2
+                "#,
+                i64::from(number.0),
+                blob_id.as_slice(),
+            )
+            .instrument("get_matching_batch_da_blob_id")
+            .with_arg("number", &number)
+            .report_latency()
+            .fetch_one(self.storage)
+            .await?
+            .count;
+
+            anyhow::ensure!(
+                matched == 1,
+                "DA blob_id verification failed. DA blob_id for L1 batch #{number} does not match the expected value"
             );
         }
         Ok(())
@@ -1695,6 +1752,76 @@ impl BlocksDal<'_, '_> {
         self.map_l1_batches(raw_batches)
             .await
             .context("map_l1_batches()")
+    }
+
+    pub async fn get_da_blob_awaiting_inclusion(
+        &mut self,
+    ) -> anyhow::Result<Option<StorageDataAvailability>> {
+        Ok(sqlx::query_as!(
+            StorageDataAvailability,
+            r#"
+            SELECT
+                l1_batch_number,
+                blob_id,
+                inclusion_data,
+                created_at,
+                updated_at
+            FROM
+                data_availability
+            WHERE
+                inclusion_data IS NULL
+                AND blob_id IS NOT NULL
+            ORDER BY
+                l1_batch_number
+            LIMIT
+                1
+            "#,
+        )
+        .instrument("get_da_blob_awaiting_inclusion")
+        .fetch_optional(self.storage)
+        .await?)
+    }
+
+    pub async fn get_ready_for_da_dispatch_l1_batches(
+        &mut self,
+        limit: usize,
+    ) -> anyhow::Result<Vec<L1BatchDA>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                number,
+                pubdata_input
+            FROM
+                l1_batches
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
+            WHERE
+                eth_commit_tx_id IS NULL
+                AND number != 0
+                AND commitment IS NOT NULL
+                AND events_queue_commitment IS NOT NULL
+                AND bootloader_initial_content_commitment IS NOT NULL
+                AND data_availability.blob_id IS NOT NULL
+                AND data_availability.inclusion_data IS NOT NULL
+            ORDER BY
+                number
+            LIMIT
+                $1
+            "#,
+            limit as i64,
+        )
+        .instrument("get_ready_for_da_dispatch_l1_batches")
+        .with_arg("limit", &limit)
+        .fetch_all(self.storage)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| L1BatchDA {
+                pubdata: row.pubdata_input.unwrap(),
+                l1_batch_number: L1BatchNumber(row.number as u32),
+            })
+            .collect())
     }
 
     pub async fn get_l1_batch_state_root(

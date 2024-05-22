@@ -668,13 +668,13 @@ dependencies = [
  "clap 4.4.6",
  "serde_json",
  "tokio",
- "vlog 0.1.0",
+ "vlog",
  "zksync_block_reverter",
- "zksync_config 0.1.0",
+ "zksync_config",
  "zksync_dal",
  "zksync_env_config",
- "zksync_object_store 0.1.0",
- "zksync_types 0.1.0",
+ "zksync_object_store",
+ "zksync_types",
 ]
 
 [[package]]
@@ -2357,16 +2357,16 @@ dependencies = [
  "serde_yaml",
  "tokio",
  "tracing",
- "zksync_config 0.1.0",
- "zksync_contracts 0.1.0",
+ "zksync_config",
+ "zksync_contracts",
  "zksync_core",
  "zksync_dal",
  "zksync_env_config",
  "zksync_node_genesis",
  "zksync_protobuf",
  "zksync_protobuf_config",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -2837,11 +2837,9 @@ dependencies = [
 [[package]]
 name = "hyperchain_da"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da.git?rev=641bda157f1d0cdc3455f3a825ea19914549bb9c#641bda157f1d0cdc3455f3a825ea19914549bb9c"
+source = "git+https://github.com/matter-labs/hyperchain-da.git?rev=69dc63c9c91553a31c4dd48f47c30ca44433dea3#69dc63c9c91553a31c4dd48f47c30ca44433dea3"
 dependencies = [
- "zksync_config 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_object_store 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_types 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
+ "async-trait",
 ]
 
 [[package]]
@@ -3426,14 +3424,14 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vlog 0.1.0",
- "zksync_config 0.1.0",
- "zksync_contracts 0.1.0",
+ "vlog",
+ "zksync_config",
+ "zksync_contracts",
  "zksync_eth_client",
  "zksync_eth_signer",
- "zksync_system_constants 0.1.0",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -3587,12 +3585,12 @@ dependencies = [
  "anyhow",
  "clap 4.4.6",
  "tracing",
- "vlog 0.1.0",
- "zksync_config 0.1.0",
+ "vlog",
+ "zksync_config",
  "zksync_env_config",
  "zksync_merkle_tree",
  "zksync_storage",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -3759,13 +3757,13 @@ dependencies = [
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
  "zk_evm 1.5.0",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_eth_signer",
  "zksync_state",
- "zksync_system_constants 0.1.0",
+ "zksync_system_constants",
  "zksync_test_account",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -4852,7 +4850,7 @@ version = "0.1.0"
 dependencies = [
  "sqlx",
  "strum",
- "zksync_basic_types 0.1.0",
+ "zksync_basic_types",
  "zksync_db_connection",
 ]
 
@@ -6034,12 +6032,12 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vlog 0.1.0",
- "zksync_config 0.1.0",
+ "vlog",
+ "zksync_config",
  "zksync_dal",
  "zksync_env_config",
- "zksync_object_store 0.1.0",
- "zksync_types 0.1.0",
+ "zksync_object_store",
+ "zksync_types",
 ]
 
 [[package]]
@@ -6525,10 +6523,10 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_state",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -7266,10 +7264,10 @@ dependencies = [
  "anyhow",
  "serde_json",
  "tokio",
- "zksync_config 0.1.0",
+ "zksync_config",
  "zksync_dal",
  "zksync_env_config",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -7330,22 +7328,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vlog"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
-dependencies = [
- "chrono",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry-semantic-conventions",
- "sentry",
- "serde_json",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "vm-benchmark"
 version = "0.1.0"
 dependencies = [
@@ -7364,11 +7346,11 @@ dependencies = [
  "multivm",
  "once_cell",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_state",
- "zksync_system_constants 0.1.0",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -7379,11 +7361,11 @@ dependencies = [
  "multivm",
  "tokio",
  "tracing",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_state",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8060,24 +8042,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_basic_types"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
-dependencies = [
- "anyhow",
- "chrono",
- "ethabi",
- "hex",
- "num_enum 0.7.2",
- "serde",
- "serde_json",
- "strum",
- "thiserror",
- "tiny-keccak 2.0.2",
- "url",
-]
-
-[[package]]
 name = "zksync_block_reverter"
 version = "0.1.0"
 dependencies = [
@@ -8088,15 +8052,15 @@ dependencies = [
  "test-casing",
  "tokio",
  "tracing",
- "zksync_config 0.1.0",
- "zksync_contracts 0.1.0",
+ "zksync_config",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
  "zksync_merkle_tree",
- "zksync_object_store 0.1.0",
+ "zksync_object_store",
  "zksync_state",
  "zksync_storage",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8110,7 +8074,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config 0.1.0",
+ "zksync_config",
  "zksync_dal",
 ]
 
@@ -8134,8 +8098,8 @@ dependencies = [
  "zksync_dal",
  "zksync_health_check",
  "zksync_l1_contract_interface",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8164,23 +8128,9 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "url",
- "zksync_basic_types 0.1.0",
+ "zksync_basic_types",
  "zksync_consensus_utils",
- "zksync_crypto_primitives 0.1.0",
-]
-
-[[package]]
-name = "zksync_config"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
-dependencies = [
- "anyhow",
- "rand 0.8.5",
- "serde",
- "url",
- "zksync_basic_types 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_consensus_utils",
- "zksync_crypto_primitives 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
+ "zksync_crypto_primitives",
 ]
 
 [[package]]
@@ -8339,14 +8289,14 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vlog 0.1.0",
- "zksync_config 0.1.0",
- "zksync_contracts 0.1.0",
+ "vlog",
+ "zksync_config",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_env_config",
  "zksync_queued_job_processor",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8359,21 +8309,7 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
- "zksync_utils 0.1.0",
-]
-
-[[package]]
-name = "zksync_contracts"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
-dependencies = [
- "envy",
- "ethabi",
- "hex",
- "once_cell",
- "serde",
- "serde_json",
- "zksync_utils 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8415,12 +8351,12 @@ dependencies = [
  "tower-http",
  "tracing",
  "vise",
- "vlog 0.1.0",
+ "vlog",
  "vm_utils",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",
- "zksync_config 0.1.0",
+ "zksync_config",
  "zksync_consensus_bft",
  "zksync_consensus_crypto",
  "zksync_consensus_executor",
@@ -8428,7 +8364,7 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_consensus_utils",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_eth_client",
@@ -8440,11 +8376,11 @@ dependencies = [
  "zksync_l1_contract_interface",
  "zksync_mempool",
  "zksync_merkle_tree",
- "zksync_mini_merkle_tree 0.1.0",
+ "zksync_mini_merkle_tree",
  "zksync_node_fee_model",
  "zksync_node_genesis",
  "zksync_node_test_utils",
- "zksync_object_store 0.1.0",
+ "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_protobuf",
  "zksync_protobuf_build",
@@ -8453,10 +8389,10 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_state",
  "zksync_storage",
- "zksync_system_constants 0.1.0",
+ "zksync_system_constants",
  "zksync_test_account",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -8471,21 +8407,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "thiserror",
- "zksync_basic_types 0.1.0",
-]
-
-[[package]]
-name = "zksync_crypto"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
-dependencies = [
- "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "hex",
- "once_cell",
- "serde",
- "sha2 0.10.8",
- "thiserror",
- "zksync_basic_types 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
+ "zksync_basic_types",
 ]
 
 [[package]]
@@ -8499,24 +8421,35 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
- "zksync_basic_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_basic_types",
+ "zksync_utils",
 ]
 
 [[package]]
-name = "zksync_crypto_primitives"
+name = "zksync_da_client"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
+dependencies = [
+ "async-trait",
+ "hyperchain_da",
+ "zksync_config",
+ "zksync_object_store",
+ "zksync_types",
+]
+
+[[package]]
+name = "zksync_da_dispatcher"
+version = "0.1.0"
 dependencies = [
  "anyhow",
- "hex",
- "rand 0.8.5",
- "secp256k1",
- "serde",
- "serde_json",
- "thiserror",
- "zksync_basic_types 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_utils 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
+ "chrono",
+ "hyperchain_da",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8541,13 +8474,13 @@ dependencies = [
  "vise",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_db_connection",
  "zksync_protobuf",
  "zksync_protobuf_build",
- "zksync_system_constants 0.1.0",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8564,7 +8497,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_basic_types 0.1.0",
+ "zksync_basic_types",
  "zksync_health_check",
 ]
 
@@ -8575,9 +8508,9 @@ dependencies = [
  "anyhow",
  "envy",
  "serde",
- "zksync_basic_types 0.1.0",
- "zksync_config 0.1.0",
- "zksync_system_constants 0.1.0",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_system_constants",
 ]
 
 [[package]]
@@ -8595,10 +8528,10 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config 0.1.0",
- "zksync_contracts 0.1.0",
+ "zksync_config",
+ "zksync_contracts",
  "zksync_eth_signer",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8615,18 +8548,18 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config 0.1.0",
- "zksync_contracts 0.1.0",
+ "zksync_config",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
  "zksync_l1_contract_interface",
  "zksync_node_fee_model",
  "zksync_node_test_utils",
- "zksync_object_store 0.1.0",
+ "zksync_object_store",
  "zksync_prover_interface",
  "zksync_shared_metrics",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8644,7 +8577,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8657,12 +8590,12 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
  "zksync_shared_metrics",
- "zksync_system_constants 0.1.0",
- "zksync_types 0.1.0",
+ "zksync_system_constants",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8685,14 +8618,14 @@ dependencies = [
  "tracing",
  "url",
  "vise",
- "vlog 0.1.0",
- "zksync_basic_types 0.1.0",
+ "vlog",
+ "zksync_basic_types",
  "zksync_block_reverter",
  "zksync_commitment_generator",
  "zksync_concurrency",
- "zksync_config 0.1.0",
+ "zksync_config",
  "zksync_consensus_roles",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_core",
  "zksync_dal",
  "zksync_db_connection",
@@ -8703,14 +8636,14 @@ dependencies = [
  "zksync_node_db_pruner",
  "zksync_node_fee_model",
  "zksync_node_genesis",
- "zksync_object_store 0.1.0",
+ "zksync_object_store",
  "zksync_protobuf_config",
  "zksync_shared_metrics",
  "zksync_snapshots_applier",
  "zksync_state",
  "zksync_storage",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -8740,10 +8673,10 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config 0.1.0",
+ "zksync_config",
  "zksync_dal",
  "zksync_shared_metrics",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8760,7 +8693,7 @@ dependencies = [
  "sha2 0.10.8",
  "sha3 0.10.8",
  "zksync_prover_interface",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8768,7 +8701,7 @@ name = "zksync_mempool"
 version = "0.1.0"
 dependencies = [
  "tracing",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8793,12 +8726,12 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vise",
- "zksync_crypto 0.1.0",
+ "zksync_crypto",
  "zksync_prover_interface",
  "zksync_storage",
- "zksync_system_constants 0.1.0",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8807,18 +8740,8 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "once_cell",
- "zksync_basic_types 0.1.0",
- "zksync_crypto 0.1.0",
-]
-
-[[package]]
-name = "zksync_mini_merkle_tree"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
-dependencies = [
- "once_cell",
- "zksync_basic_types 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_crypto 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
+ "zksync_basic_types",
+ "zksync_crypto",
 ]
 
 [[package]]
@@ -8840,7 +8763,7 @@ dependencies = [
  "zksync_db_connection",
  "zksync_health_check",
  "zksync_node_test_utils",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8853,12 +8776,12 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config 0.1.0",
+ "zksync_config",
  "zksync_dal",
  "zksync_eth_client",
  "zksync_node_test_utils",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -8877,13 +8800,15 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vlog 0.1.0",
+ "vlog",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",
- "zksync_config 0.1.0",
- "zksync_contracts 0.1.0",
+ "zksync_config",
+ "zksync_contracts",
  "zksync_core",
+ "zksync_da_client",
+ "zksync_da_dispatcher",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_env_config",
@@ -8893,13 +8818,13 @@ dependencies = [
  "zksync_health_check",
  "zksync_house_keeper",
  "zksync_node_fee_model",
- "zksync_object_store 0.1.0",
+ "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
  "zksync_state",
  "zksync_storage",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -8914,14 +8839,14 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config 0.1.0",
- "zksync_contracts 0.1.0",
+ "zksync_config",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
  "zksync_merkle_tree",
- "zksync_system_constants 0.1.0",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8929,13 +8854,13 @@ name = "zksync_node_test_utils"
 version = "0.1.0"
 dependencies = [
  "multivm",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_merkle_tree",
  "zksync_node_genesis",
- "zksync_system_constants 0.1.0",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8955,31 +8880,9 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config 0.1.0",
+ "zksync_config",
  "zksync_protobuf",
- "zksync_types 0.1.0",
-]
-
-[[package]]
-name = "zksync_object_store"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
-dependencies = [
- "anyhow",
- "async-trait",
- "bincode",
- "flate2",
- "google-cloud-auth",
- "google-cloud-storage",
- "http",
- "prost 0.12.1",
- "serde_json",
- "tokio",
- "tracing",
- "vise",
- "zksync_config 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_protobuf",
- "zksync_types 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8990,11 +8893,11 @@ dependencies = [
  "axum",
  "tokio",
  "tracing",
- "zksync_config 0.1.0",
+ "zksync_config",
  "zksync_dal",
- "zksync_object_store 0.1.0",
+ "zksync_object_store",
  "zksync_prover_interface",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -9043,11 +8946,11 @@ dependencies = [
  "rand 0.8.5",
  "serde_json",
  "serde_yaml",
- "zksync_basic_types 0.1.0",
- "zksync_config 0.1.0",
+ "zksync_basic_types",
+ "zksync_config",
  "zksync_protobuf",
  "zksync_protobuf_build",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -9061,8 +8964,8 @@ dependencies = [
  "serde_with",
  "strum",
  "tokio",
- "zksync_object_store 0.1.0",
- "zksync_types 0.1.0",
+ "zksync_object_store",
+ "zksync_types",
 ]
 
 [[package]]
@@ -9074,7 +8977,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_utils 0.1.0",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -9088,9 +8991,9 @@ dependencies = [
  "tikv-jemallocator",
  "tokio",
  "tracing",
- "vlog 0.1.0",
+ "vlog",
  "zksync_concurrency",
- "zksync_config 0.1.0",
+ "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_executor",
  "zksync_consensus_roles",
@@ -9100,8 +9003,8 @@ dependencies = [
  "zksync_node_genesis",
  "zksync_protobuf_config",
  "zksync_storage",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -9110,7 +9013,7 @@ version = "0.1.0"
 dependencies = [
  "vise",
  "zksync_dal",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -9130,9 +9033,9 @@ dependencies = [
  "zksync_dal",
  "zksync_db_connection",
  "zksync_health_check",
- "zksync_object_store 0.1.0",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_object_store",
+ "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -9156,8 +9059,8 @@ dependencies = [
  "zksync_dal",
  "zksync_shared_metrics",
  "zksync_storage",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -9178,18 +9081,8 @@ name = "zksync_system_constants"
 version = "0.1.0"
 dependencies = [
  "once_cell",
- "zksync_basic_types 0.1.0",
- "zksync_utils 0.1.0",
-]
-
-[[package]]
-name = "zksync_system_constants"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
-dependencies = [
- "once_cell",
- "zksync_basic_types 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_utils 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
+ "zksync_basic_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -9198,11 +9091,11 @@ version = "0.1.0"
 dependencies = [
  "ethabi",
  "hex",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_eth_signer",
- "zksync_system_constants 0.1.0",
- "zksync_types 0.1.0",
- "zksync_utils 0.1.0",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -9227,47 +9120,15 @@ dependencies = [
  "strum",
  "thiserror",
  "tokio",
- "zksync_basic_types 0.1.0",
- "zksync_config 0.1.0",
- "zksync_contracts 0.1.0",
- "zksync_crypto_primitives 0.1.0",
- "zksync_mini_merkle_tree 0.1.0",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_crypto_primitives",
+ "zksync_mini_merkle_tree",
  "zksync_protobuf",
  "zksync_protobuf_build",
- "zksync_system_constants 0.1.0",
- "zksync_utils 0.1.0",
-]
-
-[[package]]
-name = "zksync_types"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
-dependencies = [
- "anyhow",
- "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "chrono",
- "derive_more",
- "hex",
- "itertools 0.10.5",
- "num",
- "num_enum 0.7.2",
- "once_cell",
- "prost 0.12.1",
- "rlp",
- "secp256k1",
- "serde",
- "serde_json",
- "strum",
- "thiserror",
- "zksync_basic_types 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_config 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_contracts 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_crypto_primitives 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_mini_merkle_tree 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_protobuf",
- "zksync_protobuf_build",
- "zksync_system_constants 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zksync_utils 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
+ "zksync_system_constants",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -9287,30 +9148,9 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vlog 0.1.0",
+ "vlog",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
- "zksync_basic_types 0.1.0",
-]
-
-[[package]]
-name = "zksync_utils"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f#47e0a16a99cad735be06aec163a4e39f65a91d9f"
-dependencies = [
- "anyhow",
- "bigdecimal",
- "futures 0.3.28",
- "hex",
- "itertools 0.10.5",
- "num",
- "reqwest",
- "serde",
- "thiserror",
- "tokio",
- "tracing",
- "vlog 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
- "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
- "zksync_basic_types 0.1.0 (git+https://github.com/matter-labs/zksync-era.git?rev=47e0a16a99cad735be06aec163a4e39f65a91d9f)",
+ "zksync_basic_types",
 ]
 
 [[package]]
@@ -9327,13 +9167,13 @@ dependencies = [
  "tokio",
  "tracing",
  "vm_utils",
- "zksync_contracts 0.1.0",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_state",
  "zksync_storage",
- "zksync_types 0.1.0",
+ "zksync_types",
 ]
 
 [[package]]
@@ -9355,8 +9195,8 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config 0.1.0",
- "zksync_types 0.1.0",
+ "zksync_config",
+ "zksync_types",
 ]
 
 [[package]]

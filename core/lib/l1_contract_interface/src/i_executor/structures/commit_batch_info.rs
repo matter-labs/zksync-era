@@ -215,6 +215,7 @@ impl<'a> Tokenizable for CommitBatchInfoRollup<'a> {
 
                     tokens.push(Token::Bytes(result));
                 }
+                PubdataDA::Custom => todo!(),
             }
         }
 
@@ -404,6 +405,7 @@ impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
 
                     tokens.push(Token::Bytes(result));
                 }
+                PubdataDA::Custom => todo!(),
             }
         }
 
