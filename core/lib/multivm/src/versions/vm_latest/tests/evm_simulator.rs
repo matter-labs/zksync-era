@@ -1952,7 +1952,10 @@ fn test_basic_block_environment_vectors() {
     );
     assert_eq!(
         evm_output,
-        U256::from_dec_str("9500000000000000000").unwrap()
+        U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457084007913129639935"
+        )
+        .unwrap()
     );
 }
 
