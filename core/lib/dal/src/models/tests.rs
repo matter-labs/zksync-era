@@ -146,8 +146,6 @@ fn storage_tx_to_l1_tx() {
             l1_data.gas_per_pubdata_limit
         );
         assert_eq!(0, l1_data.deadline_block);
-        assert_eq!(l1_data.eth_hash, Default::default());
-        assert_eq!(stx.l1_block_number.unwrap() as u64, l1_data.eth_block);
         assert_eq!(stx.hash.as_slice(), l1_data.canonical_tx_hash.as_bytes());
     } else {
         panic!("Invalid transaction");
@@ -164,7 +162,6 @@ fn storage_tx_to_l1_tx_with_defaults() {
     });
 
     if let ExecuteTransactionCommon::L1(l1_data) = tx_with_defaults.common_data {
-        assert_eq!(0, l1_data.eth_block);
         assert_eq!(H160::default(), l1_data.refund_recipient);
         assert_eq!(U256::zero(), l1_data.max_fee_per_gas);
     } else {
@@ -211,8 +208,6 @@ fn storage_tx_to_protocol_upgrade_tx() {
                 .unwrap(),
             l1_data.gas_per_pubdata_limit
         );
-        assert_eq!(l1_data.eth_hash, Default::default());
-        assert_eq!(stx.l1_block_number.unwrap() as u64, l1_data.eth_block);
         assert_eq!(stx.hash.as_slice(), l1_data.canonical_tx_hash.as_bytes());
     } else {
         panic!("Invalid transaction");
@@ -232,7 +227,6 @@ fn storage_tx_to_protocol_upgrade_tx_with_defaults() {
     if let ExecuteTransactionCommon::ProtocolUpgrade(l1_data) = tx_with_defaults.common_data {
         assert_eq!(U256::default(), l1_data.to_mint);
         assert_eq!(U256::default(), l1_data.max_fee_per_gas);
-        assert_eq!(0, l1_data.eth_block);
     } else {
         panic!("Invalid transaction");
     }

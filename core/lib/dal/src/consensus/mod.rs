@@ -150,11 +150,6 @@ impl ProtoRepr for proto::Transaction {
                                     .map_err(|_| anyhow!("u8::try_from"))
                             })
                             .context("common_data.priority_queue_type")?,
-                        eth_hash: required(&common_data.eth_hash)
-                            .and_then(|x| parse_h256(x))
-                            .context("common_data.eth_hash")?,
-                        eth_block: *required(&common_data.eth_block)
-                            .context("common_data.eth_block")?,
                         canonical_tx_hash: required(&common_data.canonical_tx_hash)
                             .and_then(|x| parse_h256(x))
                             .context("common_data.canonical_tx_hash")?,
@@ -247,11 +242,6 @@ impl ProtoRepr for proto::Transaction {
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
                             .context("common_data.gas_per_pubdata_limit")?,
-                        eth_hash: required(&common_data.eth_hash)
-                            .and_then(|x| parse_h256(x))
-                            .context("common_data.eth_hash")?,
-                        eth_block: *required(&common_data.eth_block)
-                            .context("common_data.eth_block")?,
                         canonical_tx_hash: required(&common_data.canonical_tx_hash)
                             .and_then(|x| parse_h256(x))
                             .context("common_data.canonical_tx_hash")?,
@@ -300,8 +290,6 @@ impl ProtoRepr for proto::Transaction {
                     ),
                     op_processing_type: Some(data.op_processing_type as u32),
                     priority_queue_type: Some(data.priority_queue_type as u32),
-                    eth_hash: Some(data.eth_hash.as_bytes().into()),
-                    eth_block: Some(data.eth_block),
                     canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
                     to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
                     refund_recipient_address: Some(data.refund_recipient.as_bytes().into()),
@@ -345,8 +333,6 @@ impl ProtoRepr for proto::Transaction {
                         gas_per_pubdata_limit: Some(
                             u256_to_h256(data.gas_per_pubdata_limit).as_bytes().into(),
                         ),
-                        eth_hash: Some(data.eth_hash.as_bytes().into()),
-                        eth_block: Some(data.eth_block),
                         canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
                         to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
                         refund_recipient_address: Some(data.refund_recipient.as_bytes().into()),

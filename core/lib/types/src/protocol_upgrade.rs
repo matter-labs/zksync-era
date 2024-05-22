@@ -161,7 +161,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
             .expect("Event block number is missing")
             .as_u64();
 
-        let tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps);
+        let tx = ProtocolUpgradeTx::decode_tx(transaction, factory_deps);
         let bootloader_code_hash = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
         let default_account_code_hash =
             H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
@@ -228,8 +228,8 @@ pub fn decode_set_chain_id_event(
 
     let factory_deps: Vec<Token> = Vec::new();
 
-    let upgrade_tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps)
-        .expect("Upgrade tx is missing");
+    let upgrade_tx =
+        ProtocolUpgradeTx::decode_tx(transaction, factory_deps).expect("Upgrade tx is missing");
     let version_id =
         ProtocolVersionId::try_from(version_id as u16).expect("Version is not supported");
 
@@ -239,8 +239,6 @@ pub fn decode_set_chain_id_event(
 impl ProtocolUpgradeTx {
     pub fn decode_tx(
         mut transaction: Vec<Token>,
-        eth_hash: H256,
-        eth_block: u64,
         factory_deps: Vec<Token>,
     ) -> Option<ProtocolUpgradeTx> {
         let canonical_tx_hash = H256(keccak256(&encode(&[Token::Tuple(transaction.clone())])));
@@ -323,8 +321,6 @@ impl ProtocolUpgradeTx {
             gas_limit,
             max_fee_per_gas,
             gas_per_pubdata_limit,
-            eth_hash,
-            eth_block,
         };
 
         let factory_deps = factory_deps
@@ -505,10 +501,6 @@ pub struct ProtocolUpgradeTxCommonData {
     pub gas_limit: U256,
     /// The maximum number of gas per 1 byte of pubdata.
     pub gas_per_pubdata_limit: U256,
-    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
-    pub eth_hash: H256,
-    /// Block in which Ethereum transaction was included.
-    pub eth_block: u64,
     /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
     pub canonical_tx_hash: H256,
     /// The amount of ETH that should be minted with this transaction

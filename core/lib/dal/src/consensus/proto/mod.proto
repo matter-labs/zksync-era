@@ -38,11 +38,9 @@ message L1TxCommonData {
   optional bytes gas_per_pubdata_limit = 8; // required; U256
   optional uint32 op_processing_type = 9; // required
   optional uint32 priority_queue_type = 10; // required; U256
-  optional bytes eth_hash = 11; // required; H256
-  optional uint64 eth_block = 12; // required
-  optional bytes canonical_tx_hash = 13; // // required; H256
-  optional bytes to_mint = 14; // required; U256
-  optional bytes refund_recipient_address = 15; // required; H160
+  optional bytes canonical_tx_hash = 11; // // required; H256
+  optional bytes to_mint = 12; // required; U256
+  optional bytes refund_recipient_address = 13; // required; H160
 }
 
 message L2TxCommonData {
@@ -64,11 +62,9 @@ message ProtocolUpgradeTxCommonData {
   optional bytes max_fee_per_gas = 3; // required; U256
   optional bytes gas_limit = 4; // required; U256
   optional bytes gas_per_pubdata_limit = 5; // required; U256
-  optional bytes eth_hash = 6; // required; U256
-  optional uint64 eth_block = 7; // required
-  optional bytes canonical_tx_hash = 8; // required; H256
-  optional bytes to_mint = 9; // required; U256
-  optional bytes refund_recipient_address = 10; // required; H160
+  optional bytes canonical_tx_hash = 6; // required; H256
+  optional bytes to_mint = 7; // required; U256
+  optional bytes refund_recipient_address = 8; // required; H160
 }
 
 message Execute {

@@ -96,10 +96,6 @@ pub struct L1TxCommonData {
     pub op_processing_type: OpProcessingType,
     /// Priority operations queue type.
     pub priority_queue_type: PriorityQueueType,
-    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
-    pub eth_hash: H256,
-    /// Block in which Ethereum transaction was included.
-    pub eth_block: u64,
     /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
     pub canonical_tx_hash: H256,
     /// The amount of ETH that should be minted with this transaction
@@ -185,10 +181,6 @@ impl L1Tx {
         self.common_data.serial_id
     }
 
-    pub fn eth_block(&self) -> L1BlockNumber {
-        L1BlockNumber(self.common_data.eth_block as u32)
-    }
-
     pub fn hash(&self) -> H256 {
         self.common_data.hash()
     }
@@ -228,14 +220,6 @@ impl TryFrom<Log> for L1Tx {
             ],
             &event.data.0,
         )?;
-
-        let eth_hash = event
-            .transaction_hash
-            .expect("Event transaction hash is missing");
-        let eth_block = event
-            .block_number
-            .expect("Event block number is missing")
-            .as_u64();
 
         let serial_id = PriorityOpId(
             dec_ev
@@ -335,8 +319,6 @@ impl TryFrom<Log> for L1Tx {
             gas_per_pubdata_limit,
             op_processing_type: OpProcessingType::Common,
             priority_queue_type: PriorityQueueType::Deque,
-            eth_hash,
-            eth_block,
         };
 
         let execute = Execute {

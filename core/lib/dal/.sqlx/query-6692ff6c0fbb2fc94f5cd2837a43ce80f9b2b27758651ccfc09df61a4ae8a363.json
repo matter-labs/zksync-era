@@ -72,6 +72,11 @@
         "ordinal": 13,
         "name": "blob_sidecar",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "chain_id",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -92,6 +97,7 @@
       true,
       true,
       false,
+      true,
       true,
       true
     ]

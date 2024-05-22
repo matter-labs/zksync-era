@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT nonce FROM eth_txs WHERE from_addr IS NULL ORDER BY id DESC LIMIT 1",
+  "query": "SELECT nonce FROM eth_txs WHERE from_addr IS NULL AND chain_id = $1 ORDER BY id DESC LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -10,11 +10,13 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "93725851350146c6ec253a59af598fa893dbc9654d15753e4a538f021af67b60"
+  "hash": "147334f0914b7fce3a6c154d18adb35d5a274ebb274093770ccd5fb44871fde1"
 }

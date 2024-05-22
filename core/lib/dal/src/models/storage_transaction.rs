@@ -138,8 +138,6 @@ impl From<StorageTransaction> for L1TxCommonData {
                 .map(bigdecimal_to_u256)
                 .unwrap_or_else(|| U256::from(1u32)),
             deadline_block: 0,
-            eth_hash: Default::default(),
-            eth_block: tx.l1_block_number.unwrap_or_default() as u64,
             canonical_tx_hash,
         }
     }
@@ -282,8 +280,6 @@ impl From<StorageTransaction> for ProtocolUpgradeTxCommonData {
                 .gas_per_pubdata_limit
                 .map(bigdecimal_to_u256)
                 .expect("gas_per_pubdata_limit field is missing for protocol upgrade tx"),
-            eth_hash: Default::default(),
-            eth_block: tx.l1_block_number.unwrap_or_default() as u64,
             canonical_tx_hash,
         }
     }

@@ -17,8 +17,8 @@ use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx,
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::Call,
-    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId,
-    ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, L1ChainId, L2BlockNumber,
+    PriorityOpId, ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
 
@@ -56,11 +56,7 @@ pub struct TransactionsDal<'c, 'a> {
 }
 
 impl TransactionsDal<'_, '_> {
-    pub async fn insert_transaction_l1(
-        &mut self,
-        tx: &L1Tx,
-        l1_block_number: L1BlockNumber,
-    ) -> DalResult<()> {
+    pub async fn insert_transaction_l1(&mut self, tx: &L1Tx) -> DalResult<()> {
         let contract_address = tx.execute.contract_address.as_bytes();
         let tx_hash = tx.hash();
         let tx_hash_bytes = tx_hash.as_bytes();
@@ -100,7 +96,6 @@ impl TransactionsDal<'_, '_> {
                     full_fee,
                     layer_2_tip_fee,
                     contract_address,
-                    l1_block_number,
                     value,
                     paymaster,
                     paymaster_input,
@@ -131,7 +126,6 @@ impl TransactionsDal<'_, '_> {
                     $15,
                     $16,
                     $17,
-                    $18,
                     NOW(),
                     NOW()
                 )
@@ -147,7 +141,6 @@ impl TransactionsDal<'_, '_> {
             full_fee,
             layer_2_tip_fee,
             contract_address,
-            l1_block_number.0 as i32,
             value,
             empty_address.as_bytes(),
             &[] as &[u8],
@@ -175,7 +168,6 @@ impl TransactionsDal<'_, '_> {
         let gas_per_pubdata_limit = u256_to_big_decimal(tx.common_data.gas_per_pubdata_limit);
         let value = u256_to_big_decimal(tx.execute.value);
         let tx_format = tx.common_data.tx_format() as i32;
-        let l1_block_number = tx.common_data.eth_block as i32;
 
         let to_mint = u256_to_big_decimal(tx.common_data.to_mint);
         let refund_recipient = tx.common_data.refund_recipient.as_bytes().to_vec();
@@ -199,7 +191,6 @@ impl TransactionsDal<'_, '_> {
                     data,
                     upgrade_id,
                     contract_address,
-                    l1_block_number,
                     value,
                     paymaster,
                     paymaster_input,
@@ -228,7 +219,6 @@ impl TransactionsDal<'_, '_> {
                     $13,
                     $14,
                     $15,
-                    $16,
                     NOW(),
                     NOW()
                 )
@@ -242,7 +232,6 @@ impl TransactionsDal<'_, '_> {
             json_data,
             upgrade_id,
             contract_address,
-            l1_block_number,
             value,
             &Address::default().0.to_vec(),
             &vec![],
@@ -1058,7 +1047,6 @@ impl TransactionsDal<'_, '_> {
         let mut l1_full_fee = Vec::with_capacity(l1_txs_len);
         let mut l1_layer_2_tip_fee = Vec::with_capacity(l1_txs_len);
         let mut l1_contract_address = Vec::with_capacity(l1_txs_len);
-        let mut l1_l1_block_number = Vec::with_capacity(l1_txs_len);
         let mut l1_value = Vec::with_capacity(l1_txs_len);
         let mut l1_tx_format = Vec::with_capacity(l1_txs_len);
         let mut l1_tx_mint = Vec::with_capacity(l1_txs_len);
@@ -1100,7 +1088,6 @@ impl TransactionsDal<'_, '_> {
             l1_full_fee.push(u256_to_big_decimal(common_data.full_fee));
             l1_layer_2_tip_fee.push(u256_to_big_decimal(common_data.layer_2_tip_fee));
             l1_contract_address.push(tx.execute.contract_address.as_bytes());
-            l1_l1_block_number.push(common_data.eth_block as i32);
             l1_value.push(u256_to_big_decimal(tx.execute.value));
             l1_tx_format.push(common_data.tx_format() as i32);
             l1_tx_mint.push(u256_to_big_decimal(common_data.to_mint));
@@ -1127,7 +1114,6 @@ impl TransactionsDal<'_, '_> {
                     full_fee,
                     layer_2_tip_fee,
                     contract_address,
-                    l1_block_number,
                     value,
                     paymaster,
                     paymaster_input,
@@ -1156,14 +1142,13 @@ impl TransactionsDal<'_, '_> {
                 data_table.full_fee,
                 data_table.layer_2_tip_fee,
                 data_table.contract_address,
-                data_table.l1_block_number,
                 data_table.value,
                 '\x0000000000000000000000000000000000000000'::bytea,
                 '\x'::bytea,
                 data_table.tx_format,
                 data_table.l1_tx_mint,
                 data_table.l1_tx_refund_recipient,
-                $21,
+                $20,
                 data_table.index_in_block,
                 NULLIF(data_table.error, ''),
                 data_table.execution_info,
@@ -1185,16 +1170,15 @@ impl TransactionsDal<'_, '_> {
                         UNNEST($8::NUMERIC[]) AS full_fee,
                         UNNEST($9::NUMERIC[]) AS layer_2_tip_fee,
                         UNNEST($10::BYTEA[]) AS contract_address,
-                        UNNEST($11::INT[]) AS l1_block_number,
-                        UNNEST($12::NUMERIC[]) AS value,
-                        UNNEST($13::INTEGER[]) AS tx_format,
-                        UNNEST($14::NUMERIC[]) AS l1_tx_mint,
-                        UNNEST($15::BYTEA[]) AS l1_tx_refund_recipient,
-                        UNNEST($16::INT[]) AS index_in_block,
-                        UNNEST($17::VARCHAR[]) AS error,
-                        UNNEST($18::JSONB[]) AS execution_info,
-                        UNNEST($19::BIGINT[]) AS refunded_gas,
-                        UNNEST($20::NUMERIC[]) AS effective_gas_price
+                        UNNEST($11::NUMERIC[]) AS value,
+                        UNNEST($12::INTEGER[]) AS tx_format,
+                        UNNEST($13::NUMERIC[]) AS l1_tx_mint,
+                        UNNEST($14::BYTEA[]) AS l1_tx_refund_recipient,
+                        UNNEST($15::INT[]) AS index_in_block,
+                        UNNEST($16::VARCHAR[]) AS error,
+                        UNNEST($17::JSONB[]) AS execution_info,
+                        UNNEST($18::BIGINT[]) AS refunded_gas,
+                        UNNEST($19::NUMERIC[]) AS effective_gas_price
                 ) AS data_table
             "#,
             &l1_hashes as &[&[u8]],
@@ -1207,7 +1191,6 @@ impl TransactionsDal<'_, '_> {
             &l1_full_fee,
             &l1_layer_2_tip_fee,
             &l1_contract_address as &[&[u8]],
-            &l1_l1_block_number,
             &l1_value,
             &l1_tx_format,
             &l1_tx_mint,
@@ -1347,7 +1330,6 @@ impl TransactionsDal<'_, '_> {
         let mut upgrade_data = Vec::with_capacity(upgrade_txs_len);
         let mut upgrade_upgrade_id = Vec::with_capacity(upgrade_txs_len);
         let mut upgrade_contract_address = Vec::with_capacity(upgrade_txs_len);
-        let mut upgrade_l1_block_number = Vec::with_capacity(upgrade_txs_len);
         let mut upgrade_value = Vec::with_capacity(upgrade_txs_len);
         let mut upgrade_tx_format = Vec::with_capacity(upgrade_txs_len);
         let mut upgrade_tx_mint = Vec::with_capacity(upgrade_txs_len);
@@ -1389,7 +1371,6 @@ impl TransactionsDal<'_, '_> {
             );
             upgrade_upgrade_id.push(common_data.upgrade_id as i32);
             upgrade_contract_address.push(tx.execute.contract_address.as_bytes());
-            upgrade_l1_block_number.push(common_data.eth_block as i32);
             upgrade_value.push(u256_to_big_decimal(tx.execute.value));
             upgrade_tx_format.push(common_data.tx_format() as i32);
             upgrade_tx_mint.push(u256_to_big_decimal(common_data.to_mint));
@@ -1414,7 +1395,6 @@ impl TransactionsDal<'_, '_> {
                     data,
                     upgrade_id,
                     contract_address,
-                    l1_block_number,
                     value,
                     paymaster,
                     paymaster_input,
@@ -1441,14 +1421,13 @@ impl TransactionsDal<'_, '_> {
                 data_table.data,
                 data_table.upgrade_id,
                 data_table.contract_address,
-                data_table.l1_block_number,
                 data_table.value,
                 '\x0000000000000000000000000000000000000000'::bytea,
                 '\x'::bytea,
                 data_table.tx_format,
                 data_table.l1_tx_mint,
                 data_table.l1_tx_refund_recipient,
-                $19,
+                $18,
                 data_table.index_in_block,
                 NULLIF(data_table.error, ''),
                 data_table.execution_info,
@@ -1468,16 +1447,15 @@ impl TransactionsDal<'_, '_> {
                         UNNEST($6::JSONB[]) AS data,
                         UNNEST($7::INT[]) AS upgrade_id,
                         UNNEST($8::BYTEA[]) AS contract_address,
-                        UNNEST($9::INT[]) AS l1_block_number,
-                        UNNEST($10::NUMERIC[]) AS value,
-                        UNNEST($11::INTEGER[]) AS tx_format,
-                        UNNEST($12::NUMERIC[]) AS l1_tx_mint,
-                        UNNEST($13::BYTEA[]) AS l1_tx_refund_recipient,
-                        UNNEST($14::INT[]) AS index_in_block,
-                        UNNEST($15::VARCHAR[]) AS error,
-                        UNNEST($16::JSONB[]) AS execution_info,
-                        UNNEST($17::BIGINT[]) AS refunded_gas,
-                        UNNEST($18::NUMERIC[]) AS effective_gas_price
+                        UNNEST($9::NUMERIC[]) AS value,
+                        UNNEST($10::INTEGER[]) AS tx_format,
+                        UNNEST($11::NUMERIC[]) AS l1_tx_mint,
+                        UNNEST($12::BYTEA[]) AS l1_tx_refund_recipient,
+                        UNNEST($13::INT[]) AS index_in_block,
+                        UNNEST($14::VARCHAR[]) AS error,
+                        UNNEST($15::JSONB[]) AS execution_info,
+                        UNNEST($16::BIGINT[]) AS refunded_gas,
+                        UNNEST($17::NUMERIC[]) AS effective_gas_price
                 ) AS data_table
             "#,
             &upgrade_hashes as &[&[u8]],
@@ -1488,7 +1466,6 @@ impl TransactionsDal<'_, '_> {
             &upgrade_data,
             &upgrade_upgrade_id,
             &upgrade_contract_address as &[&[u8]],
-            &upgrade_l1_block_number,
             &upgrade_value,
             &upgrade_tx_format,
             &upgrade_tx_mint,
@@ -1811,28 +1788,32 @@ impl TransactionsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_last_processed_l1_block(&mut self) -> DalResult<Option<L1BlockNumber>> {
+    pub async fn get_last_processed_l1_block(
+        &mut self,
+        chain_id: L1ChainId,
+    ) -> DalResult<L1BlockNumber> {
+        // FIXME: use the full DAL
+        return Ok(L1BlockNumber(0));
+
         let maybe_row = sqlx::query!(
             r#"
             SELECT
-                l1_block_number
+                last_seen_block_number
             FROM
-                transactions
+                eth_watcher_state
             WHERE
-                priority_op_id IS NOT NULL
-            ORDER BY
-                priority_op_id DESC
-            LIMIT
-                1
-            "#
+                chain_id = $1
+            "#,
+            chain_id.0 as i64
         )
         .instrument("get_last_processed_l1_block")
         .fetch_optional(self.storage)
         .await?;
 
         Ok(maybe_row
-            .and_then(|row| row.l1_block_number)
-            .map(|number| L1BlockNumber(number as u32)))
+            .and_then(|row| row.last_seen_block_number)
+            .map(|last_seen_block_number| L1BlockNumber(last_seen_block_number as u32))
+            .unwrap_or_default())
     }
 
     pub async fn last_priority_id(&mut self) -> DalResult<Option<PriorityOpId>> {

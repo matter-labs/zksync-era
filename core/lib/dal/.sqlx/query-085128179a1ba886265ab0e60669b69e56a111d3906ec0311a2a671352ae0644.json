@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT nonce FROM eth_txs WHERE from_addr = $1::bytea ORDER BY id DESC LIMIT 1",
+  "query": "SELECT nonce FROM eth_txs WHERE from_addr = $1::bytea AND (chain_id = $2 OR chain_id is NULL) ORDER BY id DESC LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -11,12 +11,13 @@
     ],
     "parameters": {
       "Left": [
-        "Bytea"
+        "Bytea",
+        "Int8"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "254d17b5402c123cca0edd6fcdc98012b034605dfb4c48379844085b71e9e381"
+  "hash": "085128179a1ba886265ab0e60669b69e56a111d3906ec0311a2a671352ae0644"
 }

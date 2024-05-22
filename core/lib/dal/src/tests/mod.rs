@@ -89,10 +89,8 @@ pub(crate) fn mock_l1_execute() -> L1Tx {
         gas_per_pubdata_limit: 100.into(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,
-        eth_hash: H256::random(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),
-        eth_block: 1,
     };
 
     let execute = Execute {
@@ -118,10 +116,8 @@ pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
         gas_limit: U256::from(100_100),
         max_fee_per_gas: U256::from(1u32),
         gas_per_pubdata_limit: 100.into(),
-        eth_hash: H256::random(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),
-        eth_block: 1,
     };
 
     let execute = Execute {
@@ -266,10 +262,7 @@ async fn remove_stuck_txs() {
     // Stuck L1 tx. We should never ever remove L1 tx
     let mut tx = mock_l1_execute();
     tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
-    transactions_dal
-        .insert_transaction_l1(&tx, L1BlockNumber(1))
-        .await
-        .unwrap();
+    transactions_dal.insert_transaction_l1(&tx).await.unwrap();
 
     // Old executed tx
     let mut executed_tx = mock_l2_transaction();

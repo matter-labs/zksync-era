@@ -206,7 +206,7 @@ impl EthSenderDal<'_, '_> {
                     chain_id
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7)
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8)
             RETURNING
                 *
             "#,

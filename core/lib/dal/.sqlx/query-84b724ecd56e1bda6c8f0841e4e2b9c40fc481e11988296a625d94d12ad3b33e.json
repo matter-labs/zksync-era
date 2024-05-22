@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT nonce FROM eth_txs WHERE from_addr IS NULL AND (chain_id = $1 OR chain_id is NULL) ORDER BY id DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "nonce",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "84b724ecd56e1bda6c8f0841e4e2b9c40fc481e11988296a625d94d12ad3b33e"
+}
