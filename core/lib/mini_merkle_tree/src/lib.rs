@@ -90,7 +90,7 @@ where
             hashes,
             binary_tree_size,
             head_index: 0,
-            left_cache: vec![H256::default(); depth],
+            left_cache: vec![H256::default(); depth + 1],
         }
     }
 
@@ -150,10 +150,11 @@ where
     pub fn cache(&mut self, count: usize) {
         assert!(self.hashes.len() >= count, "not enough leaves to cache");
         let depth = tree_depth_by_size(self.binary_tree_size);
-        let mut new_cache = vec![H256::default(); depth];
+        let mut new_cache = vec![H256::default(); depth + 1];
         self.compute_merkle_root_and_path(count - 1, None, Some(&mut new_cache));
         self.hashes.drain(0..count);
         self.head_index += count;
+        debug_assert!(self.left_cache.len() == new_cache.len());
         self.left_cache = new_cache;
     }
 
@@ -225,6 +226,13 @@ where
             level_len = next_level_len;
             head_index /= 2;
         }
+
+        if let Some(new_cache) = new_cache {
+            // It is important to cache the root as well, in case
+            // we just cached all elements and will grow on the next push.
+            new_cache[depth] = hashes[0];
+        }
+
         hashes[0]
     }
 }
