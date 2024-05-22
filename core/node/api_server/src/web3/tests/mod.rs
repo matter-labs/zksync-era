@@ -7,11 +7,6 @@ use std::{
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use jsonrpsee::{
-    core::{client::ClientT, params::BatchRequestBuilder, ClientError},
-    rpc_params,
-    types::{error::OVERSIZED_RESPONSE_CODE, ErrorObjectOwned},
-};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
 use zksync_config::{
@@ -47,7 +42,15 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
-    jsonrpsee::{http_client::HttpClient, types::error::ErrorCode},
+    jsonrpsee::{
+        core::{client::ClientT, params::BatchRequestBuilder, ClientError},
+        http_client::HttpClient,
+        rpc_params,
+        types::{
+            error::{ErrorCode, OVERSIZED_RESPONSE_CODE},
+            ErrorObjectOwned,
+        },
+    },
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -984,13 +987,9 @@ impl HttpTest for RpcCallsTracingTest {
         assert_eq!(calls[0].metadata.block_diff, None);
 
         // Check protocol-level errors.
-        ClientT::request::<serde_json::Value, _>(
-            &client,
-            "eth_unknownMethod",
-            jsonrpsee::rpc_params![],
-        )
-        .await
-        .unwrap_err();
+        ClientT::request::<serde_json::Value, _>(&client, "eth_unknownMethod", rpc_params![])
+            .await
+            .unwrap_err();
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
@@ -1000,13 +999,9 @@ impl HttpTest for RpcCallsTracingTest {
         );
         assert!(!calls[0].metadata.has_app_error);
 
-        ClientT::request::<serde_json::Value, _>(
-            &client,
-            "eth_getBlockByNumber",
-            jsonrpsee::rpc_params![0],
-        )
-        .await
-        .unwrap_err();
+        ClientT::request::<serde_json::Value, _>(&client, "eth_getBlockByNumber", rpc_params![0])
+            .await
+            .unwrap_err();
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
@@ -1020,7 +1015,7 @@ impl HttpTest for RpcCallsTracingTest {
         ClientT::request::<serde_json::Value, _>(
             &client,
             "eth_getFilterLogs",
-            jsonrpsee::rpc_params![U256::from(1)],
+            rpc_params![U256::from(1)],
         )
         .await
         .unwrap_err();
@@ -1035,8 +1030,8 @@ impl HttpTest for RpcCallsTracingTest {
 
         // Check batch RPC request.
         let mut batch = BatchRequestBuilder::new();
-        batch.insert("eth_blockNumber", jsonrpsee::rpc_params![])?;
-        batch.insert("zks_L1BatchNumber", jsonrpsee::rpc_params![])?;
+        batch.insert("eth_blockNumber", rpc_params![])?;
+        batch.insert("zks_L1BatchNumber", rpc_params![])?;
         let response = ClientT::batch_request::<U64>(&client, batch).await?;
         for response_part in response {
             assert_eq!(response_part.unwrap(), U64::from(0));

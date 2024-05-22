@@ -1,9 +1,14 @@
 //! Tests for filter-related methods in the `eth` namespace.
 
-use std::fmt::Debug;
+use std::fmt;
 
-use jsonrpsee::{core::client::Error, types::error::ErrorCode};
-use zksync_web3_decl::{jsonrpsee::core::ClientError as RpcError, types::FilterChanges};
+use zksync_web3_decl::{
+    jsonrpsee::{
+        core::{client::Error, ClientError as RpcError},
+        types::error::ErrorCode,
+    },
+    types::FilterChanges,
+};
 
 use super::*;
 
@@ -279,10 +284,10 @@ async fn log_filter_changes_with_block_boundaries() {
     test_http_server(LogFilterChangesWithBlockBoundariesTest).await;
 }
 
-fn assert_not_implemented<T: Debug>(result: Result<T, Error>) {
+fn assert_not_implemented<T: fmt::Debug>(result: Result<T, Error>) {
     assert_matches!(result, Err(Error::Call(e)) => {
         assert_eq!(e.code(), ErrorCode::MethodNotFound.code());
-        assert_eq!(e.message(), "Not implemented");
+        assert_eq!(e.message(), "Method not implemented");
     });
 }
 

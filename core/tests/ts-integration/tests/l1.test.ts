@@ -16,8 +16,6 @@ import {
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT
 } from 'zksync-ethers/build/utils';
 
-const SYSTEM_CONFIG = require(`${process.env.ZKSYNC_HOME}/contracts/SystemConfig.json`);
-
 const contracts = {
     counter: getTestContract('Counter'),
     errors: getTestContract('SimpleRequire'),
@@ -53,7 +51,7 @@ describe('Tests for L1 behavior', () => {
     });
 
     test('Should provide allowance to shared bridge, if base token is not ETH', async () => {
-        const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
+        const baseTokenAddress = testMaster.environment().baseToken.l1Address;
         isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
         if (!isETHBasedChain) {
             const baseTokenDetails = testMaster.environment().baseToken;
@@ -67,7 +65,7 @@ describe('Tests for L1 behavior', () => {
         if (!isETHBasedChain) {
             expectedL2Costs = (
                 await alice.getBaseCost({
-                    gasLimit: maxL2GasLimitForPriorityTxs(),
+                    gasLimit: maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit),
                     gasPerPubdataByte: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
                     gasPrice
                 })
@@ -168,7 +166,7 @@ describe('Tests for L1 behavior', () => {
 
     test('Should check max L2 gas limit for priority txs', async () => {
         const gasPrice = scaledGasPrice(alice);
-        const l2GasLimit = maxL2GasLimitForPriorityTxs();
+        const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
 
         // Check that the request with higher `gasLimit` fails.
         let priorityOpHandle = await alice.requestExecute({
@@ -216,7 +214,7 @@ describe('Tests for L1 behavior', () => {
         const calldata = contract.interface.encodeFunctionData('writes', [0, 4500, 1]);
         const gasPrice = scaledGasPrice(alice);
 
-        const l2GasLimit = maxL2GasLimitForPriorityTxs();
+        const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
 
         const priorityOpHandle = await alice.requestExecute({
             contractAddress: contract.address,
@@ -271,7 +269,7 @@ describe('Tests for L1 behavior', () => {
 
         const calldata = contract.interface.encodeFunctionData('writes', [0, repeatedWritesInOneTx, 2]);
         const gasPrice = scaledGasPrice(alice);
-        const l2GasLimit = maxL2GasLimitForPriorityTxs();
+        const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
 
         const priorityOpHandle = await alice.requestExecute({
             contractAddress: contract.address,
@@ -306,7 +304,7 @@ describe('Tests for L1 behavior', () => {
         const calldata = contract.interface.encodeFunctionData('l2_l1_messages', [1000]);
         const gasPrice = scaledGasPrice(alice);
 
-        const l2GasLimit = maxL2GasLimitForPriorityTxs();
+        const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
 
         const priorityOpHandle = await alice.requestExecute({
             contractAddress: contract.address,
@@ -336,6 +334,8 @@ describe('Tests for L1 behavior', () => {
 
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
         testMaster.reporter.debug(`Deployed 'writesAndMessages' contract at ${contract.address}`);
+
+        const SYSTEM_CONFIG = require(`${testMaster.environment().pathToHome}/contracts/SystemConfig.json`);
         const MAX_PUBDATA_PER_BATCH = ethers.BigNumber.from(SYSTEM_CONFIG['PRIORITY_TX_PUBDATA_PER_BATCH']);
         // We check that we will run out of gas if we send a bit
         // smaller than `MAX_PUBDATA_PER_BATCH` amount of pubdata in a single tx.
@@ -344,7 +344,7 @@ describe('Tests for L1 behavior', () => {
         ]);
         const gasPrice = scaledGasPrice(alice);
 
-        const l2GasLimit = maxL2GasLimitForPriorityTxs();
+        const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
 
         const priorityOpHandle = await alice.requestExecute({
             contractAddress: contract.address,
@@ -395,11 +395,9 @@ function calculateAccumulatedRoot(
     return accumutatedRoot;
 }
 
-function maxL2GasLimitForPriorityTxs(): number {
+function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: number): number {
     // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
     // using binary search.
-    let maxGasBodyLimit = +process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!;
-
     const overhead = getOverheadForTransaction(
         // We can just pass 0 as `encodingLength` because the overhead for the transaction's slot
         // will be greater than `overheadForLength` for a typical transacction

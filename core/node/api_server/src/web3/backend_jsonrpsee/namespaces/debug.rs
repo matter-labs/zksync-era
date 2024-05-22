@@ -6,7 +6,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
-    namespaces::debug::DebugNamespaceServer,
+    namespaces::DebugNamespaceServer,
 };
 
 use crate::web3::namespaces::DebugNamespace;

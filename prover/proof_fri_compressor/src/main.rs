@@ -1,3 +1,5 @@
+#![feature(generic_const_exprs)]
+
 use std::{env, time::Duration};
 
 use anyhow::Context as _;
