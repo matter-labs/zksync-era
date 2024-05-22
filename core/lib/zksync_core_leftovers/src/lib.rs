@@ -35,6 +35,7 @@ use zksync_config::{
     ApiConfig, DBConfig, EthWatchConfig, GenesisConfig,
 };
 use zksync_contracts::governance_contract;
+use zksync_da_dispatcher::DataAvailabilityDispatcher;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
@@ -153,6 +154,8 @@ pub enum Component {
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
+    /// Component sending a pubdata to the DA layers.
+    DADispatcher,
 }
 
 #[derive(Debug)]
@@ -189,6 +192,7 @@ impl FromStr for Components {
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
+            "da_dispatcher" => Ok(Components(vec![Component::DADispatcher])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -736,6 +740,26 @@ pub async fn initialize_components(
         )
         .await
         .context("add_tee_verifier_input_producer_to_task_futures()")?;
+    }
+
+    if components.contains(&Component::DADispatcher) {
+        let started_at = Instant::now();
+        let da_config = configs
+            .da_dispatcher_config
+            .clone()
+            .context("da_dispatcher_config")?;
+        let da_dispatcher_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
+            .build()
+            .await
+            .context("failed to build da_dispatcher_pool")?;
+        let da_client = zksync_da_client::new_da_client(da_config.clone()).await;
+        let da_dispatcher =
+            DataAvailabilityDispatcher::new(da_dispatcher_pool, da_config, da_client);
+        task_futures.push(tokio::spawn(da_dispatcher.run(stop_receiver.clone())));
+
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::DADispatcher].set(elapsed);
+        tracing::info!("initialized DA dispatcher in {elapsed:?}");
     }
 
     if components.contains(&Component::Housekeeper) {

@@ -2823,7 +2823,7 @@ dependencies = [
 [[package]]
 name = "hyperchain_da"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da.git?rev=69dc63c9c91553a31c4dd48f47c30ca44433dea3#69dc63c9c91553a31c4dd48f47c30ca44433dea3"
+source = "git+https://github.com/matter-labs/hyperchain-da.git?rev=5629d56ec3d851a7ff03e72c5e0765c55af595d5#5629d56ec3d851a7ff03e72c5e0765c55af595d5"
 dependencies = [
  "async-trait",
 ]
@@ -8400,6 +8400,8 @@ dependencies = [
  "zksync_consensus_utils",
  "zksync_contract_verification_server",
  "zksync_contracts",
+ "zksync_da_client",
+ "zksync_da_dispatcher",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_eth_client",
@@ -8474,6 +8476,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "hyperchain_da",
+ "tracing",
  "zksync_config",
  "zksync_object_store",
  "zksync_types",

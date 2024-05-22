@@ -33,24 +33,24 @@ impl DataAvailabilityDispatcher {
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let pool = self.pool.clone();
         loop {
-            let mut storage = pool.connection_tagged("da_dispatcher").await.unwrap();
+            let mut conn = pool.connection_tagged("da_dispatcher").await.unwrap();
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, da_dispatcher is shutting down");
                 break;
             }
 
-            if let Err(err) = self.loop_iteration(&mut storage).await {
-                tracing::warn!("da_dispatcher error {err:?}");
-            }
+            self.dispatch(&mut conn).await?;
+            self.poll_for_inclusion(&mut conn).await?;
 
+            drop(conn);
             tokio::time::sleep(self.config.polling_interval()).await;
         }
         Ok(())
     }
 
-    async fn dispatch(&self, storage: &mut Connection<'_, Core>) -> anyhow::Result<()> {
-        let batches = storage
+    async fn dispatch(&self, conn: &mut Connection<'_, Core>) -> anyhow::Result<()> {
+        let batches = conn
             .blocks_dal()
             .get_ready_for_da_dispatch_l1_batches(self.config.query_rows_limit() as usize)
             .await?;
@@ -65,8 +65,7 @@ impl DataAvailabilityDispatcher {
             .map_err(Error::msg)?;
             dispatch_latency.observe();
 
-            storage
-                .blocks_dal()
+            conn.blocks_dal()
                 .insert_l1_batch_da(batch.l1_batch_number, dispatch_response.blob_id)
                 .await?;
 
@@ -79,40 +78,34 @@ impl DataAvailabilityDispatcher {
         Ok(())
     }
 
-    async fn poll_for_inclusion(&self, storage: &mut Connection<'_, Core>) -> anyhow::Result<()> {
-        let storage_da = storage
-            .blocks_dal()
-            .get_da_blob_awaiting_inclusion()
-            .await?;
+    async fn poll_for_inclusion(&self, conn: &mut Connection<'_, Core>) -> anyhow::Result<()> {
+        let storage_da = conn.blocks_dal().get_da_blob_awaiting_inclusion().await?;
 
         if let Some(storage_da) = storage_da {
-            let inclusion_data = retry(self.config.max_retries(), || {
-                self.client
-                    .get_inclusion_data(storage_da.blob_id.clone().unwrap())
-            })
-            .await
-            .map_err(Error::msg)?;
+            let inclusion_data = self
+                .client
+                .get_inclusion_data(storage_da.blob_id.clone().unwrap())
+                .await
+                .map_err(Error::msg)?;
 
-            storage
-                .blocks_dal()
-                .save_l1_batch_inclusion_data(
-                    L1BatchNumber(storage_da.l1_batch_number as u32),
-                    inclusion_data.data,
-                )
-                .await?;
+            if let Some(inclusion_data) = inclusion_data {
+                tracing::info!(
+                    "Storing inclusion data for batch_id: {}",
+                    storage_da.l1_batch_number
+                );
 
-            METRICS.inclusion_latency.observe(Duration::from_secs(
-                (Utc::now().timestamp() - storage_da.created_at.timestamp()) as u64,
-            ));
+                conn.blocks_dal()
+                    .save_l1_batch_inclusion_data(
+                        L1BatchNumber(storage_da.l1_batch_number as u32),
+                        inclusion_data.data,
+                    )
+                    .await?;
+
+                METRICS.inclusion_latency.observe(Duration::from_secs(
+                    (Utc::now().timestamp() - storage_da.created_at.timestamp()) as u64,
+                ));
+            }
         }
-
-        Ok(())
-    }
-
-    #[tracing::instrument(skip(self, storage))]
-    async fn loop_iteration(&self, storage: &mut Connection<'_, Core>) -> anyhow::Result<()> {
-        self.dispatch(storage).await?;
-        self.poll_for_inclusion(storage).await?;
 
         Ok(())
     }

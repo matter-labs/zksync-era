@@ -43,8 +43,11 @@ impl DataAvailabilityInterface for GCSDAClient {
         })
     }
 
-    async fn get_inclusion_data(&self, _: Vec<u8>) -> Result<InclusionData, DataAvailabilityError> {
-        return Ok(InclusionData::default());
+    async fn get_inclusion_data(
+        &self,
+        _: Vec<u8>,
+    ) -> Result<Option<InclusionData>, DataAvailabilityError> {
+        return Ok(Some(InclusionData::default()));
     }
 }
 

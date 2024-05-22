@@ -16,8 +16,8 @@ use zksync_config::{
         DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
         L1Secrets, ObservabilityConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
-    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
+    ApiConfig, ContractVerifierConfig, ContractsConfig, DADispatcherConfig, DBConfig, EthConfig,
+    EthWatchConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_env_config::FromEnv;
@@ -318,11 +318,10 @@ impl MainNodeBuilder {
 
     fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = EthConfig::from_env()?;
-        let l1_batch_commit_data_generator_mode =
-            GenesisConfig::from_env()?.l1_batch_commit_data_generator_mode;
+        let da_config = DADispatcherConfig::from_env()?;
         self.node.add_layer(DataAvailabilityDispatcherLayer::new(
+            da_config,
             eth_sender_config,
-            l1_batch_commit_data_generator_mode,
         ));
         Ok(self)
     }
@@ -437,6 +436,7 @@ fn main() -> anyhow::Result<()> {
         .add_eth_watch_layer()?
         .add_pk_signing_client_layer()?
         .add_eth_sender_layer()?
+        .add_da_dispatcher_layer()?
         .add_proof_data_handler_layer()?
         .add_healthcheck_layer()?
         .add_tx_sender_layer()?
