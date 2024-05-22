@@ -3,6 +3,7 @@
 
 #![warn(missing_debug_implementations, missing_docs)]
 
+mod impls;
 mod io;
 mod output_handler;
 mod process;
@@ -11,6 +12,7 @@ mod storage;
 #[cfg(test)]
 mod tests;
 
+pub use impls::{ProtectiveReadsWriter, ProtectiveReadsWriterTasks};
 pub use io::VmRunnerIo;
 pub use output_handler::{
     ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,

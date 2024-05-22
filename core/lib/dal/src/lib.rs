@@ -11,6 +11,7 @@ pub use zksync_db_connection::{
     error::{DalError, DalResult},
 };
 
+use crate::vm_runner_dal::VmRunnerDal;
 use crate::{
     blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
     contract_verification_dal::ContractVerificationDal, eth_sender_dal::EthSenderDal,
@@ -55,6 +56,7 @@ pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
+pub mod vm_runner_dal;
 
 #[cfg(test)]
 mod tests;
@@ -119,6 +121,8 @@ where
     fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a>;
 
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a>;
+
+    fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -228,5 +232,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a> {
         PruningDal { storage: self }
+    }
+
+    fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a> {
+        VmRunnerDal { storage: self }
     }
 }
