@@ -22,6 +22,7 @@ use super::{
     updates::UpdatesManager,
     utils::gas_count_from_writes,
 };
+use crate::metrics;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -606,6 +607,9 @@ impl ZkSyncStateKeeper {
                         "Tx inclusion seal resolution must be a result of a successful tx execution",
                     );
                 };
+                KEEPER_METRICS.tx_execution_result
+                    [&metrics::TxExecutionResult::from(&tx_result.result)]
+                    .inc();
 
                 // Despite success of upgrade transaction is not enforced by protocol,
                 // we panic here because failed upgrade tx is not intended in any case.

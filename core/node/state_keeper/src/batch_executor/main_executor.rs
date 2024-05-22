@@ -22,7 +22,7 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::{
-    metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
+    metrics::{self, TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
     types::ExecutionMetricsForCriteria,
 };
 
@@ -166,6 +166,9 @@ impl CommandReceiver {
         APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();
         APP_METRICS.processed_l1_txs[&TxStage::StateKeeper].inc_by(tx.is_l1().into());
 
+        KEEPER_METRICS.tx_execution_result[&metrics::TxExecutionResult::from(&tx_result.result)]
+            .inc();
+
         if let ExecutionResult::Halt { reason } = tx_result.result {
             return match reason {
                 Halt::BootloaderOutOfGas => TxExecutionResult::BootloaderOutOfGasForTx,
@@ -207,6 +210,9 @@ impl CommandReceiver {
         // There is some post-processing work that the VM needs to do before the block is fully processed.
         let result = vm.finish_batch();
         if result.block_tip_execution_result.result.is_failed() {
+            KEEPER_METRICS.tx_execution_result
+                [&metrics::TxExecutionResult::from(&result.block_tip_execution_result.result)]
+                .inc();
             panic!(
                 "VM must not fail when finalizing block: {:#?}",
                 result.block_tip_execution_result.result

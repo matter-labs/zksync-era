@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use multivm::interface::VmExecutionResultAndLogs;
+use multivm::{interface::VmExecutionResultAndLogs, vm_latest::ExecutionResult};
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
     Metrics,
@@ -28,6 +28,40 @@ pub enum TxExecutionStage {
 pub enum TxExecutionType {
     L1,
     L2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub enum TxExecutionStatus {
+    Success,
+    Rejected,
+    Reverted,
+    Halted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub struct TxExecutionResult {
+    pub(crate) status: TxExecutionStatus,
+    pub(crate) reason: Option<String>,
+}
+
+impl From<&ExecutionResult> for TxExecutionResult {
+    fn from(result: &ExecutionResult) -> Self {
+        match result {
+            ExecutionResult::Success { output: _ } => TxExecutionResult {
+                status: TxExecutionStatus::Success,
+                reason: None,
+            },
+            ExecutionResult::Revert { output } => TxExecutionResult {
+                status: TxExecutionStatus::Reverted,
+                reason: Some(output.to_user_friendly_string().clone()),
+            },
+            ExecutionResult::Halt { reason } => TxExecutionResult {
+                status: TxExecutionStatus::Halted,
+                reason: Some(reason.to_string().clone()),
+            },
+        }
+    }
 }
 
 impl TxExecutionType {
@@ -57,8 +91,8 @@ pub struct StateKeeperMetrics {
     /// Latency of the state keeper getting a transaction from the mempool.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub get_tx_from_mempool: Histogram<Duration>,
-    /// Number of transactions rejected by the state keeper.
-    pub rejected_transactions: Counter,
+    /// todo
+    pub tx_execution_result: Family<TxExecutionResult, Counter>,
     /// Time spent waiting for the hash of a previous L1 batch.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub wait_for_prev_hash_time: Histogram<Duration>,
