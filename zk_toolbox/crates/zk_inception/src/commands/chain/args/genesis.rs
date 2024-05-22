@@ -1,6 +1,7 @@
 use clap::Parser;
 use common::Prompt;
 use serde::{Deserialize, Serialize};
+use slugify_rs::slugify;
 use url::Url;
 
 use crate::{
@@ -47,13 +48,13 @@ impl GenesisArgs {
                 .default(DATABASE_SERVER_URL)
                 .ask()
             });
-            let server_db_name = self.server_db_name.unwrap_or_else(|| {
+            let server_db_name = slugify!(&self.server_db_name.unwrap_or_else(|| {
                 Prompt::new(&format!(
                     "Please provide server database name for chain {chain_name}"
                 ))
                 .default(&server_name)
                 .ask()
-            });
+            }));
             let prover_db_url = self.prover_db_url.unwrap_or_else(|| {
                 Prompt::new(&format!(
                     "Please provide prover database url for chain {chain_name}"
@@ -61,13 +62,13 @@ impl GenesisArgs {
                 .default(DATABASE_PROVER_URL)
                 .ask()
             });
-            let prover_db_name = self.prover_db_name.unwrap_or_else(|| {
+            let prover_db_name = slugify!(&self.prover_db_name.unwrap_or_else(|| {
                 Prompt::new(&format!(
                     "Please provide prover database name for chain {chain_name}"
                 ))
                 .default(&prover_name)
                 .ask()
-            });
+            }));
             GenesisArgsFinal {
                 server_db_url,
                 server_db_name,

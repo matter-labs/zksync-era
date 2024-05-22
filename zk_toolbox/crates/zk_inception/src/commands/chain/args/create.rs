@@ -4,6 +4,7 @@ use clap::Parser;
 use common::{Prompt, PromptConfirm, PromptSelect};
 use ethers::types::H160;
 use serde::{Deserialize, Serialize};
+use slugify_rs::slugify;
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
@@ -39,9 +40,10 @@ pub struct ChainCreateArgs {
 
 impl ChainCreateArgs {
     pub fn fill_values_with_prompt(self, number_of_chains: u32) -> ChainCreateArgsFinal {
-        let chain_name = self
+        let mut chain_name = self
             .chain_name
             .unwrap_or_else(|| Prompt::new("How do you want to name the chain?").ask());
+        chain_name = slugify!(&chain_name);
 
         let chain_id = self.chain_id.unwrap_or_else(|| {
             Prompt::new("What's the chain id?")

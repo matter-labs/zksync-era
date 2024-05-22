@@ -40,3 +40,5 @@ toml = "0.8.12"
 url = { version = "2.5.0", features = ["serde"] }
 xshell = "0.2.6"
 futures = "0.3.30"
+slugify-rs = "0.0.3"
+thiserror = "1.0.57"
