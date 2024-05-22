@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
@@ -565,7 +566,11 @@ impl L1BatchWithLogs {
                 TreeInstruction::write(storage_key, tree_write.leaf_index, tree_write.value)
             });
             let reads = protective_reads.into_iter().map(TreeInstruction::Read);
-            writes.chain(reads).collect::<Vec<_>>()
+
+            // `writes` and `reads` are already sorted, we only need to merge them.
+            writes
+                .merge_by(reads, |a, b| a.key() <= b.key())
+                .collect::<Vec<_>>()
         } else {
             // Otherwise, load writes' data from other tables.
             Self::extract_storage_logs_from_db(storage, l1_batch_number, protective_reads).await?

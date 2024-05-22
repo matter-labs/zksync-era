@@ -470,7 +470,6 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn insert_l1_batch(
         &mut self,
         header: &L1BatchHeader,
