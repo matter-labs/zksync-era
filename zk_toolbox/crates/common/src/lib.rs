@@ -5,7 +5,6 @@ pub mod docker;
 pub mod ethereum;
 pub mod files;
 pub mod forge;
-pub mod forge_verifier;
 mod prerequisites;
 mod prompt;
 mod term;
