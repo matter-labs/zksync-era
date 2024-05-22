@@ -16,3 +16,6 @@ zksync_config.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 envy.workspace = true
+
+[dev-dependencies]
+zksync_system_constants.workspace = true

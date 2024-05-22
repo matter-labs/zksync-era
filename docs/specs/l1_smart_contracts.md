@@ -6,8 +6,8 @@ This document presumes familiarity with Rollups. For a better understanding, con
 Rollups inherit security and decentralization guarantees from Ethereum, on which they store information about changes in
 their own state, providing validity proofs for state transition, implementing a communication mechanism, etc. In
 practice, all this is achieved by Smart Contracts built on top of Ethereum. This document details the architecture of
-the L2 contracts on Ethereum Layer 1. We also have contracts that support the hyperchain ecosystem, we cover those in
-the [Shared Bridge](./the_hyperchain/shared_bridge.md) section. The Shared Bridge relies on these individual contracts.
+the L2 contracts on Ethereum Layer 1. We also have contracts that support the ZK Chain ecosystem, we cover those in the
+[Shared Bridge](./zk_chains/shared_bridge.md) section. The Shared Bridge relies on these individual contracts.
 
 ## Diamond
 
@@ -32,7 +32,7 @@ then the diamond will be frozen forever.
 The diamond proxy pattern is very flexible and extendable. For now, it allows splitting implementation contracts by
 their logical meaning, removes the limit of bytecode size per contract and implements security features such as
 freezing. In the future, it can also be viewed as [EIP-6900](https://eips.ethereum.org/EIPS/eip-6900) for
-[zkStack](https://blog.matter-labs.io/introducing-the-zk-stack-c24240c2532a), where each hyperchain can implement a
+[ZK Stack](https://blog.matter-labs.io/introducing-the-zk-stack-c24240c2532a), where each ZK Chain can implement a
 sub-set of allowed implementation contracts.
 
 ### GettersFacet
@@ -175,7 +175,7 @@ L1 <-> L2 communication.
 
 ### L1ERC20Bridge
 
-The "standard" implementation of the ERC20 token bridge. Works only with regular ERC20 tokens, i.e. not with
+The "legacy" implementation of the ERC20 token bridge. Works only with regular ERC20 tokens, i.e. not with
 fee-on-transfer tokens or other custom logic for handling user balances.
 
 - `deposit` - lock funds inside the contract and send a request to mint bridged assets on L2.
@@ -184,20 +184,11 @@ fee-on-transfer tokens or other custom logic for handling user balances.
 
 The owner of the L1ERC20Bridge is the Governance contract.
 
-### L2ERC20Bridge
+### L1SharedBridge
 
-The L2 counterpart of the L1 ERC20 bridge.
-
-- `withdraw` - initiate a withdrawal by burning funds on the contract and sending a corresponding message to L1.
-- `finalizeDeposit` - finalize the deposit and mint funds on L2. The function is only callable by L1 bridge.
-
-The owner of the L2ERC20Bridge and the contracts related to it is the Governance contract.
-
-### L1WethBridge
-
-The custom bridge exclusively handles transfers of WETH tokens between the two domains. It is designed to streamline and
-enhance the user experience for bridging WETH tokens by minimizing the number of transactions required and reducing
-liquidity fragmentation thus improving efficiency and user experience.
+The main bridge implementation handles transfers Ether, ERC20 tokens and of WETH tokens between the two domains. It is
+designed to streamline and enhance the user experience for bridging WETH tokens by minimizing the number of transactions
+required and reducing liquidity fragmentation thus improving efficiency and user experience.
 
 This contract accepts WETH deposits on L1, unwraps them to ETH, and sends the ETH to the L2 WETH bridge contract, where
 it is wrapped back into WETH and delivered to the L2 recipient.
@@ -209,11 +200,14 @@ the L1 recipient.
 
 The owner of the L1WethBridge contract is the Governance contract.
 
-### L2WethBridge
+### L2SharedBridge
 
-The L2 counterpart of the L1 WETH bridge.
+The L2 counterpart of the L1 Shared bridge.
 
-The owner of the L2WethBridge and L2Weth contracts is the Governance contract.
+- `withdraw` - initiate a withdrawal by burning funds on the contract and sending a corresponding message to L1.
+- `finalizeDeposit` - finalize the deposit and mint funds on L2. The function is only callable by L1 bridge.
+
+The owner of the L2SharedBridge and the contracts related to it is the Governance contract.
 
 ## Governance
 

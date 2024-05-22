@@ -1,16 +1,21 @@
 import { expect } from 'chai';
 import * as ethers from 'ethers';
-import * as zkweb3 from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 
+const BASE_ERC20_TO_MINT = ethers.utils.parseEther('100');
+
 export class Tester {
-    public runningFee: Map<zkweb3.types.Address, ethers.BigNumber>;
+    public runningFee: Map<zksync.types.Address, ethers.BigNumber>;
     constructor(
         public ethProvider: ethers.providers.Provider,
         public ethWallet: ethers.Wallet,
-        public syncWallet: zkweb3.Wallet,
-        public web3Provider: zkweb3.Provider
+        public syncWallet: zksync.Wallet,
+        public web3Provider: zksync.Provider,
+        public hyperchainAdmin: ethers.Wallet, // We need to add validator to ValidatorTimelock with admin rights
+        public isETHBasedChain: boolean,
+        public baseTokenAddress: string
     ) {
         this.runningFee = new Map();
     }
@@ -26,9 +31,13 @@ export class Tester {
             ethTestConfig.test_mnemonic as string,
             "m/44'/60'/0'/0/0"
         ).connect(ethProvider);
-        const web3Provider = new zkweb3.Provider(l2_rpc_addr);
+        let hyperchainAdmin = ethers.Wallet.fromMnemonic(
+            ethTestConfig.mnemonic as string,
+            "m/44'/60'/0'/0/1"
+        ).connect(ethProvider);
+        const web3Provider = new zksync.Provider(l2_rpc_addr);
         web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
-        const syncWallet = new zkweb3.Wallet(ethWallet.privateKey, web3Provider, ethProvider);
+        const syncWallet = new zksync.Wallet(ethWallet.privateKey, web3Provider, ethProvider);
 
 
         // Since some tx may be pending on stage, we don't want to get stuck because of it.
@@ -50,15 +59,30 @@ export class Tester {
             console.log(`Canceled ${cancellationTxs.length} pending transactions`);
         }
 
-        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider);
+        const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
+        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+
+        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, hyperchainAdmin, isETHBasedChain, baseTokenAddress);
+    }
+
+    /// Ensures that the main wallet has enough base token.
+    /// This can not be done inside the `init` function because `init` function can be called before the
+    /// L2 RPC is active, but we need the L2 RPC to get the base token address.
+    async fundSyncWallet() {
+        const baseTokenAddress = await this.syncWallet.provider.getBaseTokenContractAddress();
+        if (!(baseTokenAddress === zksync.utils.ETH_ADDRESS_IN_CONTRACTS)) {
+            const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
+            const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, this.ethWallet);
+            await (await l1Erc20Contract.mint(this.ethWallet.address, BASE_ERC20_TO_MINT)).wait();
+        }
     }
 
     async fundedWallet(
         ethAmount: ethers.BigNumberish,
-        l1Token: zkweb3.types.Address,
+        l1Token: zksync.types.Address,
         tokenAmount: ethers.BigNumberish
     ) {
-        const newWallet = zkweb3.Wallet.createRandom().connect(this.web3Provider).connectToL1(this.ethProvider);
+        const newWallet = zksync.Wallet.createRandom().connect(this.web3Provider).connectToL1(this.ethProvider);
 
         let ethBalance = await this.syncWallet.getBalanceL1();
         expect(ethBalance.gt(ethAmount), 'Insufficient eth balance to create funded wallet').to.be.true;
@@ -87,6 +111,6 @@ export class Tester {
     }
 
     emptyWallet() {
-        return zkweb3.Wallet.createRandom().connect(this.web3Provider).connectToL1(this.ethProvider);
+        return zksync.Wallet.createRandom().connect(this.web3Provider).connectToL1(this.ethProvider);
     }
 }

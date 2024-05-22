@@ -1,8 +1,8 @@
 use std::convert::TryInto;
 
 use ethabi::Token;
-use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
-use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
+use zksync_eth_signer::{EthereumSigner, TransactionParameters};
+use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::TransactionRequest,
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Eip712Domain, Execute,
@@ -23,7 +23,7 @@ use crate::{
 impl VmTester<HistoryDisabled> {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {
         let key = storage_key_for_standard_token_balance(
-            AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+            AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
             &address,
         );
         self.vm.state.storage.storage.read_from_storage(&key)

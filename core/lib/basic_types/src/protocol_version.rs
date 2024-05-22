@@ -1,10 +1,17 @@
-use std::convert::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+};
 
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
-use web3::contract::{tokens::Detokenize, Error};
 
-use crate::{ethabi::Token, vm_version::VmVersion, H256, U256};
+use crate::{
+    ethabi::Token,
+    vm_version::VmVersion,
+    web3::contract::{Detokenize, Error},
+    H256, U256,
+};
 
 #[repr(u16)]
 #[derive(
@@ -44,17 +51,24 @@ pub enum ProtocolVersionId {
     Version20,
     Version21,
     Version22,
+    // Version `23` is only present on the internal staging networks.
+    // All the user-facing environments were switched from 22 to 24 right away.
     Version23,
     Version24,
+    Version25,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version23
+        Self::Version24
+    }
+
+    pub fn current_prover_version() -> Self {
+        Self::Version24
     }
 
     pub fn next() -> Self {
-        Self::Version24
+        Self::Version25
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -84,8 +98,9 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
-            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
-            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0,
+            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
+            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
         }
     }
 
@@ -100,8 +115,7 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_shared_bridge(&self) -> bool {
-        // TODO: review this when we actually deploy shared bridge
-        true
+        self <= &Self::Version22
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -147,6 +161,12 @@ impl Default for ProtocolVersionId {
     }
 }
 
+impl fmt::Display for ProtocolVersionId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", *self as u16)
+    }
+}
+
 impl TryFrom<U256> for ProtocolVersionId {
     type Error = String;
 
@@ -171,12 +191,18 @@ pub struct VerifierParams {
 impl Detokenize for VerifierParams {
     fn from_tokens(tokens: Vec<Token>) -> Result<Self, Error> {
         if tokens.len() != 1 {
-            return Err(Error::Abi(crate::ethabi::Error::InvalidData));
+            return Err(Error::InvalidOutputType(format!(
+                "expected single token, got {tokens:?}"
+            )));
         }
 
         let tokens = match tokens[0].clone() {
             Token::Tuple(tokens) => tokens,
-            _ => return Err(Error::Abi(crate::ethabi::Error::InvalidData)),
+            other => {
+                return Err(Error::InvalidOutputType(format!(
+                    "expected a tuple, got {other:?}"
+                )))
+            }
         };
 
         let vks_vec: Vec<H256> = tokens
@@ -223,8 +249,9 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
-            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
-            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0,
+            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
+            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
         }
     }
 }

@@ -19,10 +19,10 @@ use zksync_contracts::{
 };
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{
-    block::MiniblockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, L1BatchNumber,
-    L1TxCommonData, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey, Transaction,
-    BOOTLOADER_ADDRESS, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
+    block::L2BlockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
+    utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,
+    L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, StorageKey,
+    Transaction, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
     SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
@@ -81,7 +81,11 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
 // 100 gwei is base fee large enough for almost any L1 gas price
 const BIG_BASE_FEE: u64 = 100_000_000_000;
 
-pub(super) fn get_l2_tx(contract_address: Address, signer: &H256, pubdata_price: u32) -> L2Tx {
+pub(super) fn get_l2_tx(
+    contract_address: Address,
+    signer: &K256PrivateKey,
+    pubdata_price: u32,
+) -> L2Tx {
     L2Tx::new_signed(
         contract_address,
         vec![],
@@ -106,7 +110,7 @@ pub(super) fn get_l2_txs(number_of_txs: usize) -> (Vec<Transaction>, Vec<Transac
     let mut txs_without_pubdata_price = vec![];
 
     for _ in 0..number_of_txs {
-        let signer = H256::random();
+        let signer = K256PrivateKey::random();
         let contract_address = Address::random();
 
         txs_without_pubdata_price.push(get_l2_tx(contract_address, &signer, 0).into());
@@ -183,7 +187,7 @@ fn default_l1_batch() -> L1BatchEnv {
         first_l2_block: L2BlockEnv {
             number: 1,
             timestamp: 100,
-            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             max_virtual_blocks_to_create: 100,
         },
     }
@@ -228,7 +232,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         chain_id: L2ChainId::default(),
     };
 
-    let eth_token_sys_contract = load_sys_contract("L2EthToken");
+    let eth_token_sys_contract = load_sys_contract("L2BaseToken");
     let transfer_from_to = &eth_token_sys_contract
         .functions
         .get("transferFromTo")

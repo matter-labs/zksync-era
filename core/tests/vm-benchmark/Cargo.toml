@@ -7,7 +7,7 @@ license.workspace = true
 [dependencies]
 vm-benchmark-harness.workspace = true
 metrics-exporter-prometheus.workspace = true
-metrics.workspace = true
+vise.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]

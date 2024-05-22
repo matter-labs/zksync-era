@@ -1,7 +1,7 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
-    api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    api::en, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
 pub(crate) struct StorageSyncBlock {
     pub number: i64,
     pub l1_batch_number: i64,
-    pub last_batch_miniblock: Option<i64>,
+    pub tx_count: i32,
     pub timestamp: i64,
     // L1 gas price assumed in the corresponding batch
     pub l1_gas_price: i64,
@@ -29,7 +29,7 @@ pub(crate) struct StorageSyncBlock {
 }
 
 pub(crate) struct SyncBlock {
-    pub number: MiniblockNumber,
+    pub number: L2BlockNumber,
     pub l1_batch_number: L1BatchNumber,
     pub last_in_batch: bool,
     pub timestamp: u64,
@@ -48,14 +48,14 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
 
     fn try_from(block: StorageSyncBlock) -> Result<Self, Self::Error> {
         Ok(Self {
-            number: MiniblockNumber(block.number.try_into().decode_column("number")?),
+            number: L2BlockNumber(block.number.try_into().decode_column("number")?),
             l1_batch_number: L1BatchNumber(
                 block
                     .l1_batch_number
                     .try_into()
                     .decode_column("l1_batch_number")?,
             ),
-            last_in_batch: block.last_batch_miniblock == Some(block.number),
+            last_in_batch: block.tx_count == 0,
             timestamp: block.timestamp.try_into().decode_column("timestamp")?,
             l1_gas_price: block
                 .l1_gas_price

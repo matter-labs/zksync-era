@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_types::{witness_block_state::WitnessBlockState, StorageKey, StorageValue, H256};
+use zksync_types::{StorageKey, StorageValue, H256};
 
 use crate::{ReadStorage, WriteStorage};
 
@@ -33,7 +33,7 @@ pub struct StorageViewMetrics {
 /// In order to commit transactions logs should be submitted to the underlying storage
 /// after a transaction is executed.
 ///
-/// When executing transactions as a part of miniblock / L1 batch creation,
+/// When executing transactions as a part of L2 block / L1 batch creation,
 /// a single `StorageView` is used for the entire L1 batch.
 /// One `StorageView` must not be used for multiple L1 batches;
 /// otherwise, [`Self::is_write_initial()`] will return incorrect values because of the caching.
@@ -53,14 +53,6 @@ pub struct StorageView<S> {
 }
 
 impl<S> StorageView<S> {
-    /// Returns the block's start state using StorageView's in-memory cache for the run
-    pub fn witness_block_state(&self) -> WitnessBlockState {
-        WitnessBlockState {
-            read_storage_key: self.read_storage_keys.clone(),
-            is_write_initial: self.initial_writes_cache.clone(),
-        }
-    }
-
     /// Returns the modified storage keys
     pub fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
         &self.modified_storage_keys

@@ -7,13 +7,12 @@ pub use sqlx::{types::BigDecimal, Error as SqlxError};
 use zksync_db_connection::connection::DbMarker;
 pub use zksync_db_connection::{
     connection::Connection,
-    connection_pool::ConnectionPool,
+    connection_pool::{ConnectionPool, ConnectionPoolBuilder},
     error::{DalError, DalResult},
 };
 
 use crate::{
-    basic_witness_input_producer_dal::BasicWitnessInputProducerDal, blocks_dal::BlocksDal,
-    blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
+    blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
     contract_verification_dal::ContractVerificationDal, eth_sender_dal::EthSenderDal,
     events_dal::EventsDal, events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
     proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
@@ -21,20 +20,23 @@ use crate::{
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
-    sync_dal::SyncDal, system_dal::SystemDal, tokens_dal::TokensDal,
+    sync_dal::SyncDal, system_dal::SystemDal,
+    tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal,
 };
 
-pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
+pub mod consensus;
 pub mod consensus_dal;
 pub mod contract_verification_dal;
 pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
+pub mod helpers;
+pub mod metrics;
 mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
@@ -43,24 +45,19 @@ pub mod pruning_dal;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
-mod storage_dal;
 pub mod storage_logs_dal;
 pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
+pub mod tee_verifier_input_producer_dal;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
 
-pub mod metrics;
-
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod pruning_dal_tests;
 
 // This module is private and serves as a way to seal the trait.
 mod private {
@@ -77,7 +74,7 @@ where
 
     fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a>;
 
-    fn basic_witness_input_producer_dal(&mut self) -> BasicWitnessInputProducerDal<'_, 'a>;
+    fn tee_verifier_input_producer_dal(&mut self) -> TeeVerifierInputProducerDal<'_, 'a>;
 
     fn blocks_dal(&mut self) -> BlocksDal<'_, 'a>;
 
@@ -96,10 +93,6 @@ where
     fn storage_web3_dal(&mut self) -> StorageWeb3Dal<'_, 'a>;
 
     fn storage_logs_dal(&mut self) -> StorageLogsDal<'_, 'a>;
-
-    #[deprecated(note = "Soft-removed in favor of `storage_logs`; don't use")]
-    #[allow(deprecated)]
-    fn storage_dal(&mut self) -> storage_dal::StorageDal<'_, 'a>;
 
     fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<'_, 'a>;
 
@@ -145,8 +138,8 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         TransactionsWeb3Dal { storage: self }
     }
 
-    fn basic_witness_input_producer_dal(&mut self) -> BasicWitnessInputProducerDal<'_, 'a> {
-        BasicWitnessInputProducerDal { storage: self }
+    fn tee_verifier_input_producer_dal(&mut self) -> TeeVerifierInputProducerDal<'_, 'a> {
+        TeeVerifierInputProducerDal { storage: self }
     }
 
     fn blocks_dal(&mut self) -> BlocksDal<'_, 'a> {
@@ -183,10 +176,6 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn storage_logs_dal(&mut self) -> StorageLogsDal<'_, 'a> {
         StorageLogsDal { storage: self }
-    }
-
-    fn storage_dal(&mut self) -> storage_dal::StorageDal<'_, 'a> {
-        storage_dal::StorageDal { storage: self }
     }
 
     fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<'_, 'a> {

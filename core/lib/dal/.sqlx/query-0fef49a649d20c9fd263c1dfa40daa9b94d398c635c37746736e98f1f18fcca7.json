@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_verifier_input_producer_jobs\n            SET\n                status = $1,\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW()\n            WHERE\n                l1_batch_number = (\n                    SELECT\n                        l1_batch_number\n                    FROM\n                        tee_verifier_input_producer_jobs\n                    WHERE\n                        status = $2\n                        OR (\n                            status = $1\n                            AND processing_started_at < NOW() - $4::INTERVAL\n                        )\n                        OR (\n                            status = $3\n                            AND attempts < $5\n                        )\n                    ORDER BY\n                        l1_batch_number ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                tee_verifier_input_producer_jobs.l1_batch_number\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_verifier_input_producer_job_status",
+            "kind": {
+              "Enum": [
+                "Queued",
+                "ManuallySkipped",
+                "InProgress",
+                "Successful",
+                "Failed"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "tee_verifier_input_producer_job_status",
+            "kind": {
+              "Enum": [
+                "Queued",
+                "ManuallySkipped",
+                "InProgress",
+                "Successful",
+                "Failed"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "tee_verifier_input_producer_job_status",
+            "kind": {
+              "Enum": [
+                "Queued",
+                "ManuallySkipped",
+                "InProgress",
+                "Successful",
+                "Failed"
+              ]
+            }
+          }
+        },
+        "Interval",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0fef49a649d20c9fd263c1dfa40daa9b94d398c635c37746736e98f1f18fcca7"
+}

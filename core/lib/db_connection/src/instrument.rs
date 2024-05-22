@@ -31,7 +31,7 @@ use crate::{
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
 
 /// Logged arguments for an SQL query.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 struct QueryArgs<'a> {
     inner: Vec<(&'static str, &'a ThreadSafeDebug<'a>)>,
 }
@@ -180,7 +180,7 @@ impl ActiveCopy<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct InstrumentedData<'a> {
     name: &'static str,
     location: &'static Location<'static>,
@@ -278,7 +278,7 @@ impl<'a> InstrumentedData<'a> {
 ///   included in the case of a slow query, plus the error info.
 /// - Slow and erroneous queries are also reported using metrics (`dal.request.slow` and `dal.request.error`,
 ///   respectively). The query name is included as a metric label; args are not included for obvious reasons.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Instrumented<'a, Q> {
     query: Q,
     data: InstrumentedData<'a>,
@@ -467,7 +467,7 @@ impl<'a> Instrumented<'a, CopyStatement> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{MiniblockNumber, H256};
+    use zksync_basic_types::{L2BlockNumber, H256};
 
     use super::*;
     use crate::{connection_pool::ConnectionPool, utils::InternalMarker};
@@ -481,7 +481,7 @@ mod tests {
         sqlx::query("WHAT")
             .map(drop)
             .instrument("erroneous")
-            .with_arg("miniblock", &MiniblockNumber(1))
+            .with_arg("l2_block", &L2BlockNumber(1))
             .with_arg("hash", &H256::zero())
             .fetch_optional(&mut conn)
             .await
@@ -497,7 +497,7 @@ mod tests {
         sqlx::query("SELECT pg_sleep(1.5)")
             .map(drop)
             .instrument("slow")
-            .with_arg("miniblock", &MiniblockNumber(1))
+            .with_arg("l2_block", &L2BlockNumber(1))
             .with_arg("hash", &H256::zero())
             .fetch_optional(&mut conn)
             .await

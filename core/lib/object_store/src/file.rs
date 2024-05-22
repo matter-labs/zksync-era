@@ -33,6 +33,7 @@ impl FileBackedObjectStore {
             Bucket::SchedulerWitnessJobsFri,
             Bucket::ProofsFri,
             Bucket::StorageSnapshot,
+            Bucket::TeeVerifierInput,
         ] {
             let bucket_path = format!("{base_dir}/{bucket}");
             fs::create_dir_all(&bucket_path)
@@ -78,13 +79,13 @@ impl ObjectStore for FileBackedObjectStore {
 
 #[cfg(test)]
 mod test {
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use super::*;
 
     #[tokio::test]
     async fn test_get() {
-        let dir = TempDir::new("test-data").unwrap();
+        let dir = TempDir::new().unwrap();
         let path = dir.into_path().into_os_string().into_string().unwrap();
         let object_store = FileBackedObjectStore::new(path).await;
         let expected = vec![9, 0, 8, 9, 0, 7];
@@ -101,7 +102,7 @@ mod test {
 
     #[tokio::test]
     async fn test_put() {
-        let dir = TempDir::new("test-data").unwrap();
+        let dir = TempDir::new().unwrap();
         let path = dir.into_path().into_os_string().into_string().unwrap();
         let object_store = FileBackedObjectStore::new(path).await;
         let bytes = vec![9, 0, 8, 9, 0, 7];
@@ -113,7 +114,7 @@ mod test {
 
     #[tokio::test]
     async fn test_remove() {
-        let dir = TempDir::new("test-data").unwrap();
+        let dir = TempDir::new().unwrap();
         let path = dir.into_path().into_os_string().into_string().unwrap();
         let object_store = FileBackedObjectStore::new(path).await;
         let result = object_store

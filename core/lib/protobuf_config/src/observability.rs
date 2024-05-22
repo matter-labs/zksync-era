@@ -8,8 +8,15 @@ impl ProtoRepr for proto::Observability {
     type Type = configs::ObservabilityConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         let (sentry_url, sentry_environment) = if let Some(sentry) = &self.sentry {
+            let sentry_url = required(&sentry.url).context("sentry_url")?.clone();
+            let sentry_url = if sentry_url.to_lowercase() == *"unset" {
+                None
+            } else {
+                Some(sentry_url)
+            };
+
             (
-                Some(required(&sentry.url).context("sentry_url")?.clone()),
+                sentry_url,
                 Some(
                     required(&sentry.environment)
                         .context("sentry.environment")?
@@ -28,7 +35,6 @@ impl ProtoRepr for proto::Observability {
                 .as_ref()
                 .map(|cfg| cfg.read().context("opentelemetry"))
                 .transpose()?,
-            sporadic_crypto_errors_substrs: self.sporadic_crypto_errors_substrs.clone(),
             log_directives: self.log_directives.clone(),
         })
     }
@@ -48,7 +54,6 @@ impl ProtoRepr for proto::Observability {
             sentry,
             log_format: Some(this.log_format.clone()),
             opentelemetry: this.opentelemetry.as_ref().map(ProtoRepr::build),
-            sporadic_crypto_errors_substrs: this.sporadic_crypto_errors_substrs.clone(),
             log_directives: this.log_directives.clone(),
         }
     }

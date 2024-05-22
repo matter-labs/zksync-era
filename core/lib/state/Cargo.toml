@@ -14,14 +14,17 @@ vise.workspace = true
 zksync_dal.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
+zksync_shared_metrics.workspace = true
 zksync_storage.workspace = true
 
 anyhow.workspace = true
+async-trait.workspace = true
 mini-moka.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true
 itertools.workspace = true
 chrono.workspace = true
+once_cell.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

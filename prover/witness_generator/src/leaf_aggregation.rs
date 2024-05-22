@@ -2,9 +2,11 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type;
 use prover_dal::{Prover, ProverDal};
-use zkevm_test_harness::witness::recursive_aggregation::{
-    compute_leaf_params, create_leaf_witnesses,
+use zkevm_test_harness::{
+    witness::recursive_aggregation::{compute_leaf_params, create_leaf_witnesses},
+    zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
@@ -74,7 +76,7 @@ pub struct LeafAggregationWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_versions: Vec<ProtocolVersionId>,
+    protocol_version: ProtocolVersionId,
 }
 
 impl LeafAggregationWitnessGenerator {
@@ -82,13 +84,13 @@ impl LeafAggregationWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_versions: Vec<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             config,
             object_store: store_factory.create_store().await,
             prover_connection_pool,
-            protocol_versions,
+            protocol_version,
         }
     }
 
@@ -115,11 +117,11 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_leaf_aggregation_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.connection().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.connection().await?;
         let pod_name = get_current_pod_name();
         let Some(metadata) = prover_connection
             .fri_witness_generator_dal()
-            .get_next_leaf_aggregation_job(&self.protocol_versions, &pod_name)
+            .get_next_leaf_aggregation_job(self.protocol_version, &pod_name)
             .await
         else {
             return Ok(None);
@@ -224,10 +226,13 @@ pub async fn prepare_leaf_aggregation_job(
     let base_vk = keystore
         .load_base_layer_verification_key(metadata.circuit_id)
         .context("get_base_layer_vk_for_circuit_type()")?;
-    // this is a temp solution to unblock shadow proving.
-    // we should have a method that converts basic circuit id to leaf circuit id as they are different.
+
+    let leaf_circuit_id = base_circuit_type_into_recursive_leaf_circuit_type(
+        BaseLayerCircuitType::from_numeric_value(metadata.circuit_id),
+    ) as u8;
+
     let leaf_vk = keystore
-        .load_recursive_layer_verification_key(metadata.circuit_id + 2)
+        .load_recursive_layer_verification_key(leaf_circuit_id)
         .context("get_recursive_layer_vk_for_circuit_type()")?;
     let mut base_proofs = vec![];
     for wrapper in proofs {
@@ -235,9 +240,6 @@ pub async fn prepare_leaf_aggregation_job(
             FriProofWrapper::Base(base_proof) => base_proofs.push(base_proof),
             FriProofWrapper::Recursive(_) => {
                 anyhow::bail!("Expected only base proofs for leaf agg {}", metadata.id);
-            }
-            FriProofWrapper::Eip4844(_) => {
-                anyhow::bail!("EIP4844 should be run as a leaf.");
             }
         }
     }

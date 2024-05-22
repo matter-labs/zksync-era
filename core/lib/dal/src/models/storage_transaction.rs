@@ -9,12 +9,12 @@ use zksync_types::{
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
-    vm_trace::{Call, LegacyCall},
-    web3::types::U64,
-    Address, Bytes, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData,
-    Nonce, PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction, EIP_1559_TX_TYPE,
+    vm_trace::{Call, LegacyCall, LegacyMixedCall},
+    web3::Bytes,
+    Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
+    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction, EIP_1559_TX_TYPE,
     EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE, U256,
+    PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
@@ -546,9 +546,14 @@ pub(crate) struct CallTrace {
 impl CallTrace {
     pub(crate) fn into_call(self, protocol_version: ProtocolVersionId) -> Call {
         if protocol_version.is_pre_1_5_0() {
-            let legacy_call_trace: LegacyCall = bincode::deserialize(&self.call_trace).unwrap();
-
-            legacy_call_trace.into()
+            if let Ok(legacy_call_trace) = bincode::deserialize::<LegacyCall>(&self.call_trace) {
+                legacy_call_trace.into()
+            } else {
+                let legacy_mixed_call_trace =
+                    bincode::deserialize::<LegacyMixedCall>(&self.call_trace)
+                        .expect("Failed to deserialize call trace");
+                legacy_mixed_call_trace.into()
+            }
         } else {
             bincode::deserialize(&self.call_trace).unwrap()
         }

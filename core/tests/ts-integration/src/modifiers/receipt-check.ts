@@ -1,5 +1,5 @@
 import { MatcherModifier, MatcherMessage } from '.';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 
 /**
  * Creates a custom checker for the transaction receipt.

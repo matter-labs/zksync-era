@@ -3,7 +3,7 @@
  * scheduled, processed and/or postponed.
  */
 import { TestMaster } from '../src/index';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 
 describe('Tests for the mempool behavior', () => {
     let testMaster: TestMaster;
@@ -109,10 +109,17 @@ describe('Tests for the mempool behavior', () => {
         // but should be rejected by the state-keeper (checked later).
         const delayedTx = await poorBob.sendTransaction({
             to: poorBob.address,
-            nonce: nonce + 1
+            nonce: nonce + 1,
+            type: 0
         });
 
-        await expect(poorBob.sendTransaction({ to: poorBob.address, nonce })).toBeAccepted();
+        await expect(
+            poorBob.sendTransaction({
+                to: poorBob.address,
+                nonce,
+                type: 0
+            })
+        ).toBeAccepted();
 
         // We don't have a good check that tx was indeed rejected.
         // Most that we can do is to ensure that tx wasn't mined for some time.

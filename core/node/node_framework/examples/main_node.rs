@@ -13,21 +13,19 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::Wallets,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
-        ProofDataHandlerConfig,
+        DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
+        L1Secrets, ObservabilityConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, ETHConfig, ETHWatchConfig,
+    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
-use zksync_core::{
-    api_server::{
-        tx_sender::{ApiContracts, TxSenderConfig},
-        web3::{state::InternalApiConfig, Namespace},
-    },
-    metadata_calculator::MetadataCalculatorConfig,
-    temp_config_store::decode_yaml_repr,
-};
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_env_config::FromEnv;
+use zksync_metadata_calculator::MetadataCalculatorConfig;
+use zksync_node_api_server::{
+    tx_sender::{ApiContracts, TxSenderConfig},
+    web3::{state::InternalApiConfig, Namespace},
+};
 use zksync_node_framework::{
     implementations::layers::{
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
@@ -80,7 +78,8 @@ impl MainNodeBuilder {
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = PostgresConfig::from_env()?;
-        let pools_layer = PoolsLayerBuilder::empty(config)
+        let secrets = DatabaseSecrets::from_env()?;
+        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
             .with_prover(true)
@@ -91,7 +90,7 @@ impl MainNodeBuilder {
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = GenesisConfig::from_env()?;
-        let eth_config = ETHConfig::from_env()?;
+        let eth_config = EthConfig::from_env()?;
         let wallets = Wallets::from_env()?;
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
@@ -103,8 +102,10 @@ impl MainNodeBuilder {
     }
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_client_config = ETHConfig::from_env()?;
-        let query_eth_client_layer = QueryEthClientLayer::new(eth_client_config.web3_url);
+        let genesis = GenesisConfig::from_env()?;
+        let eth_config = L1Secrets::from_env()?;
+        let query_eth_client_layer =
+            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.l1_rpc_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
@@ -113,7 +114,7 @@ impl MainNodeBuilder {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
-        let eth_sender_config = ETHConfig::from_env()?;
+        let eth_sender_config = EthConfig::from_env()?;
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             genesis_config,
@@ -142,7 +143,7 @@ impl MainNodeBuilder {
             &operations_manager_env_config,
         );
         self.node
-            .add_layer(MetadataCalculatorLayer(metadata_calculator_config));
+            .add_layer(MetadataCalculatorLayer::new(metadata_calculator_config));
         Ok(self)
     }
 
@@ -167,15 +168,17 @@ impl MainNodeBuilder {
 
     fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(EthWatchLayer::new(
-            ETHWatchConfig::from_env()?,
+            EthWatchConfig::from_env()?,
             ContractsConfig::from_env()?,
         ));
         Ok(self)
     }
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        let genesis_config = GenesisConfig::from_env()?;
         self.node.add_layer(ProofDataHandlerLayer::new(
             ProofDataHandlerConfig::from_env()?,
+            genesis_config.l1_batch_commit_data_generator_mode,
         ));
         Ok(self)
     }
@@ -297,18 +300,15 @@ impl MainNodeBuilder {
         Ok(self)
     }
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = ETHConfig::from_env()?;
+        let eth_sender_config = EthConfig::from_env()?;
         let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
-        let wallets = Wallets::from_env()?;
 
         self.node.add_layer(EthSenderLayer::new(
             eth_sender_config,
             contracts_config,
             network_config,
-            genesis_config.l1_chain_id,
-            wallets.eth_sender.context("Eth sender wallets")?,
             genesis_config.l1_batch_commit_data_generator_mode,
         ));
 
@@ -334,7 +334,10 @@ impl MainNodeBuilder {
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(CommitmentGeneratorLayer);
+        let genesis = GenesisConfig::from_env()?;
+        self.node.add_layer(CommitmentGeneratorLayer::new(
+            genesis.l1_batch_commit_data_generator_mode,
+        ));
 
         Ok(self)
     }
@@ -363,8 +366,10 @@ impl MainNodeBuilder {
             };
             let secrets = std::fs::read_to_string(&path).context(path)?;
             Ok(Some(
-                decode_yaml_repr::<proto::consensus::Secrets>(&secrets)
-                    .context("failed decoding YAML")?,
+                decode_yaml_repr::<proto::secrets::Secrets>(&secrets)
+                    .context("failed decoding YAML")?
+                    .consensus
+                    .context("No consensus in secrets")?,
             ))
         }
 

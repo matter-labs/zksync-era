@@ -23,7 +23,7 @@ jobs:
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           fetch-depth: 2
           submodules: "recursive"
@@ -52,6 +52,7 @@ jobs:
               - 'docker/external-node/**'
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
+              - '.github/workflows/build-contract-verifier-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
               - '.github/workflows/ci-core-lint-reusable.yml'
               - 'Cargo.toml'
@@ -115,6 +116,18 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  build-contract-verifier:
+    name: Build contract verifier
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/build-contract-verifier-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
   build-prover-images:
     name: Build prover images
     needs: changed_files
@@ -133,7 +146,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
+    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images]
     steps:
       - name: Status
         run: |

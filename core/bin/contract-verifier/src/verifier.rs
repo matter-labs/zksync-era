@@ -25,6 +25,7 @@ use zksync_utils::workspace_dir_or_current_dir;
 
 use crate::{
     error::ContractVerifierError,
+    metrics::API_CONTRACT_VERIFIER_METRICS,
     zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolc, ZkSolcInput, ZkSolcOutput},
     zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
@@ -334,9 +335,10 @@ impl ContractVerifier {
                 compiler_input.settings.output_selection = Some(default_output_selection);
                 Ok(ZkSolcInput::StandardJson(compiler_input))
             }
-            SourceCodeData::YulSingleFile(source_code) => {
-                Ok(ZkSolcInput::YulSingleFile(source_code))
-            }
+            SourceCodeData::YulSingleFile(source_code) => Ok(ZkSolcInput::YulSingleFile {
+                source_code,
+                is_system: request.req.is_system,
+            }),
             _ => panic!("Unexpected SourceCode variant"),
         }
     }
@@ -524,10 +526,9 @@ impl JobProcessor for ContractVerifier {
             let verification_result = Self::verify(&mut connection, job, config).await;
             Self::process_result(&mut connection, job_id, verification_result).await;
 
-            metrics::histogram!(
-                "api.contract_verifier.request_processing_time",
-                started_at.elapsed()
-            );
+            API_CONTRACT_VERIFIER_METRICS
+                .request_processing_time
+                .observe(started_at.elapsed());
             Ok(())
         })
     }

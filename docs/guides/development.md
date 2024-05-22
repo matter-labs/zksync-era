@@ -24,7 +24,7 @@ zk init
 
 This command will do the following:
 
-- Generate `$ZKSYNC_HOME/etc/env/dev.env` file with settings for the applications.
+- Generate `$ZKSYNC_HOME/etc/env/target/dev.env` file with settings for the applications.
 - Initialize docker containers with `reth` Ethereum node for local development.
 - Download and unpack files for cryptographical backend.
 - Generate required smart contracts.
@@ -51,8 +51,8 @@ zk clean --database --backups # Remove database *and* backups, but not configs.
 
 1. If you have an initialized database and want to run `zk init`, you have to remove the database first.
 2. If after getting new functionality from the `main` branch your code stopped working and `zk init` doesn't help, you
-   may try removing `$ZKSYNC_HOME/etc/env/dev.env` and running `zk init` once again. This may help if the application
-   configuration has changed.
+   may try removing `$ZKSYNC_HOME/etc/env/target/dev.env` and running `zk init` once again. This may help if the
+   application configuration has changed.
 
 If you don’t need all of the `zk init` functionality, but just need to start/stop containers, use the following
 commands:
@@ -108,23 +108,6 @@ Options:
 --use-cspell: Utilize cspell.
 ```
 
-## Link Checking
-
-To maintain the integrity and reliability of our documentation, we make use of a link checking process using the
-`markdown-link-check` tool. This ensures that all links in our markdown files are valid and accessible. The following
-section describes how to use this tool and configure it for specific needs.
-
-### Using the Link Check Command
-
-The link check command `zk linkcheck` is designed to verify the integrity of links in our markdown files. To execute the
-link check, use the following command:
-
-```
-zk linkcheck
-Options:
---config <config>: Path to the markdown-link-check configuration file. Default is './checks-config/links.json'.
-```
-
 ### General Rules
 
 **Code References in Comments**: When referring to code elements within development comments, they should be wrapped in
@@ -162,7 +145,7 @@ By default, the chosen prover is a "dummy" one, meaning that it doesn't actually
 avoid expensive computations in the development environment.
 
 To switch dummy prover to real prover, one must change `dummy_verifier` to `false` in `contracts.toml` for your env
-(most likely, `etc/env/dev/contracts.toml`) and run `zk init` to redeploy smart contracts.
+(most likely, `etc/env/base/contracts.toml`) and run `zk init` to redeploy smart contracts.
 
 ## Testing
 

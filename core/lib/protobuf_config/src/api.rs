@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use anyhow::Context as _;
 use zksync_config::configs::{api, ApiConfig};
 use zksync_protobuf::{
@@ -30,6 +32,7 @@ impl ProtoRepr for proto::Api {
 
 impl ProtoRepr for proto::Web3JsonRpc {
     type Type = api::Web3JsonRpcConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         let account_pks = self
             .account_pks
@@ -43,6 +46,29 @@ impl ProtoRepr for proto::Web3JsonRpc {
         } else {
             Some(account_pks)
         };
+
+        let max_response_body_size_overrides_mb = self
+            .max_response_body_size_overrides
+            .iter()
+            .enumerate()
+            .map(|(i, entry)| {
+                let size_mb = if let Some(size_mb) = entry.size_mb {
+                    let size_mb =
+                        usize::try_from(size_mb).with_context(|| format!("[{i}].size_mb"))?;
+                    NonZeroUsize::new(size_mb).with_context(|| format!("[{i}].size_mb is zero"))?
+                } else {
+                    NonZeroUsize::MAX
+                };
+                Ok((
+                    entry
+                        .method
+                        .clone()
+                        .with_context(|| format!("[{i}].method"))?,
+                    size_mb,
+                ))
+            })
+            .collect::<anyhow::Result<_>>()
+            .context("max_response_body_size_overrides")?;
 
         Ok(Self::Type {
             http_port: required(&self.http_port)
@@ -96,18 +122,19 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .latest_values_cache_size_mb
                 .map(|x| x.try_into())
                 .transpose()
-                .context("latests_values_cache_size_mb")?,
+                .context("latest_values_cache_size_mb")?,
             fee_history_limit: self.fee_history_limit,
             max_batch_request_size: self
                 .max_batch_request_size
                 .map(|x| x.try_into())
                 .transpose()
-                .context("max_batch_requres_size")?,
+                .context("max_batch_request_size")?,
             max_response_body_size_mb: self
                 .max_response_body_size_mb
                 .map(|x| x.try_into())
                 .transpose()
                 .context("max_response_body_size_mb")?,
+            max_response_body_size_overrides_mb,
             websocket_requests_per_minute_limit: self
                 .websocket_requests_per_minute_limit
                 .map(|x| x.try_into())
@@ -129,6 +156,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .context("account_pks")?,
         })
     }
+
     fn build(this: &Self::Type) -> Self {
         Self {
             http_port: Some(this.http_port.into()),
@@ -173,6 +201,18 @@ impl ProtoRepr for proto::Web3JsonRpc {
             max_response_body_size_mb: this
                 .max_response_body_size_mb
                 .map(|x| x.try_into().unwrap()),
+            max_response_body_size_overrides: this
+                .max_response_body_size_overrides_mb
+                .iter()
+                .map(|(method, size_mb)| proto::MaxResponseSizeOverride {
+                    method: Some(method.to_owned()),
+                    size_mb: if size_mb == usize::MAX {
+                        None
+                    } else {
+                        Some(size_mb.try_into().expect("failed converting usize to u64"))
+                    },
+                })
+                .collect(),
             websocket_requests_per_minute_limit: this
                 .websocket_requests_per_minute_limit
                 .map(|x| x.into()),

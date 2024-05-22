@@ -5,7 +5,7 @@ use zksync_db_connection::{
     instrument::{CopyStatement, InstrumentExt},
     write_str, writeln_str,
 };
-use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
+use zksync_types::{tokens::TokenInfo, Address, L2BlockNumber};
 
 use crate::{Core, CoreDal};
 
@@ -86,16 +86,25 @@ impl TokensDal<'_, '_> {
     }
 
     /// Removes token records that were deployed after `block_number`.
-    pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
+    pub async fn roll_back_tokens(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         let all_token_addresses = self.get_all_l2_token_addresses().await?;
         let token_deployment_data = self
             .storage
             .storage_logs_dal()
-            .filter_deployed_contracts(all_token_addresses.into_iter(), None)
+            .filter_deployed_contracts(all_token_addresses.iter().copied(), None)
             .await?;
-        let token_addresses_to_be_removed: Vec<_> = token_deployment_data
+        let token_addresses_to_be_removed: Vec<_> = all_token_addresses
             .into_iter()
-            .filter_map(|(address, deployed_at)| (deployed_at > block_number).then_some(address.0))
+            .filter_map(|address| {
+                if address.is_zero() {
+                    None
+                } else if let Some(deployed_at) = token_deployment_data.get(&address) {
+                    (deployed_at > &block_number).then_some(address.0)
+                } else {
+                    // Token belongs to a "pending" L2 block that's not yet fully inserted to the database.
+                    Some(address.0)
+                }
+            })
             .collect();
         sqlx::query!(
             r#"
@@ -105,7 +114,7 @@ impl TokensDal<'_, '_> {
             "#,
             &token_addresses_to_be_removed as &[_]
         )
-        .instrument("rollback_tokens")
+        .instrument("roll_back_tokens")
         .with_arg("block_number", &block_number)
         .with_arg(
             "token_addresses_to_be_removed.len",
@@ -123,10 +132,10 @@ mod tests {
     use std::{collections::HashSet, slice};
 
     use zksync_system_constants::FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH;
-    use zksync_types::{get_code_key, tokens::TokenMetadata, StorageLog, H256};
+    use zksync_types::{get_code_key, tokens::TokenMetadata, ProtocolVersion, StorageLog, H256};
 
     use super::*;
-    use crate::{ConnectionPool, Core, CoreDal};
+    use crate::{tests::create_l2_block_header, ConnectionPool, Core, CoreDal};
 
     fn test_token_info() -> TokenInfo {
         TokenInfo {
@@ -152,12 +161,42 @@ mod tests {
         }
     }
 
+    async fn insert_l2_block(conn: &mut Connection<'_, Core>, number: u32, logs: Vec<StorageLog>) {
+        conn.blocks_dal()
+            .insert_l2_block(&create_l2_block_header(number))
+            .await
+            .unwrap();
+
+        let logs = [(H256::zero(), logs)];
+        conn.storage_logs_dal()
+            .insert_storage_logs(L2BlockNumber(number), &logs)
+            .await
+            .unwrap();
+    }
+
     #[tokio::test]
     async fn adding_and_getting_tokens() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
+        storage
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
         let tokens = [test_token_info(), eth_token_info()];
         storage.tokens_dal().add_tokens(&tokens).await.unwrap();
+
+        let storage_logs: Vec<_> = tokens
+            .iter()
+            .map(|token_info| {
+                StorageLog::new_write_log(
+                    get_code_key(&token_info.l2_address),
+                    H256::repeat_byte(0xff),
+                )
+            })
+            .collect();
+        insert_l2_block(&mut storage, 1, storage_logs).await;
 
         let token_addresses = storage
             .tokens_dal()
@@ -203,46 +242,37 @@ mod tests {
     async fn rolling_back_tokens() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
+        storage
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
 
         let eth_info = eth_token_info();
         let eth_deployment_log =
             StorageLog::new_write_log(get_code_key(&eth_info.l2_address), H256::repeat_byte(1));
         storage
-            .storage_logs_dal()
-            .insert_storage_logs(
-                MiniblockNumber(0),
-                &[(H256::zero(), vec![eth_deployment_log])],
-            )
-            .await
-            .unwrap();
-        storage
             .tokens_dal()
             .add_tokens(slice::from_ref(&eth_info))
             .await
             .unwrap();
+        insert_l2_block(&mut storage, 0, vec![eth_deployment_log]).await;
 
         let test_info = test_token_info();
         let test_deployment_log =
             StorageLog::new_write_log(get_code_key(&test_info.l2_address), H256::repeat_byte(2));
         storage
-            .storage_logs_dal()
-            .insert_storage_logs(
-                MiniblockNumber(2),
-                &[(H256::zero(), vec![test_deployment_log])],
-            )
-            .await
-            .unwrap();
-        storage
             .tokens_dal()
             .add_tokens(slice::from_ref(&test_info))
             .await
             .unwrap();
+        insert_l2_block(&mut storage, 2, vec![test_deployment_log]).await;
 
         test_getting_all_tokens(&mut storage).await;
 
         storage
             .tokens_dal()
-            .rollback_tokens(MiniblockNumber(2))
+            .roll_back_tokens(L2BlockNumber(2))
             .await
             .unwrap();
         // Should be a no-op.
@@ -257,7 +287,7 @@ mod tests {
 
         storage
             .tokens_dal()
-            .rollback_tokens(MiniblockNumber(1))
+            .roll_back_tokens(L2BlockNumber(1))
             .await
             .unwrap();
         // The custom token should be removed; Ether shouldn't.
@@ -272,10 +302,10 @@ mod tests {
     }
 
     async fn test_getting_all_tokens(storage: &mut Connection<'_, Core>) {
-        for at_miniblock in [None, Some(MiniblockNumber(2)), Some(MiniblockNumber(100))] {
+        for at_l2_block in [None, Some(L2BlockNumber(2)), Some(L2BlockNumber(100))] {
             let all_tokens = storage
                 .tokens_web3_dal()
-                .get_all_tokens(at_miniblock)
+                .get_all_tokens(at_l2_block)
                 .await
                 .unwrap();
             assert_eq!(all_tokens.len(), 2);
@@ -283,10 +313,10 @@ mod tests {
             assert!(all_tokens.contains(&test_token_info()));
         }
 
-        for at_miniblock in [MiniblockNumber(0), MiniblockNumber(1)] {
+        for at_l2_block in [L2BlockNumber(0), L2BlockNumber(1)] {
             let all_tokens = storage
                 .tokens_web3_dal()
-                .get_all_tokens(Some(at_miniblock))
+                .get_all_tokens(Some(at_l2_block))
                 .await
                 .unwrap();
             assert_eq!(all_tokens, [eth_token_info()]);
@@ -308,7 +338,7 @@ mod tests {
         storage
             .storage_logs_dal()
             .insert_storage_logs(
-                MiniblockNumber(1),
+                L2BlockNumber(1),
                 &[(H256::zero(), vec![failed_deployment_log])],
             )
             .await
@@ -319,7 +349,7 @@ mod tests {
         storage
             .storage_logs_dal()
             .insert_storage_logs(
-                MiniblockNumber(100),
+                L2BlockNumber(100),
                 &[(H256::zero(), vec![test_deployment_log])],
             )
             .await
@@ -330,7 +360,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Sanity check: before rollback the token must be present.
+        // Sanity check: before revert the token must be present.
         assert_eq!(
             storage
                 .tokens_dal()
@@ -342,7 +372,7 @@ mod tests {
 
         storage
             .tokens_dal()
-            .rollback_tokens(MiniblockNumber(99))
+            .roll_back_tokens(L2BlockNumber(99))
             .await
             .unwrap();
         // Token must be removed despite it's failed deployment being earlier than the last retained miniblock.

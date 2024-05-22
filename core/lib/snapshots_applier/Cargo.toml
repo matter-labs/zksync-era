@@ -22,10 +22,12 @@ vise.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
+futures.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
+assert_matches.workspace = true
 test-casing.workspace = true

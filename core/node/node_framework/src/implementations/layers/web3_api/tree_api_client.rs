@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_core::api_server::tree::TreeApiHttpClient;
+use zksync_metadata_calculator::api_server::TreeApiHttpClient;
 
 use crate::{
     implementations::resources::{
@@ -31,7 +31,9 @@ impl WiringLayer for TreeApiClientLayer {
         if let Some(url) = &self.url {
             let client = Arc::new(TreeApiHttpClient::new(url));
             let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
-            app_health.insert_custom_component(client.clone());
+            app_health
+                .insert_custom_component(client.clone())
+                .map_err(WiringError::internal)?;
             context.insert_resource(TreeApiClientResource(client))?;
         }
         Ok(())

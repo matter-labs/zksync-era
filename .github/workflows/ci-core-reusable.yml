@@ -16,7 +16,7 @@ jobs:
     runs-on: [matterlabs-ci-runner]
 
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -59,7 +59,7 @@ jobs:
           ci_run zk contract build
 
       - name: Contracts unit tests
-        run: ci_run zk test l1-contracts
+        run: ci_run yarn l1-contracts test
 
       - name: Rust unit tests
         run: ci_run zk test rust
@@ -68,7 +68,7 @@ jobs:
     runs-on: [matterlabs-ci-runner]
 
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -99,13 +99,16 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zk init
+          ci_run zk init --local-legacy-bridge-testing
 
-      # `sleep 30` because we need to wait until server added all the tokens
+      # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper &>server.log &
-          ci_run sleep 30
+          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
+          ci_run sleep 60
+
+      - name: Deploy legacy era contracts
+        run: ci_run zk contract setup-legacy-bridge-era
 
       - name: Perform loadtest
         run: ci_run zk run loadtest
@@ -117,23 +120,25 @@ jobs:
       - name: Show sccache logs
         if: always()
         run: |
-          ci_run sccache --show-stats
-          ci_run cat /tmp/sccache_log.txt
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
+
   integration:
-    name: Integration (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.deployment_mode }})
+    name: Integration (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }}, deployment_mode=${{ matrix.deployment_mode }})
     strategy:
       # In matrix jobs, fail-fast is true by default.
       # To be consistent with the rest of the workflow we disable it explicitly.
       fail-fast: false
       matrix:
         consensus: [false, true]
+        base_token: ["Eth", "Custom"]
         deployment_mode: ["Rollup", "Validium"]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
     runs-on: [matterlabs-ci-runner]
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -186,13 +191,13 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ci_run zk init
-          elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
+          if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
-            ci_run zk init --validium-mode
+          else
+            ci_run zk config compile
           fi
+          ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}} ${{ matrix.deployment_mode == 'Validium' && '--validium-mode' || ''}}
 
       # `sleep 5` because we need to wait until server started properly
       - name: Run server
@@ -212,12 +217,28 @@ jobs:
         # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
         # (e.g., DATABASE_URL).
+        #
+        # Since `base_token` doesn't meaningfully influence the test, we use it as a flag for
+        # enabling / disabling tree during pruning.
         run: |
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk config compile ext-node-validium
             ci_run zk config compile ext-node-validium-docker
           fi
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run yarn snapshot-recovery-test snapshot-recovery-test
+          ENABLE_CONSENSUS=${{ matrix.consensus }} \
+          DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
+          ETH_CLIENT_WEB3_URL="http://reth:8545" \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,ETH_CLIENT_WEB3_URL" \
+            ci_run yarn recovery-test snapshot-recovery-test
+
+      - name: Genesis recovery test
+        run: |
+          ENABLE_CONSENSUS=${{ matrix.consensus }} \
+          DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          ETH_CLIENT_WEB3_URL="http://reth:8545" \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,ETH_CLIENT_WEB3_URL" \
+            ci_run yarn recovery-test genesis-recovery-test
 
       - name: Fee projection tests
         run: ci_run zk test i fees
@@ -227,6 +248,7 @@ jobs:
           ci_run pkill zksync_server || true
           ci_run sleep 2
           ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
+
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
@@ -246,10 +268,13 @@ jobs:
 
       - name: Show snapshot-creator.log logs
         if: always()
-        run: ci_run cat core/tests/snapshot-recovery-test/snapshot-creator.log || true
+        run: ci_run cat core/tests/recovery-test/snapshot-creator.log || true
       - name: Show snapshot-recovery.log logs
         if: always()
-        run: ci_run cat core/tests/snapshot-recovery-test/snapshot-recovery.log || true
+        run: ci_run cat core/tests/recovery-test/snapshot-recovery.log || true
+      - name: Show genesis-recovery.log logs
+        if: always()
+        run: ci_run cat core/tests/recovery-test/genesis-recovery.log || true
 
       - name: Show revert.log logs
         if: always()
@@ -262,25 +287,26 @@ jobs:
       - name: Show sccache logs
         if: always()
         run: |
-          ci_run sccache --show-stats
-          ci_run cat /tmp/sccache_log.txt
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
 
   external-node:
-    name: External node (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.deployment_mode }})
+    name: External node (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }}, deployment_mode=${{ matrix.deployment_mode }})
     strategy:
       fail-fast: false
       matrix:
         consensus: [false, true]
+        base_token: ["Eth", "Custom"]
         deployment_mode: ["Rollup", "Validium"]
     runs-on: [matterlabs-ci-runner]
 
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
       EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
 
     steps:
       - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -306,12 +332,12 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ci_run zk init
+            ci_run zk config compile
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
-            ci_run zk init --validium-mode
           fi
+          ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}} ${{ matrix.deployment_mode == 'Validium' && '--validium-mode' || ''}}
 
       # `sleep 30` because we need to wait until server started properly
       - name: Run server
@@ -382,5 +408,5 @@ jobs:
       - name: Show sccache logs
         if: always()
         run: |
-          ci_run sccache --show-stats
-          ci_run cat /tmp/sccache_log.txt
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true

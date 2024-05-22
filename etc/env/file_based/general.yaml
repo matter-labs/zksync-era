@@ -1,6 +1,4 @@
 postgres:
-  server_url: postgres://postgres:notsecurepassword@localhost/zksync_local
-  prover_url: postgres://postgres:notsecurepassword@localhost/prover_local
   max_connections: 100
   statement_timeout_sec: 300
   test:
@@ -16,6 +14,8 @@ db:
     max_l1_batches_per_iter: 50
     path: "./db/main/tree"
     mode: FULL
+  experimental:
+    state_keeper_db_block_cache_capacity_mb: 128
 
 api:
   prometheus:
@@ -63,12 +63,17 @@ api:
     estimate_gas_scale_factor: 1.2
     estimate_gas_acceptable_overestimation: 1000
     max_tx_size: 1000000
+    max_response_body_size_overrides:
+      - method: eth_getTransactionReceipt # no size specified, meaning no size limit
+      - method: zks_getProof
+        size_mb: 64
 state_keeper:
   transaction_slots: 250
   max_allowed_l2_tx_gas_limit: 4000000000
   block_commit_deadline_ms: 2500
   miniblock_commit_deadline_ms: 1000
   miniblock_seal_queue_capacity: 10
+  miniblock_max_payload_size: 1000000
   max_single_tx_gas: 6000000
   close_block_at_geometry_percentage: 0.95
   close_block_at_eth_params_percentage: 0.95
@@ -110,7 +115,6 @@ circuit_breaker:
   replication_lag_limit_sec: 100
   http_req_retry_interval_sec: 2
 eth:
-  web3_url: http://127.0.0.1:8545
   sender:
     wait_confirmations: 1
     tx_poll_period: 1
@@ -157,7 +161,7 @@ prover:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
-  setup_data_path: /usr/src/setup-data
+  setup_data_path: vk_setup_data_generator_server_fri/data
   prometheus_port: 3315
   max_attempts: 10
   generation_timeout_in_secs: 600
@@ -169,10 +173,8 @@ prover:
   zone_read_url: http://metadata.google.internal/computeMetadata/v1/instance/zone
   shall_save_to_public_bucket: true
 witness_generator:
-  dump_arguments_for_blocks: [ 2,3 ]
   generation_timeout_in_secs: 900
   max_attempts: 10
-  force_process_block: 1
   shall_save_to_public_bucket: true
 witness_vector_generator:
   prover_instance_wait_timeout_in_secs: 200
@@ -182,6 +184,9 @@ witness_vector_generator:
   prometheus_push_interval_ms: 100
   specialized_group_id: 100
   max_prover_reservation_duration_in_secs: 1000
+data_handler:
+  http_port: 3320
+  proof_generation_timeout_in_secs: 18000
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 1000
@@ -195,15 +200,17 @@ proof_compressor:
   prometheus_push_interval_ms: 100
   generation_timeout_in_secs: 3600
   max_attempts: 5
-  universal_setup_path: keys/setup/setup_2^26.key
-  universal_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key
+  universal_setup_path: keys/setup/setup_2^24.key
+  universal_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key
   verify_wrapper_proof: true
 prover_group:
   group_0:
     - circuit_id: 1
-      aggregation_round: 3
+      aggregation_round: 4
     - circuit_id: 2
       aggregation_round: 2
+    - circuit_id: 255
+      aggregation_round: 0
   group_1:
     - circuit_id: 1
       aggregation_round: 0
@@ -225,8 +232,6 @@ prover_group:
     - circuit_id: 12
       aggregation_round: 0
     - circuit_id: 13
-      aggregation_round: 0
-    - circuit_id: 255
       aggregation_round: 0
   group_5:
     - circuit_id: 5
@@ -270,6 +275,20 @@ prover_group:
       aggregation_round: 1
     - circuit_id: 9
       aggregation_round: 1
+  group_13:
+    - circuit_id: 14
+      aggregation_round: 0
+    - circuit_id: 15
+      aggregation_round: 0
+    - circuit_id: 255
+      aggregation_round: 0
+  group_14:
+    - circuit_id: 16
+      aggregation_round: 1
+    - circuit_id: 17
+      aggregation_round: 1
+    - circuit_id: 18
+      aggregation_round: 1
 
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000
@@ -294,7 +313,7 @@ prometheus:
 
 observability:
   log_format: plain
-  log_directives: "zksync_node_framework=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_eth_client=info,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=debug,snapshots_creator=debug"
+  log_directives: "zksync_node_test_utils=info,zksync_state_keeper=info,zksync_reorg_detector=info,zksync_consistency_checker=info,zksync_metadata_calculator=info,zksync_node_sync=info,zksync_node_consensus=info,zksync_contract_verification_server=info,zksync_node_api_server=info,zksync_tee_verifier_input_producer=info,zksync_node_framework=info,zksync_block_reverter=info,zksync_commitment_generator=info,zksync_node_db_pruner=info,zksync_eth_sender=info,zksync_node_fee_model=info,zksync_node_genesis=info,zksync_house_keeper=info,zksync_proof_data_handler=info,zksync_shared_metrics=info,zksync_node_test_utils=info,zksync_vm_runner=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core_leftovers=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_db_connection=info,zksync_eth_client=info,zksync_eth_watch=debug,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_web3_decl=debug,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=debug,snapshots_creator=debug"
   sentry:
     url: unset
     panic_interval: 1800
@@ -303,8 +322,3 @@ observability:
   opentelemetry:
     endpoint: unset
     level: debug
-  sporadic_crypto_errors_substrs:
-    - "EventDestroyErr"
-    - "Can't free memory of DeviceBuf"
-    - "value: PoisonError"
-

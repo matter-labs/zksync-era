@@ -4,7 +4,7 @@ use zksync_db_connection::{
     match_query_as,
 };
 use zksync_types::{
-    api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
+    api, api::TransactionReceipt, Address, L2BlockNumber, L2ChainId, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 
@@ -19,7 +19,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 enum TransactionSelector<'a> {
     Hashes(&'a [H256]),
-    Position(MiniblockNumber, u32),
+    Position(L2BlockNumber, u32),
 }
 
 #[derive(Debug)]
@@ -75,7 +75,10 @@ impl TransactionsWeb3Dal<'_, '_> {
                 AND sl.tx_hash = transactions.hash
             WHERE
                 transactions.hash = ANY ($3)
+                AND transactions.data != '{}'::jsonb
             "#,
+            // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
+            // transaction info.
             ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
             &hash_bytes as &[&[u8]]
@@ -160,7 +163,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 SELECT
                     transactions.hash AS tx_hash,
                     transactions.index_in_block AS index_in_block,
-                    transactions.miniblock_number AS block_number,
+                    miniblocks.number AS block_number,
                     transactions.nonce AS nonce,
                     transactions.signature AS signature,
                     transactions.initiator_address AS initiator_address,
@@ -179,7 +182,10 @@ impl TransactionsWeb3Dal<'_, '_> {
                 LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
                 WHERE
                 "#,
-                _ // WHERE condition
+                _, // WHERE condition
+                " AND transactions.data != '{}'::jsonb"
+                // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
+                // transaction info.
             ],
             match (selector) {
                 TransactionSelector::Hashes(hashes) => (
@@ -187,7 +193,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     &hashes.iter().map(H256::as_bytes).collect::<Vec<_>>() as &[&[u8]]
                 ),
                 TransactionSelector::Position(block_number, idx) => (
-                    "transactions.miniblock_number = $1 AND transactions.index_in_block = $2";
+                    "miniblocks.number = $1 AND transactions.index_in_block = $2";
                     i64::from(block_number.0),
                     idx as i32
                 ),
@@ -216,7 +222,7 @@ impl TransactionsWeb3Dal<'_, '_> {
 
     pub async fn get_transaction_by_position(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         index_in_block: u32,
         chain_id: L2ChainId,
     ) -> DalResult<Option<api::Transaction>> {
@@ -234,53 +240,52 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hash: H256,
     ) -> DalResult<Option<api::TransactionDetails>> {
-        {
-            let storage_tx_details: Option<StorageTransactionDetails> = sqlx::query_as!(
-                StorageTransactionDetails,
-                r#"
-                SELECT
-                    transactions.is_priority,
-                    transactions.initiator_address,
-                    transactions.gas_limit,
-                    transactions.gas_per_pubdata_limit,
-                    transactions.received_at,
-                    transactions.miniblock_number,
-                    transactions.error,
-                    transactions.effective_gas_price,
-                    transactions.refunded_gas,
-                    commit_tx.tx_hash AS "eth_commit_tx_hash?",
-                    prove_tx.tx_hash AS "eth_prove_tx_hash?",
-                    execute_tx.tx_hash AS "eth_execute_tx_hash?"
-                FROM
-                    transactions
-                    LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                    LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
-                    LEFT JOIN eth_txs_history AS commit_tx ON (
-                        l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
-                        AND commit_tx.confirmed_at IS NOT NULL
-                    )
-                    LEFT JOIN eth_txs_history AS prove_tx ON (
-                        l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
-                        AND prove_tx.confirmed_at IS NOT NULL
-                    )
-                    LEFT JOIN eth_txs_history AS execute_tx ON (
-                        l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
-                        AND execute_tx.confirmed_at IS NOT NULL
-                    )
-                WHERE
-                    transactions.hash = $1
-                "#,
-                hash.as_bytes()
-            )
-            .instrument("get_transaction_details")
-            .with_arg("hash", &hash)
-            .fetch_optional(self.storage)
-            .await?;
+        let row = sqlx::query_as!(
+            StorageTransactionDetails,
+            r#"
+            SELECT
+                transactions.is_priority,
+                transactions.initiator_address,
+                transactions.gas_limit,
+                transactions.gas_per_pubdata_limit,
+                transactions.received_at,
+                miniblocks.number AS "miniblock_number?",
+                transactions.error,
+                transactions.effective_gas_price,
+                transactions.refunded_gas,
+                commit_tx.tx_hash AS "eth_commit_tx_hash?",
+                prove_tx.tx_hash AS "eth_prove_tx_hash?",
+                execute_tx.tx_hash AS "eth_execute_tx_hash?"
+            FROM
+                transactions
+                LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+                LEFT JOIN eth_txs_history AS commit_tx ON (
+                    l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
+                    AND commit_tx.confirmed_at IS NOT NULL
+                )
+                LEFT JOIN eth_txs_history AS prove_tx ON (
+                    l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
+                    AND prove_tx.confirmed_at IS NOT NULL
+                )
+                LEFT JOIN eth_txs_history AS execute_tx ON (
+                    l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
+                    AND execute_tx.confirmed_at IS NOT NULL
+                )
+            WHERE
+                transactions.hash = $1
+                AND transactions.data != '{}'::jsonb
+            "#,
+            // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
+            // transaction info.
+            hash.as_bytes()
+        )
+        .instrument("get_transaction_details")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
+        .await?;
 
-            let tx = storage_tx_details.map(|tx_details| tx_details.into());
-
-            Ok(tx)
-        }
+        Ok(row.map(Into::into))
     }
 
     /// Returns hashes of txs which were received after `from_timestamp` and the time of receiving the last tx.
@@ -296,7 +301,6 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.received_at
             FROM
                 transactions
-                LEFT JOIN miniblocks ON miniblocks.number = miniblock_number
             WHERE
                 received_at > $1
             ORDER BY
@@ -373,28 +377,29 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok(U256::from(pending_nonce))
     }
 
-    /// Returns the server transactions (not API ones) from a certain miniblock.
-    /// Returns an empty list if the miniblock doesn't exist.
-    pub async fn get_raw_miniblock_transactions(
+    /// Returns the server transactions (not API ones) from a certain L2 block.
+    /// Returns an empty list if the L2 block doesn't exist.
+    pub async fn get_raw_l2_block_transactions(
         &mut self,
-        miniblock: MiniblockNumber,
+        l2_block: L2BlockNumber,
     ) -> DalResult<Vec<Transaction>> {
         let rows = sqlx::query_as!(
             StorageTransaction,
             r#"
             SELECT
-                *
+                transactions.*
             FROM
                 transactions
+                INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
             WHERE
-                miniblock_number = $1
+                miniblocks.number = $1
             ORDER BY
                 index_in_block
             "#,
-            i64::from(miniblock.0)
+            i64::from(l2_block.0)
         )
-        .instrument("get_raw_miniblock_transactions")
-        .with_arg("miniblock", &miniblock)
+        .instrument("get_raw_l2_block_transactions")
+        .with_arg("l2_block", &l2_block)
         .fetch_all(self.storage)
         .await?;
 
@@ -406,17 +411,19 @@ impl TransactionsWeb3Dal<'_, '_> {
 mod tests {
     use std::collections::HashMap;
 
-    use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion};
+    use zksync_types::{
+        fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion, ProtocolVersionId,
+    };
 
     use super::*;
     use crate::{
-        tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
+        tests::{create_l2_block_header, mock_execution_result, mock_l2_transaction},
         ConnectionPool, Core, CoreDal,
     };
 
     async fn prepare_transactions(conn: &mut Connection<'_, Core>, txs: Vec<L2Tx>) {
         conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
+            .delete_l2_blocks(L2BlockNumber(0))
             .await
             .unwrap();
 
@@ -427,13 +434,13 @@ mod tests {
                 .unwrap();
         }
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
+            .insert_l2_block(&create_l2_block_header(0))
             .await
             .unwrap();
-        let mut miniblock_header = create_miniblock_header(1);
-        miniblock_header.l2_tx_count = txs.len() as u16;
+        let mut l2_block_header = create_l2_block_header(1);
+        l2_block_header.l2_tx_count = txs.len() as u16;
         conn.blocks_dal()
-            .insert_miniblock(&miniblock_header)
+            .insert_l2_block(&l2_block_header)
             .await
             .unwrap();
 
@@ -443,7 +450,13 @@ mod tests {
             .collect::<Vec<_>>();
 
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, U256::from(1))
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(1),
+                &tx_results,
+                U256::from(1),
+                ProtocolVersionId::latest(),
+                false,
+            )
             .await
             .unwrap();
     }
@@ -462,7 +475,7 @@ mod tests {
 
         let web3_tx = conn
             .transactions_web3_dal()
-            .get_transaction_by_position(MiniblockNumber(1), 0, L2ChainId::from(270))
+            .get_transaction_by_position(L2BlockNumber(1), 0, L2ChainId::from(270))
             .await;
         let web3_tx = web3_tx.unwrap().unwrap();
         assert_eq!(web3_tx.hash, tx_hash);
@@ -481,14 +494,14 @@ mod tests {
         for block_number in [0, 2, 100] {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction_by_position(MiniblockNumber(block_number), 0, L2ChainId::from(270))
+                .get_transaction_by_position(L2BlockNumber(block_number), 0, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
         for index in [1, 2, 100] {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction_by_position(MiniblockNumber(1), index, L2ChainId::from(270))
+                .get_transaction_by_position(L2BlockNumber(1), index, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
@@ -529,7 +542,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn getting_miniblock_transactions() {
+    async fn getting_l2_block_transactions() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
@@ -542,14 +555,14 @@ mod tests {
 
         let raw_txs = conn
             .transactions_web3_dal()
-            .get_raw_miniblock_transactions(MiniblockNumber(0))
+            .get_raw_l2_block_transactions(L2BlockNumber(0))
             .await
             .unwrap();
         assert!(raw_txs.is_empty());
 
         let raw_txs = conn
             .transactions_web3_dal()
-            .get_raw_miniblock_transactions(MiniblockNumber(1))
+            .get_raw_l2_block_transactions(L2BlockNumber(1))
             .await
             .unwrap();
         assert_eq!(raw_txs.len(), 1);
@@ -605,19 +618,22 @@ mod tests {
             .unwrap();
         assert_eq!(next_nonce, 1.into());
 
-        // Include transactions in a miniblock (including the rejected one), so that they are taken into account again.
-        let mut miniblock = create_miniblock_header(1);
-        miniblock.l2_tx_count = 2;
-        conn.blocks_dal()
-            .insert_miniblock(&miniblock)
-            .await
-            .unwrap();
+        // Include transactions in a L2 block (including the rejected one), so that they are taken into account again.
+        let mut l2_block = create_l2_block_header(1);
+        l2_block.l2_tx_count = 2;
+        conn.blocks_dal().insert_l2_block(&l2_block).await.unwrap();
         let executed_txs = [
             mock_execution_result(tx_by_nonce[&0].clone()),
             mock_execution_result(tx_by_nonce[&1].clone()),
         ];
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(miniblock.number, &executed_txs, 1.into())
+            .mark_txs_as_executed_in_l2_block(
+                l2_block.number,
+                &executed_txs,
+                1.into(),
+                ProtocolVersionId::latest(),
+                false,
+            )
             .await
             .unwrap();
 

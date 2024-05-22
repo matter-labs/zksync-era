@@ -1,28 +1,29 @@
 use std::time::Duration;
 
+use anyhow::Context as _;
 use serde::Deserialize;
 use zksync_basic_types::H256;
+use zksync_crypto_primitives::K256PrivateKey;
 
-use crate::ETHWatchConfig;
+use crate::EthWatchConfig;
 
 /// Configuration for the Ethereum related components.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ETHConfig {
+pub struct EthConfig {
     /// Options related to the Ethereum sender directly.
     pub sender: Option<SenderConfig>,
     /// Options related to the `GasAdjuster` submodule.
     pub gas_adjuster: Option<GasAdjusterConfig>,
-    pub watcher: Option<ETHWatchConfig>,
-    pub web3_url: String,
+    pub watcher: Option<EthWatchConfig>,
 }
 
-impl ETHConfig {
+impl EthConfig {
     /// Creates a mock configuration object suitable for unit tests.
     /// Values inside match the config used for localhost development.
     pub fn for_tests() -> Self {
         Self {
             sender: Some(SenderConfig {
-                aggregated_proof_sizes: vec![1, 4],
+                aggregated_proof_sizes: vec![1],
                 wait_confirmations: Some(1),
                 tx_poll_period: 1,
                 aggregate_tx_poll_period: 1,
@@ -55,11 +56,10 @@ impl ETHConfig {
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
             }),
-            watcher: Some(ETHWatchConfig {
+            watcher: Some(EthWatchConfig {
                 confirmations_for_eth_event: None,
                 eth_node_poll_interval: 0,
             }),
-            web3_url: "localhost:8545".to_string(),
         }
     }
 }
@@ -135,10 +135,16 @@ impl SenderConfig {
 
     // Don't load private key, if it's not required.
     #[deprecated]
-    pub fn private_key(&self) -> Option<H256> {
+    pub fn private_key(&self) -> anyhow::Result<Option<K256PrivateKey>> {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY")
             .ok()
-            .map(|pk| pk.parse().unwrap())
+            .map(|pk| {
+                let private_key_bytes: H256 =
+                    pk.parse().context("failed parsing private key bytes")?;
+                K256PrivateKey::from_bytes(private_key_bytes)
+                    .context("private key bytes are invalid")
+            })
+            .transpose()
     }
 
     // Don't load blobs private key, if it's not required

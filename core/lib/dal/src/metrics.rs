@@ -29,7 +29,7 @@ static POSTGRES_METRICS: vise::Global<PostgresMetrics> = vise::Global::new();
 
 impl PostgresMetrics {
     pub async fn run_scraping(pool: ConnectionPool<Core>, scrape_interval: Duration) {
-        let scrape_timeout = Duration::from_secs(1).min(scrape_interval / 2);
+        let scrape_timeout = Duration::from_secs(5).min(scrape_interval / 2);
         loop {
             match tokio::time::timeout(scrape_timeout, Self::scrape(&pool)).await {
                 Err(_) => {

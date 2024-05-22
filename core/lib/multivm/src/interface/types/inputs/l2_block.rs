@@ -1,6 +1,7 @@
-use zksync_types::{block::MiniblockExecutionData, H256};
+use serde::{Deserialize, Serialize};
+use zksync_types::{block::L2BlockExecutionData, H256};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct L2BlockEnv {
     pub number: u32,
     pub timestamp: u64,
@@ -9,7 +10,7 @@ pub struct L2BlockEnv {
 }
 
 impl L2BlockEnv {
-    pub fn from_miniblock_data(miniblock_execution_data: &MiniblockExecutionData) -> Self {
+    pub fn from_l2_block_data(miniblock_execution_data: &L2BlockExecutionData) -> Self {
         Self {
             number: miniblock_execution_data.number.0,
             timestamp: miniblock_execution_data.timestamp,

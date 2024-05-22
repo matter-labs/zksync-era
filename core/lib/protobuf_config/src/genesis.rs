@@ -1,24 +1,22 @@
 use anyhow::Context as _;
-use zksync_basic_types::{L1ChainId, L2ChainId};
-use zksync_config::{configs, configs::genesis::SharedBridge};
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1ChainId, L2ChainId};
+use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, parse_h256, proto::genesis as proto};
 
 impl proto::L1BatchCommitDataGeneratorMode {
-    fn new(n: &configs::chain::L1BatchCommitDataGeneratorMode) -> Self {
-        use configs::chain::L1BatchCommitDataGeneratorMode as From;
+    fn new(n: &L1BatchCommitmentMode) -> Self {
         match n {
-            From::Rollup => Self::Rollup,
-            From::Validium => Self::Validium,
+            L1BatchCommitmentMode::Rollup => Self::Rollup,
+            L1BatchCommitmentMode::Validium => Self::Validium,
         }
     }
 
-    fn parse(&self) -> configs::chain::L1BatchCommitDataGeneratorMode {
-        use configs::chain::L1BatchCommitDataGeneratorMode as To;
+    fn parse(&self) -> L1BatchCommitmentMode {
         match self {
-            Self::Rollup => To::Rollup,
-            Self::Validium => To::Validium,
+            Self::Rollup => L1BatchCommitmentMode::Rollup,
+            Self::Validium => L1BatchCommitmentMode::Validium,
         }
     }
 }
@@ -26,21 +24,6 @@ impl ProtoRepr for proto::Genesis {
     type Type = configs::GenesisConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         let prover = required(&self.prover).context("prover")?;
-        let shared_bridge = if let Some(shared_bridge) = &self.shared_bridge {
-            Some(SharedBridge {
-                bridgehub_proxy_addr: required(&shared_bridge.bridgehub_proxy_addr)
-                    .and_then(|x| parse_h160(x))
-                    .context("bridgehub_proxy_addr")?,
-                state_transition_proxy_addr: required(&shared_bridge.state_transition_proxy_addr)
-                    .and_then(|x| parse_h160(x))
-                    .context("state_transition_proxy_addr")?,
-                transparent_proxy_admin_addr: required(&shared_bridge.transparent_proxy_admin_addr)
-                    .and_then(|x| parse_h160(x))
-                    .context("transparent_proxy_admin_addr")?,
-            })
-        } else {
-            None
-        };
         Ok(Self::Type {
             protocol_version: Some(
                 required(&self.genesis_protocol_version)
@@ -95,7 +78,6 @@ impl ProtoRepr for proto::Genesis {
             fee_account: required(&self.fee_account)
                 .and_then(|x| parse_h160(x))
                 .context("fee_account")?,
-            shared_bridge,
             dummy_verifier: *required(&prover.dummy_verifier).context("dummy_verifier")?,
             l1_batch_commit_data_generator_mode: required(
                 &self.l1_batch_commit_data_generator_mode,
@@ -107,25 +89,10 @@ impl ProtoRepr for proto::Genesis {
     }
 
     fn build(this: &Self::Type) -> Self {
-        let shared_bridge = this
-            .shared_bridge
-            .as_ref()
-            .map(|shared_bridge| proto::SharedBridge {
-                bridgehub_proxy_addr: Some(format!("{:?}", shared_bridge.bridgehub_proxy_addr)),
-                state_transition_proxy_addr: Some(format!(
-                    "{:?}",
-                    shared_bridge.state_transition_proxy_addr
-                )),
-                transparent_proxy_admin_addr: Some(format!(
-                    "{:?}",
-                    shared_bridge.transparent_proxy_admin_addr,
-                )),
-            });
-
         Self {
             genesis_root: this.genesis_root_hash.map(|x| format!("{:?}", x)),
             genesis_rollup_leaf_index: this.rollup_last_leaf_index,
-            genesis_batch_commitment: this.genesis_root_hash.map(|x| format!("{:?}", x)),
+            genesis_batch_commitment: this.genesis_commitment.map(|x| format!("{:?}", x)),
             genesis_protocol_version: this.protocol_version.map(|x| x as u32),
             default_aa_hash: this.default_aa_hash.map(|x| format!("{:?}", x)),
             bootloader_hash: this.bootloader_hash.map(|x| format!("{:?}", x)),
@@ -151,7 +118,6 @@ impl ProtoRepr for proto::Genesis {
                 )),
                 dummy_verifier: Some(this.dummy_verifier),
             }),
-            shared_bridge,
             l1_batch_commit_data_generator_mode: Some(
                 proto::L1BatchCommitDataGeneratorMode::new(
                     &this.l1_batch_commit_data_generator_mode,

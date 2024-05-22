@@ -1,11 +1,7 @@
-use prover_dal::Prover;
-use zksync_config::configs::PostgresConfig;
-use zksync_dal::{ConnectionPool, Core};
+use zksync_config::configs::{DatabaseSecrets, PostgresConfig};
 
 use crate::{
-    implementations::resources::pools::{
-        MasterPoolResource, ProverPoolResource, ReplicaPoolResource,
-    },
+    implementations::resources::pools::{MasterPool, PoolResource, ProverPool, ReplicaPool},
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -16,15 +12,17 @@ pub struct PoolsLayerBuilder {
     with_master: bool,
     with_replica: bool,
     with_prover: bool,
+    secrets: DatabaseSecrets,
 }
 
 impl PoolsLayerBuilder {
-    pub fn empty(config: PostgresConfig) -> Self {
+    pub fn empty(config: PostgresConfig, database_secrets: DatabaseSecrets) -> Self {
         Self {
             config,
             with_master: false,
             with_replica: false,
             with_prover: false,
+            secrets: database_secrets,
         }
     }
 
@@ -46,6 +44,7 @@ impl PoolsLayerBuilder {
     pub fn build(self) -> PoolsLayer {
         PoolsLayer {
             config: self.config,
+            secrets: self.secrets,
             with_master: self.with_master,
             with_replica: self.with_replica,
             with_prover: self.with_prover,
@@ -56,6 +55,7 @@ impl PoolsLayerBuilder {
 #[derive(Debug)]
 pub struct PoolsLayer {
     config: PostgresConfig,
+    secrets: DatabaseSecrets,
     with_master: bool,
     with_replica: bool,
     with_prover: bool,
@@ -75,30 +75,27 @@ impl WiringLayer for PoolsLayer {
         }
 
         if self.with_master {
-            let mut master_pool = ConnectionPool::<Core>::builder(
-                self.config.master_url()?,
+            context.insert_resource(PoolResource::<MasterPool>::new(
+                self.secrets.master_url()?,
                 self.config.max_connections()?,
-            );
-            master_pool.set_statement_timeout(self.config.statement_timeout());
-            context.insert_resource(MasterPoolResource::new(master_pool))?;
+                self.config.statement_timeout(),
+            ))?;
         }
 
         if self.with_replica {
-            let mut replica_pool = ConnectionPool::<Core>::builder(
-                self.config.replica_url()?,
+            context.insert_resource(PoolResource::<ReplicaPool>::new(
+                self.secrets.replica_url()?,
                 self.config.max_connections()?,
-            );
-            replica_pool.set_statement_timeout(self.config.statement_timeout());
-            context.insert_resource(ReplicaPoolResource::new(replica_pool))?;
+                self.config.statement_timeout(),
+            ))?;
         }
 
         if self.with_prover {
-            let mut prover_pool = ConnectionPool::<Prover>::builder(
-                self.config.prover_url()?,
+            context.insert_resource(PoolResource::<ProverPool>::new(
+                self.secrets.prover_url()?,
                 self.config.max_connections()?,
-            );
-            prover_pool.set_statement_timeout(self.config.statement_timeout());
-            context.insert_resource(ProverPoolResource::new(prover_pool))?;
+                self.config.statement_timeout(),
+            ))?;
         }
 
         Ok(())

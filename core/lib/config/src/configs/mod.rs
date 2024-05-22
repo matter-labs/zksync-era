@@ -2,20 +2,22 @@
 pub use self::{
     api::ApiConfig,
     contract_verifier::ContractVerifierConfig,
-    contracts::ContractsConfig,
+    contracts::{ContractsConfig, EcosystemContracts},
     database::{DBConfig, PostgresConfig},
-    eth_sender::{ETHConfig, GasAdjusterConfig},
-    eth_watch::ETHWatchConfig,
+    eth_sender::{EthConfig, GasAdjusterConfig},
+    eth_watch::EthWatchConfig,
+    experimental::ExperimentalDBConfig,
     fri_proof_compressor::FriProofCompressorConfig,
     fri_prover::FriProverConfig,
     fri_prover_gateway::FriProverGatewayConfig,
     fri_witness_generator::FriWitnessGeneratorConfig,
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
     general::GeneralConfig,
-    genesis::{GenesisConfig, SharedBridge},
+    genesis::GenesisConfig,
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
+    secrets::{DatabaseSecrets, L1Secrets, Secrets},
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
 };
@@ -28,6 +30,7 @@ pub mod contracts;
 pub mod database;
 pub mod eth_sender;
 pub mod eth_watch;
+mod experimental;
 pub mod fri_proof_compressor;
 pub mod fri_prover;
 pub mod fri_prover_gateway;
@@ -40,6 +43,7 @@ pub mod house_keeper;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
+pub mod secrets;
 pub mod snapshots_creator;
 pub mod utils;
 pub mod wallets;

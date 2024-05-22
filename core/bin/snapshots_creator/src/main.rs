@@ -13,8 +13,8 @@ use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{
-    configs::{ObservabilityConfig, PrometheusConfig},
-    PostgresConfig, SnapshotsCreatorConfig,
+    configs::{DatabaseSecrets, ObservabilityConfig, PrometheusConfig},
+    SnapshotsCreatorConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
@@ -77,18 +77,18 @@ async fn main() -> anyhow::Result<()> {
         .create_store()
         .await;
 
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets")?;
     let creator_config =
         SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
 
     let replica_pool = ConnectionPool::<Core>::builder(
-        postgres_config.replica_url()?,
+        database_secrets.replica_url()?,
         creator_config.concurrent_queries_count,
     )
     .build()
     .await?;
 
-    let master_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+    let master_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
         .build()
         .await?;
 

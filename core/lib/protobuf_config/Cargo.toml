@@ -20,10 +20,10 @@ zksync_protobuf.workspace = true
 zksync_types.workspace = true
 
 anyhow.workspace = true
-pretty_assertions.workspace = true
 prost.workspace = true
 rand.workspace = true
-hex = "0.4.3"
+hex.workspace = true
+secrecy.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

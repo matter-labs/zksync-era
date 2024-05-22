@@ -5,8 +5,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES,
 };
 use zksync_types::{
-    block::unpack_block_info, web3::signing::keccak256, AccountTreeId, MiniblockNumber, StorageKey,
-    H256, U256,
+    block::unpack_block_info, web3::keccak256, AccountTreeId, L2BlockNumber, StorageKey, H256, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
@@ -38,7 +37,7 @@ pub(crate) fn assert_next_block(prev_block: &L2Block, next_block: &L2BlockEnv) {
 /// If the l2_block has i transactions, then `txs_rolling_hash` is equal to `H(H_{i-1}, H(tx_i))`, where
 /// `H_{i-1}` is the `txs_rolling_hash` of the first i-1 transactions.
 pub(crate) fn l2_block_hash(
-    l2_block_number: MiniblockNumber,
+    l2_block_number: L2BlockNumber,
     l2_block_timestamp: u64,
     prev_l2_block_hash: H256,
     txs_rolling_hash: H256,
@@ -81,7 +80,7 @@ pub fn load_last_l2_block<S: ReadStorage>(storage: StoragePtr<S>) -> Option<L2Bl
 
     // Calculate current hash
     let current_block_hash = l2_block_hash(
-        MiniblockNumber(block_number),
+        L2BlockNumber(block_number),
         block_timestamp,
         prev_block_hash,
         current_tx_rolling_hash,

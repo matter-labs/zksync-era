@@ -61,13 +61,13 @@ impl proto::PubdataSendingMode {
 }
 
 impl ProtoRepr for proto::Eth {
-    type Type = configs::eth_sender::ETHConfig;
+    type Type = configs::eth_sender::EthConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             sender: read_optional_repr(&self.sender).context("sender")?,
             gas_adjuster: read_optional_repr(&self.gas_adjuster).context("gas_adjuster")?,
             watcher: read_optional_repr(&self.watcher).context("watcher")?,
-            web3_url: required(&self.web3_url).context("web3_url")?.clone(),
         })
     }
 
@@ -76,7 +76,6 @@ impl ProtoRepr for proto::Eth {
             sender: this.sender.as_ref().map(ProtoRepr::build),
             gas_adjuster: this.gas_adjuster.as_ref().map(ProtoRepr::build),
             watcher: this.watcher.as_ref().map(ProtoRepr::build),
-            web3_url: Some(this.web3_url.clone()),
         }
     }
 }
@@ -222,7 +221,8 @@ impl ProtoRepr for proto::GasAdjuster {
 }
 
 impl ProtoRepr for proto::EthWatch {
-    type Type = configs::ETHWatchConfig;
+    type Type = configs::EthWatchConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             confirmations_for_eth_event: self.confirmations_for_eth_event,

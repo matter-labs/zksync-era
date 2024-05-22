@@ -2,6 +2,9 @@
 //!
 //! Most of them are just re-exported from the `web3` crate.
 
+// Linter settings
+#![warn(clippy::cast_lossless)]
+
 use std::{
     convert::{Infallible, TryFrom, TryInto},
     fmt,
@@ -10,19 +13,22 @@ use std::{
     str::FromStr,
 };
 
-use serde::{de, Deserialize, Deserializer, Serialize};
-pub use web3::{
-    self, ethabi,
-    types::{Address, Bytes, Log, TransactionRequest, H128, H160, H2048, H256, U128, U256, U64},
+pub use ethabi::{
+    self,
+    ethereum_types::{Address, Bloom as H2048, H128, H160, H256, H512, H520, H64, U128, U256, U64},
 };
+use serde::{de, Deserialize, Deserializer, Serialize};
 
 #[macro_use]
 mod macros;
 pub mod basic_fri_types;
+pub mod commitment;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;
+pub mod url;
 pub mod vm_version;
+pub mod web3;
 
 /// Account place in the global state tree is uniquely identified by its address.
 /// Binary this type is represented by 160 bit big-endian representation of account address.
@@ -89,17 +95,21 @@ impl<'de> Deserialize<'de> for L2ChainId {
     where
         D: Deserializer<'de>,
     {
-        let value: serde_json::Value = Deserialize::deserialize(deserializer)?;
-        match &value {
-            serde_json::Value::Number(number) => Self::new(number.as_u64().ok_or(
-                de::Error::custom(format!("Failed to parse: {}, Expected u64", number)),
-            )?)
-            .map_err(de::Error::custom),
-            serde_json::Value::String(string) => string.parse().map_err(de::Error::custom),
-            _ => Err(de::Error::custom(format!(
-                "Failed to parse: {}, Expected number or string",
-                value
-            ))),
+        if deserializer.is_human_readable() {
+            let value: serde_json::Value = Deserialize::deserialize(deserializer)?;
+            match &value {
+                serde_json::Value::Number(number) => Self::new(number.as_u64().ok_or(
+                    de::Error::custom(format!("Failed to parse: {}, Expected u64", number)),
+                )?)
+                .map_err(de::Error::custom),
+                serde_json::Value::String(string) => string.parse().map_err(de::Error::custom),
+                _ => Err(de::Error::custom(format!(
+                    "Failed to parse: {}, Expected number or string",
+                    value
+                ))),
+            }
+        } else {
+            u64::deserialize(deserializer).map(L2ChainId)
         }
     }
 }
@@ -168,13 +178,13 @@ impl TryFrom<u64> for L2ChainId {
 impl From<u32> for L2ChainId {
     fn from(value: u32) -> Self {
         // Max value is guaranteed bigger than u32
-        Self(value as u64)
+        Self(u64::from(value))
     }
 }
 
 basic_type!(
     /// zkSync network block sequential index.
-    MiniblockNumber,
+    L2BlockNumber,
     u32
 );
 
@@ -209,7 +219,7 @@ basic_type!(
 );
 
 #[allow(clippy::derivable_impls)]
-impl Default for MiniblockNumber {
+impl Default for L2BlockNumber {
     fn default() -> Self {
         Self(0)
     }
@@ -260,9 +270,23 @@ mod tests {
         };
         let result_ser = serde_json::to_string(&test).unwrap();
         let result_deser: Test = serde_json::from_str(&result_ser).unwrap();
-        assert_eq!(test.chain_id, result_deser.chain_id)
+        assert_eq!(test.chain_id, result_deser.chain_id);
+        assert_eq!(result_ser, "{\"chain_id\":200}")
     }
 
+    #[test]
+    fn test_serialize_deserialize_bincode() {
+        #[derive(Serialize, Deserialize)]
+        struct Test {
+            chain_id: L2ChainId,
+        }
+        let test = Test {
+            chain_id: L2ChainId(200),
+        };
+        let result_ser = bincode::serialize(&test).unwrap();
+        let result_deser: Test = bincode::deserialize(&result_ser).unwrap();
+        assert_eq!(test.chain_id, result_deser.chain_id);
+    }
     #[test]
     fn test_from_str_valid_hexadecimal() {
         let input = "0x2A";

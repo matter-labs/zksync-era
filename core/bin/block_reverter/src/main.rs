@@ -1,15 +1,23 @@
+use std::env;
+
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
-use zksync_config::{
-    configs::ObservabilityConfig, ContractsConfig, DBConfig, ETHConfig, PostgresConfig,
+use zksync_block_reverter::{
+    eth_client::{
+        clients::{Client, PKSigningClient},
+        EthInterface,
+    },
+    BlockReverter, BlockReverterEthConfig, NodeRole,
 };
-use zksync_core::block_reverter::{
-    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole,
+use zksync_config::{
+    configs::{chain::NetworkConfig, DatabaseSecrets, L1Secrets, ObservabilityConfig},
+    ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
-use zksync_env_config::FromEnv;
-use zksync_types::{Address, L1BatchNumber, U256};
+use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
+use zksync_object_store::ObjectStoreFactory;
+use zksync_types::{Address, L1BatchNumber};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -33,23 +41,23 @@ enum Command {
     /// Sends revert transaction to L1.
     #[command(name = "send-eth-transaction")]
     SendEthTransaction {
-        /// L1 batch number used to rollback to.
+        /// L1 batch number used to revert to.
         #[arg(long)]
         l1_batch_number: u32,
-        /// Priority fee used for rollback Ethereum transaction.
+        /// Priority fee used for the reverting Ethereum transaction.
         // We operate only by priority fee because we want to use base fee from Ethereum
         // and send transaction as soon as possible without any resend logic
         #[arg(long)]
         priority_fee_per_gas: Option<u64>,
-        /// Nonce used for rollback Ethereum transaction.
+        /// Nonce used for reverting Ethereum transaction.
         #[arg(long)]
         nonce: u64,
     },
 
-    /// Reverts internal database state to previous block.
+    /// Rolls back internal database state to a previous L1 batch.
     #[command(name = "rollback-db")]
     RollbackDB {
-        /// L1 batch number used to rollback to.
+        /// L1 batch number used to roll back to.
         #[arg(long)]
         l1_batch_number: u32,
         /// Flag that specifies if Postgres DB should be rolled back.
@@ -61,7 +69,7 @@ enum Command {
         /// Flag that specifies if RocksDB with state keeper cache should be rolled back.
         #[arg(long)]
         rollback_sk_cache: bool,
-        /// Flag that allows to revert already executed blocks, it's ultra dangerous and required only for fixing external nodes
+        /// Flag that allows to roll back already executed blocks. It's ultra dangerous and required only for fixing external nodes.
         #[arg(long)]
         allow_executed_block_reversion: bool,
     },
@@ -90,49 +98,50 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let eth_sender = ETHConfig::from_env().context("ETHSenderConfig::from_env()")?;
+    let eth_sender = EthConfig::from_env().context("EthConfig::from_env()")?;
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
-    let default_priority_fee_per_gas = U256::from(
-        eth_sender
-            .gas_adjuster
-            .context("gas_adjuster")?
-            .default_priority_fee_per_gas,
-    );
+    let default_priority_fee_per_gas = eth_sender
+        .gas_adjuster
+        .context("gas_adjuster")?
+        .default_priority_fee_per_gas;
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let operator_address = if let Command::Display {
-        operator_address, ..
-    } = &command
-    {
-        Some(operator_address)
-    } else {
-        None
-    };
-    let config = BlockReverterEthConfig::new(eth_sender, contracts, operator_address.copied());
+    let network = NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let l1_secrets = L1Secrets::from_env().context("L1Secrets::from_env()")?;
+    let postgress_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let era_chain_id = env::var("CONTRACTS_ERA_CHAIN_ID")
+        .context("`CONTRACTS_ERA_CHAIN_ID` env variable is not set")?
+        .parse()
+        .map_err(|err| {
+            anyhow::anyhow!("failed parsing `CONTRACTS_ERA_CHAIN_ID` env variable: {err}")
+        })?;
+    let config = BlockReverterEthConfig::new(&eth_sender, &contracts, &network, era_chain_id)?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
-        postgres_config.master_url()?,
-        postgres_config.max_connections()?,
+        database_secrets.master_url()?,
+        postgress_config.max_connections()?,
     )
     .build()
     .await
     .context("failed to build a connection pool")?;
-    let mut block_reverter = BlockReverter::new(
-        NodeRole::Main,
-        db_config.state_keeper_db_path,
-        db_config.merkle_tree.path,
-        Some(config),
-        connection_pool,
-        L1ExecutedBatchesRevert::Disallowed,
-    );
+    let mut block_reverter = BlockReverter::new(NodeRole::Main, connection_pool);
 
     match command {
-        Command::Display { json, .. } => {
-            let suggested_values = block_reverter.suggested_values().await;
+        Command::Display {
+            json,
+            operator_address,
+        } => {
+            let eth_client = Client::http(l1_secrets.l1_rpc_url.clone())
+                .context("Ethereum client")?
+                .build();
+
+            let suggested_values = block_reverter
+                .suggested_values(&eth_client, &config, operator_address)
+                .await?;
             if json {
-                println!("{}", serde_json::to_string(&suggested_values).unwrap());
+                println!("{}", serde_json::to_string(&suggested_values)?);
             } else {
-                println!("Suggested values for rollback: {:#?}", suggested_values);
+                println!("Suggested values for reversion: {:#?}", suggested_values);
             }
         }
         Command::SendEthTransaction {
@@ -140,15 +149,38 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let priority_fee_per_gas =
-                priority_fee_per_gas.map_or(default_priority_fee_per_gas, U256::from);
+            let eth_client = Client::http(l1_secrets.l1_rpc_url.clone())
+                .context("Ethereum client")?
+                .build();
+            #[allow(deprecated)]
+            let reverter_private_key = eth_sender
+                .sender
+                .context("eth_sender_config")?
+                .private_key()
+                .context("eth_sender_config.private_key")?
+                .context("eth_sender_config.private_key is not set")?;
+
+            let priority_fee_per_gas = priority_fee_per_gas.unwrap_or(default_priority_fee_per_gas);
+            let l1_chain_id = eth_client
+                .fetch_chain_id()
+                .await
+                .context("cannot fetch Ethereum chain ID")?;
+            let eth_client = PKSigningClient::new_raw(
+                reverter_private_key,
+                contracts.diamond_proxy_addr,
+                priority_fee_per_gas,
+                l1_chain_id,
+                Box::new(eth_client),
+            );
+
             block_reverter
                 .send_ethereum_revert_transaction(
+                    &eth_client,
+                    &config,
                     L1BatchNumber(l1_batch_number),
-                    priority_fee_per_gas,
                     nonce,
                 )
-                .await
+                .await?;
         }
         Command::RollbackDB {
             l1_batch_number,
@@ -158,9 +190,9 @@ async fn main() -> anyhow::Result<()> {
             allow_executed_block_reversion,
         } => {
             if !rollback_tree && rollback_postgres {
-                println!("You want to rollback Postgres DB without rolling back tree.");
+                println!("You want to roll back Postgres DB without rolling back tree.");
                 println!(
-                    "If tree is not yet rolled back to this block then the only way \
+                    "If the tree is not yet rolled back to this L1 batch, then the only way \
                      to make it synced with Postgres will be to completely rebuild it."
                 );
                 println!("Are you sure? Print y/n");
@@ -173,7 +205,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             if allow_executed_block_reversion {
-                println!("You want to revert already executed blocks. It's impossible to restore them for the main node");
+                println!("You want to roll back already executed blocks. It's impossible to restore them for the main node");
                 println!("Make sure you are doing it ONLY for external node");
                 println!("Are you sure? Print y/n");
 
@@ -182,27 +214,34 @@ async fn main() -> anyhow::Result<()> {
                 if input[0] != b'y' && input[0] != b'Y' {
                     std::process::exit(0);
                 }
-                block_reverter.change_rollback_executed_l1_batches_allowance(
-                    L1ExecutedBatchesRevert::Allowed,
-                );
+                block_reverter.allow_rolling_back_executed_batches();
             }
 
-            let mut flags = BlockReverterFlags::empty();
             if rollback_postgres {
-                flags |= BlockReverterFlags::POSTGRES;
+                block_reverter.enable_rolling_back_postgres();
+                let object_store_config = SnapshotsObjectStoreConfig::from_env()
+                    .context("SnapshotsObjectStoreConfig::from_env()")?;
+                block_reverter.enable_rolling_back_snapshot_objects(
+                    ObjectStoreFactory::new(object_store_config.0)
+                        .create_store()
+                        .await,
+                );
             }
             if rollback_tree {
-                flags |= BlockReverterFlags::TREE;
+                block_reverter.enable_rolling_back_merkle_tree(db_config.merkle_tree.path);
             }
             if rollback_sk_cache {
-                flags |= BlockReverterFlags::SK_CACHE;
+                block_reverter
+                    .enable_rolling_back_state_keeper_cache(db_config.state_keeper_db_path);
             }
 
             block_reverter
-                .rollback_db(L1BatchNumber(l1_batch_number), flags)
-                .await
+                .roll_back(L1BatchNumber(l1_batch_number))
+                .await?;
         }
-        Command::ClearFailedL1Transactions => block_reverter.clear_failed_l1_transactions().await,
+        Command::ClearFailedL1Transactions => {
+            block_reverter.clear_failed_l1_transactions().await?;
+        }
     }
     Ok(())
 }

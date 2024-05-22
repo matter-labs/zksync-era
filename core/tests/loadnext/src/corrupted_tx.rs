@@ -1,7 +1,5 @@
 use async_trait::async_trait;
-use zksync_eth_signer::{
-    error::SignerError, raw_ethereum_tx::TransactionParameters, EthereumSigner,
-};
+use zksync_eth_signer::{EthereumSigner, SignerError, TransactionParameters};
 use zksync_types::{
     fee::Fee, l2::L2Tx, Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature,
 };
@@ -89,8 +87,7 @@ impl EthereumSigner for CorruptedSigner {
 mod tests {
     use zksync_eth_signer::PrivateKeySigner;
     use zksync_types::{
-        fee::Fee, tokens::ETHEREUM_ADDRESS, tx::primitives::PackedEthSignature, Address, L2ChainId,
-        Nonce, H256,
+        fee::Fee, tokens::ETHEREUM_ADDRESS, Address, K256PrivateKey, L2ChainId, Nonce,
     };
 
     use super::*;
@@ -100,10 +97,9 @@ mod tests {
     const NONCE: Nonce = Nonce(1);
 
     fn get_signer(chain_id: L2ChainId) -> Signer<PrivateKeySigner> {
-        let eth_pk = H256::random();
+        let eth_pk = K256PrivateKey::random();
+        let address = eth_pk.address();
         let eth_signer = PrivateKeySigner::new(eth_pk);
-        let address = PackedEthSignature::address_from_private_key(&eth_pk)
-            .expect("Can't get an address from the private key");
         Signer::new(eth_signer, address, chain_id)
     }
 
