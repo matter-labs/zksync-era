@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 
-use crate::{metrics::SERVER_METRICS, periodic_job::PeriodicJob};
+use crate::{periodic_job::PeriodicJob, prover::metrics::SERVER_METRICS};
 
 #[derive(Debug)]
 pub struct WaitingToQueuedFriWitnessJobMover {

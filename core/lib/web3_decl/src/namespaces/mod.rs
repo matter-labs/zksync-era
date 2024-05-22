@@ -1,4 +1,3 @@
-#[cfg(feature = "client")]
 pub use self::{
     debug::DebugNamespaceClient, en::EnNamespaceClient, eth::EthNamespaceClient,
     net::NetNamespaceClient, snapshots::SnapshotsNamespaceClient, web3::Web3NamespaceClient,
@@ -11,10 +10,10 @@ pub use self::{
     web3::Web3NamespaceServer, zks::ZksNamespaceServer,
 };
 
-pub mod debug;
-pub mod en;
-pub mod eth;
-pub mod net;
-pub mod snapshots;
-pub mod web3;
-pub mod zks;
+mod debug;
+mod en;
+mod eth;
+mod net;
+mod snapshots;
+mod web3;
+mod zks;

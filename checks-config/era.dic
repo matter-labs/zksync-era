@@ -961,6 +961,9 @@ vec
 zksync_merkle_tree
 TreeMetadata
 delegator
+Bbellman
+Sbellman
+DCMAKE
 preloaded
 e2e
 upcasting
