@@ -1,12 +1,17 @@
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use clap::Parser;
+use ethers::abi::Address;
+use ethers::middleware::Middleware;
+use ethers::prelude::U256;
 use ethers::{abi::AbiEncode, types::H256};
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
+use crate::ethereum::create_ethers_client;
 
 /// Forge is a wrapper around the forge binary.
 pub struct Forge {
@@ -92,6 +97,39 @@ impl ForgeScript {
             private_key: private_key.encode_hex(),
         });
         self
+    }
+    // Do not start the script if balance is not enough
+    pub fn private_key(&self) -> Option<H256> {
+        self.args.args.iter().find_map(|a| {
+            if let ForgeScriptArg::PrivateKey { private_key } = a {
+                Some(H256::from_str(private_key).unwrap())
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn rpc_url(&self) -> Option<String> {
+        self.args.args.iter().find_map(|a| {
+            if let ForgeScriptArg::RpcUrl { url } = a {
+                Some(url.clone())
+            } else {
+                None
+            }
+        })
+    }
+
+    pub async fn check_the_balance(&self, minimum_value: U256) -> anyhow::Result<(bool, Address)> {
+        let Some(rpc_url) = self.rpc_url() else {
+            return Ok((true, Address::zero()));
+        };
+        let Some(private_key) = self.private_key() else {
+            return Ok((true, Address::zero()));
+        };
+        let client = create_ethers_client(private_key, rpc_url)?;
+        let address = client.address();
+        let balance = client.get_balance(client.address(), None).await?;
+        Ok((balance > minimum_value, address))
     }
 }
 

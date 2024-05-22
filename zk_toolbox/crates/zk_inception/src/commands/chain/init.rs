@@ -8,6 +8,7 @@ use common::{
 use xshell::Shell;
 
 use super::args::init::InitArgsFinal;
+use crate::forge_utils::check_the_balance;
 use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
@@ -72,7 +73,8 @@ pub async fn init(
         chain_config.get_wallets_config()?.governor_private_key(),
         contracts_config.l1.diamond_proxy_addr,
         &init_args.forge_args.clone(),
-    )?;
+    )
+    .await?;
     spinner.finish();
 
     initialize_bridges::initialize_bridges(
@@ -80,7 +82,8 @@ pub async fn init(
         chain_config,
         ecosystem_config,
         init_args.forge_args.clone(),
-    )?;
+    )
+    .await?;
 
     if init_args.deploy_paymaster {
         deploy_paymaster::deploy_paymaster(
@@ -88,7 +91,8 @@ pub async fn init(
             chain_config,
             ecosystem_config,
             init_args.forge_args.clone(),
-        )?;
+        )
+        .await?;
     }
 
     genesis(
@@ -124,7 +128,7 @@ async fn register_chain(
         .with_broadcast();
 
     forge = fill_forge_private_key(forge, config.get_wallets()?.governor_private_key())?;
-
+    check_the_balance(&forge).await?;
     forge.run(shell)?;
 
     let register_chain_output =
