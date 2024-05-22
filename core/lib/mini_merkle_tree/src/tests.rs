@@ -367,3 +367,16 @@ fn cache_all_and_grow() {
         .unwrap();
     assert_eq!(tree.merkle_root(), expected_root);
 }
+
+#[test]
+fn cache_all_and_check_root() {
+    let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(4), None);
+    let root = tree.merkle_root();
+    tree.cache(4);
+    assert_eq!(tree.merkle_root(), root);
+
+    let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(4), Some(8));
+    let root = tree.merkle_root();
+    tree.cache(4);
+    assert_eq!(tree.merkle_root(), root);
+}

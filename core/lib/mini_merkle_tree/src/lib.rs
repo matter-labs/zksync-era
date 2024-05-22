@@ -19,11 +19,19 @@ use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
 /// we unlikely to ever hit.
 const MAX_TREE_DEPTH: usize = 32;
 
-/// In-memory Merkle tree of bounded depth (no more than 10).
+/// In-memory Merkle tree of bounded depth (no more than 32).
 ///
 /// The tree is left-leaning, meaning that during its initialization, the size of a tree
 /// can be specified larger than the number of provided leaves. In this case, the remaining leaves
 /// will be considered to equal `[0_u8; LEAF_SIZE]`.
+///
+/// The tree has dynamic size, meaning that it can grow by a factor of 2 when the number of leaves
+/// exceeds the current tree size. It does not shrink.
+///
+/// The tree is optimized for the case when the queries are performed on the rightmost leaves
+/// and the leftmost leaves are cached. Caching enables the merkle roots and paths to be computed
+/// in `O(n)` time, where `n` is the number of uncached leaves (in contrast to the total number of
+/// leaves). Cache itself only takes up `O(depth)` space.
 #[derive(Debug, Clone)]
 pub struct MiniMerkleTree<const LEAF_SIZE: usize, H = KeccakHasher> {
     hasher: H,
@@ -64,6 +72,7 @@ where
     /// Panics if any of the following conditions applies:
     ///
     /// - `min_tree_size` (if supplied) is not a power of 2.
+    /// - The number of leaves is greater than `2^32`.
     pub fn with_hasher(
         hasher: H,
         leaves: impl Iterator<Item = [u8; LEAF_SIZE]>,
@@ -94,19 +103,27 @@ where
         }
     }
 
+    /// Returns `true` if the tree is empty.
+    pub fn is_empty(&self) -> bool {
+        self.head_index == 0 && self.hashes.is_empty()
+    }
+
     /// Returns the root hash of this tree.
-    /// # Panics
-    /// Will panic if the constant below is invalid.
     pub fn merkle_root(&self) -> H256 {
         if self.hashes.is_empty() {
             let depth = tree_depth_by_size(self.binary_tree_size);
-            self.hasher.empty_subtree_hash(depth)
+            if self.head_index == 0 {
+                self.hasher.empty_subtree_hash(depth)
+            } else {
+                self.left_cache[depth]
+            }
         } else {
             self.compute_merkle_root_and_path(0, None, None)
         }
     }
 
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
+    /// `index` is relative to the leftmost uncached leaf.
     pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
         let (mut left_path, mut right_path) = (vec![], vec![]);
         let root_hash =
@@ -114,7 +131,7 @@ where
         (root_hash, right_path)
     }
 
-    /// Returns the root hash and the Merkle proof for an interval of leafs.
+    /// Returns the root hash and the Merkle proofs for an interval of leafs.
     /// The interval is [0, `length`), where `0` is the leftmost uncached leaf.
     pub fn merkle_root_and_paths_for_interval(
         &self,
@@ -143,9 +160,7 @@ where
 
     /// Caches the rightmost `count` leaves.
     /// Does not affect the root hash, but makes it impossible to get the paths to the cached leaves.
-    ///
     /// # Panics
-    ///
     /// Panics if `count` is greater than the number of non-cached leaves in the tree.
     pub fn cache(&mut self, count: usize) {
         assert!(self.hashes.len() >= count, "not enough leaves to cache");
@@ -185,6 +200,7 @@ where
                 } else if index == level_len - 1 && (head_index + index) % 2 == 0 {
                     empty_hash_at_level
                 } else {
+                    // `index` is relative to `head_index`
                     let sibling = ((head_index + index) ^ 1) - head_index;
                     hashes[sibling]
                 }
@@ -196,6 +212,8 @@ where
             }
 
             if let Some(new_cache) = new_cache.as_deref_mut() {
+                // We cache the rightmost left child on the current level
+                // within the given interval.
                 new_cache[level] = if (head_index + right_index) % 2 == 0 {
                     hashes[right_index]
                 } else if right_index == 0 {
@@ -206,15 +224,19 @@ where
             }
 
             let parity = head_index % 2;
+            // If our queue starts from the right child or ends with the left child,
+            // we need to round the length up.
             let next_level_len = level_len / 2 + (parity | (level_len % 2));
 
             for i in 0..next_level_len {
                 let lhs = if i == 0 && parity == 1 {
+                    // If the leftmost element is a right child, we need to use cache.
                     self.left_cache[level]
                 } else {
                     hashes[2 * i - parity]
                 };
                 let rhs = if i == next_level_len - 1 && (level_len - parity) % 2 == 1 {
+                    // If the rightmost element is a left child, we need to use the empty hash.
                     empty_hash_at_level
                 } else {
                     hashes[2 * i + 1 - parity]
