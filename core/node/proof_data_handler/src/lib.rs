@@ -8,7 +8,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     ProofGenerationDataRequest, SubmitProofRequest, SubmitTeeProofRequest,
-    TeeProofGenerationDataRequest, TeeType,
+    TeeProofGenerationDataRequest,
 };
 use zksync_types::commitment::L1BatchCommitmentMode;
 
@@ -94,14 +94,11 @@ fn create_proof_processing_router(
             ),
         )
         .route(
-            "/submit_tee_proof/:l1_batch_number/:tee_type?",
+            "/submit_tee_proof/:l1_batch_number",
             post(
-                move |l1_batch_number: Path<u32>,
-                      tee_type: Option<Path<TeeType>>,
-                      payload: Json<SubmitTeeProofRequest>| async move {
-                    let tee_type = tee_type.unwrap_or(Path(TeeType::Sgx));
+                move |l1_batch_number: Path<u32>, payload: Json<SubmitTeeProofRequest>| async move {
                     submit_tee_proof_processor
-                        .submit_proof(tee_type, l1_batch_number, payload)
+                        .submit_proof(l1_batch_number, payload)
                         .await
                 },
             ),

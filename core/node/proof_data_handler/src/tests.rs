@@ -90,3 +90,34 @@ async fn request_tee_proof_generation_data() {
     let deserialized: TeeVerifierInput = serde_json::from_value(json).unwrap();
     assert_eq!(tvi, deserialized);
 }
+
+#[tokio::test]
+async fn submit_tee_proof() {
+    let blob_store = ObjectStoreFactory::mock().create_store().await;
+    let connection_pool = ConnectionPool::test_pool().await;
+    let app = create_proof_processing_router(
+        blob_store,
+        connection_pool,
+        ProofDataHandlerConfig {
+            http_port: 1337,
+            proof_generation_timeout_in_secs: 10,
+        },
+        L1BatchCommitmentMode::Rollup,
+    );
+
+    let request = r#"{ "Proof": { "signature": [ 0, 1, 2, 3, 4 ] } }"#;
+    let request: serde_json::Value = serde_json::from_str(request).unwrap();
+    let req_body = Body::from(serde_json::to_vec(&request).unwrap());
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/submit_tee_proof/123")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .body(req_body)
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}

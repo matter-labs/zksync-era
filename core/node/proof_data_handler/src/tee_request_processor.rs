@@ -7,7 +7,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     GenericProofGenerationDataResponse, SubmitProofResponse, SubmitTeeProofRequest,
-    TeeProofGenerationDataRequest, TeeType,
+    TeeProofGenerationDataRequest,
 };
 use zksync_tee_verifier::TeeVerifierInput;
 use zksync_types::L1BatchNumber;
@@ -63,12 +63,10 @@ impl TeeRequestProcessor {
 
     pub(crate) async fn submit_proof(
         &self,
-        Path(tee_type): Path<TeeType>,
         Path(l1_batch_number): Path<u32>,
         Json(payload): Json<SubmitTeeProofRequest>,
     ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
         tracing::info!("Received proof for block number: {:?}", l1_batch_number);
-        assert_eq!(tee_type, TeeType::Sgx, "Expected TEE type to be SGX");
 
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let mut connection = self.pool.connection().await.unwrap();
@@ -76,7 +74,11 @@ impl TeeRequestProcessor {
 
         // TODO: Replace the lines below with code that saves the proof generation result back to the database.
         match payload {
-            SubmitTeeProofRequest::Proof(_proof) => {
+            SubmitTeeProofRequest::Proof(proof) => {
+                println!(
+                    "Received proof {:?} for block number: {:?}",
+                    proof, l1_batch_number
+                );
                 // dal.save_proof_artifacts_metadata(l1_batch_number, &blob_url)
                 //     .await
                 //     .map_err(RequestProcessorError::Sqlx)?;
