@@ -8,9 +8,9 @@ use zksync_state_keeper::{
     BatchExecutor, BatchExecutorHandle, ExecutionMetricsForCriteria, L2BlockParams,
     StateKeeperOutputHandler, TxExecutionResult, UpdatesManager,
 };
-use zksync_types::block::L2BlockExecutionData;
+use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
 
-use crate::{storage::StorageLoader, BatchExecuteData, OutputHandlerFactory, VmRunnerIo};
+use crate::{storage::StorageLoader, OutputHandlerFactory, VmRunnerIo};
 
 /// VM runner represents a logic layer of L1 batch / L2 block processing flow akin to that of state
 /// keeper. The difference is that VM runner is designed to be run on batches/blocks that have
@@ -115,25 +115,29 @@ impl VmRunner {
     pub async fn run(mut self, stop_receiver: &watch::Receiver<bool>) -> anyhow::Result<()> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
-        let mut handles = Vec::<JoinHandle<anyhow::Result<()>>>::new();
+        // Join handles for asynchronous tasks that are being run in the background
+        let mut task_handles: Vec<(L1BatchNumber, JoinHandle<anyhow::Result<()>>)> = Vec::new();
         let mut next_batch = self
             .io
             .latest_processed_batch(&mut self.pool.connection().await?)
             .await?
             + 1;
         loop {
+            // Traverse all handles and filter out tasks that have been finished. Also propagates
+            // any panic/error that might have happened during the task's execution.
             let mut retained_handles = Vec::new();
-            for handle in handles {
+            for (l1_batch_number, handle) in task_handles {
                 if handle.is_finished() {
                     handle
                         .await
-                        .context("Failed to join a task to process a batch")?
-                        .context("Failed to process a batch")?;
+                        .with_context(|| format!("Processing batch #{} panicked", l1_batch_number))?
+                        .with_context(|| format!("Failed to process batch #{}", l1_batch_number))?;
                 } else {
-                    retained_handles.push(handle);
+                    retained_handles.push((l1_batch_number, handle));
                 }
             }
-            handles = retained_handles;
+            task_handles = retained_handles;
+
             let last_ready_batch = self
                 .io
                 .last_ready_to_be_loaded_batch(&mut self.pool.connection().await?)
@@ -168,15 +172,13 @@ impl VmRunner {
                 .create_handler(next_batch)
                 .await?;
 
-            let handle = tokio::task::spawn(async move {
-                Self::process_batch(
-                    batch_executor,
-                    batch_data.l2_blocks,
-                    updates_manager,
-                    output_handler,
-                )
-            });
-            handles.push(handle);
+            let handle = tokio::task::spawn(Self::process_batch(
+                batch_executor,
+                batch_data.l2_blocks,
+                updates_manager,
+                output_handler,
+            ));
+            task_handles.push((next_batch, handle));
 
             next_batch += 1;
         }
