@@ -8924,7 +8924,6 @@ dependencies = [
  "zksync_consistency_checker",
  "zksync_contract_verification_server",
  "zksync_contracts",
- "zksync_core_leftovers",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_env_config",

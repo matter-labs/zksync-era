@@ -9,7 +9,6 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
-        consensus::{ConsensusConfig, ConsensusSecrets},
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::Wallets,
@@ -19,7 +18,6 @@ use zksync_config::{
     ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
-use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_env_config::FromEnv;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
@@ -30,7 +28,6 @@ use zksync_node_framework::{
     implementations::layers::{
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
-        consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
@@ -58,7 +55,6 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder, ZkStackServiceError},
 };
-use zksync_protobuf_config::proto;
 
 struct MainNodeBuilder {
     node: ZkStackServiceBuilder,
@@ -358,48 +354,6 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    #[allow(dead_code)] // Temporary disabled due to changes in the config loading approach.
-    fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
-        // Copy-pasted from the zksync_server codebase.
-
-        fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
-            // Read public config.
-            let Ok(path) = std::env::var("CONSENSUS_SECRETS_PATH") else {
-                return Ok(None);
-            };
-            let secrets = std::fs::read_to_string(&path).context(path)?;
-            Ok(Some(
-                decode_yaml_repr::<proto::secrets::Secrets>(&secrets)
-                    .context("failed decoding YAML")?
-                    .consensus
-                    .context("No consensus in secrets")?,
-            ))
-        }
-
-        fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
-            // Read public config.
-            let Ok(path) = std::env::var("CONSENSUS_CONFIG_PATH") else {
-                return Ok(None);
-            };
-            let cfg = std::fs::read_to_string(&path).context(path)?;
-            Ok(Some(
-                decode_yaml_repr::<proto::consensus::Config>(&cfg)
-                    .context("failed decoding YAML")?,
-            ))
-        }
-
-        let config = read_consensus_config().context("read_consensus_config()")?;
-        let secrets = read_consensus_secrets().context("read_consensus_secrets()")?;
-
-        self.node.add_layer(ConsensusLayer {
-            mode: ConsensusMode::Main,
-            config,
-            secrets,
-        });
-
-        Ok(self)
-    }
-
     fn build(mut self) -> Result<ZkStackService, ZkStackServiceError> {
         self.node.build()
     }
@@ -438,7 +392,6 @@ fn main() -> anyhow::Result<()> {
         .add_house_keeper_layer()?
         .add_commitment_generator_layer()?
         .add_contract_verification_api_layer()?
-        // .add_consensus_layer()? // Temporarily disabled due to changes in the config loading approach.
         .build()?
         .run()?;
 
