@@ -117,7 +117,7 @@ impl Executor {
         );
         LOADTEST_METRICS
             .master_account_balance
-            .set(eth_balance.as_u128() as u64);
+            .set(eth_balance.as_u128() as f64);
 
         Ok(())
     }

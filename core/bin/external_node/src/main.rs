@@ -359,14 +359,13 @@ async fn run_core(
     );
     app_health.insert_component(batch_status_updater.health_check())?;
 
-    let commitment_generator_pool = singleton_pool_builder
-        .build()
-        .await
-        .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(
-        commitment_generator_pool,
+    let mut commitment_generator = CommitmentGenerator::new(
+        connection_pool.clone(),
         config.optional.l1_batch_commit_data_generator_mode,
     );
+    if let Some(parallelism) = config.experimental.commitment_generator_max_parallelism {
+        commitment_generator.set_max_parallelism(parallelism);
+    }
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
