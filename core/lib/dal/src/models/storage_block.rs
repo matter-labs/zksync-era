@@ -107,47 +107,47 @@ fn convert_base_system_contracts_hashes(
 }
 
 /// Projection of the columns corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
-// TODO(PLA-369): use `#[sqlx(flatten)]` once upgraded to newer `sqlx`
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone)]
 pub struct StorageL1Batch {
-    pub number: i64,
-    pub timestamp: i64,
-    pub l1_tx_count: i32,
-    pub l2_tx_count: i32,
-    pub bloom: Vec<u8>,
-    pub l2_to_l1_logs: Vec<Vec<u8>>,
-    pub priority_ops_onchain_data: Vec<Vec<u8>>,
+    pub(crate) number: i64,
+    pub(crate) timestamp: i64,
+    pub(crate) l1_tx_count: i32,
+    pub(crate) l2_tx_count: i32,
+    pub(crate) bloom: Vec<u8>,
+    pub(crate) l2_to_l1_logs: Vec<Vec<u8>>,
+    pub(crate) priority_ops_onchain_data: Vec<Vec<u8>>,
 
-    pub hash: Option<Vec<u8>>,
-    pub commitment: Option<Vec<u8>>,
-    pub meta_parameters_hash: Option<Vec<u8>>,
-    pub pass_through_data_hash: Option<Vec<u8>>,
-    pub aux_data_hash: Option<Vec<u8>>,
+    pub(crate) hash: Option<Vec<u8>>,
+    pub(crate) commitment: Option<Vec<u8>>,
+    pub(crate) meta_parameters_hash: Option<Vec<u8>>,
+    pub(crate) pass_through_data_hash: Option<Vec<u8>>,
+    pub(crate) aux_data_hash: Option<Vec<u8>>,
 
-    pub rollup_last_leaf_index: Option<i64>,
-    pub zkporter_is_available: Option<bool>,
-    pub bootloader_code_hash: Option<Vec<u8>>,
-    pub default_aa_code_hash: Option<Vec<u8>>,
+    pub(crate) rollup_last_leaf_index: Option<i64>,
+    pub(crate) zkporter_is_available: Option<bool>,
+    pub(crate) bootloader_code_hash: Option<Vec<u8>>,
+    pub(crate) default_aa_code_hash: Option<Vec<u8>>,
 
-    pub l2_to_l1_messages: Vec<Vec<u8>>,
-    pub l2_l1_merkle_root: Option<Vec<u8>>,
-    pub compressed_initial_writes: Option<Vec<u8>>,
-    pub compressed_repeated_writes: Option<Vec<u8>>,
+    pub(crate) l2_to_l1_messages: Vec<Vec<u8>>,
+    pub(crate) l2_l1_merkle_root: Option<Vec<u8>>,
+    pub(crate) compressed_initial_writes: Option<Vec<u8>>,
+    pub(crate) compressed_repeated_writes: Option<Vec<u8>>,
 
+    // FIXME: remove?
     pub eth_prove_tx_id: Option<i32>,
     pub eth_commit_tx_id: Option<i32>,
     pub eth_execute_tx_id: Option<i32>,
 
-    pub used_contract_hashes: serde_json::Value,
+    pub(crate) used_contract_hashes: serde_json::Value,
 
-    pub system_logs: Vec<Vec<u8>>,
-    pub compressed_state_diffs: Option<Vec<u8>>,
+    pub(crate) system_logs: Vec<Vec<u8>>,
+    pub(crate) compressed_state_diffs: Option<Vec<u8>>,
 
-    pub protocol_version: Option<i32>,
+    pub(crate) protocol_version: Option<i32>,
 
-    pub events_queue_commitment: Option<Vec<u8>>,
-    pub bootloader_initial_content_commitment: Option<Vec<u8>>,
-    pub pubdata_input: Option<Vec<u8>>,
+    pub(crate) events_queue_commitment: Option<Vec<u8>>,
+    pub(crate) bootloader_initial_content_commitment: Option<Vec<u8>>,
+    pub(crate) pubdata_input: Option<Vec<u8>>,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {
@@ -186,65 +186,64 @@ impl From<StorageL1Batch> for L1BatchHeader {
     }
 }
 
-impl TryInto<L1BatchMetadata> for StorageL1Batch {
+impl TryFrom<StorageL1Batch> for L1BatchMetadata {
     type Error = StorageL1BatchConvertError;
 
-    fn try_into(self) -> Result<L1BatchMetadata, Self::Error> {
-        Ok(L1BatchMetadata {
-            root_hash: H256::from_slice(&self.hash.ok_or(StorageL1BatchConvertError::Incomplete)?),
-            rollup_last_leaf_index: self
+    fn try_from(batch: StorageL1Batch) -> Result<Self, Self::Error> {
+        Ok(Self {
+            root_hash: H256::from_slice(&batch.hash.ok_or(StorageL1BatchConvertError::Incomplete)?),
+            rollup_last_leaf_index: batch
                 .rollup_last_leaf_index
                 .ok_or(StorageL1BatchConvertError::Incomplete)?
                 as u64,
-            initial_writes_compressed: self.compressed_initial_writes,
-            repeated_writes_compressed: self.compressed_repeated_writes,
+            initial_writes_compressed: batch.compressed_initial_writes,
+            repeated_writes_compressed: batch.compressed_repeated_writes,
             l2_l1_merkle_root: H256::from_slice(
-                &self
+                &batch
                     .l2_l1_merkle_root
                     .ok_or(StorageL1BatchConvertError::Incomplete)?,
             ),
             aux_data_hash: H256::from_slice(
-                &self
+                &batch
                     .aux_data_hash
                     .ok_or(StorageL1BatchConvertError::Incomplete)?,
             ),
             meta_parameters_hash: H256::from_slice(
-                &self
+                &batch
                     .meta_parameters_hash
                     .ok_or(StorageL1BatchConvertError::Incomplete)?,
             ),
             pass_through_data_hash: H256::from_slice(
-                &self
+                &batch
                     .pass_through_data_hash
                     .ok_or(StorageL1BatchConvertError::Incomplete)?,
             ),
             commitment: H256::from_slice(
-                &self
+                &batch
                     .commitment
                     .ok_or(StorageL1BatchConvertError::Incomplete)?,
             ),
             block_meta_params: L1BatchMetaParameters {
-                zkporter_is_available: self
+                zkporter_is_available: batch
                     .zkporter_is_available
                     .ok_or(StorageL1BatchConvertError::Incomplete)?,
                 bootloader_code_hash: H256::from_slice(
-                    &self
+                    &batch
                         .bootloader_code_hash
                         .ok_or(StorageL1BatchConvertError::Incomplete)?,
                 ),
                 default_aa_code_hash: H256::from_slice(
-                    &self
+                    &batch
                         .default_aa_code_hash
                         .ok_or(StorageL1BatchConvertError::Incomplete)?,
                 ),
-                protocol_version: self
+                protocol_version: batch
                     .protocol_version
-                    .map(|v| (v as u16).try_into().unwrap())
-                    .ok_or(StorageL1BatchConvertError::Incomplete)?,
+                    .map(|v| (v as u16).try_into().unwrap()),
             },
-            state_diffs_compressed: self.compressed_state_diffs.unwrap_or_default(),
-            events_queue_commitment: self.events_queue_commitment.map(|v| H256::from_slice(&v)),
-            bootloader_initial_content_commitment: self
+            state_diffs_compressed: batch.compressed_state_diffs.unwrap_or_default(),
+            events_queue_commitment: batch.events_queue_commitment.map(|v| H256::from_slice(&v)),
+            bootloader_initial_content_commitment: batch
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
         })
