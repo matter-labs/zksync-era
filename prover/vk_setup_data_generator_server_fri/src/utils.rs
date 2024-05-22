@@ -114,21 +114,18 @@ pub fn calculate_snark_vk_hash(keystore: &Keystore) -> anyhow::Result<H256> {
 
 #[cfg(test)]
 mod tests {
-    use std::{env, path::PathBuf, str::FromStr};
+    use std::{path::PathBuf, str::FromStr};
 
     use super::*;
 
     #[test]
     fn test_keyhash_generation() {
-        let mut path_to_input = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+        let mut path_to_input = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
         path_to_input.push("historical_data");
 
         for version in 18..=22 {
             let basepath = path_to_input.join(format!("{}", version));
-            let keystore = Keystore::new_with_optional_setup_path(
-                basepath.as_os_str().to_str().unwrap().to_string(),
-                None,
-            );
+            let keystore = Keystore::new_with_optional_setup_path(basepath, None);
 
             let expected =
                 H256::from_str(&keystore.load_commitments().unwrap().snark_wrapper).unwrap();
