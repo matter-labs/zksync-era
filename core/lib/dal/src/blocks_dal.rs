@@ -2168,7 +2168,8 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<()> {
         let instrumentation =
             Instrumented::new("set_tree_writes").with_arg("l1_batch_number", &l1_batch_number);
-        let tree_writes = TreeWrite::vec_to_bytes(tree_writes);
+        let tree_writes = bincode::serialize(&tree_writes)
+            .map_err(|err| instrumentation.arg_error("tree_writes", err))?;
 
         let query = sqlx::query!(
             r#"
@@ -2204,7 +2205,7 @@ impl BlocksDal<'_, '_> {
         )
         .try_map(|row| {
             row.tree_writes
-                .map(|data| TreeWrite::vec_from_slice(&data).decode_column("tree_writes"))
+                .map(|data| bincode::deserialize(&data).decode_column("tree_writes"))
                 .transpose()
         })
         .instrument("get_tree_writes")

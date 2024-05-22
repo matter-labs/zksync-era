@@ -1,6 +1,6 @@
-use std::convert::TryInto;
+use std::{convert::TryInto, fmt};
 
-use serde::{Deserialize, Serialize};
+use serde::{de, ser::SerializeTuple, Deserialize, Deserializer, Serialize, Serializer};
 use zksync_basic_types::{Address, U256};
 
 pub(crate) use self::compression::{compress_with_best_strategy, COMPRESSION_VERSION_NUMBER};
@@ -201,62 +201,61 @@ pub struct TreeWrite {
     pub leaf_index: u64,
 }
 
-impl TreeWrite {
-    const TREE_WRITE_BYTES_SIZE: usize = 20 + 32 + 32 + 8;
-
-    fn extend_with_bytes(&self, vec: &mut Vec<u8>) {
-        vec.extend_from_slice(&self.address.0);
-        vec.extend_from_slice(&self.key.0);
-        vec.extend_from_slice(&self.value.0);
-        vec.extend_from_slice(&self.leaf_index.to_be_bytes());
+impl Serialize for TreeWrite {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut tup = serializer.serialize_tuple(4)?;
+        tup.serialize_element(&self.address.0)?;
+        tup.serialize_element(&self.key.0)?;
+        tup.serialize_element(&self.value.0)?;
+        tup.serialize_element(&self.leaf_index)?;
+        tup.end()
     }
+}
 
-    pub fn from_slice(slice: &[u8]) -> anyhow::Result<Self> {
-        if slice.len() == Self::TREE_WRITE_BYTES_SIZE {
-            Ok(Self {
-                address: Address::from_slice(&slice[0..20]),
-                key: H256::from_slice(&slice[20..52]),
-                value: H256::from_slice(&slice[52..84]),
-                leaf_index: u64::from_be_bytes(slice[84..92].try_into().unwrap()),
-            })
-        } else {
-            anyhow::bail!(
-                "Incorrect slice len, expected: {}, got {}",
-                Self::TREE_WRITE_BYTES_SIZE,
-                slice.len()
-            );
-        }
-    }
+impl<'de> Deserialize<'de> for TreeWrite {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct TreeWriteVisitor;
 
-    pub fn vec_to_bytes(vec: Vec<Self>) -> Vec<u8> {
-        let size = Self::TREE_WRITE_BYTES_SIZE * vec.len();
-        let mut result = Vec::with_capacity(size);
+        impl<'de> de::Visitor<'de> for TreeWriteVisitor {
+            type Value = TreeWrite;
 
-        for element in vec {
-            element.extend_with_bytes(&mut result);
-        }
-
-        result
-    }
-
-    pub fn vec_from_slice(slice: &[u8]) -> anyhow::Result<Vec<Self>> {
-        if slice.len() % Self::TREE_WRITE_BYTES_SIZE == 0 {
-            let mut result = Vec::with_capacity(slice.len() / Self::TREE_WRITE_BYTES_SIZE);
-            for i in 0..(slice.len() / Self::TREE_WRITE_BYTES_SIZE) {
-                result.push(Self::from_slice(
-                    &slice
-                        [i * Self::TREE_WRITE_BYTES_SIZE..((i + 1) * Self::TREE_WRITE_BYTES_SIZE)],
-                )?);
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a tuple of 4 elements")
             }
 
-            Ok(result)
-        } else {
-            anyhow::bail!(
-                "Incorrect slice len: expected to be divisible by {}, got {}",
-                Self::TREE_WRITE_BYTES_SIZE,
-                slice.len()
-            );
+            fn visit_seq<V>(self, mut seq: V) -> Result<TreeWrite, V::Error>
+            where
+                V: de::SeqAccess<'de>,
+            {
+                let address: [u8; 20] = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let key: [u8; 32] = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let value: [u8; 32] = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let leaf_index = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
+
+                Ok(TreeWrite {
+                    address: Address::from_slice(&address),
+                    key: H256::from_slice(&key),
+                    value: H256::from_slice(&value),
+                    leaf_index,
+                })
+            }
         }
+
+        deserializer.deserialize_tuple(4, TreeWriteVisitor)
     }
 }
 
@@ -586,5 +585,27 @@ mod tests {
         } else {
             panic!("invalid operation id");
         }
+    }
+
+    #[test]
+    fn check_tree_write_serde() {
+        let tree_write = TreeWrite {
+            address: Address::repeat_byte(0x11),
+            key: H256::repeat_byte(0x22),
+            value: H256::repeat_byte(0x33),
+            leaf_index: 1,
+        };
+
+        let serialized = bincode::serialize(&tree_write).unwrap();
+        let expected: Vec<_> = vec![0x11u8; 20]
+            .into_iter()
+            .chain(vec![0x22u8; 32])
+            .chain(vec![0x33u8; 32])
+            .chain(1u64.to_le_bytes())
+            .collect();
+        assert_eq!(serialized, expected);
+
+        let deserialized: TreeWrite = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(tree_write, deserialized);
     }
 }
