@@ -848,7 +848,7 @@ impl ReadStorageFactory for MockReadStorageFactory {
         _stop_receiver: &Receiver<bool>,
         _l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        // Presume that the storage is never accessed so doesn't matter what we return here
-        Ok(None)
+        // Presume that the storage is never accessed in mocked environment
+        unimplemented!()
     }
 }
