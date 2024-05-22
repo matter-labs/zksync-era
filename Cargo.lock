@@ -7357,6 +7357,7 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git#d9cb9114f26c10edf3b358a3a2c140214e1db5d8"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -7871,6 +7872,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#9bbf7ffd2c38ee8b9667e96eaf0c111037fe976f"
 dependencies = [
  "anyhow",
  "lazy_static",
