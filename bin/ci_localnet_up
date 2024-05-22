@@ -9,5 +9,3 @@ docker build -t zk-environment-full:latest -f docker/zk-environment-full/Dockerf
 mkdir -p ./volumes/postgres ./volumes/reth/data
 run_retried docker-compose pull
 docker-compose --profile runner up -d --wait
-
-ci_run restore_yarn_cache

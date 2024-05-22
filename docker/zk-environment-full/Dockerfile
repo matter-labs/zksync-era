@@ -1,32 +1,5 @@
 FROM matterlabs/zk-environment:latest2.0-lightweight
 
-WORKDIR /usr/src
-
-RUN git clone https://github.com/matter-labs/zksync-era
-
-WORKDIR zksync-era
-
-# get rid of already installed rust
-RUN rustup uninstall stable
-
-# git submodule
-RUN git submodule init
-RUN git submodule update
-
-# rust
-RUN SERVER_RUST_VERSION=$(cat rust-toolchain) && rustup install $SERVER_RUST_VERSION
-RUN cargo fetch
-
-RUN PROVER_RUST_VERSION=$(cat prover/rust-toolchain) && rustup install $PROVER_RUST_VERSION
-RUN cd prover && cargo fetch
-
-# yarn packages
-RUN yarn install --frozen-lockfile
-
-# as repository directory must be empty node_modules need to moved somewhere and then restored after git checkout
-RUN mkdir ../node_modules_backup
-ENV NODE_MODULES_BACKUP_DIR=/usr/src/node_modules_backup
-RUN (for node_dir in . etc/contracts-test-data contracts; do mkdir -p ../node_modules_backup/$node_dir; cp -r $node_dir/node_modules ../node_modules_backup/$node_dir; done)
 
 # Contracts compilers
 
@@ -72,6 +45,3 @@ RUN (for ver in solc-linux-amd64-v0.8.20+commit.a1b79de6 solc-linux-amd64-v0.8.2
     done)
 
 RUN chmod -R +x /root/.cache/hardhat-nodejs/
-
-RUN cd .. && rm -rf zksync-era
-WORKDIR /usr/src/zksync
