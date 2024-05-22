@@ -22,7 +22,7 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
-        eth_sender::EthSenderLayer,
+        eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
@@ -323,10 +323,19 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
+    fn add_eth_tx_manager_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = load_config!(self.configs.eth);
 
-        self.node.add_layer(EthSenderLayer::new(
+        self.node
+            .add_layer(EthTxManagerLayer::new(eth_sender_config));
+
+        Ok(self)
+    }
+
+    fn add_eth_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
+        let eth_sender_config = load_config!(self.configs.eth);
+
+        self.node.add_layer(EthTxAggregatorLayer::new(
             eth_sender_config,
             self.contracts_config.clone(),
             self.genesis_config.l2_chain_id,
@@ -449,9 +458,13 @@ impl MainNodeBuilder {
                 Component::EthWatcher => {
                     self = self.add_eth_watch_layer()?;
                 }
-                Component::EthTxAggregator | Component::EthTxManager => {
-                    // TODO (in this PR): Clarify that these components always have to run together.
-                    self = self.add_pk_signing_client_layer()?.add_eth_sender_layer()?;
+                Component::EthTxAggregator => {
+                    self = self
+                        .add_pk_signing_client_layer()?
+                        .add_eth_tx_aggregator_layer()?;
+                }
+                Component::EthTxManager => {
+                    self = self.add_eth_tx_manager_layer()?;
                 }
                 Component::StateKeeper => {
                     self = self.add_state_keeper_layer()?;

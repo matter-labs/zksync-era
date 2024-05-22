@@ -32,7 +32,7 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
-        eth_sender::EthSenderLayer,
+        eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
@@ -305,12 +305,14 @@ impl MainNodeBuilder {
         let network_config = NetworkConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
 
-        self.node.add_layer(EthSenderLayer::new(
-            eth_sender_config,
+        self.node.add_layer(EthTxAggregatorLayer::new(
+            eth_sender_config.clone(),
             contracts_config,
             network_config.zksync_network_id,
             genesis_config.l1_batch_commit_data_generator_mode,
         ));
+        self.node
+            .add_layer(EthTxManagerLayer::new(eth_sender_config));
 
         Ok(self)
     }
