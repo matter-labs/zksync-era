@@ -519,7 +519,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .world_diff
                     .get_storage_changes_after(&start)
                     .into_iter()
-                    .map(|((address, key), change)| {
+                    .map(|((address, key), (old, new))| {
                         let is_initial =
                             self.world
                                 .storage
@@ -528,7 +528,10 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                                     AccountTreeId::new(address),
                                     u256_to_h256(key),
                                 ));
-                        storage_log_query_from_change(((address, key), change), is_initial)
+                        storage_log_query_from_change(
+                            ((address, key), (old.unwrap_or_default(), new)),
+                            is_initial,
+                        )
                     })
                     .collect(),
                 events,
@@ -607,10 +610,18 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
             deduplicated_storage_log_queries: self
                 .inner
                 .world_diff
-                .get_storage_changes()
+                .get_storage_state()
                 .iter()
                 .map(|(&a, &b)| (a, b))
-                .map(|((address, key), change)| log_query_from_change(((address, key), change)))
+                .filter_map(|((address, key), new_value)| {
+                    let initial_value = h256_to_u256(self.world.storage.borrow_mut().read_value(
+                        &StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                    ));
+                    (initial_value == new_value).then_some(log_query_from_change((
+                        (address, key),
+                        (initial_value, new_value),
+                    )))
+                })
                 .collect(),
             used_contract_hashes: vec![],
             system_logs: self
