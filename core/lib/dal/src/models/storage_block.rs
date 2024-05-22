@@ -16,10 +16,19 @@ use zksync_types::{
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
 pub const LEGACY_BLOCK_GAS_LIMIT: u32 = u32::MAX;
 
+/// App-level error fetching L1 batch metadata. For now, there's only one kind of such errors:
+/// incomplete metadata.
 #[derive(Debug, Error)]
-pub enum StorageL1BatchConvertError {
-    #[error("Incomplete L1 batch")]
-    Incomplete,
+pub enum L1BatchMetadataError {
+    #[error("incomplete L1 batch metadata: missing `{}` field", _0)]
+    Incomplete(&'static str),
+}
+
+/// L1 batch header with optional metadata.
+#[derive(Debug)]
+pub struct L1BatchWithOptionalMetadata {
+    pub header: L1BatchHeader,
+    pub metadata: Result<L1BatchMetadata, L1BatchMetadataError>,
 }
 
 /// Projection of the `l1_batches` table corresponding to [`L1BatchHeader`].
@@ -133,11 +142,6 @@ pub struct StorageL1Batch {
     pub(crate) compressed_initial_writes: Option<Vec<u8>>,
     pub(crate) compressed_repeated_writes: Option<Vec<u8>>,
 
-    // FIXME: remove?
-    pub eth_prove_tx_id: Option<i32>,
-    pub eth_commit_tx_id: Option<i32>,
-    pub eth_execute_tx_id: Option<i32>,
-
     pub(crate) used_contract_hashes: serde_json::Value,
 
     pub(crate) system_logs: Vec<Vec<u8>>,
@@ -187,55 +191,57 @@ impl From<StorageL1Batch> for L1BatchHeader {
 }
 
 impl TryFrom<StorageL1Batch> for L1BatchMetadata {
-    type Error = StorageL1BatchConvertError;
+    type Error = L1BatchMetadataError;
 
     fn try_from(batch: StorageL1Batch) -> Result<Self, Self::Error> {
         Ok(Self {
-            root_hash: H256::from_slice(&batch.hash.ok_or(StorageL1BatchConvertError::Incomplete)?),
+            root_hash: H256::from_slice(
+                &batch.hash.ok_or(L1BatchMetadataError::Incomplete("hash"))?,
+            ),
             rollup_last_leaf_index: batch
                 .rollup_last_leaf_index
-                .ok_or(StorageL1BatchConvertError::Incomplete)?
+                .ok_or(L1BatchMetadataError::Incomplete("rollup_last_leaf_index"))?
                 as u64,
             initial_writes_compressed: batch.compressed_initial_writes,
             repeated_writes_compressed: batch.compressed_repeated_writes,
             l2_l1_merkle_root: H256::from_slice(
                 &batch
                     .l2_l1_merkle_root
-                    .ok_or(StorageL1BatchConvertError::Incomplete)?,
+                    .ok_or(L1BatchMetadataError::Incomplete("l2_l1_merkle_root"))?,
             ),
             aux_data_hash: H256::from_slice(
                 &batch
                     .aux_data_hash
-                    .ok_or(StorageL1BatchConvertError::Incomplete)?,
+                    .ok_or(L1BatchMetadataError::Incomplete("aux_data_hash"))?,
             ),
             meta_parameters_hash: H256::from_slice(
                 &batch
                     .meta_parameters_hash
-                    .ok_or(StorageL1BatchConvertError::Incomplete)?,
+                    .ok_or(L1BatchMetadataError::Incomplete("meta_parameters_hash"))?,
             ),
             pass_through_data_hash: H256::from_slice(
                 &batch
                     .pass_through_data_hash
-                    .ok_or(StorageL1BatchConvertError::Incomplete)?,
+                    .ok_or(L1BatchMetadataError::Incomplete("pass_through_data_hash"))?,
             ),
             commitment: H256::from_slice(
                 &batch
                     .commitment
-                    .ok_or(StorageL1BatchConvertError::Incomplete)?,
+                    .ok_or(L1BatchMetadataError::Incomplete("commitment"))?,
             ),
             block_meta_params: L1BatchMetaParameters {
                 zkporter_is_available: batch
                     .zkporter_is_available
-                    .ok_or(StorageL1BatchConvertError::Incomplete)?,
+                    .ok_or(L1BatchMetadataError::Incomplete("zkporter_is_available"))?,
                 bootloader_code_hash: H256::from_slice(
                     &batch
                         .bootloader_code_hash
-                        .ok_or(StorageL1BatchConvertError::Incomplete)?,
+                        .ok_or(L1BatchMetadataError::Incomplete("bootloader_code_hash"))?,
                 ),
                 default_aa_code_hash: H256::from_slice(
                     &batch
                         .default_aa_code_hash
-                        .ok_or(StorageL1BatchConvertError::Incomplete)?,
+                        .ok_or(L1BatchMetadataError::Incomplete("default_aa_code_hash"))?,
                 ),
                 protocol_version: batch
                     .protocol_version
