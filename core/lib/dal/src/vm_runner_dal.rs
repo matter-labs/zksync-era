@@ -1,8 +1,7 @@
-use crate::Core;
-use zksync_db_connection::connection::Connection;
-use zksync_db_connection::error::DalResult;
-use zksync_db_connection::instrument::InstrumentExt;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::L1BatchNumber;
+
+use crate::Core;
 
 #[derive(Debug)]
 pub struct VmRunnerDal<'c, 'a> {
@@ -36,18 +35,22 @@ impl VmRunnerDal<'_, '_> {
             r#"
             WITH
                 available_batches AS (
-                    SELECT MAX(number) as "last_batch"
-                    FROM l1_batches
+                    SELECT
+                        MAX(number) AS "last_batch"
+                    FROM
+                        l1_batches
                 ),
                 processed_batches AS (
-                    SELECT COALESCE(MAX(l1_batch_number), 0) + $1 AS "last_ready_batch"
-                    FROM vm_runner_protective_reads
+                    SELECT
+                        COALESCE(MAX(l1_batch_number), 0) + $1 AS "last_ready_batch"
+                    FROM
+                        vm_runner_protective_reads
                 )
             SELECT
                 LEAST(last_batch, last_ready_batch) AS "last_ready_batch!"
             FROM
                 available_batches
-                FULL JOIN processed_batches ON true
+                FULL JOIN processed_batches ON TRUE
             "#,
             window_size as i32
         )
@@ -65,17 +68,9 @@ impl VmRunnerDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                vm_runner_protective_reads (
-                    l1_batch_number,
-                    created_at,
-                    updated_at
-                )
+                vm_runner_protective_reads (l1_batch_number, created_at, updated_at)
             VALUES
-                (
-                    $1,
-                    NOW(),
-                    NOW()
-                )
+                ($1, NOW(), NOW())
             "#,
             i64::from(l1_batch_number.0),
         )

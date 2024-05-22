@@ -1,14 +1,15 @@
-use crate::storage::StorageSyncTask;
-use crate::{
-    ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
-    VmRunner, VmRunnerIo, VmRunnerStorage,
-};
+use std::sync::Arc;
+
 use anyhow::Context;
 use async_trait::async_trait;
-use std::sync::Arc;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{L1BatchNumber, L2ChainId};
+
+use crate::{
+    storage::StorageSyncTask, ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask,
+    OutputHandlerFactory, VmRunner, VmRunnerIo, VmRunnerStorage,
+};
 
 pub struct ProtectiveReadsWriter {
     vm_runner: VmRunner,

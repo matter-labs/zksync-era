@@ -11,7 +11,6 @@ pub use zksync_db_connection::{
     error::{DalError, DalResult},
 };
 
-use crate::vm_runner_dal::VmRunnerDal;
 use crate::{
     blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
     contract_verification_dal::ContractVerificationDal, eth_sender_dal::EthSenderDal,
@@ -24,7 +23,7 @@ use crate::{
     sync_dal::SyncDal, system_dal::SystemDal,
     tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
 pub mod blocks_dal;
