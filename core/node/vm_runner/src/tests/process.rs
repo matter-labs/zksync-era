@@ -69,7 +69,6 @@ async fn process_one_batch() -> anyhow::Result<()> {
     let vm_runner = VmRunner::new(
         connection_pool,
         Box::new(io.clone()),
-        storage.clone(),
         storage,
         Box::new(output_factory),
         Box::new(batch_executor),
