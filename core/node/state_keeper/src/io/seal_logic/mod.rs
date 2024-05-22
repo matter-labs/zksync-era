@@ -22,7 +22,6 @@ use zksync_types::{
         TransactionExecutionResult,
     },
     utils::display_timestamp,
-    writes::TreeWrite,
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
     Transaction, VmEvent, H256,
@@ -110,96 +109,6 @@ impl UpdatesManager {
             current_l1_batch_number = self.l1_batch.number
         );
 
-        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
-        let (deduplicated_writes, protective_reads): (Vec<LogQuery>, Vec<LogQuery>) =
-            finished_batch
-                .final_execution_state
-                .deduplicated_storage_log_queries
-                .iter()
-                .partition(|log_query| log_query.rw_flag);
-        let mut next_index = transaction
-            .storage_logs_dedup_dal()
-            .max_enumeration_index()
-            .await?
-            .unwrap_or(0)
-            + 1;
-        let (written_storage_keys, tree_input): (Vec<_>, Vec<_>) = if let Some(state_diffs) =
-            &finished_batch.state_diffs
-        {
-            let written_storage_keys = state_diffs
-                .iter()
-                .filter(|diff| diff.is_write_initial())
-                .map(|diff| {
-                    StorageKey::new(AccountTreeId::new(diff.address), u256_to_h256(diff.key))
-                })
-                .collect();
-            let tree_input = state_diffs
-                .iter()
-                .map(|diff| {
-                    let leaf_index = if diff.is_write_initial() {
-                        next_index += 1;
-                        next_index - 1
-                    } else {
-                        diff.enumeration_index
-                    };
-                    TreeWrite {
-                        address: diff.address,
-                        key: u256_to_h256(diff.key),
-                        value: u256_to_h256(diff.final_value),
-                        leaf_index,
-                    }
-                })
-                .collect();
-
-            (written_storage_keys, tree_input)
-        } else {
-            let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
-                .iter()
-                .map(|log| {
-                    H256(StorageKey::raw_hashed_key(
-                        &log.address,
-                        &u256_to_h256(log.key),
-                    ))
-                })
-                .collect();
-            let non_initial_writes = transaction
-                .storage_logs_dal()
-                .get_l1_batches_and_indices_for_initial_writes(&deduplicated_writes_hashed_keys)
-                .await?;
-
-            let written_storage_keys = deduplicated_writes
-                .iter()
-                .filter_map(|log| {
-                    let key =
-                        StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
-                    (!non_initial_writes.contains_key(&key.hashed_key())).then_some(key)
-                })
-                .collect();
-            let tree_input = deduplicated_writes
-                .iter()
-                .map(|log| {
-                    let key =
-                        StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
-                    let leaf_index =
-                        if let Some((_, leaf_index)) = non_initial_writes.get(&key.hashed_key()) {
-                            *leaf_index
-                        } else {
-                            next_index += 1;
-                            next_index - 1
-                        };
-                    TreeWrite {
-                        address: log.address,
-                        key: u256_to_h256(log.key),
-                        value: u256_to_h256(log.written_value),
-                        leaf_index,
-                    }
-                })
-                .collect();
-
-            (written_storage_keys, tree_input)
-        };
-        progress.observe(deduplicated_writes.len());
-
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let l2_to_l1_messages =
             extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
@@ -241,10 +150,6 @@ impl UpdatesManager {
                 self.pending_execution_metrics().circuit_statistic,
             )
             .await?;
-        transaction
-            .blocks_dal()
-            .set_tree_writes(l1_batch.number, tree_input)
-            .await?;
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForL2Blocks);
@@ -266,6 +171,13 @@ impl UpdatesManager {
 
         if insert_protective_reads {
             let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
+            let protective_reads: Vec<_> = finished_batch
+                .final_execution_state
+                .deduplicated_storage_log_queries
+                .iter()
+                .filter(|log_query| !log_query.rw_flag)
+                .copied()
+                .collect();
             transaction
                 .storage_logs_dedup_dal()
                 .insert_protective_reads(self.l1_batch.number, &protective_reads)
@@ -273,12 +185,63 @@ impl UpdatesManager {
             progress.observe(protective_reads.len());
         }
 
+        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
+        let (initial_writes, all_writes_len): (Vec<_>, usize) = if let Some(state_diffs) =
+            &finished_batch.state_diffs
+        {
+            let all_writes_len = state_diffs.len();
+
+            (
+                state_diffs
+                    .iter()
+                    .filter(|diff| diff.is_write_initial())
+                    .map(|diff| {
+                        StorageKey::new(AccountTreeId::new(diff.address), u256_to_h256(diff.key))
+                    })
+                    .collect(),
+                all_writes_len,
+            )
+        } else {
+            let deduplicated_writes = finished_batch
+                .final_execution_state
+                .deduplicated_storage_log_queries
+                .iter()
+                .filter(|log_query| log_query.rw_flag);
+
+            let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
+                .clone()
+                .map(|log| {
+                    H256(StorageKey::raw_hashed_key(
+                        &log.address,
+                        &u256_to_h256(log.key),
+                    ))
+                })
+                .collect();
+            let all_writes_len = deduplicated_writes_hashed_keys.len();
+            let non_initial_writes = transaction
+                .storage_logs_dedup_dal()
+                .filter_written_slots(&deduplicated_writes_hashed_keys)
+                .await?;
+
+            (
+                deduplicated_writes
+                    .filter_map(|log| {
+                        let key =
+                            StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
+                        (!non_initial_writes.contains(&key.hashed_key())).then_some(key)
+                    })
+                    .collect(),
+                all_writes_len,
+            )
+        };
+        progress.observe(all_writes_len);
+
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertInitialWrites);
         transaction
             .storage_logs_dedup_dal()
-            .insert_initial_writes(self.l1_batch.number, &written_storage_keys)
+            .insert_initial_writes(self.l1_batch.number, &initial_writes)
             .await?;
-        progress.observe(written_storage_keys.len());
+        progress.observe(initial_writes.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::CommitL1Batch);
         transaction.commit().await?;
@@ -287,7 +250,7 @@ impl UpdatesManager {
         let writes_metrics = self.storage_writes_deduplicator.metrics();
         // Sanity check metrics.
         anyhow::ensure!(
-            deduplicated_writes.len()
+            all_writes_len
                 == writes_metrics.initial_storage_writes + writes_metrics.repeated_storage_writes,
             "Results of in-flight and common deduplications are mismatched"
         );

@@ -9,7 +9,8 @@ use zksync_config::{
     ContractsConfig,
 };
 use zksync_state_keeper::{
-    MempoolFetcher, MempoolGuard, MempoolIO, OutputHandler, SequencerSealer, StateKeeperPersistence,
+    io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, MempoolFetcher, MempoolGuard,
+    MempoolIO, OutputHandler, SequencerSealer, StateKeeperPersistence, TreeWritesPersistence,
 };
 
 use crate::{
@@ -79,16 +80,20 @@ impl WiringLayer for MempoolIOLayer {
         let batch_fee_input_provider = context.get_resource::<FeeInputResource>().await?.0;
         let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
 
-        // Create miniblock sealer task.
+        // Create L2 block sealer task and output handler.
+        // L2 Block sealing process is parallelized, so we have to provide enough pooled connections.
+        let persistence_pool = master_pool
+            .get_custom(L2BlockSealProcess::subtasks_len())
+            .await
+            .context("Get master pool")?;
         let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
-            master_pool
-                .get_singleton()
-                .await
-                .context("Get master pool")?,
+            persistence_pool.clone(),
             self.contracts_config.l2_shared_bridge_addr.unwrap(),
             self.state_keeper_config.l2_block_seal_queue_capacity,
         );
-        let output_handler = OutputHandler::new(Box::new(persistence));
+        let tree_writes_persistence = TreeWritesPersistence::new(persistence_pool);
+        let output_handler = OutputHandler::new(Box::new(persistence))
+            .with_handler(Box::new(tree_writes_persistence));
         context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
         context.add_task(Box::new(L2BlockSealerTask(l2_block_sealer)));
 

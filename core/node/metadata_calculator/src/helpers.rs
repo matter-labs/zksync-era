@@ -514,6 +514,7 @@ impl L1BatchWithLogs {
         storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
         mode: MerkleTreeMode,
+        wait_for_tree_writes: bool,
     ) -> anyhow::Result<Option<Self>> {
         tracing::debug!(
             "Loading storage logs data for L1 batch #{l1_batch_number} for {mode:?} tree"
@@ -552,10 +553,34 @@ impl L1BatchWithLogs {
         };
 
         let load_tree_writes_latency = METRICS.start_load_stage(LoadChangesStage::LoadTreeWrites);
-        let tree_writes = storage
-            .blocks_dal()
-            .get_tree_writes(l1_batch_number)
-            .await?;
+
+        let tree_writes = if wait_for_tree_writes {
+            // If `wait_for_tree_writes` flag is set then we expect that waiting for tree writes
+            // should be more faster then constructing them. So, `attempts` is set to some high value.
+            let interval = Duration::from_millis(50);
+            let attempts = 100;
+
+            let mut result = None;
+            for _ in 0..attempts {
+                if let Some(tree_writes) = storage
+                    .blocks_dal()
+                    .get_tree_writes(l1_batch_number)
+                    .await?
+                {
+                    result = Some(tree_writes);
+                    break;
+                } else {
+                    tokio::time::sleep(interval).await
+                }
+            }
+
+            result
+        } else {
+            storage
+                .blocks_dal()
+                .get_tree_writes(l1_batch_number)
+                .await?
+        };
         load_tree_writes_latency.observe();
 
         let storage_logs = if let Some(tree_writes) = tree_writes {
@@ -743,7 +768,7 @@ mod tests {
         for l1_batch_number in 0..=5 {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
             let batch_with_logs =
-                L1BatchWithLogs::new(&mut storage, l1_batch_number, MerkleTreeMode::Full)
+                L1BatchWithLogs::new(&mut storage, l1_batch_number, MerkleTreeMode::Full, false)
                     .await
                     .unwrap()
                     .expect("no L1 batch");
@@ -781,7 +806,7 @@ mod tests {
                 .unwrap();
 
             let batch_with_logs =
-                L1BatchWithLogs::new(&mut storage, l1_batch_number, MerkleTreeMode::Full)
+                L1BatchWithLogs::new(&mut storage, l1_batch_number, MerkleTreeMode::Full, true)
                     .await
                     .unwrap()
                     .expect("no L1 batch");
@@ -827,12 +852,12 @@ mod tests {
         l1_batch_number: L1BatchNumber,
     ) {
         let l1_batch_with_logs =
-            L1BatchWithLogs::new(storage, l1_batch_number, MerkleTreeMode::Full)
+            L1BatchWithLogs::new(storage, l1_batch_number, MerkleTreeMode::Full, false)
                 .await
                 .unwrap()
                 .expect("no L1 batch");
         let mut lightweight_l1_batch_with_logs =
-            L1BatchWithLogs::new(storage, l1_batch_number, MerkleTreeMode::Lightweight)
+            L1BatchWithLogs::new(storage, l1_batch_number, MerkleTreeMode::Lightweight, false)
                 .await
                 .unwrap()
                 .expect("no L1 batch");
@@ -957,7 +982,7 @@ mod tests {
             .unwrap();
 
         let l1_batch_with_logs =
-            L1BatchWithLogs::new(&mut storage, L1BatchNumber(2), MerkleTreeMode::Full)
+            L1BatchWithLogs::new(&mut storage, L1BatchNumber(2), MerkleTreeMode::Full, false)
                 .await
                 .unwrap()
                 .expect("no L1 batch");
@@ -969,11 +994,15 @@ mod tests {
             .count();
         assert_eq!(read_logs_count, 7);
 
-        let light_l1_batch_with_logs =
-            L1BatchWithLogs::new(&mut storage, L1BatchNumber(2), MerkleTreeMode::Lightweight)
-                .await
-                .unwrap()
-                .expect("no L1 batch");
+        let light_l1_batch_with_logs = L1BatchWithLogs::new(
+            &mut storage,
+            L1BatchNumber(2),
+            MerkleTreeMode::Lightweight,
+            false,
+        )
+        .await
+        .unwrap()
+        .expect("no L1 batch");
         assert!(light_l1_batch_with_logs
             .storage_logs
             .iter()

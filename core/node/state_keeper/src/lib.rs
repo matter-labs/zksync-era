@@ -13,7 +13,7 @@ pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
     io::{
         mempool::MempoolIO, L2BlockSealerTask, OutputHandler, StateKeeperIO,
-        StateKeeperOutputHandler, StateKeeperPersistence,
+        StateKeeperOutputHandler, StateKeeperPersistence, TreeWritesPersistence,
     },
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,

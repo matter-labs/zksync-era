@@ -23,7 +23,7 @@ use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::MockBatchExecutor,
-    OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
+    OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
 use zksync_web3_decl::client::{Client, DynClient, L2};
@@ -308,6 +308,7 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) =
                 StateKeeperPersistence::new(self.pool.0.clone(), Address::repeat_byte(11), 5);
+            let tree_writes_persistence = TreeWritesPersistence::new(self.pool.0.clone());
 
             let io = ExternalIO::new(
                 self.pool.0.clone(),
@@ -338,6 +339,7 @@ impl StateKeeperRunner {
                         Box::new(io),
                         Box::new(MockBatchExecutor),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+                            .with_handler(Box::new(tree_writes_persistence))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
                     )

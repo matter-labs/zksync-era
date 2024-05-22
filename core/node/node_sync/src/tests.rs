@@ -14,7 +14,7 @@ use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::test_batch_executor::TestBatchExecutorBuilder,
-    OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
+    OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{
     api,
@@ -105,7 +105,9 @@ impl StateKeeperHandles {
         let sync_state = SyncState::default();
         let (persistence, l2_block_sealer) =
             StateKeeperPersistence::new(pool.clone(), Address::repeat_byte(1), 5);
+        let tree_writes_persistence = TreeWritesPersistence::new(pool.clone());
         let output_handler = OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+            .with_handler(Box::new(tree_writes_persistence))
             .with_handler(Box::new(sync_state.clone()));
 
         tokio::spawn(l2_block_sealer.run());
