@@ -10,7 +10,9 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::L2ChainId;
 
 pub use self::{
-    batch_executor::{main_executor::MainBatchExecutor, BatchExecutor, TxExecutionResult},
+    batch_executor::{
+        main_executor::MainBatchExecutor, BatchExecutor, BatchExecutorHandle, TxExecutionResult,
+    },
     io::{
         mempool::MempoolIO, L2BlockParams, L2BlockSealerTask, OutputHandler, StateKeeperIO,
         StateKeeperOutputHandler, StateKeeperPersistence,
