@@ -51,6 +51,11 @@ pub enum SubmitProofResponse {
     Error(String),
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub enum TeeType {
+    Sgx,
+}
+
 #[test]
 fn test_tee_proof_request_serialization() {
     let tee_proof = SubmitTeeProofRequest::Proof(Box::new(L1BatchTeeProofForL1 {
