@@ -31,11 +31,11 @@ jobs:
     runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
-          components:
-            - contract-verifier
-            - verified-sources-fetcher
-          platforms:
-            - linux/amd64
+        components:
+          - contract-verifier
+          - verified-sources-fetcher
+        platforms:
+          - linux/amd64
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4

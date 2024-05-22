@@ -745,6 +745,11 @@ pub(crate) struct ExperimentalENConfig {
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
+
+    // Commitment generator
+    /// Maximum degree of parallelism during commitment generation, i.e., the maximum number of L1 batches being processed in parallel.
+    /// If not specified, commitment generator will use a value roughly equal to the number of CPU cores with some clamping applied.
+    pub commitment_generator_max_parallelism: Option<NonZeroU32>,
 }
 
 impl ExperimentalENConfig {
@@ -758,6 +763,7 @@ impl ExperimentalENConfig {
             state_keeper_db_block_cache_capacity_mb:
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
+            commitment_generator_max_parallelism: None,
         }
     }
 
