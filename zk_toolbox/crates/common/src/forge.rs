@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 use xshell::{cmd, Shell};
 
-use crate::cmd::Cmd;
+use crate::{cmd::Cmd, config::global_config, forge_verifier::VerifierArgs};
 
 /// Forge is a wrapper around the forge binary.
 pub struct Forge {
@@ -44,6 +44,11 @@ pub struct ForgeScript {
 impl ForgeScript {
     /// Run the forge script command.
     pub fn run(mut self, shell: &Shell) -> anyhow::Result<()> {
+        // Add verifier args if necessary
+        if global_config().verifier_args.verify.is_some_and(|v| v) {
+            self.add_verify(global_config().verifier_args.clone());
+        }
+
         let _dir_guard = shell.push_dir(&self.base_path);
         let script_path = self.script_path.as_os_str();
         let args = self.args.build();
@@ -93,6 +98,23 @@ impl ForgeScript {
         });
         self
     }
+
+    /// Adds verification arguments to the forge script command.
+    fn add_verify(&mut self, args: VerifierArgs) {
+        self.args.add_arg(ForgeScriptArg::Verify);
+        if let Some(url) = &args.verifier_url {
+            self.args
+                .add_arg(ForgeScriptArg::VerifierUrl { url: url.clone() });
+        }
+        if let Some(api_key) = &args.verifier_api_key {
+            self.args.add_arg(ForgeScriptArg::EtherscanApiKey {
+                api_key: api_key.clone(),
+            });
+        }
+        self.args.add_arg(ForgeScriptArg::Verifier {
+            verifier: args.verifier.to_string(),
+        });
+    }
 }
 
 const PROHIBITED_ARGS: [&str; 10] = [
@@ -133,21 +155,34 @@ const WALLET_ARGS: [&str; 18] = [
 #[derive(Display, Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[strum(serialize_all = "kebab-case", prefix = "--")]
 pub enum ForgeScriptArg {
-    Ffi,
-    #[strum(to_string = "rpc-url={url}")]
-    RpcUrl {
-        url: String,
-    },
     Broadcast,
-    Slow,
+    #[strum(to_string = "etherscan-api-key={api_key}")]
+    EtherscanApiKey {
+        api_key: String,
+    },
+    Ffi,
     #[strum(to_string = "private-key={private_key}")]
     PrivateKey {
         private_key: String,
+    },
+    #[strum(to_string = "rpc-url={url}")]
+    RpcUrl {
+        url: String,
     },
     #[strum(to_string = "sig={sig}")]
     Sig {
         sig: String,
     },
+    Slow,
+    #[strum(to_string = "verifier={verifier}")]
+    Verifier {
+        verifier: String,
+    },
+    #[strum(to_string = "verifier-url={url}")]
+    VerifierUrl {
+        url: String,
+    },
+    Verify,
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.

@@ -2,6 +2,7 @@ use clap::{command, Parser, Subcommand};
 use common::{
     check_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
+    forge_verifier::VerifierArgs,
     init_prompt_theme, logger,
 };
 use xshell::Shell;
@@ -56,6 +57,8 @@ struct InceptionGlobalArgs {
     /// Ignores prerequisites checks
     #[clap(long, global = true)]
     ignore_prerequisites: bool,
+    #[clap(flatten)]
+    verifier_args: VerifierArgs,
 }
 
 #[tokio::main]
@@ -130,6 +133,7 @@ fn init_global_config_inner(
         verbose: inception_args.verbose,
         chain_name: inception_args.chain.clone(),
         ignore_prerequisites: inception_args.ignore_prerequisites,
+        verifier_args: inception_args.verifier_args.clone(),
     });
     Ok(())
 }

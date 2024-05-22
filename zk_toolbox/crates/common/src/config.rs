@@ -1,3 +1,4 @@
+use crate::forge_verifier::VerifierArgs;
 use once_cell::sync::OnceCell;
 
 static CONFIG: OnceCell<GlobalConfig> = OnceCell::new();
@@ -15,4 +16,5 @@ pub struct GlobalConfig {
     pub verbose: bool,
     pub chain_name: Option<String>,
     pub ignore_prerequisites: bool,
+    pub verifier_args: VerifierArgs,
 }
