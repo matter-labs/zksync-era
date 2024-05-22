@@ -37,6 +37,12 @@ pub trait StorageLoader: ReadStorageFactory {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<BatchExecuteData>>;
+
+    /// A workaround for Rust's limitations on upcasting coercion. See
+    /// https://github.com/rust-lang/rust/issues/65991.
+    ///
+    /// Should always be implementable as [`StorageLoader`] requires [`ReadStorageFactory`].
+    fn upcast(self: Arc<Self>) -> Arc<dyn ReadStorageFactory>;
 }
 
 /// Data needed to execute an L1 batch.
@@ -199,6 +205,10 @@ impl<Io: VmRunnerIo> StorageLoader for VmRunnerStorage<Io> {
             }
             Some(batch_data) => Ok(Some(batch_data.execute_data.clone())),
         }
+    }
+
+    fn upcast(self: Arc<Self>) -> Arc<dyn ReadStorageFactory> {
+        self
     }
 }
 

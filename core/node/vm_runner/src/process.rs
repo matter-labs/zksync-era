@@ -4,7 +4,6 @@ use anyhow::Context;
 use multivm::interface::L2BlockEnv;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_state::ReadStorageFactory;
 use zksync_state_keeper::{
     BatchExecutor, ExecutionMetricsForCriteria, L2BlockParams, TxExecutionResult, UpdatesManager,
 };
@@ -26,7 +25,6 @@ use crate::{storage::StorageLoader, OutputHandlerFactory, VmRunnerIo};
 pub struct VmRunner {
     pool: ConnectionPool<Core>,
     io: Box<dyn VmRunnerIo>,
-    storage: Arc<dyn ReadStorageFactory>,
     loader: Arc<dyn StorageLoader>,
     output_handler_factory: Box<dyn OutputHandlerFactory>,
     batch_processor: Box<dyn BatchExecutor>,
@@ -42,10 +40,6 @@ impl VmRunner {
     pub fn new(
         pool: ConnectionPool<Core>,
         io: Box<dyn VmRunnerIo>,
-        // Normally `storage` and `loader` would be the same object, but it is awkward to deal with
-        // them as such due to Rust's limitations on upcasting coercion. See
-        // https://github.com/rust-lang/rust/issues/65991.
-        storage: Arc<dyn ReadStorageFactory>,
         loader: Arc<dyn StorageLoader>,
         output_handler_factory: Box<dyn OutputHandlerFactory>,
         batch_processor: Box<dyn BatchExecutor>,
@@ -53,7 +47,6 @@ impl VmRunner {
         Self {
             pool,
             io,
-            storage,
             loader,
             output_handler_factory,
             batch_processor,
@@ -103,7 +96,7 @@ impl VmRunner {
             let Some(handler) = self
                 .batch_processor
                 .init_batch(
-                    self.storage.clone(),
+                    self.loader.clone().upcast(),
                     batch_data.l1_batch_env,
                     batch_data.system_env,
                     stop_receiver,
