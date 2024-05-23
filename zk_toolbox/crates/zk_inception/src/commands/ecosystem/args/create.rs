@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{Prompt, PromptConfirm, PromptSelect};
+use common::{slugify, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
-use slugify_rs::slugify;
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 use url::Url;
@@ -37,7 +36,7 @@ impl EcosystemCreateArgs {
         let mut ecosystem_name = self
             .ecosystem_name
             .unwrap_or_else(|| Prompt::new("How do you want to name the ecosystem?").ask());
-        ecosystem_name = slugify!(&ecosystem_name);
+        ecosystem_name = slugify(&ecosystem_name);
 
         let link_to_code = self.link_to_code.unwrap_or_else(|| {
             let link_to_code_selection = PromptSelect::new(

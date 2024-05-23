@@ -27,5 +27,4 @@ strum_macros.workspace = true
 strum.workspace = true
 toml.workspace = true
 url.workspace = true
-slugify-rs.workspace = true
 thiserror.workspace = true
