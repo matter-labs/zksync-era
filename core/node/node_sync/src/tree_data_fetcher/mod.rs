@@ -200,7 +200,8 @@ impl TreeDataFetcher {
             .storage_logs_dedup_dal()
             .max_enumeration_index_in_l1_batch(l1_batch_to_fetch)
             .await?
-            .unwrap_or(0);
+            .unwrap_or(0)
+            + 1;
         let tree_data = L1BatchTreeData {
             hash: root_hash,
             rollup_last_leaf_index,
