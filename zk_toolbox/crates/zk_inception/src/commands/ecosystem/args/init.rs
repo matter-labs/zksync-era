@@ -19,7 +19,7 @@ pub struct EcosystemArgs {
 impl EcosystemArgs {
     pub fn fill_values_with_prompt(self) -> EcosystemArgsFinal {
         let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
-            PromptConfirm::new("Do you want to deploy ecosystem contracts?")
+            PromptConfirm::new("Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)")
                 .default(true)
                 .ask()
         });
@@ -64,7 +64,7 @@ impl EcosystemInitArgs {
                 .ask()
         });
         let deploy_erc20 = self.deploy_erc20.unwrap_or_else(|| {
-            PromptConfirm::new("Do you want to deploy test ERC20?")
+            PromptConfirm::new("Do you want to deploy some test ERC20s?")
                 .default(true)
                 .ask()
         });

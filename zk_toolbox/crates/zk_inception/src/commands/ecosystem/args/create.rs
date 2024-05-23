@@ -72,9 +72,11 @@ impl EcosystemCreateArgs {
         let chain = self.chain.fill_values_with_prompt(0);
 
         let start_containers = self.start_containers.unwrap_or_else(|| {
-            PromptConfirm::new("Do you want to start containers after creating the ecosystem?")
-                .default(true)
-                .ask()
+            PromptConfirm::new(
+                "Do you want to start database and L1 containers after creating the ecosystem?",
+            )
+            .default(true)
+            .ask()
         });
 
         EcosystemCreateArgsFinal {
@@ -110,7 +112,7 @@ impl EcosystemCreateArgsFinal {
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
 enum LinkToCodeSelection {
-    #[strum(serialize = "Clone for me")]
+    #[strum(serialize = "Clone for me (recommended)")]
     Clone,
     #[strum(serialize = "I have the code already")]
     Path,
