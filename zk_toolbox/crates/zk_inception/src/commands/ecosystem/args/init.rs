@@ -64,7 +64,7 @@ impl EcosystemInitArgs {
                 .ask()
         });
         let deploy_erc20 = self.deploy_erc20.unwrap_or_else(|| {
-            PromptConfirm::new("Do you want to deploy ERC20?")
+            PromptConfirm::new("Do you want to deploy test ERC20?")
                 .default(true)
                 .ask()
         });
