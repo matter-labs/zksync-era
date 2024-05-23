@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{Prompt, PromptConfirm, PromptSelect};
+use common::{slugify, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
@@ -33,9 +33,10 @@ pub struct EcosystemCreateArgs {
 
 impl EcosystemCreateArgs {
     pub fn fill_values_with_prompt(mut self) -> EcosystemCreateArgsFinal {
-        let ecosystem_name = self
+        let mut ecosystem_name = self
             .ecosystem_name
             .unwrap_or_else(|| Prompt::new("How do you want to name the ecosystem?").ask());
+        ecosystem_name = slugify(&ecosystem_name);
 
         let link_to_code = self.link_to_code.unwrap_or_else(|| {
             let link_to_code_selection = PromptSelect::new(
@@ -71,9 +72,11 @@ impl EcosystemCreateArgs {
         let chain = self.chain.fill_values_with_prompt(0);
 
         let start_containers = self.start_containers.unwrap_or_else(|| {
-            PromptConfirm::new("Do you want to start containers after creating the ecosystem?")
-                .default(true)
-                .ask()
+            PromptConfirm::new(
+                "Do you want to start database and L1 containers after creating the ecosystem?",
+            )
+            .default(true)
+            .ask()
         });
 
         EcosystemCreateArgsFinal {
@@ -109,7 +112,7 @@ impl EcosystemCreateArgsFinal {
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
 enum LinkToCodeSelection {
-    #[strum(serialize = "Clone for me")]
+    #[strum(serialize = "Clone for me (recommended)")]
     Clone,
     #[strum(serialize = "I have the code already")]
     Path,

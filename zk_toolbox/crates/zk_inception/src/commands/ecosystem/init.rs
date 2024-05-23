@@ -155,6 +155,7 @@ fn init(
     let spinner = Spinner::new("Installing and building dependencies...");
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
     let contracts = deploy_ecosystem(
@@ -281,8 +282,12 @@ fn deploy_ecosystem_inner(
         .script(&DEPLOY_ECOSYSTEM.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(config.l1_rpc_url.clone())
-        .with_broadcast()
-        .with_slow();
+        .with_broadcast();
+
+    if config.l1_network == L1Network::Localhost {
+        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
+        forge = forge.with_slow();
+    }
 
     forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
 
@@ -321,4 +326,10 @@ fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Resu
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
     Cmd::new(cmd!(shell, "yarn sc build")).run()
+}
+
+// TODO remove it and use proper paths in constants
+fn build_l1_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
+    Cmd::new(cmd!(shell, "yarn l1 build")).run()
 }
