@@ -1724,6 +1724,7 @@ impl BlocksDal<'_, '_> {
         bootloader_hash: H256,
         default_aa_hash: H256,
         protocol_version_id: ProtocolVersionId,
+        is_rollup: bool,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
@@ -1776,15 +1777,19 @@ impl BlocksDal<'_, '_> {
                 )
                 AND events_queue_commitment IS NOT NULL
                 AND bootloader_initial_content_commitment IS NOT NULL
-                AND data_availability.inclusion_data IS NOT NULL
+                AND (
+                    data_availability.inclusion_data IS NOT NULL
+                    OR $4 IS TRUE
+                )
             ORDER BY
                 number
             LIMIT
-                $4
+                $5
             "#,
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
             protocol_version_id as i32,
+            is_rollup,
             limit as i64,
         )
         .instrument("get_ready_for_commit_l1_batches")
@@ -1792,6 +1797,7 @@ impl BlocksDal<'_, '_> {
         .with_arg("bootloader_hash", &bootloader_hash)
         .with_arg("default_aa_hash", &default_aa_hash)
         .with_arg("protocol_version_id", &protocol_version_id)
+        .with_arg("is_rollup", &is_rollup)
         .fetch_all(self.storage)
         .await?;
 

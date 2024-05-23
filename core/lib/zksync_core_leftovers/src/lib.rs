@@ -28,6 +28,7 @@ use zksync_config::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
+        eth_sender::PubdataSendingMode,
         wallets,
         wallets::Wallets,
         ContractsConfig, DatabaseSecrets, GeneralConfig, Secrets,
@@ -742,7 +743,9 @@ pub async fn initialize_components(
         .context("add_tee_verifier_input_producer_to_task_futures()")?;
     }
 
-    if components.contains(&Component::DADispatcher) {
+    if components.contains(&Component::DADispatcher)
+        && eth.sender?.pubdata_sending_mode == PubdataSendingMode::Custom
+    {
         let started_at = Instant::now();
         let da_config = configs
             .da_dispatcher_config
