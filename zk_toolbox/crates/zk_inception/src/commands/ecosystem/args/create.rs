@@ -40,7 +40,7 @@ impl EcosystemCreateArgs {
 
         let link_to_code = self.link_to_code.unwrap_or_else(|| {
             let link_to_code_selection = PromptSelect::new(
-                "Select the origin of zksync-era repository",
+                "Add the (recommended) to the clone option",
                 LinkToCodeSelection::iter(),
             )
             .ask();
@@ -72,9 +72,11 @@ impl EcosystemCreateArgs {
         let chain = self.chain.fill_values_with_prompt(0);
 
         let start_containers = self.start_containers.unwrap_or_else(|| {
-            PromptConfirm::new("Do you want to start containers after creating the ecosystem?")
-                .default(true)
-                .ask()
+            PromptConfirm::new(
+                "Do you want to start database and L1 containers after creating the ecosystem?",
+            )
+            .default(true)
+            .ask()
         });
 
         EcosystemCreateArgsFinal {
