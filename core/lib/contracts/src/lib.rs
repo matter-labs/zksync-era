@@ -25,6 +25,10 @@ pub enum ContractLanguage {
     Yul,
 }
 
+/// During the transition period we have to support both paths for contracts artifacts
+/// One for forge and another for hardhat.
+/// Meanwhile, hardhat has one more intermediate folder. That's why, we have to represent each contract
+/// by two constants, intermediate folder and actual contract name. For Forge we use only second part
 const HARDHAT_PATH_PREFIX: &str = "contracts/l1-contracts/artifacts/contracts";
 const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts-foundry/out";
 
@@ -77,12 +81,12 @@ fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option
 
 fn load_contract_for_hardhat(path: (&str, &str)) -> Option<Contract> {
     let path = Path::new(HARDHAT_PATH_PREFIX).join(path.0).join(path.1);
-    load_contract_if_present(&path)
+    load_contract_if_present(path)
 }
 
 fn load_contract_for_forge(file_path: &str) -> Option<Contract> {
     let path = Path::new(FORGE_PATH_PREFIX).join(file_path);
-    load_contract_if_present(&path)
+    load_contract_if_present(path)
 }
 
 fn load_contract_for_both_compilers(path: (&str, &str)) -> Contract {
