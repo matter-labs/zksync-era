@@ -15,7 +15,10 @@ Install zk_inception from git:
 
 Manually building from a local copy of the [ZkSync](https://github.com/matter-labs/zksync-era/) repository:
 
-`cargo install --path ./zk_toolbox/crates/zk_inception --force --locked`
+```
+cd zk_toolbox
+cargo install --path ./crates/zk_inception --force --locked
+```
 
 ### Foundry Integration
 
