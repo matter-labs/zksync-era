@@ -413,10 +413,10 @@ async fn real_conditions_work_as_expected() {
         .unwrap();
 
     let conditions: Vec<Arc<dyn PruneCondition>> = vec![
-        Arc::new(L1BatchExistsCondition { conn: pool.clone() }),
-        Arc::new(NextL1BatchHasMetadataCondition { conn: pool.clone() }),
-        Arc::new(NextL1BatchWasExecutedCondition { conn: pool.clone() }),
-        Arc::new(ConsistencyCheckerProcessedBatch { conn: pool.clone() }),
+        Arc::new(L1BatchExistsCondition { pool: pool.clone() }),
+        Arc::new(NextL1BatchHasMetadataCondition { pool: pool.clone() }),
+        Arc::new(NextL1BatchWasExecutedCondition { pool: pool.clone() }),
+        Arc::new(ConsistencyCheckerProcessedBatch { pool: pool.clone() }),
     ];
 
     assert_eq!(
