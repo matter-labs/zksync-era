@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1ChainId, L2ChainId};
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
+use zksync_types::ProtocolVersionId;
 
 use crate::{parse_h160, parse_h256, proto::genesis as proto};
 
@@ -24,11 +25,14 @@ impl ProtoRepr for proto::Genesis {
     type Type = configs::GenesisConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         let prover = required(&self.prover).context("prover")?;
+
+        let protocol_version = required(&self.genesis_protocol_version)
+            .map(|x| *x as u16)
+            .context("protocol_version")?;
+
         Ok(Self::Type {
             protocol_version: Some(
-                required(&self.genesis_protocol_version)
-                    .map(|x| *x as u16)
-                    .context("protocol_version")?,
+                ProtocolVersionId::try_from(protocol_version).context("protocol_version")?,
             ),
             genesis_root_hash: Some(
                 required(&self.genesis_root)

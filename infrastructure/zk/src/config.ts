@@ -5,6 +5,7 @@ import deepExtend from 'deep-extend';
 import * as env from './env';
 import path from 'path';
 import dotenv from 'dotenv';
+import { packSemver, unpackStringSemVer } from './utils';
 
 function loadConfigFile(configPath: string, stack: string[] = []) {
     if (stack.includes(configPath)) {
@@ -180,9 +181,10 @@ export function pushConfig(environment?: string, diff?: string) {
     env.modify('DATABASE_MERKLE_TREE_BACKUP_PATH', `./db/${environment}/backups`, l2InitFile, false);
 
     if (process.env.CONTRACTS_DEV_PROTOCOL_VERSION) {
+        const [major, minor, patch] = unpackStringSemVer(process.env.CONTRACTS_DEV_PROTOCOL_VERSION);
         env.modify(
             'CONTRACTS_GENESIS_PROTOCOL_VERSION',
-            (parseInt(process.env.CONTRACTS_GENESIS_PROTOCOL_VERSION!) + 1).toString(),
+            packSemver(major, minor + 1, patch).toString(),
             l1InitFile,
             false
         );

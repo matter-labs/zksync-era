@@ -3,7 +3,7 @@ use std::convert::{TryFrom, TryInto};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::protocol_version::{L1VerifierConfig, ProtocolVersionId, VerifierParams};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_utils::u256_to_account_address;
+use zksync_utils::{h256_to_u256, u256_to_account_address};
 
 use crate::{
     ethabi::{decode, encode, ParamType, Token},
@@ -179,13 +179,10 @@ impl TryFrom<Log> for ProtocolUpgrade {
         let _l1_custom_data = decoded.remove(0);
         let _l1_post_upgrade_custom_data = decoded.remove(0);
         let timestamp = decoded.remove(0).into_uint().unwrap();
-        let version_id = decoded.remove(0).into_uint().unwrap();
-        if version_id > u16::MAX.into() {
-            panic!("Version ID is too big, max expected is {}", u16::MAX);
-        }
+        let packed_version_id_semver = decoded.remove(0).into_uint().unwrap();
 
         Ok(Self {
-            id: ProtocolVersionId::try_from(version_id.as_u32() as u16)
+            id: ProtocolVersionId::try_from_packed_semver(packed_version_id_semver)
                 .expect("Version is not supported"),
             bootloader_code_hash: (bootloader_code_hash != H256::zero())
                 .then_some(bootloader_code_hash),
@@ -216,7 +213,9 @@ pub fn decode_set_chain_id_event(
         unreachable!()
     };
 
-    let version_id = event.topics[2].to_low_u64_be();
+    let full_version_id = h256_to_u256(event.topics[2]);
+    let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
+        .expect("Version is not supported");
 
     let eth_hash = event
         .transaction_hash
@@ -230,10 +229,8 @@ pub fn decode_set_chain_id_event(
 
     let upgrade_tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps)
         .expect("Upgrade tx is missing");
-    let version_id =
-        ProtocolVersionId::try_from(version_id as u16).expect("Version is not supported");
 
-    Ok((version_id, upgrade_tx))
+    Ok((protocol_version, upgrade_tx))
 }
 
 impl ProtocolUpgradeTx {

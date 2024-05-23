@@ -114,9 +114,7 @@ impl GenesisParams {
         // if the version doesn't exist
         let _: ProtocolVersionId = config
             .protocol_version
-            .ok_or(GenesisError::MalformedConfig("protocol_version"))?
-            .try_into()
-            .map_err(|_| GenesisError::ProtocolVersion(config.protocol_version.unwrap()))?;
+            .ok_or(GenesisError::MalformedConfig("protocol_version"))?;
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,
@@ -161,7 +159,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
     let first_l1_verifier_config = L1VerifierConfig::default();
 
     GenesisConfig {
-        protocol_version: Some(ProtocolVersionId::latest() as u16),
+        protocol_version: Some(ProtocolVersionId::latest()),
         genesis_root_hash: Some(H256::default()),
         rollup_last_leaf_index: Some(26),
         genesis_commitment: Some(H256::default()),

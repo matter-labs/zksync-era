@@ -1,7 +1,9 @@
 use anyhow::Context as _;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_dal::{CoreDal, DalError};
-use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{
+    api::en, tokens::TokenInfo, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
@@ -111,7 +113,10 @@ impl EnNamespace {
             .context("Genesis not finished")?;
 
         let config = GenesisConfig {
-            protocol_version: Some(protocol_version),
+            protocol_version: Some(
+                ProtocolVersionId::try_from(protocol_version)
+                    .context("Malformed protocol version")?,
+            ),
             genesis_root_hash: Some(H256::from_slice(
                 &genesis_batch.hash.context("Genesis is not finished")?,
             )),

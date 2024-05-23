@@ -10,6 +10,11 @@ use crate::{
     H256, U256,
 };
 
+/// `ProtocolVersionId` is a unique identifier of the protocol version.
+/// Note, that it is an identifier of the `minor` semver version of the protocol, with
+/// the `major` version being `0`. Also, the protocol version on the contracts may contain
+/// potential minor versions, that may have different contract behavior (e.g. Verifier), but it should not
+/// impact the users.
 #[repr(u16)]
 #[derive(
     Debug,
@@ -66,6 +71,31 @@ impl ProtocolVersionId {
 
     pub fn next() -> Self {
         Self::Version25
+    }
+
+    pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
+        const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
+        const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
+
+        let minor = (packed_semver >> U256::from(PACKED_SEMVER_MINOR_OFFSET))
+            & U256::from(PACKED_SEMVER_MINOR_MASK);
+
+        Self::try_from(minor)
+    }
+
+    pub fn try_from_str_semver(str_semver: String) -> Result<Self, String> {
+        let parts: Vec<_> = str_semver.split(".").collect();
+        if parts.len() != 3 {
+            return Err(format!("unknown protocol version ID: {}", str_semver));
+        }
+
+        let minor = parts[1]
+            .parse::<u16>()
+            .map_err(|_| format!("unknown protocol version ID: {}", str_semver))?;
+
+        minor
+            .try_into()
+            .map_err(|err| format!("unknown protocol version ID: {}", err))
     }
 
     /// Returns VM version to be used by API for this protocol version.

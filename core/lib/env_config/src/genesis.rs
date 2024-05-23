@@ -1,6 +1,6 @@
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::{protocol_version::ProtocolVersionId, Address, H256};
 use zksync_config::{
     configs::chain::{NetworkConfig, StateKeeperConfig},
     GenesisConfig,
@@ -15,7 +15,7 @@ struct ContractsForGenesis {
     pub genesis_root: Option<H256>,
     pub genesis_rollup_leaf_index: Option<u64>,
     pub genesis_batch_commitment: Option<H256>,
-    pub genesis_protocol_version: Option<u16>,
+    pub genesis_protocol_version: Option<String>,
     pub fri_recursion_scheduler_level_vk_hash: H256,
     pub fri_recursion_node_level_vk_hash: H256,
     pub fri_recursion_leaf_level_vk_hash: H256,
@@ -47,7 +47,11 @@ impl FromEnv for GenesisConfig {
 
         #[allow(deprecated)]
         Ok(GenesisConfig {
-            protocol_version: contracts_config.genesis_protocol_version,
+            protocol_version: contracts_config
+                .genesis_protocol_version
+                .clone()
+                .map(|version| ProtocolVersionId::try_from_str_semver(version).ok())
+                .flatten(),
             genesis_root_hash: contracts_config.genesis_root,
             rollup_last_leaf_index: contracts_config.genesis_rollup_leaf_index,
             genesis_commitment: contracts_config.genesis_batch_commitment,

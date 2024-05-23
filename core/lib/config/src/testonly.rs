@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use rand::{distributions::Distribution, Rng};
 use zksync_basic_types::{
     basic_fri_types::CircuitIdRoundTuple, commitment::L1BatchCommitmentMode, network::Network,
-    L1ChainId, L2ChainId,
+    protocol_version::ProtocolVersionId, L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
 
@@ -660,7 +660,9 @@ impl Distribution<configs::OpentelemetryConfig> for EncodeDist {
 impl Distribution<configs::GenesisConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GenesisConfig {
         configs::GenesisConfig {
-            protocol_version: self.sample(rng),
+            protocol_version: Some(
+                ProtocolVersionId::try_from(rng.gen_range(0..24) as u16).unwrap(),
+            ),
             genesis_root_hash: rng.gen(),
             rollup_last_leaf_index: self.sample(rng),
             genesis_commitment: rng.gen(),

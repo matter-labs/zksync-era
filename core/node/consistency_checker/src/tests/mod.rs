@@ -466,7 +466,7 @@ async fn checker_processes_pre_boojum_batches(
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
-        protocol_version: Some(PRE_BOOJUM_PROTOCOL_VERSION as u16),
+        protocol_version: Some(PRE_BOOJUM_PROTOCOL_VERSION),
         ..mock_genesis_config()
     })
     .unwrap();
