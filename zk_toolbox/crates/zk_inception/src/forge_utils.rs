@@ -15,19 +15,17 @@ pub fn fill_forge_private_key(
 }
 
 pub async fn check_the_balance(forge: &ForgeScript) -> anyhow::Result<()> {
-    let mut not_enough_money = true;
-    while not_enough_money {
-        let (success, address) = forge
-            .check_the_balance(MINIMUM_BALANCE_FOR_WALLET.into())
-            .await?;
+    let Some(address) = forge.address() else {
+        return Ok(());
+    };
 
-        not_enough_money = !success;
-
-        if not_enough_money {
-            if common::PromptConfirm::new(format!("Address {address:?} doesn't have enough money to deploy contracts do you want to continue?")).ask() {
+    while !forge
+        .check_the_balance(MINIMUM_BALANCE_FOR_WALLET.into())
+        .await?
+    {
+        if common::PromptConfirm::new(format!("Address {address:?} doesn't have enough money to deploy contracts do you want to continue?")).ask() {
                 break;
             }
-        }
     }
     Ok(())
 }

@@ -4,7 +4,7 @@ use std::str::FromStr;
 use clap::Parser;
 use ethers::abi::Address;
 use ethers::middleware::Middleware;
-use ethers::prelude::U256;
+use ethers::prelude::{LocalWallet, Signer, U256};
 use ethers::{abi::AbiEncode, types::H256};
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
@@ -119,17 +119,21 @@ impl ForgeScript {
         })
     }
 
-    pub async fn check_the_balance(&self, minimum_value: U256) -> anyhow::Result<(bool, Address)> {
+    pub fn address(&self) -> Option<Address> {
+        self.private_key()
+            .flat_map(|a| LocalWallet::from_bytes(a.as_bytes()).map(|a| a.address()))
+    }
+
+    pub async fn check_the_balance(&self, minimum_value: U256) -> anyhow::Result<bool> {
         let Some(rpc_url) = self.rpc_url() else {
-            return Ok((true, Address::zero()));
+            return Ok(true)
         };
         let Some(private_key) = self.private_key() else {
-            return Ok((true, Address::zero()));
+            return Ok(true)
         };
         let client = create_ethers_client(private_key, rpc_url)?;
-        let address = client.address();
         let balance = client.get_balance(client.address(), None).await?;
-        Ok((balance > minimum_value, address))
+        Ok(balance > minimum_value))
     }
 }
 
