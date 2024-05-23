@@ -13,8 +13,8 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::Wallets,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
-        ProofDataHandlerConfig,
+        DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
+        L1Secrets, ObservabilityConfig, ProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
@@ -78,7 +78,8 @@ impl MainNodeBuilder {
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = PostgresConfig::from_env()?;
-        let pools_layer = PoolsLayerBuilder::empty(config)
+        let secrets = DatabaseSecrets::from_env()?;
+        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
             .with_prover(true)
@@ -102,9 +103,9 @@ impl MainNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = GenesisConfig::from_env()?;
-        let eth_config = EthConfig::from_env()?;
+        let eth_config = L1Secrets::from_env()?;
         let query_eth_client_layer =
-            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.web3_url);
+            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.l1_rpc_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
@@ -156,8 +157,8 @@ impl MainNodeBuilder {
             wallets.state_keeper.context("State keeper wallets")?,
         );
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(DBConfig::from_env()?, StateKeeperConfig::from_env()?);
-        let state_keeper_layer = StateKeeperLayer;
+            MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?);
+        let state_keeper_layer = StateKeeperLayer::new(DBConfig::from_env()?);
         self.node
             .add_layer(mempool_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)
@@ -365,8 +366,10 @@ impl MainNodeBuilder {
             };
             let secrets = std::fs::read_to_string(&path).context(path)?;
             Ok(Some(
-                decode_yaml_repr::<proto::consensus::Secrets>(&secrets)
-                    .context("failed decoding YAML")?,
+                decode_yaml_repr::<proto::secrets::Secrets>(&secrets)
+                    .context("failed decoding YAML")?
+                    .consensus
+                    .context("No consensus in secrets")?,
             ))
         }
 

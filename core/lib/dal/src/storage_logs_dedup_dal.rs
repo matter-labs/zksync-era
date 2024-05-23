@@ -336,3 +336,61 @@ impl StorageLogsDedupDal<'_, '_> {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ConnectionPool, CoreDal};
+
+    #[tokio::test]
+    async fn getting_max_enumeration_index_in_batch() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        let max_index = conn
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_in_l1_batch(L1BatchNumber(0))
+            .await
+            .unwrap();
+        assert_eq!(max_index, None);
+
+        let account = AccountTreeId::new(Address::repeat_byte(1));
+        let initial_writes = [
+            StorageKey::new(account, H256::zero()),
+            StorageKey::new(account, H256::repeat_byte(1)),
+        ];
+        conn.storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(0), &initial_writes)
+            .await
+            .unwrap();
+
+        let max_index = conn
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_in_l1_batch(L1BatchNumber(0))
+            .await
+            .unwrap();
+        assert_eq!(max_index, Some(2));
+
+        let initial_writes = [
+            StorageKey::new(account, H256::repeat_byte(2)),
+            StorageKey::new(account, H256::repeat_byte(3)),
+        ];
+        conn.storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(1), &initial_writes)
+            .await
+            .unwrap();
+
+        let max_index = conn
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_in_l1_batch(L1BatchNumber(0))
+            .await
+            .unwrap();
+        assert_eq!(max_index, Some(2));
+
+        let max_index = conn
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_in_l1_batch(L1BatchNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(max_index, Some(4));
+    }
+}

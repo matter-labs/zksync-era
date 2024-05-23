@@ -9,8 +9,6 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-links = "zksync_core_leftovers_proto"
-
 [dependencies]
 vise.workspace = true
 zksync_state.workspace = true
@@ -36,10 +34,7 @@ zksync_mini_merkle_tree.workspace = true
 prometheus_exporter.workspace = true
 zksync_prover_interface.workspace = true
 zksync_queued_job_processor.workspace = true
-zksync_web3_decl = { workspace = true, features = [
-    "server",
-    "client",
-] }
+zksync_web3_decl = { workspace = true, features = ["server"] }
 zksync_object_store.workspace = true
 zksync_health_check.workspace = true
 vlog.workspace = true

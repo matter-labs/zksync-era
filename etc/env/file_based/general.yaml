@@ -1,6 +1,4 @@
 postgres:
-  server_url: postgres://postgres:notsecurepassword@localhost/zksync_local
-  prover_url: postgres://postgres:notsecurepassword@localhost/prover_local
   max_connections: 100
   statement_timeout_sec: 300
   test:
@@ -117,7 +115,6 @@ circuit_breaker:
   replication_lag_limit_sec: 100
   http_req_retry_interval_sec: 2
 eth:
-  web3_url: http://127.0.0.1:8545
   sender:
     wait_confirmations: 1
     tx_poll_period: 1
@@ -203,8 +200,8 @@ proof_compressor:
   prometheus_push_interval_ms: 100
   generation_timeout_in_secs: 3600
   max_attempts: 5
-  universal_setup_path: keys/setup/setup_2^26.key
-  universal_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key
+  universal_setup_path: keys/setup/setup_2^24.key
+  universal_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key
   verify_wrapper_proof: true
 prover_group:
   group_0:

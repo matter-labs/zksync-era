@@ -22,7 +22,7 @@ use zksync_node_test_utils::{create_l1_batch_metadata, create_l2_transaction};
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::MockBatchExecutor,
+    testonly::{test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
     OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
@@ -276,7 +276,11 @@ async fn calculate_mock_metadata(ctx: &ctx::Ctx, pool: &ConnectionPool) -> ctx::
         return Ok(());
     };
     let prev = ctx
-        .wait(conn.0.blocks_dal().get_last_l1_batch_number_with_metadata())
+        .wait(
+            conn.0
+                .blocks_dal()
+                .get_last_l1_batch_number_with_tree_data(),
+        )
         .await?
         .map_err(DalError::generalize)?;
     let mut first = match prev {
@@ -342,6 +346,7 @@ impl StateKeeperRunner {
                             .with_handler(Box::new(tree_writes_persistence))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
+                        Arc::new(MockReadStorageFactory),
                     )
                     .run()
                     .await

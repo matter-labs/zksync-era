@@ -17,9 +17,10 @@ use multivm::{
     interface::{ExecutionResult, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, watch, watch::Receiver};
 use zksync_contracts::BaseSystemContracts;
 use zksync_node_test_utils::create_l2_transaction;
+use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory};
 use zksync_types::{
     fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber,
     L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -56,7 +57,7 @@ pub(crate) struct TestScenario {
     l2_block_seal_fn: Box<SealFn>,
 }
 
-type SealFn = dyn FnMut(&UpdatesManager) -> bool + Send;
+type SealFn = dyn FnMut(&UpdatesManager) -> bool + Send + Sync;
 
 impl fmt::Debug for TestScenario {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -176,7 +177,7 @@ impl TestScenario {
 
     pub(crate) fn seal_l1_batch_when<F>(mut self, seal_fn: F) -> Self
     where
-        F: FnMut(&UpdatesManager) -> bool + Send + 'static,
+        F: FnMut(&UpdatesManager) -> bool + Send + Sync + 'static,
     {
         self.l1_batch_seal_fn = Box::new(seal_fn);
         self
@@ -184,7 +185,7 @@ impl TestScenario {
 
     pub(crate) fn seal_l2_block_when<F>(mut self, seal_fn: F) -> Self
     where
-        F: FnMut(&UpdatesManager) -> bool + Send + 'static,
+        F: FnMut(&UpdatesManager) -> bool + Send + Sync + 'static,
     {
         self.l2_block_seal_fn = Box::new(seal_fn);
         self
@@ -204,6 +205,7 @@ impl TestScenario {
             Box::new(batch_executor_base),
             output_handler,
             Arc::new(sealer),
+            Arc::new(MockReadStorageFactory),
         );
         let sk_thread = tokio::spawn(state_keeper.run());
 
@@ -410,6 +412,7 @@ impl TestBatchExecutorBuilder {
 impl BatchExecutor for TestBatchExecutorBuilder {
     async fn init_batch(
         &mut self,
+        _storage_factory: Arc<dyn ReadStorageFactory>,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
         _stop_receiver: &watch::Receiver<bool>,
@@ -675,6 +678,9 @@ impl StateKeeperIO for TestIO {
             l1_batch: self.batch_number,
         };
         let pending_batch = self.pending_batch.take();
+        if pending_batch.is_some() {
+            self.batch_number += 1;
+        }
         Ok((cursor, pending_batch))
     }
 
@@ -772,7 +778,7 @@ impl StateKeeperIO for TestIO {
     }
 
     async fn load_base_system_contracts(
-        &mut self,
+        &self,
         _protocol_version: ProtocolVersionId,
         _cursor: &IoCursor,
     ) -> anyhow::Result<BaseSystemContracts> {
@@ -780,23 +786,20 @@ impl StateKeeperIO for TestIO {
     }
 
     async fn load_batch_version_id(
-        &mut self,
+        &self,
         _number: L1BatchNumber,
     ) -> anyhow::Result<ProtocolVersionId> {
         Ok(self.previous_batch_protocol_version)
     }
 
     async fn load_upgrade_tx(
-        &mut self,
+        &self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
     }
 
-    async fn load_batch_state_hash(
-        &mut self,
-        _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<H256> {
+    async fn load_batch_state_hash(&self, _l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
         Ok(H256::zero())
     }
 }
@@ -810,6 +813,7 @@ pub(crate) struct MockBatchExecutor;
 impl BatchExecutor for MockBatchExecutor {
     async fn init_batch(
         &mut self,
+        _storage_factory: Arc<dyn ReadStorageFactory>,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
         _stop_receiver: &watch::Receiver<bool>,
@@ -831,5 +835,20 @@ impl BatchExecutor for MockBatchExecutor {
             }
         });
         Some(BatchExecutorHandle::from_raw(handle, send))
+    }
+}
+
+#[derive(Debug)]
+pub struct MockReadStorageFactory;
+
+#[async_trait]
+impl ReadStorageFactory for MockReadStorageFactory {
+    async fn access_storage(
+        &self,
+        _stop_receiver: &Receiver<bool>,
+        _l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
+        // Presume that the storage is never accessed in mocked environment
+        unimplemented!()
     }
 }

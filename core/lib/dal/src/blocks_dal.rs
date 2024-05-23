@@ -144,7 +144,7 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
-    pub async fn get_last_l1_batch_number_with_metadata(
+    pub async fn get_last_l1_batch_number_with_tree_data(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
@@ -157,7 +157,7 @@ impl BlocksDal<'_, '_> {
                 hash IS NOT NULL
             "#
         )
-        .instrument("get_last_block_number_with_metadata")
+        .instrument("get_last_block_number_with_tree_data")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
@@ -165,6 +165,8 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
+    /// Gets a number of the earliest L1 batch that is ready for commitment generation (i.e., doesn't have commitment
+    /// yet, and has tree data).
     pub async fn get_next_l1_batch_ready_for_commitment_generation(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {
@@ -184,6 +186,34 @@ impl BlocksDal<'_, '_> {
             "#
         )
         .instrument("get_next_l1_batch_ready_for_commitment_generation")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    /// Gets a number of the last L1 batch that is ready for commitment generation (i.e., doesn't have commitment
+    /// yet, and has tree data).
+    pub async fn get_last_l1_batch_ready_for_commitment_generation(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE
+                hash IS NOT NULL
+                AND commitment IS NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_last_l1_batch_ready_for_commitment_generation")
         .report_latency()
         .fetch_optional(self.storage)
         .await?;
@@ -407,7 +437,11 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<()> {
         match aggregation_type {
             AggregatedActionType::Commit => {
-                sqlx::query!(
+                let instrumentation = Instrumented::new("set_eth_tx_id#commit")
+                    .with_arg("number_range", &number_range)
+                    .with_arg("eth_tx_id", &eth_tx_id);
+
+                let query = sqlx::query!(
                     r#"
                     UPDATE l1_batches
                     SET
@@ -415,19 +449,30 @@ impl BlocksDal<'_, '_> {
                         updated_at = NOW()
                     WHERE
                         number BETWEEN $2 AND $3
+                        AND eth_commit_tx_id IS NULL
                     "#,
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
                     i64::from(number_range.end().0)
-                )
-                .instrument("set_eth_tx_id#commit")
-                .with_arg("number_range", &number_range)
-                .with_arg("eth_tx_id", &eth_tx_id)
-                .execute(self.storage)
-                .await?;
+                );
+                let result = instrumentation
+                    .clone()
+                    .with(query)
+                    .execute(self.storage)
+                    .await?;
+
+                if result.rows_affected() == 0 {
+                    let err = instrumentation.constraint_error(anyhow::anyhow!(
+                        "Update eth_commit_tx_id that is is not null is not allowed"
+                    ));
+                    return Err(err);
+                }
             }
             AggregatedActionType::PublishProofOnchain => {
-                sqlx::query!(
+                let instrumentation = Instrumented::new("set_eth_tx_id#prove")
+                    .with_arg("number_range", &number_range)
+                    .with_arg("eth_tx_id", &eth_tx_id);
+                let query = sqlx::query!(
                     r#"
                     UPDATE l1_batches
                     SET
@@ -435,19 +480,32 @@ impl BlocksDal<'_, '_> {
                         updated_at = NOW()
                     WHERE
                         number BETWEEN $2 AND $3
+                        AND eth_prove_tx_id IS NULL
                     "#,
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
                     i64::from(number_range.end().0)
-                )
-                .instrument("set_eth_tx_id#prove")
-                .with_arg("number_range", &number_range)
-                .with_arg("eth_tx_id", &eth_tx_id)
-                .execute(self.storage)
-                .await?;
+                );
+
+                let result = instrumentation
+                    .clone()
+                    .with(query)
+                    .execute(self.storage)
+                    .await?;
+
+                if result.rows_affected() == 0 {
+                    let err = instrumentation.constraint_error(anyhow::anyhow!(
+                        "Update eth_prove_tx_id that is is not null is not allowed"
+                    ));
+                    return Err(err);
+                }
             }
             AggregatedActionType::Execute => {
-                sqlx::query!(
+                let instrumentation = Instrumented::new("set_eth_tx_id#execute")
+                    .with_arg("number_range", &number_range)
+                    .with_arg("eth_tx_id", &eth_tx_id);
+
+                let query = sqlx::query!(
                     r#"
                     UPDATE l1_batches
                     SET
@@ -455,16 +513,25 @@ impl BlocksDal<'_, '_> {
                         updated_at = NOW()
                     WHERE
                         number BETWEEN $2 AND $3
+                        AND eth_execute_tx_id IS NULL
                     "#,
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
                     i64::from(number_range.end().0)
-                )
-                .instrument("set_eth_tx_id#execute")
-                .with_arg("number_range", &number_range)
-                .with_arg("eth_tx_id", &eth_tx_id)
-                .execute(self.storage)
-                .await?;
+                );
+
+                let result = instrumentation
+                    .clone()
+                    .with(query)
+                    .execute(self.storage)
+                    .await?;
+
+                if result.rows_affected() == 0 {
+                    let err = instrumentation.constraint_error(anyhow::anyhow!(
+                        "Update eth_execute_tx_id that is is not null is not allowed"
+                    ));
+                    return Err(err);
+                }
             }
         }
         Ok(())
@@ -806,33 +873,12 @@ impl BlocksDal<'_, '_> {
         if update_result.rows_affected() == 0 {
             tracing::debug!("L1 batch #{number}: tree data wasn't updated as it's already present");
 
-            // Batch was already processed. Verify that existing hash matches
-            let matched: i64 = sqlx::query!(
-                r#"
-                SELECT
-                    COUNT(*) AS "count!"
-                FROM
-                    l1_batches
-                WHERE
-                    number = $1
-                    AND hash = $2
-                "#,
-                i64::from(number.0),
-                tree_data.hash.as_bytes(),
-            )
-            .instrument("get_matching_batch_hash")
-            .with_arg("number", &number)
-            .report_latency()
-            .fetch_one(self.storage)
-            .await?
-            .count;
-
+            // Batch was already processed. Verify that the existing tree data matches.
+            let existing_tree_data = self.get_l1_batch_tree_data(number).await?;
             anyhow::ensure!(
-                matched == 1,
-                "Root hash verification failed. Hash for L1 batch #{} does not match the expected value \
-                 (expected root hash: {:?})",
-                number,
-                tree_data.hash,
+                existing_tree_data.as_ref() == Some(tree_data),
+                "Root hash verification failed. Tree data for L1 batch #{number} does not match the expected value \
+                 (expected: {tree_data:?}, existing: {existing_tree_data:?})",
             );
         }
         Ok(())
@@ -2332,15 +2378,14 @@ mod tests {
     use super::*;
     use crate::{ConnectionPool, Core, CoreDal};
 
-    #[tokio::test]
-    async fn loading_l1_batch_header() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(&ProtocolVersion::default())
+    async fn save_mock_eth_tx(action_type: AggregatedActionType, conn: &mut Connection<'_, Core>) {
+        conn.eth_sender_dal()
+            .save_eth_tx(1, vec![], action_type, Address::default(), 1, None, None)
             .await
             .unwrap();
+    }
 
+    fn mock_l1_batch_header() -> L1BatchHeader {
         let mut header = L1BatchHeader::new(
             L1BatchNumber(1),
             100,
@@ -2362,6 +2407,100 @@ mod tests {
         }));
         header.l2_to_l1_messages.push(vec![22; 22]);
         header.l2_to_l1_messages.push(vec![33; 33]);
+
+        header
+    }
+
+    #[tokio::test]
+    async fn set_tx_id_works_correctly() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&mock_l1_batch_header())
+            .await
+            .unwrap();
+
+        save_mock_eth_tx(AggregatedActionType::Commit, &mut conn).await;
+        save_mock_eth_tx(AggregatedActionType::PublishProofOnchain, &mut conn).await;
+        save_mock_eth_tx(AggregatedActionType::Execute, &mut conn).await;
+
+        assert!(conn
+            .blocks_dal()
+            .set_eth_tx_id(
+                L1BatchNumber(1)..=L1BatchNumber(1),
+                1,
+                AggregatedActionType::Commit,
+            )
+            .await
+            .is_ok());
+
+        assert!(conn
+            .blocks_dal()
+            .set_eth_tx_id(
+                L1BatchNumber(1)..=L1BatchNumber(1),
+                2,
+                AggregatedActionType::Commit,
+            )
+            .await
+            .is_err());
+
+        assert!(conn
+            .blocks_dal()
+            .set_eth_tx_id(
+                L1BatchNumber(1)..=L1BatchNumber(1),
+                1,
+                AggregatedActionType::PublishProofOnchain,
+            )
+            .await
+            .is_ok());
+
+        assert!(conn
+            .blocks_dal()
+            .set_eth_tx_id(
+                L1BatchNumber(1)..=L1BatchNumber(1),
+                2,
+                AggregatedActionType::PublishProofOnchain,
+            )
+            .await
+            .is_err());
+
+        assert!(conn
+            .blocks_dal()
+            .set_eth_tx_id(
+                L1BatchNumber(1)..=L1BatchNumber(1),
+                1,
+                AggregatedActionType::Execute,
+            )
+            .await
+            .is_ok());
+
+        assert!(conn
+            .blocks_dal()
+            .set_eth_tx_id(
+                L1BatchNumber(1)..=L1BatchNumber(1),
+                2,
+                AggregatedActionType::Execute,
+            )
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn loading_l1_batch_header() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let header = mock_l1_batch_header();
 
         conn.blocks_dal()
             .insert_mock_l1_batch(&header)
