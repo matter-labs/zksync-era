@@ -20,7 +20,7 @@ struct Args {
     #[arg(long)]
     l2_chain_id: Option<L2ChainId>,
     #[arg(long)]
-    postgres_url: Option<SensitiveUrl>,
+    postgres_url: SensitiveUrl,
 }
 
 impl Args {
@@ -38,12 +38,6 @@ impl Args {
 
     fn l2_chain_id(&self) -> L2ChainId {
         self.l2_chain_id.unwrap_or(270.into())
-    }
-
-    fn postgres_url(&self) -> SensitiveUrl {
-        self.postgres_url.clone().unwrap_or(Url::try_from(
-            "postgres://postgres:hj435kf8jijfk24rjksa9t@142.132.150.73:6782/zksync_local_ext_node"
-        ).unwrap().into())
     }
 }
 
@@ -95,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("getTotalBatchesCommitted()")?;
 
-    let pool : ConnectionPool<Core> = ConnectionPool::singleton(args.postgres_url()).build().await.context("ConnectionPool::build()")?;
+    let pool : ConnectionPool<Core> = ConnectionPool::singleton(args.postgres_url).build().await.context("ConnectionPool::build()")?;
     let mut conn = pool.connection().await.context("pool.connection()")?;
     let batch = conn.blocks_dal().get_l1_batch_metadata(L1BatchNumber(last_batch.try_into().unwrap())).await?.context("batch not in storage")?;
     let token = StoredBatchInfo(&batch).into_token();
