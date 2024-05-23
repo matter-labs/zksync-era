@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MAX(l1_batch_number) AS \"max?\"\n            FROM\n                initial_writes\n            WHERE\n                l1_batch_number <= $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "max?",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "bb646783c51c61220e1eb6db8231d9db9b589bd9131d3300ec271ed9709466cc"
+}

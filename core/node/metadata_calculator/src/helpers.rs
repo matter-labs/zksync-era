@@ -26,7 +26,9 @@ use zksync_merkle_tree::{
     TreeEntryWithProof, TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
-use zksync_types::{block::L1BatchHeader, AccountTreeId, L1BatchNumber, StorageKey, H256};
+use zksync_types::{
+    block::L1BatchHeader, writes::TreeWrite, AccountTreeId, L1BatchNumber, StorageKey, H256,
+};
 
 use super::{
     metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
@@ -552,10 +554,21 @@ impl L1BatchWithLogs {
         };
 
         let load_tree_writes_latency = METRICS.start_load_stage(LoadChangesStage::LoadTreeWrites);
-        let tree_writes = storage
+        let mut tree_writes = storage
             .blocks_dal()
             .get_tree_writes(l1_batch_number)
             .await?;
+        if tree_writes.is_none() && l1_batch_number.0 > 0 {
+            // If `tree_writes` are present for the previous L1 batch, then it is expected them to be eventually present for the current batch as well.
+            // Waiting for tree writes should be faster then constructing them, so we wait with a reasonable timeout.
+            let tree_writes_present_for_previous_batch = storage
+                .blocks_dal()
+                .check_tree_writes_presence(l1_batch_number - 1)
+                .await?;
+            if tree_writes_present_for_previous_batch {
+                tree_writes = Self::wait_for_tree_writes(storage, l1_batch_number).await?;
+            }
+        }
         load_tree_writes_latency.observe();
 
         let storage_logs = if let Some(tree_writes) = tree_writes {
@@ -583,6 +596,30 @@ impl L1BatchWithLogs {
             storage_logs,
             mode,
         }))
+    }
+
+    async fn wait_for_tree_writes(
+        connection: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<Vec<TreeWrite>>> {
+        let interval = Duration::from_millis(50);
+        let timeout = Duration::from_secs(5);
+
+        tokio::time::timeout(timeout, async {
+            loop {
+                if let Some(tree_writes) = connection
+                    .blocks_dal()
+                    .get_tree_writes(l1_batch_number)
+                    .await?
+                {
+                    break anyhow::Ok(tree_writes);
+                }
+                tokio::time::sleep(interval).await;
+            }
+        })
+        .await
+        .ok()
+        .transpose()
     }
 
     async fn extract_storage_logs_from_db(
