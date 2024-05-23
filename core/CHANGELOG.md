@@ -1,5 +1,26 @@
 # Changelog
 
+## [24.5.0](https://github.com/matter-labs/zksync-era/compare/core-v24.4.0...core-v24.5.0) (2024-05-23)
+
+
+### Features
+
+* Add protocol_version label to WG jobs metric ([#2009](https://github.com/matter-labs/zksync-era/issues/2009)) ([e0a3393](https://github.com/matter-labs/zksync-era/commit/e0a33931f9bb9429eff362deaa1500fe914971c7))
+* **config:** remove zksync home ([#2022](https://github.com/matter-labs/zksync-era/issues/2022)) ([d08fe81](https://github.com/matter-labs/zksync-era/commit/d08fe81f4ec6c3aaeb5ad98351e44a63e5b100be))
+* **prover:** Adnotate prover queue metrics with protocol version ([#1893](https://github.com/matter-labs/zksync-era/issues/1893)) ([d1e1004](https://github.com/matter-labs/zksync-era/commit/d1e1004416b7e9db47e242ff68f01b5520834e94))
+
+
+### Bug Fixes
+
+* **API:** polish web3 api  block-related types ([#1994](https://github.com/matter-labs/zksync-era/issues/1994)) ([6cd3c53](https://github.com/matter-labs/zksync-era/commit/6cd3c532190ee96a9ca56336d20837d249d6207e))
+* **en:** Fix recovery-related metrics ([#2014](https://github.com/matter-labs/zksync-era/issues/2014)) ([86355d6](https://github.com/matter-labs/zksync-era/commit/86355d647fca772a7c665a8534ab02e8a213cf7b))
+* **loadtest:** resolve unit conversion error in loadtest metrics ([#1987](https://github.com/matter-labs/zksync-era/issues/1987)) ([b5870a0](https://github.com/matter-labs/zksync-era/commit/b5870a0b9c470ed38dfe4c67036139a3a1d7dddc))
+
+
+### Performance Improvements
+
+* **commitment-generator:** Run commitment generation for multiple batches in parallel ([#1984](https://github.com/matter-labs/zksync-era/issues/1984)) ([602bf67](https://github.com/matter-labs/zksync-era/commit/602bf6725e7590fc67d8b027e07e0767fec9408b))
+
 ## [24.4.0](https://github.com/matter-labs/zksync-era/compare/core-v24.3.0...core-v24.4.0) (2024-05-21)
 
 
