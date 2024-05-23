@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batch_number\n            FROM\n                tee_proof_generation_details\n            WHERE\n                status = 'ready_to_be_proven'\n            ORDER BY\n                l1_batch_number ASC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3a8f244d40e1c1d75d2c6d76e02f380f16ea3e7c709c8dd7b4fced29f4717e1c"
+}
