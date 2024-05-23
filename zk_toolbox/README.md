@@ -56,3 +56,9 @@ If contracts were deployed by a third party (e.g., MatterLabs), you may need to 
 `zk_inception chain genesis`
 
 This ensures proper initialization of the server.
+
+### Zk Server
+
+For running the chain: `zk_inception server`
+
+You can specify the chain you are running by providing `--chain <chain_name>` argument

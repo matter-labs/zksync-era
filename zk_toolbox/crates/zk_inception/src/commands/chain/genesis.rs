@@ -70,7 +70,9 @@ pub async fn genesis(
     .await?;
     spinner.finish();
 
-    let spinner = Spinner::new("Running server genesis...");
+    let spinner = Spinner::new(
+        "Starting the genesis of the server. Building the entire server may take a lot of time...",
+    );
     run_server_genesis(config, shell)?;
     spinner.finish();
 

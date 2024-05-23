@@ -1,6 +1,6 @@
 //! Set of utility functions to read contracts both in Yul and Sol format.
 //!
-//! Careful: some of the methods are reading the contracts based on the ZKSYNC_HOME environment variable.
+//! Careful: some of the methods are reading the contracts based on the workspace environment variable.
 
 #![allow(clippy::derive_partial_eq_without_eq)]
 
@@ -15,7 +15,7 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, workspace_dir_or_current_dir};
 
 pub mod test_contracts;
 
@@ -48,8 +48,12 @@ const LOADNEXT_CONTRACT_FILE: &str =
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
-fn read_file_to_json_value(path: impl AsRef<Path>) -> serde_json::Value {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+fn home_path() -> &'static Path {
+    workspace_dir_or_current_dir()
+}
+
+fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> serde_json::Value {
+    let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
     serde_json::from_reader(
         File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e)),
@@ -58,7 +62,7 @@ fn read_file_to_json_value(path: impl AsRef<Path>) -> serde_json::Value {
 }
 
 fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+    let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
     path.exists().then(|| {
         serde_json::from_value(read_file_to_json_value(&path)["abi"].take())
@@ -79,7 +83,7 @@ pub fn load_sys_contract(contract_name: &str) -> Contract {
     ))
 }
 
-pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
+pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> String {
     read_file_to_json_value(path)["abi"]
         .as_str()
         .expect("Failed to parse abi")
@@ -149,6 +153,11 @@ pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
 }
 
+/// Reads bytecode from the path RELATIVE to the Cargo workspace location.
+pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
+    read_bytecode_from_path(relative_path)
+}
+
 pub fn eth_contract() -> Contract {
     load_sys_contract("L2BaseToken")
 }
@@ -157,16 +166,9 @@ pub fn known_codes_contract() -> Contract {
     load_sys_contract("KnownCodesStorage")
 }
 
-/// Reads bytecode from the path RELATIVE to the ZKSYNC_HOME environment variable.
-pub fn read_bytecode(relative_path: impl AsRef<Path>) -> Vec<u8> {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-    let artifact_path = Path::new(&zksync_home).join(relative_path);
-    read_bytecode_from_path(artifact_path)
-}
-
 /// Reads bytecode from a given path.
-fn read_bytecode_from_path(artifact_path: PathBuf) -> Vec<u8> {
-    let artifact = read_file_to_json_value(artifact_path.clone());
+fn read_bytecode_from_path(artifact_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
+    let artifact = read_file_to_json_value(&artifact_path);
 
     let bytecode = artifact["bytecode"]
         .as_str()
@@ -187,19 +189,17 @@ static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
 
 /// Structure representing a system contract repository - that allows
 /// fetching contracts that are located there.
-/// As most of the static methods in this file, is loading data based on ZKSYNC_HOME environment variable.
+/// As most of the static methods in this file, is loading data based on the Cargo workspace location.
 pub struct SystemContractsRepo {
     // Path to the root of the system contracts repository.
     pub root: PathBuf,
 }
 
 impl SystemContractsRepo {
-    /// Returns the default system contracts repository with directory based on the ZKSYNC_HOME environment variable.
+    /// Returns the default system contracts repository with directory based on the Cargo workspace location.
     pub fn from_env() -> Self {
-        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let zksync_home = PathBuf::from(zksync_home);
         SystemContractsRepo {
-            root: zksync_home.join("contracts/system-contracts"),
+            root: home_path().join("contracts/system-contracts"),
         }
     }
 
@@ -237,10 +237,9 @@ fn read_playground_batch_bootloader_bytecode() -> Vec<u8> {
     read_bootloader_code("playground_batch")
 }
 
-/// Reads zbin bytecode from a given path, relative to ZKSYNC_HOME.
+/// Reads zbin bytecode from a given path, relative to workspace location.
 pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-    let bytecode_path = Path::new(&zksync_home).join(relative_zbin_path);
+    let bytecode_path = Path::new(&home_path()).join(relative_zbin_path);
     read_zbin_bytecode_from_path(bytecode_path)
 }
 
