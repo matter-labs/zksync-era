@@ -7,6 +7,16 @@ Toolkit for creating and managing ZK Stack chains.
 ZK Inception facilitates the creation and management of ZK Stacks. All commands are interactive, but you can also pass
 all necessary arguments via the command line.
 
+### Installation
+
+Install zk_inception from git:
+
+`cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception --force`
+
+Manually building from a local copy of the [ZkSync](https://github.com/matter-labs/zksync-era/) repository:
+
+`cargo install --path ./zk_toolbox/crates/zk_inception --force --locked`
+
 ### Foundry Integration
 
 Foundry is utilized for deploying smart contracts. For commands related to deployment, you can pass flags for Foundry
