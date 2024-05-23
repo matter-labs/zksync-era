@@ -1788,13 +1788,35 @@ impl TransactionsDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn save_last_processed_l1_block_number(
+        &mut self,
+        chain_id: L1ChainId,
+        last_seen_block_number: L1BlockNumber,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO
+                eth_watcher_state (chain_id, last_seen_block_number)
+            VALUES
+                ($1, $2)
+            ON CONFLICT (chain_id) DO
+            UPDATE
+            SET
+                last_seen_block_number = $2
+            "#,
+            chain_id.0 as i64,
+            last_seen_block_number.0 as i64
+        )
+        .instrument("save_last_processed_l1_block")
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_last_processed_l1_block(
         &mut self,
         chain_id: L1ChainId,
-    ) -> DalResult<L1BlockNumber> {
-        // FIXME: use the full DAL
-        return Ok(L1BlockNumber(0));
-
+    ) -> DalResult<Option<L1BlockNumber>> {
         let maybe_row = sqlx::query!(
             r#"
             SELECT
@@ -1812,8 +1834,7 @@ impl TransactionsDal<'_, '_> {
 
         Ok(maybe_row
             .and_then(|row| row.last_seen_block_number)
-            .map(|last_seen_block_number| L1BlockNumber(last_seen_block_number as u32))
-            .unwrap_or_default())
+            .map(|last_seen_block_number| L1BlockNumber(last_seen_block_number as u32)))
     }
 
     pub async fn last_priority_id(&mut self) -> DalResult<Option<PriorityOpId>> {

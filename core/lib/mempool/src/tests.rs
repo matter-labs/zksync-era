@@ -402,8 +402,6 @@ fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
         gas_per_pubdata_limit: U256::one(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,
-        eth_hash: H256::zero(),
-        eth_block: 1,
         canonical_tx_hash: H256::zero(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),

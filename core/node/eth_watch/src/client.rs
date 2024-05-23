@@ -9,7 +9,7 @@ use zksync_eth_client::{
 use zksync_types::{
     ethabi::Contract,
     web3::{BlockId, BlockNumber, FilterBuilder, Log},
-    Address, H256,
+    Address, L1ChainId, H256,
 };
 
 /// L1 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
@@ -28,6 +28,8 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, EthClientError>;
     /// Sets list of topics to return events for.
     fn set_topics(&mut self, topics: Vec<H256>);
+
+    fn get_chain_id(&self) -> L1ChainId;
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -204,5 +206,9 @@ impl EthClient for EthHttpQueryClient {
 
     fn set_topics(&mut self, topics: Vec<H256>) {
         self.topics = topics;
+    }
+
+    fn get_chain_id(&self) -> L1ChainId {
+        self.client.network().try_into().ok().unwrap_or_default()
     }
 }

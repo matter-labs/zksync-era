@@ -105,7 +105,7 @@ impl EthWatch {
 
         let last_processed_ethereum_block = match storage
             .transactions_dal()
-            .get_last_processed_l1_block()
+            .get_last_processed_l1_block(client.get_chain_id())
             .await?
         {
             // There are some priority ops processed - start from the last processed eth block
@@ -193,6 +193,15 @@ impl EthWatch {
                 .await?;
         }
         self.last_processed_ethereum_block = to_block;
+
+        storage
+            .transactions_dal()
+            .save_last_processed_l1_block_number(
+                self.client.get_chain_id(),
+                self.last_processed_ethereum_block,
+            )
+            .await?;
+
         Ok(())
     }
 }
