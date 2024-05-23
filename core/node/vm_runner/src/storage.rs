@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
-    marker::PhantomData,
     sync::Arc,
     time::Duration,
 };
@@ -21,6 +20,30 @@ use zksync_storage::RocksDB;
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
 
 use crate::VmRunnerIo;
+
+#[async_trait]
+pub trait StorageLoader: ReadStorageFactory {
+    /// Loads next unprocessed L1 batch along with all transactions that VM runner needs to
+    /// re-execute. These are the transactions that are included in a sealed L2 block belonging
+    /// to a sealed L1 batch (with state keeper being the source of truth). The order of the
+    /// transactions is the same as it was when state keeper executed them.
+    ///
+    /// Can return `None` if the requested batch is not available yet.
+    ///
+    /// # Errors
+    ///
+    /// Propagates DB errors.
+    async fn load_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<BatchExecuteData>>;
+
+    /// A workaround for Rust's limitations on upcasting coercion. See
+    /// https://github.com/rust-lang/rust/issues/65991.
+    ///
+    /// Should always be implementable as [`StorageLoader`] requires [`ReadStorageFactory`].
+    fn upcast(self: Arc<Self>) -> Arc<dyn ReadStorageFactory>;
+}
 
 /// Data needed to execute an L1 batch.
 #[derive(Debug, Clone)]
@@ -54,7 +77,7 @@ pub struct VmRunnerStorage<Io: VmRunnerIo> {
     l1_batch_params_provider: L1BatchParamsProvider,
     chain_id: L2ChainId,
     state: Arc<RwLock<State>>,
-    _marker: PhantomData<Io>,
+    io: Io,
 }
 
 #[derive(Debug)]
@@ -71,7 +94,7 @@ impl State {
     }
 }
 
-impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
+impl<Io: VmRunnerIo + Clone> VmRunnerStorage<Io> {
     /// Creates a new VM runner storage using provided Postgres pool and RocksDB path.
     pub async fn new(
         pool: ConnectionPool<Core>,
@@ -79,7 +102,7 @@ impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
         io: Io,
         chain_id: L2ChainId,
     ) -> anyhow::Result<(Self, StorageSyncTask<Io>)> {
-        let mut conn = pool.connection_tagged(Io::name()).await?;
+        let mut conn = pool.connection_tagged(io.name()).await?;
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
@@ -89,20 +112,28 @@ impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
             l1_batch_number: L1BatchNumber(0),
             storage: BTreeMap::new(),
         }));
-        let task =
-            StorageSyncTask::new(pool.clone(), chain_id, rocksdb_path, io, state.clone()).await?;
+        let task = StorageSyncTask::new(
+            pool.clone(),
+            chain_id,
+            rocksdb_path,
+            io.clone(),
+            state.clone(),
+        )
+        .await?;
         Ok((
             Self {
                 pool,
                 l1_batch_params_provider,
                 chain_id,
                 state,
-                _marker: PhantomData,
+                io,
             },
             task,
         ))
     }
+}
 
+impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
     async fn access_storage_inner(
         &self,
         _stop_receiver: &watch::Receiver<bool>,
@@ -143,24 +174,17 @@ impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
             },
         )))
     }
+}
 
-    /// Loads next unprocessed L1 batch along with all transactions that VM runner needs to
-    /// re-execute. These are the transactions that are included in a sealed L2 block belonging
-    /// to a sealed L1 batch (with state keeper being the source of truth). The order of the
-    /// transactions is the same as it was when state keeper executed them.
-    ///
-    /// Can return `None` if there are no batches to be processed.
-    ///
-    /// # Errors
-    ///
-    /// Propagates DB errors.
-    pub async fn load_batch(
+#[async_trait]
+impl<Io: VmRunnerIo> StorageLoader for VmRunnerStorage<Io> {
+    async fn load_batch(
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<BatchExecuteData>> {
         let state = self.state.read().await;
         if state.rocksdb.is_none() {
-            let mut conn = self.pool.connection_tagged(Io::name()).await?;
+            let mut conn = self.pool.connection_tagged(self.io.name()).await?;
             return StorageSyncTask::<Io>::load_batch_execute_data(
                 &mut conn,
                 l1_batch_number,
@@ -181,6 +205,10 @@ impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
             }
             Some(batch_data) => Ok(Some(batch_data.execute_data.clone())),
         }
+    }
+
+    fn upcast(self: Arc<Self>) -> Arc<dyn ReadStorageFactory> {
+        self
     }
 }
 
@@ -219,7 +247,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         io: Io,
         state: Arc<RwLock<State>>,
     ) -> anyhow::Result<Self> {
-        let mut conn = pool.connection_tagged(Io::name()).await?;
+        let mut conn = pool.connection_tagged(io.name()).await?;
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
@@ -255,7 +283,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
                 tracing::info!("`StorageSyncTask` was interrupted");
                 return Ok(());
             }
-            let mut conn = self.pool.connection_tagged(Io::name()).await?;
+            let mut conn = self.pool.connection_tagged(self.io.name()).await?;
             let latest_processed_batch = self.io.latest_processed_batch(&mut conn).await?;
             let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
             if rocksdb_builder.l1_batch_number().await == Some(latest_processed_batch + 1) {
