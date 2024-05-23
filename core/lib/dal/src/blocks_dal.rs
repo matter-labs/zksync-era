@@ -1725,7 +1725,7 @@ impl BlocksDal<'_, '_> {
     }
 
     /// Returns the header and optional metadata for an L1 batch with the specified number. If a batch exists
-    /// but does not have all metadata, it's possible to inspect which data is missing.
+    /// but does not have all metadata, it's possible to inspect which metadata is missing.
     pub async fn get_optional_l1_batch_metadata(
         &mut self,
         number: L1BatchNumber,

@@ -60,7 +60,6 @@ impl PruneCondition for NextL1BatchWasExecutedCondition {
     }
 }
 
-// FIXME: non-existing batches satisfy this condition
 #[derive(Debug)]
 pub(super) struct NextL1BatchHasMetadataCondition {
     pub conn: ConnectionPool<Core>,
@@ -77,21 +76,28 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.connection().await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
-        let protocol_version = storage
+        let Some(batch) = storage
             .blocks_dal()
-            .get_batch_protocol_version_id(next_l1_batch_number)
-            .await?;
-        // That old l1 batches must have been processed and those old batches are problematic
-        // as they have metadata that is not easily retrievable(misses some fields in db)
-        let old_protocol_version = protocol_version.map_or(true, |ver| ver.is_pre_1_4_1());
-        if old_protocol_version {
-            return Ok(true);
-        }
-        let l1_batch_metadata = storage
-            .blocks_dal()
-            .get_l1_batch_metadata(next_l1_batch_number)
-            .await?;
-        Ok(l1_batch_metadata.is_some())
+            .get_optional_l1_batch_metadata(next_l1_batch_number)
+            .await?
+        else {
+            return Ok(false);
+        };
+
+        Ok(if let Err(err) = &batch.metadata {
+            // Metadata may be incomplete for very old batches on full nodes.
+            let protocol_version = batch.header.protocol_version;
+            let is_old = protocol_version.map_or(true, |ver| ver.is_pre_1_4_1());
+            if is_old {
+                tracing::info!(
+                    "Error getting metadata for L1 batch #{next_l1_batch_number} \
+                    with old protocol version {protocol_version:?}: {err}"
+                );
+            }
+            is_old
+        } else {
+            true
+        })
     }
 }
 

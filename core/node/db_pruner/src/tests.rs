@@ -421,7 +421,7 @@ async fn real_conditions_work_as_expected() {
 
     assert_eq!(
         collect_conditions_output(&conditions, L1BatchNumber(1)).await,
-        [false, true, false, false]
+        [false; 4]
     );
 
     // Add 2 batches to the storage.
