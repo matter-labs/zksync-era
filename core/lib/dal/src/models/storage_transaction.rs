@@ -496,6 +496,12 @@ impl StorageApiTransaction {
             .signature
             .and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
 
+        let to = if let Ok(address) = serde_json::from_value(self.execute_contract_address) {
+            Some(address)
+        } else {
+            Some(Address::zero())
+        };
+
         let mut tx = api::Transaction {
             hash: H256::from_slice(&self.tx_hash),
             nonce: U256::from(self.nonce.unwrap_or(0) as u64),
@@ -503,7 +509,7 @@ impl StorageApiTransaction {
             block_number: self.block_number.map(|number| U64::from(number as u64)),
             transaction_index: self.index_in_block.map(|idx| U64::from(idx as u64)),
             from: Some(Address::from_slice(&self.initiator_address)),
-            to: Some(serde_json::from_value(self.execute_contract_address).unwrap()),
+            to,
             value: bigdecimal_to_u256(self.value),
             gas_price: Some(bigdecimal_to_u256(
                 self.effective_gas_price

@@ -51,6 +51,9 @@ members = [
 
     # SDK section
     "sdk/zksync-rs",
+
+    #Yul evm utils
+    "erc20_example"
 ]
 resolver = "2"
 

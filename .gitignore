@@ -16,6 +16,7 @@ cobertura.xml
 tags
 *.orig
 .direnv
+.envrc
 
 # Yarn files
 .yarn/
@@ -60,6 +61,8 @@ go_to_env.sh
 server_logs.txt
 
 core/lib/storage/.env
+/core/lib/multivm/benchmarks/*.csv
+/core/tests/ts-integration/benchmarks/*.csv
 
 .zcli-config.json
 
