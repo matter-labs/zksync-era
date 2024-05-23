@@ -311,6 +311,10 @@ describe('System behavior checks', () => {
         ).toBeAccepted();
     });
 
+    test.only('Gas per pubdata byte getter should work', async () => {
+        const systemContextArtifact = getTestContract('ISystemContext');
+    });
+
     it('should reject transaction with huge gas limit', async () => {
         await expect(
             alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(51) })
