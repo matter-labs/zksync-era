@@ -145,11 +145,10 @@ impl Tester {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let mut batch_executor =
-            MainBatchExecutor::new(storage_factory, self.config.save_call_traces, false);
+        let mut batch_executor = MainBatchExecutor::new(self.config.save_call_traces, false);
         let (_stop_sender, stop_receiver) = watch::channel(false);
         batch_executor
-            .init_batch(l1_batch_env, system_env, &stop_receiver)
+            .init_batch(storage_factory, l1_batch_env, system_env, &stop_receiver)
             .await
             .expect("Batch executor was interrupted")
     }

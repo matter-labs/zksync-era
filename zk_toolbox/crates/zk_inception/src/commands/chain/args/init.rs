@@ -21,7 +21,7 @@ pub struct InitArgs {
 impl InitArgs {
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitArgsFinal {
         let deploy_paymaster = self.deploy_paymaster.unwrap_or_else(|| {
-            common::PromptConfirm::new("Do you want to deploy paymaster contract?")
+            common::PromptConfirm::new("Do you want to deploy a test paymaster?")
                 .default(true)
                 .ask()
         });

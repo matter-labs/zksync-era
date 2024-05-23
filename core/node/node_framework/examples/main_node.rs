@@ -158,8 +158,8 @@ impl MainNodeBuilder {
             wallets.state_keeper.context("State keeper wallets")?,
         );
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(DBConfig::from_env()?, StateKeeperConfig::from_env()?);
-        let state_keeper_layer = StateKeeperLayer;
+            MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?);
+        let state_keeper_layer = StateKeeperLayer::new(DBConfig::from_env()?);
         self.node
             .add_layer(mempool_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)

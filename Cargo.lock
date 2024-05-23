@@ -9481,7 +9481,9 @@ dependencies = [
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
+ "zksync_test_account",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
