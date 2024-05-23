@@ -120,20 +120,23 @@ impl ForgeScript {
     }
 
     pub fn address(&self) -> Option<Address> {
-        self.private_key()
-            .flat_map(|a| LocalWallet::from_bytes(a.as_bytes()).map(|a| a.address()))
+        self.private_key().and_then(|a| {
+            LocalWallet::from_bytes(a.as_bytes())
+                .ok()
+                .map(|a| a.address())
+        })
     }
 
     pub async fn check_the_balance(&self, minimum_value: U256) -> anyhow::Result<bool> {
         let Some(rpc_url) = self.rpc_url() else {
-            return Ok(true)
+            return Ok(true);
         };
         let Some(private_key) = self.private_key() else {
-            return Ok(true)
+            return Ok(true);
         };
         let client = create_ethers_client(private_key, rpc_url)?;
         let balance = client.get_balance(client.address(), None).await?;
-        Ok(balance > minimum_value))
+        Ok(balance > minimum_value)
     }
 }
 
