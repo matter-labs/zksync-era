@@ -265,7 +265,6 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 system_logs,
-                compressed_state_diffs,
                 pubdata_input
             FROM
                 l1_batches
@@ -353,7 +352,6 @@ impl BlocksDal<'_, '_> {
                 bootloader_code_hash,
                 default_aa_code_hash,
                 protocol_version,
-                compressed_state_diffs,
                 system_logs,
                 pubdata_input
             FROM
