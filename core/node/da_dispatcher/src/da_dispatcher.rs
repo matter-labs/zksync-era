@@ -59,8 +59,6 @@ impl DataAvailabilityDispatcher {
             .get_ready_for_da_dispatch_l1_batches(self.config.query_rows_limit() as usize)
             .await?;
 
-        println!("batches: {:?}", batches.len());
-
         for batch in batches {
             let dispatch_latency = METRICS.blob_dispatch_latency.start();
             let dispatch_response = retry(self.config.max_retries(), || {

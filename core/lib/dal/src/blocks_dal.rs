@@ -1776,7 +1776,6 @@ impl BlocksDal<'_, '_> {
                 )
                 AND events_queue_commitment IS NOT NULL
                 AND bootloader_initial_content_commitment IS NOT NULL
-                AND data_availability.blob_id IS NOT NULL
                 AND data_availability.inclusion_data IS NOT NULL
             ORDER BY
                 number
