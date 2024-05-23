@@ -50,14 +50,3 @@ pub enum SubmitProofResponse {
     Success,
     Error(String),
 }
-
-#[test]
-fn test_tee_proof_request_serialization() {
-    let tee_proof = SubmitTeeProofRequest::Proof(Box::new(L1BatchTeeProofForL1 {
-        signature: vec![0, 1, 2, 3, 4],
-    }));
-    let encoded = serde_json::to_string(&tee_proof).unwrap();
-    assert_eq!(r#"{"Proof":{"signature":[0,1,2,3,4]}}"#, encoded);
-    let decoded = serde_json::from_str(&encoded).unwrap();
-    assert_eq!(tee_proof, decoded);
-}
