@@ -2214,6 +2214,29 @@ impl BlocksDal<'_, '_> {
         .await?
         .flatten())
     }
+
+    pub async fn check_tree_writes_presence(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<bool> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                (tree_writes IS NOT NULL) AS "tree_writes_are_present!"
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0),
+        )
+        .instrument("check_tree_writes_presence")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| row.tree_writes_are_present)
+        .unwrap_or(false))
+    }
 }
 
 /// These methods should only be used for tests.

@@ -86,23 +86,17 @@ impl TreeUpdater {
         &mut self,
         storage: &mut Connection<'_, Core>,
         l1_batch_numbers: ops::RangeInclusive<u32>,
-        last_sealed_l1_batch: L1BatchNumber,
     ) -> anyhow::Result<L1BatchNumber> {
         let tree_mode = self.tree.mode();
         let start = Instant::now();
         tracing::info!("Processing L1 batches #{l1_batch_numbers:?} in {tree_mode:?} mode");
         let first_l1_batch_number = L1BatchNumber(*l1_batch_numbers.start());
         let last_l1_batch_number = L1BatchNumber(*l1_batch_numbers.end());
-        let mut l1_batch_data = L1BatchWithLogs::new(
-            storage,
-            first_l1_batch_number,
-            tree_mode,
-            first_l1_batch_number == last_sealed_l1_batch,
-        )
-        .await
-        .with_context(|| {
-            format!("failed fetching tree input for L1 batch #{first_l1_batch_number}")
-        })?;
+        let mut l1_batch_data = L1BatchWithLogs::new(storage, first_l1_batch_number, tree_mode)
+            .await
+            .with_context(|| {
+                format!("failed fetching tree input for L1 batch #{first_l1_batch_number}")
+            })?;
 
         let mut total_logs = 0;
         let mut updated_headers = vec![];
@@ -117,16 +111,13 @@ impl TreeUpdater {
             let load_next_l1_batch_task = async {
                 if l1_batch_number < last_l1_batch_number {
                     let next_l1_batch_number = l1_batch_number + 1;
-                    L1BatchWithLogs::new(
-                        storage,
-                        next_l1_batch_number,
-                        tree_mode,
-                        next_l1_batch_number == last_sealed_l1_batch,
-                    )
-                    .await
-                    .with_context(|| {
-                        format!("failed fetching tree input for L1 batch #{next_l1_batch_number}")
-                    })
+                    L1BatchWithLogs::new(storage, next_l1_batch_number, tree_mode)
+                        .await
+                        .with_context(|| {
+                            format!(
+                                "failed fetching tree input for L1 batch #{next_l1_batch_number}"
+                            )
+                        })
                 } else {
                     Ok(None) // Don't need to load the next L1 batch after the last one we're processing.
                 }
@@ -201,7 +192,7 @@ impl TreeUpdater {
         } else {
             tracing::info!("Updating Merkle tree with L1 batches #{l1_batch_numbers:?}");
             *next_l1_batch_to_seal = self
-                .process_multiple_batches(&mut storage, l1_batch_numbers, last_sealed_l1_batch)
+                .process_multiple_batches(&mut storage, l1_batch_numbers)
                 .await?;
         }
         Ok(())
@@ -228,7 +219,7 @@ impl TreeUpdater {
                 earliest_l1_batch == L1BatchNumber(0),
                 "Non-zero earliest L1 batch #{earliest_l1_batch} is not supported without previous tree recovery"
             );
-            let batch = L1BatchWithLogs::new(&mut storage, earliest_l1_batch, tree.mode(), false)
+            let batch = L1BatchWithLogs::new(&mut storage, earliest_l1_batch, tree.mode())
                 .await
                 .with_context(|| {
                     format!("failed fetching tree input for L1 batch #{earliest_l1_batch}")
