@@ -40,10 +40,14 @@ impl TeeRequestProcessor {
     ) -> Result<Json<TeeProofGenerationDataResponse>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        // TODO: Replace this line with an appropriate method to get the next batch number to be proven.
-        // It's likely that a new SQL column needs to be added to the `proof_generation_details` table.
-        // Take self.config.proof_generation_timeout() into account when selecting the next batch to be proven!
-        let l1_batch_number_result = Option::from(L1BatchNumber::from(1));
+        let l1_batch_number_result = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .tee_proof_generation_dal()
+            .get_next_block_to_be_proven(self.config.proof_generation_timeout())
+            .await;
 
         let l1_batch_number = match l1_batch_number_result {
             Some(number) => number,

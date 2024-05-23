@@ -1,4 +1,4 @@
-use crate::{create_proof_processing_router, ConnectionPool};
+use crate::create_proof_processing_router;
 use axum::{
     body::Body,
     http::{self, Method, Request, StatusCode},
@@ -9,6 +9,7 @@ use tower::ServiceExt;
 use zksync_basic_types::U256;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
+use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_tee_verifier::TeeVerifierInput;
@@ -54,14 +55,26 @@ async fn request_tee_proof_generation_data() {
         },
         vec![(H256([1; 32]), vec![0, 1, 2, 3, 4])],
     );
+    // mock object store
     let blob_store = ObjectStoreFactory::mock().create_store().await;
     blob_store.put(batch_number, &tvi).await.unwrap();
-    // TODO mock relevant SQL table once the logic is implemented in the TeeRequestProcessor::get_proof_generation_data
-    // TODO useful examples: https://github.com/tokio-rs/axum/blob/main/examples/testing/src/main.rs#L58
+    // mock SQL table
     let connection_pool = ConnectionPool::test_pool().await;
+    let mut storage = connection_pool.connection().await.unwrap();
+    let mut proof_dal = storage.tee_proof_generation_dal();
+    let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await;
+    assert!(oldest_batch_number.is_none());
+    // TODO let mut transaction = storage.start_transaction().await.unwrap();
+    // TODO if storage doesn't work, use transaction instead
+    proof_dal
+        .insert_tee_proof_generation_details(batch_number, "blob_url")
+        .await;
+    // TODO transaction.commit().await.unwrap();
+    let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await.unwrap();
+    assert_eq!(oldest_batch_number, batch_number);
     let app = create_proof_processing_router(
         blob_store,
-        connection_pool,
+        connection_pool.clone(),
         ProofDataHandlerConfig {
             http_port: 1337,
             proof_generation_timeout_in_secs: 10,
