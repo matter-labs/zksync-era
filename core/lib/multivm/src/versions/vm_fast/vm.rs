@@ -19,7 +19,7 @@ use zksync_types::{
         compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS,
+    AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
@@ -50,9 +50,9 @@ use crate::{
             get_vm_hook_position, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET,
             VM_HOOK_PARAMS_COUNT,
         },
-        BootloaderMemory, CurrentExecutionState, ExecutionResult, HistoryEnabled, L1BatchEnv,
-        L2BlockEnv, MultiVMSubversion, Refunds, SystemEnv, VmExecutionLogs, VmExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, HistoryEnabled,
+        L1BatchEnv, L2BlockEnv, MultiVMSubversion, Refunds, SystemEnv, VmExecutionLogs,
+        VmExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
     },
 };
 
@@ -655,6 +655,35 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
 
     fn gas_remaining(&self) -> u32 {
         self.inner.state.current_frame.gas
+    }
+
+    fn finish_batch(&mut self) -> FinishedL1Batch {
+        let result = self.execute(VmExecutionMode::Batch);
+        let execution_state = self.get_current_execution_state();
+        let bootloader_memory = self.get_bootloader_memory();
+        FinishedL1Batch {
+            block_tip_execution_result: result,
+            final_execution_state: execution_state,
+            final_bootloader_memory: Some(bootloader_memory),
+            pubdata_input: Some(
+                self.bootloader_state
+                    .get_pubdata_information()
+                    .clone()
+                    .build_pubdata(false),
+            ),
+            initially_written_slots: Some(
+                self.bootloader_state
+                    .get_pubdata_information()
+                    .state_diffs
+                    .iter()
+                    .filter_map(|record| {
+                        record
+                            .is_write_initial()
+                            .then_some(H256(record.derived_key))
+                    })
+                    .collect(),
+            ),
+        }
     }
 }
 
