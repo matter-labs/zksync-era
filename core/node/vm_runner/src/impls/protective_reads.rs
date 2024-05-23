@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use async_trait::async_trait;
+use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{L1BatchNumber, L2ChainId};
@@ -11,6 +12,7 @@ use crate::{
     OutputHandlerFactory, VmRunner, VmRunnerIo, VmRunnerStorage,
 };
 
+#[derive(Debug)]
 pub struct ProtectiveReadsWriter {
     vm_runner: VmRunner,
 }
@@ -44,8 +46,13 @@ impl ProtectiveReadsWriter {
             },
         ))
     }
+
+    pub async fn run(self, stop_receiver: &watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.vm_runner.run(stop_receiver).await
+    }
 }
 
+#[derive(Debug)]
 pub struct ProtectiveReadsWriterTasks {
     pub loader_task: StorageSyncTask<ProtectiveReadsIo>,
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<ProtectiveReadsIo>,
