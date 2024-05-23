@@ -40,7 +40,7 @@ impl EcosystemCreateArgs {
 
         let link_to_code = self.link_to_code.unwrap_or_else(|| {
             let link_to_code_selection = PromptSelect::new(
-                "Add the (recommended) to the clone option",
+                "Select the origin of zksync-era repository",
                 LinkToCodeSelection::iter(),
             )
             .ask();
@@ -112,7 +112,7 @@ impl EcosystemCreateArgsFinal {
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
 enum LinkToCodeSelection {
-    #[strum(serialize = "Clone for me")]
+    #[strum(serialize = "Clone for me (recommended)")]
     Clone,
     #[strum(serialize = "I have the code already")]
     Path,

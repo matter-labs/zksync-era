@@ -34,10 +34,17 @@ pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::
 }
 
 pub fn start_containers(shell: &Shell) -> anyhow::Result<()> {
-    docker::up(shell, DOCKER_COMPOSE_FILE).context(
-        "Failed to start containers. Make sure there is nothing running on
-          default ports for Ethereum node l1 and postgres",
-    )
+    while let Err(err) = docker::up(shell, DOCKER_COMPOSE_FILE) {
+        logger::error(err.to_string());
+        if !common::PromptConfirm::new(
+            "Failed to start containers. Make sure there is nothing running on default ports for Ethereum node l1 and postgres. Want to try again?",
+        ).default(true)
+        .ask()
+        {
+            return Err(err);
+        }
+    }
+    Ok(())
 }
 
 fn create_docker_folders(shell: &Shell) -> anyhow::Result<()> {
