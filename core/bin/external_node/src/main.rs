@@ -673,20 +673,6 @@ async fn init_tasks(
         .await?;
     }
 
-    if let Some(prometheus) = config.observability.prometheus() {
-        tracing::info!("Starting Prometheus exporter with configuration: {prometheus:?}");
-
-        let (prometheus_health_check, prometheus_health_updater) =
-            ReactiveHealthCheck::new("prometheus_exporter");
-        app_health.insert_component(prometheus_health_check)?;
-        task_handles.push(tokio::spawn(async move {
-            prometheus_health_updater.update(HealthStatus::Ready.into());
-            let result = prometheus.run(stop_receiver).await;
-            drop(prometheus_health_updater);
-            result
-        }));
-    }
-
     Ok(())
 }
 
@@ -882,6 +868,24 @@ async fn run_node(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         app_health.clone(),
     );
+    // Start exporting metrics at the very start so that e.g., snapshot recovery metrics are timely reported.
+    let prometheus_task = if let Some(prometheus) = config.observability.prometheus() {
+        tracing::info!("Starting Prometheus exporter with configuration: {prometheus:?}");
+
+        let (prometheus_health_check, prometheus_health_updater) =
+            ReactiveHealthCheck::new("prometheus_exporter");
+        app_health.insert_component(prometheus_health_check)?;
+        let stop_receiver_for_exporter = stop_receiver.clone();
+        Some(tokio::spawn(async move {
+            prometheus_health_updater.update(HealthStatus::Ready.into());
+            let result = prometheus.run(stop_receiver_for_exporter).await;
+            drop(prometheus_health_updater);
+            result
+        }))
+    } else {
+        None
+    };
+
     // Start scraping Postgres metrics before store initialization as well.
     let pool_for_metrics = singleton_pool_builder.build().await?;
     let mut stop_receiver_for_metrics = stop_receiver.clone();
@@ -919,6 +923,7 @@ async fn run_node(
         Ok(())
     });
     let mut task_handles = vec![metrics_task, validate_chain_ids_task, version_sync_task];
+    task_handles.extend(prometheus_task);
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
