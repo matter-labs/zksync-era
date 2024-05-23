@@ -337,7 +337,7 @@ impl<S: ReadStorage> Vm<S> {
                 .world_diff
                 .get_storage_state()
                 .iter()
-                .map(|(k, v)| (*k, *v))
+                .map(|(k, v)| (*k, v.1))
                 .collect(),
             self.inner.world_diff.events().into(),
         )
@@ -363,7 +363,7 @@ impl<S: ReadStorage> Vm<S> {
                     .world_diff
                     .get_storage_state()
                     .get(&(KNOWN_CODES_STORAGE_ADDRESS, h256_to_u256(hash)))
-                    .map(|x| !x.is_zero())
+                    .map(|x| !x.1.is_zero())
                     .unwrap_or_else(|| self.world.storage.borrow_mut().is_bytecode_known(&hash))
             })
         };
@@ -402,7 +402,7 @@ impl<S: ReadStorage> Vm<S> {
                         .get_enumeration_index(&storage_key)
                         .unwrap_or_default(),
                     initial_value: storage.read_value(&storage_key).as_bytes().into(),
-                    final_value: *value,
+                    final_value: value.1,
                 }
             })
             .collect()
@@ -528,8 +528,17 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                                     AccountTreeId::new(address),
                                     u256_to_h256(key),
                                 ));
+                        let old = old.unwrap_or((
+                            0,
+                            h256_to_u256(self.world.storage.borrow_mut().read_value(
+                                &StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                            )),
+                        ));
+                        let tx_number_in_batch = new.0;
+                        let change = new;
                         storage_log_query_from_change(
-                            ((address, key), (old.unwrap_or_default(), new)),
+                            tx_number_in_batch,
+                            ((address, key), (old.1, new.1)),
                             is_initial,
                         )
                     })
@@ -617,10 +626,10 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                     let initial_value = h256_to_u256(self.world.storage.borrow_mut().read_value(
                         &StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
                     ));
-                    (initial_value == new_value).then_some(log_query_from_change((
-                        (address, key),
-                        (initial_value, new_value),
-                    )))
+                    (initial_value != new_value.1).then_some(log_query_from_change(
+                        new_value.0,
+                        ((address, key), (initial_value, new_value.1)),
+                    ))
                 })
                 .collect(),
             used_contract_hashes: vec![],
