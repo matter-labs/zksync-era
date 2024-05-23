@@ -9,6 +9,7 @@ use common::{
 };
 use xshell::{cmd, Shell};
 
+use crate::forge_utils::check_the_balance;
 use crate::{
     configs::{
         forge_interface::initialize_bridges::{
@@ -20,7 +21,7 @@ use crate::{
     forge_utils::fill_forge_private_key,
 };
 
-pub fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
@@ -28,13 +29,13 @@ pub fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .context("Chain not initialized. Please create a chain first")?;
 
     let spinner = Spinner::new("Initializing bridges");
-    initialize_bridges(shell, &chain_config, &ecosystem_config, args)?;
+    initialize_bridges(shell, &chain_config, &ecosystem_config, args).await?;
     spinner.finish();
 
     Ok(())
 }
 
-pub fn initialize_bridges(
+pub async fn initialize_bridges(
     shell: &Shell,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
@@ -56,6 +57,7 @@ pub fn initialize_bridges(
         ecosystem_config.get_wallets()?.governor_private_key(),
     )?;
 
+    check_the_balance(&forge).await?;
     forge.run(shell)?;
 
     let output =
