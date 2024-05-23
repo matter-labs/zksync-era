@@ -42,13 +42,13 @@ pub(crate) fn get_balance<S: ReadStorage>(
     token_id: AccountTreeId,
     account: &Address,
     main_storage: StoragePtr<S>,
-    storage_changes: &BTreeMap<(H160, U256), U256>,
+    storage_changes: &BTreeMap<(H160, U256), (u16, U256)>,
 ) -> U256 {
     let key = storage_key_for_standard_token_balance(token_id, account);
 
     storage_changes
         .get(&(*key.account().address(), h256_to_u256(*key.key())))
-        .cloned()
+        .map(|(_, value)| *value)
         .unwrap_or_else(|| h256_to_u256(main_storage.borrow_mut().read_value(&key)))
 }
 

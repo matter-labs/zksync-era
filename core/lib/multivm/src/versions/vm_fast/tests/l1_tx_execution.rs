@@ -86,6 +86,7 @@ fn test_l1_tx_execution() {
                 *storage_location.address(),
                 h256_to_u256(*storage_location.key())
             )]
+                .1
         );
     }
 
