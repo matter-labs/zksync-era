@@ -744,7 +744,12 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::DADispatcher)
-        && eth.sender?.pubdata_sending_mode == PubdataSendingMode::Custom
+        && eth
+            .sender
+            .clone()
+            .context("eth_sender")?
+            .pubdata_sending_mode
+            == PubdataSendingMode::Custom
     {
         let started_at = Instant::now();
         let da_config = configs
