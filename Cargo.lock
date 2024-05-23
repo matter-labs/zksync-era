@@ -473,6 +473,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_l1_contract_interface",
+ "zksync_system_constants",
  "zksync_types",
  "zksync_web3_decl",
 ]

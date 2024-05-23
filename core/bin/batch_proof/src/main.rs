@@ -1,5 +1,6 @@
 use clap::Parser;
-use zksync_types::{ethabi, web3::keccak256,L1BatchNumber,L1ChainId,L2ChainId,H256,U256,url::SensitiveUrl};
+use zksync_system_constants as constants;
+use zksync_types::{block::unpack_block_info, ethabi, web3::keccak256,L1BatchNumber,L1ChainId,L2ChainId,H256,U256,url::SensitiveUrl};
 use zksync_web3_decl::client::{Client, L1, L2};
 use zksync_web3_decl::namespaces::ZksNamespaceClient as _;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
@@ -41,7 +42,7 @@ impl Args {
     }
 }
 
-pub async fn get_proofs_impl(
+/*pub async fn get_proofs_impl(
     &self,
     address: Address,
     keys: Vec<H256>,
@@ -53,9 +54,8 @@ pub async fn get_proofs_impl(
     // key = Blake2s256([0..64])
     //
     let key = StorageKey::new(AccountTreeId::new(address), key).hashed_key_u256();
-
     let tree_api = self.state.tree_api.as_deref().unwrap().get_proofs(l1_batch_number, vec![key]).await.unwrap();
-}
+}*/
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -103,9 +103,22 @@ async fn main() -> anyhow::Result<()> {
     //
     // ~/Downloads/solc-linux-amd64-v0.8.20+commit.a1b79de6 SystemContext.sol --storage-layout
     // {"astId":71,"contract":"SystemContext.sol:SystemContext","label":"l2BlockHash","offset":0,"slot":"11","type":"t_array(t_bytes32)257_storage"}
+    // {"astId":63,"contract":"SystemContext.sol:SystemContext","label":"currentL2BlockInfo","offset":0,"slot":"9","type":"t_struct(BlockInfo)1434_storage"}
     // slot[block_number] = 11 + block_number%257
     
+    let addr = constants::SYSTEM_CONTEXT_ADDRESS;
+    let key = constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION; 
+    let block_info = l2_client.get_proof(addr,vec![key],batch.header.number).await.context("get_proof()")?.context("missing proof")?;
+    let block_info = &block_info.storage_proof[0];
+    let (block_number,_) = unpack_block_info(block_info.value.as_bytes().into());
+    tracing::info!("block_number = {block_number}");
 
+    let key = U256::from(constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION.as_bytes()) + 
+        U256::from(block_number)%U256::from(constants::SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES);
+    let key = H256::from(<[u8;32]>::from(key));
+    let block_hash = l2_client.get_proof(addr,vec![key],batch.header.number).await.context("get_proof()")?.context("missing proof")?;
+    let block_hash = block_hash.storage_proof[0].value;
 
+    tracing::info!("block_hash = {block_hash}");
     Ok(())
 }

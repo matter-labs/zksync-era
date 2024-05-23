@@ -18,6 +18,7 @@ zksync_web3_decl = { workspace = true, features = ["client"] }
 zksync_eth_client.workspace = true
 zksync_dal.workspace = true
 zksync_l1_contract_interface.workspace = true
+zksync_system_constants.workspace = true
 
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
