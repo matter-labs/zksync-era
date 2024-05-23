@@ -44,14 +44,14 @@ pub struct Keystore {
     setup_data_path: Option<String>,
 }
 
-fn get_base_path_from_env() -> PathBuf {
-    workspace_dir_or_current_dir().join("vk_setup_data_generator_server_fri/data")
+fn get_base_path() -> PathBuf {
+    workspace_dir_or_current_dir().join("prover/vk_setup_data_generator_server_fri/data")
 }
 
 impl Default for Keystore {
     fn default() -> Self {
         Self {
-            basedir: get_base_path_from_env(),
+            basedir: get_base_path(),
             setup_data_path: Some(
                 FriProverConfig::from_env()
                     .expect("FriProverConfig::from_env()")
