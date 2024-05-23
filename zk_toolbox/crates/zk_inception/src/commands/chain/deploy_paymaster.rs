@@ -6,6 +6,7 @@ use common::{
 };
 use xshell::Shell;
 
+use crate::forge_utils::check_the_balance;
 use crate::{
     configs::{
         forge_interface::paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
@@ -15,16 +16,16 @@ use crate::{
     forge_utils::fill_forge_private_key,
 };
 
-pub fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
         .context("Chain not initialized. Please create a chain first")?;
-    deploy_paymaster(shell, &chain_config, &ecosystem_config, args)
+    deploy_paymaster(shell, &chain_config, &ecosystem_config, args).await
 }
 
-pub fn deploy_paymaster(
+pub async fn deploy_paymaster(
     shell: &Shell,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
@@ -46,6 +47,7 @@ pub fn deploy_paymaster(
     )?;
 
     let spinner = Spinner::new("Deploying paymaster");
+    check_the_balance(&forge).await?;
     forge.run(shell)?;
     spinner.finish();
 
