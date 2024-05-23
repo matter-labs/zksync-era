@@ -15,7 +15,6 @@ use common::{
 use xshell::{cmd, Shell};
 
 use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
-use crate::forge_utils::check_the_balance;
 use crate::{
     accept_ownership::accept_owner,
     commands::{
@@ -60,8 +59,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         &ecosystem_config,
         &initial_deployment_config,
-    )
-    .await?;
+    )?;
 
     if final_ecosystem_args.deploy_erc20 {
         logger::info("Deploying ERC20 contracts");
@@ -75,8 +73,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             &ecosystem_config,
             &contracts_config,
             final_ecosystem_args.forge_args.clone(),
-        )
-        .await?;
+        )?;
     }
 
     // If the name of chain passed then we deploy exactly this chain otherwise deploy all chains
@@ -149,7 +146,7 @@ pub async fn distribute_eth(
     Ok(())
 }
 
-async fn init(
+fn init(
     init_args: &mut EcosystemInitArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
@@ -167,13 +164,12 @@ async fn init(
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
-    )
-    .await?;
+    )?;
     contracts.save(shell, ecosystem_config.config.clone().join(CONTRACTS_FILE))?;
     Ok(contracts)
 }
 
-async fn deploy_erc20(
+fn deploy_erc20(
     shell: &Shell,
     erc20_deployment_config: &Erc20DeploymentConfig,
     ecosystem_config: &EcosystemConfig,
@@ -196,7 +192,6 @@ async fn deploy_erc20(
     )?;
 
     let spinner = Spinner::new("Deploying ERC20 contracts...");
-    check_the_balance(&forge).await?;
     forge.run(shell)?;
     spinner.finish();
 
@@ -206,7 +201,7 @@ async fn deploy_erc20(
     Ok(result)
 }
 
-async fn deploy_ecosystem(
+fn deploy_ecosystem(
     shell: &Shell,
     ecosystem: &mut EcosystemArgsFinal,
     forge_args: ForgeScriptArgs,
@@ -219,8 +214,7 @@ async fn deploy_ecosystem(
             forge_args,
             ecosystem_config,
             initial_deployment_config,
-        )
-        .await;
+        );
     }
 
     let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
@@ -259,7 +253,7 @@ async fn deploy_ecosystem(
     ContractsConfig::read(shell, ecosystem_contracts_path)
 }
 
-async fn deploy_ecosystem_inner(
+fn deploy_ecosystem_inner(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -298,7 +292,6 @@ async fn deploy_ecosystem_inner(
     forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
 
     let spinner = Spinner::new("Deploying ecosystem contracts...");
-    check_the_balance(&forge).await?;
     forge.run(shell)?;
     spinner.finish();
 
@@ -312,8 +305,7 @@ async fn deploy_ecosystem_inner(
         config.get_wallets()?.governor_private_key(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         &forge_args,
-    )
-    .await?;
+    )?;
 
     accept_owner(
         shell,
@@ -322,8 +314,7 @@ async fn deploy_ecosystem_inner(
         config.get_wallets()?.governor_private_key(),
         contracts_config.bridges.shared.l1_address,
         &forge_args,
-    )
-    .await?;
+    )?;
     Ok(contracts_config)
 }
 

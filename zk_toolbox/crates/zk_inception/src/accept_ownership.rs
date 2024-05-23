@@ -5,7 +5,6 @@ use common::{
 use ethers::{abi::Address, types::H256};
 use xshell::Shell;
 
-use crate::forge_utils::check_the_balance;
 use crate::{
     configs::{
         forge_interface::accept_ownership::AcceptOwnershipInput, EcosystemConfig, SaveConfig,
@@ -14,7 +13,7 @@ use crate::{
     forge_utils::fill_forge_private_key,
 };
 
-pub async fn accept_admin(
+pub fn accept_admin(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
@@ -37,10 +36,9 @@ pub async fn accept_admin(
         target_address,
         forge,
     )
-    .await
 }
 
-pub async fn accept_owner(
+pub fn accept_owner(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
@@ -63,10 +61,9 @@ pub async fn accept_owner(
         target_address,
         forge,
     )
-    .await
 }
 
-async fn accept_ownership(
+fn accept_ownership(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
@@ -85,7 +82,6 @@ async fn accept_ownership(
 
     forge = fill_forge_private_key(forge, governor)?;
 
-    check_the_balance(&forge).await?;
     let spinner = Spinner::new("Accepting governance");
     forge.run(shell)?;
     spinner.finish();

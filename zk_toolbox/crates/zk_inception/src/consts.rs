@@ -42,8 +42,6 @@ pub(super) const TEST_CONFIG_PATH: &str = "etc/test_config/constant/eth.json";
 pub(super) const BASE_PATH: &str = "m/44'/60'/0'";
 pub(super) const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
 
-pub(super) const MINIMUM_BALANCE_FOR_WALLET: u128 = 5000000000000000000;
-
 #[derive(PartialEq, Debug, Clone)]
 pub struct ForgeScriptParams {
     input: &'static str,

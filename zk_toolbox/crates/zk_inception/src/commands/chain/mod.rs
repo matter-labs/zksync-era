@@ -32,7 +32,7 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::Create(args) => create::run(args, shell),
         ChainCommands::Init(args) => init::run(args, shell).await,
         ChainCommands::Genesis(args) => genesis::run(args, shell).await,
-        ChainCommands::InitializeBridges(args) => initialize_bridges::run(args, shell).await,
-        ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
+        ChainCommands::InitializeBridges(args) => initialize_bridges::run(args, shell),
+        ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell),
     }
 }
