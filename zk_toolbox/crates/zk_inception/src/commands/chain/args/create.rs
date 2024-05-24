@@ -24,7 +24,7 @@ pub struct ChainCreateArgs {
     #[clap(long, help = "Wallet option", value_enum)]
     pub wallet_creation: Option<WalletCreation>,
     /// The wallet path is related to the created chain directory.
-    #[clap(long, help = "Wallet path")]
+    #[clap(long)]
     pub wallet_path: Option<PathBuf>,
     #[clap(long, help = "Commit data generation mode")]
     pub l1_batch_commit_data_generator_mode: Option<L1BatchCommitDataGeneratorMode>,

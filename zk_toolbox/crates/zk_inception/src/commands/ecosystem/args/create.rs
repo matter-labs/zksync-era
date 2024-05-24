@@ -23,8 +23,8 @@ pub struct EcosystemCreateArgs {
     #[clap(long, help = "L1 RPC URL")]
     pub l1_rpc_url: Option<String>,
     /// The code path is related to the created chain directory.
-    #[clap(long, help = "Code link")]
-    pub link_to_code: Option<String>,
+    #[clap(long)]
+    pub link_to_code: Option<PathBuf>,
     #[clap(flatten)]
     #[serde(flatten)]
     pub chain: ChainCreateArgs,
@@ -39,17 +39,19 @@ impl EcosystemCreateArgs {
             .unwrap_or_else(|| Prompt::new("How do you want to name the ecosystem?").ask());
         ecosystem_name = slugify(&ecosystem_name);
 
-        let link_to_code = self.link_to_code.unwrap_or_else(|| {
+        let link_to_code = if self.link_to_code.is_some() {
+            self.link_to_code
+        } else {
             let link_to_code_selection = PromptSelect::new(
                 "Select the origin of zksync-era repository",
                 LinkToCodeSelection::iter(),
             )
             .ask();
             match link_to_code_selection {
-                LinkToCodeSelection::Clone => "".to_string(),
-                LinkToCodeSelection::Path => Prompt::new("Where's the code located? (The code path is related to the created chain directory.)").ask(),
+                LinkToCodeSelection::Clone => None,
+                LinkToCodeSelection::Path => Some(Prompt::new("Where's the code located? (The code path is related to the created chain directory.)").ask()),
             }
-        });
+        };
 
         let l1_network = PromptSelect::new("Select the L1 network", L1Network::iter()).ask();
 
@@ -97,7 +99,7 @@ impl EcosystemCreateArgs {
 pub struct EcosystemCreateArgsFinal {
     pub ecosystem_name: String,
     pub l1_network: L1Network,
-    pub link_to_code: String,
+    pub link_to_code: Option<PathBuf>,
     pub wallet_creation: WalletCreation,
     pub wallet_path: Option<PathBuf>,
     pub l1_rpc_url: String,

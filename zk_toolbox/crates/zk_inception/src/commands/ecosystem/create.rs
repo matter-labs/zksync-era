@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use anyhow::bail;
 use common::{cmd::Cmd, logger, spinner::Spinner};
@@ -43,15 +43,14 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let configs_path = shell.create_dir(LOCAL_CONFIGS_PATH)?;
 
-    let link_to_code = if args.link_to_code.is_empty() {
+    let link_to_code = if let Some(path) = &args.link_to_code {
+        update_submodules_recursive(shell, &path)?;
+        path.clone()
+    } else {
         let spinner = Spinner::new("Cloning zksync-era repository...");
         let link_to_code = clone_era_repo(shell)?;
         spinner.finish();
         link_to_code
-    } else {
-        let path = PathBuf::from_str(&args.link_to_code)?;
-        update_submodules_recursive(shell, &path)?;
-        path
     };
 
     let spinner = Spinner::new("Creating initial configurations...");
@@ -65,7 +64,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig {
         name: ecosystem_name.clone(),
         l1_network: args.l1_network,
-        link_to_code: link_to_code.clone(),
+        link_to_code,
         chains: chains_path.clone(),
         config: configs_path,
         default_chain: default_chain_name.clone(),
