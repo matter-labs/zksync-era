@@ -8,6 +8,7 @@ use std::{
 
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
+use serde_with::{DeserializeFromStr, SerializeDisplay};
 
 use crate::{
     ethabi::Token,
@@ -297,7 +298,9 @@ basic_type!(
 );
 
 /// Semantic protocol version.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, SerializeDisplay, DeserializeFromStr, Hash, PartialOrd, Ord,
+)]
 pub struct ProtocolSemanticVersion {
     pub minor: ProtocolVersionId,
     pub patch: VkPatch,
@@ -316,5 +319,48 @@ impl fmt::Display for ProtocolSemanticVersion {
             self.minor as u16,
             self.patch
         )
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ParseProtocolSemanticVersionError {
+    #[error("invalid format")]
+    InvalidFormat,
+    #[error("non zero major version")]
+    NonZeroMajorVersion,
+    #[error("{0}")]
+    ParseIntError(ParseIntError),
+}
+
+impl FromStr for ProtocolSemanticVersion {
+    type Err = ParseProtocolSemanticVersionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split('.').collect();
+        if parts.len() != 3 {
+            return Err(ParseProtocolSemanticVersionError::InvalidFormat);
+        }
+
+        let major = parts[0]
+            .parse::<u16>()
+            .map_err(ParseProtocolSemanticVersionError::ParseIntError)?;
+        if major != 0 {
+            return Err(ParseProtocolSemanticVersionError::NonZeroMajorVersion);
+        }
+
+        let minor = parts[1]
+            .parse::<u16>()
+            .map_err(ParseProtocolSemanticVersionError::ParseIntError)?;
+        let minor = ProtocolVersionId::try_from(minor)
+            .map_err(|_| ParseProtocolSemanticVersionError::InvalidFormat)?;
+
+        let patch = parts[2]
+            .parse::<u16>()
+            .map_err(ParseProtocolSemanticVersionError::ParseIntError)?;
+
+        Ok(ProtocolSemanticVersion {
+            minor,
+            patch: patch.into(),
+        })
     }
 }

@@ -1,8 +1,12 @@
+use std::str::FromStr;
+
 use anyhow::Context as _;
-use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1ChainId, L2ChainId};
+use zksync_basic_types::{
+    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L1ChainId,
+    L2ChainId,
+};
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
-use zksync_types::ProtocolVersionId;
 
 use crate::{parse_h160, parse_h256, proto::genesis as proto};
 
@@ -25,14 +29,11 @@ impl ProtoRepr for proto::Genesis {
     type Type = configs::GenesisConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         let prover = required(&self.prover).context("prover")?;
-
-        let protocol_version = required(&self.genesis_protocol_version)
-            .map(|x| *x as u16)
-            .context("protocol_version")?;
-
         Ok(Self::Type {
             protocol_version: Some(
-                ProtocolVersionId::try_from(protocol_version).context("protocol_version")?,
+                required(&self.genesis_protocol_semantic_version)
+                    .and_then(|x| ProtocolSemanticVersion::from_str(x).map_err(Into::into))
+                    .context("protocol_version")?,
             ),
             genesis_root_hash: Some(
                 required(&self.genesis_root)
@@ -97,7 +98,7 @@ impl ProtoRepr for proto::Genesis {
             genesis_root: this.genesis_root_hash.map(|x| format!("{:?}", x)),
             genesis_rollup_leaf_index: this.rollup_last_leaf_index,
             genesis_batch_commitment: this.genesis_commitment.map(|x| format!("{:?}", x)),
-            genesis_protocol_version: this.protocol_version.map(|x| x as u32),
+            genesis_protocol_semantic_version: this.protocol_version.map(|x| x.to_string()),
             default_aa_hash: this.default_aa_hash.map(|x| format!("{:?}", x)),
             bootloader_hash: this.bootloader_hash.map(|x| format!("{:?}", x)),
             fee_account: Some(format!("{:?}", this.fee_account)),

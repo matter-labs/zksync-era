@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
-    commitment::L1BatchCommitmentMode, protocol_version::ProtocolVersionId, Address, L1ChainId,
-    L2ChainId, H256,
+    commitment::L1BatchCommitmentMode,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
+    Address, L1ChainId, L2ChainId, H256,
 };
 
 /// This config represents the genesis state of the chain.
@@ -10,7 +11,7 @@ use zksync_basic_types::{
 pub struct GenesisConfig {
     // TODO make fields non optional, once we fully moved to file based configs.
     // Now for backward compatibility we keep it optional
-    pub protocol_version: Option<ProtocolVersionId>,
+    pub protocol_version: Option<ProtocolSemanticVersion>,
     pub genesis_root_hash: Option<H256>,
     pub rollup_last_leaf_index: Option<u64>,
     pub genesis_commitment: Option<H256>,
@@ -41,7 +42,10 @@ impl GenesisConfig {
             bootloader_hash: Default::default(),
             default_aa_hash: Default::default(),
             l1_chain_id: L1ChainId(9),
-            protocol_version: Some(ProtocolVersionId::Version22),
+            protocol_version: Some(ProtocolSemanticVersion {
+                minor: ProtocolVersionId::latest(),
+                patch: 0.into(),
+            }),
             l2_chain_id: L2ChainId::default(),
             dummy_verifier: false,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
