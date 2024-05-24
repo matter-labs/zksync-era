@@ -42,9 +42,9 @@ export async function waitForServer(l2NodeUrl: string) {
     throw new Error('Failed to wait for the server to start');
 }
 
-function getMainWalletPk(network: string): string {
+function getMainWalletPk(pathToHome: string, network: string): string {
     if (network.toLowerCase() == 'localhost') {
-        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
+        const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
         return ethers.Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/0").privateKey;
     } else {
@@ -52,6 +52,9 @@ function getMainWalletPk(network: string): string {
     }
 }
 
+/*
+    Loads the environment for file based configs.
+ */
 async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironment> {
     const pathToHome = path.join(__dirname, '../../../..');
     let ecosystem = loadEcosystem(pathToHome);
@@ -60,7 +63,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     let genesisConfig = loadConfig(pathToHome, chain, 'genesis.yaml');
 
     const network = ecosystem.l1_network;
-    let mainWalletPK = getMainWalletPk(network);
+    let mainWalletPK = getMainWalletPk(pathToHome, network);
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
 
     await waitForServer(l2NodeUrl);
@@ -79,21 +82,17 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     // but if it's not available, we'll use the first token from the list.
     let token = tokens.tokens['wBTC'];
     if (token === undefined) {
-        token = tokens.tokens[0];
+        token = Object.values(tokens.tokens)[0];
     }
     const weth = tokens.tokens['WETH'];
     let baseToken;
 
     for (const key in tokens.tokens) {
         const token = tokens.tokens[key];
-        console.log(token);
-        console.log(baseTokenAddress);
-
         if (zksync.utils.isAddressEq(token.address, baseTokenAddress)) {
             baseToken = token;
         }
     }
-
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
 
     const l2TokenAddress = await new zksync.Wallet(
@@ -102,13 +101,11 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
 
-    console.log(l2TokenAddress);
     const l2WethAddress = await new zksync.Wallet(
         mainWalletPK,
         l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(weth.address);
-    console.log(l2WethAddress);
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = parseInt(genesisConfig.l2_chain_id);
@@ -175,8 +172,9 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
  */
 export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
+    const pathToHome = path.join(__dirname, '../../../../');
 
-    let mainWalletPK = getMainWalletPk(network);
+    let mainWalletPK = getMainWalletPk(pathToHome, network);
 
     const l2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL,
@@ -196,7 +194,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
         ? process.env.CONTRACT_VERIFIER_URL!
         : ensureVariable(process.env.CONTRACT_VERIFIER_URL, 'Contract verification API');
 
-    const pathToHome = path.join(__dirname, '../../../../');
     const tokens = getTokens(pathToHome, process.env.CHAIN_ETH_NETWORK || 'localhost');
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
@@ -326,20 +323,22 @@ function getTokens(pathToHome: string, network: string): L1Token[] {
 
 function getTokensNew(pathToHome: string): Tokens {
     const configPath = path.join(pathToHome, '/configs/erc20.yaml');
-    console.log(configPath);
     if (!fs.existsSync(configPath)) {
         throw Error('Tokens config not found');
     }
+
     return yaml.parse(
         fs.readFileSync(configPath, {
             encoding: 'utf-8'
-        })
+        }),
+        {
+            customTags
+        }
     );
 }
 
 function loadEcosystem(pathToHome: string): any {
     const configPath = path.join(pathToHome, '/ZkStack.yaml');
-    console.log(configPath);
     if (!fs.existsSync(configPath)) {
         return [];
     }
@@ -352,7 +351,6 @@ function loadEcosystem(pathToHome: string): any {
 
 function loadConfig(pathToHome: string, chainName: string, config: string): any {
     const configPath = path.join(pathToHome, `/chains/${chainName}/configs/${config}`);
-    console.log(configPath);
     if (!fs.existsSync(configPath)) {
         return [];
     }
@@ -361,4 +359,17 @@ function loadConfig(pathToHome: string, chainName: string, config: string): any 
             encoding: 'utf-8'
         })
     );
+}
+
+function customTags(tags: yaml.Tags): yaml.Tags {
+    for (const tag of tags) {
+        // @ts-ignore
+        if (tag.format === 'HEX') {
+            // @ts-ignore
+            tag.resolve = (str, _onError, opt) => {
+                return str;
+            };
+        }
+    }
+    return tags;
 }

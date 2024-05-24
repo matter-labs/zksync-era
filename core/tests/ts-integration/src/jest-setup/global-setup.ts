@@ -14,9 +14,10 @@ async function performSetup(_globalConfig: any, _projectConfig: any) {
     // to deposit & distribute funds, deploy some contracts, and perform basic server checks.
 
     // Jest writes an initial message without a newline, so we have to do it manually.
+    console.log('');
+
     // Before starting any actual logic, we need to ensure that the server is running (it may not
     // be the case, for example, right after deployment on stage).
-    // await waitForServer();
 
     const testEnvironment = await loadTestEnvironment();
     const testContextOwner = new TestContextOwner(testEnvironment);
