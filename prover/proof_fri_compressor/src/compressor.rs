@@ -243,11 +243,12 @@ impl JobProcessor for ProofCompressor {
         let l1_batch_proof = L1BatchProofForL1 {
             aggregation_result_coords,
             scheduler_proof: artifacts,
+            protocol_version: self.protocol_version,
         };
         let blob_save_started_at = Instant::now();
         let blob_url = self
             .blob_store
-            .put(job_id, &l1_batch_proof)
+            .put((job_id, self.protocol_version), &l1_batch_proof)
             .await
             .context("Failed to save converted l1_batch_proof")?;
         METRICS

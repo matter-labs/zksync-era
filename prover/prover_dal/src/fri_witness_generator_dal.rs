@@ -41,7 +41,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         &mut self,
         block_number: L1BatchNumber,
         object_key: &str,
-        protocol_version_id: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
         eip_4844_blobs: Eip4844Blobs,
     ) {
         let blobs_raw = eip_4844_blobs.encode();
@@ -55,16 +55,18 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     eip_4844_blobs,
                     status,
                     created_at,
-                    updated_at
+                    updated_at,
+                    protocol_version_patch
                 )
             VALUES
-                ($1, $2, $3, $4, 'queued', NOW(), NOW())
+                ($1, $2, $3, $4, 'queued', NOW(), NOW(), $5)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
             object_key,
-            protocol_version_id as i32,
+            protocol_version.minor as i32,
             blobs_raw,
+            protocol_version.patch_raw() as i32,
         )
         .fetch_optional(self.storage.conn())
         .await
