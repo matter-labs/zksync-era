@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE leaf_aggregation_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $2\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        leaf_aggregation_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                    ORDER BY\n                        l1_batch_number ASC,\n                        id ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                leaf_aggregation_witness_jobs_fri.*\n            ",
+  "query": "\n            UPDATE leaf_aggregation_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $3\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        leaf_aggregation_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                        AND protocol_version_patch = $2\n                    ORDER BY\n                        l1_batch_number ASC,\n                        id ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                leaf_aggregation_witness_jobs_fri.*\n            ",
   "describe": {
     "columns": [
       {
@@ -77,10 +77,16 @@
         "ordinal": 14,
         "name": "picked_by",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
       "Left": [
+        "Int4",
         "Int4",
         "Text"
       ]
@@ -100,8 +106,9 @@
       true,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "d286520139c1f5daa90b20efffa515afcaedf541533f218ca6e167bdc7f6ea7f"
+  "hash": "d272c91f1209c277189a31c59ee191a43dc8eafc33ee067bd41e20f25f7625f0"
 }

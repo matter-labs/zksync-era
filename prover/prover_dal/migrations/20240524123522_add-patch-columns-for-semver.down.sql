@@ -27,3 +27,6 @@ ALTER TABLE gpu_prover_queue_fri
 
 ALTER TABLE gpu_prover_queue_fri_archive
     DROP IF EXISTS protocol_version_patch;
+
+ALTER TABLE prover_fri_protocol_versions
+    DROP IF EXISTS protocol_version_patch;

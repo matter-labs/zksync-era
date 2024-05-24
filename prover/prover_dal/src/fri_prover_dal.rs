@@ -51,7 +51,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_next_job(
         &mut self,
-        protocol_version: &ProtocolSemanticVersion,
+        protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
         sqlx::query!(
@@ -62,7 +62,7 @@ impl FriProverDal<'_, '_> {
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
-                picked_by = $2
+                picked_by = $3
             WHERE
                 id = (
                     SELECT
@@ -72,6 +72,7 @@ impl FriProverDal<'_, '_> {
                     WHERE
                         status = 'queued'
                         AND protocol_version = $1
+                        AND protocol_version_patch = $2
                     ORDER BY
                         aggregation_round DESC,
                         l1_batch_number ASC,
@@ -90,7 +91,8 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri.depth,
                 prover_jobs_fri.is_node_final_proof
             "#,
-            *protocol_version as i32,
+            protocol_version.minor as i32,
+            protocol_version.patch_raw() as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -111,7 +113,7 @@ impl FriProverDal<'_, '_> {
     pub async fn get_next_job_for_circuit_id_round(
         &mut self,
         circuits_to_pick: &[CircuitIdRoundTuple],
-        protocol_version: &ProtocolSemanticVersion,
+        protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
         let circuit_ids: Vec<_> = circuits_to_pick
@@ -130,7 +132,7 @@ impl FriProverDal<'_, '_> {
                 attempts = attempts + 1,
                 processing_started_at = NOW(),
                 updated_at = NOW(),
-                picked_by = $4
+                picked_by = $5
             WHERE
                 id = (
                     SELECT
@@ -150,6 +152,7 @@ impl FriProverDal<'_, '_> {
                             WHERE
                                 pj.status = 'queued'
                                 AND pj.protocol_version = $3
+                                AND pj.protocol_version_patch = $4
                                 AND pj.circuit_id = tuple.circuit_id
                                 AND pj.aggregation_round = tuple.round
                             ORDER BY
@@ -178,7 +181,8 @@ impl FriProverDal<'_, '_> {
             "#,
             &circuit_ids[..],
             &aggregation_rounds[..],
-            *protocol_version as i32,
+            protocol_version.minor as i32,
+            protocol_version.patch_raw() as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -355,7 +359,7 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         circuit_blob_url: &str,
         is_node_final_proof: bool,
-        protocol_version_id: ProtocolSemanticVersion,
+        protocol_version: ProtocolSemanticVersion,
     ) {
         sqlx::query!(
                     r#"
@@ -371,10 +375,11 @@ impl FriProverDal<'_, '_> {
                             protocol_version,
                             status,
                             created_at,
-                            updated_at
+                            updated_at,
+                            protocol_version_patch
                         )
                     VALUES
-                        ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW())
+                        ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
                     ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number) DO
                     UPDATE
                     SET
@@ -387,7 +392,8 @@ impl FriProverDal<'_, '_> {
             sequence_number as i64,
             i32::from(depth),
             is_node_final_proof,
-            protocol_version_id as i32,
+            protocol_version.minor as i32,
+            protocol_version.patch_raw() as i32,
         )
             .execute(self.storage.conn())
             .await
@@ -695,10 +701,10 @@ impl FriProverDal<'_, '_> {
         .collect()
     }
 
-    pub async fn protocol_version_for_job(&mut self, job_id: u32) -> ProtocolVersionId {
-        sqlx::query!(
+    pub async fn protocol_version_for_job(&mut self, job_id: u32) -> ProtocolSemanticVersion {
+        let result = sqlx::query!(
             r#"
-            SELECT protocol_version
+            SELECT protocol_version, protocol_version_patch
             FROM prover_jobs_fri
             WHERE id = $1
             "#,
@@ -706,10 +712,12 @@ impl FriProverDal<'_, '_> {
         )
         .fetch_one(self.storage.conn())
         .await
-        .unwrap()
-        .protocol_version
-        .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
-        .unwrap()
+        .unwrap();
+
+        ProtocolSemanticVersion::new(
+            result.protocol_version.unwrap() as u16,
+            result.protocol_version_patch as u16,
+        )
     }
 
     pub async fn delete_prover_jobs_fri_batch_data(

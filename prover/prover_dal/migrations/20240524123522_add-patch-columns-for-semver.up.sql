@@ -27,3 +27,6 @@ ALTER TABLE gpu_prover_queue_fri
 
 ALTER TABLE gpu_prover_queue_fri_archive
     ADD COLUMN protocol_version_patch INT NOT NULL DEFAULT 0;
+
+ALTER TABLE prover_fri_protocol_versions
+    ADD COLUMN protocol_version_patch INT NOT NULL DEFAULT 0;

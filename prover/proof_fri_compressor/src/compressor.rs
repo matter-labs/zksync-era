@@ -166,7 +166,7 @@ impl JobProcessor for ProofCompressor {
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = conn
             .fri_proof_compressor_dal()
-            .get_next_proof_compression_job(&pod_name, &self.protocol_version)
+            .get_next_proof_compression_job(&pod_name, self.protocol_version)
             .await
         else {
             return Ok(None);

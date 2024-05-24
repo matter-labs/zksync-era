@@ -315,6 +315,21 @@ pub struct ProtocolSemanticVersion {
 impl ProtocolSemanticVersion {
     const MAJOR_VERSION: u8 = 0;
 
+    pub fn new(minor: u16, patch: u16) -> Self {
+        Self {
+            minor: ProtocolVersionId::try_from(minor).unwrap(),
+            patch: VkPatch(patch),
+        }
+    }
+
+    pub fn patch_raw(&self) -> u16 {
+        self.patch.0
+    }
+
+    pub fn minor_raw(&self) -> u16 {
+        self.minor as u16
+    }
+
     pub fn current_prover_version() -> Self {
         Self {
             minor: ProtocolVersionId::current_prover_version(),

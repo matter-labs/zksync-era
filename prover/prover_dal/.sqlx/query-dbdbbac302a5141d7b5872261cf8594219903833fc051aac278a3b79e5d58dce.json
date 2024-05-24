@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                id,\n                protocol_version_patch\n            FROM\n                prover_fri_protocol_versions\n            WHERE\n                recursion_circuits_set_vks_hash = $1\n                AND recursion_leaf_level_vk_hash = $2\n                AND recursion_node_level_vk_hash = $3\n                AND recursion_scheduler_level_vk_hash = $4\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "dbdbbac302a5141d7b5872261cf8594219903833fc051aac278a3b79e5d58dce"
+}

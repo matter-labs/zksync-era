@@ -1,9 +1,5 @@
-use std::convert::TryFrom;
-
 use zksync_basic_types::{
-    protocol_version::{
-        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
-    },
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
     H256,
 };
 use zksync_db_connection::connection::Connection;
@@ -30,13 +26,14 @@ impl FriProtocolVersionsDal<'_, '_> {
                     recursion_node_level_vk_hash,
                     recursion_leaf_level_vk_hash,
                     recursion_circuits_set_vks_hash,
-                    created_at
+                    created_at,
+                    protocol_version_patch
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW())
+                ($1, $2, $3, $4, $5, NOW(), $6)
             ON CONFLICT (id) DO NOTHING
             "#,
-            id as i32,
+            id.minor as i32,
             l1_verifier_config
                 .recursion_scheduler_level_vk_hash
                 .as_bytes(),
@@ -52,6 +49,7 @@ impl FriProtocolVersionsDal<'_, '_> {
                 .params
                 .recursion_circuits_set_vks_hash
                 .as_bytes(),
+            id.patch_raw() as i32
         )
         .execute(self.storage.conn())
         .await
@@ -65,7 +63,8 @@ impl FriProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             SELECT
-                idå
+                id,
+                protocol_version_patch
             FROM
                 prover_fri_protocol_versions
             WHERE
@@ -92,7 +91,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| ProtocolVersionId::try_from(row.id as u16).unwrap())
+        .map(|row| ProtocolSemanticVersion::new(row.id as u16, row.protocol_version_patch as u16))
         .collect()
     }
 
@@ -111,8 +110,11 @@ impl FriProtocolVersionsDal<'_, '_> {
                 prover_fri_protocol_versions
             WHERE
                 id = $1
+                AND
+                protocol_version_patch = $2
             "#,
-            protocol_version as i32
+            protocol_version.minor as i32,
+            protocol_version.patch_raw() as i32
         )
         .fetch_optional(self.storage.conn())
         .await
