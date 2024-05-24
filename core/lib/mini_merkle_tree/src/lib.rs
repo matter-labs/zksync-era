@@ -99,7 +99,7 @@ where
             hashes,
             binary_tree_size,
             head_index: 0,
-            left_cache: vec![H256::default(); depth + 1],
+            left_cache: vec![],
         }
     }
 
@@ -154,7 +154,6 @@ where
         self.hashes.push_back(leaf_hash);
         if self.head_index + self.hashes.len() > self.binary_tree_size {
             self.binary_tree_size *= 2;
-            self.left_cache.push(H256::default());
         }
     }
 
@@ -168,7 +167,6 @@ where
         self.compute_merkle_root_and_path(count - 1, None, Some(&mut new_cache));
         self.hashes.drain(0..count);
         self.head_index += count;
-        debug_assert!(self.left_cache.len() == new_cache.len());
         self.left_cache = new_cache;
     }
 
