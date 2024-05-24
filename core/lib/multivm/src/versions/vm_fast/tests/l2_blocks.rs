@@ -3,7 +3,7 @@
 //! The description for each of the tests can be found in the corresponding `.yul` file.
 //!
 
-use zksync_state::WriteStorage;
+use zksync_state::ReadStorage;
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{pack_block_info, L2BlockHasher},
@@ -402,7 +402,7 @@ fn test_l2_block_first_in_batch() {
     );
 }
 
-fn set_manual_l2_block_info<S: WriteStorage + 'static>(
+fn set_manual_l2_block_info<S: ReadStorage + 'static>(
     vm: &mut Vm<S>,
     tx_number: usize,
     block_info: L2BlockEnv,

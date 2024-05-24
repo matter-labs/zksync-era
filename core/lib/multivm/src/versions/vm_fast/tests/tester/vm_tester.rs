@@ -1,5 +1,7 @@
+use std::{cell::RefCell, rc::Rc};
+
 use zksync_contracts::BaseSystemContracts;
-use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
+use zksync_state::{InMemoryStorage, StoragePtr};
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
     block::L2BlockHasher,
@@ -19,11 +21,9 @@ use crate::{
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, utils::l2_blocks::load_last_l2_block},
 };
 
-pub(crate) type InMemoryStorageView = StorageView<InMemoryStorage>;
-
 pub(crate) struct VmTester {
-    pub(crate) vm: Vm<InMemoryStorageView>,
-    pub(crate) storage: StoragePtr<InMemoryStorageView>,
+    pub(crate) vm: Vm<InMemoryStorage>,
+    pub(crate) storage: StoragePtr<InMemoryStorage>,
     pub(crate) fee_account: Address,
     pub(crate) deployer: Option<Account>,
     pub(crate) test_contract: Option<Address>,
@@ -49,7 +49,7 @@ impl VmTester {
     }
 
     pub(crate) fn reset_with_empty_storage(&mut self) {
-        self.storage = StorageView::new(get_empty_storage()).to_rc_ptr();
+        self.storage = Rc::new(RefCell::new(get_empty_storage()));
         self.reset_state(false);
     }
 
@@ -209,7 +209,7 @@ impl VmTesterBuilder {
 
         let mut raw_storage = self.storage.unwrap_or_else(get_empty_storage);
         insert_contracts(&mut raw_storage, &self.custom_contracts);
-        let storage_ptr = StorageView::new(raw_storage).to_rc_ptr();
+        let storage_ptr = Rc::new(RefCell::new(raw_storage));
         for account in self.rich_accounts.iter() {
             make_account_rich(storage_ptr.clone(), account);
         }
@@ -253,7 +253,7 @@ pub(crate) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
     }
 }
 
-pub(crate) fn make_account_rich(storage: StoragePtr<InMemoryStorageView>, account: &Account) {
+pub(crate) fn make_account_rich(storage: StoragePtr<InMemoryStorage>, account: &Account) {
     let key = storage_key_for_eth_balance(&account.address);
     storage
         .as_ref()
