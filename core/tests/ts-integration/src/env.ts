@@ -4,6 +4,7 @@ import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
+import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
 
 /**
@@ -14,16 +15,12 @@ import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
  * This function is expected to be called *before* loading an environment via `loadTestEnvironment`,
  * because the latter expects server to be running and may throw otherwise.
  */
-export async function waitForServer() {
+export async function waitForServer(l2NodeUrl: string) {
     const reporter = new Reporter();
     // Server startup may take a lot of time on the staging.
     const attemptIntervalMs = 1000;
     const maxAttempts = 20 * 60; // 20 minutes
 
-    const l2NodeUrl = ensureVariable(
-        process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL,
-        'L2 node URL'
-    );
     const l2Provider = new zksync.Provider(l2NodeUrl);
 
     reporter.startAction('Connecting to server');
@@ -45,25 +42,148 @@ export async function waitForServer() {
     throw new Error('Failed to wait for the server to start');
 }
 
+function getMainWalletPk(network: string): string {
+    if (network.toLowerCase() == 'localhost') {
+        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
+        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
+        return ethers.Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/0").privateKey;
+    } else {
+        return ensureVariable(process.env.MASTER_WALLET_PK, 'Main wallet private key');
+    }
+}
+
+async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironment> {
+    const pathToHome = path.join(__dirname, '../../../..');
+    let ecosystem = loadEcosystem(pathToHome);
+
+    let generalConfig = loadConfig(pathToHome, chain, 'general.yaml');
+    let genesisConfig = loadConfig(pathToHome, chain, 'genesis.yaml');
+
+    const network = ecosystem.l1_network;
+    let mainWalletPK = getMainWalletPk(network);
+    const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
+
+    await waitForServer(l2NodeUrl);
+
+    const l2Provider = new zksync.Provider(l2NodeUrl);
+    const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
+
+    const l1NodeUrl = ecosystem.l1_rpc_url;
+    const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
+
+    const contractVerificationUrl = generalConfig.contract_verifier.url;
+
+    const tokens = getTokensNew(pathToHome);
+    // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
+    // Using this token will help us to detect decimals-related errors.
+    // but if it's not available, we'll use the first token from the list.
+    let token = tokens.tokens['wBTC'];
+    if (token === undefined) {
+        token = tokens.tokens[0];
+    }
+    const weth = tokens.tokens['WETH'];
+    let baseToken;
+
+    for (const key in tokens.tokens) {
+        const token = tokens.tokens[key];
+        console.log(token);
+        console.log(baseTokenAddress);
+
+        if (zksync.utils.isAddressEq(token.address, baseTokenAddress)) {
+            baseToken = token;
+        }
+    }
+
+    // `waitForServer` is expected to be executed. Otherwise this call may throw.
+
+    const l2TokenAddress = await new zksync.Wallet(
+        mainWalletPK,
+        l2Provider,
+        ethers.getDefaultProvider(l1NodeUrl)
+    ).l2TokenAddress(token.address);
+
+    console.log(l2TokenAddress);
+    const l2WethAddress = await new zksync.Wallet(
+        mainWalletPK,
+        l2Provider,
+        ethers.getDefaultProvider(l1NodeUrl)
+    ).l2TokenAddress(weth.address);
+    console.log(l2WethAddress);
+
+    const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
+    const l2ChainId = parseInt(genesisConfig.l2_chain_id);
+    const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
+    let minimalL2GasPrice = generalConfig.state_keeper.minimal_l2_gas_price;
+    // TODO add support for en
+    let nodeMode = NodeMode.Main;
+
+    const validationComputationalGasLimit = parseInt(generalConfig.state_keeper.validation_computational_gas_limit);
+    // TODO set it properly
+    const priorityTxMaxGasLimit = 72000000;
+    const maxLogsLimit = parseInt(generalConfig.api.web3_json_rpc.req_entities_limit);
+
+    return {
+        maxLogsLimit,
+        pathToHome,
+        priorityTxMaxGasLimit,
+        validationComputationalGasLimit,
+        nodeMode,
+        minimalL2GasPrice,
+        l1BatchCommitDataGeneratorMode,
+        l2ChainId,
+        network,
+        mainWalletPK,
+        l2NodeUrl,
+        l1NodeUrl,
+        wsL2NodeUrl,
+        contractVerificationUrl,
+        erc20Token: {
+            name: token.name,
+            symbol: token.symbol,
+            decimals: token.decimals,
+            l1Address: token.address,
+            l2Address: l2TokenAddress
+        },
+        wethToken: {
+            name: weth.name,
+            symbol: weth.symbol,
+            decimals: weth.decimals,
+            l1Address: weth.address,
+            l2Address: l2WethAddress
+        },
+        baseToken: {
+            name: baseToken?.name || token.name,
+            symbol: baseToken?.symbol || token.symbol,
+            decimals: baseToken?.decimals || token.decimals,
+            l1Address: baseToken?.address || token.address,
+            l2Address: baseTokenAddressL2
+        }
+    };
+}
+
+export async function loadTestEnvironment(): Promise<TestEnvironment> {
+    let chain = process.env.CHAIN_NAME;
+
+    if (chain) {
+        return await loadTestEnvironmentFromFile(chain);
+    }
+    return await loadTestEnvironmentFromEnv();
+}
+
 /**
  * Loads the test environment from the env variables.
  */
-export async function loadTestEnvironment(): Promise<TestEnvironment> {
+export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
 
-    let mainWalletPK;
-    if (network == 'localhost') {
-        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
-        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-        mainWalletPK = ethers.Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/0").privateKey;
-    } else {
-        mainWalletPK = ensureVariable(process.env.MASTER_WALLET_PK, 'Main wallet private key');
-    }
+    let mainWalletPK = getMainWalletPk(network);
 
     const l2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL,
         'L2 node URL'
     );
+
+    await waitForServer(l2NodeUrl);
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
 
@@ -177,6 +297,14 @@ function ensureVariable(value: string | undefined, variableName: string): string
     return value;
 }
 
+interface TokensDict {
+    [key: string]: L1Token;
+}
+
+type Tokens = {
+    tokens: TokensDict;
+};
+
 type L1Token = {
     name: string;
     symbol: string;
@@ -190,6 +318,45 @@ function getTokens(pathToHome: string, network: string): L1Token[] {
         return [];
     }
     return JSON.parse(
+        fs.readFileSync(configPath, {
+            encoding: 'utf-8'
+        })
+    );
+}
+
+function getTokensNew(pathToHome: string): Tokens {
+    const configPath = path.join(pathToHome, '/configs/erc20.yaml');
+    console.log(configPath);
+    if (!fs.existsSync(configPath)) {
+        throw Error('Tokens config not found');
+    }
+    return yaml.parse(
+        fs.readFileSync(configPath, {
+            encoding: 'utf-8'
+        })
+    );
+}
+
+function loadEcosystem(pathToHome: string): any {
+    const configPath = path.join(pathToHome, '/ZkStack.yaml');
+    console.log(configPath);
+    if (!fs.existsSync(configPath)) {
+        return [];
+    }
+    return yaml.parse(
+        fs.readFileSync(configPath, {
+            encoding: 'utf-8'
+        })
+    );
+}
+
+function loadConfig(pathToHome: string, chainName: string, config: string): any {
+    const configPath = path.join(pathToHome, `/chains/${chainName}/configs/${config}`);
+    console.log(configPath);
+    if (!fs.existsSync(configPath)) {
+        return [];
+    }
+    return yaml.parse(
         fs.readFileSync(configPath, {
             encoding: 'utf-8'
         })
