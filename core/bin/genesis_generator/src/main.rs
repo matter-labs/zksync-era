@@ -80,7 +80,7 @@ async fn generate_new_config(
 
     let base_system_contracts = BaseSystemContracts::load_from_disk().hashes();
     let mut updated_genesis = GenesisConfig {
-        protocol_version: Some(ProtocolVersionId::latest() as u16),
+        protocol_version: Some(ProtocolVersionId::latest()),
         genesis_root_hash: None,
         rollup_last_leaf_index: None,
         genesis_commitment: None,

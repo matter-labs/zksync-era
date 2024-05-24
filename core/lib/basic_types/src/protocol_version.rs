@@ -1,4 +1,10 @@
-use std::convert::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+    num::ParseIntError,
+    ops::{Add, Deref, DerefMut, Sub},
+    str::FromStr,
+};
 
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
@@ -274,5 +280,34 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
         }
+    }
+}
+
+basic_type!(
+    /// Patch part of semantic protocol version.
+    VkPatch,
+    u16
+);
+
+/// Semantic protocol version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
+pub struct ProtocolSemanticVersion {
+    pub minor: ProtocolVersionId,
+    pub patch: VkPatch,
+}
+
+impl ProtocolSemanticVersion {
+    const MAJOR_VERSION: u8 = 0;
+}
+
+impl fmt::Display for ProtocolSemanticVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}.{}.{}",
+            Self::MAJOR_VERSION,
+            self.minor as u16,
+            self.patch
+        )
     }
 }
