@@ -164,8 +164,7 @@ where
     /// Panics if `count` is greater than the number of non-cached leaves in the tree.
     pub fn cache(&mut self, count: usize) {
         assert!(self.hashes.len() >= count, "not enough leaves to cache");
-        let depth = tree_depth_by_size(self.binary_tree_size);
-        let mut new_cache = vec![H256::default(); depth + 1];
+        let mut new_cache = vec![];
         self.compute_merkle_root_and_path(count - 1, None, Some(&mut new_cache));
         self.hashes.drain(0..count);
         self.head_index += count;
@@ -185,6 +184,9 @@ where
         if let Some((left_path, right_path)) = &mut merkle_paths {
             left_path.reserve(depth);
             right_path.reserve(depth);
+        }
+        if let Some(new_cache) = new_cache.as_deref_mut() {
+            new_cache.reserve(depth + 1);
         }
 
         let mut hashes = self.hashes.clone();
@@ -214,13 +216,14 @@ where
             if let Some(new_cache) = new_cache.as_deref_mut() {
                 // We cache the rightmost left child on the current level
                 // within the given interval.
-                new_cache[level] = if (head_index + right_index) % 2 == 0 {
+                let cache = if (head_index + right_index) % 2 == 0 {
                     hashes[right_index]
                 } else if right_index == 0 {
                     self.left_cache[level]
                 } else {
                     hashes[right_index - 1]
                 };
+                new_cache.push(cache);
             }
 
             let parity = head_index % 2;
@@ -252,7 +255,7 @@ where
         if let Some(new_cache) = new_cache {
             // It is important to cache the root as well, in case
             // we just cached all elements and will grow on the next push.
-            new_cache[depth] = hashes[0];
+            new_cache.push(hashes[0]);
         }
 
         hashes[0]
