@@ -413,7 +413,7 @@ impl MainNodeBuilder {
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
-            // API consumes the resource provided by other layers (multiple ones), so it has to come the last.
+            // API consumes the resources provided by other layers (multiple ones), so it has to come the last.
             Component::HttpApi | Component::WsApi => 1,
             // Default priority.
             _ => 0,
