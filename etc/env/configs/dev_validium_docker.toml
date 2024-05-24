@@ -19,6 +19,12 @@ fee_model_version = "V2"
 l1_batch_commit_data_generator_mode = "Validium"
 miniblock_iteration_interval = 50
 
+[eth_sender]
+sender_pubdata_sending_mode="Custom"
+
+[da_dispatcher]
+da_mode="NoDA"
+
 [eth_client]
 web3_url = "http://reth:8545"
 
