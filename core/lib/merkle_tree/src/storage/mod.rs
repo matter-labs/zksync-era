@@ -1,10 +1,13 @@
 //! Storage-related logic.
 
-pub(crate) use self::patch::{LoadAncestorsResult, WorkingPatchSet};
 pub use self::{
     database::{Database, NodeKeys, Patched, PruneDatabase, PrunePatchSet},
     patch::PatchSet,
     rocksdb::{MerkleTreeColumnFamily, RocksDBWrapper},
+};
+pub(crate) use self::{
+    parallel::MaybeParallel,
+    patch::{LoadAncestorsResult, WorkingPatchSet},
 };
 use crate::{
     hasher::HashTree,
@@ -16,6 +19,7 @@ use crate::{
 };
 
 mod database;
+mod parallel;
 mod patch;
 mod proofs;
 mod rocksdb;
