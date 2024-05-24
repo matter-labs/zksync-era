@@ -22,7 +22,7 @@ use zksync_node_test_utils::{create_l1_batch_metadata, create_l2_transaction};
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::MockBatchExecutor,
+    testonly::{test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
     OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
@@ -344,6 +344,7 @@ impl StateKeeperRunner {
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
+                        Arc::new(MockReadStorageFactory),
                     )
                     .run()
                     .await

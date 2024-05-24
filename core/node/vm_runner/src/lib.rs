@@ -5,6 +5,7 @@
 
 mod io;
 mod output_handler;
+mod process;
 mod storage;
 
 #[cfg(test)]
@@ -14,4 +15,5 @@ pub use io::VmRunnerIo;
 pub use output_handler::{
     ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
 };
+pub use process::VmRunner;
 pub use storage::{BatchExecuteData, VmRunnerStorage};

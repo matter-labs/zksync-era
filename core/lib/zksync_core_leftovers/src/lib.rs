@@ -763,8 +763,9 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::CommitmentGenerator) {
+        let pool_size = CommitmentGenerator::default_parallelism().get();
         let commitment_generator_pool =
-            ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
+            ConnectionPool::<Core>::builder(database_secrets.master_url()?, pool_size)
                 .build()
                 .await
                 .context("failed to build commitment_generator_pool")?;
@@ -1039,8 +1040,12 @@ async fn add_tee_verifier_input_producer_to_task_futures(
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();
     tracing::info!("initializing TeeVerifierInputProducer");
-    let producer =
-        TeeVerifierInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+    let producer = TeeVerifierInputProducer::new(
+        connection_pool.clone(),
+        store_factory.create_store().await,
+        l2_chain_id,
+    )
+    .await?;
     task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
     tracing::info!(
         "Initialized TeeVerifierInputProducer in {:?}",

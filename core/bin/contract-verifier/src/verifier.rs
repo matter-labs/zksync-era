@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    env,
     path::Path,
     time::{Duration, Instant},
 };
@@ -22,6 +21,7 @@ use zksync_types::{
     },
     Address,
 };
+use zksync_utils::workspace_dir_or_current_dir;
 
 use crate::{
     error::ContractVerifierError,
@@ -32,6 +32,10 @@ use crate::{
 
 lazy_static! {
     static ref DEPLOYER_CONTRACT: Contract = zksync_contracts::deployer_contract();
+}
+
+fn home_path() -> &'static Path {
+    workspace_dir_or_current_dir()
 }
 
 #[derive(Debug)]
@@ -120,8 +124,7 @@ impl ContractVerifier {
             };
         let input = Self::build_zksolc_input(request.clone(), file_name.clone())?;
 
-        let zksync_home = env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let zksolc_path = Path::new(&zksync_home)
+        let zksolc_path = Path::new(&home_path())
             .join("etc")
             .join("zksolc-bin")
             .join(request.req.compiler_versions.zk_compiler_version())
@@ -133,7 +136,7 @@ impl ContractVerifier {
             ));
         }
 
-        let solc_path = Path::new(&zksync_home)
+        let solc_path = Path::new(&home_path())
             .join("etc")
             .join("solc-bin")
             .join(request.req.compiler_versions.compiler_version())
@@ -219,8 +222,7 @@ impl ContractVerifier {
             };
         let input = Self::build_zkvyper_input(request.clone())?;
 
-        let zksync_home = env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let zkvyper_path = Path::new(&zksync_home)
+        let zkvyper_path = Path::new(&home_path())
             .join("etc")
             .join("zkvyper-bin")
             .join(request.req.compiler_versions.zk_compiler_version())
@@ -232,7 +234,7 @@ impl ContractVerifier {
             ));
         }
 
-        let vyper_path = Path::new(&zksync_home)
+        let vyper_path = Path::new(&home_path())
             .join("etc")
             .join("vyper-bin")
             .join(request.req.compiler_versions.compiler_version())

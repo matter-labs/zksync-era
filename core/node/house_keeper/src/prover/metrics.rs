@@ -109,8 +109,9 @@ impl From<&str> for WitnessType {
 pub(crate) struct ServerMetrics {
     pub prover_fri_requeued_jobs: Counter<u64>,
     pub requeued_jobs: Family<WitnessType, Counter<u64>>,
-    #[metrics(labels = ["type", "round"])]
-    pub witness_generator_jobs_by_round: LabeledFamily<(&'static str, String), Gauge<u64>, 2>,
+    #[metrics(labels = ["type", "round", "protocol_version"])]
+    pub witness_generator_jobs_by_round:
+        LabeledFamily<(&'static str, String, String), Gauge<u64>, 3>,
     #[metrics(labels = ["type", "protocol_version"])]
     pub witness_generator_jobs: LabeledFamily<(&'static str, String), Gauge<u64>, 2>,
     pub leaf_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
