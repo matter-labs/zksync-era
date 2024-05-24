@@ -50,7 +50,7 @@ use zksync_node_framework::{
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
-macro_rules! load_config {
+macro_rules! try_load_config {
     ($path:expr) => {
         $path.as_ref().context(stringify!($path))?.clone()
     };
@@ -92,8 +92,8 @@ impl MainNodeBuilder {
     }
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
-        let config = load_config!(self.configs.postgres_config);
-        let secrets = load_config!(self.secrets.database);
+        let config = try_load_config!(self.configs.postgres_config);
+        let secrets = try_load_config!(self.secrets.database);
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
@@ -104,15 +104,15 @@ impl MainNodeBuilder {
     }
 
     fn add_prometheus_exporter_layer(mut self) -> anyhow::Result<Self> {
-        let prom_config = load_config!(self.configs.prometheus_config);
+        let prom_config = try_load_config!(self.configs.prometheus_config);
         let prom_config = PrometheusExporterConfig::pull(prom_config.listener_port);
         self.node.add_layer(PrometheusExporterLayer(prom_config));
         Ok(self)
     }
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_config = load_config!(self.configs.eth);
-        let wallets = load_config!(self.wallets.eth_sender);
+        let eth_config = try_load_config!(self.configs.eth);
+        let wallets = try_load_config!(self.wallets.eth_sender);
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
             self.contracts_config.clone(),
@@ -124,7 +124,7 @@ impl MainNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = self.genesis_config.clone();
-        let eth_config = load_config!(self.secrets.l1);
+        let eth_config = try_load_config!(self.secrets.l1);
         let query_eth_client_layer =
             QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.l1_rpc_url);
         self.node.add_layer(query_eth_client_layer);
@@ -132,23 +132,23 @@ impl MainNodeBuilder {
     }
 
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
-        let gas_adjuster_config = load_config!(self.configs.eth)
+        let gas_adjuster_config = try_load_config!(self.configs.eth)
             .gas_adjuster
             .context("Gas adjuster")?;
-        let state_keeper_config = load_config!(self.configs.state_keeper_config);
-        let eth_sender_config = load_config!(self.configs.eth);
+        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
+        let eth_sender_config = try_load_config!(self.configs.eth);
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             self.genesis_config.clone(),
             state_keeper_config,
-            load_config!(eth_sender_config.sender).pubdata_sending_mode,
+            try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
     }
 
     fn add_object_store_layer(mut self) -> anyhow::Result<Self> {
-        let object_store_config = load_config!(self.configs.prover_config)
+        let object_store_config = try_load_config!(self.configs.prover_config)
             .object_store
             .context("object_store_config")?;
         self.node
@@ -157,15 +157,16 @@ impl MainNodeBuilder {
     }
 
     fn add_metadata_calculator_layer(mut self, with_tree_api: bool) -> anyhow::Result<Self> {
-        let merkle_tree_env_config = load_config!(self.configs.db_config).merkle_tree;
-        let operations_manager_env_config = load_config!(self.configs.operations_manager_config);
+        let merkle_tree_env_config = try_load_config!(self.configs.db_config).merkle_tree;
+        let operations_manager_env_config =
+            try_load_config!(self.configs.operations_manager_config);
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
         );
         let mut layer = MetadataCalculatorLayer::new(metadata_calculator_config);
         if with_tree_api {
-            let merkle_tree_api_config = load_config!(self.configs.api_config).merkle_tree;
+            let merkle_tree_api_config = try_load_config!(self.configs.api_config).merkle_tree;
             layer = layer.with_tree_api_config(merkle_tree_api_config);
         }
         self.node.add_layer(layer);
@@ -174,15 +175,15 @@ impl MainNodeBuilder {
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
         let wallets = self.wallets.clone();
-        let sk_config = load_config!(self.configs.state_keeper_config);
+        let sk_config = try_load_config!(self.configs.state_keeper_config);
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
             self.contracts_config.clone(),
             sk_config.clone(),
-            load_config!(self.configs.mempool_config),
-            load_config!(wallets.state_keeper),
+            try_load_config!(self.configs.mempool_config),
+            try_load_config!(wallets.state_keeper),
         );
-        let db_config = load_config!(self.configs.db_config);
+        let db_config = try_load_config!(self.configs.db_config);
         let main_node_batch_executor_builder_layer = MainBatchExecutorLayer::new(sk_config);
         let state_keeper_layer = StateKeeperLayer::new(db_config);
         self.node
@@ -193,9 +194,9 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
-        let eth_config = load_config!(self.configs.eth);
+        let eth_config = try_load_config!(self.configs.eth);
         self.node.add_layer(EthWatchLayer::new(
-            load_config!(eth_config.watcher),
+            try_load_config!(eth_config.watcher),
             self.contracts_config.clone(),
         ));
         Ok(self)
@@ -203,21 +204,21 @@ impl MainNodeBuilder {
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(ProofDataHandlerLayer::new(
-            load_config!(self.configs.proof_data_handler_config),
+            try_load_config!(self.configs.proof_data_handler_config),
             self.genesis_config.l1_batch_commit_data_generator_mode,
         ));
         Ok(self)
     }
 
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
-        let healthcheck_config = load_config!(self.configs.api_config).healthcheck;
+        let healthcheck_config = try_load_config!(self.configs.api_config).healthcheck;
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
         Ok(self)
     }
 
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
-        let sk_config = load_config!(self.configs.state_keeper_config);
-        let rpc_config = load_config!(self.configs.api_config).web3_json_rpc;
+        let sk_config = try_load_config!(self.configs.state_keeper_config);
+        let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
@@ -230,7 +231,7 @@ impl MainNodeBuilder {
             TxSenderConfig::new(
                 &sk_config,
                 &rpc_config,
-                load_config!(self.wallets.state_keeper)
+                try_load_config!(self.wallets.state_keeper)
                     .fee_account
                     .address(),
                 self.genesis_config.l2_chain_id,
@@ -243,7 +244,7 @@ impl MainNodeBuilder {
     }
 
     fn add_api_caches_layer(mut self) -> anyhow::Result<Self> {
-        let rpc_config = load_config!(self.configs.api_config).web3_json_rpc;
+        let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
         self.node.add_layer(MempoolCacheLayer::new(
             rpc_config.mempool_cache_size(),
             rpc_config.mempool_cache_update_interval(),
@@ -252,15 +253,15 @@ impl MainNodeBuilder {
     }
 
     fn add_tree_api_client_layer(mut self) -> anyhow::Result<Self> {
-        let rpc_config = load_config!(self.configs.api_config).web3_json_rpc;
+        let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
         self.node
             .add_layer(TreeApiClientLayer::http(rpc_config.tree_api_url));
         Ok(self)
     }
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        let rpc_config = load_config!(self.configs.api_config).web3_json_rpc;
-        let state_keeper_config = load_config!(self.configs.state_keeper_config);
+        let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
+        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
         let mut namespaces = Namespace::DEFAULT.to_vec();
@@ -287,9 +288,9 @@ impl MainNodeBuilder {
     }
 
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        let rpc_config = load_config!(self.configs.api_config).web3_json_rpc;
-        let state_keeper_config = load_config!(self.configs.state_keeper_config);
-        let circuit_breaker_config = load_config!(self.configs.circuit_breaker_config);
+        let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
+        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
+        let circuit_breaker_config = try_load_config!(self.configs.circuit_breaker_config);
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
         let mut namespaces = Namespace::DEFAULT.to_vec();
@@ -319,7 +320,7 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_tx_manager_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = load_config!(self.configs.eth);
+        let eth_sender_config = try_load_config!(self.configs.eth);
 
         self.node
             .add_layer(EthTxManagerLayer::new(eth_sender_config));
@@ -328,7 +329,7 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = load_config!(self.configs.eth);
+        let eth_sender_config = try_load_config!(self.configs.eth);
 
         self.node.add_layer(EthTxAggregatorLayer::new(
             eth_sender_config,
@@ -341,11 +342,11 @@ impl MainNodeBuilder {
     }
 
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
-        let house_keeper_config = load_config!(self.configs.house_keeper_config);
-        let fri_prover_config = load_config!(self.configs.prover_config);
-        let fri_witness_generator_config = load_config!(self.configs.witness_generator);
-        let fri_prover_group_config = load_config!(self.configs.prover_group_config);
-        let fri_proof_compressor_config = load_config!(self.configs.proof_compressor_config);
+        let house_keeper_config = try_load_config!(self.configs.house_keeper_config);
+        let fri_prover_config = try_load_config!(self.configs.prover_config);
+        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator);
+        let fri_prover_group_config = try_load_config!(self.configs.prover_group_config);
+        let fri_proof_compressor_config = try_load_config!(self.configs.proof_compressor_config);
 
         self.node.add_layer(HouseKeeperLayer::new(
             house_keeper_config,
@@ -367,7 +368,7 @@ impl MainNodeBuilder {
     }
 
     fn add_circuit_breaker_checker_layer(mut self) -> anyhow::Result<Self> {
-        let circuit_breaker_config = load_config!(self.configs.circuit_breaker_config);
+        let circuit_breaker_config = try_load_config!(self.configs.circuit_breaker_config);
         self.node
             .add_layer(CircuitBreakerCheckerLayer(circuit_breaker_config));
 
@@ -375,7 +376,7 @@ impl MainNodeBuilder {
     }
 
     fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
-        let config = load_config!(self.configs.contract_verifier);
+        let config = try_load_config!(self.configs.contract_verifier);
         self.node.add_layer(ContractVerificationApiLayer(config));
         Ok(self)
     }
