@@ -30,7 +30,6 @@ sudo systemctl start docker
 
 # Foundry
 curl -L https://foundry.paradigm.xyz | bash
-rustup update stable
 foundryup --branch master
 ```
 
