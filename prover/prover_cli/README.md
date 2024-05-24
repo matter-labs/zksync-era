@@ -163,12 +163,14 @@ TODO
 
 ### `prover_cli debug-proof`
 
-Debug proof is an advanced feature that can be used to debug failing circuit proofs.
-It will re-run the proving circuit for a given proof file - and print detailed debug logs.
+Debug proof is an advanced feature that can be used to debug failing circuit proofs. It will re-run the proving circuit
+for a given proof file - and print detailed debug logs.
 
-**WARNING** - it does require compilation with `--release --features verbose_circuits` enabled (which includes all the necessary dependencies).
+**WARNING** - it does require compilation with `--release --features verbose_circuits` enabled (which includes all the
+necessary dependencies).
 
 Example output
+
 ```
 cargo run --release --features verbose_circuits -- debug-proof --file ~/prover_jobs_23_05.bin
 
@@ -188,7 +190,6 @@ assertion `left == right` failed
  right: 4096
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
-
 
 ## Development Status
 
