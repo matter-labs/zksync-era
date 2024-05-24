@@ -138,7 +138,7 @@ where
             RecoveryKind::Random => recovery.extend_random(chunk.to_vec()),
         }
         if i % 3 == 1 {
-            recovery.wait_sync(); // need this to ensure that the old persistence thread doesn't corrupt DB
+            recovery.wait_for_persistence(); // need this to ensure that the old persistence thread doesn't corrupt DB
             recovery = MerkleTreeRecovery::new(db.clone(), recovered_version);
             recovery.parallelize_persistence(4);
             // ^ Simulate recovery interruption and restart.

@@ -264,12 +264,15 @@ impl AsyncTreeRecovery {
         });
         future::try_join_all(chunk_tasks).await?;
 
+        let mut tree = tree.into_inner();
         if *stop_receiver.borrow() {
+            // Waiting for persistence is mostly useful for tests. Normally, the tree database won't be used in the same process
+            // after a stop signal is received, so there's no risk of data races with the background persistence thread.
+            tree.wait_for_persistence().await?;
             return Ok(None);
         }
 
         let finalize_latency = RECOVERY_METRICS.latency[&RecoveryStage::Finalize].start();
-        let mut tree = tree.into_inner();
         let actual_root_hash = tree.root_hash().await;
         anyhow::ensure!(
             actual_root_hash == snapshot.expected_root_hash,

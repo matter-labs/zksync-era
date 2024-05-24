@@ -26,7 +26,7 @@ struct PersistenceCommand {
 }
 
 /// Database implementation that persists changes in a background thread. Not yet applied changes
-/// are queued up and are used in `Database` getters. A queue can sometimes be stale (i.e., changes
+/// are queued up and are used in `Database` methods. A queue can sometimes be stale (i.e., changes
 /// at its head may have been applied), but this is fine as long as changes are applied atomically and sequentially.
 ///
 /// # Assumptions

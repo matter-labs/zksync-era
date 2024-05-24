@@ -379,8 +379,12 @@ impl AsyncTreeRecovery {
         "`AsyncTreeRecovery` is in inconsistent state, which could occur after one of its async methods was cancelled";
 
     pub fn new(db: RocksDBWrapper, recovered_version: u64, mode: MerkleTreeMode) -> Self {
+        const PERSISTENCE_BUFFER_CAPACITY: usize = 4;
+
+        let mut recovery = MerkleTreeRecovery::new(db, recovered_version);
+        recovery.parallelize_persistence(PERSISTENCE_BUFFER_CAPACITY);
         Self {
-            inner: Some(MerkleTreeRecovery::new(db, recovered_version)),
+            inner: Some(recovery),
             mode,
         }
     }
@@ -423,6 +427,20 @@ impl AsyncTreeRecovery {
         .unwrap();
 
         self.inner = Some(tree);
+    }
+
+    /// Waits until all pending chunks are persisted.
+    pub async fn wait_for_persistence(&mut self) -> anyhow::Result<()> {
+        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+        let tree = tokio::task::spawn_blocking(move || {
+            tree.wait_for_persistence();
+            tree
+        })
+        .await
+        .context("panicked while waiting for pending recovery chunks to be persisted")?;
+
+        self.inner = Some(tree);
+        Ok(())
     }
 
     pub async fn finalize(self) -> AsyncTree {

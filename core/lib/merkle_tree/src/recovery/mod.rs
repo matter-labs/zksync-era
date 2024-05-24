@@ -242,8 +242,14 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
 }
 
 impl<DB: 'static + Clone + PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
-    /// Parallelizes database persistence, so that it can run at the same time as processing of the following chunks,
-    /// by running persistence in a background thread. Chunks are still guaranteed to be persisted in order.
+    /// Offloads database persistence to a background thread, so that it can run at the same time as processing of the following chunks.
+    /// Chunks are still guaranteed to be persisted atomically and in order.
+    ///
+    /// # Arguments
+    ///
+    /// - `buffer_capacity` determines how many chunks can be buffered before persistence blocks (i.e., back-pressure).
+    ///   Also controls memory usage, since each chunk translates into a non-trivial database patch (order of 1 kB / entry;
+    ///   i.e., a chunk with 200,000 entries would translate to a 200 MB patch).
     ///
     /// # Safety
     ///
@@ -251,11 +257,14 @@ impl<DB: 'static + Clone + PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H>
     /// and will need to be processed again. It is **unsound** to restart recovery while a persistence thread may be active;
     /// this may lead to a corrupted database state.
     pub fn parallelize_persistence(&mut self, buffer_capacity: usize) {
+        assert!(buffer_capacity > 0, "Buffer capacity must be positive");
         self.db.parallelize(self.recovered_version, buffer_capacity);
     }
 
-    /// Waits until the underlying database is synchronized, i.e. all chunks are flushed into it.
-    pub fn wait_sync(&mut self) {
+    /// Waits until all changes in the underlying database are persisted, i.e. all chunks are flushed into it.
+    /// This is only relevant if [persistence was parallelized](Self::parallelize_persistence()) earlier;
+    /// otherwise, this method will return immediately.
+    pub fn wait_for_persistence(&mut self) {
         self.db.wait_sync();
     }
 }
