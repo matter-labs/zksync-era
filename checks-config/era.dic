@@ -961,6 +961,7 @@ vec
 zksync_merkle_tree
 TreeMetadata
 delegator
+decrement
 Bbellman
 Sbellman
 DCMAKE
