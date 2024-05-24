@@ -77,6 +77,10 @@ impl DataAvailabilityDispatcher {
                 .last_known_l1_batch
                 .set(batch.l1_batch_number.0 as usize);
             METRICS.blob_size.observe(batch.pubdata.len());
+            tracing::info!(
+                "Dispatched a DA for batch_number: {}",
+                batch.l1_batch_number
+            );
         }
 
         Ok(())
@@ -108,6 +112,11 @@ impl DataAvailabilityDispatcher {
                 METRICS.inclusion_latency.observe(Duration::from_secs(
                     (Utc::now().timestamp() - storage_da.created_at.timestamp()) as u64,
                 ));
+
+                tracing::info!(
+                    "Received an inclusion data for a batch_number: {}",
+                    storage_da.l1_batch_number
+                );
             }
         }
 
