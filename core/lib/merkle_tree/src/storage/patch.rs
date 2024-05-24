@@ -3,7 +3,6 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
-    sync::Arc,
     time::Instant,
 };
 
@@ -22,7 +21,7 @@ use crate::{
 
 /// Subset of a [`PatchSet`] corresponding to a specific version. All nodes in the subset
 /// have the same version.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(super) struct PartialPatchSet {
     pub root: Option<Root>,
     // TODO (BFT-130): investigate most efficient ways to store key-value pairs:
@@ -42,13 +41,6 @@ impl PartialPatchSet {
     pub fn merge(&mut self, other: Self) {
         self.root = other.root;
         self.nodes.extend(other.nodes);
-    }
-
-    pub fn cloned(self: &Arc<Self>) -> Self {
-        Self {
-            root: self.root.clone(),
-            nodes: self.nodes.clone(),
-        }
     }
 }
 

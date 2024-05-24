@@ -1,12 +1,10 @@
 //! Parallel storage implementation.
 
-#![allow(missing_docs, clippy::missing_panics_doc)]
-
 use std::{
     any::Any,
     collections::{HashMap, VecDeque},
     mem,
-    sync::{mpsc, Arc},
+    sync::{mpsc, Arc, Weak},
     thread,
     time::Duration,
 };
@@ -21,7 +19,7 @@ use crate::{
 #[derive(Debug, Clone)]
 struct PersistenceCommand {
     manifest: Manifest,
-    patch: Arc<PartialPatchSet>,
+    patch: PartialPatchSet,
     stale_keys: Vec<NodeKey>,
 }
 
@@ -38,9 +36,10 @@ struct PersistenceCommand {
 pub(crate) struct ParallelDatabase<DB> {
     inner: DB,
     updated_version: u64,
-    command_sender: mpsc::SyncSender<PersistenceCommand>,
+    command_sender: mpsc::SyncSender<Arc<PersistenceCommand>>,
     persistence_handle: Option<thread::JoinHandle<()>>,
-    commands: VecDeque<PersistenceCommand>,
+    // Weak references to the sent persistence commands. We garbage-collect persisted refs in `apply_patch()`.
+    commands: VecDeque<Weak<PersistenceCommand>>,
 }
 
 impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
@@ -62,21 +61,24 @@ impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
     fn run_persistence(
         mut database: DB,
         updated_version: u64,
-        command_receiver: mpsc::Receiver<PersistenceCommand>,
+        command_receiver: mpsc::Receiver<Arc<PersistenceCommand>>,
     ) {
         let mut persisted_count = 0;
         while let Ok(command) = command_receiver.recv() {
+            let command: PersistenceCommand = (*command).clone();
             tracing::debug!("Persisting patch #{persisted_count}");
             // Reconstitute a `PatchSet` and apply it to the underlying database.
             let patch = PatchSet {
                 manifest: command.manifest,
-                patches_by_version: HashMap::from([(updated_version, command.patch.cloned())]),
+                patches_by_version: HashMap::from([(updated_version, command.patch)]),
                 updated_version: Some(updated_version),
                 stale_keys_by_version: HashMap::from([(updated_version, command.stale_keys)]),
             };
             database.apply_patch(patch);
             tracing::debug!("Persisted patch #{persisted_count}");
             persisted_count += 1;
+            // An `Arc<PersistenceCommand>` must be dropped only after the command is applied. Otherwise,
+            // `Database` methods may see a state in which neither commands nor the underlying database contain the applied patch set.
         }
         drop(command_receiver);
     }
@@ -86,7 +88,7 @@ impl<DB: Database> ParallelDatabase<DB> {
     fn wait_sync(&mut self) {
         while !self.commands.is_empty() {
             self.commands
-                .retain(|command| Arc::strong_count(&command.patch) > 1);
+                .retain(|command| Weak::strong_count(command) > 0);
             thread::sleep(Duration::from_millis(50)); // TODO: more intelligent approach
         }
 
@@ -116,7 +118,7 @@ impl<DB: Database> ParallelDatabase<DB> {
 
 impl<DB: Database> Database for ParallelDatabase<DB> {
     fn try_manifest(&self) -> Result<Option<Manifest>, DeserializeError> {
-        let latest_command = self.commands.iter().next_back();
+        let latest_command = self.commands.iter().next_back().and_then(Weak::upgrade);
         if let Some(command) = latest_command {
             Ok(Some(command.manifest.clone()))
         } else {
@@ -132,7 +134,7 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             .commands
             .iter()
             .rev()
-            .find_map(|command| command.patch.root.clone());
+            .find_map(|command| command.upgrade()?.patch.root.clone());
         if let Some(root) = root {
             Ok(Some(root))
         } else {
@@ -152,10 +154,10 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             .commands
             .iter()
             .rev()
-            .find_map(|command| command.patch.nodes.get(key));
+            .find_map(|command| command.upgrade()?.patch.nodes.get(key).cloned());
         if let Some(node) = node {
             debug_assert_eq!(matches!(node, Node::Leaf(_)), is_leaf);
-            Ok(Some(node.clone()))
+            Ok(Some(node))
         } else {
             self.inner.try_tree_node(key, is_leaf)
         }
@@ -164,6 +166,9 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
     fn tree_nodes(&self, keys: &NodeKeys) -> Vec<Option<Node>> {
         let mut nodes = vec![None; keys.len()];
         for command in self.commands.iter().rev() {
+            let Some(command) = command.upgrade() else {
+                continue;
+            };
             for (key_idx, (key, is_leaf)) in keys.iter().enumerate() {
                 if nodes[key_idx].is_some() {
                     continue;
@@ -209,8 +214,11 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             // Garbage-collect patches already applied by the persistence thread. This will remove all patches
             // if the persistence thread has panicked, but this is OK because we'll panic below anyway.
             self.commands
-                .retain(|command| Arc::strong_count(&command.patch) > 1);
-            tracing::debug!("Retained commands: {}", self.commands.len());
+                .retain(|command| Weak::strong_count(command) > 0);
+            tracing::debug!(
+                "Retained {} buffered persistence command(s)",
+                self.commands.len()
+            );
 
             patch
                 .patches_by_version
@@ -232,29 +240,31 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             .remove(&self.updated_version)
             .unwrap_or_default();
 
-        let command = PersistenceCommand {
+        let command = Arc::new(PersistenceCommand {
             manifest: patch.manifest,
-            patch: Arc::new(partial_patch),
+            patch: partial_patch,
             stale_keys,
-        };
-        if self.command_sender.send(command.clone()).is_err() {
+        });
+        let weak_command = Arc::downgrade(&command);
+        if self.command_sender.send(command).is_err() {
             mem::take(&mut self.persistence_handle)
                 .expect("Persistence thread previously panicked")
                 .join()
                 .expect("Persistence thread panicked");
             unreachable!("Persistence thread never exits when `ParallelDatabase` is alive");
         }
-        self.commands.push_back(command);
+        self.commands.push_back(weak_command);
     }
 }
 
 impl<DB: PruneDatabase> PruneDatabase for ParallelDatabase<DB> {
     fn min_stale_key_version(&self) -> Option<u64> {
-        if self
-            .commands
-            .iter()
-            .any(|command| command.stale_keys.is_empty())
-        {
+        let commands_have_stale_keys = self.commands.iter().any(|command| {
+            command
+                .upgrade()
+                .map_or(false, |command| command.stale_keys.is_empty())
+        });
+        if commands_have_stale_keys {
             return Some(self.updated_version);
         }
         self.inner.min_stale_key_version()
@@ -266,7 +276,12 @@ impl<DB: PruneDatabase> PruneDatabase for ParallelDatabase<DB> {
         }
         self.commands
             .iter()
-            .flat_map(|command| command.stale_keys.clone())
+            .flat_map(|command| {
+                command
+                    .upgrade()
+                    .map(|command| command.stale_keys.clone())
+                    .unwrap_or_default()
+            })
             .chain(self.inner.stale_keys(version))
             .collect()
     }

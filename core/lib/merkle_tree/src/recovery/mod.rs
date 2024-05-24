@@ -256,6 +256,10 @@ impl<DB: 'static + Clone + PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H>
     /// If recovery is interrupted (e.g., its process crashes), then some of the latest chunks may not be persisted,
     /// and will need to be processed again. It is **unsound** to restart recovery while a persistence thread may be active;
     /// this may lead to a corrupted database state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `buffer_capacity` is 0.
     pub fn parallelize_persistence(&mut self, buffer_capacity: usize) {
         assert!(buffer_capacity > 0, "Buffer capacity must be positive");
         self.db.parallelize(self.recovered_version, buffer_capacity);
