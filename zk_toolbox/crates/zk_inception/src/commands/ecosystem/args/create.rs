@@ -22,6 +22,7 @@ pub struct EcosystemCreateArgs {
     pub l1_network: Option<L1Network>,
     #[clap(long, help = "L1 RPC URL")]
     pub l1_rpc_url: Option<String>,
+    /// The code path is related to the created chain directory.
     #[clap(long, help = "Code link")]
     pub link_to_code: Option<String>,
     #[clap(flatten)]
@@ -46,7 +47,7 @@ impl EcosystemCreateArgs {
             .ask();
             match link_to_code_selection {
                 LinkToCodeSelection::Clone => "".to_string(),
-                LinkToCodeSelection::Path => Prompt::new("Where's the code located?").ask(),
+                LinkToCodeSelection::Path => Prompt::new("Where's the code located? (The code path is related to the created chain directory.)").ask(),
             }
         });
 

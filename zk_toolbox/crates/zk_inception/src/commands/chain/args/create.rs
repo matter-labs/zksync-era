@@ -23,6 +23,7 @@ pub struct ChainCreateArgs {
     pub prover_mode: Option<ProverMode>,
     #[clap(long, help = "Wallet option", value_enum)]
     pub wallet_creation: Option<WalletCreation>,
+    /// The wallet path is related to the created chain directory.
     #[clap(long, help = "Wallet path")]
     pub wallet_path: Option<PathBuf>,
     #[clap(long, help = "Commit data generation mode")]
@@ -67,7 +68,7 @@ impl ChainCreateArgs {
 
         let wallet_path: Option<PathBuf> = if self.wallet_creation == Some(WalletCreation::InFile) {
             Some(self.wallet_path.unwrap_or_else(|| {
-                Prompt::new("What is the wallet path?")
+                Prompt::new("What is the wallet path? (The wallet path is related to the created chain directory.)")
                     .validate_with(|val: &String| {
                         PathBuf::from_str(val)
                             .map(|_| ())
