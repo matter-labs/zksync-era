@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use zksync_config::DBConfig;
+use zksync_state::{AsyncCatchupTask, ReadStorageFactory, RocksdbStorageOptions};
 use zksync_state_keeper::{
-    seal_criteria::ConditionalSealer, BatchExecutor, OutputHandler, StateKeeperIO,
-    ZkSyncStateKeeper,
+    seal_criteria::ConditionalSealer, AsyncRocksdbCache, BatchExecutor, OutputHandler,
+    StateKeeperIO, ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
 
@@ -11,9 +13,12 @@ pub mod main_batch_executor;
 pub mod mempool_io;
 
 use crate::{
-    implementations::resources::state_keeper::{
-        BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource,
-        StateKeeperIOResource,
+    implementations::resources::{
+        pools::{MasterPool, PoolResource},
+        state_keeper::{
+            BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource,
+            StateKeeperIOResource,
+        },
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -26,7 +31,15 @@ use crate::{
 /// - `ConditionalSealerResource`
 ///
 #[derive(Debug)]
-pub struct StateKeeperLayer;
+pub struct StateKeeperLayer {
+    db_config: DBConfig,
+}
+
+impl StateKeeperLayer {
+    pub fn new(db_config: DBConfig) -> Self {
+        Self { db_config }
+    }
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for StateKeeperLayer {
@@ -54,12 +67,28 @@ impl WiringLayer for StateKeeperLayer {
             .take()
             .context("HandleStateKeeperOutput was provided but taken by another task")?;
         let sealer = context.get_resource::<ConditionalSealerResource>().await?.0;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
+
+        let cache_options = RocksdbStorageOptions {
+            block_cache_capacity: self
+                .db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity(),
+            max_open_files: self.db_config.experimental.state_keeper_db_max_open_files,
+        };
+        let (storage_factory, task) = AsyncRocksdbCache::new(
+            master_pool.get_singleton().await?,
+            self.db_config.state_keeper_db_path,
+            cache_options,
+        );
+        context.add_task(Box::new(RocksdbCatchupTask(task)));
 
         context.add_task(Box::new(StateKeeperTask {
             io,
             batch_executor_base,
             output_handler,
             sealer,
+            storage_factory: Arc::new(storage_factory),
         }));
         Ok(())
     }
@@ -71,6 +100,7 @@ struct StateKeeperTask {
     batch_executor_base: Box<dyn BatchExecutor>,
     output_handler: OutputHandler,
     sealer: Arc<dyn ConditionalSealer>,
+    storage_factory: Arc<dyn ReadStorageFactory>,
 }
 
 #[async_trait::async_trait]
@@ -86,6 +116,7 @@ impl Task for StateKeeperTask {
             self.batch_executor_base,
             self.output_handler,
             self.sealer,
+            self.storage_factory,
         );
         let result = state_keeper.run().await;
 
@@ -95,5 +126,21 @@ impl Task for StateKeeperTask {
             .unwrap();
 
         result
+    }
+}
+
+#[derive(Debug)]
+struct RocksdbCatchupTask(AsyncCatchupTask);
+
+#[async_trait::async_trait]
+impl Task for RocksdbCatchupTask {
+    fn name(&self) -> &'static str {
+        "state_keeper/rocksdb_catchup_task"
+    }
+
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.0.run(stop_receiver.0.clone()).await?;
+        stop_receiver.0.changed().await?;
+        Ok(())
     }
 }

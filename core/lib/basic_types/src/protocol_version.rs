@@ -202,6 +202,12 @@ impl Default for ProtocolVersionId {
     }
 }
 
+impl fmt::Display for ProtocolVersionId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", *self as u16)
+    }
+}
+
 impl TryFrom<U256> for ProtocolVersionId {
     type Error = String;
 

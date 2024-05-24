@@ -44,7 +44,7 @@ filesystem, or Google Cloud Storage (GCS). Beware that for end-to-end testing of
 the main node configuration must be reflected in the external node configuration.
 
 Creating a snapshot is a part of the [snapshot recovery integration test]. You can run the test using
-`yarn snapshot-recovery-test snapshot-recovery-test`. It requires the main node to be launched with a command like
+`yarn recovery-test snapshot-recovery-test`. It requires the main node to be launched with a command like
 `zk server --components api,tree,eth,state_keeper,commitment_generator`.
 
 ## Snapshots format
@@ -66,4 +66,4 @@ Each snapshot consists of three types of data (see [`snapshots.rs`] for exact de
 
 [`snapshots.rs`]: ../../lib/types/src/snapshots.rs
 [object store]: ../../lib/object_store
-[snapshot recovery integration test]: ../../tests/snapshot-recovery-test/tests/snapshot-recovery.test.ts
+[snapshot recovery integration test]: ../../tests/recovery-test/tests/snapshot-recovery.test.ts

@@ -63,15 +63,6 @@ proptest! {
 
 }
 
-// Test `get_base_path` method
-#[test]
-fn test_get_base_path() {
-    let keystore = Keystore::default();
-
-    let base_path = keystore.get_base_path();
-    assert!(!base_path.is_empty(), "Base path should not be empty");
-}
-
 // Test `ProverServiceDataKey::new` method
 #[test]
 fn test_proverservicedatakey_new() {

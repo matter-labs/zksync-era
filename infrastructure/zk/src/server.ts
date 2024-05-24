@@ -6,12 +6,12 @@ import * as path from 'path';
 import * as db from './database';
 import * as env from './env';
 
-export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
+export async function server(rebuildTree: boolean, uring: boolean, components?: string, useNodeFramework?: boolean) {
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
     }
-    if (rebuildTree || components) {
+    if (rebuildTree || components || useNodeFramework) {
         options += ' --';
     }
     if (rebuildTree) {
@@ -20,6 +20,9 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     }
     if (components) {
         options += ` --components=${components}`;
+    }
+    if (useNodeFramework) {
+        options += ' --use-node-framework';
     }
     await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
@@ -79,12 +82,13 @@ export const serverCommand = new Command('server')
     .option('--uring', 'enables uring support for RocksDB')
     .option('--components <components>', 'comma-separated list of components to run')
     .option('--chain-name <chain-name>', 'environment name')
+    .option('--use-node-framework', 'use node framework for server')
     .action(async (cmd: Command) => {
         cmd.chainName ? env.reload(cmd.chainName) : env.load();
         if (cmd.genesis) {
             await genesisFromSources();
         } else {
-            await server(cmd.rebuildTree, cmd.uring, cmd.components);
+            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.useNodeFramework);
         }
     });
 
