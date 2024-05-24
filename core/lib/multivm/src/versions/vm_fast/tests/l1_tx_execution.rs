@@ -147,8 +147,8 @@ fn test_l1_tx_execution() {
     assert!(result.result.is_failed(), "The transaction should fail");
 
     let res = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
-    // There are only basic initial writes
-    assert_eq!(res.initial_storage_writes, basic_initial_writes + 1);
+    assert_eq!(res.initial_storage_writes, basic_initial_writes);
+    assert_eq!(res.repeated_storage_writes, 1);
 }
 
 #[test]

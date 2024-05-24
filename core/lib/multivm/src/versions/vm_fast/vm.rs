@@ -1,7 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use vm2::{
-    decode::decode_program, fat_pointer::FatPointer, ExecutionEnd, HeapId, Program, Settings,
+    decode::decode_program, fat_pointer::FatPointer, ExecutionEnd, Program, Settings,
     VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
@@ -387,9 +387,9 @@ impl<S: ReadStorage> Vm<S> {
 
         self.inner
             .world_diff
-            .get_storage_state()
+            .get_storage_changes()
             .iter()
-            .map(|(&(address, key), value)| {
+            .map(|(&(address, key), &(_, initial_value, final_value))| {
                 let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
                 StateDiffRecord {
                     address,
@@ -401,8 +401,8 @@ impl<S: ReadStorage> Vm<S> {
                     enumeration_index: storage
                         .get_enumeration_index(&storage_key)
                         .unwrap_or_default(),
-                    initial_value: storage.read_value(&storage_key).as_bytes().into(),
-                    final_value: value.1,
+                    initial_value: initial_value.unwrap_or_default(),
+                    final_value,
                 }
             })
             .collect()
@@ -519,27 +519,14 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .world_diff
                     .get_storage_changes_after(&start)
                     .into_iter()
-                    .map(|((address, key), (old, new))| {
-                        let is_initial =
-                            self.world
-                                .storage
-                                .borrow_mut()
-                                .is_write_initial(&StorageKey::new(
-                                    AccountTreeId::new(address),
-                                    u256_to_h256(key),
-                                ));
-                        let old = old.unwrap_or((
-                            0,
-                            h256_to_u256(self.world.storage.borrow_mut().read_value(
-                                &StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                            )),
-                        ));
-                        let tx_number_in_batch = new.0;
-                        let change = new;
+                    .map(|((address, key), change)| {
                         storage_log_query_from_change(
-                            tx_number_in_batch,
-                            ((address, key), (old.1, new.1)),
-                            is_initial,
+                            change.tx_number,
+                            (
+                                (address, key),
+                                (change.before.unwrap_or_default(), change.after),
+                            ),
+                            change.is_initial,
                         )
                     })
                     .collect(),
@@ -619,17 +606,10 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
             deduplicated_storage_log_queries: self
                 .inner
                 .world_diff
-                .get_storage_state()
+                .get_storage_changes()
                 .iter()
-                .map(|(&a, &b)| (a, b))
-                .filter_map(|((address, key), new_value)| {
-                    let initial_value = h256_to_u256(self.world.storage.borrow_mut().read_value(
-                        &StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                    ));
-                    (initial_value != new_value.1).then_some(log_query_from_change(
-                        new_value.0,
-                        ((address, key), (initial_value, new_value.1)),
-                    ))
+                .map(|(&key, &(tx_number, before, after))| {
+                    log_query_from_change(tx_number, (key, (before.unwrap_or_default(), after)))
                 })
                 .collect(),
             used_contract_hashes: vec![],
@@ -786,27 +766,23 @@ impl<S: ReadStorage> vm2::World for World<S> {
             .clone()
     }
 
-    fn read_storage(&mut self, contract: zksync_types::H160, key: U256) -> U256 {
-        self.storage
-            .borrow_mut()
-            .read_value(&StorageKey::new(
-                AccountTreeId::new(contract),
-                u256_to_h256(key),
-            ))
-            .as_bytes()
-            .into()
+    fn read_storage(&mut self, contract: zksync_types::H160, key: U256) -> Option<U256> {
+        let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
+        let mut storage = self.storage.borrow_mut();
+        if storage.is_write_initial(key) {
+            None
+        } else {
+            Some(storage.read_value(key).as_bytes().into())
+        }
     }
 
-    fn cost_of_writing_storage(&mut self, contract: H160, key: U256, new_value: U256) -> u32 {
-        let storage_key = StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
-
-        let initial_value = h256_to_u256(self.storage.borrow_mut().read_value(&storage_key));
+    fn cost_of_writing_storage(&mut self, initial_value: Option<U256>, new_value: U256) -> u32 {
+        let is_initial = initial_value.is_none();
+        let initial_value = initial_value.unwrap_or_default();
 
         if initial_value == new_value {
             return 0;
         }
-
-        let is_initial = self.storage.borrow_mut().is_write_initial(&storage_key);
 
         // Since we need to publish the state diffs onchain, for each of the updated storage slot
         // we basically need to publish the following pair: `(<storage_key, compressed_new_value>)`.
