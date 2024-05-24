@@ -1,11 +1,12 @@
 use cliclack::Confirm;
+use std::fmt::Display;
 
 pub struct PromptConfirm {
     inner: Confirm,
 }
 
 impl PromptConfirm {
-    pub fn new(question: &str) -> Self {
+    pub fn new(question: impl Display) -> Self {
         Self {
             inner: Confirm::new(question),
         }
