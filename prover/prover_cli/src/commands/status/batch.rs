@@ -16,8 +16,11 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-use super::utils::{BatchData, StageInfo, Status};
-use crate::cli::ProverCLIConfig;
+use super::utils::{get_prover_job_status, BatchData, StageInfo, Status};
+use crate::{
+    cli::ProverCLIConfig,
+    commands::status::utils::{get_prover_jobs_status_from_vec, get_witness_generator_job_status},
+};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -189,25 +192,19 @@ fn display_batch_status(batch_data: BatchData) {
 }
 
 fn display_status_for_stage(stage_info: StageInfo) {
+    let max_attempts: u32 = 10;
     display_aggregation_round(&stage_info);
-    match stage_info.witness_generator_jobs_status() {
+    let status = stage_info.witness_generator_jobs_status(max_attempts);
+    match status {
         Status::Custom(msg) => {
             println!("{}: {} \n", stage_info.to_string().bold(), msg);
         }
         Status::Queued | Status::WaitingForProofs | Status::Stuck | Status::JobsNotFound => {
-            println!(
-                "{}: {}",
-                stage_info.to_string().bold(),
-                stage_info.witness_generator_jobs_status()
-            )
+            println!("{}: {}", stage_info.to_string().bold(), status)
         }
         Status::InProgress | Status::Successful => {
-            println!(
-                "{}: {}",
-                stage_info.to_string().bold(),
-                stage_info.witness_generator_jobs_status()
-            );
-            if let Some(job_status) = stage_info.prover_jobs_status() {
+            println!("{}: {}", stage_info.to_string().bold(), status);
+            if let Some(job_status) = stage_info.prover_jobs_status(max_attempts) {
                 println!("> {}: {}", "Prover Jobs".to_owned().bold(), job_status);
             }
         }
@@ -224,53 +221,49 @@ fn display_batch_info(batch_data: BatchData) {
 }
 
 fn display_info_for_stage(stage_info: StageInfo) {
+    let max_attempts: u32 = 10;
     display_aggregation_round(&stage_info);
-    match stage_info.witness_generator_jobs_status() {
+    let status = stage_info.witness_generator_jobs_status(max_attempts);
+    match status {
         Status::Custom(msg) => {
             println!("{}: {}", stage_info.to_string().bold(), msg);
         }
-        Status::Queued | Status::WaitingForProofs | Status::Stuck | Status::JobsNotFound => {
-            println!(
-                " > {}: {}",
-                stage_info.to_string().bold(),
-                stage_info.witness_generator_jobs_status()
-            )
+        Status::Queued | Status::WaitingForProofs | Status::JobsNotFound => {
+            println!(" > {}: {}", stage_info.to_string().bold(), status)
         }
-        Status::InProgress => {
-            println!(
-                "v {}: {}",
-                stage_info.to_string().bold(),
-                stage_info.witness_generator_jobs_status()
-            );
+        Status::InProgress | Status::Stuck => {
+            println!("v {}: {}", stage_info.to_string().bold(), status);
             match stage_info {
                 StageInfo::BasicWitnessGenerator {
                     prover_jobs_info, ..
                 } => {
-                    display_prover_jobs_info(prover_jobs_info);
+                    display_prover_jobs_info(prover_jobs_info, max_attempts);
                 }
                 StageInfo::LeafWitnessGenerator {
                     witness_generator_jobs_info,
                     prover_jobs_info,
                 } => {
-                    display_leaf_witness_generator_jobs_info(witness_generator_jobs_info);
-                    display_prover_jobs_info(prover_jobs_info);
+                    display_leaf_witness_generator_jobs_info(
+                        witness_generator_jobs_info,
+                        max_attempts,
+                    );
+                    display_prover_jobs_info(prover_jobs_info, max_attempts);
                 }
                 StageInfo::NodeWitnessGenerator {
                     witness_generator_jobs_info,
                     prover_jobs_info,
                 } => {
-                    display_node_witness_generator_jobs_info(witness_generator_jobs_info);
-                    display_prover_jobs_info(prover_jobs_info);
+                    display_node_witness_generator_jobs_info(
+                        witness_generator_jobs_info,
+                        max_attempts,
+                    );
+                    display_prover_jobs_info(prover_jobs_info, max_attempts);
                 }
                 _ => (),
             }
         }
         Status::Successful => {
-            println!(
-                "> {}: {}",
-                stage_info.to_string().bold(),
-                stage_info.witness_generator_jobs_status()
-            );
+            println!("> {}: {}", stage_info.to_string().bold(), status);
             match stage_info {
                 StageInfo::BasicWitnessGenerator {
                     prover_jobs_info, ..
@@ -280,7 +273,7 @@ fn display_info_for_stage(stage_info: StageInfo) {
                 }
                 | StageInfo::NodeWitnessGenerator {
                     prover_jobs_info, ..
-                } => display_prover_jobs_info(prover_jobs_info),
+                } => display_prover_jobs_info(prover_jobs_info, max_attempts),
                 _ => (),
             }
         }
@@ -288,11 +281,12 @@ fn display_info_for_stage(stage_info: StageInfo) {
 }
 
 fn display_leaf_witness_generator_jobs_info(
-    mut leaf_witness_generators_jobs_info: Vec<LeafWitnessGeneratorJobInfo>,
+    mut jobs_info: Vec<LeafWitnessGeneratorJobInfo>,
+    max_attempts: u32,
 ) {
-    leaf_witness_generators_jobs_info.sort_by_key(|job| job.circuit_id);
+    jobs_info.sort_by_key(|job| job.circuit_id);
 
-    leaf_witness_generators_jobs_info.iter().for_each(|job| {
+    jobs_info.iter().for_each(|job| {
         println!(
             "   > {}: {}",
             format!(
@@ -300,17 +294,18 @@ fn display_leaf_witness_generator_jobs_info(
                 BaseLayerCircuitType::from_numeric_value(job.circuit_id as u8)
             )
             .bold(),
-            Status::from(job.status.clone())
+            get_witness_generator_job_status(job, max_attempts)
         )
     });
 }
 
 fn display_node_witness_generator_jobs_info(
-    mut node_witness_generators_jobs_info: Vec<NodeWitnessGeneratorJobInfo>,
+    mut jobs_info: Vec<NodeWitnessGeneratorJobInfo>,
+    max_attempts: u32,
 ) {
-    node_witness_generators_jobs_info.sort_by_key(|job| job.circuit_id);
+    jobs_info.sort_by_key(|job| job.circuit_id);
 
-    node_witness_generators_jobs_info.iter().for_each(|job| {
+    jobs_info.iter().for_each(|job| {
         println!(
             "   > {}: {}",
             format!(
@@ -318,17 +313,18 @@ fn display_node_witness_generator_jobs_info(
                 BaseLayerCircuitType::from_numeric_value(job.circuit_id as u8)
             )
             .bold(),
-            Status::from(job.status.clone())
+            get_witness_generator_job_status(job, max_attempts)
         )
     });
 }
 
-fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
-    let prover_jobs_status = Status::from(prover_jobs_info.clone());
+fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>, max_attempts: u32) {
+    let prover_jobs_status = get_prover_jobs_status_from_vec(&prover_jobs_info, max_attempts);
 
-    if matches!(prover_jobs_status, Status::Successful)
-        || matches!(prover_jobs_status, Status::JobsNotFound)
-    {
+    if matches!(
+        prover_jobs_status,
+        Status::Successful | Status::JobsNotFound
+    ) {
         println!(
             "> {}: {prover_jobs_status}",
             "Prover Jobs".to_owned().bold()
@@ -350,7 +346,7 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
     });
 
     for (circuit_id, prover_jobs_info) in jobs_by_circuit_id {
-        let status = Status::from(prover_jobs_info.clone());
+        let status = get_prover_jobs_status_from_vec(&prover_jobs_info, max_attempts);
         println!(
             "   > {}: {}",
             format!(
@@ -360,8 +356,10 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
             .bold(),
             status
         );
-        if matches!(status, Status::InProgress) {
-            display_job_status_count(prover_jobs_info);
+        match status {
+            Status::InProgress => display_job_status_count(prover_jobs_info),
+            Status::Stuck => display_stuck_jobs(prover_jobs_info, max_attempts),
+            _ => (),
         }
     }
 }
@@ -382,6 +380,20 @@ fn display_job_status_count(jobs: Vec<ProverJobFriInfo>) {
     println!("     - In Progress: {}", jobs_counts.in_progress);
     println!("     - Queued: {}", jobs_counts.queued);
     println!("     - Failed: {}", jobs_counts.failed);
+}
+
+fn display_stuck_jobs(jobs: Vec<ProverJobFriInfo>, max_attempts: u32) {
+    jobs.iter().for_each(|job| {
+        if matches!(
+            get_prover_job_status(job.clone(), max_attempts),
+            Status::Stuck
+        ) {
+            println!(
+                "     - Prover Job: {} stuck after {} attempts",
+                job.id, job.attempts
+            );
+        }
+    })
 }
 
 fn display_aggregation_round(stage_info: &StageInfo) {
