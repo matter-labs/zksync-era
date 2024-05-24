@@ -119,6 +119,38 @@ fn test_tree_after_recovery<DB: Database>(
     }
 }
 
+fn test_parallel_recovery_in_chunks<DB>(db: DB, kind: RecoveryKind, chunk_size: usize)
+where
+    DB: PruneDatabase + Clone + 'static,
+{
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
+    let mut recovery_entries = kvs.clone();
+    if matches!(kind, RecoveryKind::Linear) {
+        recovery_entries.sort_unstable_by_key(|entry| entry.key);
+    }
+
+    let recovered_version = 123;
+    let mut recovery = MerkleTreeRecovery::new(db.clone(), recovered_version);
+    recovery.parallelize_persistence(4);
+    for (i, chunk) in recovery_entries.chunks(chunk_size).enumerate() {
+        match kind {
+            RecoveryKind::Linear => recovery.extend_linear(chunk.to_vec()),
+            RecoveryKind::Random => recovery.extend_random(chunk.to_vec()),
+        }
+        if i % 3 == 1 {
+            recovery.wait_sync(); // need this to ensure that the old persistence thread doesn't corrupt DB
+            recovery = MerkleTreeRecovery::new(db.clone(), recovered_version);
+            recovery.parallelize_persistence(4);
+            // ^ Simulate recovery interruption and restart.
+        }
+    }
+
+    let mut tree = MerkleTree::new(recovery.finalize());
+    tree.verify_consistency(recovered_version, true).unwrap();
+    // Check that new tree versions can be built and function as expected.
+    test_tree_after_recovery(&mut tree, recovered_version, *expected_hash);
+}
+
 #[test_casing(8, test_casing::Product((RecoveryKind::ALL, [6, 10, 17, 42])))]
 fn recovery_in_chunks(kind: RecoveryKind, chunk_size: usize) {
     test_recovery_in_chunks(PatchSet::default(), kind, chunk_size);
@@ -135,5 +167,12 @@ mod rocksdb {
         let temp_dir = TempDir::new().unwrap();
         let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
         test_recovery_in_chunks(db, kind, chunk_size);
+    }
+
+    #[test_casing(8, test_casing::Product((RecoveryKind::ALL, [6, 10, 17, 42])))]
+    fn parallel_recovery_in_chunks(kind: RecoveryKind, chunk_size: usize) {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+        test_parallel_recovery_in_chunks(db, kind, chunk_size);
     }
 }

@@ -108,7 +108,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         db.apply_patch(PatchSet::from_manifest(manifest));
 
         Self {
-            db: MaybeParallel::Just(db),
+            db: MaybeParallel::Sequential(db),
             hasher,
             recovered_version,
         }

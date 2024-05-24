@@ -278,9 +278,10 @@ impl<DB: PruneDatabase> PruneDatabase for ParallelDatabase<DB> {
     }
 }
 
+/// Database with either sequential or parallel persistence.
 #[derive(Debug)]
 pub(crate) enum MaybeParallel<DB> {
-    Just(DB),
+    Sequential(DB),
     Parallel(ParallelDatabase<DB>),
 }
 
@@ -293,7 +294,7 @@ impl<DB: PruneDatabase> MaybeParallel<DB> {
 
     pub fn join(self) -> DB {
         match self {
-            Self::Just(db) => db,
+            Self::Sequential(db) => db,
             Self::Parallel(db) => db.join(),
         }
     }
@@ -301,7 +302,7 @@ impl<DB: PruneDatabase> MaybeParallel<DB> {
 
 impl<DB: 'static + Clone + PruneDatabase> MaybeParallel<DB> {
     pub fn parallelize(&mut self, updated_version: u64, buffer_capacity: usize) {
-        if let Self::Just(db) = self {
+        if let Self::Sequential(db) = self {
             *self = Self::Parallel(ParallelDatabase::new(
                 db.clone(),
                 updated_version,
@@ -314,14 +315,14 @@ impl<DB: 'static + Clone + PruneDatabase> MaybeParallel<DB> {
 impl<DB: Database> Database for MaybeParallel<DB> {
     fn try_manifest(&self) -> Result<Option<Manifest>, DeserializeError> {
         match self {
-            Self::Just(db) => db.try_manifest(),
+            Self::Sequential(db) => db.try_manifest(),
             Self::Parallel(db) => db.try_manifest(),
         }
     }
 
     fn try_root(&self, version: u64) -> Result<Option<Root>, DeserializeError> {
         match self {
-            Self::Just(db) => db.try_root(version),
+            Self::Sequential(db) => db.try_root(version),
             Self::Parallel(db) => db.try_root(version),
         }
     }
@@ -332,28 +333,28 @@ impl<DB: Database> Database for MaybeParallel<DB> {
         is_leaf: bool,
     ) -> Result<Option<Node>, DeserializeError> {
         match self {
-            Self::Just(db) => db.try_tree_node(key, is_leaf),
+            Self::Sequential(db) => db.try_tree_node(key, is_leaf),
             Self::Parallel(db) => db.try_tree_node(key, is_leaf),
         }
     }
 
     fn tree_nodes(&self, keys: &NodeKeys) -> Vec<Option<Node>> {
         match self {
-            Self::Just(db) => db.tree_nodes(keys),
+            Self::Sequential(db) => db.tree_nodes(keys),
             Self::Parallel(db) => db.tree_nodes(keys),
         }
     }
 
     fn start_profiling(&self, operation: ProfiledTreeOperation) -> Box<dyn Any> {
         match self {
-            Self::Just(db) => db.start_profiling(operation),
+            Self::Sequential(db) => db.start_profiling(operation),
             Self::Parallel(db) => db.start_profiling(operation),
         }
     }
 
     fn apply_patch(&mut self, patch: PatchSet) {
         match self {
-            Self::Just(db) => db.apply_patch(patch),
+            Self::Sequential(db) => db.apply_patch(patch),
             Self::Parallel(db) => db.apply_patch(patch),
         }
     }
@@ -362,22 +363,129 @@ impl<DB: Database> Database for MaybeParallel<DB> {
 impl<DB: PruneDatabase> PruneDatabase for MaybeParallel<DB> {
     fn min_stale_key_version(&self) -> Option<u64> {
         match self {
-            Self::Just(db) => db.min_stale_key_version(),
+            Self::Sequential(db) => db.min_stale_key_version(),
             Self::Parallel(db) => db.min_stale_key_version(),
         }
     }
 
     fn stale_keys(&self, version: u64) -> Vec<NodeKey> {
         match self {
-            Self::Just(db) => db.stale_keys(version),
+            Self::Sequential(db) => db.stale_keys(version),
             Self::Parallel(db) => db.stale_keys(version),
         }
     }
 
     fn prune(&mut self, patch: PrunePatchSet) {
         match self {
-            Self::Just(db) => db.prune(patch),
+            Self::Sequential(db) => db.prune(patch),
             Self::Parallel(db) => db.prune(patch),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+    use tempfile::TempDir;
+
+    use super::*;
+    use crate::{
+        storage::Operation,
+        types::{InternalNode, LeafNode, Nibbles},
+        Key, RocksDBWrapper, TreeEntry, ValueHash,
+    };
+
+    const UPDATED_VERSION: u64 = 10;
+
+    fn mock_patch_set(start: u64, leaf_count: u64) -> PatchSet {
+        assert!(start <= leaf_count);
+
+        let manifest = Manifest::new(UPDATED_VERSION, &());
+        let root = Root::new(leaf_count, Node::Internal(InternalNode::default()));
+        let nodes = (start..leaf_count)
+            .map(|i| {
+                let key = Key::from(i);
+                let node_key = Nibbles::new(&key, 64).with_version(UPDATED_VERSION);
+                let leaf = LeafNode::new(TreeEntry {
+                    key,
+                    value: ValueHash::zero(),
+                    leaf_index: i + 1,
+                });
+                (node_key, Node::from(leaf))
+            })
+            .collect();
+        PatchSet::new(
+            manifest,
+            UPDATED_VERSION,
+            root,
+            nodes,
+            vec![],
+            Operation::Update,
+        )
+    }
+
+    #[test]
+    fn database_methods_with_parallel_persistence() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+
+        let mut parallel_db = ParallelDatabase::new(db.clone(), UPDATED_VERSION, 1);
+        assert!(parallel_db.manifest().is_none());
+        let manifest = Manifest::new(UPDATED_VERSION, &());
+        parallel_db.apply_patch(PatchSet::from_manifest(manifest));
+        assert_eq!(parallel_db.commands.len(), 1);
+        assert_eq!(
+            parallel_db.manifest().unwrap().version_count,
+            UPDATED_VERSION
+        );
+
+        parallel_db.apply_patch(mock_patch_set(0, 10));
+        assert_eq!(parallel_db.root(UPDATED_VERSION).unwrap().leaf_count(), 10);
+
+        let keys: Vec<_> = (0..20)
+            .map(|i| {
+                (
+                    Nibbles::new(&Key::from(i), 64).with_version(UPDATED_VERSION),
+                    true,
+                )
+            })
+            .collect();
+
+        let nodes = parallel_db.tree_nodes(&keys);
+        for (i, node) in nodes[..10].iter().enumerate() {
+            assert_matches!(
+                node.as_ref().unwrap(),
+                Node::Leaf(leaf) if leaf.leaf_index == i as u64 + 1
+            );
+        }
+        for node in &nodes[10..] {
+            assert!(node.is_none(), "{node:?}");
+        }
+
+        parallel_db.apply_patch(mock_patch_set(10, 15));
+
+        let nodes = parallel_db.tree_nodes(&keys);
+        for (i, node) in nodes[..15].iter().enumerate() {
+            assert_matches!(
+                node.as_ref().unwrap(),
+                Node::Leaf(leaf) if leaf.leaf_index == i as u64 + 1
+            );
+        }
+        for node in &nodes[15..] {
+            assert!(node.is_none(), "{node:?}");
+        }
+
+        parallel_db.wait_sync();
+
+        let nodes = parallel_db.tree_nodes(&keys);
+        for (i, node) in nodes[..15].iter().enumerate() {
+            assert_matches!(
+                node.as_ref().unwrap(),
+                Node::Leaf(leaf) if leaf.leaf_index == i as u64 + 1
+            );
+        }
+        for node in &nodes[15..] {
+            assert!(node.is_none(), "{node:?}");
         }
     }
 }
