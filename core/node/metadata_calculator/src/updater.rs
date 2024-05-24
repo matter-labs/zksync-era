@@ -151,6 +151,10 @@ impl TreeUpdater {
                     .proof_generation_dal()
                     .insert_proof_generation_details(l1_batch_number, object_key)
                     .await;
+                storage
+                    .tee_proof_generation_dal()
+                    .insert_tee_proof_generation_details(l1_batch_number)
+                    .await;
             }
             save_postgres_latency.observe();
             tracing::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");

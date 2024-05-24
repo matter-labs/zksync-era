@@ -55,23 +55,30 @@ async fn request_tee_proof_generation_data() {
         },
         vec![(H256([1; 32]), vec![0, 1, 2, 3, 4])],
     );
-    // mock object store
+    // populate mocked object store with a single batch blob
     let blob_store = ObjectStoreFactory::mock().create_store().await;
     blob_store.put(batch_number, &tvi).await.unwrap();
-    // mock SQL table
+    // get connection to the SQL db
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut storage = connection_pool.connection().await.unwrap();
-    let mut proof_dal = storage.tee_proof_generation_dal();
+    let mut db_conn1 = connection_pool.connection().await.unwrap();
+    let mut proof_dal = db_conn1.tee_proof_generation_dal();
+    let mut db_conn2 = connection_pool.connection().await.unwrap();
+    let mut input_producer_dal = db_conn2.tee_verifier_input_producer_dal();
+    // there should not be any batches awaiting proof in the db yet
     let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await;
     assert!(oldest_batch_number.is_none());
-    // TODO let mut transaction = storage.start_transaction().await.unwrap();
-    // TODO if storage doesn't work, use transaction instead
+    // mock SQL table with relevant batch information
+    input_producer_dal
+        .create_tee_verifier_input_producer_job(batch_number)
+        .await
+        .expect("Failed to create tee_verifier_input_producer_job job");
     proof_dal
-        .insert_tee_proof_generation_details(batch_number, "blob_url")
+        .insert_tee_proof_generation_details(batch_number)
         .await;
-    // TODO transaction.commit().await.unwrap();
+    // now, there should be one batch in the database awaiting proof
     let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await.unwrap();
     assert_eq!(oldest_batch_number, batch_number);
+    // test the /tee_proof_generation_data endpoint; it should return batch data
     let app = create_proof_processing_router(
         blob_store,
         connection_pool.clone(),

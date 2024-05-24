@@ -12,7 +12,7 @@ pub struct TeeProofGenerationDal<'a, 'c> {
 }
 
 #[derive(Debug, EnumString, Display)]
-enum ProofGenerationJobStatus {
+enum TeeProofGenerationJobStatus {
     #[strum(serialize = "ready_to_be_proven")]
     ReadyToBeProven,
     #[strum(serialize = "picked_by_prover")]
@@ -21,6 +21,12 @@ enum ProofGenerationJobStatus {
     Generated,
     #[strum(serialize = "skipped")]
     Skipped,
+}
+
+#[derive(Debug, EnumString, Display)]
+pub enum TeeType {
+    #[strum(serialize = "sgx")]
+    Sgx,
 }
 
 impl TeeProofGenerationDal<'_, '_> {
@@ -39,14 +45,21 @@ impl TeeProofGenerationDal<'_, '_> {
             WHERE
                 l1_batch_number = (
                     SELECT
-                        l1_batch_number
+                        proofs.l1_batch_number
                     FROM
-                        tee_proof_generation_details
+                        tee_proof_generation_details AS proofs
+                    JOIN
+                        tee_verifier_input_producer_jobs AS inputs
+                    ON
+                        proofs.l1_batch_number = inputs.l1_batch_number
                     WHERE
-                        status = 'ready_to_be_proven'
-                        OR (
-                            status = 'picked_by_prover'
-                            AND prover_taken_at < NOW() - $1::INTERVAL
+                        inputs.status = 'Successful'
+                        AND (
+                            proofs.status = 'ready_to_be_proven'
+                            OR (
+                                proofs.status = 'picked_by_prover'
+                                AND proofs.prover_taken_at < NOW() - $1::INTERVAL
+                            )
                         )
                     ORDER BY
                         l1_batch_number ASC
@@ -71,19 +84,28 @@ impl TeeProofGenerationDal<'_, '_> {
     pub async fn save_proof_artifacts_metadata(
         &mut self,
         block_number: L1BatchNumber,
-        proof_blob_url: &str,
+        signature: &str,
+        pubkey: &str,
+        attestation: &str,
+        tee_type: TeeType,
     ) -> Result<(), SqlxError> {
         sqlx::query!(
             r#"
             UPDATE tee_proof_generation_details
             SET
                 status = 'generated',
-                proof_blob_url = $1,
+                signature = $1,
+                pubkey = $2,
+                attestation = $3,
+                tee_type = $4,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $2
+                l1_batch_number = $5
             "#,
-            proof_blob_url,
+            signature,
+            pubkey,
+            attestation,
+            tee_type.to_string(),
             i64::from(block_number.0)
         )
         .execute(self.storage.conn())
@@ -94,21 +116,16 @@ impl TeeProofGenerationDal<'_, '_> {
         .ok_or(sqlx::Error::RowNotFound)
     }
 
-    pub async fn insert_tee_proof_generation_details(
-        &mut self,
-        block_number: L1BatchNumber,
-        proof_gen_data_blob_url: &str,
-    ) {
+    pub async fn insert_tee_proof_generation_details(&mut self, block_number: L1BatchNumber) {
         sqlx::query!(
             r#"
-            INSERT INTO
-                tee_proof_generation_details (l1_batch_number, status, proof_gen_data_blob_url, created_at, updated_at)
-            VALUES
-                ($1, 'ready_to_be_proven', $2, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO NOTHING
-            "#,
+                INSERT INTO
+                    tee_proof_generation_details (l1_batch_number, status, created_at, updated_at)
+                VALUES
+                    ($1, 'ready_to_be_proven', NOW(), NOW())
+                ON CONFLICT (l1_batch_number) DO NOTHING
+                "#,
             i64::from(block_number.0),
-            proof_gen_data_blob_url,
         )
         .execute(self.storage.conn())
         .await
@@ -128,7 +145,7 @@ impl TeeProofGenerationDal<'_, '_> {
             WHERE
                 l1_batch_number = $2
             "#,
-            ProofGenerationJobStatus::Skipped.to_string(),
+            TeeProofGenerationJobStatus::Skipped.to_string(),
             i64::from(block_number.0)
         )
         .execute(self.storage.conn())
@@ -143,36 +160,18 @@ impl TeeProofGenerationDal<'_, '_> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             SELECT
-                l1_batch_number
+                proofs.l1_batch_number
             FROM
-                tee_proof_generation_details
+                tee_proof_generation_details AS proofs
+            JOIN
+                tee_verifier_input_producer_jobs AS inputs
+            ON
+                proofs.l1_batch_number = inputs.l1_batch_number
             WHERE
-                status = 'ready_to_be_proven'
+                inputs.status = 'Successful'
+                AND proofs.status = 'ready_to_be_proven'
             ORDER BY
-                l1_batch_number ASC
-            LIMIT
-                1
-            "#,
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
-
-        result
-    }
-
-    pub async fn get_oldest_not_generated_batch(&mut self) -> Option<L1BatchNumber> {
-        let result: Option<L1BatchNumber> = sqlx::query!(
-            r#"
-            SELECT
-                l1_batch_number
-            FROM
-                tee_proof_generation_details
-            WHERE
-                status NOT IN ('generated', 'skipped')
-            ORDER BY
-                l1_batch_number ASC
+                proofs.l1_batch_number ASC
             LIMIT
                 1
             "#,
