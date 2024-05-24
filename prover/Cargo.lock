@@ -4644,6 +4644,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "zkevm_test_harness 1.5.0",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
@@ -7865,7 +7866,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#17ad0dd59944e65f8d087755b6b57cc8410a8028"
 dependencies = [
  "bincode",
  "circuit_definitions 1.5.0",
@@ -7880,6 +7881,7 @@ dependencies = [
  "lazy_static",
  "rand 0.4.6",
  "rayon",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
