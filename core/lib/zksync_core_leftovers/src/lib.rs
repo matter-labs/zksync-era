@@ -1092,8 +1092,12 @@ async fn add_tee_verifier_input_producer_to_task_futures(
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();
     tracing::info!("initializing TeeVerifierInputProducer");
-    let producer =
-        TeeVerifierInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+    let producer = TeeVerifierInputProducer::new(
+        connection_pool.clone(),
+        store_factory.create_store().await,
+        l2_chain_id,
+    )
+    .await?;
     task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
     tracing::info!(
         "Initialized TeeVerifierInputProducer in {:?}",

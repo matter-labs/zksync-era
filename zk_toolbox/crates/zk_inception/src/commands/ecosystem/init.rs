@@ -15,6 +15,7 @@ use common::{
 use xshell::{cmd, Shell};
 
 use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
+use crate::forge_utils::check_the_balance;
 use crate::{
     accept_ownership::accept_owner,
     commands::{
@@ -59,7 +60,8 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         &ecosystem_config,
         &initial_deployment_config,
-    )?;
+    )
+    .await?;
 
     if final_ecosystem_args.deploy_erc20 {
         logger::info("Deploying ERC20 contracts");
@@ -73,7 +75,8 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             &ecosystem_config,
             &contracts_config,
             final_ecosystem_args.forge_args.clone(),
-        )?;
+        )
+        .await?;
     }
 
     // If the name of chain passed then we deploy exactly this chain otherwise deploy all chains
@@ -146,7 +149,7 @@ pub async fn distribute_eth(
     Ok(())
 }
 
-fn init(
+async fn init(
     init_args: &mut EcosystemInitArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
@@ -155,6 +158,7 @@ fn init(
     let spinner = Spinner::new("Installing and building dependencies...");
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
     let contracts = deploy_ecosystem(
@@ -163,12 +167,13 @@ fn init(
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
-    )?;
+    )
+    .await?;
     contracts.save(shell, ecosystem_config.config.clone().join(CONTRACTS_FILE))?;
     Ok(contracts)
 }
 
-fn deploy_erc20(
+async fn deploy_erc20(
     shell: &Shell,
     erc20_deployment_config: &Erc20DeploymentConfig,
     ecosystem_config: &EcosystemConfig,
@@ -191,6 +196,7 @@ fn deploy_erc20(
     )?;
 
     let spinner = Spinner::new("Deploying ERC20 contracts...");
+    check_the_balance(&forge).await?;
     forge.run(shell)?;
     spinner.finish();
 
@@ -200,7 +206,7 @@ fn deploy_erc20(
     Ok(result)
 }
 
-fn deploy_ecosystem(
+async fn deploy_ecosystem(
     shell: &Shell,
     ecosystem: &mut EcosystemArgsFinal,
     forge_args: ForgeScriptArgs,
@@ -213,7 +219,8 @@ fn deploy_ecosystem(
             forge_args,
             ecosystem_config,
             initial_deployment_config,
-        );
+        )
+        .await;
     }
 
     let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
@@ -252,7 +259,7 @@ fn deploy_ecosystem(
     ContractsConfig::read(shell, ecosystem_contracts_path)
 }
 
-fn deploy_ecosystem_inner(
+async fn deploy_ecosystem_inner(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -291,6 +298,7 @@ fn deploy_ecosystem_inner(
     forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
 
     let spinner = Spinner::new("Deploying ecosystem contracts...");
+    check_the_balance(&forge).await?;
     forge.run(shell)?;
     spinner.finish();
 
@@ -304,7 +312,8 @@ fn deploy_ecosystem_inner(
         config.get_wallets()?.governor_private_key(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         &forge_args,
-    )?;
+    )
+    .await?;
 
     accept_owner(
         shell,
@@ -313,7 +322,8 @@ fn deploy_ecosystem_inner(
         config.get_wallets()?.governor_private_key(),
         contracts_config.bridges.shared.l1_address,
         &forge_args,
-    )?;
+    )
+    .await?;
     Ok(contracts_config)
 }
 
@@ -325,4 +335,10 @@ fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Resu
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
     Cmd::new(cmd!(shell, "yarn sc build")).run()
+}
+
+// TODO remove it and use proper paths in constants
+fn build_l1_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
+    Cmd::new(cmd!(shell, "yarn l1 build")).run()
 }

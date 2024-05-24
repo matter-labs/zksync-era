@@ -29,7 +29,10 @@ use zksync_eth_client::clients::Client;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
+use crate::node_builder::MainNodeBuilder;
+
 mod config;
+mod node_builder;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -64,6 +67,9 @@ struct Cli {
     /// Path to the yaml with genesis. If set, it will be used instead of env vars.
     #[arg(long)]
     genesis_path: Option<std::path::PathBuf>,
+    /// Run the node using the node framework.
+    #[arg(long)]
+    use_node_framework: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -85,7 +91,6 @@ impl FromStr for ComponentsToRun {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-    let sigint_receiver = setup_sigint_handler();
 
     // Load env config and use it if file config is not provided
     let tmp_config = load_env_config()?;
@@ -210,7 +215,30 @@ async fn main() -> anyhow::Result<()> {
         opt.components.0
     };
 
+    // If the node framework is used, run the node.
+    if opt.use_node_framework {
+        // We run the node from a different thread, since the current thread is in tokio context.
+        std::thread::spawn(move || -> anyhow::Result<()> {
+            let node = MainNodeBuilder::new(
+                configs,
+                wallets,
+                genesis,
+                contracts_config,
+                secrets,
+                consensus,
+            )
+            .build(components)?;
+            node.run()?;
+            Ok(())
+        })
+        .join()
+        .expect("Failed to run the node")?;
+
+        return Ok(());
+    }
+
     // Run core actors.
+    let sigint_receiver = setup_sigint_handler();
     let (core_task_handles, stop_sender, health_check_handle) = initialize_components(
         &configs,
         &wallets,
@@ -264,9 +292,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         state_keeper_config: StateKeeperConfig::from_env().ok(),
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
-        fri_prover_config: FriProverConfig::from_env()
-            .context("fri_prover_config")
-            .ok(),
+        fri_prover_config: FriProverConfig::from_env().ok(),
         fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
         fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
         fri_witness_vector_generator: FriWitnessVectorGeneratorConfig::from_env().ok(),
