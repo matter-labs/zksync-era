@@ -13,12 +13,6 @@ Ensure you have followed
 [these instructions](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/setup-dev.md) to set up
 dependencies on your machine (don't worry about the Environment section for now).
 
-In addition to the above instructions, you will also need to
-[install Foundry](https://book.getfoundry.sh/getting-started/installation).
-
-IMPORTANT: Ensure you are running the latest stable releases of Rust using `rustup update stable` (rustc 1.78.0) & cargo
-using `cargo update` (cargo 1.78.0).
-
 ### Installation
 
 Install zk_inception from git:
