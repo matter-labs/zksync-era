@@ -183,9 +183,8 @@ impl MainNodeBuilder {
             load_config!(wallets.state_keeper),
         );
         let db_config = load_config!(self.configs.db_config);
-        let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(db_config, sk_config);
-        let state_keeper_layer = StateKeeperLayer;
+        let main_node_batch_executor_builder_layer = MainBatchExecutorLayer::new(sk_config);
+        let state_keeper_layer = StateKeeperLayer::new(db_config);
         self.node
             .add_layer(mempool_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)
