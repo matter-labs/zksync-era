@@ -101,7 +101,7 @@ pub(crate) fn create_mock_checker(
         diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
-        l1_client: Box::new(client),
+        l1_client: Box::new(client.into_client()),
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
@@ -111,7 +111,7 @@ pub(crate) fn create_mock_checker(
 }
 
 fn create_mock_ethereum() -> MockEthereum {
-    MockEthereum::default().with_call_handler(|call, _block_id| {
+    let mock = MockEthereum::builder().with_call_handler(|call, _block_id| {
         assert_eq!(call.to, Some(DIAMOND_PROXY_ADDR));
         let contract = zksync_contracts::hyperchain_contract();
         let expected_input = contract
@@ -121,7 +121,8 @@ fn create_mock_ethereum() -> MockEthereum {
             .unwrap();
         assert_eq!(call.data, Some(expected_input.into()));
         ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
-    })
+    });
+    mock.build()
 }
 
 impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
@@ -412,7 +413,7 @@ async fn normal_checker_function(
             },
         );
         let signed_tx = signed_tx.unwrap();
-        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         client
             .execute_tx(signed_tx.hash, true, 1)
             .with_logs(l1_batches.iter().map(l1_batch_commit_log).collect());
@@ -496,7 +497,7 @@ async fn checker_processes_pre_boojum_batches(
             },
         );
         let signed_tx = signed_tx.unwrap();
-        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         client
             .execute_tx(signed_tx.hash, true, 1)
             .with_logs(vec![l1_batch_commit_log(l1_batch)]);
@@ -563,7 +564,7 @@ async fn checker_functions_after_snapshot_recovery(
     );
     let signed_tx = signed_tx.unwrap();
     let commit_tx_hash = signed_tx.hash;
-    client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+    client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
     client
         .execute_tx(commit_tx_hash, true, 1)
         .with_logs(vec![l1_batch_commit_log(&l1_batch)]);
@@ -721,7 +722,7 @@ impl IncorrectDataKind {
         } else {
             vec![]
         };
-        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         client
             .execute_tx(signed_tx.hash, successful_status, 1)
             .with_logs(tx_logs);

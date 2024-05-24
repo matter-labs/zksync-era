@@ -30,19 +30,13 @@ use crate::{
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
 #[derive(Debug, Clone)]
 pub struct MainBatchExecutor {
-    storage_factory: Arc<dyn ReadStorageFactory>,
     save_call_traces: bool,
     optional_bytecode_compression: bool,
 }
 
 impl MainBatchExecutor {
-    pub fn new(
-        storage_factory: Arc<dyn ReadStorageFactory>,
-        save_call_traces: bool,
-        optional_bytecode_compression: bool,
-    ) -> Self {
+    pub fn new(save_call_traces: bool, optional_bytecode_compression: bool) -> Self {
         Self {
-            storage_factory,
             save_call_traces,
             optional_bytecode_compression,
         }
@@ -53,6 +47,7 @@ impl MainBatchExecutor {
 impl BatchExecutor for MainBatchExecutor {
     async fn init_batch(
         &mut self,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         stop_receiver: &watch::Receiver<bool>,
@@ -66,7 +61,6 @@ impl BatchExecutor for MainBatchExecutor {
             commands: commands_receiver,
         };
 
-        let storage_factory = self.storage_factory.clone();
         let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
             if let Some(storage) = Handle::current()

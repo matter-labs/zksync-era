@@ -9,7 +9,7 @@ use zksync_types::L1BatchNumber;
 #[async_trait]
 pub trait VmRunnerIo: Debug + Send + Sync + 'static {
     /// Unique name of the VM runner instance.
-    fn name() -> &'static str;
+    fn name(&self) -> &'static str;
 
     /// Returns the last L1 batch number that has been processed by this VM runner instance.
     ///

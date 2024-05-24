@@ -10,6 +10,7 @@ use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::{Error, EthInterface};
 use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
+use zksync_web3_decl::client::{DynClient, L1};
 
 use self::metrics::METRICS;
 use super::L1TxParamsProvider;
@@ -30,13 +31,13 @@ pub struct GasAdjuster {
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
-    eth_client: Box<dyn EthInterface>,
+    eth_client: Box<DynClient<L1>>,
     commitment_mode: L1BatchCommitmentMode,
 }
 
 impl GasAdjuster {
     pub async fn new(
-        eth_client: Box<dyn EthInterface>,
+        eth_client: Box<DynClient<L1>>,
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         commitment_mode: L1BatchCommitmentMode,
@@ -226,7 +227,7 @@ impl GasAdjuster {
     /// Returns vector of base fees and blob base fees for given block range.
     /// Note, that data for pre-dencun blocks won't be included in the vector returned.
     async fn get_base_fees_history(
-        eth_client: &dyn EthInterface,
+        eth_client: &DynClient<L1>,
         block_range: RangeInclusive<usize>,
     ) -> Result<(Vec<u64>, Vec<U256>), Error> {
         let mut base_fee_history = Vec::new();

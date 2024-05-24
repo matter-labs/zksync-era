@@ -755,6 +755,11 @@ pub(crate) struct ExperimentalENConfig {
     /// of recovery and then restarted with a different config).
     #[serde(default = "ExperimentalENConfig::default_snapshots_recovery_tree_chunk_size")]
     pub snapshots_recovery_tree_chunk_size: u64,
+
+    // Commitment generator
+    /// Maximum degree of parallelism during commitment generation, i.e., the maximum number of L1 batches being processed in parallel.
+    /// If not specified, commitment generator will use a value roughly equal to the number of CPU cores with some clamping applied.
+    pub commitment_generator_max_parallelism: Option<NonZeroU32>,
 }
 
 impl ExperimentalENConfig {
@@ -773,6 +778,7 @@ impl ExperimentalENConfig {
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
             snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
+            commitment_generator_max_parallelism: None,
         }
     }
 

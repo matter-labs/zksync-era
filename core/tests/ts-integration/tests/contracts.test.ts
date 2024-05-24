@@ -371,7 +371,9 @@ describe('Smart contract behavior checks', () => {
     });
 
     test('Should check transient storage', async () => {
-        const artifact = require(`${process.env.ZKSYNC_HOME}/etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json`);
+        const artifact = require(`${
+            testMaster.environment().pathToHome
+        }/etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json`);
         const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, alice);
         const storageContract = await contractFactory.deploy();
         await storageContract.deployed();
@@ -383,7 +385,9 @@ describe('Smart contract behavior checks', () => {
 
     test('Should check code oracle works', async () => {
         // Deploy contract that calls CodeOracle.
-        const artifact = require(`${process.env.ZKSYNC_HOME}/etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json`);
+        const artifact = require(`${
+            testMaster.environment().pathToHome
+        }/etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json`);
         const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, alice);
         const contract = await contractFactory.deploy();
         await contract.deployed();
