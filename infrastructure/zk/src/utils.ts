@@ -177,14 +177,3 @@ export function unpackStringSemVer(semver: string): [number, number, number] {
     const [major, minor, patch] = semver.split('.');
     return [parseInt(major), parseInt(minor), parseInt(patch)];
 }
-
-const SEMVER_MINOR_VERSION_OFFSET = 32;
-
-// The major version is always 0 for now
-export function packSemver(major: number, minor: number, patch: number) {
-    if (major !== 0) {
-        throw new Error('Major version must be 0');
-    }
-
-    return (minor << SEMVER_MINOR_VERSION_OFFSET) | patch;
-}

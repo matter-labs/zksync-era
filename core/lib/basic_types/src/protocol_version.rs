@@ -8,6 +8,7 @@ use std::{
 
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
+use serde_with::{DeserializeFromStr, SerializeDisplay};
 
 use crate::{
     ethabi::Token,
@@ -15,6 +16,9 @@ use crate::{
     web3::contract::{Detokenize, Error},
     H256, U256,
 };
+
+pub const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
+pub const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
 
 /// `ProtocolVersionId` is a unique identifier of the protocol version.
 /// Note, that it is an identifier of the `minor` semver version of the protocol, with
@@ -80,9 +84,6 @@ impl ProtocolVersionId {
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
-        const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
-        const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
-
         let minor = (packed_semver >> U256::from(PACKED_SEMVER_MINOR_OFFSET))
             & U256::from(PACKED_SEMVER_MINOR_MASK);
 
@@ -102,6 +103,13 @@ impl ProtocolVersionId {
         minor
             .try_into()
             .map_err(|err| format!("unknown protocol version ID: {}", err))
+    }
+
+    pub fn into_packed_semver_with_patch(self, patch: usize) -> U256 {
+        let minor = U256::from(self as u16);
+        let patch = U256::from(patch as u32);
+
+        (minor << U256::from(PACKED_SEMVER_MINOR_OFFSET)) | patch
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -191,6 +199,12 @@ impl ProtocolVersionId {
 impl Default for ProtocolVersionId {
     fn default() -> Self {
         Self::latest()
+    }
+}
+
+impl fmt::Display for ProtocolVersionId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", *self as u16)
     }
 }
 
@@ -290,7 +304,9 @@ basic_type!(
 );
 
 /// Semantic protocol version.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, SerializeDisplay, DeserializeFromStr, Hash, PartialOrd, Ord,
+)]
 pub struct ProtocolSemanticVersion {
     pub minor: ProtocolVersionId,
     pub patch: VkPatch,
@@ -316,5 +332,48 @@ impl fmt::Display for ProtocolSemanticVersion {
             self.minor as u16,
             self.patch
         )
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ParseProtocolSemanticVersionError {
+    #[error("invalid format")]
+    InvalidFormat,
+    #[error("non zero major version")]
+    NonZeroMajorVersion,
+    #[error("{0}")]
+    ParseIntError(ParseIntError),
+}
+
+impl FromStr for ProtocolSemanticVersion {
+    type Err = ParseProtocolSemanticVersionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split('.').collect();
+        if parts.len() != 3 {
+            return Err(ParseProtocolSemanticVersionError::InvalidFormat);
+        }
+
+        let major = parts[0]
+            .parse::<u16>()
+            .map_err(ParseProtocolSemanticVersionError::ParseIntError)?;
+        if major != 0 {
+            return Err(ParseProtocolSemanticVersionError::NonZeroMajorVersion);
+        }
+
+        let minor = parts[1]
+            .parse::<u16>()
+            .map_err(ParseProtocolSemanticVersionError::ParseIntError)?;
+        let minor = ProtocolVersionId::try_from(minor)
+            .map_err(|_| ParseProtocolSemanticVersionError::InvalidFormat)?;
+
+        let patch = parts[2]
+            .parse::<u16>()
+            .map_err(ParseProtocolSemanticVersionError::ParseIntError)?;
+
+        Ok(ProtocolSemanticVersion {
+            minor,
+            patch: patch.into(),
+        })
     }
 }

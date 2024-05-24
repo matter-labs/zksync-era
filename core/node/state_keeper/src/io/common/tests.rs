@@ -16,8 +16,8 @@ use zksync_node_test_utils::{
     prepare_recovery_snapshot,
 };
 use zksync_types::{
-    block::L2BlockHasher, fee::TransactionExecutionMetrics, L2ChainId, ProtocolVersion,
-    ProtocolVersionId,
+    block::L2BlockHasher, fee::TransactionExecutionMetrics,
+    protocol_version::ProtocolSemanticVersion, L2ChainId, ProtocolVersion, ProtocolVersionId,
 };
 
 use super::*;
@@ -447,7 +447,10 @@ async fn getting_batch_version_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
-        protocol_version: Some(ProtocolVersionId::Version5),
+        protocol_version: Some(ProtocolSemanticVersion {
+            minor: ProtocolVersionId::Version5,
+            patch: 0.into(),
+        }),
         ..mock_genesis_config()
     })
     .unwrap();

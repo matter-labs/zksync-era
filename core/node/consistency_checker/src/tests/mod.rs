@@ -14,8 +14,8 @@ use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, web3::Log,
-    ProtocolVersion, ProtocolVersionId, H256,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
+    protocol_version::ProtocolSemanticVersion, web3::Log, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -113,6 +113,7 @@ pub(crate) fn create_mock_checker(
 fn create_mock_ethereum() -> MockEthereum {
     let mock = MockEthereum::builder().with_call_handler(|call, _block_id| {
         assert_eq!(call.to, Some(DIAMOND_PROXY_ADDR));
+        let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
         let contract = zksync_contracts::hyperchain_contract();
         let expected_input = contract
             .function("getProtocolVersion")
@@ -120,7 +121,8 @@ fn create_mock_ethereum() -> MockEthereum {
             .encode_input(&[])
             .unwrap();
         assert_eq!(call.data, Some(expected_input.into()));
-        ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
+
+        ethabi::Token::Uint(packed_semver)
     });
     mock.build()
 }
@@ -466,7 +468,10 @@ async fn checker_processes_pre_boojum_batches(
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
-        protocol_version: Some(PRE_BOOJUM_PROTOCOL_VERSION),
+        protocol_version: Some(ProtocolSemanticVersion {
+            minor: PRE_BOOJUM_PROTOCOL_VERSION,
+            patch: 0.into(),
+        }),
         ..mock_genesis_config()
     })
     .unwrap();

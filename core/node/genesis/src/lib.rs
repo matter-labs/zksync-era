@@ -17,7 +17,7 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
-    protocol_version::{L1VerifierConfig, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
@@ -114,6 +114,7 @@ impl GenesisParams {
         // if the version doesn't exist
         let _: ProtocolVersionId = config
             .protocol_version
+            .map(|p| p.minor)
             .ok_or(GenesisError::MalformedConfig("protocol_version"))?;
         Ok(GenesisParams {
             base_system_contracts,
@@ -141,6 +142,7 @@ impl GenesisParams {
         self.config
             .protocol_version
             .expect("Protocol version must be set")
+            .minor
             .try_into()
             .expect("Protocol version must be correctly initialized for genesis")
     }
@@ -159,7 +161,10 @@ pub fn mock_genesis_config() -> GenesisConfig {
     let first_l1_verifier_config = L1VerifierConfig::default();
 
     GenesisConfig {
-        protocol_version: Some(ProtocolVersionId::latest()),
+        protocol_version: Some(ProtocolSemanticVersion {
+            minor: ProtocolVersionId::latest(),
+            patch: 0.into(),
+        }),
         genesis_root_hash: Some(H256::default()),
         rollup_last_leaf_index: Some(26),
         genesis_commitment: Some(H256::default()),
