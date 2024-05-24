@@ -72,9 +72,17 @@ fn emit_metrics_for_round(round: AggregationRound, stats: JobCountStatistics) {
         );
     }
 
-    SERVER_METRICS.witness_generator_jobs_by_round[&("queued", format!("{:?}", round))]
+    SERVER_METRICS.witness_generator_jobs_by_round[&(
+        "queued",
+        format!("{:?}", round),
+        ProtocolVersionId::current_prover_version().to_string(),
+    )]
         .set(stats.queued as u64);
-    SERVER_METRICS.witness_generator_jobs_by_round[&("in_progress", format!("{:?}", round))]
+    SERVER_METRICS.witness_generator_jobs_by_round[&(
+        "in_progress",
+        format!("{:?}", round),
+        ProtocolVersionId::current_prover_version().to_string(),
+    )]
         .set(stats.queued as u64);
 }
 

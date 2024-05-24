@@ -763,8 +763,9 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::CommitmentGenerator) {
+        let pool_size = CommitmentGenerator::default_parallelism().get();
         let commitment_generator_pool =
-            ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
+            ConnectionPool::<Core>::builder(database_secrets.master_url()?, pool_size)
                 .build()
                 .await
                 .context("failed to build commitment_generator_pool")?;
