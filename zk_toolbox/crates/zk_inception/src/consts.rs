@@ -1,7 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use crate::types::ChainId;
-
 /// Name of the main configuration file
 pub(super) const CONFIG_NAME: &str = "ZkStack.yaml";
 /// Name of the wallets file
@@ -35,8 +33,6 @@ pub(super) const ECOSYSTEM_PATH: &str = "etc/ecosystem";
 /// Path to l1 contracts foundry folder inside zksync-era
 pub(super) const L1_CONTRACTS_FOUNDRY: &str = "contracts/l1-contracts-foundry";
 /// Path to DeployL1.s.sol script inside zksync-era relative to `L1_CONTRACTS_FOUNDRY`
-
-pub(super) const ERA_CHAIN_ID: ChainId = ChainId(270);
 
 pub(super) const TEST_CONFIG_PATH: &str = "etc/test_config/constant/eth.json";
 pub(super) const BASE_PATH: &str = "m/44'/60'/0'";
