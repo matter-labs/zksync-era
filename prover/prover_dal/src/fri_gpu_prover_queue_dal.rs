@@ -1,7 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use zksync_basic_types::{
-    protocol_version::ProtocolVersionId,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
 };
 use zksync_db_connection::connection::Connection;
@@ -19,7 +19,7 @@ impl FriGpuProverQueueDal<'_, '_> {
         processing_timeout: Duration,
         specialized_prover_group_id: u8,
         zone: String,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Option<SocketAddress> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<SocketAddress> = sqlx::query!(
@@ -77,7 +77,7 @@ impl FriGpuProverQueueDal<'_, '_> {
         address: SocketAddress,
         specialized_prover_group_id: u8,
         zone: String,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) {
         sqlx::query!(
             r#"

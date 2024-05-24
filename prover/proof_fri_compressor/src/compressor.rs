@@ -35,7 +35,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
@@ -46,7 +46,7 @@ pub struct ProofCompressor {
     compression_mode: u8,
     verify_wrapper_proof: bool,
     max_attempts: u32,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
 }
 
 impl ProofCompressor {
@@ -56,7 +56,7 @@ impl ProofCompressor {
         compression_mode: u8,
         verify_wrapper_proof: bool,
         max_attempts: u32,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             blob_store,

@@ -1,7 +1,9 @@
 use std::convert::TryFrom;
 
 use zksync_basic_types::{
-    protocol_version::{L1VerifierConfig, ProtocolVersionId, VerifierParams},
+    protocol_version::{
+        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
+    },
     H256,
 };
 use zksync_db_connection::connection::Connection;
@@ -16,7 +18,7 @@ pub struct FriProtocolVersionsDal<'a, 'c> {
 impl FriProtocolVersionsDal<'_, '_> {
     pub async fn save_prover_protocol_version(
         &mut self,
-        id: ProtocolVersionId,
+        id: ProtocolSemanticVersion,
         l1_verifier_config: L1VerifierConfig,
     ) {
         sqlx::query!(
@@ -59,11 +61,11 @@ impl FriProtocolVersionsDal<'_, '_> {
     pub async fn protocol_versions_for(
         &mut self,
         vk_commitments: &L1VerifierConfig,
-    ) -> Vec<ProtocolVersionId> {
+    ) -> Vec<ProtocolSemanticVersion> {
         sqlx::query!(
             r#"
             SELECT
-                id
+                idå
             FROM
                 prover_fri_protocol_versions
             WHERE
@@ -96,7 +98,7 @@ impl FriProtocolVersionsDal<'_, '_> {
 
     pub async fn vk_commitments_for(
         &mut self,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Option<L1VerifierConfig> {
         sqlx::query!(
             r#"

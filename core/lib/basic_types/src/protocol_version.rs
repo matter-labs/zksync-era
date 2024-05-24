@@ -298,6 +298,13 @@ pub struct ProtocolSemanticVersion {
 
 impl ProtocolSemanticVersion {
     const MAJOR_VERSION: u8 = 0;
+
+    pub fn current_prover_version() -> Self {
+        Self {
+            minor: ProtocolVersionId::current_prover_version(),
+            patch: VkPatch(0),
+        }
+    }
 }
 
 impl fmt::Display for ProtocolSemanticVersion {

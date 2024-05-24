@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    protocol_version::ProtocolVersionId,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
     prover_dal::{
         correct_circuit_id, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo,
         ProverJobStatus, StuckJobs,
@@ -28,7 +28,7 @@ impl FriProverDal<'_, '_> {
         circuit_ids_and_urls: Vec<(u8, String)>,
         aggregation_round: AggregationRound,
         depth: u16,
-        protocol_version_id: ProtocolVersionId,
+        protocol_version_id: ProtocolSemanticVersion,
     ) {
         let latency = MethodLatency::new("save_fri_prover_jobs");
         for (sequence_number, (circuit_id, circuit_blob_url)) in
@@ -51,7 +51,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_next_job(
         &mut self,
-        protocol_version: &ProtocolVersionId,
+        protocol_version: &ProtocolSemanticVersion,
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
         sqlx::query!(
@@ -111,7 +111,7 @@ impl FriProverDal<'_, '_> {
     pub async fn get_next_job_for_circuit_id_round(
         &mut self,
         circuits_to_pick: &[CircuitIdRoundTuple],
-        protocol_version: &ProtocolVersionId,
+        protocol_version: &ProtocolSemanticVersion,
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
         let circuit_ids: Vec<_> = circuits_to_pick
@@ -355,7 +355,7 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         circuit_blob_url: &str,
         is_node_final_proof: bool,
-        protocol_version_id: ProtocolVersionId,
+        protocol_version_id: ProtocolSemanticVersion,
     ) {
         sqlx::query!(
                     r#"

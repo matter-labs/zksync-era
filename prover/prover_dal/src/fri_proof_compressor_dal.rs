@@ -3,7 +3,7 @@ use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
-    protocol_version::ProtocolVersionId,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
     prover_dal::{
         JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
     },
@@ -23,7 +23,7 @@ impl FriProofCompressorDal<'_, '_> {
         &mut self,
         block_number: L1BatchNumber,
         fri_proof_blob_url: &str,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) {
         sqlx::query!(
                 r#"
@@ -63,7 +63,7 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn get_next_proof_compression_job(
         &mut self,
         picked_by: &str,
-        protocol_version: &ProtocolVersionId,
+        protocol_version: &ProtocolSemanticVersion,
     ) -> Option<L1BatchNumber> {
         sqlx::query!(
             r#"

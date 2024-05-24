@@ -15,7 +15,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    ProtocolVersionId,
+    protocol_version::ProtocolSemanticVersion,
 };
 
 use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
@@ -28,7 +28,7 @@ pub async fn fetch_next_circuit(
     storage: &mut Connection<'_, Prover>,
     blob_store: &dyn ObjectStore,
     circuit_ids_for_round_to_be_proven: &[CircuitIdRoundTuple],
-    protocol_version: &ProtocolVersionId,
+    protocol_version: &ProtocolSemanticVersion,
 ) -> Option<ProverJob> {
     let pod_name = get_current_pod_name();
     let prover_job = match &circuit_ids_for_round_to_be_proven.is_empty() {
