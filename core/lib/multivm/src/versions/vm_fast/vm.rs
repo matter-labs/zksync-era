@@ -388,8 +388,7 @@ impl<S: ReadStorage> Vm<S> {
         self.inner
             .world_diff
             .get_storage_changes()
-            .iter()
-            .map(|(&(address, key), &(_, initial_value, final_value))| {
+            .map(|((address, key), (_, initial_value, final_value))| {
                 let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
                 StateDiffRecord {
                     address,
@@ -607,8 +606,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                 .inner
                 .world_diff
                 .get_storage_changes()
-                .iter()
-                .map(|(&key, &(tx_number, before, after))| {
+                .map(|(key, (tx_number, before, after))| {
                     log_query_from_change(tx_number, (key, (before.unwrap_or_default(), after)))
                 })
                 .collect(),
