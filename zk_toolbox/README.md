@@ -11,7 +11,7 @@ all necessary arguments via the command line.
 
 Install zk_inception from git:
 
-`cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception --force`
+`cargo +nightly install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception --force`
 
 Manually building from a local copy of the [ZkSync](https://github.com/matter-labs/zksync-era/) repository:
 
