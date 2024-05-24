@@ -1,6 +1,6 @@
 use clap::Parser;
 use zksync_system_constants as constants;
-use zksync_types::{block::unpack_block_info, L2BlockNumber, block::L2BlockHasher, ethabi, Address, web3::keccak256,commitment::L1BatchWithMetadata, L1BatchNumber,L1ChainId,L2ChainId,H256,U256,url::SensitiveUrl};
+use zksync_types::{block::unpack_block_info, api::StorageProof, ProtocolVersionId, L2BlockNumber, block::L2BlockHasher, ethabi, Address, web3::keccak256,commitment::L1BatchWithMetadata, L1BatchNumber,L1ChainId,L2ChainId,H256,U256,url::SensitiveUrl};
 use zksync_web3_decl::client as web3;
 use zksync_web3_decl::namespaces::ZksNamespaceClient as _;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
@@ -105,20 +105,28 @@ impl Client {
         conn.blocks_dal().get_l1_batch_metadata(n).await?.context("batch not in storage")
     }
 
-    async fn l2_block_hash(&self, n: L1BatchNumber) -> anyhow::Result<(L2BlockNumber,H256)> {
+    async fn l2_block_info(&self, n: L1BatchNumber, protocol_version: ProtocolVersionId) -> anyhow::Result<(L2BlockNumber,H256,Vec<StorageProof>)> {
+        let mut proof = vec![];
         let addr = constants::SYSTEM_CONTEXT_ADDRESS;
-        let key = constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION; 
-        let block_info = self.l2.get_proof(addr,vec![key],n).await.context("get_proof()")?.context("missing proof")?;
-        let block_info = &block_info.storage_proof[0];
-        let (block_number,_) = unpack_block_info(block_info.value.as_bytes().into());
-        tracing::info!("block_number = {block_number}");
-
-        let key = U256::from(constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION.as_bytes()) + 
-            U256::from(block_number)%U256::from(constants::SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES);
-        let key = H256::from(<[u8;32]>::from(key));
-        let block_hash = self.l2.get_proof(addr,vec![key],n).await.context("get_proof()")?.context("missing proof")?;
-        Ok((L2BlockNumber(block_number.try_into().unwrap()),block_hash.storage_proof[0].value))
-        // TODO: this should generate a proof.
+        let current_block_pos = constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION;
+        let tx_rolling_hash_pos = constants::SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION;
+        let resp = self.l2.get_proof(addr,vec![current_block_pos,tx_rolling_hash_pos],n).await.context("get_proof()")?.context("missing proof")?;
+        let (block_number,block_timestamp) = unpack_block_info(resp.storage_proof[0].value.as_bytes().into());
+        let tx_rolling_hash = resp.storage_proof[1].value;
+        proof.extend(resp.storage_proof);
+        let prev_hash_pos =
+            U256::from(constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION.as_bytes()) +
+            U256::from(block_number-1) % U256::from(constants::SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES);
+        let resp = self.l2.get_proof(addr,vec![<[u8;32]>::from(prev_hash_pos).into()],n).await.context("get_proof()")?.context("missing proof")?;
+        let prev_hash = resp.storage_proof[0].value;
+        proof.extend(resp.storage_proof);
+        let block_number = L2BlockNumber(block_number.try_into().unwrap());
+        let block_hash = L2BlockHasher::hash(block_number,block_timestamp,prev_hash,tx_rolling_hash,protocol_version);
+        Ok((
+            block_number,
+            block_hash,
+            proof
+        ))
     }
 }
 
@@ -153,11 +161,25 @@ async fn main() -> anyhow::Result<()> {
     // {"astId":63,"contract":"SystemContext.sol:SystemContext","label":"currentL2BlockInfo","offset":0,"slot":"9","type":"t_struct(BlockInfo)1434_storage"}
     // slot[block_number] = 11 + block_number%257
    
-    let (last,last_hash) = c.l2_block_hash(last_batch).await.context("l2_block_hash(last)")?;
-    let (prev,mut prev_hash) = c.l2_block_hash(last_batch-1).await.context("l2_block_hash(prev)")?;
-    tracing::info!("last = {last_hash}, prev = {prev_hash}");
+    let (last,last_hash,_) = c.l2_block_info(last_batch, db_batch.header.protocol_version.unwrap()).await.context("l2_block_hash(last)")?;
+    // TODO: you should actually check the protocol_version from the state OR from L1 OR do not
+    // support legacy hashing.
+    let (prev,mut prev_hash,_) = c.l2_block_info(last_batch-1, db_batch.header.protocol_version.unwrap()).await.context("l2_block_hash(prev)")?;
 
     let mut conn = c.pool.connection().await?;
+   
+    let block = conn.sync_dal().sync_block(prev,true).await?.context("sync_block()")?;
+    assert_eq!(prev_hash, block.hash.unwrap());
+    assert_eq!(block.l1_batch_number,last_batch-1);
+    let block = conn.sync_dal().sync_block(prev+1,true).await?.context("sync_block()")?;
+    assert_eq!(block.l1_batch_number,last_batch);
+    
+    let block = conn.sync_dal().sync_block(last,true).await?.context("sync_block()")?;
+    assert_eq!(last_hash,block.hash.unwrap());
+    assert_eq!(block.l1_batch_number,last_batch);
+    let block = conn.sync_dal().sync_block(last+1,true).await?.context("sync_block()")?;
+    assert_eq!(block.l1_batch_number,last_batch+1);
+
     let block = conn.sync_dal().sync_block(prev,true).await?.context("sync_block()")?;
     assert_eq!(block.hash.unwrap(),prev_hash);
 
