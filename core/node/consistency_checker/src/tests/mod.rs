@@ -113,6 +113,7 @@ pub(crate) fn create_mock_checker(
 fn create_mock_ethereum() -> MockEthereum {
     let mock = MockEthereum::builder().with_call_handler(|call, _block_id| {
         assert_eq!(call.to, Some(DIAMOND_PROXY_ADDR));
+        let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
         let contract = zksync_contracts::hyperchain_contract();
         let expected_input = contract
             .function("getProtocolVersion")
@@ -120,7 +121,8 @@ fn create_mock_ethereum() -> MockEthereum {
             .encode_input(&[])
             .unwrap();
         assert_eq!(call.data, Some(expected_input.into()));
-        ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
+
+        ethabi::Token::Uint(packed_semver)
     });
     mock.build()
 }

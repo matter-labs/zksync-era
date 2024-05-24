@@ -695,6 +695,7 @@ mod tests {
     async fn calling_contracts() {
         let client = MockEthereum::builder()
             .with_call_handler(|req, _block_id| {
+                let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
                 let call_signature = &req.data.as_ref().unwrap().0[..4];
                 let contract = zksync_contracts::hyperchain_contract();
                 let pricing_mode_sig = contract
@@ -709,9 +710,7 @@ mod tests {
                     sig if sig == pricing_mode_sig => {
                         ethabi::Token::Uint(0.into()) // "rollup" mode encoding
                     }
-                    sig if sig == protocol_version_sig => {
-                        ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
-                    }
+                    sig if sig == protocol_version_sig => ethabi::Token::Uint(packed_semver),
                     _ => panic!("unexpected call"),
                 }
             })

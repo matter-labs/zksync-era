@@ -16,6 +16,9 @@ use crate::{
     H256, U256,
 };
 
+pub const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
+pub const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
+
 /// `ProtocolVersionId` is a unique identifier of the protocol version.
 /// Note, that it is an identifier of the `minor` semver version of the protocol, with
 /// the `major` version being `0`. Also, the protocol version on the contracts may contain
@@ -80,9 +83,6 @@ impl ProtocolVersionId {
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
-        const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
-        const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
-
         let minor = (packed_semver >> U256::from(PACKED_SEMVER_MINOR_OFFSET))
             & U256::from(PACKED_SEMVER_MINOR_MASK);
 
@@ -102,6 +102,13 @@ impl ProtocolVersionId {
         minor
             .try_into()
             .map_err(|err| format!("unknown protocol version ID: {}", err))
+    }
+
+    pub fn into_packed_semver_with_patch(self, patch: usize) -> U256 {
+        let minor = U256::from(self as u16);
+        let patch = U256::from(patch as u32);
+
+        (minor << U256::from(PACKED_SEMVER_MINOR_OFFSET)) | patch
     }
 
     /// Returns VM version to be used by API for this protocol version.
