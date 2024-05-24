@@ -134,7 +134,7 @@ impl ForgeScript {
         let Some(private_key) = self.private_key() else {
             return Ok(true);
         };
-        let client = create_ethers_client(private_key, rpc_url)?;
+        let client = create_ethers_client(private_key, rpc_url, None)?;
         let balance = client.get_balance(client.address(), None).await?;
         Ok(balance > minimum_value)
     }
