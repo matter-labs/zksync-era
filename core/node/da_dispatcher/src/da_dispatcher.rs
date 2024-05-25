@@ -97,11 +97,6 @@ impl DataAvailabilityDispatcher {
                 .map_err(Error::msg)?;
 
             if let Some(inclusion_data) = inclusion_data {
-                tracing::info!(
-                    "Storing inclusion data for batch_id: {}",
-                    storage_da.l1_batch_number
-                );
-
                 conn.blocks_dal()
                     .save_l1_batch_inclusion_data(
                         L1BatchNumber(storage_da.l1_batch_number as u32),

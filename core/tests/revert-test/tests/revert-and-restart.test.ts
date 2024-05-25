@@ -61,13 +61,13 @@ describe('Block reverting test', function () {
     let logs: fs.WriteStream;
     let operatorAddress = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR;
 
-    let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
-    let is_validium = process.env.DEPLOYMENT_MODE == 'Validium';
+    const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
+    const isValidium = process.env.DEPLOYMENT_MODE == 'Validium';
     let components = 'api,tree,eth,state_keeper,commitment_generator';
-    if (enable_consensus) {
+    if (enableConsensus) {
         components += ',consensus';
     }
-    if (is_validium) {
+    if (isValidium) {
         components += ',da_dispatcher';
     }
 
