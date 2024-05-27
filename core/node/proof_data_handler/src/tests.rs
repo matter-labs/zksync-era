@@ -1,6 +1,5 @@
 use std::time::Instant;
 
-use crate::create_proof_processing_router;
 use axum::{
     body::Body,
     http::{self, Method, Request, StatusCode},
@@ -16,6 +15,8 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_interface::{api::SubmitTeeProofRequest, inputs::PrepareBasicCircuitsJob};
 use zksync_tee_verifier::TeeVerifierInput;
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
+
+use crate::create_proof_processing_router;
 
 // Test the /tee_proof_generation_data endpoint by:
 // 1. Mocking an object store with a single batch blob containing TEE verifier input

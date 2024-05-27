@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use crate::errors::RequestProcessorError;
 use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{tee_proof_generation_dal::TeeType, ConnectionPool, Core, CoreDal};
@@ -11,6 +10,8 @@ use zksync_prover_interface::api::{
 };
 use zksync_tee_verifier::TeeVerifierInput;
 use zksync_types::L1BatchNumber;
+
+use crate::errors::RequestProcessorError;
 
 pub type TeeProofGenerationDataResponse = GenericProofGenerationDataResponse<TeeVerifierInput>;
 

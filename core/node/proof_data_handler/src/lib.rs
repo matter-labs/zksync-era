@@ -2,6 +2,8 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{extract::Path, routing::post, Json, Router};
+use request_processor::RequestProcessor;
+use tee_request_processor::TeeRequestProcessor;
 use tokio::sync::watch;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
@@ -11,9 +13,6 @@ use zksync_prover_interface::api::{
     TeeProofGenerationDataRequest,
 };
 use zksync_types::commitment::L1BatchCommitmentMode;
-
-use crate::request_processor::RequestProcessor;
-use crate::tee_request_processor::TeeRequestProcessor;
 
 #[cfg(test)]
 mod tests;

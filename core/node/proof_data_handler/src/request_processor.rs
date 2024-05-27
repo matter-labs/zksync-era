@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use crate::errors::RequestProcessorError;
 use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -15,6 +14,8 @@ use zksync_types::{
     web3::keccak256,
     L1BatchNumber, H256,
 };
+
+use crate::errors::RequestProcessorError;
 
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
