@@ -328,16 +328,16 @@ async fn test_normal_operation_governance_upgrades() {
         ])
         .await;
     client.set_last_finalized_block_number(15).await;
-    // second upgrade will not be processed, as it has less than 5 confirmations
+    // The second upgrade will not be processed, as it has less than 5 confirmations.
     watcher.loop_iteration(&mut storage).await.unwrap();
 
     let db_versions = storage.protocol_versions_dal().all_versions().await;
-    // there should be genesis version and just added version
+    // There should be genesis version and just added version.
     assert_eq!(db_versions.len(), 2);
     assert_eq!(db_versions[1].minor, ProtocolVersionId::latest());
 
     client.set_last_finalized_block_number(20).await;
-    // now the second upgrade will be processed
+    // Now the second and the third upgrades will be processed.
     watcher.loop_iteration(&mut storage).await.unwrap();
     let db_versions = storage.protocol_versions_dal().all_versions().await;
     let mut expected_version = ProtocolSemanticVersion {
@@ -349,7 +349,7 @@ async fn test_normal_operation_governance_upgrades() {
     expected_version.patch += 1;
     assert_eq!(db_versions[3], expected_version);
 
-    // check that tx was saved with the last upgrade
+    // Check that tx was saved with the second upgrade.
     let tx = storage
         .protocol_versions_dal()
         .get_protocol_upgrade_tx(ProtocolVersionId::next())
