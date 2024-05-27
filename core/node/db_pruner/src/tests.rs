@@ -355,3 +355,59 @@ async fn pruner_is_resistant_to_errors() {
     stop_sender.send_replace(true);
     pruner_task_handle.await.unwrap().unwrap();
 }
+
+#[tokio::test]
+async fn pruning_iteration_timely_shuts_down() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
+    insert_l2_blocks(&mut conn, 10, 2).await;
+
+    let pruner = DbPruner::with_conditions(
+        DbPrunerConfig {
+            removal_delay: Duration::MAX, // intentionally chosen so that pruning iterations stuck
+            pruned_batch_chunk_size: 3,
+            minimum_l1_batch_age: Duration::ZERO,
+        },
+        pool.clone(),
+        vec![], //No checks, so every batch is prunable
+    );
+
+    let (stop_sender, mut stop_receiver) = watch::channel(false);
+    let pruning_handle =
+        tokio::spawn(async move { pruner.run_single_iteration(&mut stop_receiver).await });
+
+    // Give some time for the task to get stuck
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(!pruning_handle.is_finished());
+
+    stop_sender.send_replace(true);
+    let outcome = pruning_handle.await.unwrap().unwrap();
+    assert_matches!(outcome, PruningIterationOutcome::Interrupted);
+}
+
+#[tokio::test]
+async fn pruner_timely_shuts_down() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
+    insert_l2_blocks(&mut conn, 10, 2).await;
+
+    let pruner = DbPruner::with_conditions(
+        DbPrunerConfig {
+            removal_delay: Duration::MAX, // intentionally chosen so that pruning iterations stuck
+            pruned_batch_chunk_size: 3,
+            minimum_l1_batch_age: Duration::ZERO,
+        },
+        pool.clone(),
+        vec![], //No checks, so every batch is prunable
+    );
+
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let pruner_handle = tokio::spawn(pruner.run(stop_receiver));
+
+    // Give some time for pruning to get stuck
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(!pruner_handle.is_finished());
+
+    stop_sender.send_replace(true);
+    pruner_handle.await.unwrap().unwrap();
+}
