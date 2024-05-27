@@ -91,7 +91,7 @@ impl ProtocolVersionId {
     }
 
     pub fn try_from_str_semver(str_semver: String) -> Result<Self, String> {
-        let parts: Vec<_> = str_semver.split(".").collect();
+        let parts: Vec<_> = str_semver.split('.').collect();
         if parts.len() != 3 {
             return Err(format!("unknown protocol version ID: {}", str_semver));
         }

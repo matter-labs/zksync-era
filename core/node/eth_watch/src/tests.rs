@@ -242,6 +242,7 @@ async fn test_normal_operation_l1_txs() {
     assert_eq!(db_tx.common_data.serial_id.0, 2);
 }
 
+//TODO
 #[tokio::test]
 async fn test_gap_in_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
@@ -272,6 +273,7 @@ async fn test_gap_in_governance_upgrades() {
     assert_eq!(db_ids[1], next_version);
 }
 
+//TODO
 #[tokio::test]
 async fn test_normal_operation_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;

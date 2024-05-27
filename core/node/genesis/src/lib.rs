@@ -143,8 +143,6 @@ impl GenesisParams {
             .protocol_version
             .expect("Protocol version must be set")
             .minor
-            .try_into()
-            .expect("Protocol version must be correctly initialized for genesis")
     }
 }
 
