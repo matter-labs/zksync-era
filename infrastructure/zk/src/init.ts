@@ -41,12 +41,14 @@ const submoduleUpdate = async (): Promise<void> => {
 type InitSetupOptions = {
     skipEnvSetup: boolean;
     skipSubmodulesCheckout: boolean;
+    skipContractCompilation?: boolean;
     runObservability: boolean;
     deploymentMode: DeploymentMode;
 };
 const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
+    skipContractCompilation,
     runObservability,
     deploymentMode
 }: InitSetupOptions): Promise<void> => {
@@ -66,10 +68,12 @@ const initSetup = async ({
 
     await announced('Compiling JS packages', run.yarn());
 
-    await Promise.all([
-        announced('Building L1 L2 contracts', contract.build(false)),
-        announced('Compile L2 system contracts', compiler.compileAll())
-    ]);
+    if (!skipContractCompilation) {
+        await Promise.all([
+            announced('Building L1 L2 contracts', contract.build(false)),
+            announced('Compile L2 system contracts', compiler.compileAll())
+        ]);
+    }
 };
 
 // Sets up the database, deploys the verifier (if set) and runs server genesis
@@ -151,6 +155,7 @@ type InitDevCmdActionOptions = InitSetupOptions & {
 export const initDevCmdAction = async ({
     skipEnvSetup,
     skipSubmodulesCheckout,
+    skipContractCompilation,
     skipTestTokenDeployment,
     testTokenOptions,
     baseTokenName,
@@ -162,7 +167,13 @@ export const initDevCmdAction = async ({
         await makeEraChainIdSameAsCurrent();
     }
     let deploymentMode = validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
-    await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, deploymentMode });
+    await initSetup({
+        skipEnvSetup,
+        skipSubmodulesCheckout,
+        skipContractCompilation,
+        runObservability,
+        deploymentMode
+    });
     await initDatabase({ skipVerifierDeployment: false });
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
@@ -224,6 +235,7 @@ export const initHyperCmdAction = async ({
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
+    .option('--skip-contract-compilation')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
