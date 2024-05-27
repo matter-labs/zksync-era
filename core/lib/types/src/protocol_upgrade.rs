@@ -1,7 +1,9 @@
 use std::convert::{TryFrom, TryInto};
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::protocol_version::{L1VerifierConfig, ProtocolVersionId, VerifierParams};
+use zksync_basic_types::protocol_version::{
+    L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
+};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_utils::{h256_to_u256, u256_to_account_address};
 
@@ -57,7 +59,7 @@ pub struct GovernanceOperation {
 #[derive(Debug, Clone, Default)]
 pub struct ProtocolUpgrade {
     /// New protocol version ID.
-    pub id: ProtocolVersionId,
+    pub version: ProtocolSemanticVersion,
     /// New bootloader code hash.
     pub bootloader_code_hash: Option<H256>,
     /// New default account code hash.
@@ -179,10 +181,10 @@ impl TryFrom<Log> for ProtocolUpgrade {
         let _l1_custom_data = decoded.remove(0);
         let _l1_post_upgrade_custom_data = decoded.remove(0);
         let timestamp = decoded.remove(0).into_uint().unwrap();
-        let packed_version_id_semver = decoded.remove(0).into_uint().unwrap();
+        let packed_protocol_semver = decoded.remove(0).into_uint().unwrap();
 
         Ok(Self {
-            id: ProtocolVersionId::try_from_packed_semver(packed_version_id_semver)
+            version: ProtocolSemanticVersion::try_from_packed(packed_protocol_semver)
                 .expect("Version is not supported"),
             bootloader_code_hash: (bootloader_code_hash != H256::zero())
                 .then_some(bootloader_code_hash),
@@ -448,7 +450,7 @@ impl TryFrom<Log> for GovernanceOperation {
 #[derive(Debug, Clone, Default)]
 pub struct ProtocolVersion {
     /// Protocol version ID
-    pub id: ProtocolVersionId,
+    pub version: ProtocolSemanticVersion,
     /// Timestamp at which upgrade should be performed
     pub timestamp: u64,
     /// Verifier configuration
@@ -467,7 +469,7 @@ impl ProtocolVersion {
         new_scheduler_vk_hash: Option<H256>,
     ) -> ProtocolVersion {
         ProtocolVersion {
-            id: upgrade.id,
+            version: upgrade.version,
             timestamp: upgrade.timestamp,
             l1_verifier_config: L1VerifierConfig {
                 params: upgrade

@@ -329,7 +329,7 @@ impl Aggregator {
         {
             let verifier_config_for_next_batch = storage
                 .protocol_versions_dal()
-                .l1_verifier_config_for_version(version_id)
+                .l1_verifier_config_for_version(todo!())
                 .await
                 .unwrap();
             if verifier_config_for_next_batch != l1_verifier_config {

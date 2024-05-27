@@ -518,7 +518,10 @@ async fn getting_batch_version_after_snapshot_recovery() {
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(&ProtocolVersion {
-            id: ProtocolVersionId::next(),
+            version: ProtocolSemanticVersion {
+                minor: ProtocolVersionId::next(),
+                patch: 0.into(),
+            },
             ..ProtocolVersion::default()
         })
         .await

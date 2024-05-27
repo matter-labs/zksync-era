@@ -119,7 +119,7 @@ impl RequestProcessor {
             .await
             .unwrap()
             .protocol_versions_dal()
-            .l1_verifier_config_for_version(protocol_version_id)
+            .l1_verifier_config_for_version(todo!())
             .await
             .expect(&format!(
                 "Missing l1 verifier info for protocol version {protocol_version_id:?}",

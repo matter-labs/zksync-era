@@ -84,25 +84,7 @@ impl ProtocolVersionId {
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
-        let minor = (packed_semver >> U256::from(PACKED_SEMVER_MINOR_OFFSET))
-            & U256::from(PACKED_SEMVER_MINOR_MASK);
-
-        Self::try_from(minor)
-    }
-
-    pub fn try_from_str_semver(str_semver: String) -> Result<Self, String> {
-        let parts: Vec<_> = str_semver.split('.').collect();
-        if parts.len() != 3 {
-            return Err(format!("unknown protocol version ID: {}", str_semver));
-        }
-
-        let minor = parts[1]
-            .parse::<u16>()
-            .map_err(|_| format!("unknown protocol version ID: {}", str_semver))?;
-
-        minor
-            .try_into()
-            .map_err(|err| format!("unknown protocol version ID: {}", err))
+        ProtocolSemanticVersion::try_from_packed(packed_semver).map(|p| p.minor)
     }
 
     pub fn into_packed_semver_with_patch(self, patch: usize) -> U256 {
@@ -314,6 +296,26 @@ pub struct ProtocolSemanticVersion {
 
 impl ProtocolSemanticVersion {
     const MAJOR_VERSION: u8 = 0;
+
+    pub fn try_from_packed(packed: U256) -> Result<Self, String> {
+        let minor = ((packed >> U256::from(PACKED_SEMVER_MINOR_OFFSET))
+            & U256::from(PACKED_SEMVER_MINOR_MASK))
+        .try_into()?;
+        let patch = packed.0[0] as u32;
+        if patch > u16::MAX as u32 {
+            return Err("Patches greater than u16::MAX are not supported".to_string());
+        }
+
+        Ok(Self {
+            minor,
+            patch: VkPatch(patch as u16),
+        })
+    }
+
+    pub fn pack(&self) -> U256 {
+        (U256::from(self.minor as u16) << U256::from(PACKED_SEMVER_MINOR_OFFSET))
+            | U256::from(self.patch.0)
+    }
 }
 
 impl fmt::Display for ProtocolSemanticVersion {
@@ -368,5 +370,14 @@ impl FromStr for ProtocolSemanticVersion {
             minor,
             patch: patch.into(),
         })
+    }
+}
+
+impl Default for ProtocolSemanticVersion {
+    fn default() -> Self {
+        Self {
+            minor: Default::default(),
+            patch: 0.into(),
+        }
     }
 }

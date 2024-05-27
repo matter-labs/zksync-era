@@ -276,7 +276,7 @@ pub async fn recover(
 
     let protocol_version = storage
         .protocol_versions_dal()
-        .get_protocol_version(snapshot.l1_batch.protocol_version.unwrap())
+        .get_protocol_version_with_latest_patch(snapshot.l1_batch.protocol_version.unwrap())
         .await
         .unwrap();
     if let Some(protocol_version) = protocol_version {

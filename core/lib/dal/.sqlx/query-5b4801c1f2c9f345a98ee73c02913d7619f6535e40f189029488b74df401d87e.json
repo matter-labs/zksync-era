@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                recursion_scheduler_level_vk_hash,\n                recursion_node_level_vk_hash,\n                recursion_leaf_level_vk_hash,\n                recursion_circuits_set_vks_hash\n            FROM\n                protocol_versions\n            WHERE\n                id = $1\n            ",
+  "query": "\n            SELECT\n                recursion_scheduler_level_vk_hash,\n                recursion_node_level_vk_hash,\n                recursion_leaf_level_vk_hash,\n                recursion_circuits_set_vks_hash\n            FROM\n                protocol_vk_patches\n            WHERE\n                minor = $1\n                AND patch = $2\n            ",
   "describe": {
     "columns": [
       {
@@ -26,6 +26,7 @@
     ],
     "parameters": {
       "Left": [
+        "Int4",
         "Int4"
       ]
     },
@@ -36,5 +37,5 @@
       false
     ]
   },
-  "hash": "966dddc881bfe6fd94b56f587424125a2633ddb6abaa129f2b12389140d83c3f"
+  "hash": "5b4801c1f2c9f345a98ee73c02913d7619f6535e40f189029488b74df401d87e"
 }

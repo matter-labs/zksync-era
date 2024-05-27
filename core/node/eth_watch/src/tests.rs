@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto, sync::Arc};
 use tokio::sync::RwLock;
 use zksync_contracts::{governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_types::protocol_version::ProtocolSemanticVersion;
 use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
@@ -253,7 +254,10 @@ async fn test_gap_in_governance_upgrades() {
     client
         .add_governance_upgrades(&[(
             ProtocolUpgrade {
-                id: ProtocolVersionId::next(),
+                version: ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::next(),
+                    patch: 0.into(),
+                },
                 tx: None,
                 ..Default::default()
             },
@@ -263,14 +267,14 @@ async fn test_gap_in_governance_upgrades() {
     client.set_last_finalized_block_number(15).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
 
-    let db_ids = storage.protocol_versions_dal().all_version_ids().await;
+    let db_versions = storage.protocol_versions_dal().all_versions().await;
     // there should be genesis version and just added version
-    assert_eq!(db_ids.len(), 2);
+    assert_eq!(db_versions.len(), 2);
 
     let previous_version = (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap();
     let next_version = ProtocolVersionId::next();
-    assert_eq!(db_ids[0], previous_version);
-    assert_eq!(db_ids[1], next_version);
+    assert_eq!(db_versions[0].minor, previous_version);
+    assert_eq!(db_versions[1].minor, next_version);
 }
 
 //TODO
@@ -296,7 +300,6 @@ async fn test_normal_operation_governance_upgrades() {
         .add_governance_upgrades(&[
             (
                 ProtocolUpgrade {
-                    id: ProtocolVersionId::latest(),
                     tx: None,
                     ..Default::default()
                 },
@@ -304,11 +307,25 @@ async fn test_normal_operation_governance_upgrades() {
             ),
             (
                 ProtocolUpgrade {
-                    id: ProtocolVersionId::next(),
+                    version: ProtocolSemanticVersion {
+                        minor: ProtocolVersionId::next(),
+                        patch: 0.into(),
+                    },
                     tx: Some(build_upgrade_tx(ProtocolVersionId::next(), 18)),
                     ..Default::default()
                 },
                 18,
+            ),
+            (
+                ProtocolUpgrade {
+                    version: ProtocolSemanticVersion {
+                        minor: ProtocolVersionId::next(),
+                        patch: 1.into(),
+                    },
+                    tx: None,
+                    ..Default::default()
+                },
+                19,
             ),
         ])
         .await;
@@ -316,17 +333,23 @@ async fn test_normal_operation_governance_upgrades() {
     // second upgrade will not be processed, as it has less than 5 confirmations
     watcher.loop_iteration(&mut storage).await.unwrap();
 
-    let db_ids = storage.protocol_versions_dal().all_version_ids().await;
+    let db_versions = storage.protocol_versions_dal().all_versions().await;
     // there should be genesis version and just added version
-    assert_eq!(db_ids.len(), 2);
-    assert_eq!(db_ids[1], ProtocolVersionId::latest());
+    assert_eq!(db_versions.len(), 2);
+    assert_eq!(db_versions[1].minor, ProtocolVersionId::latest());
 
     client.set_last_finalized_block_number(20).await;
     // now the second upgrade will be processed
     watcher.loop_iteration(&mut storage).await.unwrap();
-    let db_ids = storage.protocol_versions_dal().all_version_ids().await;
-    assert_eq!(db_ids.len(), 3);
-    assert_eq!(db_ids[2], ProtocolVersionId::next());
+    let db_versions = storage.protocol_versions_dal().all_versions().await;
+    let mut expected_version = ProtocolSemanticVersion {
+        minor: ProtocolVersionId::next(),
+        patch: 0.into(),
+    };
+    assert_eq!(db_versions.len(), 4);
+    assert_eq!(db_versions[2], expected_version);
+    expected_version.patch += 1;
+    assert_eq!(db_versions[3], expected_version);
 
     // check that tx was saved with the last upgrade
     let tx = storage
@@ -633,7 +656,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
         Token::Bytes(Default::default()),
         Token::Bytes(Default::default()),
         Token::Uint(upgrade.timestamp.into()),
-        Token::Uint((upgrade.id as u16).into()),
+        Token::Uint(upgrade.version.pack()),
         Token::Address(Default::default()),
     ]);
 
@@ -656,7 +679,10 @@ async fn setup_db(connection_pool: &ConnectionPool<Core>) {
         .unwrap()
         .protocol_versions_dal()
         .save_protocol_version_with_tx(&ProtocolVersion {
-            id: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
+            version: ProtocolSemanticVersion {
+                minor: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
+                patch: 0.into(),
+            },
             ..Default::default()
         })
         .await

@@ -15,6 +15,7 @@ use zksync_state_keeper::{
     seal_criteria::IoSealCriteria,
     updates::UpdatesManager,
 };
+use zksync_types::protocol_version::{ProtocolSemanticVersion, VkPatch};
 use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, Transaction, H256,
@@ -341,10 +342,13 @@ impl StateKeeperIO for ExternalIO {
             .await?
             .protocol_versions_dal()
             .save_protocol_version(
-                protocol_version
-                    .version_id
-                    .try_into()
-                    .context("cannot convert protocol version")?,
+                ProtocolSemanticVersion {
+                    minor: protocol_version
+                        .version_id
+                        .try_into()
+                        .context("cannot convert protocol version")?,
+                    patch: VkPatch(0),
+                },
                 protocol_version.timestamp,
                 protocol_version.verification_keys_hashes,
                 protocol_version.base_system_contracts,

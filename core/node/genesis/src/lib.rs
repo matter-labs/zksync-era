@@ -12,6 +12,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::PRIORITY_EXPIRATION;
+use zksync_types::protocol_version::VkPatch;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{CommitmentInput, L1BatchCommitment},
@@ -331,7 +332,10 @@ pub async fn create_genesis_l1_batch(
     l1_verifier_config: L1VerifierConfig,
 ) -> Result<(), GenesisError> {
     let version = ProtocolVersion {
-        id: protocol_version,
+        version: ProtocolSemanticVersion {
+            minor: protocol_version,
+            patch: VkPatch(0),
+        },
         timestamp: 0,
         l1_verifier_config,
         base_system_contracts_hashes: base_system_contracts.hashes(),
