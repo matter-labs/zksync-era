@@ -48,7 +48,7 @@ fn basic_workflow() {
         let mut tree = ZkSyncTree::new_lightweight(db.into()).unwrap();
         let metadata = tree.process_l1_batch(&logs).unwrap();
         tree.save().unwrap();
-        tree.verify_consistency(L1BatchNumber(0));
+        tree.verify_consistency(L1BatchNumber(0)).unwrap();
         (metadata, tree.root_hash())
     };
 
@@ -65,7 +65,7 @@ fn basic_workflow() {
 
     let db = RocksDB::new(temp_dir.as_ref()).unwrap();
     let tree = ZkSyncTree::new_lightweight(db.into()).unwrap();
-    tree.verify_consistency(L1BatchNumber(0));
+    tree.verify_consistency(L1BatchNumber(0)).unwrap();
     assert_eq!(tree.root_hash(), expected_root_hash);
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
 }
@@ -112,7 +112,7 @@ fn tree_with_single_leaf_works_correctly() {
         tree.save().unwrap();
     }
     let mut tree = ZkSyncTree::new(db.into()).unwrap();
-    tree.verify_consistency(L1BatchNumber(0));
+    tree.verify_consistency(L1BatchNumber(0)).unwrap();
 
     // Add more logs to the tree.
     for single_log_slice in storage_logs[1..].chunks(1) {

@@ -44,7 +44,8 @@ impl Cli {
         };
 
         tracing::info!("L1 batch number to check: {l1_batch_number}");
-        tree.verify_consistency(l1_batch_number);
+        tree.verify_consistency(l1_batch_number)
+            .context("Merkle tree is inconsistent")?;
         tracing::info!("Merkle tree verified in {:?}", start.elapsed());
         Ok(())
     }

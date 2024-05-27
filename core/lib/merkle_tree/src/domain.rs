@@ -183,17 +183,15 @@ impl ZkSyncTree {
     /// Verifies tree consistency. `l1_batch_number` specifies the version of the tree
     /// to be checked, expressed as the number of latest L1 batch applied to the tree.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if an inconsistency is detected.
-    // FIXME: return error
-    pub fn verify_consistency(&self, l1_batch_number: L1BatchNumber) {
+    /// Errors if an inconsistency is detected.
+    pub fn verify_consistency(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<(), ConsistencyError> {
         let version = u64::from(l1_batch_number.0);
-        self.tree
-            .verify_consistency(version, true)
-            .unwrap_or_else(|err| {
-                panic!("Tree at version {version} is inconsistent: {err}");
-            });
+        self.tree.verify_consistency(version, true)
     }
 
     /// Processes an iterator of storage logs comprising a single L1 batch.
