@@ -2,7 +2,7 @@
  * This suite contains tests checking default ERC-20 contract behavior.
  */
 
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
@@ -110,7 +110,7 @@ describe('base ERC20 contract checks', () => {
         await transferTx.waitFinalize();
 
         const receipt = await alice._providerL2().getTransactionReceipt(transferTx.hash);
-        const fee = receipt.gasPrice * receipt.gasUsed;
+        const fee = receipt!.gasPrice * receipt!.gasUsed;
 
         const finalAliceBalance = await alice.getBalance();
         expect(initialAliceBalance - fee).toEqual(finalAliceBalance);
@@ -154,7 +154,7 @@ describe('base ERC20 contract checks', () => {
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([]);
         const receipt = await alice._providerL2().getTransactionReceipt(withdrawalTx.hash);
-        const fee = receipt.gasPrice * receipt.gasUsed;
+        const fee = receipt!.gasPrice * receipt!.gasUsed;
 
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         const finalL2Balance = await alice.getBalance();

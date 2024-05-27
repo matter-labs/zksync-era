@@ -1,11 +1,11 @@
 /**
  * This suite contains tests checking the interaction with L1.
  *
- * !WARN! Tests that interact with L1 may be very time consuming on stage.
+ * !WARN! Tests that interact with L1 may be very time-consuming on stage.
  * Please only do the minimal amount of actions to test the behavior (e.g. no unnecessary deposits/withdrawals
  * and waiting for the block finalization).
  */
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { bigIntMax, deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
@@ -125,8 +125,7 @@ describe('Tests for L1 behavior', () => {
         ).toBeReverted([]);
     });
 
-    // bh ERROR - TypeError: tx.waitFinalize is not a function
-    test.skip('Should send L2->L1 messages', async () => {
+    test('Should send L2->L1 messages', async () => {
         if (testMaster.isFastMode()) {
             return;
         }
@@ -135,7 +134,7 @@ describe('Tests for L1 behavior', () => {
         // Send message to L1 and wait until it gets there.
         const message = ethers.toUtf8Bytes('Some L2->L1 message');
         const tx = await contract.sendToL1(message);
-        const receipt = await tx.waitFinalize(); // bh ERROR - TypeError: tx.waitFinalize is not a function
+        const receipt = await (await alice.provider.getTransaction(tx.hash)).waitFinalize();
 
         // Get the proof for the sent message from the server, expect it to exist.
         const l2ToL1LogIndex = receipt.l2ToL1Logs.findIndex(
@@ -146,16 +145,16 @@ describe('Tests for L1 behavior', () => {
 
         // Ensure that received proof matches the provided root hash.
         const { id, proof, root } = msgProof!;
-        const accumutatedRoot = calculateAccumulatedRoot(alice.address, message, receipt.l1BatchTxIndex, id, proof);
-        expect(accumutatedRoot).toBe(root);
+        const accumulatedRoot = calculateAccumulatedRoot(alice.address, message, receipt.l1BatchTxIndex!, id, proof);
+        expect(accumulatedRoot).toBe(root);
 
         // Ensure that provided proof is accepted by the main zkSync contract.
         const chainContract = await alice.getMainContract();
         const acceptedByContract = await chainContract.proveL2MessageInclusion(
-            receipt.l1BatchNumber,
+            receipt.l1BatchNumber!,
             id,
             {
-                txNumberInBatch: receipt.l1BatchTxIndex,
+                txNumberInBatch: receipt.l1BatchTxIndex!,
                 sender: alice.address,
                 data: message
             },
@@ -164,8 +163,7 @@ describe('Tests for L1 behavior', () => {
         expect(acceptedByContract).toBeTruthy();
     });
 
-    // bh ERROR
-    test.skip('Should check max L2 gas limit for priority txs', async () => {
+    test('Should check max L2 gas limit for priority txs', async () => {
         const gasPrice = await scaledGasPrice(alice);
         const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
 
@@ -201,8 +199,7 @@ describe('Tests for L1 behavior', () => {
         await priorityOpHandle.waitL1Commit();
     });
 
-    // bh ERROR
-    test.skip('Should revert l1 tx with too many initial storage writes', async () => {
+    test('Should revert l1 tx with too many initial storage writes', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {
@@ -237,8 +234,7 @@ describe('Tests for L1 behavior', () => {
         await expect(priorityOpHandle).toBeReverted();
     });
 
-    // bh ERROR
-    test.skip('Should revert l1 tx with too many repeated storage writes', async () => {
+    test('Should revert l1 tx with too many repeated storage writes', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {
@@ -293,8 +289,7 @@ describe('Tests for L1 behavior', () => {
         await expect(priorityOpHandle).toBeReverted();
     });
 
-    // bh ERROR
-    test.skip('Should revert l1 tx with too many l2 to l1 messages', async () => {
+    test('Should revert l1 tx with too many l2 to l1 messages', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {
@@ -329,8 +324,7 @@ describe('Tests for L1 behavior', () => {
         await expect(priorityOpHandle).toBeReverted();
     });
 
-    // bh ERROR
-    test.skip('Should revert l1 tx with too big l2 to l1 message', async () => {
+    test('Should revert l1 tx with too big l2 to l1 message', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {

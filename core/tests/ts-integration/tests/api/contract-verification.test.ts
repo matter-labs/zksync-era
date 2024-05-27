@@ -1,4 +1,4 @@
-import { TestMaster } from '../../src/index';
+import { TestMaster } from '../../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import fetch from 'node-fetch';

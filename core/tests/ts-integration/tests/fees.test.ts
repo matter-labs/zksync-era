@@ -11,7 +11,7 @@
  */
 import * as utils from 'zk/build/utils';
 import * as fs from 'fs';
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
@@ -191,7 +191,7 @@ testFees('Test fees', () => {
             throw new Error('The transaction should have reverted');
         } catch {
             const receipt = await alice.provider.getTransactionReceipt(unsuccessfulTx.hash);
-            expect(gasToPass - receipt.gasUsed > UINT32_MAX).toBeTruthy();
+            expect(gasToPass - receipt!.gasUsed > UINT32_MAX).toBeTruthy();
         }
     });
 
