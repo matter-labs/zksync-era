@@ -57,21 +57,58 @@ pub type BoxedError = Box<dyn error::Error + Send + Sync>;
 
 /// Errors during [`ObjectStore`] operations.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ObjectStoreError {
+    /// Object store initialization failed.
+    Initialization {
+        source: BoxedError,
+        is_transient: bool,
+    },
     /// An object with the specified key is not found.
     KeyNotFound(BoxedError),
     /// Object (de)serialization failed.
     Serialization(BoxedError),
     /// Other error has occurred when accessing the store (e.g., a network error).
-    Other(BoxedError),
+    Other {
+        source: BoxedError,
+        is_transient: bool,
+    },
+}
+
+impl ObjectStoreError {
+    /// Gives a best-effort estimate whether this error is transient.
+    pub fn is_transient(&self) -> bool {
+        match self {
+            Self::Initialization { is_transient, .. } | Self::Other { is_transient, .. } => {
+                *is_transient
+            }
+            Self::KeyNotFound(_) | Self::Serialization(_) => false,
+        }
+    }
 }
 
 impl fmt::Display for ObjectStoreError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Initialization {
+                source,
+                is_transient,
+            } => {
+                let kind = if *is_transient { "transient" } else { "fatal" };
+                write!(
+                    formatter,
+                    "{kind} error initializing object store: {source}"
+                )
+            }
             Self::KeyNotFound(err) => write!(formatter, "key not found: {err}"),
             Self::Serialization(err) => write!(formatter, "serialization error: {err}"),
-            Self::Other(err) => write!(formatter, "other error: {err}"),
+            Self::Other {
+                source,
+                is_transient,
+            } => {
+                let kind = if *is_transient { "transient" } else { "fatal" };
+                write!(formatter, "{kind} error accessing object store: {source}")
+            }
         }
     }
 }
@@ -79,9 +116,10 @@ impl fmt::Display for ObjectStoreError {
 impl error::Error for ObjectStoreError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            Self::KeyNotFound(err) | Self::Serialization(err) | Self::Other(err) => {
-                Some(err.as_ref())
+            Self::Initialization { source, .. } | Self::Other { source, .. } => {
+                Some(source.as_ref())
             }
+            Self::KeyNotFound(err) | Self::Serialization(err) => Some(err.as_ref()),
         }
     }
 }

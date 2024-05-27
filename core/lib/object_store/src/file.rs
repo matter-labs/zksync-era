@@ -9,7 +9,10 @@ impl From<io::Error> for ObjectStoreError {
     fn from(err: io::Error) -> Self {
         match err.kind() {
             io::ErrorKind::NotFound => ObjectStoreError::KeyNotFound(err.into()),
-            _ => ObjectStoreError::Other(err.into()),
+            kind => ObjectStoreError::Other {
+                is_transient: matches!(kind, io::ErrorKind::Interrupted | io::ErrorKind::TimedOut),
+                source: err.into(),
+            },
         }
     }
 }

@@ -9027,6 +9027,7 @@ name = "zksync_object_store"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "bincode",
  "flate2",
