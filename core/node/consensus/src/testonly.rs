@@ -29,9 +29,30 @@ use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVer
 use zksync_web3_decl::client::{Client, DynClient, L2};
 /// Implements EthInterface
 /// It is enough to use MockEthereum.with_call_handler() 
-use zksync_eth_client::clients::MockEthereum;
+//use zksync_eth_client::clients::MockEthereum;
+use zksync_state::{RocksdbStorageOptions};
+use zksync_state_keeper::{AsyncRocksdbCache,MainBatchExecutor};
+use zksync_config::configs::{database::{MerkleTreeConfig,MerkleTreeMode}, chain::OperationsManagerConfig};
+use zksync_metadata_calculator::{MetadataCalculator,MetadataCalculatorConfig};
 
 use crate::{en, ConnectionPool};
+
+/* replacement of asyncRockdb
+#[derive(Debug, Clone)]
+struct PostgresFactory(ConnectionPool<Core>);
+
+#[async_trait]
+impl ReadStorageFactory for PostgresFactory {
+    async fn access_storage(
+        &self,
+        _stop_receiver: &watch::Receiver<bool>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
+        Ok(Some(
+            PgOrRocksdbStorage::access_storage_pg(&self.0, l1_batch_number).await?,
+        ))
+    }
+}*/
 
 /// Fake StateKeeper for tests.
 pub(super) struct StateKeeper {
@@ -309,6 +330,121 @@ async fn calculate_mock_metadata(ctx: &ctx::Ctx, pool: &ConnectionPool) -> ctx::
 }
 
 impl StateKeeperRunner {
+    pub async fn run_real(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
+        let res = scope::run!(ctx, |ctx, s| async {
+            let (stop_send, stop_recv) = sync::watch::channel(false);
+            let (persistence, l2_block_sealer) =
+                StateKeeperPersistence::new(self.pool.0.clone(), Address::repeat_byte(11), 5);
+
+            let io = ExternalIO::new(
+                self.pool.0.clone(),
+                self.actions_queue,
+                Box::<MockMainNodeClient>::default(),
+                L2ChainId::default(),
+            )
+            .await?;
+ 
+            s.spawn_bg(async {
+                Ok(l2_block_sealer
+                    .run()
+                    .await
+                    .context("l2_block_sealer.run()")?)
+            });
+
+            let rocksdb_dir = tempfile::tempdir().context("tempdir()")?;
+
+            let merkle_tree_config = MerkleTreeConfig {
+                path: rocksdb_dir.path().join("merkle_tree").to_string_lossy().into(),
+                mode: MerkleTreeMode::Lightweight,
+                ..Default::default()
+            };
+            let operation_manager_config = OperationsManagerConfig {
+                delay_interval: 100, //100ms
+            };
+            let config = MetadataCalculatorConfig::for_main_node(
+                &merkle_tree_config,
+                &operation_manager_config,
+            );
+            let metadata_calculator = MetadataCalculator::new(config, None, self.pool.0.clone())
+                .await.context("MetadataCalculator::new()")?;
+            s.spawn_bg({
+                let stop_recv = stop_recv.clone();
+                async {
+                    metadata_calculator.run(stop_recv).await?;
+                    Ok(())
+                }
+            });
+            
+            let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
+                self.pool.0.clone(),
+                rocksdb_dir.path().join("cache").to_string_lossy().into(),
+                RocksdbStorageOptions {
+                    block_cache_capacity: (1<<20), // 1MB
+                    max_open_files: None,
+                },
+            );
+            s.spawn_bg({
+                let stop_recv = stop_recv.clone();
+                async {
+                    async_catchup_task.run(stop_recv).await?;
+                    Ok(())
+                }
+            });
+            s.spawn_bg({
+                let stop_recv = stop_recv.clone();
+                async {
+                    ZkSyncStateKeeper::new(
+                        stop_recv,
+                        Box::new(io),
+                        Box::new(MainBatchExecutor::new(
+                            Arc::new(async_cache),
+                            false,
+                            false,
+                        )),
+                        OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+                            .with_handler(Box::new(self.sync_state.clone())),
+                        Arc::new(NoopSealer),
+                    )
+                    .run()
+                    .await
+                    .context("ZkSyncStateKeeper::run()")?;
+                    Ok(())
+                }
+            });
+            s.spawn_bg(async {
+                // Spawn HTTP server.
+                let cfg = InternalApiConfig::new(
+                    &configs::api::Web3JsonRpcConfig::for_tests(),
+                    &configs::contracts::ContractsConfig::for_tests(),
+                    &configs::GenesisConfig::for_tests(),
+                );
+                let mut server = spawn_http_server(
+                    cfg,
+                    self.pool.0.clone(),
+                    Default::default(),
+                    Arc::default(),
+                    stop_recv,
+                )
+                .await;
+                if let Ok(addr) = ctx.wait(server.wait_until_ready()).await {
+                    self.addr.send_replace(Some(addr));
+                    tracing::info!("API server ready!");
+                }
+                ctx.canceled().await;
+                server.shutdown().await;
+                Ok(())
+            });
+            ctx.canceled().await;
+            stop_send.send_replace(true);
+            Ok(())
+        })
+        .await;
+        match res {
+            Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
+            Err(ctx::Error::Internal(err)) => Err(err),
+        }
+    }
+
     /// Executes the StateKeeper task.
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {

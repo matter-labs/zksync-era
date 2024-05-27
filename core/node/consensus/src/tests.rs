@@ -515,3 +515,27 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
     .await
     .unwrap();
 }
+
+#[tokio::test]
+async fn test_batch_proof() {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    //let rng = &mut ctx.rng();
+
+    scope::run!(ctx, |ctx, s| async {
+        let pool = ConnectionPool::from_genesis().await;
+        let (mut node, runner) =
+        testonly::StateKeeper::new(ctx, pool.clone()).await?;
+        s.spawn_bg(runner.run_real(ctx));
+        
+        // Seal a bunch of batches.
+        for _ in 0..5 { node.seal_batch().await; }
+        pool.wait_for_payload(ctx, node.last_block()).await?;
+        // TODO: actually wait for batches with metadata.
+        
+        Ok(())
+    }).await.unwrap();
+}
+
+
+
