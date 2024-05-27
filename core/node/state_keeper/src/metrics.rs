@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use multivm::{interface::VmExecutionResultAndLogs, vm_latest::ExecutionResult};
+use multivm::interface::VmExecutionResultAndLogs;
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
     Metrics,
@@ -14,7 +14,7 @@ use zksync_mempool::MempoolStore;
 use zksync_shared_metrics::InteractionType;
 use zksync_types::{tx::tx_execution_info::DeduplicatedWritesMetrics, ProtocolVersionId};
 
-use super::seal_criteria::SealResolution;
+use super::{batch_executor::TxExecutionResult as ExecutionResult, seal_criteria::SealResolution};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -35,30 +35,29 @@ pub enum TxExecutionType {
 pub enum TxExecutionStatus {
     Success,
     Rejected,
-    Reverted,
-    Halted,
+    BootloaderOutOfGasForTx,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub struct TxExecutionResult {
-    pub(crate) status: TxExecutionStatus,
-    pub(crate) reason: Option<String>,
+    status: TxExecutionStatus,
+    reason: Option<String>,
 }
 
 impl From<&ExecutionResult> for TxExecutionResult {
     fn from(result: &ExecutionResult) -> Self {
         match result {
-            ExecutionResult::Success { output: _ } => TxExecutionResult {
+            ExecutionResult::Success { .. } => TxExecutionResult {
                 status: TxExecutionStatus::Success,
                 reason: None,
             },
-            ExecutionResult::Revert { output } => TxExecutionResult {
-                status: TxExecutionStatus::Reverted,
-                reason: Some(output.to_user_friendly_string()),
+            ExecutionResult::RejectedByVm { reason } => TxExecutionResult {
+                status: TxExecutionStatus::Rejected,
+                reason: Some(reason.to_metrics_friendly_string()),
             },
-            ExecutionResult::Halt { reason } => TxExecutionResult {
-                status: TxExecutionStatus::Halted,
-                reason: Some(reason.to_string()),
+            ExecutionResult::BootloaderOutOfGasForTx => TxExecutionResult {
+                status: TxExecutionStatus::BootloaderOutOfGasForTx,
+                reason: Some("bootloader_out_of_gas".to_string()),
             },
         }
     }
@@ -109,6 +108,12 @@ pub struct StateKeeperMetrics {
     pub gas_price_too_high: Counter,
     /// Number of times blob base fee was reported as too high.
     pub blob_base_fee_too_high: Counter,
+}
+
+impl StateKeeperMetrics {
+    pub fn count_tx_execution_result(&mut self, result: &ExecutionResult) {
+        self.tx_execution_result[&TxExecutionResult::from(result)].inc();
+    }
 }
 
 #[vise::register]

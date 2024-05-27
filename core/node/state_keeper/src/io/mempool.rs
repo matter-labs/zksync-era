@@ -28,7 +28,7 @@ use crate::{
         L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     mempool_actor::l2_tx_filter,
-    metrics::{TxExecutionResult, TxExecutionStatus, KEEPER_METRICS},
+    metrics::KEEPER_METRICS,
     seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer},
     updates::UpdatesManager,
     MempoolGuard,
@@ -276,11 +276,6 @@ impl StateKeeperIO for MempoolIO {
 
         // Mark tx as rejected in the storage.
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        KEEPER_METRICS.tx_execution_result[&TxExecutionResult {
-            status: TxExecutionStatus::Rejected,
-            reason: Some(error.to_string()),
-        }]
-            .inc();
 
         tracing::warn!(
             "Transaction {} is rejected with error: {error}",

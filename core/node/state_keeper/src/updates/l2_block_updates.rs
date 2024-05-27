@@ -14,8 +14,6 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
-use crate::metrics::{TxExecutionResult, KEEPER_METRICS};
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct L2BlockUpdates {
     pub executed_transactions: Vec<TransactionExecutionResult>,
@@ -110,9 +108,6 @@ impl L2BlockUpdates {
             ExecutionResult::Revert { output } => Some(output.to_string()),
             ExecutionResult::Halt { reason } => Some(reason.to_string()),
         };
-
-        KEEPER_METRICS.tx_execution_result[&TxExecutionResult::from(&tx_execution_result.result)]
-            .inc();
 
         // Get transaction factory deps
         let factory_deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
