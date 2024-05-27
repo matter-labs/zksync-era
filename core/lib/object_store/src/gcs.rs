@@ -17,6 +17,7 @@ use google_cloud_storage::{
     },
 };
 use http::StatusCode;
+use rand::Rng;
 
 use crate::{
     metrics::GCS_METRICS,
@@ -29,7 +30,7 @@ where
     F: FnMut() -> Fut,
 {
     let mut retries = 1;
-    let mut backoff = 1;
+    let mut backoff_secs = 1;
     loop {
         match f().await {
             Ok(result) => return Ok(result),
@@ -40,8 +41,11 @@ where
                 }
                 tracing::info!(%err, "Failed GCS request {retries}/{max_retries}, retrying.");
                 retries += 1;
-                tokio::time::sleep(Duration::from_secs(backoff)).await;
-                backoff *= 2;
+                // Randomize sleep duration to prevent stampeding the server if multiple requests are initiated at the same time.
+                let sleep_duration = Duration::from_secs(backoff_secs)
+                    .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
+                tokio::time::sleep(sleep_duration).await;
+                backoff_secs *= 2;
             }
             Err(err) => {
                 tracing::warn!(%err, "Failed GCS request with a fatal error");
