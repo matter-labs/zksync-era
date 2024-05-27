@@ -90,7 +90,7 @@ pub struct StateKeeperMetrics {
     /// Latency of the state keeper getting a transaction from the mempool.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub get_tx_from_mempool: Histogram<Duration>,
-    /// Number of transactions completed with a specific result(success, revert, etc.)
+    /// Number of transactions completed with a specific result.
     pub tx_execution_result: Family<TxExecutionResult, Counter>,
     /// Time spent waiting for the hash of a previous L1 batch.
     #[metrics(buckets = Buckets::LATENCIES)]
