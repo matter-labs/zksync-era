@@ -366,7 +366,7 @@ function customTags(tags: yaml.Tags): yaml.Tags {
         // @ts-ignore
         if (tag.format === 'HEX') {
             // @ts-ignore
-            tag.resolve = (str, _onError, opt) => {
+            tag.resolve = (str, _onError, _opt) => {
                 return str;
             };
         }

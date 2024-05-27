@@ -1,4 +1,4 @@
-import { TestContextOwner, loadTestEnvironment, waitForServer } from '../index';
+import { TestContextOwner, loadTestEnvironment } from '../index';
 
 declare global {
     var __ZKSYNC_TEST_CONTEXT_OWNER__: TestContextOwner;
