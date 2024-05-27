@@ -45,7 +45,7 @@ fn calculating_chunk_count() {
 
 async fn create_tree_recovery(path: &Path, l1_batch: L1BatchNumber) -> AsyncTreeRecovery {
     let db = create_db(mock_config(path)).await.unwrap();
-    AsyncTreeRecovery::new(db, l1_batch.0.into(), MerkleTreeMode::Full)
+    AsyncTreeRecovery::new(db, l1_batch.0.into(), MerkleTreeMode::Full).unwrap()
 }
 
 #[tokio::test]
@@ -188,10 +188,11 @@ async fn recovery_fault_tolerance(chunk_count: u64) {
     let mut tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
     assert_ne!(tree.root_hash().await, snapshot_recovery.l1_batch_root_hash);
     let (stop_sender, stop_receiver) = watch::channel(false);
+    let event_listener = TestEventListener::new(2, stop_sender).expect_recovered_chunks(1);
     let recovery_options = RecoveryOptions {
         chunk_count,
         concurrency_limit: 1,
-        events: Box::new(TestEventListener::new(2, stop_sender).expect_recovered_chunks(1)),
+        events: Box::new(event_listener),
     };
     assert!(tree
         .recover(snapshot, recovery_options, &pool, &stop_receiver)

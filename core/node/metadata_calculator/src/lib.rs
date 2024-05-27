@@ -186,7 +186,7 @@ impl MetadataCalculator {
             started_at.elapsed()
         );
 
-        Ok(GenericAsyncTree::new(db, self.config.mode).await)
+        GenericAsyncTree::new(db, self.config.mode).await
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
