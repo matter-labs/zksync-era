@@ -63,7 +63,7 @@ impl From<StorageProtocolVersion> for api::ProtocolVersion {
             .as_ref()
             .map(|hash| H256::from_slice(hash));
         api::ProtocolVersion {
-            version_id: storage_protocol_version.patch as u16,
+            version_id: storage_protocol_version.minor as u16,
             timestamp: storage_protocol_version.timestamp as u64,
             verification_keys_hashes: L1VerifierConfig {
                 params: VerifierParams {

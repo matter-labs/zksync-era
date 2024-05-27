@@ -3,11 +3,11 @@ use std::{collections::HashMap, convert::TryInto, sync::Arc};
 use tokio::sync::RwLock;
 use zksync_contracts::{governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::protocol_version::ProtocolSemanticVersion;
 use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
+    protocol_version::ProtocolSemanticVersion,
     web3::{BlockNumber, Log},
     Address, Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
     ProtocolVersionId, Transaction, H256, U256,
@@ -243,7 +243,6 @@ async fn test_normal_operation_l1_txs() {
     assert_eq!(db_tx.common_data.serial_id.0, 2);
 }
 
-//TODO
 #[tokio::test]
 async fn test_gap_in_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
@@ -277,7 +276,6 @@ async fn test_gap_in_governance_upgrades() {
     assert_eq!(db_versions[1].minor, next_version);
 }
 
-//TODO
 #[tokio::test]
 async fn test_normal_operation_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;

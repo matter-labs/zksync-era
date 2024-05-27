@@ -302,7 +302,7 @@ impl ProtocolSemanticVersion {
             & U256::from(PACKED_SEMVER_MINOR_MASK))
         .try_into()?;
         let patch = packed.0[0] as u32;
-        if patch > u16::MAX as u32 {
+        if patch > u32::from(u16::MAX) {
             return Err("Patches greater than u16::MAX are not supported".to_string());
         }
 

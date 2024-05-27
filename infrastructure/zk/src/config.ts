@@ -181,7 +181,7 @@ export function pushConfig(environment?: string, diff?: string) {
     env.modify('DATABASE_MERKLE_TREE_BACKUP_PATH', `./db/${environment}/backups`, l2InitFile, false);
 
     if (process.env.CONTRACTS_DEV_PROTOCOL_VERSION) {
-        const [_major, minor, _patch] = unpackStringSemVer(process.env.CONTRACTS_DEV_PROTOCOL_VERSION);
+        const minor = unpackStringSemVer(process.env.CONTRACTS_DEV_PROTOCOL_VERSION)[1];
         env.modify(
             'CONTRACTS_GENESIS_PROTOCOL_VERSION',
             `0.${minor + 1}.0`, // The major version is always 0 for now

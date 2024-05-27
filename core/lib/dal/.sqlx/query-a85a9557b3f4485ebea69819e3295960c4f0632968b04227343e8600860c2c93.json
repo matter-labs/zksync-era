@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                minor, patch\n            FROM\n                protocol_vk_patches\n            ",
+  "query": "\n            SELECT\n                minor,\n                patch\n            FROM\n                protocol_vk_patches\n            ",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "c1a0130a25a960c5f2511badb8708a48b05a784a68ff00b917be727aff3717d7"
+  "hash": "a85a9557b3f4485ebea69819e3295960c4f0632968b04227343e8600860c2c93"
 }

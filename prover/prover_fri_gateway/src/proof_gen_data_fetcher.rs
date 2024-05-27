@@ -14,19 +14,20 @@ impl PeriodicApiStruct {
             .await
             .expect("Failed to save proof generation data to GCS");
         let mut connection = self.pool.connection().await.unwrap();
-        connection
-            .fri_protocol_versions_dal()
-            .save_prover_protocol_version(data.protocol_version_id, data.l1_verifier_config)
-            .await;
-        connection
-            .fri_witness_generator_dal()
-            .save_witness_inputs(
-                data.l1_batch_number,
-                &blob_url,
-                data.protocol_version_id,
-                data.eip_4844_blobs,
-            )
-            .await;
+        todo!(); // Will be fixed in prover PR.
+                 // connection
+                 //     .fri_protocol_versions_dal()
+                 //     .save_prover_protocol_version(data.protocol_version_id, data.l1_verifier_config)
+                 //     .await;
+                 // connection
+                 //     .fri_witness_generator_dal()
+                 //     .save_witness_inputs(
+                 //         data.l1_batch_number,
+                 //         &blob_url,
+                 //         data.protocol_version_id,
+                 //         data.eip_4844_blobs,
+                 //     )
+                 //     .await;
     }
 }
 

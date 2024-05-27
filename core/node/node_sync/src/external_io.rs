@@ -15,10 +15,10 @@ use zksync_state_keeper::{
     seal_criteria::IoSealCriteria,
     updates::UpdatesManager,
 };
-use zksync_types::protocol_version::{ProtocolSemanticVersion, VkPatch};
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::{ProtocolSemanticVersion, VkPatch},
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
 

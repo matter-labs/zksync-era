@@ -12,13 +12,12 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::PRIORITY_EXPIRATION;
-use zksync_types::protocol_version::VkPatch;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VkPatch},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
