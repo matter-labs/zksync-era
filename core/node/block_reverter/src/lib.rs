@@ -2,7 +2,7 @@ use std::{path::Path, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
-use tokio::fs;
+use tokio::{fs, sync::Semaphore};
 use zksync_config::{configs::chain::NetworkConfig, ContractsConfig, EthConfig};
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -380,6 +380,8 @@ impl BlockReverter {
         object_store: &dyn ObjectStore,
         deleted_snapshots: &[SnapshotMetadata],
     ) -> anyhow::Result<()> {
+        const CONCURRENT_REMOVE_REQUESTS: usize = 20;
+
         fn ignore_not_found_errors(err: ObjectStoreError) -> Result<(), ObjectStoreError> {
             match err {
                 ObjectStoreError::KeyNotFound(err) => {
@@ -419,18 +421,28 @@ impl BlockReverter {
                 });
             combine_results(&mut overall_result, result);
 
-            for chunk_id in 0..snapshot.storage_logs_filepaths.len() as u64 {
+            let remove_semaphore = &Semaphore::new(CONCURRENT_REMOVE_REQUESTS);
+            let chunks_len = snapshot.storage_logs_filepaths.len();
+            let remove_futures = (0..chunks_len as u64).map(|chunk_id| async move {
+                let _permit = remove_semaphore
+                    .acquire()
+                    .await
+                    .context("semaphore is never closed")?;
+
                 let key = SnapshotStorageLogsStorageKey {
                     l1_batch_number: snapshot.l1_batch_number,
                     chunk_id,
                 };
                 tracing::info!("Removing storage logs chunk {key:?}");
-
-                let result = object_store
+                object_store
                     .remove::<SnapshotStorageLogsChunk>(key)
                     .await
                     .or_else(ignore_not_found_errors)
-                    .with_context(|| format!("failed removing storage logs chunk {key:?}"));
+                    .with_context(|| format!("failed removing storage logs chunk {key:?}"))
+            });
+            let remove_results = futures::future::join_all(remove_futures).await;
+
+            for result in remove_results {
                 combine_results(&mut overall_result, result);
             }
         }

@@ -1,11 +1,14 @@
 //! Tests for block reverter.
 
+use std::{collections::HashSet, sync::Mutex};
+
 use assert_matches::assert_matches;
+use async_trait::async_trait;
 use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_dal::Connection;
 use zksync_merkle_tree::TreeInstruction;
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::{Bucket, ObjectStoreFactory};
 use zksync_state::ReadStorage;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
@@ -302,4 +305,120 @@ async fn reverting_snapshot(remove_objects: bool) {
             chunk_result.unwrap();
         }
     }
+}
+
+#[tokio::test]
+async fn reverting_snapshot_ignores_not_found_object_store_errors() {
+    let storage_logs = gen_storage_logs();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    setup_storage(&mut storage, &storage_logs).await;
+
+    let object_store = ObjectStoreFactory::mock().create_store().await;
+    create_mock_snapshot(&mut storage, &object_store, L1BatchNumber(7)).await;
+
+    // Manually remove some data from the store.
+    object_store
+        .remove::<SnapshotFactoryDependencies>(L1BatchNumber(7))
+        .await
+        .unwrap();
+    let key = SnapshotStorageLogsStorageKey {
+        l1_batch_number: L1BatchNumber(7),
+        chunk_id: 1,
+    };
+    object_store
+        .remove::<SnapshotStorageLogsChunk>(key)
+        .await
+        .unwrap();
+
+    let mut block_reverter = BlockReverter::new(NodeRole::External, pool.clone());
+    block_reverter.enable_rolling_back_postgres();
+    block_reverter.enable_rolling_back_snapshot_objects(object_store);
+    block_reverter.roll_back(L1BatchNumber(5)).await.unwrap();
+
+    // Check that snapshot metadata has been removed.
+    let all_snapshots = storage
+        .snapshots_dal()
+        .get_all_complete_snapshots()
+        .await
+        .unwrap();
+    assert_eq!(all_snapshots.snapshots_l1_batch_numbers, []);
+}
+
+#[derive(Debug, Default)]
+struct ErroneousStore {
+    object_keys: Mutex<HashSet<(Bucket, String)>>,
+}
+
+#[async_trait]
+impl ObjectStore for ErroneousStore {
+    async fn get_raw(&self, _bucket: Bucket, _key: &str) -> Result<Vec<u8>, ObjectStoreError> {
+        unreachable!("not called by reverter")
+    }
+
+    async fn put_raw(
+        &self,
+        bucket: Bucket,
+        key: &str,
+        _value: Vec<u8>,
+    ) -> Result<(), ObjectStoreError> {
+        self.object_keys
+            .lock()
+            .unwrap()
+            .insert((bucket, key.to_owned()));
+        Ok(())
+    }
+
+    async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
+        self.object_keys
+            .lock()
+            .unwrap()
+            .remove(&(bucket, key.to_owned()));
+        Err(ObjectStoreError::Other {
+            is_transient: false,
+            source: "fatal error".into(),
+        })
+    }
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        bucket.to_string()
+    }
+}
+
+#[tokio::test]
+async fn reverting_snapshot_propagates_fatal_errors() {
+    let storage_logs = gen_storage_logs();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    setup_storage(&mut storage, &storage_logs).await;
+
+    let object_store = Arc::new(ErroneousStore::default());
+    create_mock_snapshot(&mut storage, &object_store, L1BatchNumber(7)).await;
+
+    let mut block_reverter = BlockReverter::new(NodeRole::External, pool.clone());
+    block_reverter.enable_rolling_back_postgres();
+    block_reverter.enable_rolling_back_snapshot_objects(object_store.clone());
+    let err = block_reverter
+        .roll_back(L1BatchNumber(5))
+        .await
+        .unwrap_err();
+    assert!(err.chain().any(|source| {
+        if let Some(err) = source.downcast_ref::<ObjectStoreError>() {
+            matches!(err, ObjectStoreError::Other { .. })
+        } else {
+            false
+        }
+    }));
+
+    // Check that snapshot metadata has been removed (it's not atomic with snapshot removal).
+    let all_snapshots = storage
+        .snapshots_dal()
+        .get_all_complete_snapshots()
+        .await
+        .unwrap();
+    assert_eq!(all_snapshots.snapshots_l1_batch_numbers, []);
+
+    // Check that removal was called for all objects (i.e., the reverter doesn't bail early).
+    let retained_object_keys = object_store.object_keys.lock().unwrap();
+    assert!(retained_object_keys.is_empty(), "{retained_object_keys:?}");
 }
