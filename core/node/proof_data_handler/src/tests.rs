@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use crate::create_proof_processing_router;
 use axum::{
     body::Body,
@@ -15,8 +17,16 @@ use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_tee_verifier::TeeVerifierInput;
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
 
+// Test the /tee_proof_generation_data endpoint by:
+// 1. Mocking an object store with a single batch blob containing TEE verifier input
+// 2. Populating the SQL db with relevant information about the status of the TEE verifier input and
+//    TEE proof generation
+// 3. Sending a request to the /tee_proof_generation_data endpoint and asserting that the response
+//    matches the file from the object store
 #[tokio::test]
 async fn request_tee_proof_generation_data() {
+    // prepare sample TEE verifier input
+
     let batch_number = L1BatchNumber::from(1);
     let tvi = TeeVerifierInput::new(
         PrepareBasicCircuitsJob::new(0),
@@ -55,30 +65,52 @@ async fn request_tee_proof_generation_data() {
         },
         vec![(H256([1; 32]), vec![0, 1, 2, 3, 4])],
     );
+
     // populate mocked object store with a single batch blob
+
     let blob_store = ObjectStoreFactory::mock().create_store().await;
-    blob_store.put(batch_number, &tvi).await.unwrap();
+    let object_path = blob_store.put(batch_number, &tvi).await.unwrap();
+
     // get connection to the SQL db
+
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut db_conn1 = connection_pool.connection().await.unwrap();
-    let mut proof_dal = db_conn1.tee_proof_generation_dal();
-    let mut db_conn2 = connection_pool.connection().await.unwrap();
-    let mut input_producer_dal = db_conn2.tee_verifier_input_producer_dal();
+    let mut proof_db_conn = connection_pool.connection().await.unwrap();
+    let mut proof_dal = proof_db_conn.tee_proof_generation_dal();
+    let mut input_db_conn = connection_pool.connection().await.unwrap();
+    let mut input_producer_dal = input_db_conn.tee_verifier_input_producer_dal();
+
     // there should not be any batches awaiting proof in the db yet
+
     let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await;
     assert!(oldest_batch_number.is_none());
-    // mock SQL table with relevant batch information
+
+    // mock SQL table with relevant information about the status of the TEE verifier input
+
     input_producer_dal
         .create_tee_verifier_input_producer_job(batch_number)
         .await
-        .expect("Failed to create tee_verifier_input_producer_job job");
+        .expect("Failed to create tee_verifier_input_producer_job");
+
+    // pretend that the TEE verifier input file was fetched successfully
+
+    input_producer_dal
+        .mark_job_as_successful(batch_number, Instant::now(), &object_path)
+        .await
+        .expect("Failed to mark tee_verifier_input_producer_job job as successful");
+
+    // mock SQL table with relevant information about the status of TEE proof generation
+
     proof_dal
         .insert_tee_proof_generation_details(batch_number)
         .await;
+
     // now, there should be one batch in the database awaiting proof
+
     let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await.unwrap();
     assert_eq!(oldest_batch_number, batch_number);
-    // test the /tee_proof_generation_data endpoint; it should return batch data
+
+    // test the /tee_proof_generation_data endpoint; it should return the batch from the object store
+
     let app = create_proof_processing_router(
         blob_store,
         connection_pool.clone(),
