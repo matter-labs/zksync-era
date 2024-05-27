@@ -27,6 +27,9 @@ use zksync_state_keeper::{
 };
 use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
 use zksync_web3_decl::client::{Client, DynClient, L2};
+/// Implements EthInterface
+/// It is enough to use MockEthereum.with_call_handler() 
+use zksync_eth_client::clients::MockEthereum;
 
 use crate::{en, ConnectionPool};
 
