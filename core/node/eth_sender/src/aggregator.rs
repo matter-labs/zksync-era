@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
+use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
@@ -292,7 +292,6 @@ impl Aggregator {
     async fn load_real_proof_operation(
         storage: &mut Connection<'_, Core>,
         l1_verifier_config: L1VerifierConfig,
-        proof_loading_mode: &ProofLoadingMode,
         blob_store: &dyn ObjectStore,
         is_4844_mode: bool,
     ) -> Option<ProveBatches> {
@@ -344,15 +343,8 @@ impl Aggregator {
             patch: required_patch_version,
         };
 
-        let proof = match proof_loading_mode {
-            ProofLoadingMode::OldProofFromDb => {
-                unreachable!("OldProofFromDb is not supported anymore")
-            }
-            ProofLoadingMode::FriProofFromGcs => {
-                load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, required_version)
-                    .await
-            }
-        };
+        let proof =
+            load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, required_version).await;
         let Some(proof) = proof else {
             // The proof for the next L1 batch is not generated yet
             return None;
@@ -430,7 +422,6 @@ impl Aggregator {
                 Self::load_real_proof_operation(
                     storage,
                     l1_verifier_config,
-                    &self.config.proof_loading_mode,
                     &*self.blob_store,
                     self.operate_4844_mode,
                 )
@@ -453,7 +444,6 @@ impl Aggregator {
                 if let Some(op) = Self::load_real_proof_operation(
                     storage,
                     l1_verifier_config,
-                    &self.config.proof_loading_mode,
                     &*self.blob_store,
                     self.operate_4844_mode,
                 )
