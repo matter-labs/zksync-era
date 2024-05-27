@@ -259,7 +259,6 @@ impl JobProcessor for TeeVerifierInputProducer {
             .mark_job_as_successful(job_id, started_at, &object_path)
             .await
             .context("failed to mark job as successful for TeeVerifierInputProducer")?;
-        // TODO set 'ready_to_be_proven' using transaction.tee_verifier_input_producer_dal()? naah...
         transaction
             .commit()
             .await

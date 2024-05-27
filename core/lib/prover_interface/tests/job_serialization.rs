@@ -159,11 +159,18 @@ fn test_proof_request_serialization() {
 
 #[test]
 fn test_tee_proof_request_serialization() {
-    let tee_proof = SubmitTeeProofRequest::Proof(Box::new(L1BatchTeeProofForL1 {
+    let tee_proof_str = r#"{
+        "Proof": {
+            "signature": [ 0, 1, 2, 3, 4 ],
+            "pubkey": [ 5, 6, 7, 8, 9 ],
+            "attestation": [ 10, 11, 12, 13, 14 ]
+        }
+    }"#;
+    let tee_proof_result = serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_str).unwrap();
+    let tee_proof_expected = SubmitTeeProofRequest::Proof(Box::new(L1BatchTeeProofForL1 {
         signature: vec![0, 1, 2, 3, 4],
+        pubkey: vec![5, 6, 7, 8, 9],
+        attestation: vec![10, 11, 12, 13, 14],
     }));
-    let encoded = serde_json::to_string(&tee_proof).unwrap();
-    assert_eq!(r#"{"Proof":{"signature":[0,1,2,3,4]}}"#, encoded);
-    let decoded = serde_json::from_str(&encoded).unwrap();
-    assert_eq!(tee_proof, decoded);
+    assert_eq!(tee_proof_result, tee_proof_expected);
 }

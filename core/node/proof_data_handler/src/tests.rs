@@ -13,7 +13,7 @@ use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+use zksync_prover_interface::{api::SubmitTeeProofRequest, inputs::PrepareBasicCircuitsJob};
 use zksync_tee_verifier::TeeVerifierInput;
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
 
@@ -143,10 +143,12 @@ async fn request_tee_proof_generation_data() {
     assert_eq!(tvi, deserialized);
 }
 
+// Test the /submit_tee_proof endpoint
 #[tokio::test]
 async fn submit_tee_proof() {
     let blob_store = ObjectStoreFactory::mock().create_store().await;
     let connection_pool = ConnectionPool::test_pool().await;
+    let connection_clone = connection_pool.clone();
     let app = create_proof_processing_router(
         blob_store,
         connection_pool,
@@ -157,14 +159,49 @@ async fn submit_tee_proof() {
         L1BatchCommitmentMode::Rollup,
     );
 
-    let request = r#"{ "Proof": { "signature": [ 0, 1, 2, 3, 4 ] } }"#;
-    let request: serde_json::Value = serde_json::from_str(request).unwrap();
-    let req_body = Body::from(serde_json::to_vec(&request).unwrap());
+    let tee_proof_request_str = r#"{
+        "Proof": {
+            "signature": [ 0, 1, 2, 3, 4 ],
+            "pubkey": [ 5, 6, 7, 8, 9 ],
+            "attestation": [ 10, 11, 12, 13, 14 ]
+        }
+    }"#;
+    let batch_number = L1BatchNumber::from(1);
+    let mut proof_db_conn = connection_clone.connection().await.unwrap();
+    let mut proof_dal = proof_db_conn.tee_proof_generation_dal();
+    let mut input_db_conn = connection_clone.connection().await.unwrap();
+    let mut input_producer_dal = input_db_conn.tee_verifier_input_producer_dal();
+
+    // mock SQL table with relevant information about the status of the TEE verifier input
+
+    input_producer_dal
+        .create_tee_verifier_input_producer_job(batch_number)
+        .await
+        .expect("Failed to create tee_verifier_input_producer_job");
+
+    // pretend that the TEE verifier input file was fetched successfully
+
+    let object_path = "mocked_object_path";
+    input_producer_dal
+        .mark_job_as_successful(batch_number, Instant::now(), object_path)
+        .await
+        .expect("Failed to mark tee_verifier_input_producer_job job as successful");
+
+    // mock SQL table with relevant information about the status of TEE proof generation
+
+    proof_dal
+        .insert_tee_proof_generation_details(batch_number)
+        .await;
+
+    let tee_proof_request =
+        serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_request_str).unwrap();
+    let req_body = Body::from(serde_json::to_vec(&tee_proof_request).unwrap());
+    let uri = format!("/submit_tee_proof/{}", batch_number.0);
     let response = app
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/submit_tee_proof/123")
+                .uri(uri)
                 .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                 .body(req_body)
                 .unwrap(),

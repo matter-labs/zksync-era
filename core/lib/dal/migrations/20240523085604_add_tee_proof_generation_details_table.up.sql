@@ -2,9 +2,9 @@ CREATE TABLE IF NOT EXISTS tee_proof_generation_details
 (
     l1_batch_number         BIGINT PRIMARY KEY REFERENCES tee_verifier_input_producer_jobs (l1_batch_number) ON DELETE CASCADE,
     status                  TEXT      NOT NULL,
-    signature               TEXT,
-    pubkey                  TEXT,
-    attestation             TEXT,
+    signature               BYTEA,
+    pubkey                  BYTEA,
+    attestation             BYTEA,
     tee_type                TEXT,
     created_at              TIMESTAMP NOT NULL,
     updated_at              TIMESTAMP NOT NULL,

@@ -84,9 +84,9 @@ impl TeeProofGenerationDal<'_, '_> {
     pub async fn save_proof_artifacts_metadata(
         &mut self,
         block_number: L1BatchNumber,
-        signature: &str,
-        pubkey: &str,
-        attestation: &str,
+        signature: &[u8],
+        pubkey: &[u8],
+        attestation: &[u8],
         tee_type: TeeType,
     ) -> Result<(), SqlxError> {
         sqlx::query!(

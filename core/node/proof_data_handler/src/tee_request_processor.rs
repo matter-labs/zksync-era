@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::errors::RequestProcessorError;
 use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{tee_proof_generation_dal::TeeType, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     GenericProofGenerationDataResponse, SubmitProofResponse, SubmitTeeProofRequest,
@@ -74,18 +74,23 @@ impl TeeRequestProcessor {
 
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let mut connection = self.pool.connection().await.unwrap();
-        let mut dal = connection.proof_generation_dal();
+        let mut dal = connection.tee_proof_generation_dal();
 
-        // TODO: Replace the lines below with code that saves the proof generation result back to the database.
         match payload {
             SubmitTeeProofRequest::Proof(proof) => {
                 println!(
                     "Received proof {:?} for block number: {:?}",
                     proof, l1_batch_number
                 );
-                // dal.save_proof_artifacts_metadata(l1_batch_number, &blob_url)
-                //     .await
-                //     .map_err(RequestProcessorError::Sqlx)?;
+                dal.save_proof_artifacts_metadata(
+                    l1_batch_number,
+                    &proof.signature,
+                    &proof.signature,
+                    &proof.attestation,
+                    TeeType::Sgx,
+                )
+                .await
+                .map_err(RequestProcessorError::Sqlx)?;
             }
             SubmitTeeProofRequest::SkippedProofGeneration => {
                 dal.mark_proof_generation_job_as_skipped(l1_batch_number)

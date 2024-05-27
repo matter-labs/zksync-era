@@ -5,9 +5,9 @@
     "columns": [],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
-        "Text",
+        "Bytea",
+        "Bytea",
+        "Bytea",
         "Text",
         "Int8"
       ]

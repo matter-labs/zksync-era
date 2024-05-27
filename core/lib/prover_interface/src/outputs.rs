@@ -15,8 +15,9 @@ pub struct L1BatchProofForL1 {
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct L1BatchTeeProofForL1 {
-    // TODO revisit what else is needed here
     pub signature: Vec<u8>,
+    pub pubkey: Vec<u8>,
+    pub attestation: Vec<u8>,
 }
 
 impl fmt::Debug for L1BatchProofForL1 {
