@@ -7,9 +7,10 @@ use zksync_basic_types::{
     protocol_version::ProtocolVersionId,
     prover_dal::{
         correct_circuit_id, BasicWitnessGeneratorJobInfo, JobCountStatistics,
-        LeafAggregationJobMetadata, LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata,
-        NodeWitnessGeneratorJobInfo, RecursionTipWitnessGeneratorJobInfo,
-        SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
+        JobCountStatisticsByProtocolVersion, LeafAggregationJobMetadata,
+        LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo,
+        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, StuckJobs,
+        WitnessJobStatus,
     },
     L1BatchNumber,
 };
@@ -1345,30 +1346,37 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_witness_jobs_stats(
         &mut self,
         aggregation_round: AggregationRound,
-    ) -> JobCountStatistics {
+    ) -> Vec<JobCountStatisticsByProtocolVersion> {
         let table_name = Self::input_table_name_for(aggregation_round);
         let sql = format!(
             r#"
-                SELECT COUNT(*) as "count", status as "status"
-                FROM {}
-                GROUP BY status
+                SELECT
+                    protocol_version,
+                    COUNT(*) FILTER (WHERE status = 'queued') as queued,
+                    COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
+                FROM
+                    {}
+                GROUP BY
+                    protocol_version
                 "#,
             table_name
         );
-        let mut results: HashMap<String, i64> = sqlx::query(&sql)
+        let result = sqlx::query(&sql)
             .fetch_all(self.storage.conn())
             .await
             .unwrap()
             .into_iter()
-            .map(|row| (row.get("status"), row.get::<i64, &str>("count")))
-            .collect::<HashMap<String, i64>>();
+            .map(|row| JobCountStatisticsByProtocolVersion {
+                protocol_version: ProtocolVersionId::try_from(
+                    row.get::<i32, &str>("protocol_version") as u16,
+                )
+                .unwrap(),
+                queued: row.get::<i64, &str>("queued") as usize,
+                in_progress: row.get::<i64, &str>("in_progress") as usize,
+            })
+            .collect();
 
-        JobCountStatistics {
-            queued: results.remove("queued").unwrap_or(0i64) as usize,
-            in_progress: results.remove("in_progress").unwrap_or(0i64) as usize,
-            failed: results.remove("failed").unwrap_or(0i64) as usize,
-            successful: results.remove("successful").unwrap_or(0i64) as usize,
-        }
+        result
     }
 
     fn input_table_name_for(aggregation_round: AggregationRound) -> &'static str {

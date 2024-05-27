@@ -40,7 +40,7 @@ impl PeriodicJob for FriProverQueueReporter {
         let mut conn = self.prover_connection_pool.connection().await.unwrap();
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
-        for ((circuit_id, aggregation_round), stats) in stats.into_iter() {
+        for ((circuit_id, aggregation_round, protocol_version), stats) in stats.into_iter() {
             // BEWARE, HERE BE DRAGONS.
             // In database, the `circuit_id` stored is the circuit for which the aggregation is done,
             // not the circuit which is running.
@@ -64,8 +64,8 @@ impl PeriodicJob for FriProverQueueReporter {
                 circuit_id,
                 aggregation_round,
                 group_id,
-                ProtocolVersionId::current_prover_version(),
-                stats.queued as u64,
+                protocol_version,
+                stats.0 as u64,
             );
 
             FRI_PROVER_METRICS.report_prover_jobs(
@@ -73,8 +73,8 @@ impl PeriodicJob for FriProverQueueReporter {
                 circuit_id,
                 aggregation_round,
                 group_id,
-                ProtocolVersionId::current_prover_version(),
-                stats.in_progress as u64,
+                protocol_version,
+                stats.1 as u64,
             );
         }
 

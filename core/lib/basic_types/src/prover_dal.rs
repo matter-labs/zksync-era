@@ -33,6 +33,13 @@ pub struct JobCountStatistics {
     pub successful: usize,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct JobCountStatisticsByProtocolVersion {
+    pub protocol_version: ProtocolVersionId,
+    pub queued: usize,
+    pub in_progress: usize,
+}
+
 impl Add for JobCountStatistics {
     type Output = JobCountStatistics;
 

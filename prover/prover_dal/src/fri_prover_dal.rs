@@ -5,8 +5,8 @@ use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        correct_circuit_id, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo,
-        ProverJobStatus, StuckJobs,
+        correct_circuit_id, FriProverJobMetadata, JobCountStatistics,
+        JobCountStatisticsByProtocolVersion, ProverJobFriInfo, ProverJobStatus, StuckJobs,
     },
     L1BatchNumber,
 };
@@ -394,7 +394,7 @@ impl FriProverDal<'_, '_> {
             .unwrap();
     }
 
-    pub async fn get_prover_jobs_stats(&mut self) -> HashMap<(u8, u8), JobCountStatistics> {
+    pub async fn get_prover_jobs_stats(&mut self) -> HashMap<(u8, u8, u16), (u64, u64)> {
         {
             sqlx::query!(
                 r#"
@@ -402,16 +402,18 @@ impl FriProverDal<'_, '_> {
                     COUNT(*) AS "count!",
                     circuit_id AS "circuit_id!",
                     aggregation_round AS "aggregation_round!",
-                    status AS "status!"
+                    status AS "status!",
+                    protocol_version AS "protocol_version!"
                 FROM
                     prover_jobs_fri
                 WHERE
-                    status <> 'skipped'
-                    AND status <> 'successful'
+                    status = 'queued'
+                    OR status = 'in_progress'
                 GROUP BY
                     circuit_id,
                     aggregation_round,
-                    status
+                    status,
+                    protocol_version
                 "#
             )
             .fetch_all(self.storage.conn())
@@ -423,25 +425,23 @@ impl FriProverDal<'_, '_> {
                     row.circuit_id,
                     row.aggregation_round,
                     row.status,
-                    row.count as usize,
+                    row.count as u64,
+                    row.protocol_version,
                 )
             })
             .fold(
                 HashMap::new(),
-                |mut acc, (circuit_id, aggregation_round, status, value)| {
+                |mut acc, (circuit_id, aggregation_round, status, value, protocol_version)| {
                     let stats = acc
-                        .entry((circuit_id as u8, aggregation_round as u8))
-                        .or_insert(JobCountStatistics {
-                            queued: 0,
-                            in_progress: 0,
-                            failed: 0,
-                            successful: 0,
-                        });
+                        .entry((
+                            circuit_id as u8,
+                            aggregation_round as u8,
+                            protocol_version as u16,
+                        ))
+                        .or_insert((0u64, 0u64));
                     match status.as_ref() {
-                        "queued" => stats.queued = value,
-                        "in_progress" => stats.in_progress = value,
-                        "failed" => stats.failed = value,
-                        "successful" => stats.successful = value,
+                        "queued" => stats.0 = value,
+                        "in_progress" => stats.1 = value,
                         _ => (),
                     }
                     acc
