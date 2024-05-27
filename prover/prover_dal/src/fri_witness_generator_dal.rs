@@ -1360,7 +1360,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 "#,
             table_name
         );
-        let result = sqlx::query(&sql)
+        sqlx::query(&sql)
             .fetch_all(self.storage.conn())
             .await
             .unwrap()
@@ -1373,9 +1373,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 queued: row.get::<i64, &str>("queued") as usize,
                 in_progress: row.get::<i64, &str>("in_progress") as usize,
             })
-            .collect();
-
-        result
+            .collect()
     }
 
     fn input_table_name_for(aggregation_round: AggregationRound) -> &'static str {
