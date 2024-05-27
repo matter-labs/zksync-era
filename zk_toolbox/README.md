@@ -45,7 +45,14 @@ To create a ZK Stack project, you must first create an ecosystem:
 zk_inception ecosystem create
 ```
 
-All subsequent commands should be executed from within the ecosystem folder.
+If you chose to not start database & L1 containers after creating the ecosystem, you can later run
+`zk_inception containers`
+
+All subsequent commands should be executed from within the ecosystem folder you created:
+
+```bash
+cd path/to/ecosystem
+```
 
 If the ecosystem has never been deployed before, initialization is required:
 
