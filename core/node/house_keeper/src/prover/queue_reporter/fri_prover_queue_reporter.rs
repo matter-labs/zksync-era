@@ -64,7 +64,7 @@ impl PeriodicJob for FriProverQueueReporter {
                 circuit_id,
                 aggregation_round,
                 group_id,
-                protocol_version,
+                ProtocolVersionId::try_from(protocol_version).unwrap(),
                 stats.0 as u64,
             );
 
@@ -73,7 +73,7 @@ impl PeriodicJob for FriProverQueueReporter {
                 circuit_id,
                 aggregation_round,
                 group_id,
-                protocol_version,
+                ProtocolVersionId::try_from(protocol_version).unwrap(),
                 stats.1 as u64,
             );
         }

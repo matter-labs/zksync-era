@@ -1,16 +1,15 @@
 #![doc = include_str!("../doc/FriWitnessGeneratorDal.md")]
-use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
+use std::{convert::TryFrom, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        correct_circuit_id, BasicWitnessGeneratorJobInfo, JobCountStatistics,
-        JobCountStatisticsByProtocolVersion, LeafAggregationJobMetadata,
-        LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo,
-        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, StuckJobs,
-        WitnessJobStatus,
+        correct_circuit_id, BasicWitnessGeneratorJobInfo, JobCountStatisticsByProtocolVersion,
+        LeafAggregationJobMetadata, LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata,
+        NodeWitnessGeneratorJobInfo, RecursionTipWitnessGeneratorJobInfo,
+        SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
     },
     L1BatchNumber,
 };

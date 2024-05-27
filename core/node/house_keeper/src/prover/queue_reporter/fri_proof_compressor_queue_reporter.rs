@@ -1,10 +1,7 @@
 use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
-use zksync_types::{
-    prover_dal::{JobCountStatistics, JobCountStatisticsByProtocolVersion},
-    ProtocolVersionId,
-};
+use zksync_types::prover_dal::JobCountStatisticsByProtocolVersion;
 
 use crate::{
     periodic_job::PeriodicJob,
@@ -56,16 +53,12 @@ impl PeriodicJob for FriProofCompressorQueueReporter {
                 );
             }
 
-            PROVER_FRI_METRICS
-                .proof_compressor_jobs
-                .get(&(JobStatus::Queued, stats.protocol_version.clone()))
-                .unwrap()
+            PROVER_FRI_METRICS.proof_compressor_jobs
+                [&(JobStatus::Queued, stats.protocol_version.to_string())]
                 .set(stats.queued as u64);
 
-            PROVER_FRI_METRICS
-                .proof_compressor_jobs
-                .get(&(JobStatus::InProgress, stats.protocol_version.clone()))
-                .unwrap()
+            PROVER_FRI_METRICS.proof_compressor_jobs
+                [&(JobStatus::InProgress, stats.protocol_version.to_string())]
                 .set(stats.in_progress as u64);
         }
 

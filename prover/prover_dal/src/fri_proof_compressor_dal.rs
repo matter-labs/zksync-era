@@ -1,5 +1,5 @@
 #![doc = include_str!("../doc/FriProofCompressorDal.md")]
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
