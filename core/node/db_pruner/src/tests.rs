@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use assert_matches::assert_matches;
+use async_trait::async_trait;
 use test_log::test;
 use zksync_dal::pruning_dal::PruningInfo;
 use zksync_db_connection::connection::Connection;
@@ -145,7 +146,11 @@ async fn hard_pruning_ignores_conditions_checks() {
     );
     let health_check = pruner.health_check();
 
-    pruner.run_single_iteration().await.unwrap();
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    pruner
+        .run_single_iteration(&mut stop_receiver)
+        .await
+        .unwrap();
 
     assert_eq!(
         PruningInfo {
@@ -179,7 +184,11 @@ async fn pruner_catches_up_with_hard_pruning_up_to_soft_pruning_boundary_ignorin
         vec![], //No checks, so every batch is prunable
     );
 
-    pruner.run_single_iteration().await.unwrap();
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    pruner
+        .run_single_iteration(&mut stop_receiver)
+        .await
+        .unwrap();
 
     assert_eq!(
         PruningInfo {
@@ -191,7 +200,10 @@ async fn pruner_catches_up_with_hard_pruning_up_to_soft_pruning_boundary_ignorin
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
 
-    pruner.run_single_iteration().await.unwrap();
+    pruner
+        .run_single_iteration(&mut stop_receiver)
+        .await
+        .unwrap();
     assert_eq!(
         PruningInfo {
             last_soft_pruned_l1_batch: Some(L1BatchNumber(7)),
@@ -220,7 +232,11 @@ async fn unconstrained_pruner_with_fresh_database() {
         vec![], //No checks, so every batch is prunable
     );
 
-    pruner.run_single_iteration().await.unwrap();
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    pruner
+        .run_single_iteration(&mut stop_receiver)
+        .await
+        .unwrap();
 
     assert_eq!(
         PruningInfo {
@@ -232,7 +248,10 @@ async fn unconstrained_pruner_with_fresh_database() {
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
 
-    pruner.run_single_iteration().await.unwrap();
+    pruner
+        .run_single_iteration(&mut stop_receiver)
+        .await
+        .unwrap();
     assert_eq!(
         PruningInfo {
             last_soft_pruned_l1_batch: Some(L1BatchNumber(6)),
@@ -262,7 +281,11 @@ async fn pruning_blocked_after_first_chunk() {
         pool.clone(),
         vec![first_chunk_prunable_check],
     );
-    pruner.run_single_iteration().await.unwrap();
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    pruner
+        .run_single_iteration(&mut stop_receiver)
+        .await
+        .unwrap();
 
     assert_eq!(
         PruningInfo {
@@ -274,7 +297,11 @@ async fn pruning_blocked_after_first_chunk() {
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
 
-    pruner.run_single_iteration().await.unwrap();
+    let outcome = pruner
+        .run_single_iteration(&mut stop_receiver)
+        .await
+        .unwrap();
+    assert_matches!(outcome, PruningIterationOutcome::NoOp);
     // pruning shouldn't have progressed as chunk 6 cannot be pruned
     assert_eq!(
         PruningInfo {
@@ -304,7 +331,11 @@ async fn pruner_is_resistant_to_errors() {
         pool.clone(),
         vec![erroneous_condition],
     );
-    pruner.run_single_iteration().await.unwrap_err();
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    pruner
+        .run_single_iteration(&mut stop_receiver)
+        .await
+        .unwrap_err();
 
     let mut health_check = pruner.health_check();
     let (stop_sender, stop_receiver) = watch::channel(false);

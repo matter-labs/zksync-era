@@ -1,9 +1,8 @@
 //! Postgres pruning component.
 
-use std::{fmt, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_dal::{pruning_dal::PruningInfo, Connection, ConnectionPool, Core, CoreDal};
@@ -14,7 +13,7 @@ use self::{
     metrics::{MetricPruneType, METRICS},
     prune_conditions::{
         ConsistencyCheckerProcessedBatch, L1BatchExistsCondition, L1BatchOlderThanPruneCondition,
-        NextL1BatchHasMetadataCondition, NextL1BatchWasExecutedCondition,
+        NextL1BatchHasMetadataCondition, NextL1BatchWasExecutedCondition, PruneCondition,
     },
 };
 
@@ -59,6 +58,17 @@ impl From<PruningInfo> for DbPrunerHealth {
     }
 }
 
+/// Outcome of a single pruning iteration.
+#[derive(Debug)]
+enum PruningIterationOutcome {
+    /// Nothing to prune.
+    NoOp,
+    /// Iteration resulted in pruning.
+    Pruned,
+    /// Pruning was interrupted because of a stop signal.
+    Interrupted,
+}
+
 /// Postgres database pruning component.
 #[derive(Debug)]
 pub struct DbPruner {
@@ -66,12 +76,6 @@ pub struct DbPruner {
     connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     prune_conditions: Vec<Arc<dyn PruneCondition>>,
-}
-
-/// Interface to be used for health checks.
-#[async_trait]
-trait PruneCondition: fmt::Debug + fmt::Display + Send + Sync + 'static {
-    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
 }
 
 impl DbPruner {
@@ -239,7 +243,10 @@ impl DbPruner {
         Ok(())
     }
 
-    async fn run_single_iteration(&self) -> anyhow::Result<bool> {
+    async fn run_single_iteration(
+        &self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> anyhow::Result<PruningIterationOutcome> {
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
         let current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
         self.update_health(current_pruning_info);
@@ -250,15 +257,21 @@ impl DbPruner {
         {
             let pruning_done = self.soft_prune(&mut storage).await?;
             if !pruning_done {
-                return Ok(false);
+                return Ok(PruningIterationOutcome::NoOp);
             }
         }
         drop(storage); // Don't hold a connection across a timeout
 
-        tokio::time::sleep(self.config.removal_delay).await;
+        if tokio::time::timeout(self.config.removal_delay, stop_receiver.changed())
+            .await
+            .is_ok()
+        {
+            return Ok(PruningIterationOutcome::Interrupted);
+        }
+
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
         self.hard_prune(&mut storage).await?;
-        Ok(true)
+        Ok(PruningIterationOutcome::Pruned)
     }
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -277,7 +290,7 @@ impl DbPruner {
                 tracing::warn!("Error updating DB pruning metrics: {err:?}");
             }
 
-            let should_sleep = match self.run_single_iteration().await {
+            let should_sleep = match self.run_single_iteration(&mut stop_receiver).await {
                 Err(err) => {
                     // As this component is not really mission-critical, all errors are generally ignored
                     tracing::warn!(
@@ -290,7 +303,9 @@ impl DbPruner {
                     self.health_updater.update(health);
                     true
                 }
-                Ok(pruning_done) => !pruning_done,
+                Ok(PruningIterationOutcome::Interrupted) => break,
+                Ok(PruningIterationOutcome::Pruned) => false,
+                Ok(PruningIterationOutcome::NoOp) => true,
             };
 
             if should_sleep
