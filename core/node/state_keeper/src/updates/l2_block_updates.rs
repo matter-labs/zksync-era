@@ -114,7 +114,9 @@ impl L2BlockUpdates {
                 KEEPER_METRICS.inc_reverted_txs(output.to_metrics_friendly_string());
                 Some(output.to_string())
             }
-            ExecutionResult::Halt { .. } => unreachable!(),
+            ExecutionResult::Halt { .. } => {
+                unreachable!("Tx that is added to `UpdatesManager` must not have Halted status")
+            }
         };
 
         // Get transaction factory deps
