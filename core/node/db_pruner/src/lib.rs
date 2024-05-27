@@ -211,7 +211,11 @@ impl DbPruner {
         Ok(true)
     }
 
-    async fn hard_prune(&self, storage: &mut Connection<'_, Core>) -> anyhow::Result<()> {
+    async fn hard_prune(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> anyhow::Result<PruningIterationOutcome> {
         let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Hard].start();
         let mut transaction = storage.start_transaction().await?;
 
@@ -225,10 +229,21 @@ impl DbPruner {
                 format!("bogus pruning info {current_pruning_info:?}: trying to hard-prune data, but there is no soft-pruned L2 block")
             })?;
 
-        let stats = transaction
-            .pruning_dal()
-            .hard_prune_batches_range(last_soft_pruned_l1_batch, last_soft_pruned_l2_block)
-            .await?;
+        let mut dal = transaction.pruning_dal();
+        let stats = tokio::select! {
+            result = dal.hard_prune_batches_range(
+                last_soft_pruned_l1_batch,
+                last_soft_pruned_l2_block,
+            ) => result?,
+
+            _ = stop_receiver.changed() => {
+                // `hard_prune_batches_range()` can take a long time. It looks better to roll back it explicitly here if a node is getting shut down
+                // rather than waiting a node to force-exit after a timeout, which would interrupt the DB connection and will lead to an implicit rollback.
+                tracing::info!("Hard pruning interrupted; rolling back pruning transaction");
+                transaction.rollback().await?;
+                return Ok(PruningIterationOutcome::Interrupted);
+            }
+        };
         METRICS.observe_hard_pruning(stats);
         transaction.commit().await?;
 
@@ -240,7 +255,7 @@ impl DbPruner {
         current_pruning_info.last_hard_pruned_l1_batch = Some(last_soft_pruned_l1_batch);
         current_pruning_info.last_hard_pruned_l2_block = Some(last_soft_pruned_l2_block);
         self.update_health(current_pruning_info);
-        Ok(())
+        Ok(PruningIterationOutcome::Pruned)
     }
 
     async fn run_single_iteration(
@@ -270,8 +285,7 @@ impl DbPruner {
         }
 
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
-        self.hard_prune(&mut storage).await?;
-        Ok(PruningIterationOutcome::Pruned)
+        self.hard_prune(&mut storage, stop_receiver).await
     }
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
