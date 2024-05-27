@@ -50,7 +50,9 @@ impl EcosystemCreateArgs {
             }
         });
 
-        let l1_network = PromptSelect::new("Select the L1 network", L1Network::iter()).ask();
+        let l1_network = self
+            .l1_network
+            .unwrap_or_else(|| PromptSelect::new("Select the L1 network", L1Network::iter()).ask());
 
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new("What is the RPC URL of the L1 network?");

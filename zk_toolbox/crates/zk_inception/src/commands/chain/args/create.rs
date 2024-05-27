@@ -1,6 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use common::{slugify, Prompt, PromptConfirm, PromptSelect};
 use ethers::types::H160;
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ use crate::{
 pub struct ChainCreateArgs {
     #[arg(long)]
     pub chain_name: Option<String>,
-    #[arg(value_parser = clap::value_parser!(u32).range(1..))]
+    #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
     pub chain_id: Option<u32>,
     #[clap(long, help = "Prover options", value_enum)]
     pub prover_mode: Option<ProverMode>,
@@ -50,20 +50,26 @@ impl ChainCreateArgs {
                 .ask()
         });
 
-        let wallet_creation = PromptSelect::new(
-            "Select how do you want to create the wallet",
-            WalletCreation::iter(),
-        )
-        .ask();
+        let wallet_creation = self.wallet_creation.unwrap_or_else(|| {
+            PromptSelect::new(
+                "Select how do you want to create the wallet",
+                WalletCreation::iter(),
+            )
+            .ask()
+        });
 
-        let prover_version =
-            PromptSelect::new("Select the prover version", ProverMode::iter()).ask();
+        let prover_version = self.prover_mode.unwrap_or_else(|| {
+            PromptSelect::new("Select the prover version", ProverMode::iter()).ask()
+        });
 
-        let l1_batch_commit_data_generator_mode = PromptSelect::new(
-            "Select the commit data generator mode",
-            L1BatchCommitDataGeneratorMode::iter(),
-        )
-        .ask();
+        let l1_batch_commit_data_generator_mode =
+            self.l1_batch_commit_data_generator_mode.unwrap_or_else(|| {
+                PromptSelect::new(
+                    "Select the commit data generator mode",
+                    L1BatchCommitDataGeneratorMode::iter(),
+                )
+                .ask()
+            });
 
         let wallet_path: Option<PathBuf> = if self.wallet_creation == Some(WalletCreation::InFile) {
             Some(self.wallet_path.unwrap_or_else(|| {
@@ -79,6 +85,7 @@ impl ChainCreateArgs {
             None
         };
 
+        // TODO: should use cli args first
         let base_token_selection =
             PromptSelect::new("Select the base token to use", BaseTokenSelection::iter()).ask();
         let base_token = match base_token_selection {
@@ -139,7 +146,7 @@ pub struct ChainCreateArgsFinal {
     pub set_as_default: bool,
 }
 
-#[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
+#[derive(Debug, Clone, ValueEnum, EnumIter, Display, PartialEq, Eq)]
 enum BaseTokenSelection {
     Eth,
     Custom,
