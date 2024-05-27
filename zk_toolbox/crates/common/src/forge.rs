@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use ethers::abi::Address;
 use ethers::middleware::Middleware;
 use ethers::prelude::{LocalWallet, Signer, U256};
@@ -178,33 +178,59 @@ const WALLET_ARGS: [&str; 18] = [
 #[derive(Display, Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[strum(serialize_all = "kebab-case", prefix = "--")]
 pub enum ForgeScriptArg {
-    Ffi,
-    #[strum(to_string = "rpc-url={url}")]
-    RpcUrl {
-        url: String,
-    },
     Broadcast,
-    Slow,
+    #[strum(to_string = "etherscan-api-key={api_key}")]
+    EtherscanApiKey {
+        api_key: String,
+    },
+    Ffi,
     #[strum(to_string = "private-key={private_key}")]
     PrivateKey {
         private_key: String,
+    },
+    #[strum(to_string = "rpc-url={url}")]
+    RpcUrl {
+        url: String,
     },
     #[strum(to_string = "sig={sig}")]
     Sig {
         sig: String,
     },
+    Slow,
+    #[strum(to_string = "verifier={verifier}")]
+    Verifier {
+        verifier: String,
+    },
+    #[strum(to_string = "verifier-url={url}")]
+    VerifierUrl {
+        url: String,
+    },
+    Verify,
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.
 #[derive(Default, Debug, Serialize, Deserialize, Parser, Clone)]
+#[clap(next_help_heading = "Forge options")]
 pub struct ForgeScriptArgs {
     /// List of known forge script arguments.
     #[clap(skip)]
     args: Vec<ForgeScriptArg>,
+    /// Verify deployed contracts
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub verify: Option<bool>,
+    /// Verifier to use
+    #[clap(long, default_value_t = ForgeVerifier::Etherscan)]
+    pub verifier: ForgeVerifier,
+    /// Verifier URL, if using a custom provider
+    #[clap(long)]
+    pub verifier_url: Option<String>,
+    /// Verifier API key
+    #[clap(long)]
+    pub verifier_api_key: Option<String>,
     /// List of additional arguments that can be passed through the CLI.
     ///
     /// e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
-    #[clap(long, short, help_heading = "Forge options")]
+    #[clap(long, short)]
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = false)]
     additional_args: Vec<String>,
 }
@@ -212,12 +238,33 @@ pub struct ForgeScriptArgs {
 impl ForgeScriptArgs {
     /// Build the forge script command arguments.
     pub fn build(&mut self) -> Vec<String> {
+        self.add_verify_args();
         self.cleanup_contract_args();
         self.args
             .iter()
             .map(|arg| arg.to_string())
             .chain(self.additional_args.clone())
             .collect()
+    }
+
+    /// Adds verify arguments to the forge script command.
+    fn add_verify_args(&mut self) {
+        if !self.verify.is_some_and(|v| v) {
+            return;
+        }
+
+        self.add_arg(ForgeScriptArg::Verify);
+        if let Some(url) = &self.verifier_url {
+            self.add_arg(ForgeScriptArg::VerifierUrl { url: url.clone() });
+        }
+        if let Some(api_key) = &self.verifier_api_key {
+            self.add_arg(ForgeScriptArg::EtherscanApiKey {
+                api_key: api_key.clone(),
+            });
+        }
+        self.add_arg(ForgeScriptArg::Verifier {
+            verifier: self.verifier.to_string(),
+        });
     }
 
     /// Cleanup the contract arguments which are not allowed to be passed through the CLI.
@@ -288,4 +335,14 @@ impl ForgeScriptArgs {
             .iter()
             .any(|arg| WALLET_ARGS.contains(&arg.as_ref()))
     }
+}
+
+#[derive(Debug, Clone, ValueEnum, Display, Serialize, Deserialize, Default)]
+#[strum(serialize_all = "snake_case")]
+pub enum ForgeVerifier {
+    #[default]
+    Etherscan,
+    Sourcify,
+    Blockscout,
+    Oklink,
 }

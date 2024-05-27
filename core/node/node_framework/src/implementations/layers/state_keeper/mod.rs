@@ -77,7 +77,7 @@ impl WiringLayer for StateKeeperLayer {
             max_open_files: self.db_config.experimental.state_keeper_db_max_open_files,
         };
         let (storage_factory, task) = AsyncRocksdbCache::new(
-            master_pool.get_singleton().await?,
+            master_pool.get_custom(2).await?,
             self.db_config.state_keeper_db_path,
             cache_options,
         );
