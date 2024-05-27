@@ -407,4 +407,8 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             l2_blocks,
         }))
     }
+
+    pub fn io(&self) -> &Io {
+        self.io()
+    }
 }

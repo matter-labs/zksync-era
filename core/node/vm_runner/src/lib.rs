@@ -18,4 +18,4 @@ pub use output_handler::{
     ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
 };
 pub use process::VmRunner;
-pub use storage::{BatchExecuteData, VmRunnerStorage};
+pub use storage::{BatchExecuteData, StorageSyncTask, VmRunnerStorage};
