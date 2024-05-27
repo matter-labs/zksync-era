@@ -23,7 +23,7 @@ pub mod main_executor;
 
 /// Representation of a transaction executed in the virtual machine.
 #[derive(Debug, Clone)]
-pub enum TxExecutionResult {
+pub(crate) enum TxExecutionResult {
     /// Successful execution of the tx and the block tip dry run.
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
