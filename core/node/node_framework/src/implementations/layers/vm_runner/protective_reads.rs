@@ -1,13 +1,12 @@
-use crate::implementations::resources::pools::{MasterPool, PoolResource};
-use crate::service::StopReceiver;
-use crate::task::{Task, TaskId};
+use zksync_config::configs::{chain::NetworkConfig, vm_runner::VmRunnerConfig};
+use zksync_vm_runner::ProtectiveReadsWriter;
+
 use crate::{
-    service::ServiceContext,
+    implementations::resources::pools::{MasterPool, PoolResource},
+    service::{ServiceContext, StopReceiver},
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
-use zksync_config::configs::chain::NetworkConfig;
-use zksync_config::configs::vm_runner::VmRunnerConfig;
-use zksync_vm_runner::ProtectiveReadsWriter;
 
 #[derive(Debug)]
 pub struct ProtectiveReadsWriterLayer {

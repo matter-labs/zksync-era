@@ -1,6 +1,9 @@
-use crate::service::StopReceiver;
-use crate::task::{Task, TaskId};
 use zksync_vm_runner::{ConcurrentOutputHandlerFactoryTask, StorageSyncTask, VmRunnerIo};
+
+use crate::{
+    service::StopReceiver,
+    task::{Task, TaskId},
+};
 
 pub mod protective_reads;
 
