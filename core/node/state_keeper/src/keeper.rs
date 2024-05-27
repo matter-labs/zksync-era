@@ -22,7 +22,6 @@ use super::{
     updates::UpdatesManager,
     utils::gas_count_from_writes,
 };
-use crate::metrics;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -524,8 +523,6 @@ impl ZkSyncStateKeeper {
             let (seal_resolution, exec_result) = self
                 .process_one_tx(batch_executor, updates_manager, tx.clone())
                 .await;
-            KEEPER_METRICS.tx_execution_result[&metrics::TxExecutionResult::from(&exec_result)]
-                .inc();
 
             match &seal_resolution {
                 SealResolution::NoSeal | SealResolution::IncludeAndSeal => {

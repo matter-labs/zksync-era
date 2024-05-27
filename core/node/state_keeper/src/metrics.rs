@@ -14,7 +14,7 @@ use zksync_mempool::MempoolStore;
 use zksync_shared_metrics::InteractionType;
 use zksync_types::{tx::tx_execution_info::DeduplicatedWritesMetrics, ProtocolVersionId};
 
-use super::{batch_executor::TxExecutionResult as ExecutionResult, seal_criteria::SealResolution};
+use super::seal_criteria::SealResolution;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -35,32 +35,13 @@ pub enum TxExecutionType {
 pub enum TxExecutionStatus {
     Success,
     Rejected,
-    BootloaderOutOfGasForTx,
+    Reverted,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub struct TxExecutionResult {
     status: TxExecutionStatus,
     reason: Option<String>,
-}
-
-impl From<&ExecutionResult> for TxExecutionResult {
-    fn from(result: &ExecutionResult) -> Self {
-        match result {
-            ExecutionResult::Success { .. } => TxExecutionResult {
-                status: TxExecutionStatus::Success,
-                reason: None,
-            },
-            ExecutionResult::RejectedByVm { reason } => TxExecutionResult {
-                status: TxExecutionStatus::Rejected,
-                reason: Some(reason.to_metrics_friendly_string()),
-            },
-            ExecutionResult::BootloaderOutOfGasForTx => TxExecutionResult {
-                status: TxExecutionStatus::BootloaderOutOfGasForTx,
-                reason: Some("bootloader_out_of_gas".to_string()),
-            },
-        }
-    }
 }
 
 impl TxExecutionType {
@@ -111,8 +92,28 @@ pub struct StateKeeperMetrics {
 }
 
 impl StateKeeperMetrics {
-    pub fn count_tx_execution_result(&mut self, result: &ExecutionResult) {
-        self.tx_execution_result[&TxExecutionResult::from(result)].inc();
+    pub fn inc_rejected_txs(&self, reason: String) {
+        self.tx_execution_result[&TxExecutionResult {
+            status: TxExecutionStatus::Rejected,
+            reason: Some(reason),
+        }]
+            .inc();
+    }
+
+    pub fn inc_succeeded_txs(&self) {
+        self.tx_execution_result[&TxExecutionResult {
+            status: TxExecutionStatus::Success,
+            reason: None,
+        }]
+            .inc();
+    }
+
+    pub fn inc_reverted_txs(&self, reason: String) {
+        self.tx_execution_result[&TxExecutionResult {
+            status: TxExecutionStatus::Reverted,
+            reason: Some(reason),
+        }]
+            .inc();
     }
 }
 

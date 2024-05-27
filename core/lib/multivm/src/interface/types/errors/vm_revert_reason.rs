@@ -75,6 +75,17 @@ impl VmRevertReason {
         }
     }
 
+    pub fn to_metrics_friendly_string(&self) -> String {
+        let result = match self {
+            VmRevertReason::General { .. } => "General",
+            VmRevertReason::InnerTxError => "InnerTxError",
+            VmRevertReason::VmError => "VmError",
+            VmRevertReason::Unknown { .. } => "Unknown",
+        };
+
+        result.to_string()
+    }
+
     pub fn encoded_data(&self) -> Vec<u8> {
         match self {
             VmRevertReason::Unknown { data, .. } => data.clone(),
