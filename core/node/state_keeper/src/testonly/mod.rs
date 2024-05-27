@@ -1,6 +1,8 @@
 //! Test utilities that can be used for testing sequencer that may
 //! be useful outside of this crate.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use multivm::{
     interface::{
@@ -12,6 +14,7 @@ use multivm::{
 use once_cell::sync::Lazy;
 use tokio::sync::{mpsc, watch};
 use zksync_contracts::BaseSystemContracts;
+use zksync_state::ReadStorageFactory;
 
 use crate::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
@@ -76,6 +79,7 @@ pub struct MockBatchExecutor;
 impl BatchExecutor for MockBatchExecutor {
     async fn init_batch(
         &mut self,
+        _storage_factory: Arc<dyn ReadStorageFactory>,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
         _stop_receiver: &watch::Receiver<bool>,

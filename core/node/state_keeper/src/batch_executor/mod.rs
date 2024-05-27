@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
 use multivm::interface::{
@@ -8,6 +8,7 @@ use tokio::{
     sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
+use zksync_state::ReadStorageFactory;
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -23,7 +24,7 @@ pub mod main_executor;
 
 /// Representation of a transaction executed in the virtual machine.
 #[derive(Debug, Clone)]
-pub(crate) enum TxExecutionResult {
+pub enum TxExecutionResult {
     /// Successful execution of the tx and the block tip dry run.
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
@@ -58,6 +59,7 @@ impl TxExecutionResult {
 pub trait BatchExecutor: 'static + Send + Sync + fmt::Debug {
     async fn init_batch(
         &mut self,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         stop_receiver: &watch::Receiver<bool>,
@@ -81,7 +83,7 @@ impl BatchExecutorHandle {
         Self { handle, commands }
     }
 
-    pub(super) async fn execute_tx(&self, tx: Transaction) -> TxExecutionResult {
+    pub async fn execute_tx(&self, tx: Transaction) -> TxExecutionResult {
         let tx_gas_limit = tx.gas_limit().as_u64();
 
         let (response_sender, response_receiver) = oneshot::channel();
@@ -113,7 +115,7 @@ impl BatchExecutorHandle {
         res
     }
 
-    pub(super) async fn start_next_l2_block(&self, env: L2BlockEnv) {
+    pub async fn start_next_l2_block(&self, env: L2BlockEnv) {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
         let (response_sender, response_receiver) = oneshot::channel();
@@ -128,7 +130,7 @@ impl BatchExecutorHandle {
         latency.observe();
     }
 
-    pub(super) async fn rollback_last_tx(&self) {
+    pub async fn rollback_last_tx(&self) {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
         let (response_sender, response_receiver) = oneshot::channel();
@@ -143,7 +145,7 @@ impl BatchExecutorHandle {
         latency.observe();
     }
 
-    pub(super) async fn finish_batch(self) -> FinishedL1Batch {
+    pub async fn finish_batch(self) -> FinishedL1Batch {
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands
             .send(Command::FinishBatch(response_sender))
