@@ -247,7 +247,10 @@ mod tests {
         for i in 0..5 {
             let key = Key::from(i);
             let value = ValueHash::from_low_u64_be(i);
-            MerkleTree::new(&mut db).extend(vec![TreeEntry::new(key, i + 1, value)]);
+            MerkleTree::new(&mut db)
+                .unwrap()
+                .extend(vec![TreeEntry::new(key, i + 1, value)])
+                .unwrap();
         }
         db
     }
@@ -255,7 +258,10 @@ mod tests {
     #[test]
     fn pruner_basics() {
         let mut db = create_db();
-        assert_eq!(MerkleTree::new(&mut db).first_retained_version(), Some(0));
+        assert_eq!(
+            MerkleTree::new(&mut db).unwrap().first_retained_version(),
+            Some(0)
+        );
 
         let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
         let stats = pruner
@@ -272,7 +278,10 @@ mod tests {
         }
         assert!(db.root_mut(4).is_some());
 
-        assert_eq!(MerkleTree::new(&mut db).first_retained_version(), Some(4));
+        assert_eq!(
+            MerkleTree::new(&mut db).unwrap().first_retained_version(),
+            Some(4)
+        );
     }
 
     #[test]
@@ -312,10 +321,10 @@ mod tests {
 
     fn test_tree_is_consistent_after_pruning(past_versions_to_keep: u64) {
         let mut db = PatchSet::default();
-        let mut tree = MerkleTree::new(&mut db);
+        let mut tree = MerkleTree::new(&mut db).unwrap();
         let kvs = generate_key_value_pairs(0..100);
         for chunk in kvs.chunks(20) {
-            tree.extend(chunk.to_vec());
+            tree.extend(chunk.to_vec()).unwrap();
         }
         let latest_version = tree.latest_version().unwrap();
 
@@ -332,7 +341,7 @@ mod tests {
         );
         assert_no_stale_keys(&db, first_retained_version);
 
-        let mut tree = MerkleTree::new(&mut db);
+        let mut tree = MerkleTree::new(&mut db).unwrap();
         assert_eq!(tree.first_retained_version(), Some(first_retained_version));
         for version in first_retained_version..=latest_version {
             tree.verify_consistency(version, true).unwrap();
@@ -340,7 +349,7 @@ mod tests {
 
         let kvs = generate_key_value_pairs(100..200);
         for chunk in kvs.chunks(10) {
-            tree.extend(chunk.to_vec());
+            tree.extend(chunk.to_vec()).unwrap();
         }
         let latest_version = tree.latest_version().unwrap();
 
@@ -352,7 +361,7 @@ mod tests {
         let first_retained_version = latest_version.saturating_sub(past_versions_to_keep);
         assert_eq!(stats.target_retained_version, first_retained_version);
 
-        let tree = MerkleTree::new(&mut db);
+        let tree = MerkleTree::new(&mut db).unwrap();
         for version in first_retained_version..=latest_version {
             tree.verify_consistency(version, true).unwrap();
         }
@@ -388,11 +397,14 @@ mod tests {
 
         let batch_count = if initialize_iteratively {
             for chunk in kvs.chunks(ITERATIVE_BATCH_COUNT) {
-                MerkleTree::new(&mut db).extend(chunk.to_vec());
+                MerkleTree::new(&mut db)
+                    .unwrap()
+                    .extend(chunk.to_vec())
+                    .unwrap();
             }
             ITERATIVE_BATCH_COUNT
         } else {
-            MerkleTree::new(&mut db).extend(kvs);
+            MerkleTree::new(&mut db).unwrap().extend(kvs).unwrap();
             1
         };
         let keys_in_db: HashSet<_> = db.nodes_mut().map(|(key, _)| *key).collect();
@@ -402,7 +414,7 @@ mod tests {
         let new_kvs = (0_u64..100)
             .map(|i| TreeEntry::new(Key::from(i), i + 1, new_value_hash))
             .collect();
-        MerkleTree::new(&mut db).extend(new_kvs);
+        MerkleTree::new(&mut db).unwrap().extend(new_kvs).unwrap();
 
         // Sanity check: before pruning, all old keys should be present.
         let new_keys_in_db: HashSet<_> = db.nodes_mut().map(|(key, _)| *key).collect();
@@ -434,7 +446,7 @@ mod tests {
         let kvs: Vec<_> = (0_u64..100)
             .map(|i| TreeEntry::new(Key::from(i), i + 1, ValueHash::zero()))
             .collect();
-        MerkleTree::new(&mut db).extend(kvs);
+        MerkleTree::new(&mut db).unwrap().extend(kvs).unwrap();
         let leaf_keys_in_db = leaf_keys(&mut db);
 
         // Completely overwrite all keys in several batches.
@@ -443,7 +455,10 @@ mod tests {
             .map(|i| TreeEntry::new(Key::from(i), i + 1, new_value_hash))
             .collect();
         for chunk in new_kvs.chunks(20) {
-            MerkleTree::new(&mut db).extend(chunk.to_vec());
+            MerkleTree::new(&mut db)
+                .unwrap()
+                .extend(chunk.to_vec())
+                .unwrap();
             if prune_iteratively {
                 let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
                 pruner

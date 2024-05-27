@@ -136,30 +136,37 @@ pub struct MerkleTree<DB, H = Blake2Hasher> {
 impl<DB: Database> MerkleTree<DB> {
     /// Loads a tree with the default Blake2 hasher.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics in the same situations as [`Self::with_hasher()`].
-    pub fn new(db: DB) -> Self {
+    /// Errors in the same situations as [`Self::with_hasher()`].
+    pub fn new(db: DB) -> anyhow::Result<Self> {
         Self::with_hasher(db, Blake2Hasher)
+    }
+
+    pub(crate) fn new_unchecked(db: DB) -> Self {
+        Self {
+            db,
+            hasher: Blake2Hasher,
+        }
     }
 }
 
 impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// Loads a tree with the specified hasher.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the hasher or basic tree parameters (e.g., the tree depth)
+    /// Errors if the hasher or basic tree parameters (e.g., the tree depth)
     /// do not match those of the tree loaded from the database.
-    pub fn with_hasher(db: DB, hasher: H) -> Self {
+    pub fn with_hasher(db: DB, hasher: H) -> anyhow::Result<Self> {
         let tags = db.manifest().and_then(|manifest| manifest.tags);
         if let Some(tags) = tags {
-            tags.assert_consistency(&hasher, false);
+            tags.ensure_consistency(&hasher, false)?;
         }
         // If there are currently no tags in the tree, we consider that it fits
         // for backward compatibility. The tags will be added the next time the tree is saved.
 
-        Self { db, hasher }
+        Ok(Self { db, hasher })
     }
 
     /// Returns the root hash of a tree at the specified `version`, or `None` if the version
@@ -200,13 +207,18 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     ///
     /// The current implementation does not actually remove node data for the removed versions
     /// since it's likely to be reused in the future (especially upper-level internal nodes).
-    pub fn truncate_recent_versions(&mut self, retained_version_count: u64) {
+    ///
+    /// # Errors
+    ///
+    /// Proxies database I/O errors.
+    pub fn truncate_recent_versions(&mut self, retained_version_count: u64) -> anyhow::Result<()> {
         let mut manifest = self.db.manifest().unwrap_or_default();
         if manifest.version_count > retained_version_count {
             manifest.version_count = retained_version_count;
             let patch = PatchSet::from_manifest(manifest);
-            self.db.apply_patch(patch);
+            self.db.apply_patch(patch)?;
         }
+        Ok(())
     }
 
     /// Extends this tree by creating its new version.
@@ -214,12 +226,16 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// # Return value
     ///
     /// Returns information about the update such as the final tree hash.
-    pub fn extend(&mut self, entries: Vec<TreeEntry>) -> BlockOutput {
+    ///
+    /// # Errors
+    ///
+    /// Proxies database I/O errors.
+    pub fn extend(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<BlockOutput> {
         let next_version = self.db.manifest().unwrap_or_default().version_count;
         let storage = Storage::new(&self.db, &self.hasher, next_version, true);
         let (output, patch) = storage.extend(entries);
-        self.db.apply_patch(patch);
-        output
+        self.db.apply_patch(patch)?;
+        Ok(output)
     }
 
     /// Extends this tree by creating its new version, computing an authenticity Merkle proof
@@ -229,15 +245,19 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     ///
     /// Returns information about the update such as the final tree hash and proofs for each input
     /// instruction.
+    ///
+    /// # Errors
+    ///
+    /// Proxies database I/O errors.
     pub fn extend_with_proofs(
         &mut self,
         instructions: Vec<TreeInstruction>,
-    ) -> BlockOutputWithProofs {
+    ) -> anyhow::Result<BlockOutputWithProofs> {
         let next_version = self.db.manifest().unwrap_or_default().version_count;
         let storage = Storage::new(&self.db, &self.hasher, next_version, true);
         let (output, patch) = storage.extend_with_proofs(instructions);
-        self.db.apply_patch(patch);
-        output
+        self.db.apply_patch(patch)?;
+        Ok(output)
     }
 }
 
@@ -260,7 +280,6 @@ mod tests {
     use crate::types::TreeTags;
 
     #[test]
-    #[should_panic(expected = "Unsupported tree architecture `AR64MT`, expected `AR16MT`")]
     fn tree_architecture_mismatch() {
         let mut db = PatchSet::default();
         db.manifest_mut().tags = Some(TreeTags {
@@ -270,11 +289,14 @@ mod tests {
             is_recovering: false,
         });
 
-        MerkleTree::new(db);
+        let err = MerkleTree::new(db).unwrap_err().to_string();
+        assert!(
+            err.contains("Unsupported tree architecture `AR64MT`, expected `AR16MT`"),
+            "{err}"
+        );
     }
 
     #[test]
-    #[should_panic(expected = "Unexpected tree depth: expected 256, got 128")]
     fn tree_depth_mismatch() {
         let mut db = PatchSet::default();
         db.manifest_mut().tags = Some(TreeTags {
@@ -284,11 +306,14 @@ mod tests {
             is_recovering: false,
         });
 
-        MerkleTree::new(db);
+        let err = MerkleTree::new(db).unwrap_err().to_string();
+        assert!(
+            err.contains("Unexpected tree depth: expected 256, got 128"),
+            "{err}"
+        );
     }
 
     #[test]
-    #[should_panic(expected = "Mismatch between the provided tree hasher `blake2s256`")]
     fn hasher_mismatch() {
         let mut db = PatchSet::default();
         db.manifest_mut().tags = Some(TreeTags {
@@ -298,6 +323,10 @@ mod tests {
             is_recovering: false,
         });
 
-        MerkleTree::new(db);
+        let err = MerkleTree::new(db).unwrap_err().to_string();
+        assert!(
+            err.contains("Mismatch between the provided tree hasher `blake2s256`"),
+            "{err}"
+        );
     }
 }
