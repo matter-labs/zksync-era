@@ -14,7 +14,7 @@ use crate::{
         web3_api::{TxSenderResource, TxSinkResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -123,8 +123,8 @@ impl fmt::Debug for PostgresStorageCachesTask {
 
 #[async_trait::async_trait]
 impl Task for PostgresStorageCachesTask {
-    fn name(&self) -> &'static str {
-        "postgres_storage_caches"
+    fn id(&self) -> TaskId {
+        TaskId("postgres_storage_caches".to_owned())
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -138,8 +138,8 @@ struct VmConcurrencyBarrierTask {
 
 #[async_trait::async_trait]
 impl Task for VmConcurrencyBarrierTask {
-    fn name(&self) -> &'static str {
-        "vm_concurrency_barrier_task"
+    fn id(&self) -> TaskId {
+        TaskId("vm_concurrency_barrier_task".to_owned())
     }
 
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

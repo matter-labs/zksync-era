@@ -10,7 +10,7 @@ use std::{
 use zksync_node_framework::{
     resource::Resource,
     service::{ServiceContext, StopReceiver, ZkStackServiceBuilder},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -96,14 +96,14 @@ impl PutTask {
 
 #[async_trait::async_trait]
 impl Task for PutTask {
-    fn name(&self) -> &'static str {
+    fn id(&self) -> TaskId {
         // Task names simply have to be unique. They are used for logging and debugging.
-        "put_task"
+        TaskId("put_task".to_owned())
     }
 
     /// This method will be invoked by the framework when the task is started.
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        tracing::info!("Starting the task {}", self.name());
+        tracing::info!("Starting the task {}", self.id());
 
         // We have to respect the stop receiver and should exit as soon as we receive
         // a stop signal.
@@ -138,12 +138,12 @@ impl CheckTask {
 
 #[async_trait::async_trait]
 impl Task for CheckTask {
-    fn name(&self) -> &'static str {
-        "check_task"
+    fn id(&self) -> TaskId {
+        TaskId("check_task".to_owned())
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        tracing::info!("Starting the task {}", self.name());
+        tracing::info!("Starting the task {}", self.id());
 
         tokio::select! {
             _ = self.run_inner() => {},

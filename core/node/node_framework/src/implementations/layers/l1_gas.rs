@@ -14,7 +14,7 @@ use crate::{
         l1_tx_params::L1TxParamsResource,
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -80,8 +80,8 @@ struct GasAdjusterTask {
 
 #[async_trait::async_trait]
 impl Task for GasAdjusterTask {
-    fn name(&self) -> &'static str {
-        "gas_adjuster"
+    fn id(&self) -> TaskId {
+        TaskId("gas_adjuster".to_owned())
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

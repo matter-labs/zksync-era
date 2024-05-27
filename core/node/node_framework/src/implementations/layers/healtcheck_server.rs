@@ -7,7 +7,7 @@ use zksync_node_api_server::healthcheck::HealthCheckHandle;
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
     service::{ServiceContext, StopReceiver},
-    task::UnconstrainedTask,
+    task::{TaskId, UnconstrainedTask},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -53,8 +53,8 @@ struct HealthCheckTask {
 
 #[async_trait::async_trait]
 impl UnconstrainedTask for HealthCheckTask {
-    fn name(&self) -> &'static str {
-        "healthcheck_server"
+    fn id(&self) -> TaskId {
+        TaskId("healthcheck_server".to_owned())
     }
 
     async fn run_unconstrained(

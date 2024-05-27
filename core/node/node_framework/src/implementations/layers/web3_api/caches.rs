@@ -8,7 +8,7 @@ use crate::{
         web3_api::MempoolCacheResource,
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -49,8 +49,8 @@ pub struct MempoolCacheUpdateTask(mempool_cache::MempoolCacheUpdateTask);
 
 #[async_trait::async_trait]
 impl Task for MempoolCacheUpdateTask {
-    fn name(&self) -> &'static str {
-        "mempool_cache_update_task"
+    fn id(&self) -> TaskId {
+        TaskId("mempool_cache_update_task".to_owned())
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

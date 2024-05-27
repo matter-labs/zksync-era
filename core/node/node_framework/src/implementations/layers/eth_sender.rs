@@ -14,7 +14,7 @@ use crate::{
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -173,8 +173,8 @@ struct EthTxAggregatorTask {
 
 #[async_trait::async_trait]
 impl Task for EthTxAggregatorTask {
-    fn name(&self) -> &'static str {
-        "eth_tx_aggregator"
+    fn id(&self) -> TaskId {
+        TaskId("eth_tx_aggregator".to_owned())
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -189,8 +189,8 @@ struct EthTxManagerTask {
 
 #[async_trait::async_trait]
 impl Task for EthTxManagerTask {
-    fn name(&self) -> &'static str {
-        "eth_tx_manager"
+    fn id(&self) -> TaskId {
+        TaskId("eth_tx_manager".to_owned())
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

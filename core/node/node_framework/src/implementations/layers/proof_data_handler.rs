@@ -11,7 +11,7 @@ use crate::{
         pools::{MasterPool, PoolResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -73,8 +73,8 @@ struct ProofDataHandlerTask {
 
 #[async_trait::async_trait]
 impl Task for ProofDataHandlerTask {
-    fn name(&self) -> &'static str {
-        "proof_data_handler"
+    fn id(&self) -> TaskId {
+        TaskId("proof_data_handler".to_owned())
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
