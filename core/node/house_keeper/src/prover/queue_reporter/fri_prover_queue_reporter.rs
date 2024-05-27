@@ -65,7 +65,7 @@ impl PeriodicJob for FriProverQueueReporter {
                 aggregation_round,
                 group_id,
                 ProtocolVersionId::try_from(protocol_version).unwrap(),
-                stats.0 as u64,
+                stats.queued as u64,
             );
 
             FRI_PROVER_METRICS.report_prover_jobs(
@@ -74,7 +74,7 @@ impl PeriodicJob for FriProverQueueReporter {
                 aggregation_round,
                 group_id,
                 ProtocolVersionId::try_from(protocol_version).unwrap(),
-                stats.1 as u64,
+                stats.in_progress as u64,
             );
         }
 

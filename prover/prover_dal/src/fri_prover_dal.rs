@@ -438,10 +438,13 @@ impl FriProverDal<'_, '_> {
                             aggregation_round as u8,
                             protocol_version as u16,
                         ))
-                        .or_insert((0u64, 0u64));
+                        .or_insert(JobCountStatistics {
+                            queued: 0,
+                            in_progress: 0,
+                        });
                     match status.as_ref() {
-                        "queued" => stats.queued = value,
-                        "in_progress" => stats.in_progress = value,
+                        "queued" => stats.queued = value as usize,
+                        "in_progress" => stats.in_progress = value as usize,
                         _ => (),
                     }
                     acc

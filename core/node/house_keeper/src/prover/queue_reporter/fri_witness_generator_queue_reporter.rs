@@ -113,8 +113,8 @@ impl PeriodicJob for FriWitnessGeneratorQueueReporter {
                         in_progress: 0,
                     }
                 });
-                entry.queued += stats.queued as u64;
-                entry.in_progress += stats.in_progress as u64;
+                entry.queued += stats.queued;
+                entry.in_progress += stats.in_progress;
             }
         }
 
@@ -131,10 +131,10 @@ impl PeriodicJob for FriWitnessGeneratorQueueReporter {
             }
 
             SERVER_METRICS.witness_generator_jobs[&("queued", protocol_version.to_string())]
-                .set(stats.queued);
+                .set(stats.queued as u64);
 
             SERVER_METRICS.witness_generator_jobs[&("in_progress", protocol_version.to_string())]
-                .set(stats.in_progress);
+                .set(stats.in_progress as u64);
         }
 
         Ok(())
