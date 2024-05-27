@@ -1,7 +1,6 @@
-use ethers::addressbook::Address;
+use crate::traits::ReadConfig;
+use alloy_primitives::Address;
 use serde::{Deserialize, Serialize};
-
-use crate::configs::ReadConfig;
 
 impl ReadConfig for InitializeBridgeOutput {}
 

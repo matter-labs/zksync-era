@@ -1,13 +1,10 @@
-use ethers::{
-    addressbook::Address,
-    core::{rand, rand::Rng},
-};
-use serde::{Deserialize, Serialize};
-
 use crate::{
-    configs::{ChainConfig, ContractsConfig, ReadConfig, SaveConfig},
-    types::{ChainId, L1BatchCommitDataGeneratorMode},
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, ChainId, ContractsConfig, L1BatchCommitDataGeneratorMode,
 };
+use alloy_primitives::Address;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Bridgehub {
@@ -53,7 +50,6 @@ pub struct ChainL1Config {
 }
 
 impl ReadConfig for RegisterChainL1Config {}
-
 impl SaveConfig for RegisterChainL1Config {}
 
 impl RegisterChainL1Config {

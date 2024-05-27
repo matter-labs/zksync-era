@@ -1,16 +1,13 @@
 use std::path::Path;
 
-use xshell::Shell;
-
-use crate::{
-    configs::{
-        forge_interface::deploy_ecosystem::input::{
-            Erc20DeploymentConfig, InitialDeploymentConfig,
-        },
-        SaveConfigWithComment,
+use config::{
+    forge_interface::{
+        consts::{ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE},
+        deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
     },
-    consts::{ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE},
+    traits::SaveConfigWithComment,
 };
+use xshell::Shell;
 
 pub fn create_initial_deployments_config(
     shell: &Shell,

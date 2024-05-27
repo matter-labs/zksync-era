@@ -2,22 +2,18 @@ use std::path::Path;
 
 use xshell::Shell;
 
-use crate::{
-    configs::{
-        chain::ChainConfig,
-        contracts::ContractsConfig,
-        forge_interface::{
-            initialize_bridges::output::InitializeBridgeOutput, paymaster::DeployPaymasterOutput,
-            register_chain::output::RegisterChainOutput,
-        },
-        DatabasesConfig, EcosystemConfig, GeneralConfig, GenesisConfig, ReadConfig, SaveConfig,
-        Secrets,
-    },
-    consts::{
+use crate::defaults::{ROCKS_DB_STATE_KEEPER, ROCKS_DB_TREE};
+use config::{
+    forge_interface::consts::{
         CONFIGS_PATH, CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE, WALLETS_FILE,
     },
-    defaults::{ROCKS_DB_STATE_KEEPER, ROCKS_DB_TREE},
-    types::ProverMode,
+    forge_interface::{
+        initialize_bridges::output::InitializeBridgeOutput, paymaster::DeployPaymasterOutput,
+        register_chain::output::RegisterChainOutput,
+    },
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, ContractsConfig, DatabasesConfig, EcosystemConfig, GeneralConfig, GenesisConfig,
+    ProverMode, Secrets,
 };
 
 pub(crate) fn copy_configs(

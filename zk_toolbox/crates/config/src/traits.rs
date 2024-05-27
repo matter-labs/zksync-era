@@ -1,7 +1,9 @@
 use std::path::Path;
 
 use anyhow::{bail, Context};
-use common::files::{save_json_file, save_toml_file, save_yaml_file};
+use common::files::{
+    read_json_file, read_toml_file, read_yaml_file, save_json_file, save_toml_file, save_yaml_file,
+};
 use serde::{de::DeserializeOwned, Serialize};
 use xshell::Shell;
 
@@ -9,18 +11,12 @@ use xshell::Shell;
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
 pub trait ReadConfig: DeserializeOwned + Clone {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let file = shell.read_file(&path).with_context(|| {
-            format!(
-                "Failed to open config file. Please check if the file exists: {:?}",
-                path.as_ref()
-            )
-        })?;
         let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());
 
         match path.as_ref().extension().and_then(|ext| ext.to_str()) {
-            Some("yaml") | Some("yml") => serde_yaml::from_str(&file).with_context(error_context),
-            Some("toml") => toml::from_str(&file).with_context(error_context),
-            Some("json") => serde_json::from_str(&file).with_context(error_context),
+            Some("yaml") | Some("yml") => read_yaml_file(shell, &path).with_context(error_context),
+            Some("toml") => read_toml_file(shell, &path).with_context(error_context),
+            Some("json") => read_json_file(shell, &path).with_context(error_context),
             _ => bail!(format!(
                 "Unsupported file extension for config file {:?}.",
                 path.as_ref()

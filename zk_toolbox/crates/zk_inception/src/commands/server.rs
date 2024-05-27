@@ -4,9 +4,9 @@ use xshell::Shell;
 
 use crate::{
     commands::args::RunServerArgs,
-    configs::{ChainConfig, EcosystemConfig},
     server::{RunServer, ServerMode},
 };
+use config::{ChainConfig, EcosystemConfig};
 
 pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;

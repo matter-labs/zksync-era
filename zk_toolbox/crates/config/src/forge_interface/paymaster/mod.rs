@@ -1,10 +1,9 @@
-use ethers::addressbook::Address;
-use serde::{Deserialize, Serialize};
-
 use crate::{
-    configs::{ChainConfig, ReadConfig, SaveConfig},
-    types::ChainId,
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, ChainId,
 };
+use alloy_primitives::Address;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployPaymasterInput {

@@ -1,7 +1,6 @@
-use ethers::addressbook::Address;
+use crate::traits::{ReadConfig, SaveConfig};
+use alloy_primitives::Address;
 use serde::{Deserialize, Serialize};
-
-use crate::configs::{ReadConfig, SaveConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RegisterChainOutput {

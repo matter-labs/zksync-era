@@ -3,7 +3,7 @@ use common::{docker, logger, spinner::Spinner};
 use std::path::PathBuf;
 use xshell::Shell;
 
-use crate::{configs::EcosystemConfig, consts::DOCKER_COMPOSE_FILE};
+use config::{forge_interface::consts::DOCKER_COMPOSE_FILE, EcosystemConfig};
 
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem =

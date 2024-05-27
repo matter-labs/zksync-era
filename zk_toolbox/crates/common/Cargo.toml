@@ -11,6 +11,7 @@ description.workspace = true
 keywords.workspace = true
 
 [dependencies]
+alloy-primitives.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 cliclack.workspace = true

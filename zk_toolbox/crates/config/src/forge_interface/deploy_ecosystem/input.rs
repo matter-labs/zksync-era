@@ -1,25 +1,19 @@
 use std::{collections::HashMap, str::FromStr};
 
-use ethers::{
-    addressbook::Address,
-    core::{rand, rand::Rng},
-    prelude::H256,
-};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    configs::{
-        ContractsConfig, GenesisConfig, ReadConfig, SaveConfig, SaveConfigWithComment,
-        WalletsConfig,
-    },
-    types::ChainId,
+    traits::{ReadConfig, SaveConfig, SaveConfigWithComment},
+    ChainId, ContractsConfig, GenesisConfig, WalletsConfig,
 };
+use alloy_primitives::{Address, B256};
+use rand::Rng;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct InitialDeploymentConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub create2_factory_addr: Option<Address>,
-    pub create2_factory_salt: H256,
+    pub create2_factory_salt: B256,
     pub governance_min_delay: u64,
     pub max_number_of_chains: u64,
     pub diamond_init_batch_overhead_l1_gas: u64,
@@ -38,7 +32,7 @@ impl Default for InitialDeploymentConfig {
     fn default() -> Self {
         Self {
             create2_factory_addr: None,
-            create2_factory_salt: H256::random(),
+            create2_factory_salt: B256::random(),
             governance_min_delay: 0,
             max_number_of_chains: 100,
             diamond_init_batch_overhead_l1_gas: 1000000,
@@ -152,9 +146,9 @@ impl DeployL1Config {
                 genesis_rollup_leaf_index: genesis_config.genesis_rollup_leaf_index,
                 genesis_root: genesis_config.genesis_root,
                 latest_protocol_version: genesis_config.genesis_protocol_version,
-                recursion_circuits_set_vks_hash: H256::zero(),
-                recursion_leaf_level_vk_hash: H256::zero(),
-                recursion_node_level_vk_hash: H256::zero(),
+                recursion_circuits_set_vks_hash: B256::ZERO,
+                recursion_leaf_level_vk_hash: B256::ZERO,
+                recursion_node_level_vk_hash: B256::ZERO,
                 priority_tx_max_gas_limit: initial_deployment_config.priority_tx_max_gas_limit,
                 validator_timelock_execution_delay: initial_deployment_config
                     .validator_timelock_execution_delay,
@@ -171,17 +165,17 @@ pub struct ContractsDeployL1Config {
     pub governance_security_council_address: Address,
     pub governance_min_delay: u64,
     pub max_number_of_chains: u64,
-    pub create2_factory_salt: H256,
+    pub create2_factory_salt: B256,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub create2_factory_addr: Option<Address>,
     pub validator_timelock_execution_delay: u64,
-    pub genesis_root: H256,
+    pub genesis_root: B256,
     pub genesis_rollup_leaf_index: u32,
-    pub genesis_batch_commitment: H256,
+    pub genesis_batch_commitment: B256,
     pub latest_protocol_version: u64,
-    pub recursion_node_level_vk_hash: H256,
-    pub recursion_leaf_level_vk_hash: H256,
-    pub recursion_circuits_set_vks_hash: H256,
+    pub recursion_node_level_vk_hash: B256,
+    pub recursion_leaf_level_vk_hash: B256,
+    pub recursion_circuits_set_vks_hash: B256,
     pub priority_tx_max_gas_limit: u64,
     pub diamond_init_pubdata_pricing_mode: u64,
     pub diamond_init_batch_overhead_l1_gas: u64,
@@ -189,8 +183,8 @@ pub struct ContractsDeployL1Config {
     pub diamond_init_max_l2_gas_per_batch: u64,
     pub diamond_init_priority_tx_max_pubdata: u64,
     pub diamond_init_minimal_l2_gas_price: u64,
-    pub bootloader_hash: H256,
-    pub default_aa_hash: H256,
+    pub bootloader_hash: B256,
+    pub default_aa_hash: B256,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -201,7 +195,7 @@ pub struct TokensDeployL1Config {
 // TODO check for ability to resuse Erc20DeploymentConfig
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployErc20Config {
-    pub create2_factory_salt: H256,
+    pub create2_factory_salt: B256,
     pub create2_factory_addr: Address,
     pub tokens: HashMap<String, TokenDeployErc20Config>,
 }

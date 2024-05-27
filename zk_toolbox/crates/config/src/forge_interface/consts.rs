@@ -1,48 +1,48 @@
 use std::path::{Path, PathBuf};
 
-use crate::types::ChainId;
+use crate::ChainId;
 
 /// Name of the main configuration file
-pub(super) const CONFIG_NAME: &str = "ZkStack.yaml";
+pub const CONFIG_NAME: &str = "ZkStack.yaml";
 /// Name of the wallets file
-pub(super) const WALLETS_FILE: &str = "wallets.yaml";
+pub const WALLETS_FILE: &str = "wallets.yaml";
 /// Name of the secrets config file
-pub(super) const SECRETS_FILE: &str = "secrets.yaml";
+pub const SECRETS_FILE: &str = "secrets.yaml";
 /// Name of the general config file
-pub(super) const GENERAL_FILE: &str = "general.yaml";
+pub const GENERAL_FILE: &str = "general.yaml";
 /// Name of the genesis config file
-pub(super) const GENESIS_FILE: &str = "genesis.yaml";
+pub const GENESIS_FILE: &str = "genesis.yaml";
 
-pub(super) const ERC20_CONFIGS_FILE: &str = "erc20.yaml";
+pub const ERC20_CONFIGS_FILE: &str = "erc20.yaml";
 /// Name of the initial deployments config file
-pub(super) const INITIAL_DEPLOYMENT_FILE: &str = "initial_deployments.yaml";
+pub const INITIAL_DEPLOYMENT_FILE: &str = "initial_deployments.yaml";
 /// Name of the erc20 deployments config file
-pub(super) const ERC20_DEPLOYMENT_FILE: &str = "erc20_deployments.yaml";
+pub const ERC20_DEPLOYMENT_FILE: &str = "erc20_deployments.yaml";
 /// Name of the contracts file
-pub(super) const CONTRACTS_FILE: &str = "contracts.yaml";
+pub const CONTRACTS_FILE: &str = "contracts.yaml";
 /// Main repository for the zkSync project
-pub(super) const ZKSYNC_ERA_GIT_REPO: &str = "https://github.com/matter-labs/zksync-era";
+pub const ZKSYNC_ERA_GIT_REPO: &str = "https://github.com/matter-labs/zksync-era";
 /// Name of the docker-compose file inside zksync repository
-pub(super) const DOCKER_COMPOSE_FILE: &str = "docker-compose.yml";
+pub const DOCKER_COMPOSE_FILE: &str = "docker-compose.yml";
 /// Path to the config file with mnemonic for localhost wallets
-pub(super) const CONFIGS_PATH: &str = "etc/env/file_based";
-pub(super) const LOCAL_CONFIGS_PATH: &str = "configs/";
-pub(super) const LOCAL_DB_PATH: &str = "db/";
+pub const CONFIGS_PATH: &str = "etc/env/file_based";
+pub const LOCAL_CONFIGS_PATH: &str = "configs/";
+pub const LOCAL_DB_PATH: &str = "db/";
 
 /// Path to ecosystem contacts
-pub(super) const ECOSYSTEM_PATH: &str = "etc/ecosystem";
+pub const ECOSYSTEM_PATH: &str = "etc/ecosystem";
 
 /// Path to l1 contracts foundry folder inside zksync-era
-pub(super) const L1_CONTRACTS_FOUNDRY: &str = "contracts/l1-contracts-foundry";
+pub const L1_CONTRACTS_FOUNDRY: &str = "contracts/l1-contracts-foundry";
 /// Path to DeployL1.s.sol script inside zksync-era relative to `L1_CONTRACTS_FOUNDRY`
 
-pub(super) const ERA_CHAIN_ID: ChainId = ChainId(270);
+pub const ERA_CHAIN_ID: ChainId = ChainId(270);
 
-pub(super) const TEST_CONFIG_PATH: &str = "etc/test_config/constant/eth.json";
-pub(super) const BASE_PATH: &str = "m/44'/60'/0'";
-pub(super) const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
+pub const TEST_CONFIG_PATH: &str = "etc/test_config/constant/eth.json";
+pub const BASE_PATH: &str = "m/44'/60'/0'";
+pub const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
 
-pub(super) const MINIMUM_BALANCE_FOR_WALLET: u128 = 5000000000000000000;
+pub const MINIMUM_BALANCE_FOR_WALLET: u128 = 5000000000000000000;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ForgeScriptParams {

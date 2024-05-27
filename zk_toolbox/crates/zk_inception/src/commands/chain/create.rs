@@ -3,12 +3,12 @@ use std::cell::OnceCell;
 use common::{logger, spinner::Spinner};
 use xshell::Shell;
 
-use crate::{
-    commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
-    configs::{ChainConfig, EcosystemConfig, SaveConfig},
-    consts::{CONFIG_NAME, LOCAL_CONFIGS_PATH, LOCAL_DB_PATH, WALLETS_FILE},
-    types::ChainId,
-    wallets::create_wallets,
+use crate::commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal};
+use config::{
+    create_wallets,
+    forge_interface::consts::{CONFIG_NAME, LOCAL_CONFIGS_PATH, LOCAL_DB_PATH, WALLETS_FILE},
+    traits::SaveConfig,
+    ChainConfig, ChainId, EcosystemConfig,
 };
 
 pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {

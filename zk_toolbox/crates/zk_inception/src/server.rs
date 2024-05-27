@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::cmd::Cmd;
-use xshell::{cmd, Shell};
-
-use crate::{
-    configs::ChainConfig,
-    consts::{CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE, WALLETS_FILE},
+use config::{
+    forge_interface::consts::{
+        CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE, WALLETS_FILE,
+    },
+    ChainConfig,
 };
+use xshell::{cmd, Shell};
 
 pub struct RunServer {
     components: Option<Vec<String>>,

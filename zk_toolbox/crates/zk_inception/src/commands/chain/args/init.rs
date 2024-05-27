@@ -3,7 +3,8 @@ use common::forge::ForgeScriptArgs;
 use serde::{Deserialize, Serialize};
 
 use super::genesis::GenesisArgsFinal;
-use crate::{commands::chain::args::genesis::GenesisArgs, configs::ChainConfig};
+use crate::commands::chain::args::genesis::GenesisArgs;
+use config::ChainConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct InitArgs {

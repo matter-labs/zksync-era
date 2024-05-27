@@ -5,18 +5,15 @@ use thiserror::Error;
 use xshell::Shell;
 
 use crate::{
-    configs::{
-        forge_interface::deploy_ecosystem::input::{
-            Erc20DeploymentConfig, InitialDeploymentConfig,
-        },
-        ChainConfig, ChainConfigInternal, ContractsConfig, ReadConfig, SaveConfig, WalletsConfig,
-    },
-    consts::{
+    create_localhost_wallets,
+    forge_interface::consts::{
         CONFIG_NAME, CONTRACTS_FILE, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE,
         L1_CONTRACTS_FOUNDRY, WALLETS_FILE,
     },
-    types::{ChainId, L1Network, ProverMode},
-    wallets::{create_localhost_wallets, WalletCreation},
+    forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
+    miscellaneous::{ChainId, L1Network, ProverMode},
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, ChainConfigInternal, ContractsConfig, WalletCreation, WalletsConfig,
 };
 
 /// Ecosystem configuration file. This file is created in the chain

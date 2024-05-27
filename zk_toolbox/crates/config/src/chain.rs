@@ -7,10 +7,11 @@ use serde::{Deserialize, Serialize, Serializer};
 use xshell::Shell;
 
 use crate::{
-    configs::{ContractsConfig, GenesisConfig, ReadConfig, SaveConfig, WalletsConfig},
-    consts::{CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, WALLETS_FILE},
-    types::{BaseToken, ChainId, L1BatchCommitDataGeneratorMode, L1Network, ProverMode},
-    wallets::{create_localhost_wallets, WalletCreation},
+    create_localhost_wallets,
+    forge_interface::consts::{CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, WALLETS_FILE},
+    traits::{ReadConfig, SaveConfig},
+    BaseToken, ChainId, ContractsConfig, GenesisConfig, L1BatchCommitDataGeneratorMode, L1Network,
+    ProverMode, WalletCreation, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain

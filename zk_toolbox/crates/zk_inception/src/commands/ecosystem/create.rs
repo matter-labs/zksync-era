@@ -5,19 +5,19 @@ use anyhow::bail;
 use common::{cmd::Cmd, logger, spinner::Spinner};
 use xshell::{cmd, Shell};
 
-use crate::{
-    commands::{
-        chain::create_chain_inner,
-        containers::{initialize_docker, start_containers},
-        ecosystem::{
-            args::create::EcosystemCreateArgs,
-            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-        },
+use crate::commands::{
+    chain::create_chain_inner,
+    containers::{initialize_docker, start_containers},
+    ecosystem::{
+        args::create::EcosystemCreateArgs,
+        create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
     },
-    configs::{EcosystemConfig, EcosystemConfigFromFileError, SaveConfig},
-    consts::{CONFIG_NAME, ERA_CHAIN_ID, LOCAL_CONFIGS_PATH, WALLETS_FILE, ZKSYNC_ERA_GIT_REPO},
-    wallets::create_wallets,
 };
+use config::forge_interface::consts::{
+    CONFIG_NAME, ERA_CHAIN_ID, LOCAL_CONFIGS_PATH, WALLETS_FILE, ZKSYNC_ERA_GIT_REPO,
+};
+use config::traits::SaveConfig;
+use config::{create_wallets, EcosystemConfig, EcosystemConfigFromFileError};
 
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     match EcosystemConfig::from_file(shell) {

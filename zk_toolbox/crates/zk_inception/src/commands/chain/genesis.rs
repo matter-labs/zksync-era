@@ -12,11 +12,10 @@ use xshell::Shell;
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
-    configs::{
-        update_general_config, update_secrets, ChainConfig, DatabasesConfig, EcosystemConfig,
-    },
+    config_manipulations::{update_general_config, update_secrets},
     server::{RunServer, ServerMode},
 };
+use config::{ChainConfig, DatabasesConfig, EcosystemConfig};
 
 const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
 const PROVER_MIGRATIONS: &str = "prover/prover_dal/migrations";

@@ -10,9 +10,8 @@ use url::Url;
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
     defaults::LOCAL_RPC_URL,
-    types::L1Network,
-    wallets::WalletCreation,
 };
+use config::{L1Network, WalletCreation};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct EcosystemCreateArgs {

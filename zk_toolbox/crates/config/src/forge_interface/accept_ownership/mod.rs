@@ -1,7 +1,6 @@
-use ethers::prelude::Address;
+use crate::traits::{ReadConfig, SaveConfig};
+use alloy_primitives::Address;
 use serde::{Deserialize, Serialize};
-
-use crate::configs::{ReadConfig, SaveConfig};
 
 impl ReadConfig for AcceptOwnershipInput {}
 impl SaveConfig for AcceptOwnershipInput {}

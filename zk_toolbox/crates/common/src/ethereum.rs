@@ -4,20 +4,21 @@ use ethers::prelude::Signer;
 use ethers::{
     core::k256::ecdsa::SigningKey,
     middleware::MiddlewareBuilder,
+    prelude::SignerMiddleware,
     prelude::{Http, LocalWallet, Provider},
-    prelude::{SignerMiddleware, H256},
     providers::Middleware,
-    types::{Address, TransactionRequest},
+    types::{Address as EthersAddress, TransactionRequest},
 };
 
 use crate::wallets::Wallet;
+use alloy_primitives::{Address, B256};
 
 pub fn create_ethers_client(
-    private_key: H256,
+    private_key: B256,
     l1_rpc: String,
     chain_id: Option<u32>,
 ) -> anyhow::Result<SignerMiddleware<Provider<Http>, ethers::prelude::Wallet<SigningKey>>> {
-    let mut wallet = LocalWallet::from_bytes(private_key.as_bytes())?;
+    let mut wallet = LocalWallet::from_bytes(private_key.as_slice())?;
     if let Some(chain_id) = chain_id {
         wallet = wallet.with_chain_id(chain_id);
     }
@@ -37,7 +38,7 @@ pub async fn distribute_eth(
     let mut nonce = client.get_transaction_count(client.address(), None).await?;
     for address in addresses {
         let tx = TransactionRequest::new()
-            .to(address)
+            .to(EthersAddress::from_slice(address.as_slice()))
             .value(amount)
             .nonce(nonce)
             .chain_id(chain_id);

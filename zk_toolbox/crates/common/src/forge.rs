@@ -1,11 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use alloy_primitives::{hex::ToHex, Address, B256, U256};
 use clap::{Parser, ValueEnum};
-use ethers::abi::Address;
 use ethers::middleware::Middleware;
-use ethers::prelude::{LocalWallet, Signer, U256};
-use ethers::{abi::AbiEncode, types::H256};
+use ethers::prelude::{LocalWallet, Signer};
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 use xshell::{cmd, Shell};
@@ -92,17 +91,17 @@ impl ForgeScript {
     }
 
     /// Adds the private key of the deployer account.
-    pub fn with_private_key(mut self, private_key: H256) -> Self {
+    pub fn with_private_key(mut self, private_key: B256) -> Self {
         self.args.add_arg(ForgeScriptArg::PrivateKey {
             private_key: private_key.encode_hex(),
         });
         self
     }
     // Do not start the script if balance is not enough
-    pub fn private_key(&self) -> Option<H256> {
+    pub fn private_key(&self) -> Option<B256> {
         self.args.args.iter().find_map(|a| {
             if let ForgeScriptArg::PrivateKey { private_key } = a {
-                Some(H256::from_str(private_key).unwrap())
+                Some(B256::from_str(private_key).unwrap())
             } else {
                 None
             }
@@ -121,9 +120,9 @@ impl ForgeScript {
 
     pub fn address(&self) -> Option<Address> {
         self.private_key().and_then(|a| {
-            LocalWallet::from_bytes(a.as_bytes())
+            LocalWallet::from_bytes(a.as_slice())
                 .ok()
-                .map(|a| a.address())
+                .map(|a| Address::from_slice(a.address().as_bytes()))
         })
     }
 
@@ -136,6 +135,7 @@ impl ForgeScript {
         };
         let client = create_ethers_client(private_key, rpc_url, None)?;
         let balance = client.get_balance(client.address(), None).await?;
+        let balance = U256::from_limbs(balance.0);
         Ok(balance > minimum_value)
     }
 }

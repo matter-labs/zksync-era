@@ -24,22 +24,24 @@ use crate::{
             create_erc20_deployment_config, create_initial_deployments_config,
         },
     },
-    configs::{
-        forge_interface::deploy_ecosystem::{
+    forge_utils::fill_forge_private_key,
+};
+use config::{
+    forge_interface::{
+        consts::{
+            AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, CONFIGS_PATH, CONTRACTS_FILE, DEPLOY_ECOSYSTEM,
+            DEPLOY_ERC20, ECOSYSTEM_PATH, ERC20_CONFIGS_FILE, GENESIS_FILE,
+        },
+        deploy_ecosystem::{
             input::{
                 DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
             },
             output::{DeployErc20Output, DeployL1Output},
         },
-        ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ReadConfig, SaveConfig,
     },
-    consts::{
-        AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, CONFIGS_PATH, CONTRACTS_FILE, DEPLOY_ECOSYSTEM,
-        DEPLOY_ERC20, ECOSYSTEM_PATH, ERC20_CONFIGS_FILE, GENESIS_FILE,
-    },
-    forge_utils::fill_forge_private_key,
-    types::{L1Network, ProverMode},
-    wallets::WalletCreation,
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, L1Network, ProverMode,
+    WalletCreation,
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {

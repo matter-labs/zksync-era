@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::configs::{ReadConfig, SaveConfig};
+use crate::traits::{ReadConfig, SaveConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseSecrets {
@@ -13,7 +13,7 @@ pub struct DatabaseSecrets {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct L1Secret {
-    pub(crate) l1_rpc_url: String,
+    pub l1_rpc_url: String,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }
@@ -21,7 +21,7 @@ pub struct L1Secret {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Secrets {
     pub database: DatabaseSecrets,
-    pub(crate) l1: L1Secret,
+    pub l1: L1Secret,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }

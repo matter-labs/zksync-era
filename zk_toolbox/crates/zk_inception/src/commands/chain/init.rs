@@ -8,22 +8,25 @@ use common::{
 use xshell::Shell;
 
 use super::args::init::InitArgsFinal;
-use crate::forge_utils::check_the_balance;
 use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
         args::init::InitArgs, deploy_paymaster, genesis::genesis, initialize_bridges,
     },
-    configs::{
-        copy_configs,
-        forge_interface::register_chain::{
-            input::RegisterChainL1Config, output::RegisterChainOutput,
-        },
-        update_genesis, update_l1_contracts, ChainConfig, ContractsConfig, EcosystemConfig,
-        ReadConfig, SaveConfig,
-    },
-    consts::{CONTRACTS_FILE, REGISTER_CHAIN},
+    config_manipulations::update_l1_contracts,
     forge_utils::fill_forge_private_key,
+};
+use crate::{
+    config_manipulations::{copy_configs, update_genesis},
+    forge_utils::check_the_balance,
+};
+use config::{
+    forge_interface::{
+        consts::{CONTRACTS_FILE, REGISTER_CHAIN},
+        register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
+    },
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, ContractsConfig, EcosystemConfig,
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {

@@ -1,14 +1,15 @@
-use ethers::{addressbook::Address, types::H256};
 use serde::{Deserialize, Serialize};
 
-use crate::configs::{
-    forge_interface::deploy_ecosystem::output::DeployL1Output, ReadConfig, SaveConfig,
+use crate::{
+    forge_interface::deploy_ecosystem::output::DeployL1Output,
+    traits::{ReadConfig, SaveConfig},
 };
+use alloy_primitives::{Address, B256};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct ContractsConfig {
     pub create2_factory_addr: Address,
-    pub create2_factory_salt: H256,
+    pub create2_factory_salt: B256,
     pub ecosystem_contracts: EcosystemContracts,
     pub bridges: BridgesContracts,
     pub l1: L1Contracts,

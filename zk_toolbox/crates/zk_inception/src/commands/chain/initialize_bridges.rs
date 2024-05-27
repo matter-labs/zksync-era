@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use anyhow::Context;
 use common::{
     cmd::Cmd,
     config::global_config,
@@ -9,16 +8,16 @@ use common::{
 };
 use xshell::{cmd, Shell};
 
-use crate::forge_utils::check_the_balance;
-use crate::{
-    configs::{
-        forge_interface::initialize_bridges::{
-            input::InitializeBridgeInput, output::InitializeBridgeOutput,
-        },
-        update_l2_shared_bridge, ChainConfig, EcosystemConfig, ReadConfig, SaveConfig,
+use crate::forge_utils::fill_forge_private_key;
+use crate::{config_manipulations::update_l2_shared_bridge, forge_utils::check_the_balance};
+use anyhow::Context;
+use config::{
+    forge_interface::{
+        consts::INITIALIZE_BRIDGES,
+        initialize_bridges::{input::InitializeBridgeInput, output::InitializeBridgeOutput},
     },
-    consts::INITIALIZE_BRIDGES,
-    forge_utils::fill_forge_private_key,
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, EcosystemConfig,
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {

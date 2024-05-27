@@ -6,14 +6,15 @@ use common::{
 };
 use xshell::Shell;
 
-use crate::forge_utils::check_the_balance;
-use crate::{
-    configs::{
-        forge_interface::paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
-        update_paymaster, ChainConfig, EcosystemConfig, ReadConfig, SaveConfig,
+use crate::forge_utils::fill_forge_private_key;
+use crate::{config_manipulations::update_paymaster, forge_utils::check_the_balance};
+use config::{
+    forge_interface::{
+        consts::DEPLOY_PAYMASTER,
+        paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
     },
-    consts::DEPLOY_PAYMASTER,
-    forge_utils::fill_forge_private_key,
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, EcosystemConfig,
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {

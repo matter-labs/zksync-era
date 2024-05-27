@@ -1,14 +1,12 @@
-use std::path::{Path, PathBuf};
-
-use common::wallets::Wallet;
-use ethers::core::rand::thread_rng;
-use xshell::Shell;
-
 use crate::{
-    configs::{EthMnemonicConfig, ReadConfig, SaveConfig, WalletsConfig},
-    consts::{BASE_PATH, TEST_CONFIG_PATH},
-    wallets::WalletCreation,
+    forge_interface::consts::{BASE_PATH, TEST_CONFIG_PATH},
+    traits::{ReadConfig, SaveConfig},
+    EthMnemonicConfig, WalletCreation, WalletsConfig,
 };
+use common::wallets::Wallet;
+use rand::thread_rng;
+use std::path::{Path, PathBuf};
+use xshell::Shell;
 
 pub fn create_wallets(
     shell: &Shell,

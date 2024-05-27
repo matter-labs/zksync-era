@@ -1,11 +1,11 @@
-use crate::consts::MINIMUM_BALANCE_FOR_WALLET;
+use alloy_primitives::{B256, U256};
 use anyhow::anyhow;
 use common::forge::ForgeScript;
-use ethers::types::H256;
+use config::forge_interface::consts::MINIMUM_BALANCE_FOR_WALLET;
 
 pub fn fill_forge_private_key(
     mut forge: ForgeScript,
-    private_key: Option<H256>,
+    private_key: Option<B256>,
 ) -> anyhow::Result<ForgeScript> {
     if !forge.wallet_args_passed() {
         forge =
@@ -20,7 +20,7 @@ pub async fn check_the_balance(forge: &ForgeScript) -> anyhow::Result<()> {
     };
 
     while !forge
-        .check_the_balance(MINIMUM_BALANCE_FOR_WALLET.into())
+        .check_the_balance(U256::from(MINIMUM_BALANCE_FOR_WALLET))
         .await?
     {
         if common::PromptConfirm::new(format!("Address {address:?} doesn't have enough money to deploy contracts do you want to continue?")).ask() {
