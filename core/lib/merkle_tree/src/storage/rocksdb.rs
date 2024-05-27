@@ -317,7 +317,7 @@ impl PruneDatabase for RocksDBWrapper {
         keys.collect()
     }
 
-    fn prune(&mut self, patch: PrunePatchSet) {
+    fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()> {
         let mut write_batch = self.db.new_write_batch();
 
         let tree_cf = MerkleTreeColumnFamily::Tree;
@@ -332,7 +332,7 @@ impl PruneDatabase for RocksDBWrapper {
 
         self.db
             .write(write_batch)
-            .expect("Failed writing a batch to RocksDB");
+            .context("Failed writing a batch to RocksDB")
     }
 }
 

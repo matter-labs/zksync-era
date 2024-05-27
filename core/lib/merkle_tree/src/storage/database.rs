@@ -395,7 +395,11 @@ pub trait PruneDatabase: Database {
     fn stale_keys(&self, version: u64) -> Vec<NodeKey>;
 
     /// Atomically prunes the tree and updates information about the minimum retained version.
-    fn prune(&mut self, patch: PrunePatchSet);
+    ///
+    /// # Errors
+    ///
+    /// Propagates database I/O errors.
+    fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()>;
 }
 
 impl<T: PruneDatabase + ?Sized> PruneDatabase for &mut T {
@@ -407,8 +411,8 @@ impl<T: PruneDatabase + ?Sized> PruneDatabase for &mut T {
         (**self).stale_keys(version)
     }
 
-    fn prune(&mut self, patch: PrunePatchSet) {
-        (**self).prune(patch);
+    fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()> {
+        (**self).prune(patch)
     }
 }
 
@@ -427,7 +431,7 @@ impl PruneDatabase for PatchSet {
             .unwrap_or_default()
     }
 
-    fn prune(&mut self, patch: PrunePatchSet) {
+    fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()> {
         for key in &patch.pruned_node_keys {
             let Some(patch) = self.patches_by_version.get_mut(&key.version) else {
                 continue;
@@ -441,6 +445,7 @@ impl PruneDatabase for PatchSet {
 
         self.stale_keys_by_version
             .retain(|version, _| !patch.deleted_stale_key_versions.contains(version));
+        Ok(())
     }
 }
 

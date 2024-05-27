@@ -185,7 +185,7 @@ impl Cli {
                     pruner_thread
                         .join()
                         .map_err(panic_to_error)
-                        .context("pruner thread panicked")?;
+                        .context("pruner thread panicked")??;
                     return Ok(()); // unreachable
                 }
             }
@@ -206,7 +206,7 @@ impl Cli {
             pruner_thread
                 .join()
                 .map_err(panic_to_error)
-                .context("pruner thread panicked")?;
+                .context("pruner thread panicked")??;
         }
         Ok(())
     }

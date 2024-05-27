@@ -623,7 +623,9 @@ mod rocksdb {
         let Harness { mut db, dir: _dir } = Harness::new();
         test_intermediate_commits(&mut db, chunk_size);
         let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
-        pruner.prune_up_to(pruner.last_prunable_version().unwrap());
+        pruner
+            .prune_up_to(pruner.last_prunable_version().unwrap())
+            .unwrap();
 
         let raw_db = db.into_inner();
         let snapshot_name = format!("db-snapshot-{chunk_size}-chunked-commits-pruned");

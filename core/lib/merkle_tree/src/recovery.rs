@@ -222,7 +222,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             stale_keys,
             self.recovered_version..self.recovered_version + 1,
         );
-        self.db.prune(prune_patch);
+        self.db.prune(prune_patch)?;
         tracing::debug!(
             "Pruned {stale_keys_len} stale keys in {:?}",
             started_at.elapsed()
