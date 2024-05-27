@@ -78,6 +78,7 @@ impl Cli {
             .init();
     }
 
+    // FIXME: propagate errors
     fn run(self) {
         Self::init_logging();
         tracing::info!("Launched with options: {self:?}");
@@ -125,7 +126,7 @@ impl Cli {
         let hasher: &dyn HashTree = if self.no_hashing { &() } else { &Blake2Hasher };
         let mut rng = StdRng::seed_from_u64(self.rng_seed);
 
-        let mut tree = MerkleTree::with_hasher(db, hasher);
+        let mut tree = MerkleTree::with_hasher(db, hasher).unwrap();
         let mut next_key_idx = 0_u64;
         let mut next_value_idx = 0_u64;
         for version in 0..self.commit_count {
@@ -154,10 +155,10 @@ impl Cli {
                 let reads =
                     Self::generate_keys(read_indices.into_iter()).map(TreeInstruction::Read);
                 let instructions = kvs.map(TreeInstruction::Write).chain(reads).collect();
-                let output = tree.extend_with_proofs(instructions);
+                let output = tree.extend_with_proofs(instructions).unwrap();
                 output.root_hash().unwrap()
             } else {
-                let output = tree.extend(kvs.collect());
+                let output = tree.extend(kvs.collect()).unwrap();
                 output.root_hash
             };
 

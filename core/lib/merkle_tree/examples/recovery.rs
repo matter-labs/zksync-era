@@ -47,6 +47,7 @@ impl Cli {
             .init();
     }
 
+    // FIXME: propagate errors
     fn run(self) {
         Self::init_logging();
         tracing::info!("Launched with options: {self:?}");
@@ -83,7 +84,7 @@ impl Cli {
 
         let mut last_key = Key::zero();
         let mut last_leaf_index = 0;
-        let mut recovery = MerkleTreeRecovery::with_hasher(db, recovered_version, hasher);
+        let mut recovery = MerkleTreeRecovery::with_hasher(db, recovered_version, hasher).unwrap();
         let recovery_started_at = Instant::now();
         for updated_idx in 0..self.update_count {
             let started_at = Instant::now();
@@ -108,9 +109,9 @@ impl Cli {
                 })
                 .collect();
             if self.random {
-                recovery.extend_random(recovery_entries);
+                recovery.extend_random(recovery_entries).unwrap();
             } else {
-                recovery.extend_linear(recovery_entries);
+                recovery.extend_linear(recovery_entries).unwrap();
             }
             tracing::info!(
                 "Updated tree with recovery chunk #{updated_idx} in {:?}",
@@ -118,7 +119,7 @@ impl Cli {
             );
         }
 
-        let tree = MerkleTree::new(recovery.finalize());
+        let tree = MerkleTree::new(recovery.finalize().unwrap()).unwrap();
         tracing::info!(
             "Recovery finished in {:?}; verifying consistency...",
             recovery_started_at.elapsed()
