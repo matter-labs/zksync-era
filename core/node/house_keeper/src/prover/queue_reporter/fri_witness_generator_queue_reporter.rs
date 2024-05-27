@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::JobCountStatisticsByProtocolVersion,
+    basic_fri_types::AggregationRound,
+    prover_dal::{JobCountStatistics, JobCountStatisticsByProtocolVersion},
     ProtocolVersionId,
 };
 
@@ -101,36 +102,39 @@ impl PeriodicJob for FriWitnessGeneratorQueueReporter {
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stats_for_all_rounds = self.get_job_statistics().await;
-        let mut aggregated = HashMap::<ProtocolVersionId, (u64, u64)>::new();
+        let mut aggregated = HashMap::<ProtocolVersionId, JobCountStatistics>::new();
         for (round, stats) in stats_for_all_rounds {
             emit_metrics_for_round(round, stats.clone());
 
             for stats in stats.iter() {
-                let entry = aggregated
-                    .entry(stats.protocol_version)
-                    .or_insert_with(|| (0, 0));
-                entry.0 += stats.queued as u64;
-                entry.1 += stats.in_progress as u64;
+                let entry = aggregated.entry(stats.protocol_version).or_insert_with(|| {
+                    JobCountStatistics {
+                        queued: 0,
+                        in_progress: 0,
+                    }
+                });
+                entry.queued += stats.queued as u64;
+                entry.in_progress += stats.in_progress as u64;
             }
         }
 
         for aggregated in aggregated.iter() {
             let protocol_version = aggregated.0;
             let stats = aggregated.1;
-            if stats.0 > 0 || stats.1 > 0 {
+            if stats.queued > 0 || stats.in_progress > 0 {
                 tracing::trace!(
                     "Found {} free {} in progress witness generators jobs for protocol version {}",
-                    stats.0,
-                    stats.1,
+                    stats.queued,
+                    stats.in_progress,
                     protocol_version
                 );
             }
 
             SERVER_METRICS.witness_generator_jobs[&("queued", protocol_version.to_string())]
-                .set(stats.0);
+                .set(stats.queued);
 
             SERVER_METRICS.witness_generator_jobs[&("in_progress", protocol_version.to_string())]
-                .set(stats.1);
+                .set(stats.in_progress);
         }
 
         Ok(())

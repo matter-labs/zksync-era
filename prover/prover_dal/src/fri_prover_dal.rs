@@ -5,7 +5,8 @@ use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        correct_circuit_id, FriProverJobMetadata, ProverJobFriInfo, ProverJobStatus, StuckJobs,
+        correct_circuit_id, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo,
+        ProverJobStatus, StuckJobs,
     },
     L1BatchNumber,
 };
@@ -393,7 +394,7 @@ impl FriProverDal<'_, '_> {
             .unwrap();
     }
 
-    pub async fn get_prover_jobs_stats(&mut self) -> HashMap<(u8, u8, u16), (u64, u64)> {
+    pub async fn get_prover_jobs_stats(&mut self) -> HashMap<(u8, u8, u16), JobCountStatistics> {
         {
             sqlx::query!(
                 r#"
@@ -439,8 +440,8 @@ impl FriProverDal<'_, '_> {
                         ))
                         .or_insert((0u64, 0u64));
                     match status.as_ref() {
-                        "queued" => stats.0 = value,
-                        "in_progress" => stats.1 = value,
+                        "queued" => stats.queued = value,
+                        "in_progress" => stats.in_progress = value,
                         _ => (),
                     }
                     acc
