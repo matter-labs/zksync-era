@@ -44,7 +44,7 @@ const syncLayerEnvVars = [
     // 'SYNC_LAYER_L1_SHARED_BRIDGE_PROXY_ADDR',
     // 'SYNC_LAYER_L1_ERC20_BRIDGE_IMPL_ADDR',
     // 'SYNC_LAYER_L1_ERC20_BRIDGE_PROXY_ADDR',
-    'CONTRACTS_STM_ASSET_INFO',
+    'CONTRACTS_STM_ASSET_INFO'
 ];
 
 export async function prepareSyncLayer(): Promise<void> {
