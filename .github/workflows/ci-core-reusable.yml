@@ -445,6 +445,10 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run ./zk_toolbox/target/release/zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --server-db-url=postgres://postgres:notsecurepassword@postgres --server-db-name="zksync_local" --prover-db-url=postgres://postgres:notsecurepassword@postgres --prover-db-name="prover_zksync_local"  --verbose --ignore-prerequisites
+          ci_run zk
+          ci_run zk compiler test-contracts
+          ci_run cat configs/erc20.yaml || true
+
 
 
       # `sleep 60` because we need to wait until server added all the tokens
