@@ -38,7 +38,7 @@ pub async fn fetch_next_circuit(
                 .fri_prover_jobs_dal()
                 .get_next_job_for_circuit_id_round(
                     circuit_ids_for_round_to_be_proven,
-                    protocol_version.clone(),
+                    *protocol_version,
                     &pod_name,
                 )
                 .await
@@ -47,7 +47,7 @@ pub async fn fetch_next_circuit(
             // Generalized prover: proving all circuits.
             storage
                 .fri_prover_jobs_dal()
-                .get_next_job(protocol_version.clone(), &pod_name)
+                .get_next_job(*protocol_version, &pod_name)
                 .await
         }
     }?;
