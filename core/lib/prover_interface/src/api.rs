@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     L1BatchNumber,
 };
 

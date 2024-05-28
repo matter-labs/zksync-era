@@ -716,7 +716,7 @@ mod tests {
             })
             .build();
 
-        let protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+        let l1_packed_protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
             .for_contract(
                 client.contract_addr(),
                 &zksync_contracts::hyperchain_contract(),
@@ -724,10 +724,9 @@ mod tests {
             .call(client.as_ref())
             .await
             .unwrap();
-        assert_eq!(
-            protocol_version,
-            (ProtocolVersionId::latest() as u16).into()
-        );
+        let expected_packed_protocol_version =
+            ProtocolVersionId::latest().into_packed_semver_with_patch(0);
+        assert_eq!(l1_packed_protocol_version, expected_packed_protocol_version);
 
         let commitment_mode: L1BatchCommitmentMode =
             CallFunctionArgs::new("getPubdataPricingMode", ())

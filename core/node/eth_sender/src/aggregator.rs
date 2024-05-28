@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
+use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
@@ -10,7 +10,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     helpers::unix_timestamp_ms,
-    protocol_version::L1VerifierConfig,
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataDA,
     L1BatchNumber, ProtocolVersionId,
 };
@@ -292,7 +292,6 @@ impl Aggregator {
     async fn load_real_proof_operation(
         storage: &mut Connection<'_, Core>,
         l1_verifier_config: L1VerifierConfig,
-        proof_loading_mode: &ProofLoadingMode,
         blob_store: &dyn ObjectStore,
         is_4844_mode: bool,
     ) -> Option<ProveBatches> {
@@ -321,35 +320,35 @@ impl Aggregator {
             return None;
         }
 
-        if let Some(version_id) = storage
+        let minor_version = storage
             .blocks_dal()
             .get_batch_protocol_version_id(batch_to_prove)
             .await
             .unwrap()
-        {
-            let verifier_config_for_next_batch = storage
-                .protocol_versions_dal()
-                .l1_verifier_config_for_version(version_id)
-                .await
-                .unwrap();
-            if verifier_config_for_next_batch != l1_verifier_config {
-                return None;
-            }
-        }
-        let proofs = match proof_loading_mode {
-            ProofLoadingMode::OldProofFromDb => {
-                unreachable!("OldProofFromDb is not supported anymore")
-            }
-            ProofLoadingMode::FriProofFromGcs => {
-                load_wrapped_fri_proofs_for_range(batch_to_prove, batch_to_prove, blob_store).await
-            }
+            .unwrap();
+        let required_patch_version = storage
+            .protocol_versions_dal()
+            .get_patch_version_for_vk(
+                minor_version,
+                l1_verifier_config.recursion_scheduler_level_vk_hash,
+            )
+            .await
+            .unwrap();
+        let Some(required_patch_version) = required_patch_version else {
+            tracing::warn!("No patch version corresponds to the verification key on L1");
+            return None;
         };
-        if proofs.is_empty() {
+        let required_version = ProtocolSemanticVersion {
+            minor: minor_version,
+            patch: required_patch_version,
+        };
+
+        let proof =
+            load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, required_version).await;
+        let Some(proof) = proof else {
             // The proof for the next L1 batch is not generated yet
             return None;
-        }
-
-        assert_eq!(proofs.len(), 1);
+        };
 
         let previous_proven_batch_metadata = storage
             .blocks_dal()
@@ -377,7 +376,7 @@ impl Aggregator {
         Some(ProveBatches {
             prev_l1_batch: previous_proven_batch_metadata,
             l1_batches: vec![metadata_for_batch_being_proved],
-            proofs,
+            proofs: vec![proof],
             should_verify: true,
         })
     }
@@ -423,7 +422,6 @@ impl Aggregator {
                 Self::load_real_proof_operation(
                     storage,
                     l1_verifier_config,
-                    &self.config.proof_loading_mode,
                     &*self.blob_store,
                     self.operate_4844_mode,
                 )
@@ -446,7 +444,6 @@ impl Aggregator {
                 if let Some(op) = Self::load_real_proof_operation(
                     storage,
                     l1_verifier_config,
-                    &self.config.proof_loading_mode,
                     &*self.blob_store,
                     self.operate_4844_mode,
                 )
@@ -505,15 +502,26 @@ async fn extract_ready_subrange(
 }
 
 pub async fn load_wrapped_fri_proofs_for_range(
-    from: L1BatchNumber,
-    to: L1BatchNumber,
+    l1_batch_number: L1BatchNumber,
     blob_store: &dyn ObjectStore,
-) -> Vec<L1BatchProofForL1> {
-    let mut proofs = Vec::new();
-    for l1_batch_number in from.0..=to.0 {
-        let l1_batch_number = L1BatchNumber(l1_batch_number);
-        match blob_store.get(l1_batch_number).await {
-            Ok(proof) => proofs.push(proof),
+    required_version: ProtocolSemanticVersion,
+) -> Option<L1BatchProofForL1> {
+    match blob_store.get((l1_batch_number, required_version)).await {
+        Ok(proof) => return Some(proof),
+        Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+        Err(err) => panic!(
+            "Failed to load proof for batch {}: {}",
+            l1_batch_number.0, err
+        ),
+    }
+
+    // We also check file with deprecated name if patch number is 0.
+    if required_version.patch.0 == 0 {
+        match blob_store
+            .get_by_encoded_key(format!("l1_batch_proof_{l1_batch_number}.bin"))
+            .await
+        {
+            Ok(proof) => return Some(proof),
             Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
@@ -521,5 +529,6 @@ pub async fn load_wrapped_fri_proofs_for_range(
             ),
         }
     }
-    proofs
+
+    None
 }

@@ -17,7 +17,7 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VkPatch},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
@@ -143,8 +143,6 @@ impl GenesisParams {
             .protocol_version
             .expect("Protocol version must be set")
             .minor
-            .try_into()
-            .expect("Protocol version must be correctly initialized for genesis")
     }
 }
 
@@ -333,7 +331,10 @@ pub async fn create_genesis_l1_batch(
     l1_verifier_config: L1VerifierConfig,
 ) -> Result<(), GenesisError> {
     let version = ProtocolVersion {
-        id: protocol_version,
+        version: ProtocolSemanticVersion {
+            minor: protocol_version,
+            patch: VkPatch(0),
+        },
         timestamp: 0,
         l1_verifier_config,
         base_system_contracts_hashes: base_system_contracts.hashes(),

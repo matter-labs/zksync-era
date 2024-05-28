@@ -1,17 +1,17 @@
 use std::convert::TryInto;
 
-use sqlx::types::chrono::NaiveDateTime;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     protocol_upgrade::{self, ProtocolUpgradeTx},
-    protocol_version::{L1VerifierConfig, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VkPatch},
     H256,
 };
 
 #[derive(sqlx::FromRow)]
 pub struct StorageProtocolVersion {
-    pub id: i32,
+    pub minor: i32,
+    pub patch: i32,
     pub timestamp: i64,
     pub recursion_scheduler_level_vk_hash: Vec<u8>,
     pub recursion_node_level_vk_hash: Vec<u8>,
@@ -19,9 +19,6 @@ pub struct StorageProtocolVersion {
     pub recursion_circuits_set_vks_hash: Vec<u8>,
     pub bootloader_code_hash: Vec<u8>,
     pub default_account_code_hash: Vec<u8>,
-    // deprecated
-    pub verifier_address: Option<Vec<u8>>,
-    pub created_at: NaiveDateTime,
     pub upgrade_tx_hash: Option<Vec<u8>>,
 }
 
@@ -30,7 +27,10 @@ pub(crate) fn protocol_version_from_storage(
     tx: Option<ProtocolUpgradeTx>,
 ) -> protocol_upgrade::ProtocolVersion {
     protocol_upgrade::ProtocolVersion {
-        id: (storage_version.id as u16).try_into().unwrap(),
+        version: ProtocolSemanticVersion {
+            minor: (storage_version.minor as u16).try_into().unwrap(),
+            patch: VkPatch(storage_version.patch as u32),
+        },
         timestamp: storage_version.timestamp as u64,
         l1_verifier_config: L1VerifierConfig {
             params: VerifierParams {
@@ -63,7 +63,7 @@ impl From<StorageProtocolVersion> for api::ProtocolVersion {
             .as_ref()
             .map(|hash| H256::from_slice(hash));
         api::ProtocolVersion {
-            version_id: storage_protocol_version.id as u16,
+            version_id: storage_protocol_version.minor as u16,
             timestamp: storage_protocol_version.timestamp as u64,
             verification_keys_hashes: L1VerifierConfig {
                 params: VerifierParams {

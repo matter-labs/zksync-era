@@ -98,12 +98,21 @@ impl EnNamespace {
             .map_err(DalError::generalize)?
             .context("Genesis batch doesn't exist")?;
 
-        let protocol_version = genesis_batch
+        let minor = genesis_batch
             .protocol_version
             .context("Genesis is not finished")? as u16;
+        let minor = ProtocolVersionId::try_from(minor).context("Malformed protocol version")?;
+        let patch = storage
+            .protocol_versions_dal()
+            .first_vk_patch_for_version(minor)
+            .await
+            .map_err(DalError::generalize)?
+            .context("Genesis is not finished")?;
+        let protocol_version = ProtocolSemanticVersion { minor, patch };
+
         let verifier_config = storage
             .protocol_versions_dal()
-            .l1_verifier_config_for_version(protocol_version.try_into().unwrap())
+            .l1_verifier_config_for_version(protocol_version)
             .await
             .context("Genesis is not finished")?;
         let fee_account = storage
@@ -114,11 +123,7 @@ impl EnNamespace {
             .context("Genesis not finished")?;
 
         let config = GenesisConfig {
-            protocol_version: Some(ProtocolSemanticVersion {
-                minor: ProtocolVersionId::try_from(protocol_version)
-                    .context("Malformed protocol version")?,
-                patch: 0.into(), // TODO: set correct patch
-            }),
+            protocol_version: Some(protocol_version),
             genesis_root_hash: Some(H256::from_slice(
                 &genesis_batch.hash.context("Genesis is not finished")?,
             )),
@@ -143,7 +148,6 @@ impl EnNamespace {
                     .context("Genesis is not finished")?,
             )),
             l1_chain_id: self.state.api_config.l1_chain_id,
-
             l2_chain_id: self.state.api_config.l2_chain_id,
             recursion_node_level_vk_hash: verifier_config.params.recursion_node_level_vk_hash,
             recursion_leaf_level_vk_hash: verifier_config.params.recursion_leaf_level_vk_hash,

@@ -29,7 +29,7 @@ impl StoredObject for L1BatchProofForL1 {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         let (l1_batch_number, protocol_version) = key;
-        let semver_suffix = protocol_version.to_string().replace(".", "_");
+        let semver_suffix = protocol_version.to_string().replace('.', "_");
         format!("l1_batch_proof_{l1_batch_number}_{semver_suffix}.bin")
     }
 

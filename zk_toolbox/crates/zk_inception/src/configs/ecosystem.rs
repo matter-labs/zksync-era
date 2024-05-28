@@ -98,7 +98,7 @@ impl EcosystemConfig {
         }
 
         let mut config = EcosystemConfig::read(shell, CONFIG_NAME)
-            .map_err(|e| EcosystemConfigFromFileError::InvalidConfig { source: e.into() })?;
+            .map_err(|e| EcosystemConfigFromFileError::InvalidConfig { source: e })?;
         config.shell = shell.clone().into();
 
         Ok(config)
