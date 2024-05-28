@@ -55,7 +55,7 @@ where
     }
 }
 
-pub struct GoogleCloudStorage {
+pub(crate) struct GoogleCloudStorage {
     bucket_prefix: String,
     max_retries: u16,
     client: Client,
@@ -72,32 +72,30 @@ impl fmt::Debug for GoogleCloudStorage {
 }
 
 #[derive(Debug, Clone)]
-pub enum GoogleCloudStorageAuthMode {
+pub(crate) enum GoogleCloudStorageAuthMode {
     AuthenticatedWithCredentialFile(String),
     Authenticated,
     Anonymous,
 }
 
 impl GoogleCloudStorage {
-    // FIXME: propagate errors?
     pub async fn new(
         auth_mode: GoogleCloudStorageAuthMode,
         bucket_prefix: String,
         max_retries: u16,
-    ) -> Self {
+    ) -> Result<Self, ObjectStoreError> {
         let client_config = retry(max_retries, || async {
             Self::get_client_config(auth_mode.clone())
                 .await
                 .map_err(Into::into)
         })
-        .await
-        .expect("failed fetching GCS client config after retries");
+        .await?;
 
-        Self {
+        Ok(Self {
             client: Client::new(client_config),
             bucket_prefix,
             max_retries,
-        }
+        })
     }
 
     async fn get_client_config(
