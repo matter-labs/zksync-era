@@ -48,7 +48,7 @@ impl TxExecutionArgs {
             execution_mode: TxExecutionMode::EthCall,
             enforced_nonce: None,
             added_balance: U256::zero(),
-            enforced_base_fee: enforced_base_fee,
+            enforced_base_fee,
             missed_storage_invocation_limit,
         }
     }

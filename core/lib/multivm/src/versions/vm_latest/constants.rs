@@ -3,7 +3,7 @@ use zk_evm_1_5_0::aux_structures::MemoryPage;
 pub use zk_evm_1_5_0::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
+use zksync_system_constants::MAX_NEW_FACTORY_DEPS;
 
 use super::vm::MultiVMSubversion;
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
