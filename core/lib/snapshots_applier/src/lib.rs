@@ -595,10 +595,7 @@ impl<'a> SnapshotsApplier<'a> {
         let chunks_count = factory_deps.factory_deps.len().div_ceil(chunk_size);
         for chunk_id in 0..chunks_count {
             let chunk_start = chunk_id * chunk_size;
-            let chunk_end = min(
-                factory_deps.factory_deps.len(),
-                (chunk_id + 1) * (chunk_size),
-            );
+            let chunk_end = min(factory_deps.factory_deps.len(), (chunk_id + 1) * chunk_size);
             let chunk = &factory_deps.factory_deps[chunk_start..chunk_end];
             let chunk_deps_hashmap: HashMap<H256, Vec<u8>> = chunk
                 .iter()
