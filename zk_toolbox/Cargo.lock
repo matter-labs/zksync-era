@@ -688,7 +688,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sqlx",
- "strum 0.26.2",
  "strum_macros 0.26.2",
  "toml",
  "url",

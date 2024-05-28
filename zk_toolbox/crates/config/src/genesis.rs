@@ -1,5 +1,9 @@
+use crate::consts::GENESIS_FILE;
+use crate::traits::PathWithBasePath;
 use crate::traits::ReadConfig;
+use crate::traits::ReadConfigWithBasePath;
 use crate::traits::SaveConfig;
+use crate::traits::SaveConfigWithBasePath;
 use crate::ChainId;
 use crate::L1BatchCommitDataGeneratorMode;
 use alloy_primitives::Address;
@@ -22,5 +26,11 @@ pub struct GenesisConfig {
     pub other: serde_json::Value,
 }
 
+impl PathWithBasePath for GenesisConfig {
+    const FILE_NAME: &'static str = GENESIS_FILE;
+}
+
 impl ReadConfig for GenesisConfig {}
+impl ReadConfigWithBasePath for GenesisConfig {}
 impl SaveConfig for GenesisConfig {}
+impl SaveConfigWithBasePath for GenesisConfig {}

@@ -13,11 +13,11 @@ use crate::commands::{
         create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
     },
 };
-use config::forge_interface::consts::{
-    CONFIG_NAME, ERA_CHAIN_ID, LOCAL_CONFIGS_PATH, WALLETS_FILE, ZKSYNC_ERA_GIT_REPO,
+use config::traits::SaveConfigWithBasePath;
+use config::{
+    create_local_configs_dir, create_wallets, EcosystemConfig, EcosystemConfigFromFileError,
+    ZKSYNC_ERA_GIT_REPO,
 };
-use config::traits::SaveConfig;
-use config::{create_wallets, EcosystemConfig, EcosystemConfigFromFileError};
 
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     match EcosystemConfig::from_file(shell) {
@@ -41,7 +41,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     shell.create_dir(ecosystem_name)?;
     shell.change_dir(ecosystem_name);
 
-    let configs_path = shell.create_dir(LOCAL_CONFIGS_PATH)?;
+    let configs_path = create_local_configs_dir(shell, ".")?;
 
     let link_to_code = if args.link_to_code.is_empty() {
         let spinner = Spinner::new("Cloning zksync-era repository...");
@@ -70,7 +70,6 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         config: configs_path,
         default_chain: default_chain_name.clone(),
         l1_rpc_url: args.l1_rpc_url,
-        era_chain_id: ERA_CHAIN_ID,
         prover_version: chain_config.prover_version,
         wallet_creation: args.wallet_creation,
         shell: shell.clone().into(),
@@ -79,13 +78,13 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     // Use 0 id for ecosystem  wallets
     create_wallets(
         shell,
-        &ecosystem_config.config.join(WALLETS_FILE),
+        &ecosystem_config.config,
         &ecosystem_config.link_to_code,
         0,
         args.wallet_creation,
         args.wallet_path,
     )?;
-    ecosystem_config.save(shell, CONFIG_NAME)?;
+    ecosystem_config.save_with_base_path(shell, ".")?;
     spinner.finish();
 
     let spinner = Spinner::new("Creating default chain...");

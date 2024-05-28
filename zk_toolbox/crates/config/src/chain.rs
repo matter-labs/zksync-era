@@ -7,9 +7,12 @@ use serde::{Deserialize, Serialize, Serializer};
 use xshell::Shell;
 
 use crate::{
+    consts::{
+        CONFIG_NAME, CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, LOCAL_DB_PATH,
+        WALLETS_FILE,
+    },
     create_localhost_wallets,
-    forge_interface::consts::{CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, WALLETS_FILE},
-    traits::{ReadConfig, SaveConfig},
+    traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
     BaseToken, ChainId, ContractsConfig, GenesisConfig, L1BatchCommitDataGeneratorMode, L1Network,
     ProverMode, WalletCreation, WalletsConfig,
 };
@@ -41,7 +44,8 @@ pub struct ChainConfig {
     pub prover_version: ProverMode,
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,
-    pub rocks_db_path: PathBuf,
+    // pub rocks_db_path: PathBuf,
+    pub chain_path: PathBuf,
     pub configs: PathBuf,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     pub base_token: BaseToken,
@@ -92,6 +96,15 @@ impl ChainConfig {
         config.save(shell, path)
     }
 
+    pub fn save_with_base_path(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        let config = self.get_internal();
+        config.save_with_base_path(shell, path)
+    }
+
+    pub fn rocks_db_path(&self) -> PathBuf {
+        self.chain_path.join(LOCAL_DB_PATH)
+    }
+
     fn get_internal(&self) -> ChainConfigInternal {
         ChainConfigInternal {
             id: self.id,
@@ -99,7 +112,7 @@ impl ChainConfig {
             chain_id: self.chain_id,
             prover_version: self.prover_version,
             configs: self.configs.clone(),
-            rocks_db_path: self.rocks_db_path.clone(),
+            rocks_db_path: self.rocks_db_path(),
             l1_batch_commit_data_generator_mode: self.l1_batch_commit_data_generator_mode,
             base_token: self.base_token.clone(),
             wallet_creation: self.wallet_creation,
@@ -107,5 +120,9 @@ impl ChainConfig {
     }
 }
 
+impl PathWithBasePath for ChainConfigInternal {
+    const FILE_NAME: &'static str = CONFIG_NAME;
+}
 impl ReadConfig for ChainConfigInternal {}
 impl SaveConfig for ChainConfigInternal {}
+impl SaveConfigWithBasePath for ChainConfigInternal {}

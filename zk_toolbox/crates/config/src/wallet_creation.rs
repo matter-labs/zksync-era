@@ -1,6 +1,6 @@
 use crate::{
-    forge_interface::consts::{BASE_PATH, TEST_CONFIG_PATH},
-    traits::{ReadConfig, SaveConfig},
+    consts::{BASE_PATH, TEST_CONFIG_PATH},
+    traits::{ReadConfig, SaveConfigWithBasePath},
     EthMnemonicConfig, WalletCreation, WalletsConfig,
 };
 use common::wallets::Wallet;
@@ -10,7 +10,7 @@ use xshell::Shell;
 
 pub fn create_wallets(
     shell: &Shell,
-    dst_wallet_path: &Path,
+    base_path: &Path,
     link_to_code: &Path,
     id: u32,
     wallet_creation: WalletCreation,
@@ -32,7 +32,7 @@ pub fn create_wallets(
         }
     };
 
-    wallets.save(shell, dst_wallet_path)?;
+    wallets.save_with_base_path(shell, base_path)?;
     Ok(())
 }
 

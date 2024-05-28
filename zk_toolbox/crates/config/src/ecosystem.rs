@@ -5,14 +5,14 @@ use thiserror::Error;
 use xshell::Shell;
 
 use crate::{
-    create_localhost_wallets,
-    forge_interface::consts::{
-        CONFIG_NAME, CONTRACTS_FILE, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE,
-        L1_CONTRACTS_FOUNDRY, WALLETS_FILE,
+    consts::{
+        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
+        ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY, WALLETS_FILE,
     },
+    create_localhost_wallets,
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
     miscellaneous::{ChainId, L1Network, ProverMode},
-    traits::{ReadConfig, SaveConfig},
+    traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletCreation, WalletsConfig,
 };
 
@@ -43,7 +43,6 @@ pub struct EcosystemConfig {
     pub config: PathBuf,
     pub default_chain: String,
     pub l1_rpc_url: String,
-    pub era_chain_id: ChainId,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
     pub shell: OnceCell<Shell>,
@@ -72,7 +71,6 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
             config: config.config.clone(),
             default_chain: config.default_chain.clone(),
             l1_rpc_url: config.l1_rpc_url.clone(),
-            era_chain_id: config.era_chain_id,
             prover_version: config.prover_version,
             wallet_creation: config.wallet_creation,
             shell: Default::default(),
@@ -80,8 +78,12 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
     }
 }
 
+impl PathWithBasePath for EcosystemConfig {
+    const FILE_NAME: &'static str = CONFIG_NAME;
+}
 impl ReadConfig for EcosystemConfig {}
 impl SaveConfig for EcosystemConfig {}
+impl SaveConfigWithBasePath for EcosystemConfig {}
 
 impl EcosystemConfig {
     fn get_shell(&self) -> &Shell {
@@ -120,7 +122,7 @@ impl EcosystemConfig {
             l1_network: self.l1_network,
             link_to_code: self.link_to_code.clone(),
             base_token: config.base_token,
-            rocks_db_path: config.rocks_db_path,
+            chain_path: self.chains.join(name),
             wallet_creation: config.wallet_creation,
             shell: self.get_shell().clone().into(),
         })
@@ -171,6 +173,18 @@ impl EcosystemConfig {
             .collect()
     }
 
+    pub fn era_chain_id(&self) -> ChainId {
+        ERA_CHAIN_ID
+    }
+
+    pub fn get_default_configs_path(&self) -> PathBuf {
+        self.link_to_code.join(CONFIGS_PATH)
+    }
+
+    pub fn get_ecosystem_path(&self) -> PathBuf {
+        self.link_to_code.join(ECOSYSTEM_PATH)
+    }
+
     fn get_internal(&self) -> EcosystemConfigInternal {
         EcosystemConfigInternal {
             name: self.name.clone(),
@@ -180,7 +194,7 @@ impl EcosystemConfig {
             config: self.config.clone(),
             default_chain: self.default_chain.clone(),
             l1_rpc_url: self.l1_rpc_url.clone(),
-            era_chain_id: self.era_chain_id,
+            era_chain_id: ERA_CHAIN_ID,
             prover_version: self.prover_version,
             wallet_creation: self.wallet_creation,
         }

@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::traits::{ReadConfig, SaveConfig};
+use crate::{
+    consts::WALLETS_FILE,
+    traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+};
 use alloy_primitives::B256;
 use common::wallets::Wallet;
 use rand::Rng;
@@ -45,8 +48,12 @@ impl WalletsConfig {
     }
 }
 
+impl PathWithBasePath for WalletsConfig {
+    const FILE_NAME: &'static str = WALLETS_FILE;
+}
 impl ReadConfig for WalletsConfig {}
 impl SaveConfig for WalletsConfig {}
+impl SaveConfigWithBasePath for WalletsConfig {}
 
 /// ETH config from zkync repository
 #[derive(Debug, Serialize, Deserialize, Clone)]

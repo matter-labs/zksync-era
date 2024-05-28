@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context};
 use common::files::{
@@ -6,6 +6,14 @@ use common::files::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 use xshell::Shell;
+
+pub trait PathWithBasePath {
+    const FILE_NAME: &'static str;
+
+    fn get_path_with_base_path(base_path: impl AsRef<Path>) -> PathBuf {
+        base_path.as_ref().join(Self::FILE_NAME)
+    }
+}
 
 /// Reads a config file from a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
@@ -25,11 +33,31 @@ pub trait ReadConfig: DeserializeOwned + Clone {
     }
 }
 
+/// Reads a config file from a base path, correctly parsing file extension.
+/// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
+pub trait ReadConfigWithBasePath: DeserializeOwned + Clone + ReadConfig + PathWithBasePath {
+    fn read_with_base_path(shell: &Shell, base_path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        <Self as ReadConfig>::read(shell, base_path.as_ref().join(Self::FILE_NAME))
+    }
+}
+
 /// Saves a config file to a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
 pub trait SaveConfig: Serialize + Sized {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         save_with_comment(shell, path, self, "")
+    }
+}
+
+/// Saves a config file from a base path, correctly parsing file extension.
+/// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
+pub trait SaveConfigWithBasePath: Serialize + Sized + SaveConfig + PathWithBasePath {
+    fn save_with_base_path(
+        &self,
+        shell: &Shell,
+        base_path: impl AsRef<Path>,
+    ) -> anyhow::Result<()> {
+        <Self as SaveConfig>::save(self, shell, base_path.as_ref().join(Self::FILE_NAME))
     }
 }
 
@@ -54,6 +82,26 @@ pub trait SaveConfigWithComment: Serialize + Sized {
             .join("\n");
 
         save_with_comment(shell, path, self, comment_lines)
+    }
+}
+
+/// Saves a config file from a base path, correctly parsing file extension.
+/// Supported file extensions are: `yaml`, `yml`, `toml`.
+pub trait SaveConfigWithCommentAndBasePath:
+    Serialize + Sized + SaveConfigWithComment + PathWithBasePath
+{
+    fn save_with_comment_and_base_path(
+        &self,
+        shell: &Shell,
+        base_path: impl AsRef<Path>,
+        comment: &str,
+    ) -> anyhow::Result<()> {
+        <Self as SaveConfigWithComment>::save_with_comment(
+            self,
+            shell,
+            base_path.as_ref().join(Self::FILE_NAME),
+            comment,
+        )
     }
 }
 

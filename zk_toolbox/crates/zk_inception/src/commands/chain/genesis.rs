@@ -41,8 +41,8 @@ pub async fn genesis(
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     // Clean the rocksdb
-    shell.remove_path(&config.rocks_db_path)?;
-    shell.create_dir(&config.rocks_db_path)?;
+    shell.remove_path(config.rocks_db_path())?;
+    shell.create_dir(config.rocks_db_path())?;
 
     let db_config = args
         .databases_config()

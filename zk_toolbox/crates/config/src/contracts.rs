@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    consts::CONTRACTS_FILE,
     forge_interface::deploy_ecosystem::output::DeployL1Output,
-    traits::{ReadConfig, SaveConfig},
+    traits::{
+        PathWithBasePath, ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath,
+    },
 };
 use alloy_primitives::{Address, B256};
 
@@ -65,8 +68,13 @@ impl ContractsConfig {
     }
 }
 
+impl PathWithBasePath for ContractsConfig {
+    const FILE_NAME: &'static str = CONTRACTS_FILE;
+}
 impl ReadConfig for ContractsConfig {}
+impl ReadConfigWithBasePath for ContractsConfig {}
 impl SaveConfig for ContractsConfig {}
+impl SaveConfigWithBasePath for ContractsConfig {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {

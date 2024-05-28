@@ -3,7 +3,11 @@ use std::{collections::HashMap, str::FromStr};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    traits::{ReadConfig, SaveConfig, SaveConfigWithComment},
+    consts::INITIAL_DEPLOYMENT_FILE,
+    traits::{
+        PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithComment,
+        SaveConfigWithCommentAndBasePath,
+    },
     ChainId, ContractsConfig, GenesisConfig, WalletsConfig,
 };
 use alloy_primitives::{Address, B256};
@@ -52,18 +56,24 @@ impl Default for InitialDeploymentConfig {
     }
 }
 
+impl PathWithBasePath for InitialDeploymentConfig {
+    const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
+}
 impl ReadConfig for InitialDeploymentConfig {}
-impl SaveConfig for InitialDeploymentConfig {}
 impl SaveConfigWithComment for InitialDeploymentConfig {}
+impl SaveConfigWithCommentAndBasePath for InitialDeploymentConfig {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Erc20DeploymentConfig {
     pub tokens: Vec<Erc20DeploymentTokensConfig>,
 }
 
+impl PathWithBasePath for Erc20DeploymentConfig {
+    const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
+}
 impl ReadConfig for Erc20DeploymentConfig {}
-impl SaveConfig for Erc20DeploymentConfig {}
 impl SaveConfigWithComment for Erc20DeploymentConfig {}
+impl SaveConfigWithCommentAndBasePath for Erc20DeploymentConfig {}
 
 impl Default for Erc20DeploymentConfig {
     fn default() -> Self {

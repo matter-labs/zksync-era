@@ -16,16 +16,14 @@ use crate::{
     config_manipulations::update_l1_contracts,
     forge_utils::fill_forge_private_key,
 };
-use crate::{
-    config_manipulations::{copy_configs, update_genesis},
-    forge_utils::check_the_balance,
-};
+use crate::{config_manipulations::update_genesis, forge_utils::check_the_balance};
 use config::{
+    copy_configs,
     forge_interface::{
-        consts::{CONTRACTS_FILE, REGISTER_CHAIN},
         register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
+        script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
-    traits::{ReadConfig, SaveConfig},
+    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 
@@ -54,10 +52,10 @@ pub async fn init(
 
     update_genesis(shell, chain_config)?;
     let mut contracts_config =
-        ContractsConfig::read(shell, ecosystem_config.config.join(CONTRACTS_FILE))?;
+        ContractsConfig::read_with_base_path(shell, &ecosystem_config.config)?;
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
     // Copy ecosystem contracts
-    contracts_config.save(shell, chain_config.configs.join(CONTRACTS_FILE))?;
+    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     let spinner = Spinner::new("Registering chain...");
     contracts_config = register_chain(
@@ -116,7 +114,7 @@ async fn register_chain(
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = REGISTER_CHAIN.input(&config.link_to_code);
+    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
 
     let contracts = config
         .get_contracts_config()
@@ -125,7 +123,7 @@ async fn register_chain(
     deploy_config.save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&config.path_to_foundry())
-        .script(&REGISTER_CHAIN.script(), forge_args.clone())
+        .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(config.l1_rpc_url.clone())
         .with_broadcast();
@@ -134,7 +132,9 @@ async fn register_chain(
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
-    let register_chain_output =
-        RegisterChainOutput::read(shell, REGISTER_CHAIN.output(&chain_config.link_to_code))?;
+    let register_chain_output = RegisterChainOutput::read(
+        shell,
+        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+    )?;
     update_l1_contracts(shell, chain_config, &register_chain_output)
 }

@@ -2,7 +2,7 @@ use common::PromptSelect;
 use xshell::Shell;
 
 use crate::commands::ecosystem::args::change_default::ChangeDefaultChain;
-use config::{forge_interface::consts::CONFIG_NAME, traits::SaveConfig, EcosystemConfig};
+use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 
 pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -22,5 +22,5 @@ pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
         );
     }
     ecosystem_config.default_chain = chain_name;
-    ecosystem_config.save(shell, CONFIG_NAME)
+    ecosystem_config.save_with_base_path(shell, ".")
 }

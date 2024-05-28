@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::traits::{ReadConfig, SaveConfig};
+use crate::{
+    consts::ERC20_CONFIGS_FILE,
+    traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+};
 use alloy_primitives::{Address, B256};
 use serde::{Deserialize, Serialize};
 
@@ -85,10 +88,14 @@ pub struct TokenDeployErc20Output {
     pub mint: u64,
 }
 
-impl ReadConfig for DeployErc20Output {}
-impl SaveConfig for DeployErc20Output {}
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployErc20Output {
     pub tokens: HashMap<String, TokenDeployErc20Output>,
 }
+
+impl PathWithBasePath for DeployErc20Output {
+    const FILE_NAME: &'static str = ERC20_CONFIGS_FILE;
+}
+impl ReadConfig for DeployErc20Output {}
+impl SaveConfig for DeployErc20Output {}
+impl SaveConfigWithBasePath for DeployErc20Output {}

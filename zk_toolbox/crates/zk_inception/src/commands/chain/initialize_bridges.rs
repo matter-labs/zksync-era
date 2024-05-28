@@ -13,8 +13,8 @@ use crate::{config_manipulations::update_l2_shared_bridge, forge_utils::check_th
 use anyhow::Context;
 use config::{
     forge_interface::{
-        consts::INITIALIZE_BRIDGES,
         initialize_bridges::{input::InitializeBridgeInput, output::InitializeBridgeOutput},
+        script_params::INITIALIZE_BRIDGES_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig},
     ChainConfig, EcosystemConfig,
@@ -41,12 +41,18 @@ pub async fn initialize_bridges(
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
     build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
-    let input = InitializeBridgeInput::new(chain_config, ecosystem_config.era_chain_id)?;
+    let input = InitializeBridgeInput::new(chain_config, ecosystem_config.era_chain_id())?;
     let foundry_contracts_path = chain_config.path_to_foundry();
-    input.save(shell, INITIALIZE_BRIDGES.input(&chain_config.link_to_code))?;
+    input.save(
+        shell,
+        INITIALIZE_BRIDGES_SCRIPT_PARAMS.input(&chain_config.link_to_code),
+    )?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
-        .script(&INITIALIZE_BRIDGES.script(), forge_args.clone())
+        .script(
+            &INITIALIZE_BRIDGES_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
         .with_ffi()
         .with_rpc_url(ecosystem_config.l1_rpc_url.clone())
         .with_broadcast();
@@ -59,8 +65,10 @@ pub async fn initialize_bridges(
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
-    let output =
-        InitializeBridgeOutput::read(shell, INITIALIZE_BRIDGES.output(&chain_config.link_to_code))?;
+    let output = InitializeBridgeOutput::read(
+        shell,
+        INITIALIZE_BRIDGES_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+    )?;
 
     update_l2_shared_bridge(shell, chain_config, &output)?;
     Ok(())

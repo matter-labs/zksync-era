@@ -1,7 +1,12 @@
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::traits::{ReadConfig, SaveConfig};
+use crate::{
+    consts::SECRETS_FILE,
+    traits::{
+        PathWithBasePath, ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath,
+    },
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseSecrets {
@@ -19,12 +24,20 @@ pub struct L1Secret {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Secrets {
+pub struct SecretsConfig {
     pub database: DatabaseSecrets,
     pub l1: L1Secret,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }
+
+impl PathWithBasePath for SecretsConfig {
+    const FILE_NAME: &'static str = SECRETS_FILE;
+}
+impl ReadConfig for SecretsConfig {}
+impl ReadConfigWithBasePath for SecretsConfig {}
+impl SaveConfig for SecretsConfig {}
+impl SaveConfigWithBasePath for SecretsConfig {}
 
 #[derive(Debug, Serialize)]
 pub struct DatabaseConfig {
@@ -50,6 +63,3 @@ pub struct DatabasesConfig {
     pub server: DatabaseConfig,
     pub prover: DatabaseConfig,
 }
-
-impl ReadConfig for Secrets {}
-impl SaveConfig for Secrets {}
