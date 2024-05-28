@@ -48,10 +48,7 @@ impl TeeProofGenerationDal<'_, '_> {
                         proofs.l1_batch_number
                     FROM
                         tee_proof_generation_details AS proofs
-                    JOIN
-                        tee_verifier_input_producer_jobs AS inputs
-                    ON
-                        proofs.l1_batch_number = inputs.l1_batch_number
+                        JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
                     WHERE
                         inputs.status = 'Successful'
                         AND (
@@ -119,12 +116,12 @@ impl TeeProofGenerationDal<'_, '_> {
     pub async fn insert_tee_proof_generation_details(&mut self, block_number: L1BatchNumber) {
         sqlx::query!(
             r#"
-                INSERT INTO
-                    tee_proof_generation_details (l1_batch_number, status, created_at, updated_at)
-                VALUES
-                    ($1, 'ready_to_be_proven', NOW(), NOW())
-                ON CONFLICT (l1_batch_number) DO NOTHING
-                "#,
+            INSERT INTO
+                tee_proof_generation_details (l1_batch_number, status, created_at, updated_at)
+            VALUES
+                ($1, 'ready_to_be_proven', NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
+            "#,
             i64::from(block_number.0),
         )
         .execute(self.storage.conn())
@@ -163,10 +160,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 proofs.l1_batch_number
             FROM
                 tee_proof_generation_details AS proofs
-            JOIN
-                tee_verifier_input_producer_jobs AS inputs
-            ON
-                proofs.l1_batch_number = inputs.l1_batch_number
+                JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
             WHERE
                 inputs.status = 'Successful'
                 AND proofs.status = 'ready_to_be_proven'
