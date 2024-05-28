@@ -289,7 +289,7 @@ fn dynamic_merkle_tree_growth() {
         assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
     }
 
-    // Shouldn't shink after caching
+    // Shouldn't shrink after caching
     tree.cache(6);
     assert_eq!(tree.binary_tree_size, 8);
     assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(3));
