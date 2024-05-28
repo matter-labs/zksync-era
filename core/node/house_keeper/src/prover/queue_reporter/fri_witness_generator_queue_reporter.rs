@@ -92,7 +92,7 @@ fn emit_metrics_for_round(
             format!("{:?}", round),
             stats.protocol_version.to_string(),
         )]
-            .set(stats.queued as u64);
+            .set(stats.in_progress as u64);
     }
 }
 
