@@ -164,6 +164,8 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
+    /// Gets a number of the earliest L1 batch that is ready for commitment generation (i.e., doesn't have commitment
+    /// yet, and has tree data).
     pub async fn get_next_l1_batch_ready_for_commitment_generation(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {
@@ -183,6 +185,34 @@ impl BlocksDal<'_, '_> {
             "#
         )
         .instrument("get_next_l1_batch_ready_for_commitment_generation")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    /// Gets a number of the last L1 batch that is ready for commitment generation (i.e., doesn't have commitment
+    /// yet, and has tree data).
+    pub async fn get_last_l1_batch_ready_for_commitment_generation(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE
+                hash IS NOT NULL
+                AND commitment IS NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_last_l1_batch_ready_for_commitment_generation")
         .report_latency()
         .fetch_optional(self.storage)
         .await?;

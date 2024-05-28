@@ -146,6 +146,7 @@ impl ZkStackService {
         for resource in self.resources.values_mut() {
             resource.stored_resource_wired();
         }
+        drop(self.resources); // Decrement reference counters for resources.
         tracing::info!("Wiring complete");
 
         // Create a system task that is cancellation-aware and will only exit on either oneshot task failure or
@@ -196,6 +197,7 @@ impl ZkStackService {
             tracing::info!("Remaining tasks finished without reaching timeouts");
         }
 
+        tracing::info!("Exiting the service");
         result?;
         Ok(())
     }
