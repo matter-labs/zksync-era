@@ -52,6 +52,12 @@ impl Reason {
     }
 }
 
+impl From<&str> for Reason {
+    fn from(text: &str) -> Self {
+        Reason::HardcodedText(text.to_string())
+    }
+}
+
 impl fmt::Display for Reason {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

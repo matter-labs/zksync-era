@@ -679,7 +679,7 @@ impl ZkSyncStateKeeper {
                     _ => unreachable!(),
                 };
                 let resolution = if is_first_tx {
-                    SealResolution::Unexecutable(Reason::HardcodedText(error_message.to_string()))
+                    SealResolution::Unexecutable(error_message.into())
                 } else {
                     SealResolution::ExcludeAndSeal
                 };
