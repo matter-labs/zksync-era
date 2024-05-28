@@ -9,7 +9,7 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolVersion},
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VkPatch},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VersionPatch},
     ProtocolVersionId, H256,
 };
 
@@ -71,7 +71,7 @@ impl ProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                protocol_vk_patches (
+                protocol_patches (
                     minor,
                     patch,
                     recursion_scheduler_level_vk_hash,
@@ -255,18 +255,18 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.bootloader_code_hash,
                 protocol_versions.default_account_code_hash,
                 protocol_versions.upgrade_tx_hash,
-                protocol_vk_patches.patch,
-                protocol_vk_patches.recursion_scheduler_level_vk_hash,
-                protocol_vk_patches.recursion_node_level_vk_hash,
-                protocol_vk_patches.recursion_leaf_level_vk_hash,
-                protocol_vk_patches.recursion_circuits_set_vks_hash
+                protocol_patches.patch,
+                protocol_patches.recursion_scheduler_level_vk_hash,
+                protocol_patches.recursion_node_level_vk_hash,
+                protocol_patches.recursion_leaf_level_vk_hash,
+                protocol_patches.recursion_circuits_set_vks_hash
             FROM
                 protocol_versions
-                JOIN protocol_vk_patches ON protocol_vk_patches.minor = protocol_versions.id
+                JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id
             WHERE
                 id = $1
             ORDER BY
-                protocol_vk_patches.patch DESC
+                protocol_patches.patch DESC
             LIMIT
                 1
             "#,
@@ -297,7 +297,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 recursion_leaf_level_vk_hash,
                 recursion_circuits_set_vks_hash
             FROM
-                protocol_vk_patches
+                protocol_patches
             WHERE
                 minor = $1
                 AND patch = $2
@@ -322,46 +322,47 @@ impl ProtocolVersionsDal<'_, '_> {
         })
     }
 
-    pub async fn get_patch_version_for_vk(
+    pub async fn get_patch_versions_for_vk(
         &mut self,
         minor_version: ProtocolVersionId,
         recursion_scheduler_level_vk_hash: H256,
-    ) -> DalResult<Option<VkPatch>> {
-        let row = sqlx::query!(
+    ) -> DalResult<Vec<VersionPatch>> {
+        let rows = sqlx::query!(
             r#"
             SELECT
                 patch
             FROM
-                protocol_vk_patches
+                protocol_patches
             WHERE
                 minor = $1
                 AND recursion_scheduler_level_vk_hash = $2
             ORDER BY
                 patch DESC
-            LIMIT
-                1
             "#,
             minor_version as i32,
             recursion_scheduler_level_vk_hash.as_bytes()
         )
-        .instrument("get_patch_version_for_vk")
-        .fetch_optional(self.storage)
+        .instrument("get_patch_versions_for_vk")
+        .fetch_all(self.storage)
         .await?;
-        Ok(row.map(|row| VkPatch(row.patch as u32)))
+        Ok(rows
+            .into_iter()
+            .map(|row| VersionPatch(row.patch as u32))
+            .collect())
     }
 
     /// Returns first patch number for the minor version.
     /// Note, that some patch numbers can be skipped, so the result is not always 0.
-    pub async fn first_vk_patch_for_version(
+    pub async fn first_patch_for_version(
         &mut self,
         version_id: ProtocolVersionId,
-    ) -> DalResult<Option<VkPatch>> {
+    ) -> DalResult<Option<VersionPatch>> {
         let row = sqlx::query!(
             r#"
             SELECT
                 patch
             FROM
-                protocol_vk_patches
+                protocol_patches
             WHERE
                 minor = $1
             ORDER BY
@@ -371,10 +372,10 @@ impl ProtocolVersionsDal<'_, '_> {
             "#,
             version_id as i32,
         )
-        .instrument("first_vk_patch_for_version")
+        .instrument("first_patch_for_version")
         .fetch_optional(self.storage)
         .await?;
-        Ok(row.map(|row| VkPatch(row.patch as u32)))
+        Ok(row.map(|row| VersionPatch(row.patch as u32)))
     }
 
     pub async fn latest_semantic_version(&mut self) -> DalResult<Option<ProtocolSemanticVersion>> {
@@ -384,7 +385,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 minor,
                 patch
             FROM
-                protocol_vk_patches
+                protocol_patches
             ORDER BY
                 minor DESC,
                 patch DESC
@@ -431,7 +432,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 minor,
                 patch
             FROM
-                protocol_vk_patches
+                protocol_patches
             "#
         )
         .fetch_all(self.storage.conn())

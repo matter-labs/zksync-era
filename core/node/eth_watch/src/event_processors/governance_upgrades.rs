@@ -114,7 +114,12 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
                     .get_protocol_version_with_latest_patch(latest_semantic_version.minor)
                     .await
                     .map_err(DalError::generalize)?
-                    .context("expected version to be present in DB")?;
+                    .with_context(|| {
+                        format!(
+                            "expected minor version {} to be present in DB",
+                            latest_semantic_version.minor as u16
+                        )
+                    })?;
 
                 let new_version = latest_version.apply_upgrade(upgrade, scheduler_vk_hash);
                 storage

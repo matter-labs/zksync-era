@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS protocol_vk_patches;
+DROP TABLE IF EXISTS protocol_patches;
 
 ALTER TABLE protocol_versions ALTER COLUMN recursion_scheduler_level_vk_hash SET NOT NULL;
 ALTER TABLE protocol_versions ALTER COLUMN recursion_node_level_vk_hash SET NOT NULL;

@@ -217,7 +217,7 @@ pub fn decode_set_chain_id_event(
 
     let full_version_id = h256_to_u256(event.topics[2]);
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
-        .expect("Version is not supported");
+        .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
 
     let eth_hash = event
         .transaction_hash

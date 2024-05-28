@@ -326,25 +326,32 @@ impl Aggregator {
             .await
             .unwrap()
             .unwrap();
-        let required_patch_version = storage
+        let allowed_patch_versions = storage
             .protocol_versions_dal()
-            .get_patch_version_for_vk(
+            .get_patch_versions_for_vk(
                 minor_version,
                 l1_verifier_config.recursion_scheduler_level_vk_hash,
             )
             .await
             .unwrap();
-        let Some(required_patch_version) = required_patch_version else {
-            tracing::warn!("No patch version corresponds to the verification key on L1");
+        if allowed_patch_versions.is_empty() {
+            tracing::warn!(
+                "No patch version corresponds to the verification key on L1: {:?}",
+                l1_verifier_config.recursion_scheduler_level_vk_hash
+            );
             return None;
         };
-        let required_version = ProtocolSemanticVersion {
-            minor: minor_version,
-            patch: required_patch_version,
-        };
+
+        let allowed_versions: Vec<_> = allowed_patch_versions
+            .into_iter()
+            .map(|patch| ProtocolSemanticVersion {
+                minor: minor_version,
+                patch,
+            })
+            .collect();
 
         let proof =
-            load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, required_version).await;
+            load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, &allowed_versions).await;
         let Some(proof) = proof else {
             // The proof for the next L1 batch is not generated yet
             return None;
@@ -504,19 +511,23 @@ async fn extract_ready_subrange(
 pub async fn load_wrapped_fri_proofs_for_range(
     l1_batch_number: L1BatchNumber,
     blob_store: &dyn ObjectStore,
-    required_version: ProtocolSemanticVersion,
+    allowed_versions: &[ProtocolSemanticVersion],
 ) -> Option<L1BatchProofForL1> {
-    match blob_store.get((l1_batch_number, required_version)).await {
-        Ok(proof) => return Some(proof),
-        Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
-        Err(err) => panic!(
-            "Failed to load proof for batch {}: {}",
-            l1_batch_number.0, err
-        ),
+    for version in allowed_versions {
+        match blob_store.get((l1_batch_number, *version)).await {
+            Ok(proof) => return Some(proof),
+            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+            Err(err) => panic!(
+                "Failed to load proof for batch {}: {}",
+                l1_batch_number.0, err
+            ),
+        }
     }
 
-    // We also check file with deprecated name if patch number is 0.
-    if required_version.patch.0 == 0 {
+    // We also check file with deprecated name if patch 0 is allowed.
+    // TODO: remove in the next release.
+    let is_patch_0_present = allowed_versions.iter().any(|v| v.patch.0 == 0);
+    if is_patch_0_present {
         match blob_store
             .get_by_encoded_key(format!("l1_batch_proof_{l1_batch_number}.bin"))
             .await

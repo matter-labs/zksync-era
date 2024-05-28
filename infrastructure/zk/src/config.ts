@@ -182,6 +182,7 @@ export function pushConfig(environment?: string, diff?: string) {
 
     if (process.env.CONTRACTS_DEV_PROTOCOL_VERSION) {
         const minor = unpackStringSemVer(process.env.CONTRACTS_DEV_PROTOCOL_VERSION)[1];
+        // Since we are bumping the minor version the patch is reset to 0.
         env.modify(
             'CONTRACTS_GENESIS_PROTOCOL_VERSION',
             `0.${minor + 1}.0`, // The major version is always 0 for now

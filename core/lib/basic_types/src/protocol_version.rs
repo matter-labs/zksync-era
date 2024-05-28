@@ -281,7 +281,7 @@ impl From<ProtocolVersionId> for VmVersion {
 
 basic_type!(
     /// Patch part of semantic protocol version.
-    VkPatch,
+    VersionPatch,
     u32
 );
 
@@ -291,7 +291,7 @@ basic_type!(
 )]
 pub struct ProtocolSemanticVersion {
     pub minor: ProtocolVersionId,
-    pub patch: VkPatch,
+    pub patch: VersionPatch,
 }
 
 impl ProtocolSemanticVersion {
@@ -305,7 +305,7 @@ impl ProtocolSemanticVersion {
 
         Ok(Self {
             minor,
-            patch: VkPatch(patch),
+            patch: VersionPatch(patch),
         })
     }
 
@@ -376,5 +376,23 @@ impl Default for ProtocolSemanticVersion {
             minor: Default::default(),
             patch: 0.into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_protocol_version_packing() {
+        let version = ProtocolSemanticVersion {
+            minor: ProtocolVersionId::latest(),
+            patch: 10.into(),
+        };
+
+        let packed = version.pack();
+        let unpacked = ProtocolSemanticVersion::try_from_packed(packed).unwrap();
+
+        assert_eq!(version, unpacked);
     }
 }

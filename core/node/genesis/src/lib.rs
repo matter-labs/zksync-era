@@ -17,7 +17,7 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VkPatch},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VersionPatch},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
@@ -333,7 +333,7 @@ pub async fn create_genesis_l1_batch(
     let version = ProtocolVersion {
         version: ProtocolSemanticVersion {
             minor: protocol_version,
-            patch: VkPatch(0),
+            patch: VersionPatch(0),
         },
         timestamp: 0,
         l1_verifier_config,

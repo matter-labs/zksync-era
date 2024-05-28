@@ -46,6 +46,8 @@ impl FromEnv for GenesisConfig {
         let contracts_config = &ContractsForGenesis::from_env()?;
         let state_keeper = StateKeeperConfig::from_env()?;
 
+        // This is needed for backward compatibility, so if the new variable `genesis_protocol_semantic_version`
+        // wasn't added yet server could still work. TODO: remove it in the next release.
         let protocol_version_deprecated = contracts_config
             .genesis_protocol_version
             .map(|minor| {

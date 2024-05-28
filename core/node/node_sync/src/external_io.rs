@@ -17,7 +17,7 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx,
-    protocol_version::{ProtocolSemanticVersion, VkPatch},
+    protocol_version::{ProtocolSemanticVersion, VersionPatch},
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
@@ -347,7 +347,7 @@ impl StateKeeperIO for ExternalIO {
                         .version_id
                         .try_into()
                         .context("cannot convert protocol version")?,
-                    patch: VkPatch(0),
+                    patch: VersionPatch(0),
                 },
                 protocol_version.timestamp,
                 protocol_version.verification_keys_hashes,
