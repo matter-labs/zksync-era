@@ -1,5 +1,5 @@
 {
-  "name": "snapshot-recovery-test",
+  "name": "recovery-test",
   "version": "1.0.0",
   "license": "MIT",
   "mocha": {
@@ -13,7 +13,8 @@
     ]
   },
   "scripts": {
-    "snapshot-recovery-test": "mocha tests/snapshot-recovery.test.ts"
+    "snapshot-recovery-test": "mocha tests/snapshot-recovery.test.ts",
+    "genesis-recovery-test": "mocha tests/genesis-recovery.test.ts"
   },
   "devDependencies": {
     "@types/chai": "^4.2.21",

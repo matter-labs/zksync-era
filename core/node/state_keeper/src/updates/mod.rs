@@ -102,7 +102,7 @@ impl UpdatesManager {
         self.protocol_version
     }
 
-    pub(crate) fn extend_from_executed_transaction(
+    pub fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
@@ -148,7 +148,7 @@ impl UpdatesManager {
 
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously
     /// held L2 block is considered sealed and is used to extend the L1 batch data.
-    pub(crate) fn push_l2_block(&mut self, l2_block_params: L2BlockParams) {
+    pub fn push_l2_block(&mut self, l2_block_params: L2BlockParams) {
         let new_l2_block_updates = L2BlockUpdates::new(
             l2_block_params.timestamp,
             self.l2_block.number + 1,

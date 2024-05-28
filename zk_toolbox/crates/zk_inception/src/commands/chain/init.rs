@@ -8,6 +8,8 @@ use common::{
 use xshell::Shell;
 
 use super::args::init::InitArgsFinal;
+use crate::configs::update_l1_rpc_url_secret;
+use crate::forge_utils::check_the_balance;
 use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
@@ -49,6 +51,7 @@ pub async fn init(
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
     update_genesis(shell, chain_config)?;
+    update_l1_rpc_url_secret(shell, chain_config, init_args.l1_rpc_url.clone())?;
     let mut contracts_config =
         ContractsConfig::read(shell, ecosystem_config.config.join(CONTRACTS_FILE))?;
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
@@ -61,6 +64,7 @@ pub async fn init(
         init_args.forge_args.clone(),
         ecosystem_config,
         chain_config,
+        init_args.l1_rpc_url.clone(),
     )
     .await?;
     spinner.finish();
@@ -72,7 +76,9 @@ pub async fn init(
         chain_config.get_wallets_config()?.governor_private_key(),
         contracts_config.l1.diamond_proxy_addr,
         &init_args.forge_args.clone(),
-    )?;
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
     spinner.finish();
 
     initialize_bridges::initialize_bridges(
@@ -80,25 +86,17 @@ pub async fn init(
         chain_config,
         ecosystem_config,
         init_args.forge_args.clone(),
-    )?;
+    )
+    .await?;
 
     if init_args.deploy_paymaster {
-        deploy_paymaster::deploy_paymaster(
-            shell,
-            chain_config,
-            ecosystem_config,
-            init_args.forge_args.clone(),
-        )?;
+        deploy_paymaster::deploy_paymaster(shell, chain_config, init_args.forge_args.clone())
+            .await?;
     }
 
-    genesis(
-        init_args.genesis_args.clone(),
-        shell,
-        chain_config,
-        ecosystem_config,
-    )
-    .await
-    .context("Unable to perform genesis on the database")?;
+    genesis(init_args.genesis_args.clone(), shell, chain_config)
+        .await
+        .context("Unable to perform genesis on the database")?;
 
     Ok(())
 }
@@ -108,6 +106,7 @@ async fn register_chain(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
+    l1_rpc_url: String,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = REGISTER_CHAIN.input(&config.link_to_code);
 
@@ -120,11 +119,11 @@ async fn register_chain(
     let mut forge = Forge::new(&config.path_to_foundry())
         .script(&REGISTER_CHAIN.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(config.l1_rpc_url.clone())
+        .with_rpc_url(l1_rpc_url)
         .with_broadcast();
 
     forge = fill_forge_private_key(forge, config.get_wallets()?.governor_private_key())?;
-
+    check_the_balance(&forge).await?;
     forge.run(shell)?;
 
     let register_chain_output =

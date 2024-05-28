@@ -1,12 +1,21 @@
 import { expect } from 'chai';
-import fetch, { FetchError } from 'node-fetch';
 import * as protobuf from 'protobufjs';
 import * as zlib from 'zlib';
-import fs, { FileHandle } from 'node:fs/promises';
-import { ChildProcess, spawn, exec } from 'node:child_process';
+import fs from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
+import { ethers } from 'ethers';
 import * as zksync from 'zksync-ethers';
+
+import {
+    getExternalNodeHealth,
+    sleep,
+    NodeComponents,
+    NodeProcess,
+    dropNodeDatabase,
+    dropNodeStorage,
+    executeCommandWithLogs,
+    FundedWallet
+} from '../src';
 
 interface AllSnapshotsResponse {
     readonly snapshotsL1BatchNumbers: number[];
@@ -39,55 +48,14 @@ interface TokenInfo {
     readonly l2_address: string;
 }
 
-interface Health<T> {
-    readonly status: string;
-    readonly details?: T;
-}
-
-interface SnapshotRecoveryDetails {
-    readonly snapshot_l1_batch: number;
-    readonly snapshot_l2_block: number;
-    readonly factory_deps_recovered: boolean;
-    readonly tokens_recovered: boolean;
-    readonly storage_logs_chunks_left_to_process: number;
-}
-
-interface ConsistencyCheckerDetails {
-    readonly first_checked_batch?: number;
-    readonly last_checked_batch?: number;
-}
-
-interface ReorgDetectorDetails {
-    readonly last_correct_l1_batch?: number;
-    readonly last_correct_l2_block?: number;
-}
-
-interface TreeDetails {
-    readonly min_l1_batch_number?: number | null;
-}
-
-interface DbPrunerDetails {
-    readonly last_soft_pruned_l1_batch?: number;
-    readonly last_hard_pruned_l1_batch?: number;
-}
-
-interface HealthCheckResponse {
-    readonly components: {
-        snapshot_recovery?: Health<SnapshotRecoveryDetails>;
-        consistency_checker?: Health<ConsistencyCheckerDetails>;
-        reorg_detector?: Health<ReorgDetectorDetails>;
-        tree?: Health<TreeDetails>;
-        db_pruner?: Health<DbPrunerDetails>;
-        tree_pruner?: Health<{}>;
-    };
-}
-
 /**
  * Tests snapshot recovery and node state pruning.
  *
  * Assumptions:
  *
  * - Main node is run for the duration of the test.
+ * - "Rich wallet" 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 is funded on L1. This is always true if the environment
+ *   was initialized via `zk init`.
  * - `ZKSYNC_ENV` variable is not set (checked at the start of the test). For this reason,
  *   the test doesn't have a `zk` wrapper; it should be launched using `yarn`.
  */
@@ -97,6 +65,9 @@ describe('snapshot recovery', () => {
     const PRUNED_BATCH_COUNT = 1;
 
     const homeDir = process.env.ZKSYNC_HOME!!;
+
+    const disableTreeDuringPruning = process.env.DISABLE_TREE_DURING_PRUNING === 'true';
+    console.log(`Tree is ${disableTreeDuringPruning ? 'disabled' : 'enabled'} during pruning`);
 
     const externalNodeEnvProfile =
         'ext-node' +
@@ -112,31 +83,29 @@ describe('snapshot recovery', () => {
     let snapshotMetadata: GetSnapshotResponse;
     let mainNode: zksync.Provider;
     let externalNode: zksync.Provider;
-    let externalNodeLogs: FileHandle;
-    let externalNodeProcess: ChildProcess;
+    let externalNodeProcess: NodeProcess;
 
-    let fundedWallet: zksync.Wallet;
+    let fundedWallet: FundedWallet;
 
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
             .to.be.undefined;
         mainNode = new zksync.Provider('http://127.0.0.1:3050');
         externalNode = new zksync.Provider('http://127.0.0.1:3060');
-        await killExternalNode();
+        await NodeProcess.stopAll('KILL');
     });
 
     before('create test wallet', async () => {
-        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
-        const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
-        const mnemonic = ethTestConfig.test_mnemonic as string;
-        fundedWallet = zksync.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0").connect(mainNode);
+        const ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
+        console.log(`Using L1 RPC at ${ethRpcUrl}`);
+        const eth = new ethers.providers.JsonRpcProvider(ethRpcUrl);
+        fundedWallet = await FundedWallet.create(mainNode, eth);
     });
 
     after(async () => {
         if (externalNodeProcess) {
-            externalNodeProcess.kill();
-            await killExternalNode();
-            await externalNodeLogs.close();
+            await externalNodeProcess.stopAndWait('KILL');
+            await externalNodeProcess.logs.close();
         }
     });
 
@@ -156,18 +125,7 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        const logs = await fs.open('snapshot-creator.log', 'w');
-        const childProcess = spawn('zk run snapshots-creator', {
-            cwd: homeDir,
-            stdio: [null, logs.fd, logs.fd],
-            shell: true
-        });
-        try {
-            await waitForProcess(childProcess);
-        } finally {
-            childProcess.kill();
-            await logs.close();
-        }
+        await executeCommandWithLogs('zk run snapshots-creator', 'snapshot-creator.log');
     });
 
     step('validate snapshot', async () => {
@@ -217,41 +175,15 @@ describe('snapshot recovery', () => {
     });
 
     step('drop external node database', async () => {
-        const childProcess = spawn('zk db reset', {
-            cwd: homeDir,
-            stdio: 'inherit',
-            shell: true,
-            env: externalNodeEnv
-        });
-        try {
-            await waitForProcess(childProcess);
-        } finally {
-            childProcess.kill();
-        }
+        await dropNodeDatabase(externalNodeEnv);
     });
 
     step('drop external node storage', async () => {
-        const childProcess = spawn('zk clean --database', {
-            cwd: homeDir,
-            stdio: 'inherit',
-            shell: true,
-            env: externalNodeEnv
-        });
-        try {
-            await waitForProcess(childProcess);
-        } finally {
-            childProcess.kill();
-        }
+        await dropNodeStorage(externalNodeEnv);
     });
 
     step('initialize external node', async () => {
-        externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
-        externalNodeProcess = spawn('zk', externalNodeArgs(), {
-            cwd: homeDir,
-            stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
-            shell: true,
-            env: externalNodeEnv
-        });
+        externalNodeProcess = await NodeProcess.spawn(externalNodeEnv, 'snapshot-recovery.log');
 
         let recoveryFinished = false;
         let consistencyCheckerSucceeded = false;
@@ -314,7 +246,7 @@ describe('snapshot recovery', () => {
         }
 
         // If `externalNodeProcess` fails early, we'll trip these checks.
-        expect(externalNodeProcess.exitCode).to.be.null;
+        expect(externalNodeProcess.exitCode()).to.be.null;
         expect(consistencyCheckerSucceeded, 'consistency check failed').to.be.true;
         expect(reorgDetectorSucceeded, 'reorg detection check failed').to.be.true;
     });
@@ -348,9 +280,11 @@ describe('snapshot recovery', () => {
 
     step('restart EN', async () => {
         console.log('Stopping external node');
-        await stopExternalNode();
-        await waitForProcess(externalNodeProcess);
+        await externalNodeProcess.stopAndWait();
 
+        const components = disableTreeDuringPruning
+            ? NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE
+            : NodeComponents.WITH_TREE_FETCHER;
         const pruningParams = {
             EN_PRUNING_ENABLED: 'true',
             EN_PRUNING_REMOVAL_DELAY_SEC: '1',
@@ -359,16 +293,12 @@ describe('snapshot recovery', () => {
         };
         externalNodeEnv = { ...externalNodeEnv, ...pruningParams };
         console.log('Starting EN with pruning params', pruningParams);
-        externalNodeProcess = spawn('zk', externalNodeArgs(), {
-            cwd: homeDir,
-            stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
-            shell: true,
-            env: externalNodeEnv
-        });
+        externalNodeProcess = await NodeProcess.spawn(externalNodeEnv, externalNodeProcess.logs, components);
 
         let isDbPrunerReady = false;
-        let isTreePrunerReady = false;
-        while (!isDbPrunerReady || !isTreePrunerReady) {
+        let isTreePrunerReady = disableTreeDuringPruning; // skip health checks if we don't run the tree
+        let isTreeFetcherReady = false;
+        while (!isDbPrunerReady || !isTreePrunerReady || !isTreeFetcherReady) {
             await sleep(1000);
             const health = await getExternalNodeHealth();
             if (health === null) {
@@ -387,31 +317,21 @@ describe('snapshot recovery', () => {
                 expect(status).to.be.oneOf([undefined, 'not_ready', 'affected', 'ready']);
                 isTreePrunerReady = status === 'ready';
             }
+            if (!isTreeFetcherReady) {
+                console.log('Tree fetcher health', health.components.tree_data_fetcher);
+                const status = health.components.tree_data_fetcher?.status;
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'affected', 'ready']);
+                isTreeFetcherReady = status === 'ready';
+            }
         }
     });
 
     // The logic below works fine if there is other transaction activity on the test network; we still
     // create *at least* `PRUNED_BATCH_COUNT + 1` L1 batches; thus, at least `PRUNED_BATCH_COUNT` of them
     // should be pruned eventually.
-    step(`generate ${PRUNED_BATCH_COUNT + 1} transactions`, async () => {
-        let pastL1BatchNumber = snapshotMetadata.l1BatchNumber;
+    step(`generate ${PRUNED_BATCH_COUNT + 1} L1 batches`, async () => {
         for (let i = 0; i < PRUNED_BATCH_COUNT + 1; i++) {
-            const transactionResponse = await fundedWallet.transfer({
-                to: fundedWallet.address,
-                amount: 1,
-                token: zksync.utils.ETH_ADDRESS
-            });
-            console.log('Generated a transaction from funded wallet', transactionResponse);
-            const receipt = await transactionResponse.wait();
-            console.log('Got finalized transaction receipt', receipt);
-
-            // Wait until an L1 batch number with the transaction is sealed.
-            let newL1BatchNumber: number;
-            while ((newL1BatchNumber = await mainNode.getL1BatchNumber()) <= pastL1BatchNumber) {
-                await sleep(1000);
-            }
-            console.log(`Sealed L1 batch #${newL1BatchNumber}`);
-            pastL1BatchNumber = newL1BatchNumber;
+            await fundedWallet.generateL1Batch();
         }
     });
 
@@ -419,7 +339,7 @@ describe('snapshot recovery', () => {
         const expectedPrunedBatchNumber = snapshotMetadata.l1BatchNumber + PRUNED_BATCH_COUNT;
         console.log(`Waiting for L1 batch #${expectedPrunedBatchNumber} to be pruned`);
         let isDbPruned = false;
-        let isTreePruned = false;
+        let isTreePruned = disableTreeDuringPruning;
 
         while (!isDbPruned || !isTreePruned) {
             await sleep(1000);
@@ -430,30 +350,19 @@ describe('snapshot recovery', () => {
             expect(dbPrunerHealth.status).to.be.equal('ready');
             isDbPruned = dbPrunerHealth.details!.last_hard_pruned_l1_batch! >= expectedPrunedBatchNumber;
 
-            const treeHealth = health.components.tree!;
-            console.log('Tree health', treeHealth);
-            expect(treeHealth.status).to.be.equal('ready');
-            const minTreeL1BatchNumber = treeHealth.details?.min_l1_batch_number;
-            // The batch number pruned from the tree is one less than `minTreeL1BatchNumber`.
-            isTreePruned = minTreeL1BatchNumber ? minTreeL1BatchNumber - 1 >= expectedPrunedBatchNumber : false;
+            if (disableTreeDuringPruning) {
+                expect(health.components.tree).to.be.undefined;
+            } else {
+                const treeHealth = health.components.tree!;
+                console.log('Tree health', treeHealth);
+                expect(treeHealth.status).to.be.equal('ready');
+                const minTreeL1BatchNumber = treeHealth.details?.min_l1_batch_number;
+                // The batch number pruned from the tree is one less than `minTreeL1BatchNumber`.
+                isTreePruned = minTreeL1BatchNumber ? minTreeL1BatchNumber - 1 >= expectedPrunedBatchNumber : false;
+            }
         }
     });
 });
-
-async function waitForProcess(childProcess: ChildProcess) {
-    await new Promise((resolve, reject) => {
-        childProcess.on('error', (error) => {
-            reject(error);
-        });
-        childProcess.on('exit', (code) => {
-            if (code === 0) {
-                resolve(undefined);
-            } else {
-                reject(new Error(`Process exited with non-zero code: ${code}`));
-            }
-        });
-    });
-}
 
 async function decompressGzip(filePath: string): Promise<Buffer> {
     const readStream = (await fs.open(filePath)).createReadStream();
@@ -466,70 +375,4 @@ async function decompressGzip(filePath: string): Promise<Buffer> {
         gunzip.on('error', reject);
         readStream.pipe(gunzip);
     });
-}
-
-async function sleep(millis: number) {
-    await new Promise((resolve) => setTimeout(resolve, millis));
-}
-
-async function getExternalNodeHealth() {
-    const EXTERNAL_NODE_HEALTH_URL = 'http://127.0.0.1:3081/health';
-
-    try {
-        const response: HealthCheckResponse = await fetch(EXTERNAL_NODE_HEALTH_URL).then((response) => response.json());
-        return response;
-    } catch (e) {
-        let displayedError = e;
-        if (e instanceof FetchError && e.code === 'ECONNREFUSED') {
-            displayedError = '(connection refused)'; // Don't spam logs with "connection refused" messages
-        }
-        console.log(
-            `Request to EN health check server failed ${displayedError}, in CI you can see more details 
-            in "Show snapshot-creator.log logs" and "Show contract_verifier.log logs" steps`
-        );
-        return null;
-    }
-}
-
-function externalNodeArgs() {
-    const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-    const args = ['external-node', '--'];
-    if (enableConsensus) {
-        args.push('--enable-consensus');
-    }
-    return args;
-}
-
-async function stopExternalNode() {
-    interface ChildProcessError extends Error {
-        readonly code: number | null;
-    }
-
-    try {
-        await promisify(exec)('killall -q -INT zksync_external_node');
-    } catch (err) {
-        const typedErr = err as ChildProcessError;
-        if (typedErr.code === 1) {
-            // No matching processes were found; this is fine.
-        } else {
-            throw err;
-        }
-    }
-}
-
-async function killExternalNode() {
-    interface ChildProcessError extends Error {
-        readonly code: number | null;
-    }
-
-    try {
-        await promisify(exec)('killall -q -KILL zksync_external_node');
-    } catch (err) {
-        const typedErr = err as ChildProcessError;
-        if (typedErr.code === 1) {
-            // No matching processes were found; this is fine.
-        } else {
-            throw err;
-        }
-    }
 }
