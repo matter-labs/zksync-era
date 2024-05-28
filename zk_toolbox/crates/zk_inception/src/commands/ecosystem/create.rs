@@ -15,7 +15,9 @@ use crate::{
         },
     },
     configs::{EcosystemConfig, EcosystemConfigFromFileError, SaveConfig},
-    consts::{CONFIG_NAME, ERA_CHAIN_ID, LOCAL_CONFIGS_PATH, WALLETS_FILE, ZKSYNC_ERA_GIT_REPO},
+    consts::{CONFIG_NAME, LOCAL_CONFIGS_PATH, WALLETS_FILE, ZKSYNC_ERA_GIT_REPO},
+    defaults::L2_CHAIN_ID,
+    types::ChainId,
     wallets::create_wallets,
 };
 
@@ -70,7 +72,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         config: configs_path,
         default_chain: default_chain_name.clone(),
         l1_rpc_url: args.l1_rpc_url,
-        era_chain_id: ERA_CHAIN_ID,
+        era_chain_id: ChainId(L2_CHAIN_ID),
         prover_version: chain_config.prover_version,
         wallet_creation: args.wallet_creation,
         shell: shell.clone().into(),
