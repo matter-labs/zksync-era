@@ -588,18 +588,25 @@ impl<'a> SnapshotsApplier<'a> {
             factory_deps.factory_deps.len()
         );
 
-        let all_deps_hashmap: HashMap<H256, Vec<u8>> = factory_deps
-            .factory_deps
-            .into_iter()
-            .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0))
-            .collect();
-        storage
-            .factory_deps_dal()
-            .insert_factory_deps(
-                self.applied_snapshot_status.l2_block_number,
-                &all_deps_hashmap,
-            )
-            .await?;
+        // we cannot insert all factory deps because of field size limit triggered by UNNEST
+        // in underlying query, see https://www.postgresql.org/docs/current/limits.html
+        let chunk_size = 1000;
+        let chunks_count = factory_deps.factory_deps.len().div_ceil(chunk_size);
+        for chunk_id in 0..chunks_count {
+            let chunk = &factory_deps.factory_deps
+                [chunk_id * chunk_size..chunk_id * chunk_size + chunk_size];
+            let chunk_deps_hashmap: HashMap<H256, Vec<u8>> = chunk
+                .into_iter()
+                .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0.clone()))
+                .collect();
+            storage
+                .factory_deps_dal()
+                .insert_factory_deps(
+                    self.applied_snapshot_status.l2_block_number,
+                    &chunk_deps_hashmap,
+                )
+                .await?;
+        }
 
         let latency = latency.observe();
         tracing::info!("Applied factory dependencies in {latency:?}");
