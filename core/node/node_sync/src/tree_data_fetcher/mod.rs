@@ -198,7 +198,7 @@ impl TreeDataFetcher {
         let mut storage = self.pool.connection_tagged("tree_data_fetcher").await?;
         let rollup_last_leaf_index = storage
             .storage_logs_dedup_dal()
-            .max_enumeration_index_in_l1_batch(l1_batch_to_fetch)
+            .max_enumeration_index_by_l1_batch(l1_batch_to_fetch)
             .await?
             .unwrap_or(0)
             + 1;

@@ -598,15 +598,15 @@ impl L1BatchWithLogs {
         }))
     }
 
-    #[allow(clippy::needless_pass_by_ref_mut)]
+    #[allow(clippy::needless_pass_by_ref_mut)] // false positive
     async fn wait_for_tree_writes(
         connection: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<Vec<TreeWrite>>> {
-        let interval = Duration::from_millis(50);
-        let timeout = Duration::from_secs(5);
+        const INTERVAL: Duration = Duration::from_millis(50);
+        const TIMEOUT: Duration = Duration::from_secs(5);
 
-        tokio::time::timeout(timeout, async {
+        tokio::time::timeout(TIMEOUT, async {
             loop {
                 if let Some(tree_writes) = connection
                     .blocks_dal()
@@ -615,7 +615,7 @@ impl L1BatchWithLogs {
                 {
                     break anyhow::Ok(tree_writes);
                 }
-                tokio::time::sleep(interval).await;
+                tokio::time::sleep(INTERVAL).await;
             }
         })
         .await

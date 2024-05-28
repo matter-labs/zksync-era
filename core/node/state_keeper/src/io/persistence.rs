@@ -281,7 +281,7 @@ impl StateKeeperOutputHandler for TreeWritesPersistence {
 
         let mut next_index = connection
             .storage_logs_dedup_dal()
-            .max_enumeration_index_in_l1_batch(updates_manager.l1_batch.number - 1)
+            .max_enumeration_index_by_l1_batch(updates_manager.l1_batch.number - 1)
             .await?
             .unwrap_or(0)
             + 1;
@@ -389,7 +389,7 @@ mod tests {
             .unwrap();
         let initial_writes_in_genesis_batch = storage
             .storage_logs_dedup_dal()
-            .max_enumeration_index_in_l1_batch(L1BatchNumber(0))
+            .max_enumeration_index_by_l1_batch(L1BatchNumber(0))
             .await
             .unwrap()
             .unwrap();
