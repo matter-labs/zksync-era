@@ -464,7 +464,7 @@ async fn getting_batch_version_with_genesis() {
         .load_l1_batch_protocol_version(&mut storage, L1BatchNumber(0))
         .await
         .unwrap();
-    assert_eq!(version, Some(genesis_params.protocol_version()));
+    assert_eq!(version, Some(genesis_params.minor_protocol_version()));
 
     assert!(provider
         .load_l1_batch_protocol_version(&mut storage, L1BatchNumber(1))
