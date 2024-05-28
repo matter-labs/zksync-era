@@ -158,7 +158,6 @@ async fn init(
     let spinner = Spinner::new("Installing and building dependencies...");
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
-    build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
     let contracts = deploy_ecosystem(
@@ -335,10 +334,4 @@ fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Resu
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
     Cmd::new(cmd!(shell, "yarn sc build")).run()
-}
-
-// TODO remove it and use proper paths in constants
-fn build_l1_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Cmd::new(cmd!(shell, "yarn l1 build")).run()
 }
