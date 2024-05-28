@@ -51,7 +51,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     };
 
     let genesis_args = args.genesis_args.clone();
-    let mut final_ecosystem_args = args.fill_values_with_prompt();
+    let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
 
     logger::info("Initializing ecosystem");
 
@@ -75,6 +75,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             &ecosystem_config,
             &contracts_config,
             final_ecosystem_args.forge_args.clone(),
+            final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         )
         .await?;
     }
@@ -96,9 +97,15 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             forge_args: final_ecosystem_args.forge_args.clone(),
             genesis_args: genesis_args.clone().fill_values_with_prompt(&chain_config),
             deploy_paymaster: final_ecosystem_args.deploy_paymaster,
+            l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         };
 
-        distribute_eth(&ecosystem_config, &chain_config).await?;
+        distribute_eth(
+            &ecosystem_config,
+            &chain_config,
+            final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
+        )
+        .await?;
 
         chain::init::init(
             &mut chain_init_args,
@@ -121,6 +128,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn distribute_eth(
     ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
+    l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     if chain_config.wallet_creation == WalletCreation::Localhost
         && ecosystem_config.l1_network == L1Network::Localhost
@@ -139,7 +147,7 @@ pub async fn distribute_eth(
         common::ethereum::distribute_eth(
             wallets.operator,
             addresses,
-            ecosystem_config.l1_rpc_url.clone(),
+            l1_rpc_url,
             ecosystem_config.l1_network.chain_id(),
             AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
         )
@@ -179,6 +187,7 @@ async fn deploy_erc20(
     ecosystem_config: &EcosystemConfig,
     contracts_config: &ContractsConfig,
     forge_args: ForgeScriptArgs,
+    l1_rpc_url: String,
 ) -> anyhow::Result<DeployErc20Output> {
     let deploy_config_path = DEPLOY_ERC20.input(&ecosystem_config.link_to_code);
     DeployErc20Config::new(erc20_deployment_config, contracts_config)
@@ -187,7 +196,7 @@ async fn deploy_erc20(
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
         .script(&DEPLOY_ERC20.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(ecosystem_config.l1_rpc_url.clone())
+        .with_rpc_url(l1_rpc_url)
         .with_broadcast();
 
     forge = fill_forge_private_key(
@@ -219,6 +228,7 @@ async fn deploy_ecosystem(
             forge_args,
             ecosystem_config,
             initial_deployment_config,
+            ecosystem.l1_rpc_url.clone(),
         )
         .await;
     }
@@ -264,6 +274,7 @@ async fn deploy_ecosystem_inner(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
+    l1_rpc_url: String,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM.input(&config.link_to_code);
 
@@ -287,7 +298,7 @@ async fn deploy_ecosystem_inner(
     let mut forge = Forge::new(&config.path_to_foundry())
         .script(&DEPLOY_ECOSYSTEM.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(config.l1_rpc_url.clone())
+        .with_rpc_url(l1_rpc_url.clone())
         .with_broadcast();
 
     if config.l1_network == L1Network::Localhost {
@@ -312,6 +323,7 @@ async fn deploy_ecosystem_inner(
         config.get_wallets()?.governor_private_key(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         &forge_args,
+        l1_rpc_url.clone(),
     )
     .await?;
 
@@ -322,6 +334,7 @@ async fn deploy_ecosystem_inner(
         config.get_wallets()?.governor_private_key(),
         contracts_config.bridges.shared.l1_address,
         &forge_args,
+        l1_rpc_url.clone(),
     )
     .await?;
     Ok(contracts_config)
