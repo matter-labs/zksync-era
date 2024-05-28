@@ -37,7 +37,7 @@ impl FriProofCompressorDal<'_, '_> {
                 fri_proof_blob_url,
                 ProofCompressionJobStatus::Queued.to_string(),
                 protocol_version.minor as i32,
-                protocol_version.patch_raw() as i32
+                protocol_version.patch.0 as i32
             )
             .fetch_optional(self.storage.conn())
             .await
@@ -99,7 +99,7 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::Queued.to_string(),
             picked_by,
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32
+            protocol_version.patch.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await

@@ -1,5 +1,7 @@
 use zksync_basic_types::{
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
+    protocol_version::{
+        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams, VkPatch,
+    },
     H256,
 };
 use zksync_db_connection::connection::Connection;
@@ -49,7 +51,7 @@ impl FriProtocolVersionsDal<'_, '_> {
                 .params
                 .recursion_circuits_set_vks_hash
                 .as_bytes(),
-            id.patch_raw() as i32
+            id.patch.0 as i32
         )
         .execute(self.storage.conn())
         .await
@@ -91,7 +93,12 @@ impl FriProtocolVersionsDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| ProtocolSemanticVersion::new(row.id as u16, row.protocol_version_patch as u16))
+        .map(|row| {
+            ProtocolSemanticVersion::new(
+                ProtocolVersionId::try_from(row.id as u16).unwrap(),
+                VkPatch(row.protocol_version_patch as u32),
+            )
+        })
         .collect()
     }
 
@@ -114,7 +121,7 @@ impl FriProtocolVersionsDal<'_, '_> {
                 protocol_version_patch = $2
             "#,
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32
+            protocol_version.patch.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await

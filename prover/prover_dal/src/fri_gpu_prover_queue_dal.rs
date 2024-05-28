@@ -61,7 +61,7 @@ impl FriGpuProverQueueDal<'_, '_> {
             i16::from(specialized_prover_group_id),
             zone,
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32
+            protocol_version.patch.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -112,7 +112,7 @@ impl FriGpuProverQueueDal<'_, '_> {
             i16::from(specialized_prover_group_id),
             zone,
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32
+            protocol_version.patch.0 as i32
         )
         .execute(self.storage.conn())
         .await

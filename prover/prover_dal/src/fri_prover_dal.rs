@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VkPatch},
     prover_dal::{
         correct_circuit_id, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo,
         ProverJobStatus, StuckJobs,
@@ -92,7 +92,7 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri.is_node_final_proof
             "#,
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32,
+            protocol_version.patch.0 as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -182,7 +182,7 @@ impl FriProverDal<'_, '_> {
             &circuit_ids[..],
             &aggregation_rounds[..],
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32,
+            protocol_version.patch.0 as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -393,7 +393,7 @@ impl FriProverDal<'_, '_> {
             i32::from(depth),
             is_node_final_proof,
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32,
+            protocol_version.patch.0 as i32,
         )
             .execute(self.storage.conn())
             .await
@@ -715,8 +715,8 @@ impl FriProverDal<'_, '_> {
         .unwrap();
 
         ProtocolSemanticVersion::new(
-            result.protocol_version.unwrap() as u16,
-            result.protocol_version_patch as u16,
+            ProtocolVersionId::try_from(result.protocol_version.unwrap() as u16).unwrap(),
+            VkPatch(result.protocol_version_patch as u32),
         )
     }
 

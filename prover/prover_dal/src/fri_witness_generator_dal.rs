@@ -4,7 +4,7 @@ use std::{collections::HashMap, str::FromStr, time::Duration};
 use sqlx::Row;
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
-    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VkPatch},
     prover_dal::{
         correct_circuit_id, BasicWitnessGeneratorJobInfo, JobCountStatistics,
         LeafAggregationJobMetadata, LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata,
@@ -66,7 +66,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             object_key,
             protocol_version.minor as i32,
             blobs_raw,
-            protocol_version.patch_raw() as i32,
+            protocol_version.patch.0 as i32,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -114,7 +114,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             i64::from(last_l1_batch_to_process),
             protocol_version.minor as i32,
             picked_by,
-            protocol_version.patch_raw() as i32,
+            protocol_version.patch.0 as i32,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -356,7 +356,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     closed_form_inputs_url,
                     *number_of_basic_circuits as i32,
                     protocol_version.minor as i32,
-                    protocol_version.patch_raw() as i32,
+                    protocol_version.patch.0 as i32,
                 )
                 .execute(self.storage.conn())
                 .await
@@ -395,7 +395,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 block_number.0 as i64,
                 closed_form_inputs_and_urls.len() as i32,
                 protocol_version.minor as i32,
-                protocol_version.patch_raw() as i32,
+                protocol_version.patch.0 as i32,
             )
             .execute(self.storage.conn())
             .await
@@ -423,7 +423,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 i64::from(block_number.0),
                 scheduler_partial_input_blob_url,
                 protocol_version.minor as i32,
-                protocol_version.patch_raw() as i32,
+                protocol_version.patch.0 as i32,
             )
             .execute(self.storage.conn())
             .await
@@ -469,7 +469,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 leaf_aggregation_witness_jobs_fri.*
             "#,
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32,
+            protocol_version.patch.0 as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -658,7 +658,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 node_aggregation_witness_jobs_fri.*
             "#,
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32,
+            protocol_version.patch.0 as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -784,7 +784,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             aggregations_url,
             number_of_dependent_jobs,
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32,
+            protocol_version.patch.0 as i32,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -1115,7 +1115,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 recursion_tip_witness_jobs_fri.l1_batch_number
             "#,
             protocol_version.minor as i32,
-            protocol_version.patch_raw() as i32,
+            protocol_version.patch.0 as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -1222,7 +1222,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "#,
             protocol_version.minor as i32,
             picked_by,
-            protocol_version.patch_raw() as i32,
+            protocol_version.patch.0 as i32,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -1422,8 +1422,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .unwrap();
 
         ProtocolSemanticVersion::new(
-            result.protocol_version.unwrap() as u16,
-            result.protocol_version_patch as u16,
+            ProtocolVersionId::try_from(result.protocol_version.unwrap() as u16).unwrap(),
+            VkPatch(result.protocol_version_patch as u32),
         )
     }
 
