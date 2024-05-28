@@ -70,17 +70,15 @@ impl EthNamespace {
         );
         drop(connection);
 
-        // We want to avoid copying the entire `request`, so we'll remember whether the base fee should be overridden.
-        let should_enforce_base_fee = request.max_fee_per_gas.is_some();
+        let call_overrides = request.get_call_overrides()?;
+
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
-        let enforced_base_fee =
-            should_enforce_base_fee.then(|| tx.common_data.fee.max_fee_per_gas.as_u64());
 
         // It is assumed that the previous checks has already enforced that the max_fee_per_gas is at most u64.
         let call_result: Vec<u8> = self
             .state
             .tx_sender
-            .eth_call(block_args, enforced_base_fee, tx)
+            .eth_call(block_args, call_overrides, tx)
             .await?;
         Ok(call_result.into())
     }

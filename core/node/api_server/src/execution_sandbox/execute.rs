@@ -10,8 +10,8 @@ use multivm::{
 use tracing::{span, Level};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{
-    fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Nonce,
-    PackedEthSignature, Transaction, U256,
+    fee::TransactionExecutionMetrics, l2::L2Tx, transaction_request::CallOverrides,
+    ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
 };
 
 use super::{
@@ -170,14 +170,16 @@ impl TransactionExecutor {
         vm_permit: VmPermit,
         shared_args: TxSharedArgs,
         connection_pool: ConnectionPool<Core>,
-        enforced_base_fee: Option<u64>,
+        call_overrides: CallOverrides,
         mut tx: L2Tx,
         block_args: BlockArgs,
         vm_execution_cache_misses_limit: Option<usize>,
         custom_tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let execution_args =
-            TxExecutionArgs::for_eth_call(enforced_base_fee, vm_execution_cache_misses_limit);
+        let execution_args = TxExecutionArgs::for_eth_call(
+            call_overrides.enforced_base_fee,
+            vm_execution_cache_misses_limit,
+        );
 
         if tx.common_data.signature.is_empty() {
             tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
@@ -194,10 +196,9 @@ impl TransactionExecutor {
             .protocol_version;
         drop(connection);
 
-        // Protection against infinite-loop eth_calls and alike:
-        // limiting the amount of gas the call can use.
-        // We can't use `BLOCK_ERGS_LIMIT` here since the VM itself has some overhead.
-        tx.common_data.fee.gas_limit = get_eth_call_gas_limit(protocol_version.into()).into();
+        if call_overrides.use_max_gas_limit {
+            tx.common_data.fee.gas_limit = get_eth_call_gas_limit(protocol_version.into()).into();
+        }
         let output = self
             .execute_tx_in_sandbox(
                 vm_permit,

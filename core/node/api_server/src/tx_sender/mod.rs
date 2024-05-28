@@ -28,6 +28,7 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
+    transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
     ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
@@ -965,7 +966,7 @@ impl TxSender {
     pub(super) async fn eth_call(
         &self,
         block_args: BlockArgs,
-        enforced_base_fee: Option<u64>,
+        call_overrides: CallOverrides,
         tx: L2Tx,
     ) -> Result<Vec<u8>, SubmitTxError> {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
@@ -978,7 +979,7 @@ impl TxSender {
                 vm_permit,
                 self.shared_args().await?,
                 self.0.replica_connection_pool.clone(),
-                enforced_base_fee,
+                call_overrides,
                 tx,
                 block_args,
                 vm_execution_cache_misses_limit,

@@ -149,11 +149,8 @@ impl DebugNamespace {
                 .diff_with_block_args(&block_args),
         );
 
-        // We want to avoid copying the entire `request`, so we'll remember whether the base fee should be overridden.
-        let should_enforce_base_fee = request.max_fee_per_gas.is_some();
+        let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
-        let enforced_base_fee =
-            should_enforce_base_fee.then(|| tx.common_data.fee.max_fee_per_gas.as_u64());
 
         let shared_args = self.shared_args().await;
         let vm_permit = self
@@ -178,7 +175,7 @@ impl DebugNamespace {
                 vm_permit,
                 shared_args,
                 self.state.connection_pool.clone(),
-                enforced_base_fee,
+                call_overrides,
                 tx.clone(),
                 block_args,
                 self.sender_config().vm_execution_cache_misses_limit,

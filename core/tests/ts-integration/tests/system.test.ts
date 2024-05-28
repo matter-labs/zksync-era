@@ -314,7 +314,11 @@ describe('System behavior checks', () => {
     test('Gas per pubdata byte getter should work', async () => {
         const systemContextArtifact = getTestContract('ISystemContext');
         const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
-        console.log(await systemContext.gasPerPubdataByte());
+        const currentGasPerPubdata = await systemContext.gasPerPubdataByte();
+
+        // The current gas per pubdata depends on a lot of factors, so it wouldn't be sustainable to check the exact value.
+        // We'll just check that it is greater than zero.
+        expect(currentGasPerPubdata.toNumber()).toBeGreaterThan(0);
     });
 
     it('should reject transaction with huge gas limit', async () => {
