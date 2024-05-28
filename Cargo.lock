@@ -8414,7 +8414,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_db_connection",
- "zksync_dev_api_conversion_rate",
+ "zksync_dev_conversion_rate_api",
  "zksync_eth_client",
  "zksync_eth_sender",
  "zksync_eth_signer",
@@ -8531,7 +8531,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_dev_api_conversion_rate"
+name = "zksync_dev_conversion_rate_api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -8967,6 +8967,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_db_connection",
+ "zksync_dev_conversion_rate_api",
  "zksync_env_config",
  "zksync_eth_client",
  "zksync_eth_sender",

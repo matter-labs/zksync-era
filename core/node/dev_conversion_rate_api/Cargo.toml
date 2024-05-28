@@ -1,5 +1,5 @@
 [package]
-name = "zksync_dev_api_conversion_rate"
+name = "zksync_dev_conversion_rate_api"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true

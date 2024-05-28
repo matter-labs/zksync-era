@@ -320,7 +320,7 @@ pub async fn initialize_components(
 
         let stop_receiver = stop_receiver.clone();
         let conversion_rate_task = tokio::spawn(async move {
-            zksync_dev_api_conversion_rate::run_server(stop_receiver, &base_token_fetcher_config)
+            zksync_dev_conversion_rate_api::start_server(stop_receiver, &base_token_fetcher_config)
                 .await
         });
         task_futures.push(conversion_rate_task);

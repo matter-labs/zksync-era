@@ -19,6 +19,7 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
+        dev_conversion_rate_api::DevConversionRateApiLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
@@ -399,6 +400,16 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_base_token_layer(mut self) -> anyhow::Result<Self> {
+        todo!("add_base_token_layer");
+    }
+
+    fn add_dev_conversion_rate_api(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.configs.base_token_fetcher);
+        self.node.add_layer(DevConversionRateApiLayer(config));
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
         self = self
@@ -479,6 +490,12 @@ impl MainNodeBuilder {
                 }
                 Component::CommitmentGenerator => {
                     self = self.add_commitment_generator_layer()?;
+                }
+                Component::BaseTokenFetcher => {
+                    self = self.add_base_token_layer()?;
+                }
+                Component::DevConversionRateApi => {
+                    self = self.add_dev_conversion_rate_api()?;
                 }
             }
         }

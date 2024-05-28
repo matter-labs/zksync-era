@@ -9,7 +9,7 @@ use bigdecimal::BigDecimal;
 use tokio::sync::watch;
 use zksync_config::configs::base_token_fetcher::BaseTokenFetcherConfig;
 
-pub async fn run_server(
+pub async fn start_server(
     mut stop_receiver: watch::Receiver<bool>,
     server_configs: &BaseTokenFetcherConfig,
 ) -> anyhow::Result<()> {
