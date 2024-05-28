@@ -589,7 +589,7 @@ impl<'a> SnapshotsApplier<'a> {
         );
 
         // we cannot insert all factory deps because of field size limit triggered by UNNEST
-        // in underlying query, see https://www.postgresql.org/docs/current/limits.html
+        // in underlying query, see `https://www.postgresql.org/docs/current/limits.html`
         let chunk_size = 1000;
         let chunks_count = factory_deps.factory_deps.len().div_ceil(chunk_size);
         for chunk_id in 0..chunks_count {
