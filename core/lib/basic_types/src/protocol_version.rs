@@ -297,14 +297,14 @@ pub struct ProtocolSemanticVersion {
 impl ProtocolSemanticVersion {
     const MAJOR_VERSION: u8 = 0;
 
-    pub fn new(minor: ProtocolVersionId, patch: VkPatch) -> Self {
+    pub fn new(minor: ProtocolVersionId, patch: VersionPatch) -> Self {
         Self { minor, patch }
     }
 
     pub fn current_prover_version() -> Self {
         Self {
             minor: ProtocolVersionId::current_prover_version(),
-            patch: VkPatch(0),
+            patch: VersionPatch(0),
         }
     }
 

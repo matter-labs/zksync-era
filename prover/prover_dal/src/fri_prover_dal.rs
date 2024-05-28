@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VkPatch},
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
         correct_circuit_id, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo,
         ProverJobStatus, StuckJobs,
@@ -716,7 +716,7 @@ impl FriProverDal<'_, '_> {
 
         ProtocolSemanticVersion::new(
             ProtocolVersionId::try_from(result.protocol_version.unwrap() as u16).unwrap(),
-            VkPatch(result.protocol_version_patch as u32),
+            VersionPatch(result.protocol_version_patch as u32),
         )
     }
 

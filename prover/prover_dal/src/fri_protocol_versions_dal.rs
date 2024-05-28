@@ -1,6 +1,6 @@
 use zksync_basic_types::{
     protocol_version::{
-        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams, VkPatch,
+        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams, VersionPatch,
     },
     H256,
 };
@@ -96,7 +96,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         .map(|row| {
             ProtocolSemanticVersion::new(
                 ProtocolVersionId::try_from(row.id as u16).unwrap(),
-                VkPatch(row.protocol_version_patch as u32),
+                VersionPatch(row.protocol_version_patch as u32),
             )
         })
         .collect()

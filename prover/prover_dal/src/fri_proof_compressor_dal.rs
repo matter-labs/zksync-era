@@ -3,7 +3,7 @@ use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
-    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VkPatch},
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
         JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
     },
@@ -218,7 +218,7 @@ impl FriProofCompressorDal<'_, '_> {
                 L1BatchNumber(row.l1_batch_number as u32),
                 ProtocolSemanticVersion::new(
                     ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
-                    VkPatch(row.protocol_version_patch as u32),
+                    VersionPatch(row.protocol_version_patch as u32),
                 ),
                 ProofCompressionJobStatus::from_str(&row.status).unwrap(),
             )),
