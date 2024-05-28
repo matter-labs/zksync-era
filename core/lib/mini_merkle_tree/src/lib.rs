@@ -87,9 +87,8 @@ where
             );
             binary_tree_size = min_tree_size.max(binary_tree_size);
         }
-        let depth = tree_depth_by_size(binary_tree_size);
         assert!(
-            depth <= MAX_TREE_DEPTH,
+            tree_depth_by_size(binary_tree_size) <= MAX_TREE_DEPTH,
             "Tree contains more than {} items; this is not supported",
             1 << MAX_TREE_DEPTH
         );
@@ -125,9 +124,8 @@ where
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
     /// `index` is relative to the leftmost uncached leaf.
     pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
-        let (mut left_path, mut right_path) = (vec![], vec![]);
-        let root_hash =
-            self.compute_merkle_root_and_path(index, Some((&mut left_path, &mut right_path)), None);
+        let mut right_path = vec![];
+        let root_hash = self.compute_merkle_root_and_path(index, None, Some(&mut right_path));
         (root_hash, right_path)
     }
 
@@ -140,8 +138,8 @@ where
         let (mut left_path, mut right_path) = (vec![], vec![]);
         let root_hash = self.compute_merkle_root_and_path(
             length - 1,
-            Some((&mut left_path, &mut right_path)),
-            None,
+            Some(&mut left_path),
+            Some(&mut right_path),
         );
         (root_hash, left_path, right_path)
     }
@@ -164,27 +162,27 @@ where
     pub fn cache(&mut self, count: usize) {
         assert!(self.hashes.len() >= count, "not enough leaves to cache");
         let mut new_cache = vec![];
-        self.compute_merkle_root_and_path(count - 1, None, Some(&mut new_cache));
+        let root = self.compute_merkle_root_and_path(count, None, Some(&mut new_cache));
         self.hashes.drain(0..count);
         self.head_index += count;
+        new_cache.push(root);
         self.left_cache = new_cache;
     }
 
     fn compute_merkle_root_and_path(
         &self,
         mut right_index: usize,
-        mut merkle_paths: Option<(&mut Vec<H256>, &mut Vec<H256>)>,
-        mut new_cache: Option<&mut Vec<H256>>,
+        mut left_path: Option<&mut Vec<H256>>,
+        mut right_path: Option<&mut Vec<H256>>,
     ) -> H256 {
-        assert!(right_index < self.hashes.len(), "invalid tree leaf index");
+        // assert!(right_index < self.hashes.len(), "invalid tree leaf index");
 
         let depth = tree_depth_by_size(self.binary_tree_size);
-        if let Some((left_path, right_path)) = &mut merkle_paths {
+        if let Some(left_path) = left_path.as_deref_mut() {
             left_path.reserve(depth);
-            right_path.reserve(depth);
         }
-        if let Some(new_cache) = new_cache.as_deref_mut() {
-            new_cache.reserve(depth + 1);
+        if let Some(right_path) = right_path.as_deref_mut() {
+            right_path.reserve(depth);
         }
 
         let mut hashes = self.hashes.clone();
@@ -202,26 +200,15 @@ where
                 } else {
                     // `index` is relative to `head_index`
                     let sibling = ((head_index + index) ^ 1) - head_index;
-                    hashes[sibling]
+                    hashes.get(sibling).copied().unwrap_or_default()
                 }
             };
 
-            if let Some((left_path, right_path)) = &mut merkle_paths {
+            if let Some(left_path) = left_path.as_deref_mut() {
                 left_path.push(sibling_hash(0));
-                right_path.push(sibling_hash(right_index));
             }
-
-            if let Some(new_cache) = new_cache.as_deref_mut() {
-                // We cache the rightmost left child on the current level
-                // within the given interval.
-                let cache = if (head_index + right_index) % 2 == 0 {
-                    hashes[right_index]
-                } else if right_index == 0 {
-                    self.left_cache[level]
-                } else {
-                    hashes[right_index - 1]
-                };
-                new_cache.push(cache);
+            if let Some(right_path) = right_path.as_deref_mut() {
+                right_path.push(sibling_hash(right_index));
             }
 
             let parity = head_index % 2;
@@ -248,12 +235,6 @@ where
             right_index = (right_index + parity) / 2;
             level_len = next_level_len;
             head_index /= 2;
-        }
-
-        if let Some(new_cache) = new_cache {
-            // It is important to cache the root as well, in case
-            // we just cached all elements and will grow on the next push.
-            new_cache.push(hashes[0]);
         }
 
         hashes[0]
