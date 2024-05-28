@@ -15,6 +15,7 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
+        base_token_fetcher::BaseTokenFetcherLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
@@ -401,7 +402,9 @@ impl MainNodeBuilder {
     }
 
     fn add_base_token_layer(mut self) -> anyhow::Result<Self> {
-        todo!("add_base_token_layer");
+        let config = try_load_config!(self.configs.base_token_fetcher);
+        self.node.add_layer(BaseTokenFetcherLayer(config));
+        Ok(self)
     }
 
     fn add_dev_conversion_rate_api(mut self) -> anyhow::Result<Self> {

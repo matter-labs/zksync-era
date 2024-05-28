@@ -1,3 +1,4 @@
+pub mod base_token_fetcher;
 pub mod circuit_breaker_checker;
 pub mod commitment_generator;
 pub mod consensus;
