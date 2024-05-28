@@ -1,6 +1,13 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
-use std::{collections::HashMap, fmt, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{
+    cmp::{max, min},
+    collections::HashMap,
+    fmt,
+    num::NonZeroUsize,
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -593,8 +600,9 @@ impl<'a> SnapshotsApplier<'a> {
         let chunk_size = 1000;
         let chunks_count = factory_deps.factory_deps.len().div_ceil(chunk_size);
         for chunk_id in 0..chunks_count {
-            let chunk = &factory_deps.factory_deps
-                [chunk_id * chunk_size..chunk_id * chunk_size + chunk_size];
+            let chunk_start = chunk_id * chunk_size;
+            let chunk_end = min(factory_deps.factory_deps.len(), chunk_id * (chunk_size + 1));
+            let chunk = &factory_deps.factory_deps[chunk_start..chunk_end];
             let chunk_deps_hashmap: HashMap<H256, Vec<u8>> = chunk
                 .into_iter()
                 .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0.clone()))
