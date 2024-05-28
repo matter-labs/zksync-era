@@ -421,9 +421,27 @@ impl BlockReverter {
                 });
             combine_results(&mut overall_result, result);
 
+            let mut is_incomplete_snapshot = false;
+            let chunk_ids_iter = (0_u64..)
+                .zip(&snapshot.storage_logs_filepaths)
+                .filter_map(|(chunk_id, path)| {
+                    if path.is_none() {
+                        if !is_incomplete_snapshot {
+                            is_incomplete_snapshot = true;
+                            tracing::warn!(
+                                "Snapshot for L1 batch #{} is incomplete (misses al least storage logs chunk ID {chunk_id}). \
+                                 It is probable that it's currently being created, in which case you'll need to clean up produced files \
+                                 manually afterwards",
+                                snapshot.l1_batch_number
+                            );
+                        }
+                        return None;
+                    }
+                    Some(chunk_id)
+                });
+
             let remove_semaphore = &Semaphore::new(CONCURRENT_REMOVE_REQUESTS);
-            let chunks_len = snapshot.storage_logs_filepaths.len();
-            let remove_futures = (0..chunks_len as u64).map(|chunk_id| async move {
+            let remove_futures = chunk_ids_iter.map(|chunk_id| async move {
                 let _permit = remove_semaphore
                     .acquire()
                     .await
