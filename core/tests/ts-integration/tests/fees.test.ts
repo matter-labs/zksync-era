@@ -63,7 +63,7 @@ testFees('Test fees', () => {
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
     });
 
-    test.skip('Test fees', async () => {
+    test('Test fees', async () => {
         const receiver = ethers.Wallet.createRandom().address;
 
         // Getting ETH price in gas.
