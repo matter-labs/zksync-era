@@ -84,7 +84,7 @@ async fn generate_new_config(
     let mut updated_genesis = GenesisConfig {
         protocol_version: Some(ProtocolSemanticVersion {
             minor: ProtocolVersionId::latest(),
-            patch: 0.into(),
+            patch: 0.into(), // genesis generator proposes some new valid config, so patch 0 works here.
         }),
         genesis_root_hash: None,
         rollup_last_leaf_index: None,

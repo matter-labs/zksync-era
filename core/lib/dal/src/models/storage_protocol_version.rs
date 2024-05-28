@@ -29,7 +29,7 @@ pub(crate) fn protocol_version_from_storage(
     protocol_upgrade::ProtocolVersion {
         version: ProtocolSemanticVersion {
             minor: (storage_version.minor as u16).try_into().unwrap(),
-            patch: VkPatch(storage_version.patch as u16),
+            patch: VkPatch(storage_version.patch as u32),
         },
         timestamp: storage_version.timestamp as u64,
         l1_verifier_config: L1VerifierConfig {

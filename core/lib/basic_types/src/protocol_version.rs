@@ -282,7 +282,7 @@ impl From<ProtocolVersionId> for VmVersion {
 basic_type!(
     /// Patch part of semantic protocol version.
     VkPatch,
-    u16
+    u32
 );
 
 /// Semantic protocol version.
@@ -302,13 +302,10 @@ impl ProtocolSemanticVersion {
             & U256::from(PACKED_SEMVER_MINOR_MASK))
         .try_into()?;
         let patch = packed.0[0] as u32;
-        if patch > u32::from(u16::MAX) {
-            return Err("Patches greater than u16::MAX are not supported".to_string());
-        }
 
         Ok(Self {
             minor,
-            patch: VkPatch(patch as u16),
+            patch: VkPatch(patch),
         })
     }
 
@@ -363,7 +360,7 @@ impl FromStr for ProtocolSemanticVersion {
             .map_err(|_| ParseProtocolSemanticVersionError::InvalidFormat)?;
 
         let patch = parts[2]
-            .parse::<u16>()
+            .parse::<u32>()
             .map_err(ParseProtocolSemanticVersionError::ParseIntError)?;
 
         Ok(ProtocolSemanticVersion {

@@ -85,7 +85,7 @@ impl ProtocolVersionsDal<'_, '_> {
             ON CONFLICT DO NOTHING
             "#,
             version.minor as i32,
-            i32::from(version.patch.0),
+            version.patch.0 as i32,
             l1_verifier_config
                 .recursion_scheduler_level_vk_hash
                 .as_bytes(),
@@ -303,7 +303,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 AND patch = $2
             "#,
             version.minor as i32,
-            i32::from(version.patch.0)
+            version.patch.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -347,9 +347,11 @@ impl ProtocolVersionsDal<'_, '_> {
         .instrument("get_patch_version_for_vk")
         .fetch_optional(self.storage)
         .await?;
-        Ok(row.map(|row| VkPatch(row.patch as u16)))
+        Ok(row.map(|row| VkPatch(row.patch as u32)))
     }
 
+    /// Returns first patch number for the minor version.
+    /// Note, that some patch numbers can be skipped, so the result is not always 0.
     pub async fn first_vk_patch_for_version(
         &mut self,
         version_id: ProtocolVersionId,
@@ -372,7 +374,7 @@ impl ProtocolVersionsDal<'_, '_> {
         .instrument("first_vk_patch_for_version")
         .fetch_optional(self.storage)
         .await?;
-        Ok(row.map(|row| VkPatch(row.patch as u16)))
+        Ok(row.map(|row| VkPatch(row.patch as u32)))
     }
 
     pub async fn latest_semantic_version(&mut self) -> DalResult<Option<ProtocolSemanticVersion>> {
@@ -393,7 +395,7 @@ impl ProtocolVersionsDal<'_, '_> {
         .try_map(|row| {
             parse_protocol_version(row.minor).map(|minor| ProtocolSemanticVersion {
                 minor,
-                patch: (row.patch as u16).into(),
+                patch: (row.patch as u32).into(),
             })
         })
         .instrument("latest_semantic_version")
@@ -438,7 +440,7 @@ impl ProtocolVersionsDal<'_, '_> {
         rows.into_iter()
             .map(|row| ProtocolSemanticVersion {
                 minor: (row.minor as u16).try_into().unwrap(),
-                patch: (row.patch as u16).into(),
+                patch: (row.patch as u32).into(),
             })
             .collect()
     }
