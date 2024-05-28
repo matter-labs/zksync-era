@@ -1,7 +1,7 @@
 use multivm::utils::execution_metrics_bootloader_batch_tip_overhead;
 use zksync_types::ProtocolVersionId;
 
-use crate::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig};
+use crate::seal_criteria::{Reason, SealCriterion, SealData, SealResolution, StateKeeperConfig};
 
 #[derive(Debug)]
 pub struct PubDataBytesCriterion {
@@ -41,8 +41,9 @@ impl SealCriterion for PubDataBytesCriterion {
         if tx_size + execution_metrics_bootloader_batch_tip_overhead(protocol_version.into())
             > reject_bound as usize
         {
-            let message = "Transaction cannot be sent to L1 due to pubdata limits";
-            SealResolution::Unexecutable(message.into())
+            SealResolution::Unexecutable(Reason::HardcodedText(
+                "Transaction cannot be sent to L1 due to pubdata limits".to_string(),
+            ))
         } else if block_size
             + execution_metrics_bootloader_batch_tip_overhead(protocol_version.into())
             > max_pubdata_per_l1_batch

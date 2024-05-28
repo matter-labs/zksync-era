@@ -29,7 +29,7 @@ use crate::{
     },
     mempool_actor::l2_tx_filter,
     metrics::KEEPER_METRICS,
-    seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer},
+    seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, Reason, TimeoutSealer},
     updates::UpdatesManager,
     MempoolGuard,
 };
@@ -245,7 +245,7 @@ impl StateKeeperIO for MempoolIO {
                         tx.hash(),
                         tx.gas_limit()
                     );
-                    self.reject(&tx, &Halt::TooBigGasLimit.to_string()).await?;
+                    self.reject(&tx, Reason::Halt(Halt::TooBigGasLimit)).await?;
                     continue;
                 }
                 return Ok(Some(tx));
@@ -265,7 +265,7 @@ impl StateKeeperIO for MempoolIO {
         Ok(())
     }
 
-    async fn reject(&mut self, rejected: &Transaction, error: &str) -> anyhow::Result<()> {
+    async fn reject(&mut self, rejected: &Transaction, error: Reason) -> anyhow::Result<()> {
         anyhow::ensure!(
             !rejected.is_l1(),
             "L1 transactions should not be rejected: {error}"
@@ -276,7 +276,8 @@ impl StateKeeperIO for MempoolIO {
 
         // Mark tx as rejected in the storage.
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        KEEPER_METRICS.inc_rejected_txs(error.to_string());
+
+        KEEPER_METRICS.inc_rejected_txs(error.to_metrics_friendly_string());
 
         tracing::warn!(
             "Transaction {} is rejected with error: {error}",

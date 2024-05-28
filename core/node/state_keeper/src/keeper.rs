@@ -22,6 +22,7 @@ use super::{
     updates::UpdatesManager,
     utils::gas_count_from_writes,
 };
+use crate::seal_criteria::Reason;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -561,7 +562,7 @@ impl ZkSyncStateKeeper {
                 SealResolution::Unexecutable(reason) => {
                     batch_executor.rollback_last_tx().await;
                     self.io
-                        .reject(&tx, reason)
+                        .reject(&tx, reason.clone())
                         .await
                         .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
                 }
@@ -678,7 +679,7 @@ impl ZkSyncStateKeeper {
                     _ => unreachable!(),
                 };
                 let resolution = if is_first_tx {
-                    SealResolution::Unexecutable(error_message.to_string())
+                    SealResolution::Unexecutable(Reason::HardcodedText(error_message.to_string()))
                 } else {
                     SealResolution::ExcludeAndSeal
                 };
@@ -686,7 +687,7 @@ impl ZkSyncStateKeeper {
                 resolution
             }
             TxExecutionResult::RejectedByVm { reason } => {
-                SealResolution::Unexecutable(reason.to_string())
+                SealResolution::Unexecutable(Reason::Halt(reason.clone()))
             }
             TxExecutionResult::Success {
                 tx_result,

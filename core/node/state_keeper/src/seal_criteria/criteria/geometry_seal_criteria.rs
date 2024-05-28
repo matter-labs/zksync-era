@@ -5,7 +5,7 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::ProtocolVersionId;
 
 // Local uses
-use crate::seal_criteria::{SealCriterion, SealData, SealResolution};
+use crate::seal_criteria::{Reason, SealCriterion, SealData, SealResolution};
 
 // Collected vm execution metrics should fit into geometry limits.
 // Otherwise witness generation will fail and proof won't be generated.
@@ -52,7 +52,9 @@ impl SealCriterion for CircuitsCriterion {
         let used_circuits_batch = block_data.execution_metrics.circuit_statistic.total();
 
         if used_circuits_tx + batch_tip_circuit_overhead >= reject_bound {
-            SealResolution::Unexecutable("ZK proof cannot be generated for a transaction".into())
+            SealResolution::Unexecutable(Reason::HardcodedText(
+                "ZK proof cannot be generated for a transaction".to_string(),
+            ))
         } else if used_circuits_batch + batch_tip_circuit_overhead >= config.max_circuits_per_batch
         {
             SealResolution::ExcludeAndSeal

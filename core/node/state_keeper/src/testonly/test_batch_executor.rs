@@ -28,7 +28,7 @@ use zksync_types::{
 use crate::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
     io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
-    seal_criteria::{IoSealCriteria, SequencerSealer},
+    seal_criteria::{IoSealCriteria, Reason, SequencerSealer},
     testonly::{default_vm_batch_result, successful_exec, BASE_SYSTEM_CONTRACTS},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
@@ -756,7 +756,7 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()> {
+    async fn reject(&mut self, tx: &Transaction, error: Reason) -> anyhow::Result<()> {
         let action = self.pop_next_item("reject");
         let ScenarioItem::Reject(_, expected_tx, expected_err) = action else {
             panic!("Unexpected action: {:?}", action);
@@ -764,7 +764,7 @@ impl StateKeeperIO for TestIO {
         assert_eq!(tx, &expected_tx, "Incorrect transaction has been rejected");
         if let Some(expected_err) = expected_err {
             assert!(
-                error.contains(&expected_err),
+                error.to_string().contains(&expected_err),
                 "Transaction was rejected with an unexpected error. Expected part was {}, but the actual error was {}",
                 expected_err,
                 error

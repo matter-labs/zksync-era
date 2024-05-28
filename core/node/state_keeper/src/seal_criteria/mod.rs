@@ -12,7 +12,7 @@
 
 use std::fmt;
 
-use multivm::vm_latest::TransactionVmExt;
+use multivm::{interface::Halt, vm_latest::TransactionVmExt};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
     block::BlockGasCount,
@@ -33,6 +33,34 @@ use super::{
     utils::{gas_count_from_tx_and_metrics, gas_count_from_writes},
 };
 
+/// Represents the reason variants for why a transaction was considered unexecutable.
+///
+/// This enum can capture either a hardcoded textual message or a more structured
+/// reason encapsulated in a `Halt` type.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Reason {
+    HardcodedText(String),
+    Halt(Halt),
+}
+
+impl Reason {
+    pub fn to_metrics_friendly_string(&self) -> String {
+        match self {
+            Reason::HardcodedText(text) => text.clone(),
+            Reason::Halt(halt) => halt.to_metrics_friendly_string(),
+        }
+    }
+}
+
+impl fmt::Display for Reason {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Reason::HardcodedText(text) => write!(f, "{}", text),
+            Reason::Halt(halt) => write!(f, "{}", halt),
+        }
+    }
+}
+
 /// Reported decision regarding block sealing.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SealResolution {
@@ -52,7 +80,7 @@ pub enum SealResolution {
     /// if the block will consist of it solely. Such a transaction must be rejected.
     ///
     /// Contains a reason for why transaction was considered unexecutable.
-    Unexecutable(String),
+    Unexecutable(Reason),
 }
 
 impl SealResolution {
