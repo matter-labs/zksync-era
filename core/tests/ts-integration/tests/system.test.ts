@@ -20,6 +20,7 @@ const contracts = {
     events: getTestContract('Emitter')
 };
 
+const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 const BUILTIN_CREATE2_FACTORY_ADDRESS = '0x0000000000000000000000000000000000010000';
 
 describe('System behavior checks', () => {
@@ -313,6 +314,12 @@ describe('System behavior checks', () => {
 
     test.only('Gas per pubdata byte getter should work', async () => {
         const systemContextArtifact = getTestContract('ISystemContext');
+        const systemContext = new ethers.Contract(
+            SYSTEM_CONTEXT_ADDRESS,
+            systemContextArtifact.abi,
+            alice.provider
+        );
+        console.log(await systemContext.gasPerPubdataByte());
     });
 
     it('should reject transaction with huge gas limit', async () => {
