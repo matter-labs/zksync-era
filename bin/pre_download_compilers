@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # This ./cache/hardhat-nodejs is coming from the env-paths module
 # that hardhat is using.
 COMPILER_DIR=/root/.cache/hardhat-nodejs/compilers-v2
