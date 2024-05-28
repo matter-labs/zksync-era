@@ -170,17 +170,12 @@ impl TransactionExecutor {
         vm_permit: VmPermit,
         shared_args: TxSharedArgs,
         connection_pool: ConnectionPool<Core>,
+        enforced_base_fee: Option<u64>,
         mut tx: L2Tx,
         block_args: BlockArgs,
         vm_execution_cache_misses_limit: Option<usize>,
         custom_tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let tx_max_fee_per_gas = tx.common_data.fee.max_fee_per_gas.as_u64();
-        let enforced_base_fee = if tx_max_fee_per_gas == 0 {
-            None
-        } else {
-            Some(tx_max_fee_per_gas)
-        };
         let execution_args =
             TxExecutionArgs::for_eth_call(enforced_base_fee, vm_execution_cache_misses_limit);
 
