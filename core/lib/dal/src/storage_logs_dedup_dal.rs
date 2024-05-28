@@ -172,7 +172,7 @@ impl StorageLogsDedupDal<'_, '_> {
         .map(|max| max as u64))
     }
 
-    /// Returns the max enumuration index by the provided L1 batch number.
+    /// Returns the max enumeration index by the provided L1 batch number.
     pub async fn max_enumeration_index_by_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
