@@ -11,6 +11,7 @@ use zksync_consensus_storage::BlockStore;
 
 use crate::storage::{ConnectionPool, Store};
 
+mod batch;
 mod config;
 mod en;
 pub mod era;
