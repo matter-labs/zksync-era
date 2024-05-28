@@ -80,9 +80,12 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
     // but if it's not available, we'll use the first token from the list.
-    let token = tokens.tokens['wBTC'];
+    let token = tokens.tokens['WBTC'];
     if (token === undefined) {
         token = Object.values(tokens.tokens)[0];
+        if (token.symbol == 'WETH') {
+            token = Object.values(tokens.tokens)[1];
+        }
     }
     const weth = tokens.tokens['WETH'];
     let baseToken;
