@@ -3,19 +3,19 @@ use std::fmt;
 use async_trait::async_trait;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
+    ethabi, web3,
     web3::{
-        ethabi,
-        types::{
-            AccessList, Address, BlockId, BlockNumber, Filter, Log, Transaction,
-            TransactionCondition, TransactionReceipt, H160, H256, U256, U64,
-        },
+        AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
+        TransactionReceipt,
     },
-    L1ChainId,
+    Address, L1ChainId, H160, H256, U256, U64,
 };
+use zksync_web3_decl::client::{DynClient, L1};
+pub use zksync_web3_decl::{error::EnrichedClientError, jsonrpsee::core::ClientError};
 
 pub use crate::types::{
-    encode_blob_tx_with_sidecar, Block, CallFunctionArgs, ContractCall, Error, ExecutedTxStatus,
-    FailureInfo, RawTransactionBytes, SignedCallResult,
+    encode_blob_tx_with_sidecar, CallFunctionArgs, ContractCall, ContractError, Error,
+    ExecutedTxStatus, FailureInfo, RawTransactionBytes, SignedCallResult,
 };
 
 pub mod clients;
@@ -63,7 +63,8 @@ impl Options {
 }
 
 /// Common Web3 interface, as seen by the core applications.
-/// Encapsulates the raw Web3 interaction, providing a high-level interface.
+/// Encapsulates the raw Web3 interaction, providing a high-level interface. Acts as an extension
+/// trait implemented for L1 / Ethereum [clients](zksync_web3_decl::client::Client).
 ///
 /// ## Trait contents
 ///
@@ -72,14 +73,7 @@ impl Options {
 /// If you want to add a method to this trait, make sure that it doesn't depend on any particular
 /// contract or account address. For that, you can use the `BoundEthInterface` trait.
 #[async_trait]
-pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
-    /// Clones this client.
-    fn clone_boxed(&self) -> Box<dyn EthInterface>;
-
-    /// Tags this client as working for a specific component. The component name can be used in logging,
-    /// metrics etc. The component name should be copied to the clones of this client, but should not be passed upstream.
-    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn EthInterface>;
-
+pub trait EthInterface: Sync + Send {
     /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
     /// the *expected* L1 chain ID).
     async fn fetch_chain_id(&self) -> Result<L1ChainId, Error>;
@@ -137,8 +131,11 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     async fn eth_balance(&self, address: Address) -> Result<U256, Error>;
 
     /// Invokes a function on a contract specified by `contract_address` / `contract_abi` using `eth_call`.
-    async fn call_contract_function(&self, call: ContractCall)
-        -> Result<Vec<ethabi::Token>, Error>;
+    async fn call_contract_function(
+        &self,
+        request: web3::CallRequest,
+        block: Option<BlockId>,
+    ) -> Result<web3::Bytes, Error>;
 
     /// Returns the logs for the specified filter.
     async fn logs(&self, filter: Filter) -> Result<Vec<Log>, Error>;
@@ -146,15 +143,6 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     /// Returns the block header for the specified block number or hash.
     async fn block(&self, block_id: BlockId) -> Result<Option<Block<H256>>, Error>;
 }
-
-impl Clone for Box<dyn EthInterface> {
-    fn clone(&self) -> Self {
-        self.clone_boxed()
-    }
-}
-
-#[cfg(test)]
-static_assertions::assert_obj_safe!(EthInterface);
 
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to
 /// a certain contract and account.
@@ -170,7 +158,7 @@ static_assertions::assert_obj_safe!(EthInterface);
 /// 2. Consider adding the "unbound" version to the `EthInterface` trait and create a default method
 ///   implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
-pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + fmt::Debug {
+pub trait BoundEthInterface: AsRef<DynClient<L1>> + 'static + Sync + Send + fmt::Debug {
     /// Clones this client.
     fn clone_boxed(&self) -> Box<dyn BoundEthInterface>;
 
@@ -198,7 +186,7 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
         &self,
         token_address: Address,
         address: Address,
-        erc20_abi: ethabi::Contract,
+        erc20_abi: &ethabi::Contract,
     ) -> Result<U256, Error>;
 
     /// Signs the transaction and sends it to the Ethereum network.
@@ -248,15 +236,6 @@ impl dyn BoundEthInterface {
     /// Returns the ETH balance of `Self::sender_account()`.
     pub async fn sender_eth_balance(&self) -> Result<U256, Error> {
         self.as_ref().eth_balance(self.sender_account()).await
-    }
-
-    /// Invokes a function on a contract specified by `Self::contract()` / `Self::contract_addr()`.
-    pub async fn call_main_contract_function(
-        &self,
-        args: CallFunctionArgs,
-    ) -> Result<Vec<ethabi::Token>, Error> {
-        let args = args.for_contract(self.contract_addr(), self.contract().clone());
-        self.as_ref().call_contract_function(args).await
     }
 
     /// Encodes a function using the `Self::contract()` ABI.

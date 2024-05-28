@@ -63,7 +63,7 @@ impl ProtoRepr for proto::Contracts {
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
-                .context("l1_erc20_bridge_impl_addr")?,
+                .context("l2_erc20_bridge_addr")?,
             l1_shared_bridge_proxy_addr: shared
                 .l1_address
                 .as_ref()
@@ -75,7 +75,7 @@ impl ProtoRepr for proto::Contracts {
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
-                .context("l2_shared_bridge_proxy_addr")?,
+                .context("l2_shared_bridge_addr")?,
             l1_weth_bridge_proxy_addr: weth_bridge
                 .as_ref()
                 .and_then(|bridge| bridge.l1_address.as_ref().map(|x| parse_h160(x)))

@@ -3,15 +3,15 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_config::{
     configs::{
-        chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
+        chain::{MempoolConfig, StateKeeperConfig},
         wallets,
     },
     ContractsConfig,
 };
-use zksync_core::state_keeper::{
-    self, MempoolFetcher, MempoolGuard, MempoolIO, OutputHandler, SequencerSealer,
-    StateKeeperPersistence,
+use zksync_state_keeper::{
+    MempoolFetcher, MempoolGuard, MempoolIO, OutputHandler, SequencerSealer, StateKeeperPersistence,
 };
+use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
@@ -27,7 +27,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct MempoolIOLayer {
-    network_config: NetworkConfig,
+    zksync_network_id: L2ChainId,
     contracts_config: ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     mempool_config: MempoolConfig,
@@ -36,14 +36,14 @@ pub struct MempoolIOLayer {
 
 impl MempoolIOLayer {
     pub fn new(
-        network_config: NetworkConfig,
+        zksync_network_id: L2ChainId,
         contracts_config: ContractsConfig,
         state_keeper_config: StateKeeperConfig,
         mempool_config: MempoolConfig,
         wallets: wallets::StateKeeper,
     ) -> Self {
         Self {
-            network_config,
+            zksync_network_id,
             contracts_config,
             state_keeper_config,
             mempool_config,
@@ -119,7 +119,7 @@ impl WiringLayer for MempoolIOLayer {
             &self.state_keeper_config,
             self.wallets.fee_account.address(),
             self.mempool_config.delay_interval(),
-            self.network_config.zksync_network_id,
+            self.zksync_network_id,
         )
         .await?;
         context.insert_resource(StateKeeperIOResource(Unique::new(Box::new(io))))?;
@@ -133,7 +133,7 @@ impl WiringLayer for MempoolIOLayer {
 }
 
 #[derive(Debug)]
-struct L2BlockSealerTask(state_keeper::L2BlockSealerTask);
+struct L2BlockSealerTask(zksync_state_keeper::L2BlockSealerTask);
 
 #[async_trait::async_trait]
 impl Task for L2BlockSealerTask {

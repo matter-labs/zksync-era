@@ -3,7 +3,7 @@ use std::{num::NonZeroU32, time::Duration};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_config::configs::api::MaxResponseSize;
-use zksync_core::api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
+use zksync_node_api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
 
 use crate::{
     implementations::resources::{

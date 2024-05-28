@@ -3,10 +3,9 @@
 // NOTE:
 // main_contract.getTotalBatchesCommitted actually checks the number of batches committed.
 // main_contract.getTotalBatchesExecuted actually checks the number of batches executed.
-// TODO: Migrate from zksync-web3 to zksync-ethers.
 import * as utils from 'zk/build/utils';
 import { Tester } from './tester';
-import * as zkweb3 from 'zksync-ethers';
+import * as zksync from 'zksync-ethers';
 import { BigNumber, ethers } from 'ethers';
 import { expect, assert } from 'chai';
 import fs from 'fs';
@@ -249,14 +248,14 @@ describe('Block reverting test', function () {
 
         const main_contract = await mainNode.tester.syncWallet.getMainContract();
         const baseTokenAddress = await mainNode.tester.syncWallet.getBaseToken();
-        const isETHBasedChain = baseTokenAddress == zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS;
-        const alice: zkweb3.Wallet = extNode.tester.emptyWallet();
+        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        const alice: zksync.Wallet = extNode.tester.emptyWallet();
 
         console.log(
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
-        const h: zkweb3.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
+        const h: zksync.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
+            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true,
@@ -274,7 +273,7 @@ describe('Block reverting test', function () {
         // it gets updated with some batch logs only at the start of the next batch.
         const initialL1BatchNumber = (await main_contract.getTotalBatchesCommitted()).toNumber();
         const firstDepositHandle = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
+            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true,
@@ -287,7 +286,7 @@ describe('Block reverting test', function () {
         }
 
         const secondDepositHandle = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
+            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true,
@@ -358,7 +357,7 @@ describe('Block reverting test', function () {
 
         console.log('Execute an L1 transaction');
         const depositHandle = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
+            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true,
@@ -406,10 +405,10 @@ describe('Block reverting test', function () {
 });
 
 // Transfers amount from sender to a random wallet in an L2 transaction.
-async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
+async function checkedRandomTransfer(sender: zksync.Wallet, amount: BigNumber) {
     const senderBalanceBefore = await sender.getBalance();
-    const receiver = zkweb3.Wallet.createRandom().connect(sender.provider);
-    const transferHandle = await sender.sendTransaction({ to: receiver.address, value: amount });
+    const receiver = zksync.Wallet.createRandom().connect(sender.provider);
+    const transferHandle = await sender.sendTransaction({ to: receiver.address, value: amount, type: 0 });
 
     // ethers doesn't work well with block reversions, so we poll for the receipt manually.
     let txReceipt = null;

@@ -1,0 +1,7 @@
+mod fri_proof_compressor_queue_reporter;
+mod fri_prover_queue_reporter;
+mod fri_witness_generator_queue_reporter;
+
+pub use fri_proof_compressor_queue_reporter::FriProofCompressorQueueReporter;
+pub use fri_prover_queue_reporter::FriProverQueueReporter;
+pub use fri_witness_generator_queue_reporter::FriWitnessGeneratorQueueReporter;

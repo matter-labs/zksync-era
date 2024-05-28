@@ -6,8 +6,9 @@ use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafAggregationJobMetadata,
-        LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo,
+        correct_circuit_id, BasicWitnessGeneratorJobInfo, JobCountStatistics,
+        LeafAggregationJobMetadata, LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata,
+        NodeWitnessGeneratorJobInfo, RecursionTipWitnessGeneratorJobInfo,
         SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
     },
     L1BatchNumber,
@@ -75,10 +76,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_next_basic_circuit_witness_job(
         &mut self,
         last_l1_batch_to_process: u32,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<(L1BatchNumber, Eip4844Blobs)> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
@@ -97,7 +97,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     WHERE
                         l1_batch_number <= $1
                         AND status = 'queued'
-                        AND protocol_version = ANY ($2)
+                        AND protocol_version = $2
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -109,23 +109,26 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 witness_inputs_fri.*
             "#,
             i64::from(last_l1_batch_to_process),
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| {
-            (
-                L1BatchNumber(row.l1_batch_number as u32),
+            // Blobs can be `None` if we are using an `off-chain DA`
+            let blobs = if row.eip_4844_blobs.is_none() {
+                Eip4844Blobs::empty()
+            } else {
                 Eip4844Blobs::decode(&row.eip_4844_blobs.unwrap_or_else(|| {
                     panic!(
                         "missing eip 4844 blobs from the database for batch {}",
                         row.l1_batch_number
                     )
                 }))
-                .expect("failed to decode EIP4844 blobs"),
-            )
+                .expect("failed to decode EIP4844 blobs")
+            };
+            (L1BatchNumber(row.l1_batch_number as u32), blobs)
         })
     }
 
@@ -297,6 +300,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.l1_batch_number as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: None,
         })
         .collect()
     }
@@ -421,10 +425,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_next_leaf_aggregation_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<LeafAggregationJobMetadata> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let row = sqlx::query!(
             r#"
             UPDATE leaf_aggregation_witness_jobs_fri
@@ -442,7 +445,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         leaf_aggregation_witness_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         l1_batch_number ASC,
                         id ASC
@@ -454,7 +457,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 leaf_aggregation_witness_jobs_fri.*
             "#,
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -608,10 +611,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_next_node_aggregation_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<NodeAggregationJobMetadata> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let row = sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -629,7 +631,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         node_aggregation_witness_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         l1_batch_number ASC,
                         depth ASC,
@@ -642,7 +644,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 node_aggregation_witness_jobs_fri.*
             "#,
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -954,7 +956,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 id,
                 status,
-                attempts
+                attempts,
+                circuit_id
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -967,6 +970,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.id as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: Some(row.circuit_id as u32),
         })
         .collect()
     }
@@ -997,7 +1001,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 id,
                 status,
-                attempts
+                attempts,
+                circuit_id
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1010,6 +1015,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.id as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: Some(row.circuit_id as u32),
         })
         .collect()
     }
@@ -1053,16 +1059,16 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.l1_batch_number as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: None,
         })
         .collect()
     }
 
     pub async fn get_next_recursion_tip_witness_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
@@ -1080,7 +1086,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     recursion_tip_witness_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -1091,7 +1097,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 recursion_tip_witness_jobs_fri.l1_batch_number
             "#,
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -1157,16 +1163,16 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.l1_batch_number as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: None,
         })
         .collect()
     }
 
     pub async fn get_next_scheduler_witness_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -1184,7 +1190,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         scheduler_witness_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -1195,7 +1201,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 scheduler_witness_jobs_fri.*
             "#,
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -1499,7 +1505,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| NodeWitnessGeneratorJobInfo {
             id: row.id as u32,
             l1_batch_number,
-            circuit_id: row.circuit_id as u32,
+            // It is necessary to correct the circuit IDs due to the discrepancy between different aggregation rounds.
+            circuit_id: correct_circuit_id(row.circuit_id, AggregationRound::NodeAggregation),
             depth: row.depth as u32,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             attempts: row.attempts as u32,
@@ -1519,7 +1526,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_scheduler_witness_generator_jobs_for_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Vec<SchedulerWitnessGeneratorJobInfo> {
+    ) -> Option<SchedulerWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
             SELECT
@@ -1531,10 +1538,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .iter()
         .map(|row| SchedulerWitnessGeneratorJobInfo {
             l1_batch_number,
             scheduler_partial_input_blob_url: row.scheduler_partial_input_blob_url.clone(),
@@ -1548,6 +1554,306 @@ impl FriWitnessGeneratorDal<'_, '_> {
             protocol_version: row.protocol_version,
             picked_by: row.picked_by.clone(),
         })
-        .collect()
+    }
+
+    pub async fn get_recursion_tip_witness_generator_jobs_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<RecursionTipWitnessGeneratorJobInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                recursion_tip_witness_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| RecursionTipWitnessGeneratorJobInfo {
+            l1_batch_number,
+            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            attempts: row.attempts as u32,
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            error: row.error.clone(),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            number_of_final_node_jobs: row.number_of_final_node_jobs,
+            protocol_version: row.protocol_version,
+            picked_by: row.picked_by.clone(),
+        })
+    }
+
+    pub async fn delete_witness_generator_data_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        aggregation_round: AggregationRound,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query(
+            format!(
+                r#"
+            DELETE FROM
+                {table}
+            WHERE
+                l1_batch_number = {l1_batch_number}
+            "#,
+                table = Self::input_table_name_for(aggregation_round),
+                l1_batch_number = i64::from(block_number.0),
+            )
+            .as_str(),
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete_batch_data(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_witness_generator_data_for_batch(block_number, AggregationRound::BasicCircuits)
+            .await?;
+        self.delete_witness_generator_data_for_batch(
+            block_number,
+            AggregationRound::LeafAggregation,
+        )
+        .await?;
+        self.delete_witness_generator_data_for_batch(
+            block_number,
+            AggregationRound::NodeAggregation,
+        )
+        .await?;
+        self.delete_witness_generator_data(AggregationRound::RecursionTip)
+            .await?;
+        self.delete_witness_generator_data_for_batch(block_number, AggregationRound::Scheduler)
+            .await
+    }
+
+    pub async fn delete_witness_generator_data(
+        &mut self,
+        aggregation_round: AggregationRound,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query(
+            format!(
+                r#"
+            DELETE FROM
+                {}
+            "#,
+                Self::input_table_name_for(aggregation_round)
+            )
+            .as_str(),
+        )
+        .execute(self.storage.conn())
+        .await
+    }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_witness_generator_data(AggregationRound::BasicCircuits)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::LeafAggregation)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::NodeAggregation)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::RecursionTip)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::Scheduler)
+            .await
+    }
+
+    pub async fn requeue_stuck_witness_inputs_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        let query = format!(
+            r#"
+            UPDATE witness_inputs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = {}
+                AND attempts >= {}
+                AND (status = 'in_progress' OR status = 'failed')
+            RETURNING
+                l1_batch_number,
+                status,
+                attempts
+            "#,
+            i64::from(block_number.0),
+            max_attempts
+        );
+        sqlx::query(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.get::<i64, &str>("l1_batch_number") as u64,
+                status: row.get("status"),
+                attempts: row.get::<i16, &str>("attempts") as u64,
+                circuit_id: None,
+            })
+            .collect()
+    }
+
+    pub async fn requeue_stuck_leaf_aggregation_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        self.requeue_stuck_jobs_for_batch_in_aggregation_round(
+            AggregationRound::LeafAggregation,
+            block_number,
+            max_attempts,
+        )
+        .await
+    }
+
+    pub async fn requeue_stuck_node_aggregation_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        self.requeue_stuck_jobs_for_batch_in_aggregation_round(
+            AggregationRound::NodeAggregation,
+            block_number,
+            max_attempts,
+        )
+        .await
+    }
+
+    pub async fn requeue_stuck_recursion_tip_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        let query = format!(
+            r#"
+            UPDATE recursion_tip_witness_jobs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = {}
+                AND attempts >= {}
+                AND (status = 'in_progress' OR status = 'failed')
+            RETURNING
+                l1_batch_number,
+                status,
+                attempts
+            "#,
+            i64::from(block_number.0),
+            max_attempts
+        );
+        sqlx::query(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.get::<i64, &str>("l1_batch_number") as u64,
+                status: row.get("status"),
+                attempts: row.get::<i16, &str>("attempts") as u64,
+                circuit_id: None,
+            })
+            .collect()
+    }
+
+    pub async fn requeue_stuck_scheduler_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        let query = format!(
+            r#"
+            UPDATE scheduler_witness_jobs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = {}
+                AND attempts >= {}
+                AND (status = 'in_progress' OR status = 'failed')
+            RETURNING
+                l1_batch_number,
+                status,
+                attempts
+            "#,
+            i64::from(block_number.0),
+            max_attempts
+        );
+        sqlx::query(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.get::<i64, &str>("l1_batch_number") as u64,
+                status: row.get("status"),
+                attempts: row.get::<i16, &str>("attempts") as u64,
+                circuit_id: None,
+            })
+            .collect()
+    }
+
+    async fn requeue_stuck_jobs_for_batch_in_aggregation_round(
+        &mut self,
+        aggregation_round: AggregationRound,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        let table_name = Self::input_table_name_for(aggregation_round);
+        let job_id_table_name = Self::job_id_table_name_for(aggregation_round);
+        let query = format!(
+            r#"
+            UPDATE {}
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = {}
+                AND attempts >= {}
+                AND (status = 'in_progress' OR status = 'failed')
+            RETURNING
+                {},
+                status,
+                attempts,
+                circuit_id
+            "#,
+            table_name,
+            i64::from(block_number.0),
+            max_attempts,
+            job_id_table_name
+        );
+        sqlx::query(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.get::<i64, &str>(job_id_table_name) as u64,
+                status: row.get("status"),
+                attempts: row.get::<i16, &str>("attempts") as u64,
+                circuit_id: Some(row.get::<i16, &str>("circuit_id") as u32),
+            })
+            .collect()
+    }
+
+    fn job_id_table_name_for(aggregation_round: AggregationRound) -> &'static str {
+        match aggregation_round {
+            AggregationRound::BasicCircuits
+            | AggregationRound::RecursionTip
+            | AggregationRound::Scheduler => "l1_batch_number",
+            AggregationRound::LeafAggregation | AggregationRound::NodeAggregation => "id",
+        }
     }
 }

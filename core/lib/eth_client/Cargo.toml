@@ -15,16 +15,19 @@ zksync_types.workspace = true
 zksync_eth_signer.workspace = true
 zksync_config.workspace = true
 zksync_contracts.workspace = true
+zksync_web3_decl.workspace = true
 
-jsonrpc-core.workspace = true
-serde.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
+jsonrpsee = { workspace = true, features = [
+    "client",
+    "macros",
+] }
 tracing.workspace = true
 rlp.workspace = true
 
 [dev-dependencies]
-static_assertions.workspace = true
+assert_matches.workspace = true
 tokio = { workspace = true, features = ["full"] }
 pretty_assertions.workspace = true
 hex.workspace = true
