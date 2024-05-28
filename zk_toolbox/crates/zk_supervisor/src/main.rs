@@ -20,6 +20,7 @@ fn run_integration_tests() -> anyhow::Result<()> {
         ignore_prerequisites: false,
     });
 
+    build_test_contracts(&shell)?;
     Cmd::new(
         cmd!(shell, "yarn jest --forceExit --testTimeout 60000")
             .env("CHAIN_NAME", config.default_chain),
@@ -27,5 +28,13 @@ fn run_integration_tests() -> anyhow::Result<()> {
     .with_force_run()
     .run()?;
 
+    Ok(())
+}
+
+fn build_test_contracts(shell: &Shell) -> anyhow::Result<()> {
+    Cmd::new(cmd!(shell, "yarn build")).with_force_run().run()?;
+    Cmd::new(cmd!(shell, "yarn build-yul"))
+        .with_force_run()
+        .run()?;
     Ok(())
 }

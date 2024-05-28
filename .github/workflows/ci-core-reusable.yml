@@ -435,7 +435,8 @@ jobs:
       - name: Build zk_toolbox
         run: |
           ci_run bash -c "echo $(pwd)"
-          ci_run bash -c "cd zk_toolbox && cargo build --release"
+          ci_run bash -c "cd zk_toolbox &&  cargo install --path ./zk_toolbox/crates/zk_inception --force"
+          ci_run bash -c "cd zk_toolbox &&  cargo install --path ./zk_toolbox/crates/zk_supervisor --force"
 
       - name: Init
         run: |
@@ -444,22 +445,18 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run ./zk_toolbox/target/release/zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --server-db-url=postgres://postgres:notsecurepassword@postgres --server-db-name="zksync_local" --prover-db-url=postgres://postgres:notsecurepassword@postgres --prover-db-name="prover_zksync_local"  --verbose --ignore-prerequisites
-          ci_run zk
-          ci_run zk compiler test-contracts
-          ci_run cat configs/erc20.yaml || true
-
+          ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --server-db-url=postgres://postgres:notsecurepassword@postgres --server-db-name="zksync_local" --prover-db-url=postgres://postgres:notsecurepassword@postgres --prover-db-name="prover_zksync_local"  --verbose --ignore-prerequisites
 
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run ./zk_toolbox/target/release/zk_inception server --components api,tree,eth,state_keeper,housekeeper,commitment_generator --ignore-prerequisites &>server.log &
+          ci_run zk_inception server --components api,tree,eth,state_keeper,housekeeper,commitment_generator --ignore-prerequisites &>server.log &
           ci_run sleep 5
 
 
       - name: Server integration tests
-        run: ci_run ./zk_toolbox/target/release/zk_supervisor
+        run: ci_run zk_supervisor
 
       - name: Show server.log logs
         if: always()
