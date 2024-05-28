@@ -556,6 +556,7 @@ impl EthSenderDal<'_, '_> {
 
         let is_known_l1 = Network::from_chain_id(chain_id).is_known_l1_network();
 
+        /// FIXME: prettify this match
         let query = match_query_as!(
             NonceRow,
             [

@@ -336,6 +336,7 @@ impl MainNodeBuilder {
             self.contracts_config.clone(),
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l1_chain_id,
         ));
 
         Ok(self)
