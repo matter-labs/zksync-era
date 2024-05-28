@@ -135,6 +135,7 @@ where
         };
 
         latency.observe();
+
         // base_fee_per_gas always exists after London fork
         Ok(block.base_fee_per_gas.unwrap())
     }
