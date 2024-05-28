@@ -26,7 +26,7 @@ use crate::create_proof_processing_router;
 //    matches the file from the object store
 #[tokio::test]
 async fn request_tee_proof_generation_data() {
-    // prepare sample TEE verifier input
+    // prepare a sample mocked TEE verifier input
 
     let batch_number = L1BatchNumber::from(1);
     let tvi = TeeVerifierInput::new(
@@ -72,49 +72,16 @@ async fn request_tee_proof_generation_data() {
     let blob_store = ObjectStoreFactory::mock().create_store().await;
     let object_path = blob_store.put(batch_number, &tvi).await.unwrap();
 
-    // get connection to the SQL db
+    // get connection to the SQL db and mock the status of the TEE proof generation
 
-    let connection_pool = ConnectionPool::test_pool().await;
-    let mut proof_db_conn = connection_pool.connection().await.unwrap();
-    let mut proof_dal = proof_db_conn.tee_proof_generation_dal();
-    let mut input_db_conn = connection_pool.connection().await.unwrap();
-    let mut input_producer_dal = input_db_conn.tee_verifier_input_producer_dal();
-
-    // there should not be any batches awaiting proof in the db yet
-
-    let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await;
-    assert!(oldest_batch_number.is_none());
-
-    // mock SQL table with relevant information about the status of the TEE verifier input
-
-    input_producer_dal
-        .create_tee_verifier_input_producer_job(batch_number)
-        .await
-        .expect("Failed to create tee_verifier_input_producer_job");
-
-    // pretend that the TEE verifier input file was fetched successfully
-
-    input_producer_dal
-        .mark_job_as_successful(batch_number, Instant::now(), &object_path)
-        .await
-        .expect("Failed to mark tee_verifier_input_producer_job job as successful");
-
-    // mock SQL table with relevant information about the status of TEE proof generation
-
-    proof_dal
-        .insert_tee_proof_generation_details(batch_number)
-        .await;
-
-    // now, there should be one batch in the database awaiting proof
-
-    let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await.unwrap();
-    assert_eq!(oldest_batch_number, batch_number);
+    let db_conn_pool = ConnectionPool::test_pool().await;
+    mock_tee_batch_status(db_conn_pool.clone(), batch_number, &object_path).await;
 
     // test the /tee_proof_generation_data endpoint; it should return the batch from the object store
 
     let app = create_proof_processing_router(
         blob_store,
-        connection_pool.clone(),
+        db_conn_pool,
         ProofDataHandlerConfig {
             http_port: 1337,
             proof_generation_timeout_in_secs: 10,
@@ -133,7 +100,9 @@ async fn request_tee_proof_generation_data() {
         )
         .await
         .unwrap();
+
     assert_eq!(response.status(), StatusCode::OK);
+
     let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     let json = json
@@ -141,24 +110,21 @@ async fn request_tee_proof_generation_data() {
         .expect("Unexpected response format")
         .clone();
     let deserialized: TeeVerifierInput = serde_json::from_value(json).unwrap();
+
     assert_eq!(tvi, deserialized);
 }
 
-// Test the /submit_tee_proof endpoint
+// Test /submit_tee_proof endpoint using a mocked TEE proof and verify response and db state
 #[tokio::test]
 async fn submit_tee_proof() {
     let blob_store = ObjectStoreFactory::mock().create_store().await;
-    let connection_pool = ConnectionPool::test_pool().await;
-    let connection_clone = connection_pool.clone();
-    let app = create_proof_processing_router(
-        blob_store,
-        connection_pool,
-        ProofDataHandlerConfig {
-            http_port: 1337,
-            proof_generation_timeout_in_secs: 10,
-        },
-        L1BatchCommitmentMode::Rollup,
-    );
+    let db_conn_pool = ConnectionPool::test_pool().await;
+    let object_path = "mocked_object_path";
+    let batch_number = L1BatchNumber::from(1);
+
+    mock_tee_batch_status(db_conn_pool.clone(), batch_number, object_path).await;
+
+    // send a request to the /submit_tee_proof endpoint, using a mocked TEE proof
 
     let tee_proof_request_str = r#"{
         "Proof": {
@@ -167,37 +133,19 @@ async fn submit_tee_proof() {
             "attestation": [ 10, 11, 12, 13, 14 ]
         }
     }"#;
-    let batch_number = L1BatchNumber::from(1);
-    let mut proof_db_conn = connection_clone.connection().await.unwrap();
-    let mut proof_dal = proof_db_conn.tee_proof_generation_dal();
-    let mut input_db_conn = connection_clone.connection().await.unwrap();
-    let mut input_producer_dal = input_db_conn.tee_verifier_input_producer_dal();
-
-    // mock SQL table with relevant information about the status of the TEE verifier input
-
-    input_producer_dal
-        .create_tee_verifier_input_producer_job(batch_number)
-        .await
-        .expect("Failed to create tee_verifier_input_producer_job");
-
-    // pretend that the TEE verifier input file was fetched successfully
-
-    let object_path = "mocked_object_path";
-    input_producer_dal
-        .mark_job_as_successful(batch_number, Instant::now(), object_path)
-        .await
-        .expect("Failed to mark tee_verifier_input_producer_job job as successful");
-
-    // mock SQL table with relevant information about the status of TEE proof generation
-
-    proof_dal
-        .insert_tee_proof_generation_details(batch_number)
-        .await;
-
     let tee_proof_request =
         serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_request_str).unwrap();
     let req_body = Body::from(serde_json::to_vec(&tee_proof_request).unwrap());
     let uri = format!("/submit_tee_proof/{}", batch_number.0);
+    let app = create_proof_processing_router(
+        blob_store,
+        db_conn_pool.clone(),
+        ProofDataHandlerConfig {
+            http_port: 1337,
+            proof_generation_timeout_in_secs: 10,
+        },
+        L1BatchCommitmentMode::Rollup,
+    );
     let response = app
         .oneshot(
             Request::builder()
@@ -209,5 +157,58 @@ async fn submit_tee_proof() {
         )
         .await
         .unwrap();
+
     assert_eq!(response.status(), StatusCode::OK);
+
+    // there should not be any batches awaiting proof in the db anymore
+
+    let mut proof_db_conn = db_conn_pool.connection().await.unwrap();
+    let oldest_batch_number = proof_db_conn
+        .tee_proof_generation_dal()
+        .get_oldest_unpicked_batch()
+        .await;
+
+    assert!(oldest_batch_number.is_none());
+}
+
+// Mock SQL db with information about the status of the TEE proof generation
+async fn mock_tee_batch_status(
+    db_conn_pool: ConnectionPool<zksync_dal::Core>,
+    batch_number: L1BatchNumber,
+    object_path: &str,
+) {
+    let mut proof_db_conn = db_conn_pool.connection().await.unwrap();
+    let mut proof_dal = proof_db_conn.tee_proof_generation_dal();
+    let mut input_db_conn = db_conn_pool.connection().await.unwrap();
+    let mut input_producer_dal = input_db_conn.tee_verifier_input_producer_dal();
+
+    // there should not be any batches awaiting proof in the db yet
+
+    let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await;
+    assert!(oldest_batch_number.is_none());
+
+    // mock SQL table with relevant information about the status of the TEE verifier input
+
+    input_producer_dal
+        .create_tee_verifier_input_producer_job(batch_number)
+        .await
+        .expect("Failed to create tee_verifier_input_producer_job");
+
+    // pretend that the TEE verifier input blob file was fetched successfully
+
+    input_producer_dal
+        .mark_job_as_successful(batch_number, Instant::now(), object_path)
+        .await
+        .expect("Failed to mark tee_verifier_input_producer_job job as successful");
+
+    // mock SQL table with relevant information about the status of TEE proof generation ('ready_to_be_proven')
+
+    proof_dal
+        .insert_tee_proof_generation_details(batch_number)
+        .await;
+
+    // now, there should be one batch in the db awaiting proof
+
+    let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await.unwrap();
+    assert_eq!(oldest_batch_number, batch_number);
 }
