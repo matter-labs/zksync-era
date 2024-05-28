@@ -47,6 +47,7 @@ pub struct EthHttpQueryClient {
     state_transition_manager_address: Option<Address>,
     verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
+    chain_id: L1ChainId,
 }
 
 impl EthHttpQueryClient {
@@ -62,6 +63,13 @@ impl EthHttpQueryClient {
             diamond_proxy_addr,
             governance_address
         );
+
+        let chain_id = client
+            .network()
+            .try_into()
+            .ok()
+            .expect("Failed to retrieve chain ID from client");
+
         Self {
             client: client.for_component("watch"),
             topics: Vec::new(),
@@ -70,6 +78,7 @@ impl EthHttpQueryClient {
             governance_address,
             verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
+            chain_id,
         }
     }
 
@@ -209,6 +218,6 @@ impl EthClient for EthHttpQueryClient {
     }
 
     fn get_chain_id(&self) -> L1ChainId {
-        self.client.network().try_into().ok().unwrap_or_default()
+        self.chain_id
     }
 }

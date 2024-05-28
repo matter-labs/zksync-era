@@ -9,7 +9,7 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
+    ethabi::Contract, web3::BlockNumber as Web3BlockNumber, Address, L1BlockNumber, PriorityOpId,
     ProtocolVersionId,
 };
 
@@ -196,11 +196,12 @@ impl EthWatch {
 
         storage
             .transactions_dal()
-            .save_last_processed_l1_block_number(
+            .save_last_processed_l1_block(
                 self.client.get_chain_id(),
-                self.last_processed_ethereum_block,
+                L1BlockNumber(self.last_processed_ethereum_block as u32),
             )
-            .await?;
+            .await
+            .map_err(|err| EventProcessorError::Internal(err.into()))?;
 
         Ok(())
     }

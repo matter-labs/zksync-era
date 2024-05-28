@@ -39,6 +39,10 @@ impl EventProcessor for PriorityOpsEventProcessor {
         _client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), EventProcessorError> {
+        let first_log_block_number = events.first().map(|log| log.block_number).flatten();
+
+        let last_log_block_number = events.last().map(|log| log.block_number).flatten();
+
         let mut priority_ops = Vec::new();
         for event in events {
             assert_eq!(event.topics[0], self.new_priority_request_signature); // guaranteed by the watcher
@@ -54,11 +58,11 @@ impl EventProcessor for PriorityOpsEventProcessor {
         let first = &priority_ops[0];
         let last = &priority_ops[priority_ops.len() - 1];
         tracing::debug!(
-            "Received priority requests with serial ids: {} (block {}) - {} (block {})",
+            "Received priority requests with serial ids: {} (block {:#?}) - {} (block {:#?})",
             first.serial_id(),
-            first.eth_block(),
+            first_log_block_number,
             last.serial_id(),
-            last.eth_block(),
+            last_log_block_number,
         );
         assert_eq!(
             last.serial_id().0 - first.serial_id().0 + 1,
@@ -84,7 +88,6 @@ impl EventProcessor for PriorityOpsEventProcessor {
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc();
         APP_METRICS.processed_l1_txs[&TxStage::added_to_mempool()].inc();
         for new_op in new_ops {
-            let eth_block = new_op.eth_block();
             storage
                 .transactions_dal()
                 .insert_transaction_l1(&new_op)

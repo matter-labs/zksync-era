@@ -8,7 +8,7 @@ use zksync_types::{
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     web3::{BlockNumber, Log},
-    Address, Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
+    Address, Execute, L1ChainId, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
     ProtocolVersionId, Transaction, H256, U256,
 };
 
@@ -132,6 +132,10 @@ impl EthClient for MockEthClient {
     async fn finalized_block_number(&self) -> Result<u64, EthClientError> {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
+
+    fn get_chain_id(&self) -> L1ChainId {
+        L1ChainId(9)
+    }
 }
 
 fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
@@ -146,8 +150,6 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
             serial_id: PriorityOpId(serial_id),
             sender: [1u8; 20].into(),
             deadline_block: 0,
-            eth_hash: [2; 32].into(),
-            eth_block,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
             gas_per_pubdata_limit: 1u32.into(),
@@ -174,8 +176,6 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
         common_data: ProtocolUpgradeTxCommonData {
             upgrade_id: id,
             sender: [1u8; 20].into(),
-            eth_hash: [2; 32].into(),
-            eth_block,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
             gas_per_pubdata_limit: 1u32.into(),

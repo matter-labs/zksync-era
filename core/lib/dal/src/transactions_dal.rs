@@ -1788,7 +1788,7 @@ impl TransactionsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn save_last_processed_l1_block_number(
+    pub async fn save_last_processed_l1_block(
         &mut self,
         chain_id: L1ChainId,
         last_seen_block_number: L1BlockNumber,
