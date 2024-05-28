@@ -234,7 +234,8 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn get_jobs_stats(&mut self) -> Vec<JobCountStatisticsByProtocolVersion> {
         sqlx::query(
-            "protocol_version,
+            "SELECT
+                    protocol_version,
                     COUNT(*) FILTER (WHERE status = 'queued') as queued,
                     COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress \
                  FROM proof_compression_jobs_fri \
