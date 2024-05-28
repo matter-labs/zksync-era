@@ -17,7 +17,7 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VkPatch},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
@@ -137,12 +137,17 @@ impl GenesisParams {
         }
     }
 
-    pub fn protocol_version(&self) -> ProtocolVersionId {
-        // It's impossible to instantiate Genesis params with wrong protocol version
+    pub fn minor_protocol_version(&self) -> ProtocolVersionId {
         self.config
             .protocol_version
             .expect("Protocol version must be set")
             .minor
+    }
+
+    pub fn protocol_version(&self) -> ProtocolSemanticVersion {
+        self.config
+            .protocol_version
+            .expect("Protocol version must be set")
     }
 }
 
@@ -245,7 +250,7 @@ pub async fn insert_genesis_batch(
         genesis_root_hash,
         rollup_last_leaf_index,
         base_system_contract_hashes,
-        genesis_params.protocol_version(),
+        genesis_params.minor_protocol_version(),
     );
     let block_commitment = L1BatchCommitment::new(commitment_input);
 
@@ -325,16 +330,13 @@ pub async fn ensure_genesis_state(
 #[allow(clippy::too_many_arguments)]
 pub async fn create_genesis_l1_batch(
     storage: &mut Connection<'_, Core>,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
     base_system_contracts: &BaseSystemContracts,
     system_contracts: &[DeployedContract],
     l1_verifier_config: L1VerifierConfig,
 ) -> Result<(), GenesisError> {
     let version = ProtocolVersion {
-        version: ProtocolSemanticVersion {
-            minor: protocol_version,
-            patch: VkPatch(0),
-        },
+        version: protocol_version,
         timestamp: 0,
         l1_verifier_config,
         base_system_contracts_hashes: base_system_contracts.hashes(),
@@ -345,7 +347,7 @@ pub async fn create_genesis_l1_batch(
         L1BatchNumber(0),
         0,
         base_system_contracts.hashes(),
-        protocol_version,
+        protocol_version.minor,
     );
 
     let genesis_l2_block_header = L2BlockHeader {
@@ -356,10 +358,10 @@ pub async fn create_genesis_l1_batch(
         l2_tx_count: 0,
         fee_account_address: Default::default(),
         base_fee_per_gas: 0,
-        gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.into()),
+        gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.minor.into()),
         batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
         base_system_contracts_hashes: base_system_contracts.hashes(),
-        protocol_version: Some(protocol_version),
+        protocol_version: Some(protocol_version.minor),
         virtual_blocks: 0,
         gas_limit: 0,
     };

@@ -170,7 +170,7 @@ impl Snapshot {
             l1_batch,
             l1_batch.0.into(),
             contracts.hashes(),
-            genesis_params.protocol_version(),
+            genesis_params.minor_protocol_version(),
         );
         let l2_block = L2BlockHeader {
             number: l2_block,
@@ -182,10 +182,10 @@ impl Snapshot {
             batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
             fee_account_address: Address::zero(),
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
-                genesis_params.protocol_version().into(),
+                genesis_params.minor_protocol_version().into(),
             ),
             base_system_contracts_hashes: contracts.hashes(),
-            protocol_version: Some(genesis_params.protocol_version()),
+            protocol_version: Some(genesis_params.minor_protocol_version()),
             virtual_blocks: 1,
             gas_limit: 0,
         };

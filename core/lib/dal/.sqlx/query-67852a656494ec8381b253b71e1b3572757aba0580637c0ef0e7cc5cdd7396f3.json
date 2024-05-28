@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                protocol_versions.id AS \"minor!\",\n                protocol_versions.timestamp,\n                protocol_versions.bootloader_code_hash,\n                protocol_versions.default_account_code_hash,\n                protocol_versions.upgrade_tx_hash,\n                protocol_vk_patches.patch,\n                protocol_vk_patches.recursion_scheduler_level_vk_hash,\n                protocol_vk_patches.recursion_node_level_vk_hash,\n                protocol_vk_patches.recursion_leaf_level_vk_hash,\n                protocol_vk_patches.recursion_circuits_set_vks_hash\n            FROM\n                protocol_versions\n                JOIN protocol_vk_patches ON protocol_vk_patches.minor = protocol_versions.id\n            WHERE\n                id = $1\n            ORDER BY\n                protocol_vk_patches.patch DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                protocol_versions.id AS \"minor!\",\n                protocol_versions.timestamp,\n                protocol_versions.bootloader_code_hash,\n                protocol_versions.default_account_code_hash,\n                protocol_versions.upgrade_tx_hash,\n                protocol_patches.patch,\n                protocol_patches.recursion_scheduler_level_vk_hash,\n                protocol_patches.recursion_node_level_vk_hash,\n                protocol_patches.recursion_leaf_level_vk_hash,\n                protocol_patches.recursion_circuits_set_vks_hash\n            FROM\n                protocol_versions\n                JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id\n            WHERE\n                id = $1\n            ORDER BY\n                protocol_patches.patch DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -72,5 +72,5 @@
       false
     ]
   },
-  "hash": "012b4e69b5f339239524088f11699d13a555f824ecf459fa204b86c6c5f9f01d"
+  "hash": "67852a656494ec8381b253b71e1b3572757aba0580637c0ef0e7cc5cdd7396f3"
 }

@@ -1,4 +1,4 @@
-CREATE TABLE protocol_vk_patches (
+CREATE TABLE protocol_patches (
     minor INTEGER NOT NULL REFERENCES protocol_versions(id),
     patch INTEGER NOT NULL,
     recursion_scheduler_level_vk_hash BYTEA NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE protocol_vk_patches (
     PRIMARY KEY (minor, patch)
 );
 
-INSERT INTO protocol_vk_patches
+INSERT INTO protocol_patches
 SELECT id as "minor", 0 as "patch", recursion_scheduler_level_vk_hash, recursion_node_level_vk_hash,
     recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash, now() as "created_at"
 FROM protocol_versions;

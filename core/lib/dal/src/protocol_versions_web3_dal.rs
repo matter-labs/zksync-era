@@ -22,18 +22,18 @@ impl ProtocolVersionsWeb3Dal<'_, '_> {
                 protocol_versions.bootloader_code_hash,
                 protocol_versions.default_account_code_hash,
                 protocol_versions.upgrade_tx_hash,
-                protocol_vk_patches.patch,
-                protocol_vk_patches.recursion_scheduler_level_vk_hash,
-                protocol_vk_patches.recursion_node_level_vk_hash,
-                protocol_vk_patches.recursion_leaf_level_vk_hash,
-                protocol_vk_patches.recursion_circuits_set_vks_hash
+                protocol_patches.patch,
+                protocol_patches.recursion_scheduler_level_vk_hash,
+                protocol_patches.recursion_node_level_vk_hash,
+                protocol_patches.recursion_leaf_level_vk_hash,
+                protocol_patches.recursion_circuits_set_vks_hash
             FROM
                 protocol_versions
-                JOIN protocol_vk_patches ON protocol_vk_patches.minor = protocol_versions.id
+                JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id
             WHERE
                 id = $1
             ORDER BY
-                protocol_vk_patches.patch DESC
+                protocol_patches.patch DESC
             LIMIT
                 1
             "#,

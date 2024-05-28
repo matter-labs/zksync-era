@@ -104,7 +104,7 @@ impl EnNamespace {
         let minor = ProtocolVersionId::try_from(minor).context("Malformed protocol version")?;
         let patch = storage
             .protocol_versions_dal()
-            .first_vk_patch_for_version(minor)
+            .first_patch_for_version(minor)
             .await
             .map_err(DalError::generalize)?
             .context("Genesis is not finished")?;
