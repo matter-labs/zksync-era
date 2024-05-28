@@ -83,7 +83,7 @@ fn emit_metrics_for_round(round: AggregationRound, stats: JobCountStatistics) {
         format!("{:?}", round),
         ProtocolVersionId::current_prover_version().to_string(),
     )]
-        .set(stats.queued as u64);
+        .set(stats.in_progress as u64);
 }
 
 #[async_trait]
