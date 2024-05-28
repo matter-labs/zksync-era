@@ -406,7 +406,6 @@ pub async fn create_genesis_l1_batch(
 pub async fn save_set_chain_id_tx(
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
-    state_transition_manager_address: Address,
     postgres_config: &PostgresConfig,
 ) -> anyhow::Result<()> {
     let db_url = postgres_config.master_url()?;

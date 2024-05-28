@@ -183,7 +183,7 @@ async fn main() -> anyhow::Result<()> {
             .await
             .context("genesis_init")?;
 
-        if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
+        if contracts_config.ecosystem_contracts.is_some() {
             let eth_config = configs.eth.as_ref().context("eth config")?;
             let query_client = Client::http(eth_config.web3_url.clone())
                 .context("Ethereum client")?
@@ -192,7 +192,6 @@ async fn main() -> anyhow::Result<()> {
             zksync_node_genesis::save_set_chain_id_tx(
                 &query_client,
                 contracts_config.diamond_proxy_addr,
-                ecosystem_contracts.state_transition_proxy_addr,
                 &postgres_config,
             )
             .await
