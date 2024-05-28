@@ -688,7 +688,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sqlx",
- "strum 0.26.2",
  "strum_macros 0.26.2",
  "toml",
  "url",
@@ -4876,7 +4875,25 @@ dependencies = [
 name = "zk_supervisor"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "clap",
+ "cliclack",
+ "common",
+ "config",
+ "console",
+ "ethers",
  "human-panic",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "strum 0.26.2",
+ "strum_macros 0.26.2",
+ "thiserror",
+ "tokio",
+ "toml",
+ "url",
+ "xshell",
 ]
 
 [[package]]
