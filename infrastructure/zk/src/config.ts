@@ -260,7 +260,11 @@ command
         const template = fs
             .readFileSync(path.join(process.env.ZKSYNC_HOME!, templatePath))
             .toString()
-            .replace('l2-inits/dev2.init.env', `l2-inits/${envName}.init.env`);
+            .replace(
+                '"l2-inits/dev2.init.env"',
+                `"l1-inits/${process.env.ZKSYNC_ENV!}-sync-layer.env", "l1-inits/${process.env
+                    .ZKSYNC_ENV!}.env", "l2-inits/${envName}.init.env"`
+            );
 
         const configFile = `etc/env/configs/${envName}.toml`;
 

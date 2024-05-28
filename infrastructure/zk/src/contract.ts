@@ -69,7 +69,7 @@ export async function prepareSyncLayer(): Promise<void> {
         '\n' +
         paramsFromEnv;
 
-    const envFile = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
+    const envFile = `etc/env/l1-inits/${process.env.ZKSYNC_ENV!}-sync-layer.env`;
 
     console.log('Writing to', envFile);
 
@@ -116,7 +116,7 @@ async function recoverFromFailedMigrationToSyncLayer(failedTxSLHash: string) {
 async function updateConfigOnSyncLayer() {
     const specialParams = ['SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL', 'SYNC_LAYER_CHAIN_ID'];
 
-    const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
+    const envFile = `etc/env/l1-inits/dev.env`;
     for (const envVar of syncLayerEnvVars) {
         if (specialParams.includes(envVar)) {
             continue;
@@ -124,6 +124,7 @@ async function updateConfigOnSyncLayer() {
         const contractsVar = envVar.replace(/SYNC_LAYER/g, 'CONTRACTS');
         env.modify(contractsVar, process.env[envVar]!, envFile, false);
     }
+    env.modify('BRIDGE_LAYER_WEB3_URL', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
     env.modify('ETH_CLIENT_WEB3_URL', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
     env.modify('L1_RPC_ADDRESS', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
     env.modify('ETH_CLIENT_CHAIN_ID', process.env.SYNC_LAYER_CHAIN_ID!, envFile, false);

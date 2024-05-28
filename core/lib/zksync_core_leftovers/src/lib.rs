@@ -99,7 +99,7 @@ pub async fn genesis_init(
     Ok(())
 }
 
-/// Clear L1 txs history. FIXME dont include it in the main branch
+/// Clear L1 txs history. FIXME don't include it in the main branch
 pub async fn delete_l1_txs_history(postgres_config: &PostgresConfig) -> anyhow::Result<()> {
     let db_url = postgres_config.master_url()?;
     let pool = ConnectionPool::<Core>::singleton(db_url)
