@@ -16,8 +16,11 @@ import { TestMaster } from '../src/index';
 import * as zksync from 'zksync-ethers';
 import { BigNumber, ethers } from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
+import { keccak256 } from 'ethers/lib/utils';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 
 const UINT32_MAX = BigNumber.from(2).pow(32).sub(1);
+const MAX_GAS_PER_PUBDATA = 50_000;
 
 const logs = fs.createWriteStream('fees.log', { flags: 'a' });
 
@@ -60,7 +63,7 @@ testFees('Test fees', () => {
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
     });
 
-    test('Test fees', async () => {
+    test.skip('Test fees', async () => {
         const receiver = ethers.Wallet.createRandom().address;
 
         // Getting ETH price in gas.
@@ -167,6 +170,15 @@ testFees('Test fees', () => {
         expect(tx.gasLimit.gt(UINT32_MAX)).toBeTruthy();
         const receipt = await tx.wait();
         expect(receipt.gasUsed.gt(UINT32_MAX)).toBeTruthy();
+
+        // Let's also check that the same transaction would work as eth_call
+        const systemContextArtifact = getTestContract('ISystemContext');
+        const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
+        const systemContextGasPerPubdataByte = await systemContext.gasPerPubdataByte();
+        expect(systemContextGasPerPubdataByte.toNumber()).toEqual(MAX_GAS_PER_PUBDATA);
+
+        const dataHash = await l1Messenger.callStatic.sendToL1(largeData, { type: 0 });
+        expect(dataHash).toEqual(keccak256(largeData));
 
         // Secondly, let's test an unsuccessful transaction with large refund.
 

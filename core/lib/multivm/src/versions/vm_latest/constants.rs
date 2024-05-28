@@ -160,7 +160,7 @@ pub const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 =
 pub const BATCH_GAS_LIMIT: u64 = 1 << 50;
 
 /// How many gas is allowed to spend on a single transaction in eth_call method
-pub const ETH_CALL_GAS_LIMIT: u32 = MAX_L2_TX_GAS_LIMIT as u32;
+pub const ETH_CALL_GAS_LIMIT: u64 = BATCH_GAS_LIMIT;
 
 /// ID of the transaction from L1
 pub const L1_TX_TYPE: u8 = 255;

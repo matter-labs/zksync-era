@@ -13,14 +13,13 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BigNumberish, BytesLike } from 'ethers';
 import { hashBytecode, serialize } from 'zksync-ethers/build/utils';
-import { getTestContract } from '../src/helpers';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 
 const contracts = {
     counter: getTestContract('Counter'),
     events: getTestContract('Emitter')
 };
 
-const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 const BUILTIN_CREATE2_FACTORY_ADDRESS = '0x0000000000000000000000000000000000010000';
 
 describe('System behavior checks', () => {
@@ -312,13 +311,9 @@ describe('System behavior checks', () => {
         ).toBeAccepted();
     });
 
-    test.only('Gas per pubdata byte getter should work', async () => {
+    test('Gas per pubdata byte getter should work', async () => {
         const systemContextArtifact = getTestContract('ISystemContext');
-        const systemContext = new ethers.Contract(
-            SYSTEM_CONTEXT_ADDRESS,
-            systemContextArtifact.abi,
-            alice.provider
-        );
+        const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
         console.log(await systemContext.gasPerPubdataByte());
     });
 

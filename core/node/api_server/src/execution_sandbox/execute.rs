@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use multivm::{
     interface::{TxExecutionMode, VmExecutionResultAndLogs, VmInterface},
     tracers::StorageInvocations,
-    vm_latest::constants::ETH_CALL_GAS_LIMIT,
+    utils::get_eth_call_gas_limit,
     MultiVMTracer,
 };
 use tracing::{span, Level};
@@ -40,7 +40,7 @@ impl TxExecutionArgs {
     }
 
     fn for_eth_call(
-        enforced_base_fee: u64,
+        enforced_base_fee: Option<u64>,
         vm_execution_cache_misses_limit: Option<usize>,
     ) -> Self {
         let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
@@ -48,7 +48,7 @@ impl TxExecutionArgs {
             execution_mode: TxExecutionMode::EthCall,
             enforced_nonce: None,
             added_balance: U256::zero(),
-            enforced_base_fee: Some(enforced_base_fee),
+            enforced_base_fee: enforced_base_fee,
             missed_storage_invocation_limit,
         }
     }
@@ -175,7 +175,12 @@ impl TransactionExecutor {
         vm_execution_cache_misses_limit: Option<usize>,
         custom_tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let enforced_base_fee = tx.common_data.fee.max_fee_per_gas.as_u64();
+        let tx_max_fee_per_gas = tx.common_data.fee.max_fee_per_gas.as_u64();
+        let enforced_base_fee = if tx_max_fee_per_gas == 0 {
+            None
+        } else {
+            Some(tx_max_fee_per_gas)
+        };
         let execution_args =
             TxExecutionArgs::for_eth_call(enforced_base_fee, vm_execution_cache_misses_limit);
 
@@ -183,10 +188,21 @@ impl TransactionExecutor {
             tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
         }
 
+        let mut connection = connection_pool
+            .connection_tagged("api")
+            .await
+            .context("failed acquiring DB connection")?;
+        let protocol_version = block_args
+            .resolve_block_info(&mut connection)
+            .await
+            .context("failed to resolve block info")?
+            .protocol_version;
+        drop(connection);
+
         // Protection against infinite-loop eth_calls and alike:
         // limiting the amount of gas the call can use.
         // We can't use `BLOCK_ERGS_LIMIT` here since the VM itself has some overhead.
-        tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        tx.common_data.fee.gas_limit = get_eth_call_gas_limit(protocol_version.into()).into();
         let output = self
             .execute_tx_in_sandbox(
                 vm_permit,
