@@ -61,7 +61,7 @@ pub use crate::{
         TreeLogEntry, TreeLogEntryWithProof, ValueHash,
     },
 };
-use crate::{hasher::HasherWithStats, storage::Storage, types::Root};
+use crate::{storage::Storage, types::Root};
 
 mod consistency;
 pub mod domain;
@@ -166,10 +166,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// was not written yet.
     pub fn root_hash(&self, version: u64) -> Option<ValueHash> {
         let root = self.root(version)?;
-        let Root::Filled { node, .. } = root else {
-            return Some(self.hasher.empty_tree_hash());
-        };
-        Some(node.hash(&mut HasherWithStats::new(&self.hasher), 0))
+        Some(root.hash(&self.hasher))
     }
 
     pub(crate) fn root(&self, version: u64) -> Option<Root> {
