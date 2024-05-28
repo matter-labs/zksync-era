@@ -4,7 +4,6 @@ use anyhow::Context as _;
 use multivm::{
     interface::{TxExecutionMode, VmExecutionResultAndLogs, VmInterface},
     tracers::StorageInvocations,
-    utils::get_eth_call_gas_limit,
     MultiVMTracer,
 };
 use tracing::{span, Level};
@@ -185,20 +184,6 @@ impl TransactionExecutor {
             tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
         }
 
-        let mut connection = connection_pool
-            .connection_tagged("api")
-            .await
-            .context("failed acquiring DB connection")?;
-        let protocol_version = block_args
-            .resolve_block_info(&mut connection)
-            .await
-            .context("failed to resolve block info")?
-            .protocol_version;
-        drop(connection);
-
-        if call_overrides.use_max_gas_limit {
-            tx.common_data.fee.gas_limit = get_eth_call_gas_limit(protocol_version.into()).into();
-        }
         let output = self
             .execute_tx_in_sandbox(
                 vm_permit,

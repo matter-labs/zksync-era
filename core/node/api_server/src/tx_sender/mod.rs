@@ -7,7 +7,7 @@ use multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
-        get_max_batch_gas_limit,
+        get_eth_call_gas_limit, get_max_batch_gas_limit,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -1038,5 +1038,20 @@ impl TxSender {
             return Err(SubmitTxError::Unexecutable(message));
         }
         Ok(())
+    }
+
+    pub(crate) async fn get_default_eth_call_gas(
+        &self,
+        block_args: BlockArgs,
+    ) -> anyhow::Result<u64> {
+        let mut connection = self.acquire_replica_connection().await?;
+
+        let protocol_version = block_args
+            .resolve_block_info(&mut connection)
+            .await
+            .context("failed to resolve block info")?
+            .protocol_version;
+
+        Ok(get_eth_call_gas_limit(protocol_version.into()))
     }
 }

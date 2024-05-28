@@ -70,7 +70,6 @@ pub struct CallRequest {
 /// sometimes users may want to override those.
 pub struct CallOverrides {
     pub enforced_base_fee: Option<u64>,
-    pub use_max_gas_limit: bool,
 }
 
 impl CallRequest {
@@ -82,19 +81,20 @@ impl CallRequest {
     pub fn get_call_overrides(&self) -> Result<CallOverrides, SerializationTransactionError> {
         let provided_gas_price = self.max_fee_per_gas.or(self.gas_price);
         let enforced_base_fee = if let Some(provided_gas_price) = provided_gas_price {
-            if provided_gas_price > U256::from(u64::MAX) {
-                return Err(SerializationTransactionError::MaxFeePerGasNotU64);
-            }
-
-            Some(provided_gas_price.as_u64())
+            Some(
+                provided_gas_price
+                    .try_into()
+                    .map_err(|_| SerializationTransactionError::MaxFeePerGasNotU64)?,
+            )
         } else {
             None
         };
 
-        Ok(CallOverrides {
-            enforced_base_fee,
-            use_max_gas_limit: self.gas.is_none(),
-        })
+        Ok(CallOverrides { enforced_base_fee })
+    }
+
+    pub fn set_default_gas_limit(&mut self, default_gas_limit: U256) {
+        self.gas = self.gas.or(Some(default_gas_limit));
     }
 }
 
@@ -214,7 +214,7 @@ pub enum SerializationTransactionError {
     #[error("max fee per gas higher than 2^64-1")]
     MaxFeePerGasNotU64,
     #[error("max fee per pubdata byte higher than 2^64-1")]
-    MaxFerPerPubdataByteNotU64,
+    MaxFeePerPubdataByteNotU64,
     #[error("max priority fee per gas higher than 2^64-1")]
     MaxPriorityFeePerGasNotU64,
 
@@ -772,7 +772,7 @@ impl TransactionRequest {
 
         let gas_per_pubdata_limit = if let Some(meta) = &self.eip712_meta {
             if meta.gas_per_pubdata > u64::MAX.into() {
-                return Err(SerializationTransactionError::MaxFerPerPubdataByteNotU64);
+                return Err(SerializationTransactionError::MaxFeePerPubdataByteNotU64);
             } else if meta.gas_per_pubdata == U256::zero() {
                 return Err(SerializationTransactionError::GasPerPubDataLimitZero);
             }
@@ -1373,7 +1373,7 @@ mod tests {
             L2Tx::from_request(tx3, usize::MAX);
         assert_eq!(
             execute_tx3.unwrap_err(),
-            SerializationTransactionError::MaxFerPerPubdataByteNotU64
+            SerializationTransactionError::MaxFeePerPubdataByteNotU64
         );
     }
 

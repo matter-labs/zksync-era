@@ -52,7 +52,7 @@ impl EthNamespace {
 
     pub async fn call_impl(
         &self,
-        request: CallRequest,
+        mut request: CallRequest,
         block_id: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
@@ -70,8 +70,15 @@ impl EthNamespace {
         );
         drop(connection);
 
+        request.set_default_gas_limit(
+            self.state
+                .tx_sender
+                .get_default_eth_call_gas(block_args)
+                .await
+                .map_err(Web3Error::InternalError)?
+                .into(),
+        );
         let call_overrides = request.get_call_overrides()?;
-
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
 
         // It is assumed that the previous checks has already enforced that the max_fee_per_gas is at most u64.
