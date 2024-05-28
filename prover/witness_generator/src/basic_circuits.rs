@@ -43,7 +43,7 @@ use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     block::StorageOracleInfo,
     protocol_version::ProtocolSemanticVersion,
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256,
+    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 

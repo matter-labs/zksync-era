@@ -3,7 +3,7 @@ use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
-    protocol_version::ProtocolSemanticVersion,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VkPatch},
     prover_dal::{
         JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
     },
@@ -180,14 +180,20 @@ impl FriProofCompressorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn get_least_proven_block_number_not_sent_to_server(
+    pub async fn get_least_proven_block_not_sent_to_server(
         &mut self,
-    ) -> Option<(L1BatchNumber, ProofCompressionJobStatus)> {
+    ) -> Option<(
+        L1BatchNumber,
+        ProtocolSemanticVersion,
+        ProofCompressionJobStatus,
+    )> {
         let row = sqlx::query!(
             r#"
             SELECT
                 l1_batch_number,
-                status
+                status,
+                protocol_version,
+                protocol_version_patch
             FROM
                 proof_compression_jobs_fri
             WHERE
@@ -210,6 +216,10 @@ impl FriProofCompressorDal<'_, '_> {
         match row {
             Some(row) => Some((
                 L1BatchNumber(row.l1_batch_number as u32),
+                ProtocolSemanticVersion::new(
+                    ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
+                    VkPatch(row.protocol_version_patch as u32),
+                ),
                 ProofCompressionJobStatus::from_str(&row.status).unwrap(),
             )),
             None => None,
