@@ -38,31 +38,31 @@ use super::{
 /// This enum can capture either a hardcoded textual message or a more structured
 /// reason encapsulated in a `Halt` type.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Reason {
-    HardcodedText(String),
+pub enum UnexecutableReason {
+    Text(String),
     Halt(Halt),
 }
 
-impl Reason {
+impl UnexecutableReason {
     pub fn to_metrics_friendly_string(&self) -> String {
         match self {
-            Reason::HardcodedText(text) => text.clone(),
-            Reason::Halt(halt) => halt.to_metrics_friendly_string(),
+            UnexecutableReason::Text(text) => text.clone(),
+            UnexecutableReason::Halt(halt) => halt.to_metrics_friendly_string(),
         }
     }
 }
 
-impl From<&str> for Reason {
+impl From<&str> for UnexecutableReason {
     fn from(text: &str) -> Self {
-        Reason::HardcodedText(text.to_string())
+        UnexecutableReason::Text(text.to_string())
     }
 }
 
-impl fmt::Display for Reason {
+impl fmt::Display for UnexecutableReason {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Reason::HardcodedText(text) => write!(f, "{}", text),
-            Reason::Halt(halt) => write!(f, "{}", halt),
+            UnexecutableReason::Text(text) => write!(f, "{}", text),
+            UnexecutableReason::Halt(halt) => write!(f, "{}", halt),
         }
     }
 }
@@ -86,7 +86,7 @@ pub enum SealResolution {
     /// if the block will consist of it solely. Such a transaction must be rejected.
     ///
     /// Contains a reason for why transaction was considered unexecutable.
-    Unexecutable(Reason),
+    Unexecutable(UnexecutableReason),
 }
 
 impl SealResolution {

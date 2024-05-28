@@ -29,7 +29,9 @@ use crate::{
     },
     mempool_actor::l2_tx_filter,
     metrics::KEEPER_METRICS,
-    seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, Reason, TimeoutSealer},
+    seal_criteria::{
+        IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer, UnexecutableReason,
+    },
     updates::UpdatesManager,
     MempoolGuard,
 };
@@ -245,7 +247,8 @@ impl StateKeeperIO for MempoolIO {
                         tx.hash(),
                         tx.gas_limit()
                     );
-                    self.reject(&tx, Reason::Halt(Halt::TooBigGasLimit)).await?;
+                    self.reject(&tx, UnexecutableReason::Halt(Halt::TooBigGasLimit))
+                        .await?;
                     continue;
                 }
                 return Ok(Some(tx));
@@ -265,7 +268,11 @@ impl StateKeeperIO for MempoolIO {
         Ok(())
     }
 
-    async fn reject(&mut self, rejected: &Transaction, error: Reason) -> anyhow::Result<()> {
+    async fn reject(
+        &mut self,
+        rejected: &Transaction,
+        error: UnexecutableReason,
+    ) -> anyhow::Result<()> {
         anyhow::ensure!(
             !rejected.is_l1(),
             "L1 transactions should not be rejected: {error}"

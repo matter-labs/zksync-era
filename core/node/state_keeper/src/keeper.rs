@@ -22,7 +22,7 @@ use super::{
     updates::UpdatesManager,
     utils::gas_count_from_writes,
 };
-use crate::seal_criteria::Reason;
+use crate::seal_criteria::UnexecutableReason;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -687,7 +687,7 @@ impl ZkSyncStateKeeper {
                 resolution
             }
             TxExecutionResult::RejectedByVm { reason } => {
-                SealResolution::Unexecutable(Reason::Halt(reason.clone()))
+                SealResolution::Unexecutable(UnexecutableReason::Halt(reason.clone()))
             }
             TxExecutionResult::Success {
                 tx_result,
