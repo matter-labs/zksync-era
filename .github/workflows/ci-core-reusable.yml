@@ -435,8 +435,8 @@ jobs:
       - name: Build zk_toolbox
         run: |
           ci_run bash -c "echo $(pwd)"
-          ci_run bash -c "cd zk_toolbox &&  cargo install --path ./zk_toolbox/crates/zk_inception --force"
-          ci_run bash -c "cd zk_toolbox &&  cargo install --path ./zk_toolbox/crates/zk_supervisor --force"
+          ci_run bash -c "cd zk_toolbox &&  cargo install --path ./crates/zk_inception --force"
+          ci_run bash -c "cd zk_toolbox &&  cargo install --path ./crates/zk_supervisor --force"
 
       - name: Init
         run: |
