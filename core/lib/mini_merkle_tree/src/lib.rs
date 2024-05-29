@@ -130,8 +130,8 @@ where
         (root_hash, end_path)
     }
 
-    /// Returns the root hash and the Merkle proofs for an interval of leafs.
-    /// The interval is [0, `length`), where `0` is the leftmost uncached leaf.
+    /// Returns the root hash and the Merkle proofs for a range of leafs.
+    /// The range is 0..length, where `0` is the leftmost untrimmed leaf.
     pub fn merkle_root_and_paths_for_range(&self, length: usize) -> (H256, Vec<H256>, Vec<H256>) {
         let (mut left_path, mut right_path) = (vec![], vec![]);
         let root_hash = self.compute_merkle_root_and_path(
@@ -185,12 +185,12 @@ where
         }
 
         let mut hashes = self.hashes.clone();
-        let mut head_index = self.start_index;
+        let mut start_index = self.start_index;
 
         for level in 0..depth {
             let empty_hash_at_level = self.hasher.empty_subtree_hash(level);
 
-            if head_index % 2 == 1 {
+            if start_index % 2 == 1 {
                 hashes.push_front(self.cache[level]);
             }
             if hashes.len() % 2 == 1 {
@@ -200,7 +200,7 @@ where
             let push_sibling_hash = |path: Option<&mut Vec<H256>>, index: usize| {
                 // `index` is relative to `head_index`
                 if let Some(path) = path {
-                    let sibling = ((head_index + index) ^ 1) - head_index + head_index % 2;
+                    let sibling = ((start_index + index) ^ 1) - start_index + start_index % 2;
                     let hash = hashes.get(sibling).copied().unwrap_or_default();
                     path.push(hash);
                 }
@@ -215,8 +215,8 @@ where
             }
 
             hashes.drain(level_len..);
-            end_index = (end_index + head_index % 2) / 2;
-            head_index /= 2;
+            end_index = (end_index + start_index % 2) / 2;
+            start_index /= 2;
         }
 
         hashes[0]
