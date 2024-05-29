@@ -89,6 +89,18 @@ impl ErrorMessage {
     }
 }
 
+fn error_message_as_metric_label(error_message: &ErrorMessage) -> &'static str {
+    match error_message {
+        ErrorMessage::TxEncodingSize => "TxEncodingSize",
+        ErrorMessage::LargeEncodingSize => "LargeEncodingSize",
+        ErrorMessage::PubdataLimit => "PubdataLimit",
+        ErrorMessage::ProofWillFail => "ProofWillFail",
+        ErrorMessage::TooMuchGas => "TooMuchGas",
+        ErrorMessage::OutOfGasForBatchTip => "OutOfGasForBatchTip",
+        ErrorMessage::BootloaderOutOfGas => "BootloaderOutOfGas",
+        ErrorMessage::NotEnoughGasProvided => "NotEnoughGasProvided",
+    }
+}
 /// Represents the reason variants for why a transaction was considered unexecutable.
 ///
 /// This enum can capture either a hardcoded textual message or a more structured
@@ -102,7 +114,7 @@ pub enum UnexecutableReason {
 impl UnexecutableReason {
     pub fn as_metric_label(&self) -> &'static str {
         match self {
-            UnexecutableReason::Text(text) => text.as_static_str(),
+            UnexecutableReason::Text(text) => error_message_as_metric_label(text),
             UnexecutableReason::Halt(halt) => halt_as_metric_label(halt),
         }
     }
