@@ -1,6 +1,6 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
-use std::{cmp::min, collections::HashMap, fmt, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
