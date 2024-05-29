@@ -8,6 +8,11 @@ use strum_macros::{Display, EnumIter};
 
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
+    messages::{
+        MSG_ECOSYSTEM_NAME_PROMPT, MSG_L1_NETWORK_HELP, MSG_L1_NETWORK_PROMPT,
+        MSG_LINK_TO_CODE_HELP, MSG_LINK_TO_CODE_PROMPT, MSG_REPOSITORY_ORIGIN_PROMPT,
+        MSG_START_CONTAINERS_HELP, MSG_START_CONTAINERS_PROMPT,
+    },
     types::L1Network,
     wallets::WalletCreation,
 };
@@ -16,14 +21,14 @@ use crate::{
 pub struct EcosystemCreateArgs {
     #[arg(long)]
     pub ecosystem_name: Option<String>,
-    #[clap(long, help = "L1 Network", value_enum)]
+    #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum)]
     pub l1_network: Option<L1Network>,
-    #[clap(long, help = "Code link")]
+    #[clap(long, help = MSG_LINK_TO_CODE_HELP)]
     pub link_to_code: Option<String>,
     #[clap(flatten)]
     #[serde(flatten)]
     pub chain: ChainCreateArgs,
-    #[clap(long, help = "Start reth and postgres containers after creation", default_missing_value = "true", num_args = 0..=1)]
+    #[clap(long, help = MSG_START_CONTAINERS_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub start_containers: Option<bool>,
 }
 
@@ -31,22 +36,19 @@ impl EcosystemCreateArgs {
     pub fn fill_values_with_prompt(mut self) -> EcosystemCreateArgsFinal {
         let mut ecosystem_name = self
             .ecosystem_name
-            .unwrap_or_else(|| Prompt::new("How do you want to name the ecosystem?").ask());
+            .unwrap_or_else(|| Prompt::new(MSG_ECOSYSTEM_NAME_PROMPT).ask());
         ecosystem_name = slugify(&ecosystem_name);
 
         let link_to_code = self.link_to_code.unwrap_or_else(|| {
-            let link_to_code_selection = PromptSelect::new(
-                "Select the origin of zksync-era repository",
-                LinkToCodeSelection::iter(),
-            )
-            .ask();
+            let link_to_code_selection =
+                PromptSelect::new(MSG_REPOSITORY_ORIGIN_PROMPT, LinkToCodeSelection::iter()).ask();
             match link_to_code_selection {
                 LinkToCodeSelection::Clone => "".to_string(),
-                LinkToCodeSelection::Path => Prompt::new("Where's the code located?").ask(),
+                LinkToCodeSelection::Path => Prompt::new(MSG_LINK_TO_CODE_PROMPT).ask(),
             }
         });
 
-        let l1_network = PromptSelect::new("Select the L1 network", L1Network::iter()).ask();
+        let l1_network = PromptSelect::new(MSG_L1_NETWORK_PROMPT, L1Network::iter()).ask();
 
         // Make the only chain as a default one
         self.chain.set_as_default = Some(true);
@@ -54,11 +56,9 @@ impl EcosystemCreateArgs {
         let chain = self.chain.fill_values_with_prompt(0);
 
         let start_containers = self.start_containers.unwrap_or_else(|| {
-            PromptConfirm::new(
-                "Do you want to start database and L1 containers after creating the ecosystem?",
-            )
-            .default(true)
-            .ask()
+            PromptConfirm::new(MSG_START_CONTAINERS_PROMPT)
+                .default(true)
+                .ask()
         });
 
         EcosystemCreateArgsFinal {

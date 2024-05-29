@@ -15,6 +15,7 @@ pub mod accept_ownership;
 mod commands;
 mod configs;
 mod consts;
+mod messages;
 mod defaults;
 pub mod forge_utils;
 pub mod server;
