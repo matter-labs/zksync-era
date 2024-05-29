@@ -19,8 +19,12 @@ use crate::{
     wallets::create_wallets,
 };
 
-pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    match EcosystemConfig::from_file(shell) {
+pub fn run(
+    args: EcosystemCreateArgs,
+    shell: &Shell,
+    ecosystem_config: Result<EcosystemConfig, EcosystemConfigFromFileError>,
+) -> anyhow::Result<()> {
+    match ecosystem_config {
         Ok(_) => bail!("Ecosystem already exists"),
         Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
             bail!("Invalid ecosystem configuration")

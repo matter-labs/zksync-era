@@ -42,9 +42,11 @@ use crate::{
     wallets::WalletCreation,
 };
 
-pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-
+pub async fn run(
+    args: EcosystemInitArgs,
+    shell: &Shell,
+    ecosystem_config: EcosystemConfig,
+) -> anyhow::Result<()> {
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,

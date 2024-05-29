@@ -1,8 +1,11 @@
 use clap::Subcommand;
 use xshell::Shell;
 
-use crate::commands::ecosystem::args::{
-    change_default::ChangeDefaultChain, create::EcosystemCreateArgs, init::EcosystemInitArgs,
+use crate::{
+    commands::ecosystem::args::{
+        change_default::ChangeDefaultChain, create::EcosystemCreateArgs, init::EcosystemInitArgs,
+    },
+    configs::{EcosystemConfig, EcosystemConfigFromFileError},
 };
 
 mod args;
@@ -23,10 +26,16 @@ pub enum EcosystemCommands {
     ChangeDefaultChain(ChangeDefaultChain),
 }
 
-pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
+pub(crate) async fn run(
+    shell: &Shell,
+    args: EcosystemCommands,
+    ecosystem_config: Result<EcosystemConfig, EcosystemConfigFromFileError>,
+) -> anyhow::Result<()> {
     match args {
-        EcosystemCommands::Create(args) => create::run(args, shell),
-        EcosystemCommands::Init(args) => init::run(args, shell).await,
-        EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
+        EcosystemCommands::Create(args) => create::run(args, shell, ecosystem_config),
+        EcosystemCommands::Init(args) => init::run(args, shell, ecosystem_config?).await,
+        EcosystemCommands::ChangeDefaultChain(args) => {
+            change_default::run(args, shell, ecosystem_config?)
+        }
     }
 }

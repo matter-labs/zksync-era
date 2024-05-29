@@ -26,19 +26,35 @@ use crate::{
     forge_utils::fill_forge_private_key,
 };
 
-pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
+pub(crate) async fn run(
+    args: InitArgs,
+    shell: &Shell,
+    ecosystem_config: EcosystemConfig,
+) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
-    let config = EcosystemConfig::from_file(shell)?;
-    let chain_config = config.load_chain(chain_name).context("Chain not found")?;
+    let chain_config = ecosystem_config
+        .load_chain(chain_name)
+        .context("Chain not found")?;
     let mut args = args.fill_values_with_prompt(&chain_config);
 
     logger::note("Selected config:", logger::object_to_string(&chain_config));
     logger::info("Initializing chain");
 
-    init(&mut args, shell, &config, &chain_config).await?;
+    init(&mut args, shell, &ecosystem_config, &chain_config).await?;
 
     logger::success("Chain initialized successfully");
     Ok(())
+}
+
+pub(crate) fn load_global_config(
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<ChainConfig> {
+    let chain_name = global_config().chain_name.clone();
+    let chain_config = ecosystem_config
+        .load_chain(chain_name)
+        .context("Chain not initialized. Please create a chain first")?;
+
+    Ok(chain_config)
 }
 
 pub async fn init(

@@ -1,14 +1,11 @@
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use common::{docker, logger, spinner::Spinner};
 use std::path::PathBuf;
 use xshell::Shell;
 
 use crate::{configs::EcosystemConfig, consts::DOCKER_COMPOSE_FILE};
 
-pub fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem =
-        EcosystemConfig::from_file(shell).context("Failed to find ecosystem folder.")?;
-
+pub fn run(shell: &Shell, ecosystem: EcosystemConfig) -> anyhow::Result<()> {
     initialize_docker(shell, &ecosystem)?;
 
     logger::info("Starting containers");

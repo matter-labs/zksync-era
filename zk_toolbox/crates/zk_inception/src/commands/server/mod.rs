@@ -1,16 +1,22 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
+use clap::Parser;
 use common::cmd::Cmd;
+use common::logger;
+use serde::{Deserialize, Serialize};
 use xshell::{cmd, Shell};
 
+use crate::configs::EcosystemConfig;
 use crate::{
     configs::ChainConfig,
     consts::{CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE, WALLETS_FILE},
 };
 
+use super::chain::init::load_global_config;
+
 pub struct RunServer {
-    components: Option<Vec<String>>,
+    components: Option<String>,
     code_path: PathBuf,
     wallets: PathBuf,
     contracts: PathBuf,
@@ -19,6 +25,7 @@ pub struct RunServer {
     secrets: PathBuf,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServerMode {
     Normal,
     Genesis,
@@ -31,6 +38,12 @@ impl RunServer {
         let genesis = chain_config.configs.join(GENESIS_FILE);
         let contracts = chain_config.configs.join(CONTRACTS_FILE);
         let secrets = chain_config.configs.join(SECRETS_FILE);
+        let components = components.as_ref().and_then(|components| {
+            if components.is_empty() {
+                return None;
+            }
+            Some(components.join(","))
+        });
 
         Self {
             components,
@@ -51,7 +64,7 @@ impl RunServer {
         let config_contracts = &self.contracts.to_str().unwrap();
         let secrets = &self.secrets.to_str().unwrap();
         let mut additional_args = vec![];
-        if let Some(components) = self.components() {
+        if let Some(components) = &self.components {
             additional_args.push(format!("--components={}", components))
         }
         if let ServerMode::Genesis = server_mode {
@@ -82,13 +95,44 @@ impl RunServer {
         cmd.run().context("Failed to run server")?;
         Ok(())
     }
+}
 
-    fn components(&self) -> Option<String> {
-        self.components.as_ref().and_then(|components| {
-            if components.is_empty() {
-                return None;
-            }
-            Some(components.join(","))
-        })
-    }
+#[derive(Debug, Serialize, Deserialize, Parser)]
+pub struct RunServerArgs {
+    #[clap(long, help = "Components of server to run")]
+    pub components: Option<Vec<String>>,
+    #[clap(long, help = "Run server in genesis mode")]
+    pub genesis: bool,
+}
+
+pub fn run(
+    shell: &Shell,
+    args: RunServerArgs,
+    ecosystem_config: EcosystemConfig,
+) -> anyhow::Result<()> {
+    let chain_config = load_global_config(&ecosystem_config)?;
+
+    logger::info("Starting server");
+    run_server(args, &chain_config, shell)?;
+
+    Ok(())
+}
+
+fn run_server(
+    args: RunServerArgs,
+    chain_config: &ChainConfig,
+    shell: &Shell,
+) -> anyhow::Result<()> {
+    let server = RunServer::new(args.components, chain_config);
+    let mode = if args.genesis {
+        ServerMode::Genesis
+    } else {
+        ServerMode::Normal
+    };
+    server.run(shell, mode)
+}
+
+pub fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
+    let server = RunServer::new(None, chain_config);
+    server.run(shell, ServerMode::Genesis)
 }

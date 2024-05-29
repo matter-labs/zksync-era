@@ -7,9 +7,11 @@ use crate::{
     consts::CONFIG_NAME,
 };
 
-pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
-    let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
-
+pub fn run(
+    args: ChangeDefaultChain,
+    shell: &Shell,
+    mut ecosystem_config: EcosystemConfig,
+) -> anyhow::Result<()> {
     let chains = ecosystem_config.list_of_chains();
     let chain_name = args.name.unwrap_or_else(|| {
         PromptSelect::new("What chain you want to set as default?", &chains)

@@ -9,24 +9,23 @@ use common::{
 };
 use xshell::Shell;
 
-use super::args::genesis::GenesisArgsFinal;
+use super::{args::genesis::GenesisArgsFinal, init::load_global_config};
 use crate::{
-    commands::chain::args::genesis::GenesisArgs,
+    commands::{chain::args::genesis::GenesisArgs, server::run_server_genesis},
     configs::{
         update_general_config, update_secrets, ChainConfig, DatabasesConfig, EcosystemConfig,
     },
-    server::{RunServer, ServerMode},
 };
 
 const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
 const PROVER_MIGRATIONS: &str = "prover/prover_dal/migrations";
 
-pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_chain(chain_name)
-        .context("Chain not initialized. Please create a chain first")?;
+pub async fn run(
+    args: GenesisArgs,
+    shell: &Shell,
+    ecosystem_config: EcosystemConfig,
+) -> anyhow::Result<()> {
+    let chain_config = load_global_config(&ecosystem_config)?;
     let args = args.fill_values_with_prompt(&chain_config);
 
     genesis(args, shell, &chain_config, &ecosystem_config).await?;
@@ -121,9 +120,4 @@ async fn initialize_databases(
     .await?;
 
     Ok(())
-}
-
-fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let server = RunServer::new(None, chain_config);
-    server.run(shell, ServerMode::Genesis)
 }

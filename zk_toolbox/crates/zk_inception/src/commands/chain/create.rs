@@ -11,8 +11,11 @@ use crate::{
     wallets::create_wallets,
 };
 
-pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+pub fn run(
+    args: ChainCreateArgs,
+    shell: &Shell,
+    mut ecosystem_config: EcosystemConfig,
+) -> anyhow::Result<()> {
     create(args, &mut ecosystem_config, shell)
 }
 

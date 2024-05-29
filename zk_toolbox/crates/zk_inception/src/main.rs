@@ -7,7 +7,7 @@ use common::{
 use xshell::Shell;
 
 use crate::{
-    commands::{args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands},
+    commands::{chain::ChainCommands, ecosystem::EcosystemCommands, server::RunServerArgs},
     configs::EcosystemConfig,
 };
 
@@ -17,7 +17,6 @@ mod configs;
 mod consts;
 mod defaults;
 pub mod forge_utils;
-pub mod server;
 mod types;
 mod wallets;
 
@@ -101,11 +100,19 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Result<()> {
+    let ecosystem_config = EcosystemConfig::from_file(shell);
+
     match inception_args.command {
-        InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(shell, args).await?,
-        InceptionSubcommands::Chain(args) => commands::chain::run(shell, args).await?,
-        InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
-        InceptionSubcommands::Containers => commands::containers::run(shell)?,
+        InceptionSubcommands::Ecosystem(args) => {
+            commands::ecosystem::run(shell, args, ecosystem_config).await?
+        }
+        InceptionSubcommands::Chain(args) => {
+            commands::chain::run(shell, args, ecosystem_config?).await?
+        }
+        InceptionSubcommands::Server(args) => {
+            commands::server::run(shell, args, ecosystem_config?)?
+        }
+        InceptionSubcommands::Containers => commands::containers::run(shell, ecosystem_config?)?,
     }
     Ok(())
 }
