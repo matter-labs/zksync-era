@@ -13,7 +13,7 @@ Ensure you have followed
 [these instructions](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/setup-dev.md) to set up
 dependencies on your machine (don't worry about the Environment section for now).
 
-### Install From Git (Recommended)
+### Install From Git
 
 Install zk_inception from git:
 
@@ -44,7 +44,7 @@ that connects all ZK chains, like the BridgeHub, the shared bridges, and state t
 To create a ZK Stack project, you must first create an ecosystem:
 
 ```bash
-# Only create ecosystem if you are NOT manually building from a local copy of the ZkSync repository, which is an existing ecosystem
+# Skip if you are manually building from a local copy of the ZkSync repository, which is an existing ecosystem
 zk_inception ecosystem create
 ```
 
@@ -54,7 +54,7 @@ copy of the ZkSync repository, you can later run `zk_inception containers`
 All subsequent commands should be executed from within the ecosystem folder you created:
 
 ```bash
-# If you are building from a local copy of the ZkSync repository, `path/to/ecosystem/name` is `cd -`
+# If you are manually building from a local copy of the ZkSync repository, `path/to/ecosystem/name` is `cd -`
 cd `path/to/ecosystem/name`
 ```
 
