@@ -634,15 +634,12 @@ impl L1BatchWithLogs {
                     StorageKey::new(AccountTreeId::new(tree_write.address), tree_write.key);
                 TreeInstruction::write(storage_key, tree_write.leaf_index, tree_write.value)
             });
-            let reads = protective_reads
-                .into_iter()
-                .sorted()
-                .map(TreeInstruction::Read);
+            let reads = protective_reads.into_iter().map(TreeInstruction::Read);
 
-            // `writes` and `reads` are already sorted, we only need to merge them.
             writes
-                .merge_by(reads, |a, b| a.key() <= b.key())
-                .collect::<Vec<_>>()
+                .chain(reads)
+                .sorted_by_key(|tree_instruction| tree_instruction.key())
+                .collect()
         } else {
             // Otherwise, load writes' data from other tables.
             Self::extract_storage_logs_from_db(storage, l1_batch_number, protective_reads).await?
