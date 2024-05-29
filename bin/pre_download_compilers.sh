@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 
+set -e
+
 # This ./cache/hardhat-nodejs is coming from the env-paths module
 # that hardhat is using.
 COMPILER_DIR=/root/.cache/hardhat-nodejs/compilers-v2
-mkdir -p $COMPILER_DIR/linux-amd64
-mkdir -p $COMPILER_DIR/vyper/linux
-mkdir -p $COMPILER_DIR/zksolc
-mkdir -p $COMPILER_DIR/zkvyper
+mkdir -p $COMPILER_DIR/{/linux-amd64,/vyper/linux,/zksolc,/zkvyper}
 
 # Fetch latest compiler version
 wget -nv -O $COMPILER_DIR/zksolc/compilerVersionInfo.json  "https://raw.githubusercontent.com/matter-labs/zksolc-bin/main/version.json"
