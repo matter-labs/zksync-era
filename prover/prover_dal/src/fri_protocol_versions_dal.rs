@@ -1,7 +1,5 @@
 use zksync_basic_types::{
-    protocol_version::{
-        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams, VersionPatch,
-    },
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
     H256,
 };
 use zksync_db_connection::connection::Connection;
@@ -56,50 +54,6 @@ impl FriProtocolVersionsDal<'_, '_> {
         .execute(self.storage.conn())
         .await
         .unwrap();
-    }
-
-    pub async fn protocol_versions_for(
-        &mut self,
-        vk_commitments: &L1VerifierConfig,
-    ) -> Vec<ProtocolSemanticVersion> {
-        sqlx::query!(
-            r#"
-            SELECT
-                id,
-                protocol_version_patch
-            FROM
-                prover_fri_protocol_versions
-            WHERE
-                recursion_circuits_set_vks_hash = $1
-                AND recursion_leaf_level_vk_hash = $2
-                AND recursion_node_level_vk_hash = $3
-                AND recursion_scheduler_level_vk_hash = $4
-            "#,
-            vk_commitments
-                .params
-                .recursion_circuits_set_vks_hash
-                .as_bytes(),
-            vk_commitments
-                .params
-                .recursion_leaf_level_vk_hash
-                .as_bytes(),
-            vk_commitments
-                .params
-                .recursion_node_level_vk_hash
-                .as_bytes(),
-            vk_commitments.recursion_scheduler_level_vk_hash.as_bytes(),
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| {
-            ProtocolSemanticVersion::new(
-                ProtocolVersionId::try_from(row.id as u16).unwrap(),
-                VersionPatch(row.protocol_version_patch as u32),
-            )
-        })
-        .collect()
     }
 
     pub async fn vk_commitments_for(

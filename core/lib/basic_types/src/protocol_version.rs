@@ -19,10 +19,12 @@ use crate::{
 
 pub const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
 pub const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
+
 pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version24;
+pub const PROVER_PROTOCOL_PATCH: VersionPatch = VersionPatch(0);
 pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSemanticVersion {
     minor: PROVER_PROTOCOL_VERSION,
-    patch: VersionPatch(0),
+    patch: PROVER_PROTOCOL_PATCH,
 };
 
 /// `ProtocolVersionId` is a unique identifier of the protocol version.

@@ -1,41 +1,41 @@
+ALTER TABLE prover_fri_protocol_versions
+    DROP CONSTRAINT prover_fri_protocol_versions_pkey CASCADE;
+
 ALTER TABLE witness_inputs_fri
-    DROP IF EXISTS protocol_version_patch;
+    DROP COLUMN IF EXISTS protocol_version_patch;
 
 ALTER TABLE leaf_aggregation_witness_jobs_fri
-    DROP IF EXISTS protocol_version_patch;
+    DROP COLUMN IF EXISTS protocol_version_patch;
 
 ALTER TABLE node_aggregation_witness_jobs_fri
-    DROP IF EXISTS protocol_version_patch;
+    DROP COLUMN IF EXISTS protocol_version_patch;
 
 ALTER TABLE recursion_tip_witness_jobs_fri
-    DROP IF EXISTS protocol_version_patch;
+    DROP COLUMN IF EXISTS protocol_version_patch;
 
 ALTER TABLE scheduler_witness_jobs_fri
-    DROP IF EXISTS protocol_version_patch;
+    DROP COLUMN IF EXISTS protocol_version_patch;
 
 ALTER TABLE proof_compression_jobs_fri
-    DROP IF EXISTS protocol_version_patch;
+    DROP COLUMN IF EXISTS protocol_version_patch;
 
 ALTER TABLE prover_jobs_fri
-    DROP IF EXISTS protocol_version_patch;
+    DROP COLUMN IF EXISTS protocol_version_patch;
 
 ALTER TABLE prover_jobs_fri_archive
-    DROP IF EXISTS protocol_version_patch;
+    DROP COLUMN IF EXISTS protocol_version_patch;
 
 ALTER TABLE gpu_prover_queue_fri
     DROP IF EXISTS protocol_version_patch;
 
 ALTER TABLE gpu_prover_queue_fri_archive
-    DROP IF EXISTS protocol_version_patch;
+    DROP COLUMN IF EXISTS protocol_version_patch;
 
 ALTER TABLE prover_fri_protocol_versions
-    DROP IF EXISTS protocol_version_patch;
+    DROP COLUMN IF EXISTS protocol_version_patch;
 
 ALTER TABLE prover_fri_protocol_versions
-    DROP CONSTRAINT protocol_semantic_version_fk CASCADE;
-
-ALTER TABLE prover_fri_protocol_versions
-    ADD PRIMARY KEY (id);
+    ADD CONSTRAINT prover_fri_protocol_versions_pkey PRIMARY KEY (id);
 
 ALTER TABLE witness_inputs_fri
     ADD CONSTRAINT witness_inputs_fri_protocol_version_fkey
