@@ -42,3 +42,12 @@ pub(super) const MSG_INTALLING_DEPS_SPINNER: &str = "Installing and building dep
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
+
+/// Ecosystem Default related messages
+pub(super) const MSG_DEFAULT_CHAIN_PROMPT: &str = "What chain you want to set as default?";
+
+/// Ecosystem Config related messages
+pub(super) const MSG_SAVE_INITIAL_CONFIG_ATTENTION: &str =
+    "ATTENTION: This file contains sensible placeholders. Please check them and update with the desired values.";
+pub(super) const MSG_SAVE_ERC20_CONFIG_ATTENTION: &str =
+    "ATTENTION: This file should be filled with the desired ERC20 tokens to deploy.";

@@ -5,6 +5,7 @@ use crate::{
     commands::ecosystem::args::change_default::ChangeDefaultChain,
     configs::{EcosystemConfig, SaveConfig},
     consts::CONFIG_NAME,
+    messages::MSG_DEFAULT_CHAIN_PROMPT,
 };
 
 pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
@@ -12,7 +13,7 @@ pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
 
     let chains = ecosystem_config.list_of_chains();
     let chain_name = args.name.unwrap_or_else(|| {
-        PromptSelect::new("What chain you want to set as default?", &chains)
+        PromptSelect::new(MSG_DEFAULT_CHAIN_PROMPT, &chains)
             .ask()
             .to_string()
     });
