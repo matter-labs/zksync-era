@@ -172,28 +172,34 @@ impl StorageLogsDedupDal<'_, '_> {
         .map(|max| max as u64))
     }
 
-    /// Returns the maximum enumeration index assigned in a specific L1 batch.
-    pub async fn max_enumeration_index_for_l1_batch(
+    /// Returns the max enumeration index by the provided L1 batch number.
+    pub async fn max_enumeration_index_by_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<Option<u64>> {
-        let row = sqlx::query!(
+        Ok(sqlx::query!(
             r#"
             SELECT
                 MAX(INDEX) AS "max?"
             FROM
                 initial_writes
             WHERE
-                l1_batch_number = $1
+                l1_batch_number = (
+                    SELECT
+                        MAX(l1_batch_number) AS "max?"
+                    FROM
+                        initial_writes
+                    WHERE
+                        l1_batch_number <= $1
+                )
             "#,
             i64::from(l1_batch_number.0)
         )
-        .instrument("max_enumeration_index_for_l1_batch")
-        .with_arg("l1_batch_number", &l1_batch_number)
+        .instrument("max_enumeration_index_by_l1_batch")
         .fetch_one(self.storage)
-        .await?;
-
-        Ok(row.max.map(|max| max as u64))
+        .await?
+        .max
+        .map(|max| max as u64))
     }
 
     pub async fn initial_writes_for_batch(
@@ -326,12 +332,12 @@ mod tests {
     use crate::{ConnectionPool, CoreDal};
 
     #[tokio::test]
-    async fn getting_max_enumeration_index_for_batch() {
+    async fn getting_max_enumeration_index_in_batch() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         let max_index = conn
             .storage_logs_dedup_dal()
-            .max_enumeration_index_for_l1_batch(L1BatchNumber(0))
+            .max_enumeration_index_by_l1_batch(L1BatchNumber(0))
             .await
             .unwrap();
         assert_eq!(max_index, None);
@@ -348,7 +354,7 @@ mod tests {
 
         let max_index = conn
             .storage_logs_dedup_dal()
-            .max_enumeration_index_for_l1_batch(L1BatchNumber(0))
+            .max_enumeration_index_by_l1_batch(L1BatchNumber(0))
             .await
             .unwrap();
         assert_eq!(max_index, Some(2));
@@ -364,14 +370,14 @@ mod tests {
 
         let max_index = conn
             .storage_logs_dedup_dal()
-            .max_enumeration_index_for_l1_batch(L1BatchNumber(0))
+            .max_enumeration_index_by_l1_batch(L1BatchNumber(0))
             .await
             .unwrap();
         assert_eq!(max_index, Some(2));
 
         let max_index = conn
             .storage_logs_dedup_dal()
-            .max_enumeration_index_for_l1_batch(L1BatchNumber(1))
+            .max_enumeration_index_by_l1_batch(L1BatchNumber(1))
             .await
             .unwrap();
         assert_eq!(max_index, Some(4));

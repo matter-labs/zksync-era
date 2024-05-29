@@ -1,4 +1,4 @@
-import { TestContextOwner, loadTestEnvironment, waitForServer } from '../index';
+import { TestContextOwner, loadTestEnvironment } from '../index';
 
 declare global {
     var __ZKSYNC_TEST_CONTEXT_OWNER__: TestContextOwner;
@@ -18,7 +18,6 @@ async function performSetup(_globalConfig: any, _projectConfig: any) {
 
     // Before starting any actual logic, we need to ensure that the server is running (it may not
     // be the case, for example, right after deployment on stage).
-    await waitForServer();
 
     const testEnvironment = await loadTestEnvironment();
     const testContextOwner = new TestContextOwner(testEnvironment);

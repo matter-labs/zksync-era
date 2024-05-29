@@ -47,6 +47,11 @@ pub struct ZkSyncTree {
 }
 
 impl ZkSyncTree {
+    /// Returns a hash of an empty tree. This is a constant value.
+    pub fn empty_tree_hash() -> ValueHash {
+        Blake2Hasher.empty_tree_hash()
+    }
+
     fn create_thread_pool(thread_count: usize) -> ThreadPool {
         ThreadPoolBuilder::new()
             .thread_name(|idx| format!("new-merkle-tree-{idx}"))
@@ -398,9 +403,10 @@ impl ZkSyncTreeReader {
         &self.0.db
     }
 
-    /// Returns the current root hash of this tree.
-    pub fn root_hash(&self) -> ValueHash {
-        self.0.latest_root_hash()
+    /// Returns the root hash and leaf count at the specified L1 batch.
+    pub fn root_info(&self, l1_batch_number: L1BatchNumber) -> Option<(ValueHash, u64)> {
+        let root = self.0.root(l1_batch_number.0.into())?;
+        Some((root.hash(&Blake2Hasher), root.leaf_count()))
     }
 
     /// Returns the next L1 batch number that should be processed by the tree.
@@ -418,11 +424,6 @@ impl ZkSyncTreeReader {
         self.0.first_retained_version().map(|version| {
             L1BatchNumber(u32::try_from(version).expect("integer overflow for L1 batch number"))
         })
-    }
-
-    /// Returns the number of leaves in the tree.
-    pub fn leaf_count(&self) -> u64 {
-        self.0.latest_root().leaf_count()
     }
 
     /// Reads entries together with Merkle proofs with the specified keys from the tree. The entries are returned
