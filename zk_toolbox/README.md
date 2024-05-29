@@ -95,7 +95,8 @@ zk_inception ecosystem change-default-chain
 
 ### Initializing ZK Chain Created By 3rd Party
 
-If contracts were deployed by a third party (e.g., MatterLabs) and sent to you as a local copy, you may need to run the genesis process:
+If contracts were deployed by a third party (e.g., MatterLabs) and sent to you as a local copy, you may need to run the
+genesis process:
 
 ```bash
 zk_inception chain genesis
