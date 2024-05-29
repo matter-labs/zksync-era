@@ -39,7 +39,7 @@ pub struct ContractsConfig {
     pub ecosystem_contracts: Option<EcosystemContracts>,
     pub base_token_addr: Option<Address>,
 
-    // fixme: maybe refactor
+    // FIXME: maybe refactor
     pub user_facing_bridgehub_proxy_addr: Option<Address>,
     pub user_facing_diamond_proxy_addr: Option<Address>,
 }
