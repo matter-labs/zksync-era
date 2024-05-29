@@ -2,6 +2,7 @@
 
 pub use self::{
     database::{Database, NodeKeys, Patched, PruneDatabase, PrunePatchSet},
+    parallel::PersistenceThreadHandle,
     patch::PatchSet,
     rocksdb::{MerkleTreeColumnFamily, RocksDBWrapper},
 };

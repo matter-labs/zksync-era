@@ -40,6 +40,7 @@ use std::{collections::HashMap, time::Instant};
 use anyhow::Context as _;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
+pub use crate::storage::PersistenceThreadHandle;
 use crate::{
     hasher::{HashTree, HasherWithStats},
     metrics::{RecoveryStage, RECOVERY_METRICS},
@@ -260,7 +261,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         self.db.apply_patch(PatchSet::from_manifest(manifest))?;
         tracing::debug!("Updated tree manifest to mark recovery as complete");
 
-        Ok(self.db.join())
+        self.db.join()
     }
 }
 
@@ -280,19 +281,28 @@ impl<DB: 'static + Clone + PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H>
     /// and will need to be processed again. It is **unsound** to restart recovery while a persistence thread may be active;
     /// this may lead to a corrupted database state.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `buffer_capacity` is 0.
-    pub fn parallelize_persistence(&mut self, buffer_capacity: usize) {
-        assert!(buffer_capacity > 0, "Buffer capacity must be positive");
-        self.db.parallelize(self.recovered_version, buffer_capacity);
+    /// Returns an error if `buffer_capacity` is 0, or if persistence was already parallelized.
+    pub fn parallelize_persistence(
+        &mut self,
+        buffer_capacity: usize,
+    ) -> anyhow::Result<PersistenceThreadHandle> {
+        anyhow::ensure!(buffer_capacity > 0, "Buffer capacity must be positive");
+        self.db
+            .parallelize(self.recovered_version, buffer_capacity)
+            .context("persistence is already parallelized")
     }
 
     /// Waits until all changes in the underlying database are persisted, i.e. all chunks are flushed into it.
     /// This is only relevant if [persistence was parallelized](Self::parallelize_persistence()) earlier;
     /// otherwise, this method will return immediately.
-    pub fn wait_for_persistence(&mut self) {
-        self.db.wait_sync();
+    ///
+    /// # Errors
+    ///
+    /// Propagates database I/O errors, should they occur during persistence.
+    pub fn wait_for_persistence(&mut self) -> anyhow::Result<()> {
+        self.db.wait_sync()
     }
 }
 

@@ -3,6 +3,7 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
+    sync::Arc,
     time::Instant,
 };
 
@@ -41,6 +42,13 @@ impl PartialPatchSet {
     pub fn merge(&mut self, other: Self) {
         self.root = other.root;
         self.nodes.extend(other.nodes);
+    }
+
+    pub fn cloned(self: &Arc<Self>) -> Self {
+        Self {
+            root: self.root.clone(),
+            nodes: self.nodes.clone(),
+        }
     }
 }
 

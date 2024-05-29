@@ -412,7 +412,7 @@ impl AsyncTreeRecovery {
         const PERSISTENCE_BUFFER_CAPACITY: usize = 4;
 
         let mut recovery = MerkleTreeRecovery::new(db, recovered_version)?;
-        recovery.parallelize_persistence(PERSISTENCE_BUFFER_CAPACITY);
+        recovery.parallelize_persistence(PERSISTENCE_BUFFER_CAPACITY)?;
         Ok(Self {
             inner: Some(recovery),
             mode,
@@ -498,11 +498,11 @@ impl AsyncTreeRecovery {
     pub async fn wait_for_persistence(&mut self) -> anyhow::Result<()> {
         let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let tree = tokio::task::spawn_blocking(move || {
-            tree.wait_for_persistence();
-            tree
+            tree.wait_for_persistence()?;
+            anyhow::Ok(tree)
         })
         .await
-        .context("panicked while waiting for pending recovery chunks to be persisted")?;
+        .context("panicked while waiting for pending recovery chunks to be persisted")??;
 
         self.inner = Some(tree);
         Ok(())

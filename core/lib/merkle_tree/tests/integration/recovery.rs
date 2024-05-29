@@ -131,16 +131,17 @@ where
 
     let recovered_version = 123;
     let mut recovery = MerkleTreeRecovery::new(db.clone(), recovered_version).unwrap();
-    recovery.parallelize_persistence(4);
+    recovery.parallelize_persistence(4).unwrap();
     for (i, chunk) in recovery_entries.chunks(chunk_size).enumerate() {
         match kind {
             RecoveryKind::Linear => recovery.extend_linear(chunk.to_vec()).unwrap(),
             RecoveryKind::Random => recovery.extend_random(chunk.to_vec()).unwrap(),
         }
         if i % 3 == 1 {
-            recovery.wait_for_persistence(); // need this to ensure that the old persistence thread doesn't corrupt DB
+            // need this to ensure that the old persistence thread doesn't corrupt DB
+            recovery.wait_for_persistence().unwrap();
             recovery = MerkleTreeRecovery::new(db.clone(), recovered_version).unwrap();
-            recovery.parallelize_persistence(4);
+            recovery.parallelize_persistence(4).unwrap();
             // ^ Simulate recovery interruption and restart.
         }
     }

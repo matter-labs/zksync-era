@@ -77,7 +77,7 @@ impl Cli {
             let db = RocksDBWrapper::from(db);
             let mut recovery = MerkleTreeRecovery::with_hasher(db, recovered_version, hasher)?;
             if self.parallelize {
-                recovery.parallelize_persistence(4);
+                recovery.parallelize_persistence(4)?;
             }
             self.recover_tree(recovery, recovered_version)
         }

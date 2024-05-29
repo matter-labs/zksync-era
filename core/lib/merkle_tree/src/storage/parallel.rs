@@ -4,10 +4,12 @@ use std::{
     any::Any,
     collections::{HashMap, VecDeque},
     mem,
-    sync::{mpsc, Arc, Weak},
+    sync::{mpsc, Arc},
     thread,
     time::Duration,
 };
+
+use anyhow::Context as _;
 
 use super::{patch::PartialPatchSet, Database, NodeKeys, PatchSet};
 use crate::{
@@ -16,11 +18,32 @@ use crate::{
     PruneDatabase, PrunePatchSet,
 };
 
+/// Persistence command passed to a persistence thread over a bounded MPSC channel.
 #[derive(Debug, Clone)]
 struct PersistenceCommand {
     manifest: Manifest,
-    patch: PartialPatchSet,
+    patch: Arc<PartialPatchSet>,
     stale_keys: Vec<NodeKey>,
+}
+
+#[derive(Debug)]
+enum Command {
+    Persist(PersistenceCommand),
+    Stop,
+}
+
+/// FIXME
+#[derive(Debug)]
+pub struct PersistenceThreadHandle {
+    command_sender: mpsc::SyncSender<Command>,
+}
+
+impl PersistenceThreadHandle {
+    /// Emulates stopping persisting updates; any updates afterwards will not actually be persisted.
+    /// This should only be used in tests.
+    pub fn test_stop_processing(self) {
+        self.command_sender.send(Command::Stop).ok();
+    }
 }
 
 /// Database implementation that persists changes in a background thread. Not yet applied changes
@@ -36,59 +59,68 @@ struct PersistenceCommand {
 pub(crate) struct ParallelDatabase<DB> {
     inner: DB,
     updated_version: u64,
-    command_sender: mpsc::SyncSender<Arc<PersistenceCommand>>,
-    persistence_handle: Option<thread::JoinHandle<()>>,
+    command_sender: mpsc::SyncSender<Command>,
+    persistence_handle: Option<thread::JoinHandle<anyhow::Result<()>>>,
     // Weak references to the sent persistence commands. We garbage-collect persisted refs in `apply_patch()`.
-    commands: VecDeque<Weak<PersistenceCommand>>,
+    commands: VecDeque<PersistenceCommand>,
 }
 
 impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
     fn new(inner: DB, updated_version: u64, buffer_capacity: usize) -> Self {
         let (command_sender, command_receiver) = mpsc::sync_channel(buffer_capacity);
         let persistence_database = inner.clone();
-        let persistence_handle = thread::spawn(move || {
-            Self::run_persistence(persistence_database, updated_version, command_receiver);
-        });
         Self {
             inner,
             updated_version,
             command_sender,
-            persistence_handle: Some(persistence_handle),
+            persistence_handle: Some(thread::spawn(move || {
+                Self::run_persistence(persistence_database, updated_version, &command_receiver)
+            })),
             commands: VecDeque::with_capacity(buffer_capacity),
+        }
+    }
+
+    fn persistence_thread_handle(&self) -> PersistenceThreadHandle {
+        PersistenceThreadHandle {
+            command_sender: self.command_sender.clone(),
         }
     }
 
     fn run_persistence(
         mut database: DB,
         updated_version: u64,
-        command_receiver: mpsc::Receiver<Arc<PersistenceCommand>>,
-    ) {
+        command_receiver: &mpsc::Receiver<Command>,
+    ) -> anyhow::Result<()> {
         let mut persisted_count = 0;
         while let Ok(command) = command_receiver.recv() {
-            let command: PersistenceCommand = (*command).clone();
+            let command = match command {
+                Command::Persist(command) => command,
+                Command::Stop => anyhow::bail!("emulated persistence crash"),
+            };
+
             tracing::debug!("Persisting patch #{persisted_count}");
             // Reconstitute a `PatchSet` and apply it to the underlying database.
             let patch = PatchSet {
                 manifest: command.manifest,
-                patches_by_version: HashMap::from([(updated_version, command.patch)]),
+                patches_by_version: HashMap::from([(updated_version, command.patch.cloned())]),
                 updated_version: Some(updated_version),
                 stale_keys_by_version: HashMap::from([(updated_version, command.stale_keys)]),
             };
-            database.apply_patch(patch).unwrap();
+            database.apply_patch(patch)?;
             tracing::debug!("Persisted patch #{persisted_count}");
             persisted_count += 1;
             // An `Arc<PersistenceCommand>` must be dropped only after the command is applied. Otherwise,
             // `Database` methods may see a state in which neither commands nor the underlying database contain the applied patch set.
         }
-        drop(command_receiver);
+        Ok(())
     }
 }
 
 impl<DB: Database> ParallelDatabase<DB> {
-    fn wait_sync(&mut self) {
+    fn wait_sync(&mut self) -> anyhow::Result<()> {
         while !self.commands.is_empty() {
             self.commands
-                .retain(|command| Weak::strong_count(command) > 0);
+                .retain(|command| Arc::strong_count(&command.patch) > 1);
             thread::sleep(Duration::from_millis(50)); // TODO: more intelligent approach
         }
 
@@ -96,29 +128,32 @@ impl<DB: Database> ParallelDatabase<DB> {
         let persistence_handle = self
             .persistence_handle
             .as_ref()
-            .expect("Persistence thread previously panicked");
+            .context("persistence thread previously panicked")?;
         if persistence_handle.is_finished() {
             mem::take(&mut self.persistence_handle)
                 .unwrap()
                 .join()
-                .expect("Persistence thread panicked");
-            unreachable!("Persistence thread never exits when `ParallelDatabase` is alive");
+                .map_err(|_| anyhow::anyhow!("persistence thread panicked"))??;
+            anyhow::bail!("persistence thread never exits when `ParallelDatabase` is alive");
         }
+        Ok(())
     }
 
-    fn join(mut self) -> DB {
+    fn join(mut self) -> anyhow::Result<DB> {
         let join_handle = mem::take(&mut self.persistence_handle)
-            .expect("Persistence thread previously panicked");
+            .context("persistence thread previously panicked")?;
         drop(self.command_sender);
         drop(self.commands);
-        join_handle.join().expect("Persistence thread panicked");
-        self.inner
+        join_handle
+            .join()
+            .map_err(|_| anyhow::anyhow!("persistence thread panicked"))??;
+        Ok(self.inner)
     }
 }
 
 impl<DB: Database> Database for ParallelDatabase<DB> {
     fn try_manifest(&self) -> Result<Option<Manifest>, DeserializeError> {
-        let latest_command = self.commands.iter().next_back().and_then(Weak::upgrade);
+        let latest_command = self.commands.iter().next_back();
         if let Some(command) = latest_command {
             Ok(Some(command.manifest.clone()))
         } else {
@@ -134,7 +169,7 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             .commands
             .iter()
             .rev()
-            .find_map(|command| command.upgrade()?.patch.root.clone());
+            .find_map(|command| command.patch.root.clone());
         if let Some(root) = root {
             Ok(Some(root))
         } else {
@@ -150,11 +185,12 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
         if key.version != self.updated_version {
             return self.inner.try_tree_node(key, is_leaf);
         }
+
         let node = self
             .commands
             .iter()
             .rev()
-            .find_map(|command| command.upgrade()?.patch.nodes.get(key).cloned());
+            .find_map(|command| command.patch.nodes.get(key).cloned());
         if let Some(node) = node {
             debug_assert_eq!(matches!(node, Node::Leaf(_)), is_leaf);
             Ok(Some(node))
@@ -166,9 +202,6 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
     fn tree_nodes(&self, keys: &NodeKeys) -> Vec<Option<Node>> {
         let mut nodes = vec![None; keys.len()];
         for command in self.commands.iter().rev() {
-            let Some(command) = command.upgrade() else {
-                continue;
-            };
             for (key_idx, (key, is_leaf)) in keys.iter().enumerate() {
                 if nodes[key_idx].is_some() {
                     continue;
@@ -200,21 +233,20 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
 
     fn apply_patch(&mut self, mut patch: PatchSet) -> anyhow::Result<()> {
         let partial_patch = if let Some(updated_version) = patch.updated_version {
-            assert_eq!(
-                updated_version, self.updated_version,
+            anyhow::ensure!(
+                updated_version == self.updated_version,
                 "Unsupported update: must update predefined version {}",
                 self.updated_version
             );
-            assert_eq!(
-                patch.patches_by_version.len(),
-                1,
+            anyhow::ensure!(
+                patch.patches_by_version.len() == 1,
                 "Unsupported update: must *only* update version {updated_version}"
             );
 
             // Garbage-collect patches already applied by the persistence thread. This will remove all patches
             // if the persistence thread has panicked, but this is OK because we'll panic below anyway.
             self.commands
-                .retain(|command| Weak::strong_count(command) > 0);
+                .retain(|command| Arc::strong_count(&command.patch) > 1);
             tracing::debug!(
                 "Retained {} buffered persistence command(s)",
                 self.commands.len()
@@ -226,7 +258,10 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
                 .expect("PatchSet invariant violated: missing patch for the updated version")
         } else {
             // We only support manifest updates.
-            assert!(patch.patches_by_version.is_empty(), "{patch:?}");
+            anyhow::ensure!(
+                patch.patches_by_version.is_empty(),
+                "Invalid update: {patch:?}"
+            );
             PartialPatchSet::empty()
         };
 
@@ -240,31 +275,33 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             .remove(&self.updated_version)
             .unwrap_or_default();
 
-        let command = Arc::new(PersistenceCommand {
+        let command = PersistenceCommand {
             manifest: patch.manifest,
-            patch: partial_patch,
+            patch: Arc::new(partial_patch),
             stale_keys,
-        });
-        let weak_command = Arc::downgrade(&command);
-        if self.command_sender.send(command).is_err() {
+        };
+        if self
+            .command_sender
+            .send(Command::Persist(command.clone()))
+            .is_err()
+        {
             mem::take(&mut self.persistence_handle)
-                .expect("Persistence thread previously panicked")
+                .context("persistence thread previously panicked")?
                 .join()
-                .expect("Persistence thread panicked");
-            unreachable!("Persistence thread never exits when `ParallelDatabase` is alive");
+                .map_err(|_| anyhow::anyhow!("persistence thread panicked"))??;
+            anyhow::bail!("persistence thread never exits when `ParallelDatabase` is alive");
         }
-        self.commands.push_back(weak_command);
+        self.commands.push_back(command);
         Ok(())
     }
 }
 
 impl<DB: PruneDatabase> PruneDatabase for ParallelDatabase<DB> {
     fn min_stale_key_version(&self) -> Option<u64> {
-        let commands_have_stale_keys = self.commands.iter().any(|command| {
-            command
-                .upgrade()
-                .map_or(false, |command| command.stale_keys.is_empty())
-        });
+        let commands_have_stale_keys = self
+            .commands
+            .iter()
+            .any(|command| !command.stale_keys.is_empty());
         if commands_have_stale_keys {
             return Some(self.updated_version);
         }
@@ -277,19 +314,15 @@ impl<DB: PruneDatabase> PruneDatabase for ParallelDatabase<DB> {
         }
         self.commands
             .iter()
-            .flat_map(|command| {
-                command
-                    .upgrade()
-                    .map(|command| command.stale_keys.clone())
-                    .unwrap_or_default()
-            })
+            .flat_map(|command| command.stale_keys.clone())
             .chain(self.inner.stale_keys(version))
             .collect()
     }
 
     fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()> {
         // Require the underlying database to be fully synced.
-        self.wait_sync();
+        self.wait_sync()
+            .context("failed synchronizing database before pruning")?;
         self.inner.prune(patch)
     }
 }
@@ -302,28 +335,35 @@ pub(crate) enum MaybeParallel<DB> {
 }
 
 impl<DB: PruneDatabase> MaybeParallel<DB> {
-    pub fn wait_sync(&mut self) {
+    pub fn wait_sync(&mut self) -> anyhow::Result<()> {
         if let Self::Parallel(db) = self {
-            db.wait_sync();
+            db.wait_sync()
+        } else {
+            Ok(())
         }
     }
 
-    pub fn join(self) -> DB {
+    pub fn join(self) -> anyhow::Result<DB> {
         match self {
-            Self::Sequential(db) => db,
+            Self::Sequential(db) => Ok(db),
             Self::Parallel(db) => db.join(),
         }
     }
 }
 
 impl<DB: 'static + Clone + PruneDatabase> MaybeParallel<DB> {
-    pub fn parallelize(&mut self, updated_version: u64, buffer_capacity: usize) {
+    pub fn parallelize(
+        &mut self,
+        updated_version: u64,
+        buffer_capacity: usize,
+    ) -> Option<PersistenceThreadHandle> {
         if let Self::Sequential(db) = self {
-            *self = Self::Parallel(ParallelDatabase::new(
-                db.clone(),
-                updated_version,
-                buffer_capacity,
-            ));
+            let db = ParallelDatabase::new(db.clone(), updated_version, buffer_capacity);
+            let handle = db.persistence_thread_handle();
+            *self = Self::Parallel(db);
+            Some(handle)
+        } else {
+            None
         }
     }
 }
@@ -407,7 +447,7 @@ mod tests {
     use super::*;
     use crate::{
         storage::Operation,
-        types::{InternalNode, LeafNode, Nibbles},
+        types::{ChildRef, InternalNode, LeafNode, Nibbles},
         Key, RocksDBWrapper, TreeEntry, ValueHash,
     };
 
@@ -417,7 +457,9 @@ mod tests {
         assert!(start <= leaf_count);
 
         let manifest = Manifest::new(UPDATED_VERSION, &());
-        let root = Root::new(leaf_count, Node::Internal(InternalNode::default()));
+        let mut root_node = InternalNode::default();
+        root_node.insert_child_ref(0, ChildRef::leaf(UPDATED_VERSION));
+        let root = Root::new(leaf_count, Node::Internal(root_node));
         let nodes = (start..leaf_count)
             .map(|i| {
                 let key = Key::from(i);
@@ -493,7 +535,7 @@ mod tests {
             assert!(node.is_none(), "{node:?}");
         }
 
-        parallel_db.wait_sync();
+        parallel_db.wait_sync().unwrap();
 
         let nodes = parallel_db.tree_nodes(&keys);
         for (i, node) in nodes[..15].iter().enumerate() {
@@ -505,5 +547,35 @@ mod tests {
         for node in &nodes[15..] {
             assert!(node.is_none(), "{node:?}");
         }
+
+        parallel_db.join().unwrap();
+    }
+
+    #[test]
+    fn fault_injection_with_parallel_persistence() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+
+        let mut parallel_db = ParallelDatabase::new(db, UPDATED_VERSION, 4);
+        let handle = parallel_db.persistence_thread_handle();
+
+        // Queue up a couple of patch sets
+        parallel_db.apply_patch(mock_patch_set(0, 5)).unwrap();
+        assert_eq!(parallel_db.root(UPDATED_VERSION).unwrap().leaf_count(), 5);
+        parallel_db.apply_patch(mock_patch_set(5, 10)).unwrap();
+        assert_eq!(parallel_db.root(UPDATED_VERSION).unwrap().leaf_count(), 10);
+        // Emulate the persistence thread stopping (e.g., due to the process crashing)
+        handle.test_stop_processing();
+
+        // Queue another patch set.
+        let err = parallel_db
+            .apply_patch(mock_patch_set(10, 15))
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("emulated persistence crash"), "{err}");
+
+        let db = parallel_db.join().unwrap();
+        // Check that the last patch set was dropped.
+        assert_eq!(db.root(UPDATED_VERSION).unwrap().leaf_count(), 10);
     }
 }
