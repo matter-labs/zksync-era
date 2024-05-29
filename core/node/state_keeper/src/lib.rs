@@ -15,7 +15,7 @@ pub use self::{
     },
     io::{
         mempool::MempoolIO, L2BlockParams, L2BlockSealerTask, OutputHandler, StateKeeperIO,
-        StateKeeperOutputHandler, StateKeeperPersistence,
+        StateKeeperOutputHandler, StateKeeperPersistence, TreeWritesPersistence,
     },
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,

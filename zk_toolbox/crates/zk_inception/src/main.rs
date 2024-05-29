@@ -35,7 +35,7 @@ pub enum InceptionSubcommands {
     /// Ecosystem related commands
     #[command(subcommand)]
     Ecosystem(EcosystemCommands),
-    /// Hyperchain related commands
+    /// Chain related commands
     #[command(subcommand)]
     Chain(ChainCommands),
     /// Run server

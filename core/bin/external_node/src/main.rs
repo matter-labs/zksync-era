@@ -41,7 +41,7 @@ use zksync_reorg_detector::ReorgDetector;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
     seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
-    StateKeeperPersistence, ZkSyncStateKeeper,
+    StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
@@ -228,9 +228,11 @@ async fn run_core(
         tracing::warn!("Disabling persisting protective reads; this should be safe, but is considered an experimental option at the moment");
         persistence = persistence.without_protective_reads();
     }
+    let tree_writes_persistence = TreeWritesPersistence::new(connection_pool.clone());
 
-    let output_handler =
-        OutputHandler::new(Box::new(persistence)).with_handler(Box::new(sync_state.clone()));
+    let output_handler = OutputHandler::new(Box::new(persistence))
+        .with_handler(Box::new(tree_writes_persistence))
+        .with_handler(Box::new(sync_state.clone()));
     let state_keeper = build_state_keeper(
         action_queue,
         config.required.state_cache_path.clone(),
