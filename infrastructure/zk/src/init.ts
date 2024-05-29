@@ -226,7 +226,13 @@ export const initHyperCmdAction = async ({
         config.bumpChainId();
     }
     if (!skipSetupCompletely) {
-        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, skipContractCompilation: skipContractCompilationOverride, runObservability, deploymentMode });
+        await initSetup({
+            skipEnvSetup: false,
+            skipSubmodulesCheckout: false,
+            skipContractCompilation: skipContractCompilationOverride,
+            runObservability,
+            deploymentMode
+        });
     }
     await initDatabase({ skipVerifierDeployment: true });
     await initHyperchain({ includePaymaster: true, baseTokenName, deploymentMode });
