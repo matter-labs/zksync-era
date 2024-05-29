@@ -66,7 +66,8 @@ where
     H: HashEmptySubtree<LEAF_SIZE>,
 {
     /// Creates a new Merkle tree from the supplied leaves. If `min_tree_size` is supplied and is larger than the
-    /// number of the supplied leaves, the leaves are padded to `min_tree_size` with `[0_u8; LEAF_SIZE]` entries.
+    /// number of the supplied leaves, the leaves are padded to `min_tree_size` with `[0_u8; LEAF_SIZE]` entries,
+    /// but are deemed empty.
     ///
     /// # Panics
     ///
@@ -79,7 +80,26 @@ where
         leaves: impl Iterator<Item = [u8; LEAF_SIZE]>,
         min_tree_size: Option<usize>,
     ) -> Self {
-        let hashes: VecDeque<_> = leaves.map(|bytes| hasher.hash_bytes(&bytes)).collect();
+        let hashes: Vec<_> = leaves.map(|bytes| hasher.hash_bytes(&bytes)).collect();
+        Self::from_hashes(hasher, hashes.into_iter(), min_tree_size)
+    }
+
+    /// Creates a new Merkle tree from the supplied raw hashes. If `min_tree_size` is supplied and is larger than the
+    /// number of the supplied leaves, the leaves are padded to `min_tree_size` with zero-hash entries,
+    /// but are deemed empty.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the following conditions applies:
+    ///
+    /// - `min_tree_size` (if supplied) is not a power of 2.
+    /// - The number of leaves is greater than `2^32`.
+    pub fn from_hashes(
+        hasher: H,
+        hashes: impl Iterator<Item = H256>,
+        min_tree_size: Option<usize>,
+    ) -> Self {
+        let hashes: VecDeque<_> = hashes.collect();
         let mut binary_tree_size = hashes.len().next_power_of_two();
         if let Some(min_tree_size) = min_tree_size {
             assert!(
@@ -142,15 +162,22 @@ where
         (root_hash, left_path, right_path)
     }
 
+    /// Adds a raw hash to the tree (replaces leftmost empty leaf).
+    /// If the tree is full, its size is doubled.
+    /// Note: empty leaves != zero leaves.
+    pub fn push_hash(&mut self, leaf_hash: H256) {
+        self.hashes.push_back(leaf_hash);
+        if self.start_index + self.hashes.len() > self.binary_tree_size {
+            self.binary_tree_size *= 2;
+        }
+    }
+
     /// Adds a new leaf to the tree (replaces leftmost empty leaf).
     /// If the tree is full, its size is doubled.
     /// Note: empty leaves != zero leaves.
     pub fn push(&mut self, leaf: [u8; LEAF_SIZE]) {
         let leaf_hash = self.hasher.hash_bytes(&leaf);
-        self.hashes.push_back(leaf_hash);
-        if self.start_index + self.hashes.len() > self.binary_tree_size {
-            self.binary_tree_size *= 2;
-        }
+        self.push_hash(leaf_hash);
     }
 
     /// Caches the rightmost `count` leaves.
@@ -189,7 +216,6 @@ where
 
         for level in 0..depth {
             let empty_hash_at_level = self.hasher.empty_subtree_hash(level);
-
             if start_index % 2 == 1 {
                 hashes.push_front(self.cache[level]);
             }
@@ -201,6 +227,8 @@ where
                 // `index` is relative to `head_index`
                 if let Some(path) = path {
                     let sibling = ((start_index + index) ^ 1) - start_index + start_index % 2;
+                    // When trimming all existing leaves,
+                    // the first untrimmed leaf and its sibling might not exist.
                     let hash = hashes.get(sibling).copied().unwrap_or_default();
                     path.push(hash);
                 }
