@@ -29,16 +29,17 @@ const MAX_TREE_DEPTH: usize = 32;
 /// exceeds the current tree size. It does not shrink.
 ///
 /// The tree is optimized for the case when the queries are performed on the rightmost leaves
-/// and the leftmost leaves are cached. Caching enables the merkle roots and paths to be computed
-/// in `O(n)` time, where `n` is the number of uncached leaves (in contrast to the total number of
-/// leaves). Cache itself only takes up `O(depth)` space.
+/// and the leftmost leaves are cached (trimmed). Caching enables the merkle roots and paths to be computed
+/// in `O(max(n, depth))` time, where `n` is the number of uncached leaves (in contrast to the total number of
+/// leaves). Cache itself only takes up `O(depth)` space. However, caching prevents the retrieval of paths to the
+/// cached leaves.
 #[derive(Debug, Clone)]
 pub struct MiniMerkleTree<const LEAF_SIZE: usize, H = KeccakHasher> {
     hasher: H,
     hashes: VecDeque<H256>,
     binary_tree_size: usize,
     start_index: usize,
-    left_cache: Vec<H256>,
+    cache: Vec<H256>,
 }
 
 impl<const LEAF_SIZE: usize> MiniMerkleTree<LEAF_SIZE>
@@ -98,7 +99,7 @@ where
             hashes,
             binary_tree_size,
             start_index: 0,
-            left_cache: vec![],
+            cache: vec![],
         }
     }
 
@@ -114,7 +115,7 @@ where
             if self.start_index == 0 {
                 self.hasher.empty_subtree_hash(depth)
             } else {
-                self.left_cache[depth]
+                self.cache[depth]
             }
         } else {
             self.compute_merkle_root_and_path(0, None, None)
@@ -159,11 +160,14 @@ where
     pub fn trim_start(&mut self, count: usize) {
         assert!(self.hashes.len() >= count, "not enough leaves to cache");
         let mut new_cache = vec![];
+        // Cache is a subset of the path to the first untrimmed leaf.
         let root = self.compute_merkle_root_and_path(count, None, Some(&mut new_cache));
         self.hashes.drain(..count);
         self.start_index += count;
+        // It is important to add the root in case we just trimmed all leaves *and*
+        // the tree will grow on the next push.
         new_cache.push(root);
-        self.left_cache = new_cache;
+        self.cache = new_cache;
     }
 
     fn compute_merkle_root_and_path(
@@ -187,7 +191,7 @@ where
             let empty_hash_at_level = self.hasher.empty_subtree_hash(level);
 
             if head_index % 2 == 1 {
-                hashes.push_front(self.left_cache[level]);
+                hashes.push_front(self.cache[level]);
             }
             if hashes.len() % 2 == 1 {
                 hashes.push_back(empty_hash_at_level);
