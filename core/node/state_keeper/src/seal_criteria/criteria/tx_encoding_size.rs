@@ -1,7 +1,9 @@
 use multivm::utils::get_bootloader_encoding_space;
 use zksync_types::ProtocolVersionId;
 
-use crate::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig};
+use crate::seal_criteria::{
+    ErrorMessage, SealCriterion, SealData, SealResolution, StateKeeperConfig,
+};
 
 #[derive(Debug)]
 pub struct TxEncodingSizeCriterion;
@@ -26,9 +28,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
             .round();
 
         if tx_data.cumulative_size > reject_bound as usize {
-            SealResolution::Unexecutable(
-                "Transaction cannot be included due to large encoding size".into(),
-            )
+            ErrorMessage::LargeEncodingSize.into()
         } else if block_data.cumulative_size > bootloader_tx_encoding_space as usize {
             SealResolution::ExcludeAndSeal
         } else if block_data.cumulative_size > include_and_seal_bound as usize {
@@ -46,6 +46,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::seal_criteria::ErrorMessage;
 
     #[test]
     fn seal_criterion() {
@@ -82,12 +83,7 @@ mod tests {
             },
             ProtocolVersionId::latest(),
         );
-        assert_eq!(
-            unexecutable_resolution,
-            SealResolution::Unexecutable(
-                "Transaction cannot be included due to large encoding size".into()
-            )
-        );
+        assert_eq!(unexecutable_resolution, ErrorMessage::TxEncodingSize.into());
 
         let exclude_and_seal_resolution = criterion.should_seal(
             &config,

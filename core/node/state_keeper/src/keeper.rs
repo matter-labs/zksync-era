@@ -17,12 +17,13 @@ use super::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
     io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
-    seal_criteria::{ConditionalSealer, SealData, SealResolution},
+    seal_criteria::{
+        ConditionalSealer, ErrorMessage, SealData, SealResolution, UnexecutableReason,
+    },
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     utils::gas_count_from_writes,
 };
-use crate::seal_criteria::UnexecutableReason;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -672,18 +673,20 @@ impl ZkSyncStateKeeper {
                 reason: Halt::NotEnoughGasProvided,
             } => {
                 let error_message = match &exec_result {
-                    TxExecutionResult::BootloaderOutOfGasForTx => "bootloader_tx_out_of_gas",
+                    TxExecutionResult::BootloaderOutOfGasForTx => ErrorMessage::BootloaderOutOfGas,
                     TxExecutionResult::RejectedByVm {
                         reason: Halt::NotEnoughGasProvided,
-                    } => "not_enough_gas_provided_to_start_tx",
+                    } => ErrorMessage::NotEnoughGasProvided,
                     _ => unreachable!(),
                 };
+                let criterion = error_message.as_static_str();
+
                 let resolution = if is_first_tx {
-                    SealResolution::Unexecutable(error_message.into())
+                    error_message.into()
                 } else {
                     SealResolution::ExcludeAndSeal
                 };
-                AGGREGATION_METRICS.inc(error_message, &resolution);
+                AGGREGATION_METRICS.inc(criterion, &resolution);
                 resolution
             }
             TxExecutionResult::RejectedByVm { reason } => {

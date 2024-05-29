@@ -128,7 +128,7 @@ impl TestScenario {
         mut self,
         description: &'static str,
         tx: Transaction,
-        err: Option<String>,
+        err: UnexecutableReason,
     ) -> Self {
         self.actions
             .push_back(ScenarioItem::Reject(description, tx, err));
@@ -281,7 +281,7 @@ enum ScenarioItem {
     IncrementProtocolVersion(&'static str),
     Tx(&'static str, Transaction, TxExecutionResult),
     Rollback(&'static str, Transaction),
-    Reject(&'static str, Transaction, Option<String>),
+    Reject(&'static str, Transaction, UnexecutableReason),
     L2BlockSeal(
         &'static str,
         Option<Box<dyn FnOnce(&UpdatesManager) + Send>>,
@@ -756,20 +756,19 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn reject(&mut self, tx: &Transaction, error: UnexecutableReason) -> anyhow::Result<()> {
+    async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
         let action = self.pop_next_item("reject");
         let ScenarioItem::Reject(_, expected_tx, expected_err) = action else {
             panic!("Unexpected action: {:?}", action);
         };
         assert_eq!(tx, &expected_tx, "Incorrect transaction has been rejected");
-        if let Some(expected_err) = expected_err {
-            assert!(
-                error.to_string().contains(&expected_err),
-                "Transaction was rejected with an unexpected error. Expected part was {}, but the actual error was {}",
-                expected_err,
-                error
-            );
-        }
+        assert!(
+            reason == expected_err,
+            "Transaction was rejected with an unexpected error. Expected part was {}, but the actual error was {}",
+            expected_err,
+            reason
+        );
+
         self.skipping_txs = false;
         Ok(())
     }

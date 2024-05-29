@@ -44,34 +44,6 @@ pub enum Halt {
     FailedToPublishCompressedBytecodes,
 }
 
-impl Halt {
-    pub fn to_metrics_friendly_string(&self) -> String {
-        let result = match self {
-            Halt::ValidationFailed(_) => "ValidationFailed",
-            Halt::PaymasterValidationFailed(_) => "PaymasterValidationFailed",
-            Halt::PrePaymasterPreparationFailed(_) => "PrePaymasterPreparationFailed",
-            Halt::PayForTxFailed(_) => "PayForTxFailed",
-            Halt::FailedToMarkFactoryDependencies(_) => "FailedToMarkFactoryDependencies",
-            Halt::FailedToChargeFee(_) => "FailedToChargeFee",
-            Halt::FromIsNotAnAccount => "FromIsNotAnAccount",
-            Halt::InnerTxError => "InnerTxError",
-            Halt::Unknown(_) => "Unknown",
-            Halt::UnexpectedVMBehavior(_) => "UnexpectedVMBehavior",
-            Halt::BootloaderOutOfGas => "BootloaderOutOfGas",
-            Halt::ValidationOutOfGas => "ValidationOutOfGas",
-            Halt::TooBigGasLimit => "TooBigGasLimit",
-            Halt::NotEnoughGasProvided => "NotEnoughGasProvided",
-            Halt::MissingInvocationLimitReached => "MissingInvocationLimitReached",
-            Halt::FailedToSetL2Block(_) => "FailedToSetL2Block",
-            Halt::FailedToAppendTransactionToL2Block(_) => "FailedToAppendTransactionToL2Block",
-            Halt::VMPanic => "VMPanic",
-            Halt::TracerCustom(_) => "TracerCustom",
-            Halt::FailedToPublishCompressedBytecodes => "FailedToPublishCompressedBytecodes",
-        };
-        result.to_string()
-    }
-}
-
 impl Display for Halt {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

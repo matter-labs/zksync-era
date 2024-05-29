@@ -33,35 +33,97 @@ use super::{
     utils::{gas_count_from_tx_and_metrics, gas_count_from_writes},
 };
 
+fn halt_as_metric_label(halt: &Halt) -> &'static str {
+    match halt {
+        Halt::ValidationFailed(_) => "ValidationFailed",
+        Halt::PaymasterValidationFailed(_) => "PaymasterValidationFailed",
+        Halt::PrePaymasterPreparationFailed(_) => "PrePaymasterPreparationFailed",
+        Halt::PayForTxFailed(_) => "PayForTxFailed",
+        Halt::FailedToMarkFactoryDependencies(_) => "FailedToMarkFactoryDependencies",
+        Halt::FailedToChargeFee(_) => "FailedToChargeFee",
+        Halt::FromIsNotAnAccount => "FromIsNotAnAccount",
+        Halt::InnerTxError => "InnerTxError",
+        Halt::Unknown(_) => "Unknown",
+        Halt::UnexpectedVMBehavior(_) => "UnexpectedVMBehavior",
+        Halt::BootloaderOutOfGas => "BootloaderOutOfGas",
+        Halt::ValidationOutOfGas => "ValidationOutOfGas",
+        Halt::TooBigGasLimit => "TooBigGasLimit",
+        Halt::NotEnoughGasProvided => "NotEnoughGasProvided",
+        Halt::MissingInvocationLimitReached => "MissingInvocationLimitReached",
+        Halt::FailedToSetL2Block(_) => "FailedToSetL2Block",
+        Halt::FailedToAppendTransactionToL2Block(_) => "FailedToAppendTransactionToL2Block",
+        Halt::VMPanic => "VMPanic",
+        Halt::TracerCustom(_) => "TracerCustom",
+        Halt::FailedToPublishCompressedBytecodes => "FailedToPublishCompressedBytecodes",
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ErrorMessage {
+    TxEncodingSize,
+    LargeEncodingSize,
+    PubdataLimit,
+    ProofWillFail,
+    TooMuchGas,
+    OutOfGasForBatchTip,
+    BootloaderOutOfGas,
+    NotEnoughGasProvided,
+}
+
+impl ErrorMessage {
+    pub fn as_static_str(&self) -> &'static str {
+        match &self {
+            ErrorMessage::TxEncodingSize => {
+                "Transaction cannot be included due to large encoding size"
+            }
+            ErrorMessage::LargeEncodingSize => {
+                "Transaction cannot be included due to large encoding size"
+            }
+            ErrorMessage::PubdataLimit => "Transaction cannot be sent to L1 due to pubdata limits",
+            ErrorMessage::ProofWillFail => "ZK proof cannot be generated for a transaction",
+            ErrorMessage::TooMuchGas => "Transaction requires too much gas",
+            ErrorMessage::OutOfGasForBatchTip => "Not enough gas for batch tip",
+            ErrorMessage::BootloaderOutOfGas => "Bootloader ran out of gas",
+            ErrorMessage::NotEnoughGasProvided => "Not enough gas provided",
+        }
+    }
+}
+
 /// Represents the reason variants for why a transaction was considered unexecutable.
 ///
 /// This enum can capture either a hardcoded textual message or a more structured
 /// reason encapsulated in a `Halt` type.
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnexecutableReason {
-    Text(String),
+    Text(ErrorMessage),
     Halt(Halt),
 }
 
 impl UnexecutableReason {
-    pub fn to_metrics_friendly_string(&self) -> String {
+    pub fn as_metric_label(&self) -> &'static str {
         match self {
-            UnexecutableReason::Text(text) => text.clone(),
-            UnexecutableReason::Halt(halt) => halt.to_metrics_friendly_string(),
+            UnexecutableReason::Text(text) => text.as_static_str(),
+            UnexecutableReason::Halt(halt) => halt_as_metric_label(halt),
         }
     }
 }
 
-impl From<&str> for UnexecutableReason {
-    fn from(text: &str) -> Self {
-        UnexecutableReason::Text(text.to_string())
+impl From<ErrorMessage> for SealResolution {
+    fn from(message: ErrorMessage) -> Self {
+        SealResolution::Unexecutable(UnexecutableReason::Text(message))
+    }
+}
+
+impl From<&Halt> for SealResolution {
+    fn from(halt: &Halt) -> Self {
+        SealResolution::Unexecutable(UnexecutableReason::Halt(halt.clone()))
     }
 }
 
 impl fmt::Display for UnexecutableReason {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            UnexecutableReason::Text(text) => write!(f, "{}", text),
+            UnexecutableReason::Text(text) => write!(f, "{}", text.as_static_str()),
             UnexecutableReason::Halt(halt) => write!(f, "{}", halt),
         }
     }

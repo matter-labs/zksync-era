@@ -41,7 +41,7 @@ pub enum TxExecutionStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub struct TxExecutionResult {
     status: TxExecutionStatus,
-    reason: Option<String>,
+    reason: Option<&'static str>,
 }
 
 impl TxExecutionType {
@@ -92,7 +92,7 @@ pub struct StateKeeperMetrics {
 }
 
 impl StateKeeperMetrics {
-    pub fn inc_rejected_txs(&self, reason: String) {
+    pub fn inc_rejected_txs(&self, reason: &'static str) {
         self.tx_execution_result[&TxExecutionResult {
             status: TxExecutionStatus::Rejected,
             reason: Some(reason),
@@ -108,7 +108,7 @@ impl StateKeeperMetrics {
             .inc();
     }
 
-    pub fn inc_reverted_txs(&self, reason: String) {
+    pub fn inc_reverted_txs(&self, reason: &'static str) {
         self.tx_execution_result[&TxExecutionResult {
             status: TxExecutionStatus::Reverted,
             reason: Some(reason),

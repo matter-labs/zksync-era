@@ -303,10 +303,10 @@ impl StateKeeperIO for ExternalIO {
         anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
     }
 
-    async fn reject(&mut self, tx: &Transaction, error: UnexecutableReason) -> anyhow::Result<()> {
+    async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
         // We are replaying the already executed transactions so no rejections are expected to occur.
         anyhow::bail!(
-            "Requested rejection of transaction {:?} because of the following error: {error}. \
+            "Requested rejection of transaction {:?} because of the following error: {reason}. \
              This is not supported on external node",
             tx.hash()
         );
