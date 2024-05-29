@@ -666,7 +666,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#cd631c9a1d61ec21d7bd22eb74949d43ecfad0fd"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -683,7 +683,6 @@ dependencies = [
  "lazy_static",
  "num-modular",
  "num_cpus",
- "packed_simd",
  "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git)",
  "rand 0.8.5",
  "rayon",
@@ -1435,7 +1434,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#cd631c9a1d61ec21d7bd22eb74949d43ecfad0fd"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.78",
@@ -2509,7 +2508,7 @@ version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?rev=3d33e06#3d33e069d9d263f3a9626d235ac6dc6c49179965"
 dependencies = [
  "bindgen 0.59.2",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.4",
  "derivative",
  "futures 0.3.30",
  "futures-locks",
@@ -2523,10 +2522,10 @@ source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?rev=3d33e
 dependencies = [
  "bit-vec",
  "cfg-if 1.0.0",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.4",
  "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper)",
  "gpu-ffi",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "num_cpus",
  "rand 0.4.6",
  "serde",
@@ -2919,6 +2918,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "indicatif"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d207dc617c7a380ab07ff572a6e52fa202a2a8f355860ac9c38e23f8196be1b"
+dependencies = [
+ "console",
+ "lazy_static",
+ "number_prefix",
+ "regex",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3191,13 +3202,16 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#1d27bf6ce3648d3a6c6c89e7861519a9fe381353"
 dependencies = [
  "boojum",
  "derivative",
+ "hex",
+ "once_cell",
  "rayon",
  "serde",
  "serde_json",
+ "serde_with",
  "zkevm_circuits 1.5.0",
 ]
 
@@ -3888,6 +3902,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "number_prefix"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
+
+[[package]]
 name = "object"
 version = "0.32.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4101,16 +4121,6 @@ dependencies = [
  "elliptic-curve 0.13.8",
  "primeorder",
  "sha2 0.10.8",
-]
-
-[[package]]
-name = "packed_simd"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f9f08af0c877571712e2e3e686ad79efad9657dbf0f7c3c8ba943ff6c38932d"
-dependencies = [
- "cfg-if 1.0.0",
- "num-traits",
 ]
 
 [[package]]
@@ -4874,9 +4884,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.10.3"
+version = "1.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62dbe01f0b06f9d8dc7d49e05a0785f153b00b2c227856282f671e0318c9b15"
+checksum = "c117dbdfde9c8308975b6a18d71f3f385c89461f7b3fb054288ecf2a2058ba4c"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -5615,6 +5625,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "678b5a069e50bf00ecd22d0cd8ddf7c236f68581b03db652061ed5eb13a312ff"
 dependencies = [
  "base64 0.13.1",
+ "hex",
  "serde",
  "serde_with_macros",
 ]
@@ -7071,6 +7082,7 @@ dependencies = [
  "circuit_definitions 1.5.0",
  "clap 4.4.6",
  "hex",
+ "indicatif",
  "itertools 0.10.5",
  "md5",
  "once_cell",
@@ -7589,7 +7601,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#9bbf7ffd2c38ee8b9667e96eaf0c111037fe976f"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#0c5cdca00cca4fa0a8c49147a11048c24f8a4b12"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -7658,7 +7670,7 @@ dependencies = [
 [[package]]
 name = "zkevm-assembly"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.5.0#2faea98303377cad71f4c7d8dacb9c6546874602"
+source = "git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.5.0#48303aa435810adb12e277494e5dae3764313330"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -7740,7 +7752,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#a93a3a5c34ec1ec31d73191d11ab00b4d8215a3f"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#b7a86c739e8a8f88e788e90893c6e7496f6d7dfc"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
@@ -7798,7 +7810,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#109d9f734804a8b9dc0531c0b576e2a0f55a40de"
+source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#28d2edabf902ea9b08f6a26a4506831fd89346b9"
 dependencies = [
  "bitflags 2.4.2",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -7849,7 +7861,7 @@ dependencies = [
  "codegen",
  "crossbeam 0.8.4",
  "derivative",
- "env_logger 0.9.3",
+ "env_logger 0.11.2",
  "hex",
  "rand 0.4.6",
  "rayon",
@@ -7865,7 +7877,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#1d27bf6ce3648d3a6c6c89e7861519a9fe381353"
 dependencies = [
  "bincode",
  "circuit_definitions 1.5.0",
@@ -7874,12 +7886,13 @@ dependencies = [
  "crossbeam 0.8.4",
  "curl",
  "derivative",
- "env_logger 0.11.2",
+ "env_logger 0.9.3",
  "hex",
  "kzg",
  "lazy_static",
  "rand 0.4.6",
  "rayon",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
