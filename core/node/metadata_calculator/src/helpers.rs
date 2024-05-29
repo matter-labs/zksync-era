@@ -634,7 +634,10 @@ impl L1BatchWithLogs {
                     StorageKey::new(AccountTreeId::new(tree_write.address), tree_write.key);
                 TreeInstruction::write(storage_key, tree_write.leaf_index, tree_write.value)
             });
-            let reads = protective_reads.into_iter().map(TreeInstruction::Read);
+            let reads = protective_reads
+                .into_iter()
+                .sorted()
+                .map(TreeInstruction::Read);
 
             // `writes` and `reads` are already sorted, we only need to merge them.
             writes
