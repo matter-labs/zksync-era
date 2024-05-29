@@ -10,8 +10,7 @@ use crate::{
             initialize_bridges::output::InitializeBridgeOutput, paymaster::DeployPaymasterOutput,
             register_chain::output::RegisterChainOutput,
         },
-        DatabasesConfig, EcosystemConfig, GeneralConfig, GenesisConfig, ReadConfig, SaveConfig,
-        Secrets,
+        DatabasesConfig, GeneralConfig, GenesisConfig, ReadConfig, SaveConfig, Secrets,
     },
     consts::{
         CONFIGS_PATH, CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE, WALLETS_FILE,
@@ -49,24 +48,30 @@ pub(crate) fn update_genesis(shell: &Shell, config: &ChainConfig) -> anyhow::Res
     Ok(())
 }
 
-pub(crate) fn update_secrets(
+pub(crate) fn update_database_secrets(
     shell: &Shell,
     config: &ChainConfig,
     db_config: &DatabasesConfig,
-    ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     let path = config.configs.join(SECRETS_FILE);
     let mut secrets = Secrets::read(shell, &path)?;
     secrets.database.server_url = db_config.server.full_url();
     secrets.database.prover_url = db_config.prover.full_url();
-    secrets
-        .l1
-        .l1_rpc_url
-        .clone_from(&ecosystem_config.l1_rpc_url);
     secrets.save(shell, path)?;
     Ok(())
 }
 
+pub(crate) fn update_l1_rpc_url_secret(
+    shell: &Shell,
+    config: &ChainConfig,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    let path = config.configs.join(SECRETS_FILE);
+    let mut secrets = Secrets::read(shell, &path)?;
+    secrets.l1.l1_rpc_url = l1_rpc_url;
+    secrets.save(shell, path)?;
+    Ok(())
+}
 pub(crate) fn update_general_config(shell: &Shell, config: &ChainConfig) -> anyhow::Result<()> {
     let path = config.configs.join(GENERAL_FILE);
     let mut general = GeneralConfig::read(shell, &path)?;

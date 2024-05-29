@@ -1,7 +1,7 @@
 use clap::{command, Args, Parser, Subcommand};
 use zksync_types::url::SensitiveUrl;
 
-use crate::commands::{self, delete, get_file_info, requeue, restart};
+use crate::commands::{self, config, delete, get_file_info, requeue, restart};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -14,14 +14,13 @@ struct ProverCLI {
     config: ProverCLIConfig,
 }
 
-// Note: This is a temporary solution for the configuration of the CLI. In the
-// future, we should have an `config` command to set the configuration in a
-// `.config` file.
+// Note: this is set via the `config` command. Values are taken from the file pointed
+// by the env var `PLI__CONFIG` or from `$ZKSYNC_HOME/etc/pliconfig` if unset.
 #[derive(Args)]
 pub struct ProverCLIConfig {
     #[clap(
-        long,
-        default_value = "postgres://postgres:notsecurepassword@localhost/prover_local"
+        default_value = "postgres://postgres:notsecurepassword@localhost/prover_local",
+        env("PLI__DB_URL")
     )]
     pub db_url: SensitiveUrl,
 }
@@ -29,6 +28,7 @@ pub struct ProverCLIConfig {
 #[derive(Subcommand)]
 enum ProverCommand {
     FileInfo(get_file_info::Args),
+    Config(ProverCLIConfig),
     Delete(delete::Args),
     #[command(subcommand)]
     Status(commands::StatusCommand),
@@ -40,6 +40,7 @@ pub async fn start() -> anyhow::Result<()> {
     let ProverCLI { command, config } = ProverCLI::parse();
     match command {
         ProverCommand::FileInfo(args) => get_file_info::run(args).await?,
+        ProverCommand::Config(cfg) => config::run(cfg).await?,
         ProverCommand::Delete(args) => delete::run(args).await?,
         ProverCommand::Status(cmd) => cmd.run(config).await?,
         ProverCommand::Requeue(args) => requeue::run(args, config).await?,

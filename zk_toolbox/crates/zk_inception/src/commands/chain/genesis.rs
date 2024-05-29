@@ -13,7 +13,8 @@ use super::{args::genesis::GenesisArgsFinal, init::load_global_config};
 use crate::{
     commands::{chain::args::genesis::GenesisArgs, server::run_server_genesis},
     configs::{
-        update_general_config, update_secrets, ChainConfig, DatabasesConfig, EcosystemConfig,
+        update_database_secrets, update_general_config, ChainConfig, DatabasesConfig,
+        EcosystemConfig,
     },
 };
 
@@ -28,7 +29,7 @@ pub async fn run(
     let chain_config = load_global_config(&ecosystem_config)?;
     let args = args.fill_values_with_prompt(&chain_config);
 
-    genesis(args, shell, &chain_config, &ecosystem_config).await?;
+    genesis(args, shell, &chain_config).await?;
     logger::outro("Genesis completed successfully");
 
     Ok(())
@@ -38,7 +39,6 @@ pub async fn genesis(
     args: GenesisArgsFinal,
     shell: &Shell,
     config: &ChainConfig,
-    ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     // Clean the rocksdb
     shell.remove_path(&config.rocks_db_path)?;
@@ -48,7 +48,7 @@ pub async fn genesis(
         .databases_config()
         .context("Database config was not fully generated")?;
     update_general_config(shell, config)?;
-    update_secrets(shell, config, &db_config, ecosystem_config)?;
+    update_database_secrets(shell, config, &db_config)?;
 
     logger::note(
         "Selected config:",

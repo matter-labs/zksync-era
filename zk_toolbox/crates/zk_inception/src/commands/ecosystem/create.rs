@@ -73,7 +73,6 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         chains: chains_path.clone(),
         config: configs_path,
         default_chain: default_chain_name.clone(),
-        l1_rpc_url: args.l1_rpc_url,
         era_chain_id: ERA_CHAIN_ID,
         prover_version: chain_config.prover_version,
         wallet_creation: args.wallet_creation,
