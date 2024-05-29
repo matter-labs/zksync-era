@@ -4,6 +4,9 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize, Serializer};
+use types::{
+    BaseToken, ChainId, L1BatchCommitDataGeneratorMode, L1Network, ProverMode, WalletCreation,
+};
 use xshell::Shell;
 
 use crate::{
@@ -13,8 +16,7 @@ use crate::{
     },
     create_localhost_wallets,
     traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    BaseToken, ChainId, ContractsConfig, GenesisConfig, L1BatchCommitDataGeneratorMode, L1Network,
-    ProverMode, WalletCreation, WalletsConfig,
+    ContractsConfig, GenesisConfig, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain

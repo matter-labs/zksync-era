@@ -1,11 +1,13 @@
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+
 use crate::{
     consts::GENERAL_FILE,
     traits::{
         PathWithBasePath, ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath,
     },
 };
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GeneralConfig {

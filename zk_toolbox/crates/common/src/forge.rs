@@ -1,16 +1,20 @@
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
-use alloy_primitives::{hex::ToHex, Address, B256, U256};
 use clap::{Parser, ValueEnum};
-use ethers::middleware::Middleware;
-use ethers::prelude::{LocalWallet, Signer};
+use ethers::{
+    middleware::Middleware,
+    prelude::{LocalWallet, Signer},
+    types::{Address, H256, U256},
+    utils::hex::ToHex,
+};
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 use xshell::{cmd, Shell};
 
-use crate::cmd::Cmd;
-use crate::ethereum::create_ethers_client;
+use crate::{cmd::Cmd, ethereum::create_ethers_client};
 
 /// Forge is a wrapper around the forge binary.
 pub struct Forge {
@@ -91,17 +95,17 @@ impl ForgeScript {
     }
 
     /// Adds the private key of the deployer account.
-    pub fn with_private_key(mut self, private_key: B256) -> Self {
+    pub fn with_private_key(mut self, private_key: H256) -> Self {
         self.args.add_arg(ForgeScriptArg::PrivateKey {
             private_key: private_key.encode_hex(),
         });
         self
     }
     // Do not start the script if balance is not enough
-    pub fn private_key(&self) -> Option<B256> {
+    pub fn private_key(&self) -> Option<H256> {
         self.args.args.iter().find_map(|a| {
             if let ForgeScriptArg::PrivateKey { private_key } = a {
-                Some(B256::from_str(private_key).unwrap())
+                Some(H256::from_str(private_key).unwrap())
             } else {
                 None
             }
@@ -120,7 +124,7 @@ impl ForgeScript {
 
     pub fn address(&self) -> Option<Address> {
         self.private_key().and_then(|a| {
-            LocalWallet::from_bytes(a.as_slice())
+            LocalWallet::from_bytes(a.as_bytes())
                 .ok()
                 .map(|a| Address::from_slice(a.address().as_bytes()))
         })
@@ -135,7 +139,6 @@ impl ForgeScript {
         };
         let client = create_ethers_client(private_key, rpc_url, None)?;
         let balance = client.get_balance(client.address(), None).await?;
-        let balance = U256::from_limbs(balance.0);
         Ok(balance > minimum_value)
     }
 }

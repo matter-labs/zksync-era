@@ -2,6 +2,7 @@ use std::{cell::OnceCell, path::PathBuf};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
+use types::{ChainId, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 
 use crate::{
@@ -11,9 +12,8 @@ use crate::{
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
-    miscellaneous::{ChainId, L1Network, ProverMode},
     traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ChainConfigInternal, ContractsConfig, WalletCreation, WalletsConfig,
+    ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
 };
 
 /// Ecosystem configuration file. This file is created in the chain

@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 
+use ethers::types::{Address, H256};
+use serde::{Deserialize, Serialize};
+
 use crate::{
     consts::ERC20_CONFIGS_FILE,
     traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
 };
-use alloy_primitives::{Address, B256};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployL1Output {
     pub create2_factory_addr: Address,
-    pub create2_factory_salt: B256,
+    pub create2_factory_salt: H256,
     pub deployer_addr: Address,
     pub era_chain_id: u32,
     pub l1_chain_id: u32,
@@ -32,9 +33,9 @@ pub struct DeployL1ContractsConfigOutput {
     pub diamond_init_priority_tx_max_pubdata: u64,
     pub diamond_init_pubdata_pricing_mode: u64,
     pub priority_tx_max_gas_limit: u64,
-    pub recursion_circuits_set_vks_hash: B256,
-    pub recursion_leaf_level_vk_hash: B256,
-    pub recursion_node_level_vk_hash: B256,
+    pub recursion_circuits_set_vks_hash: H256,
+    pub recursion_leaf_level_vk_hash: H256,
+    pub recursion_node_level_vk_hash: H256,
     pub diamond_cut_data: String,
 }
 

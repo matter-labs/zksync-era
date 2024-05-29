@@ -11,7 +11,6 @@ description.workspace = true
 keywords.workspace = true
 
 [dependencies]
-alloy-primitives.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 cliclack.workspace = true
@@ -25,6 +24,7 @@ xshell.workspace = true
 ethers.workspace = true
 common.workspace = true
 tokio.workspace = true
+types.workspace = true
 strum_macros.workspace = true
 strum.workspace = true
 toml.workspace = true

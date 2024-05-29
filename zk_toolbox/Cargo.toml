@@ -2,6 +2,7 @@
 members = [
     "crates/common",
     "crates/config",
+    "crates/types",
     "crates/zk_inception",
     "crates/zk_supervisor",
 ]
@@ -23,9 +24,9 @@ keywords = ["zk", "cryptography", "blockchain", "ZKStack", "zkSync"]
 # Local dependencies
 common = { path = "crates/common" }
 config = { path = "crates/config" }
+types = { path = "crates/types" }
 
 # External dependencies
-alloy-primitives = { version = "0.7.4", features = ["serde", "getrandom", "rand"] }
 anyhow = "1.0.82"
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
 cliclack = "0.2.5"

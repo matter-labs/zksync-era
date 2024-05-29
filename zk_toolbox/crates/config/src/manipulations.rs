@@ -1,6 +1,8 @@
-use crate::consts::{CONFIGS_PATH, WALLETS_FILE};
 use std::path::Path;
+
 use xshell::Shell;
+
+use crate::consts::{CONFIGS_PATH, WALLETS_FILE};
 
 pub fn copy_configs(shell: &Shell, link_to_code: &Path, target_path: &Path) -> anyhow::Result<()> {
     let original_configs = link_to_code.join(CONFIGS_PATH);

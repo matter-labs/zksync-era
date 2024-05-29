@@ -1,4 +1,4 @@
-use crate::ChainId;
+use types::ChainId;
 
 /// Name of the main configuration file
 pub(crate) const CONFIG_NAME: &str = "ZkStack.yaml";

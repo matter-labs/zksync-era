@@ -5,9 +5,10 @@ use xshell::Shell;
 
 use crate::commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal};
 use config::{
-    create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig, ChainId,
+    create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
     EcosystemConfig,
 };
+use types::ChainId;
 
 pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;

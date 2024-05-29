@@ -1,12 +1,12 @@
+use common::wallets::Wallet;
+use ethers::types::H256;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     consts::WALLETS_FILE,
     traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
 };
-use alloy_primitives::B256;
-use common::wallets::Wallet;
-use rand::Rng;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WalletsConfig {
@@ -39,11 +39,11 @@ impl WalletsConfig {
             governor: Wallet::empty(),
         }
     }
-    pub fn deployer_private_key(&self) -> Option<B256> {
+    pub fn deployer_private_key(&self) -> Option<H256> {
         self.deployer.as_ref().and_then(|wallet| wallet.private_key)
     }
 
-    pub fn governor_private_key(&self) -> Option<B256> {
+    pub fn governor_private_key(&self) -> Option<H256> {
         self.governor.private_key
     }
 }

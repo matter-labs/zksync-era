@@ -6,7 +6,6 @@ use xshell::Shell;
 
 use crate::forge_utils::check_the_balance;
 use crate::forge_utils::fill_forge_private_key;
-use alloy_primitives::{Address, B256};
 use config::{
     forge_interface::{
         accept_ownership::AcceptOwnershipInput, script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
@@ -14,12 +13,13 @@ use config::{
     traits::SaveConfig,
     EcosystemConfig,
 };
+use ethers::types::{Address, H256};
 
 pub async fn accept_admin(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
-    governor: Option<B256>,
+    governor: Option<H256>,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -48,7 +48,7 @@ pub async fn accept_owner(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
-    governor: Option<B256>,
+    governor: Option<H256>,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
 ) -> anyhow::Result<()> {
@@ -77,7 +77,7 @@ async fn accept_ownership(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
-    governor: Option<B256>,
+    governor: Option<H256>,
     target_address: Address,
     mut forge: ForgeScript,
 ) -> anyhow::Result<()> {

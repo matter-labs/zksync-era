@@ -1,9 +1,11 @@
+use ethers::types::Address;
+use serde::{Deserialize, Serialize};
+use types::ChainId;
+
 use crate::{
     traits::{ReadConfig, SaveConfig},
-    ChainConfig, ChainId,
+    ChainConfig,
 };
-use alloy_primitives::Address;
-use serde::{Deserialize, Serialize};
 
 impl ReadConfig for InitializeBridgeInput {}
 impl SaveConfig for InitializeBridgeInput {}

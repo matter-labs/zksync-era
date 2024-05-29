@@ -11,7 +11,7 @@ use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
     defaults::LOCAL_RPC_URL,
 };
-use config::{L1Network, WalletCreation};
+use types::{L1Network, WalletCreation};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct EcosystemCreateArgs {

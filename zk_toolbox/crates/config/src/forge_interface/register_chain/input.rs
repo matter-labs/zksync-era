@@ -1,10 +1,12 @@
-use crate::{
-    traits::{ReadConfig, SaveConfig},
-    ChainConfig, ChainId, ContractsConfig, L1BatchCommitDataGeneratorMode,
-};
-use alloy_primitives::Address;
+use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use types::{ChainId, L1BatchCommitDataGeneratorMode};
+
+use crate::{
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, ContractsConfig,
+};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Bridgehub {

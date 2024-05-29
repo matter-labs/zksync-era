@@ -8,8 +8,9 @@ use config::{
     },
     traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, DatabasesConfig, EcosystemConfig, GeneralConfig, GenesisConfig,
-    ProverMode, SecretsConfig,
+     SecretsConfig,
 };
+use types::ProverMode;
 
 pub(crate) fn update_genesis(shell: &Shell, config: &ChainConfig) -> anyhow::Result<()> {
     let mut genesis = GenesisConfig::read_with_base_path(shell, &config.configs)?;

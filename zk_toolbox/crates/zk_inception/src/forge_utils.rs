@@ -1,11 +1,11 @@
-use alloy_primitives::{B256, U256};
 use anyhow::anyhow;
 use common::forge::ForgeScript;
 use config::MINIMUM_BALANCE_FOR_WALLET;
+use ethers::types::{H256, U256};
 
 pub fn fill_forge_private_key(
     mut forge: ForgeScript,
-    private_key: Option<B256>,
+    private_key: Option<H256>,
 ) -> anyhow::Result<ForgeScript> {
     if !forge.wallet_args_passed() {
         forge =

@@ -39,9 +39,10 @@ use config::{
     traits::{
         PathWithBasePath, ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath,
     },
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, L1Network, ProverMode,
-    WalletCreation, AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
+    AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
 };
+use types::{L1Network, ProverMode, WalletCreation};
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
