@@ -4,7 +4,7 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 use zksync_dal::{pruning_dal::PruningInfo, Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -36,7 +36,7 @@ pub struct DbPrunerConfig {
     pub minimum_l1_batch_age: Duration,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct DbPrunerHealth {
     #[serde(skip_serializing_if = "Option::is_none")]
     last_soft_pruned_l1_batch: Option<L1BatchNumber>,
@@ -78,23 +78,23 @@ impl DbPruner {
     pub fn new(config: DbPrunerConfig, connection_pool: ConnectionPool<Core>) -> Self {
         let mut conditions: Vec<Arc<dyn PruneCondition>> = vec![
             Arc::new(L1BatchExistsCondition {
-                conn: connection_pool.clone(),
+                pool: connection_pool.clone(),
             }),
             Arc::new(NextL1BatchHasMetadataCondition {
-                conn: connection_pool.clone(),
+                pool: connection_pool.clone(),
             }),
             Arc::new(NextL1BatchWasExecutedCondition {
-                conn: connection_pool.clone(),
+                pool: connection_pool.clone(),
             }),
             Arc::new(ConsistencyCheckerProcessedBatch {
-                conn: connection_pool.clone(),
+                pool: connection_pool.clone(),
             }),
         ];
         if config.minimum_l1_batch_age > Duration::ZERO {
             // Do not add a condition if it's trivial in order to not clutter logs.
             conditions.push(Arc::new(L1BatchOlderThanPruneCondition {
                 minimum_age: config.minimum_l1_batch_age,
-                conn: connection_pool.clone(),
+                pool: connection_pool.clone(),
             }));
         }
 

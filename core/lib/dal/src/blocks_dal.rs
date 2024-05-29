@@ -22,6 +22,7 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
 
+pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptionalMetadata};
 use crate::{
     models::{
         parse_protocol_version,
@@ -265,7 +266,6 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 system_logs,
-                compressed_state_diffs,
                 pubdata_input
             FROM
                 l1_batches
@@ -284,7 +284,7 @@ impl BlocksDal<'_, '_> {
         Ok(l1_batches.into_iter().map(Into::into).collect())
     }
 
-    pub async fn get_storage_l1_batch(
+    async fn get_storage_l1_batch(
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<StorageL1Batch>> {
@@ -300,9 +300,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                eth_prove_tx_id,
-                eth_commit_tx_id,
-                eth_execute_tx_id,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -356,7 +353,6 @@ impl BlocksDal<'_, '_> {
                 bootloader_code_hash,
                 default_aa_code_hash,
                 protocol_version,
-                compressed_state_diffs,
                 system_logs,
                 pubdata_input
             FROM
@@ -1005,9 +1001,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                eth_prove_tx_id,
-                eth_commit_tx_id,
-                eth_execute_tx_id,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -1048,7 +1041,7 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         }
 
-        self.get_l1_batch_with_metadata(block).await
+        self.map_storage_l1_batch(block).await
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum commit tx was sent and confirmed.
@@ -1189,9 +1182,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                eth_prove_tx_id,
-                eth_commit_tx_id,
-                eth_execute_tx_id,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -1241,7 +1231,7 @@ impl BlocksDal<'_, '_> {
         let mut l1_batches = Vec::with_capacity(raw_batches.len());
         for raw_batch in raw_batches {
             let block = self
-                .get_l1_batch_with_metadata(raw_batch)
+                .map_storage_l1_batch(raw_batch)
                 .await
                 .context("get_l1_batch_with_metadata()")?
                 .context("Block should be complete")?;
@@ -1273,9 +1263,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                eth_prove_tx_id,
-                eth_commit_tx_id,
-                eth_execute_tx_id,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -1350,9 +1337,6 @@ impl BlocksDal<'_, '_> {
                         priority_ops_onchain_data,
                         hash,
                         commitment,
-                        eth_prove_tx_id,
-                        eth_commit_tx_id,
-                        eth_execute_tx_id,
                         l2_to_l1_logs,
                         l2_to_l1_messages,
                         used_contract_hashes,
@@ -1479,9 +1463,6 @@ impl BlocksDal<'_, '_> {
                     priority_ops_onchain_data,
                     hash,
                     commitment,
-                    eth_prove_tx_id,
-                    eth_commit_tx_id,
-                    eth_execute_tx_id,
                     l2_to_l1_logs,
                     l2_to_l1_messages,
                     used_contract_hashes,
@@ -1547,9 +1528,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                eth_prove_tx_id,
-                eth_commit_tx_id,
-                eth_execute_tx_id,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -1625,9 +1603,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                eth_prove_tx_id,
-                eth_commit_tx_id,
-                eth_execute_tx_id,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -1745,7 +1720,22 @@ impl BlocksDal<'_, '_> {
         let Some(l1_batch) = self.get_storage_l1_batch(number).await? else {
             return Ok(None);
         };
-        self.get_l1_batch_with_metadata(l1_batch).await
+        self.map_storage_l1_batch(l1_batch).await
+    }
+
+    /// Returns the header and optional metadata for an L1 batch with the specified number. If a batch exists
+    /// but does not have all metadata, it's possible to inspect which metadata is missing.
+    pub async fn get_optional_l1_batch_metadata(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<L1BatchWithOptionalMetadata>> {
+        let Some(l1_batch) = self.get_storage_l1_batch(number).await? else {
+            return Ok(None);
+        };
+        Ok(Some(L1BatchWithOptionalMetadata {
+            header: l1_batch.clone().into(),
+            metadata: l1_batch.try_into(),
+        }))
     }
 
     pub async fn get_l1_batch_tree_data(
@@ -1777,7 +1767,7 @@ impl BlocksDal<'_, '_> {
         }))
     }
 
-    pub async fn get_l1_batch_with_metadata(
+    async fn map_storage_l1_batch(
         &mut self,
         storage_batch: StorageL1Batch,
     ) -> DalResult<Option<L1BatchWithMetadata>> {
