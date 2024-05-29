@@ -13,7 +13,7 @@ use zksync_node_sync::{
     SyncState,
 };
 use zksync_state_keeper::io::common::IoCursor;
-use zksync_types::L2BlockNumber;
+use zksync_types::{L1BatchNumber,L2BlockNumber};
 
 use super::config;
 
@@ -301,6 +301,10 @@ impl<'a> Connection<'a> {
             payload: payload.encode(),
             justification,
         }))
+    }
+
+    pub fn batch(&mut self, ctx: &ctx::Ctx, number: L1BatchNumber) -> Option<(L1BatchWithMetadata,Vec<Payload>)> {
+
     }
 }
 

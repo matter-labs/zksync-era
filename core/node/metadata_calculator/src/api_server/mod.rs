@@ -12,6 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
+use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
@@ -58,6 +59,20 @@ impl TreeEntryWithProof {
             index: src.base.leaf_index,
             merkle_path,
         }
+    }
+
+    /// Verifies the entry.
+    pub fn verify(&self, key: U256, trusted_root_hash: H256) -> anyhow::Result<()> {
+        let mut merkle_path = self.merkle_path.clone();
+        merkle_path.reverse();
+        zksync_merkle_tree::TreeEntryWithProof {
+            base: zksync_merkle_tree::TreeEntry {
+                value: self.value,
+                leaf_index: self.index,
+                key,
+            },
+            merkle_path,
+        }.verify(&Blake2Hasher,trusted_root_hash)
     }
 }
 

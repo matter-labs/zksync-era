@@ -12,20 +12,20 @@ pub struct StoredBatchInfo<'a>(pub &'a L1BatchWithMetadata);
 /// Compact representation the the `StoredBatchInfo` from `IExecutor.sol`.
 #[derive(Debug,Clone)]
 pub struct StoredBatchInfoCompact {
-    batch_number: u64,
-    batch_hash: H256,
-    index_repeated_storage_changes: u64,
-    number_of_layer1_txs: U256,
-    priority_operations_hash: H256,
-    l2_logs_tree_root: H256,
-    timestamp: U256,
-    commitment: H256,
+    pub batch_number: u64,
+    pub batch_hash: H256,
+    pub index_repeated_storage_changes: u64,
+    pub number_of_layer1_txs: U256,
+    pub priority_operations_hash: H256,
+    pub l2_logs_tree_root: H256,
+    pub timestamp: U256,
+    pub commitment: H256,
 }
 
 impl StoredBatchInfoCompact {
     /// `_hashStoredBatchInfo` from `Executor.sol`.
-    pub fn hash(self) -> H256 {
-        H256(web3::keccak256(&ethabi::encode(&[self.into_token()])))
+    pub fn hash(&self) -> H256 {
+        H256(web3::keccak256(&ethabi::encode(&[self.clone().into_token()])))
     }
 }
 

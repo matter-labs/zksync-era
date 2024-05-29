@@ -8779,6 +8779,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_config",
+ "zksync_crypto",
  "zksync_dal",
  "zksync_health_check",
  "zksync_merkle_tree",
