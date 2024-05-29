@@ -17,9 +17,7 @@ use super::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
     io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
-    seal_criteria::{
-        ConditionalSealer, ErrorMessage, SealData, SealResolution, UnexecutableReason,
-    },
+    seal_criteria::{ConditionalSealer, ErrorMessage, SealData, SealResolution},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     utils::gas_count_from_writes,
@@ -689,9 +687,7 @@ impl ZkSyncStateKeeper {
                 AGGREGATION_METRICS.inc(criterion, &resolution);
                 resolution
             }
-            TxExecutionResult::RejectedByVm { reason } => {
-                SealResolution::Unexecutable(UnexecutableReason::Halt(reason.clone()))
-            }
+            TxExecutionResult::RejectedByVm { reason } => reason.clone().into(),
             TxExecutionResult::Success {
                 tx_result,
                 tx_metrics,

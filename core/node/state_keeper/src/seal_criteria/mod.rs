@@ -114,9 +114,9 @@ impl From<ErrorMessage> for SealResolution {
     }
 }
 
-impl From<&Halt> for SealResolution {
-    fn from(halt: &Halt) -> Self {
-        SealResolution::Unexecutable(UnexecutableReason::Halt(halt.clone()))
+impl From<Halt> for SealResolution {
+    fn from(halt: Halt) -> Self {
+        SealResolution::Unexecutable(UnexecutableReason::Halt(halt))
     }
 }
 
