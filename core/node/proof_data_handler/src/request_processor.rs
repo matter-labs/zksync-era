@@ -126,13 +126,13 @@ impl RequestProcessor {
                 "Missing l1 verifier info for protocol version {minor_version}",
             ));
 
-        let storage_batch = self
+        let batch_header = self
             .pool
             .connection()
             .await
             .unwrap()
             .blocks_dal()
-            .get_storage_l1_batch(l1_batch_number)
+            .get_l1_batch_header(l1_batch_number)
             .await
             .unwrap()
             .unwrap();
@@ -140,7 +140,7 @@ impl RequestProcessor {
         let eip_4844_blobs = match self.commitment_mode {
             L1BatchCommitmentMode::Validium => Eip4844Blobs::empty(),
             L1BatchCommitmentMode::Rollup => {
-                let blobs = storage_batch.pubdata_input.as_deref().unwrap_or_else(|| {
+                let blobs = batch_header.pubdata_input.as_deref().unwrap_or_else(|| {
                     panic!(
                         "expected pubdata, but it is not available for batch {l1_batch_number:?}"
                     )

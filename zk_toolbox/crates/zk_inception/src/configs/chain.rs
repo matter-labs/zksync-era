@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize, Serializer};
 use xshell::Shell;
 
 use crate::{
-    configs::{ContractsConfig, GenesisConfig, ReadConfig, SaveConfig, WalletsConfig},
-    consts::{CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, WALLETS_FILE},
+    configs::{ContractsConfig, GenesisConfig, ReadConfig, SaveConfig, Secrets, WalletsConfig},
+    consts::{CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE},
     types::{BaseToken, ChainId, L1BatchCommitDataGeneratorMode, L1Network, ProverMode},
     wallets::{create_localhost_wallets, WalletCreation},
 };
@@ -80,6 +80,10 @@ impl ChainConfig {
     }
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
         ContractsConfig::read(self.get_shell(), self.configs.join(CONTRACTS_FILE))
+    }
+
+    pub fn get_secrets_config(&self) -> anyhow::Result<Secrets> {
+        Secrets::read(self.get_shell(), self.configs.join(SECRETS_FILE))
     }
 
     pub fn path_to_foundry(&self) -> PathBuf {
