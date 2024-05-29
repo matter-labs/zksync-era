@@ -326,6 +326,10 @@ impl Aggregator {
             .await
             .unwrap()
             .unwrap();
+
+        // `l1_verifier_config.recursion_scheduler_level_vk_hash` is a VK hash that L1 uses.
+        // We may have multiple versions with different verification keys, so we check only for proofs that use
+        // keys that correspond to one on L1.
         let allowed_patch_versions = storage
             .protocol_versions_dal()
             .get_patch_versions_for_vk(
