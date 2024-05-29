@@ -1,6 +1,7 @@
 //! Tests for `MiniMerkleTree`.
 
 use super::*;
+use std::collections::VecDeque;
 
 #[test]
 fn tree_depth_is_computed_correctly() {
@@ -158,7 +159,7 @@ fn verify_merkle_proof(
 
 fn verify_range_merkle_proof(
     items: &[[u8; 88]],
-    mut head_index: usize,
+    mut start_index: usize,
     start_path: &[H256],
     end_path: &[H256],
     merkle_root: H256,
@@ -166,29 +167,23 @@ fn verify_range_merkle_proof(
     assert_eq!(start_path.len(), end_path.len());
 
     let hasher = KeccakHasher;
-    let mut hashes: Vec<_> = items.iter().map(|item| hasher.hash_bytes(item)).collect();
-    let mut level_len = hashes.len();
+    let mut hashes: VecDeque<_> = items.iter().map(|item| hasher.hash_bytes(item)).collect();
 
-    for (left_item, right_item) in start_path.iter().zip(end_path.iter()) {
-        let parity = head_index % 2;
-        let next_level_len = level_len / 2 + (parity | (level_len % 2));
-
-        for i in 0..next_level_len {
-            let lhs = if i == 0 && parity == 1 {
-                left_item
-            } else {
-                &hashes[2 * i - parity]
-            };
-            let rhs = if i == next_level_len - 1 && (level_len - parity) % 2 == 1 {
-                right_item
-            } else {
-                &hashes[2 * i + 1 - parity]
-            };
-            hashes[i] = hasher.compress(lhs, rhs);
+    for (start_item, end_item) in start_path.iter().zip(end_path.iter()) {
+        if start_index % 2 == 1 {
+            hashes.push_front(*start_item);
+        }
+        if hashes.len() % 2 == 1 {
+            hashes.push_back(*end_item);
         }
 
-        level_len = next_level_len;
-        head_index /= 2;
+        let next_level_len = hashes.len() / 2;
+        for i in 0..next_level_len {
+            hashes[i] = hasher.compress(&hashes[2 * i], &hashes[2 * i + 1]);
+        }
+
+        hashes.drain(next_level_len..);
+        start_index /= 2;
     }
 
     assert_eq!(hashes[0], merkle_root);
