@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                protocol_version,\n                COUNT(*) FILTER (\n                    WHERE\n                        status = 'queued'\n                ) AS queued,\n                COUNT(*) FILTER (\n                    WHERE\n                        status = 'in_progress'\n                ) AS in_progress\n            FROM\n                proof_compression_jobs_fri\n            GROUP BY\n                status,\n                protocol_version\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "queued",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "in_progress",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "9cc6cb602bb0752b51238cfbd568355ae88264eacd2a0c09b116159e76823401"
+}

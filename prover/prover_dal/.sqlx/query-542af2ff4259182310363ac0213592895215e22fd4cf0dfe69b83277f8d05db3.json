@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                recursion_scheduler_level_vk_hash,\n                recursion_node_level_vk_hash,\n                recursion_leaf_level_vk_hash,\n                recursion_circuits_set_vks_hash\n            FROM\n                prover_fri_protocol_versions\n            ORDER BY\n                id DESC\n            LIMIT 1\n            ",
+  "query": "\n            SELECT\n                recursion_scheduler_level_vk_hash,\n                recursion_node_level_vk_hash,\n                recursion_leaf_level_vk_hash,\n                recursion_circuits_set_vks_hash\n            FROM\n                prover_fri_protocol_versions\n            ORDER BY\n                id DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "afc541dc4d550db9a2dacc6d65dd4f092115da1d00dc2122efae9cf070fcb266"
+  "hash": "542af2ff4259182310363ac0213592895215e22fd4cf0dfe69b83277f8d05db3"
 }
