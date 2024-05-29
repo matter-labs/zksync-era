@@ -59,10 +59,6 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
                 .into_iter()
                 .filter(|call| call.target == self.target_contract_address)
             {
-                println!(
-                    "self.target_contract_address = {}",
-                    self.target_contract_address
-                );
                 // We might not get an upgrade operation here, but something else instead
                 // (e.g. `acceptGovernor` call), so if parsing doesn't work, just skip the call.
                 let Ok(upgrade) = ProtocolUpgrade::try_from(call) else {
