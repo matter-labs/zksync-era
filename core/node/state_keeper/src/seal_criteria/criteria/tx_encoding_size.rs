@@ -83,7 +83,10 @@ mod tests {
             },
             ProtocolVersionId::latest(),
         );
-        assert_eq!(unexecutable_resolution, ErrorMessage::TxEncodingSize.into());
+        assert_eq!(
+            unexecutable_resolution,
+            ErrorMessage::LargeEncodingSize.into()
+        );
 
         let exclude_and_seal_resolution = criterion.should_seal(
             &config,
