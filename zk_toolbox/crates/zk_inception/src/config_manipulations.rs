@@ -8,7 +8,7 @@ use config::{
     },
     traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, DatabasesConfig, EcosystemConfig, GeneralConfig, GenesisConfig,
-     SecretsConfig,
+    SecretsConfig,
 };
 use types::ProverMode;
 
@@ -43,8 +43,8 @@ pub(crate) fn update_secrets(
 pub(crate) fn update_general_config(shell: &Shell, config: &ChainConfig) -> anyhow::Result<()> {
     let mut general = GeneralConfig::read_with_base_path(shell, &config.configs)?;
     general.db.state_keeper_db_path =
-        shell.create_dir(config.rocks_db_path().join(ROCKS_DB_STATE_KEEPER))?;
-    general.db.merkle_tree.path = shell.create_dir(config.rocks_db_path().join(ROCKS_DB_TREE))?;
+        shell.create_dir(config.rocks_db_path.join(ROCKS_DB_STATE_KEEPER))?;
+    general.db.merkle_tree.path = shell.create_dir(config.rocks_db_path.join(ROCKS_DB_TREE))?;
     if config.prover_version != ProverMode::NoProofs {
         general.eth.sender.proof_sending_mode = "ONLY_REAL_PROOFS".to_string();
     }

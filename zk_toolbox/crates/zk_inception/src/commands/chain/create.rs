@@ -48,7 +48,6 @@ pub(crate) fn create_chain_inner(
     let default_chain_name = args.chain_name.clone();
     let chain_path = ecosystem_config.chains.join(&default_chain_name);
     let chain_configs_path = create_local_configs_dir(shell, &chain_path)?;
-    // let chain_db_path = chain_path.join(LOCAL_DB_PATH);
     let chain_id = ecosystem_config.list_of_chains().len() as u32;
 
     let chain_config = ChainConfig {
@@ -58,7 +57,7 @@ pub(crate) fn create_chain_inner(
         prover_version: args.prover_version,
         l1_network: ecosystem_config.l1_network,
         link_to_code: ecosystem_config.link_to_code.clone(),
-        chain_path: chain_path.clone(),
+        rocks_db_path: ecosystem_config.get_chain_rocks_db_path(&default_chain_name),
         configs: chain_configs_path.clone(),
         l1_batch_commit_data_generator_mode: args.l1_batch_commit_data_generator_mode,
         base_token: args.base_token,

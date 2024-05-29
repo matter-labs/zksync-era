@@ -8,7 +8,8 @@ use xshell::Shell;
 use crate::{
     consts::{
         CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
-        ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY, WALLETS_FILE,
+        ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY, LOCAL_DB_PATH,
+        WALLETS_FILE,
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
@@ -122,7 +123,7 @@ impl EcosystemConfig {
             l1_network: self.l1_network,
             link_to_code: self.link_to_code.clone(),
             base_token: config.base_token,
-            chain_path: self.chains.join(name),
+            rocks_db_path: config.rocks_db_path,
             wallet_creation: config.wallet_creation,
             shell: self.get_shell().clone().into(),
         })
@@ -183,6 +184,10 @@ impl EcosystemConfig {
 
     pub fn get_ecosystem_path(&self) -> PathBuf {
         self.link_to_code.join(ECOSYSTEM_PATH)
+    }
+
+    pub fn get_chain_rocks_db_path(&self, chain_name: &str) -> PathBuf {
+        self.chains.join(chain_name).join(LOCAL_DB_PATH)
     }
 
     fn get_internal(&self) -> EcosystemConfigInternal {
