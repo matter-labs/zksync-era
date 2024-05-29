@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE node_aggregation_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $2\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        node_aggregation_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                    ORDER BY\n                        l1_batch_number ASC,\n                        depth ASC,\n                        id ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                node_aggregation_witness_jobs_fri.*\n            ",
+  "query": "\n            UPDATE node_aggregation_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $3\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        node_aggregation_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                        AND protocol_version_patch = $2\n                    ORDER BY\n                        l1_batch_number ASC,\n                        depth ASC,\n                        id ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                node_aggregation_witness_jobs_fri.*\n            ",
   "describe": {
     "columns": [
       {
@@ -77,10 +77,16 @@
         "ordinal": 14,
         "name": "picked_by",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
       "Left": [
+        "Int4",
         "Int4",
         "Text"
       ]
@@ -100,8 +106,9 @@
       false,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "08dfe2267bf93d164c649e93f5355b403f1438679167ff218489e2c6d0c359a3"
+  "hash": "7effbacbdcc4bd762386351755f4f32042dfead8a37401558f5fd3b03480f2dd"
 }

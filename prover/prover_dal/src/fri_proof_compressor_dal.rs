@@ -3,7 +3,7 @@ use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
-    protocol_version::ProtocolVersionId,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
         JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
     },
@@ -23,20 +23,21 @@ impl FriProofCompressorDal<'_, '_> {
         &mut self,
         block_number: L1BatchNumber,
         fri_proof_blob_url: &str,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) {
         sqlx::query!(
                 r#"
                 INSERT INTO
-                    proof_compression_jobs_fri (l1_batch_number, fri_proof_blob_url, status, created_at, updated_at, protocol_version)
+                    proof_compression_jobs_fri (l1_batch_number, fri_proof_blob_url, status, created_at, updated_at, protocol_version, protocol_version_patch)
                 VALUES
-                    ($1, $2, $3, NOW(), NOW(), $4)
+                    ($1, $2, $3, NOW(), NOW(), $4, $5)
                 ON CONFLICT (l1_batch_number) DO NOTHING
                 "#,
                 i64::from(block_number.0),
                 fri_proof_blob_url,
                 ProofCompressionJobStatus::Queued.to_string(),
-                protocol_version as i32
+                protocol_version.minor as i32,
+                protocol_version.patch.0 as i32
             )
             .fetch_optional(self.storage.conn())
             .await
@@ -63,7 +64,7 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn get_next_proof_compression_job(
         &mut self,
         picked_by: &str,
-        protocol_version: &ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Option<L1BatchNumber> {
         sqlx::query!(
             r#"
@@ -83,6 +84,7 @@ impl FriProofCompressorDal<'_, '_> {
                     WHERE
                         status = $2
                         AND protocol_version = $4
+                        AND protocol_version_patch = $5
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -96,7 +98,8 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::InProgress.to_string(),
             ProofCompressionJobStatus::Queued.to_string(),
             picked_by,
-            *protocol_version as i32
+            protocol_version.minor as i32,
+            protocol_version.patch.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -177,14 +180,20 @@ impl FriProofCompressorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn get_least_proven_block_number_not_sent_to_server(
+    pub async fn get_least_proven_block_not_sent_to_server(
         &mut self,
-    ) -> Option<(L1BatchNumber, ProofCompressionJobStatus)> {
+    ) -> Option<(
+        L1BatchNumber,
+        ProtocolSemanticVersion,
+        ProofCompressionJobStatus,
+    )> {
         let row = sqlx::query!(
             r#"
             SELECT
                 l1_batch_number,
-                status
+                status,
+                protocol_version,
+                protocol_version_patch
             FROM
                 proof_compression_jobs_fri
             WHERE
@@ -207,6 +216,10 @@ impl FriProofCompressorDal<'_, '_> {
         match row {
             Some(row) => Some((
                 L1BatchNumber(row.l1_batch_number as u32),
+                ProtocolSemanticVersion::new(
+                    ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
+                    VersionPatch(row.protocol_version_patch as u32),
+                ),
                 ProofCompressionJobStatus::from_str(&row.status).unwrap(),
             )),
             None => None,
