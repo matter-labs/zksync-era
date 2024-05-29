@@ -5,7 +5,7 @@
  * Stuff related to the edge cases, bootloader and system contracts normally expected to go here.
  */
 
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 import { shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
@@ -100,8 +100,7 @@ describe('System behavior checks', () => {
         }
     });
 
-    // bh ERROR - zksync.utils.parseEip712
-    test.skip('Should check bootloader utils: Legacy tx hash', async () => {
+    test('Should check bootloader utils: Legacy tx hash', async () => {
         const bootloaderUtils = bootloaderUtilsContract();
 
         // Testing the correctness of calculating the legacy tx hashes
@@ -114,21 +113,19 @@ describe('System behavior checks', () => {
             gasLimit: 50000
         });
         const txBytes = await alice.signTransaction(legacyTx);
-        const parsedTx = zksync.utils.parseEip712(txBytes);
+        const parsedTx = ethers.Transaction.from(txBytes);
+
         const txData = signedTxToTransactionData(parsedTx)!;
 
         const expectedTxHash = parsedTx.hash;
-        delete legacyTx.from;
-        const serializedLegacyTx = ethers.Transaction.from(legacyTx).unsignedSerialized;
-        const expectedSignedHash = ethers.keccak256(serializedLegacyTx);
+        const expectedSignedHash = ethers.keccak256(parsedTx.unsignedSerialized);
 
         const proposedHashes = await bootloaderUtils.getTransactionHashes(txData);
         expect(proposedHashes.txHash).toEqual(expectedTxHash);
         expect(proposedHashes.signedTxHash).toEqual(expectedSignedHash);
     });
 
-    // bh ERROR - zksync.utils.parseEip712
-    test.skip('Should check bootloader utils: EIP2930 tx hash', async () => {
+    test('Should check bootloader utils: EIP2930 tx hash', async () => {
         const bootloaderUtils = bootloaderUtilsContract();
 
         // Testing EIP2930 transactions
@@ -142,20 +139,19 @@ describe('System behavior checks', () => {
             gasPrice: 55000
         });
         const signedEip2930Tx = await alice.signTransaction(eip2930Tx);
-        const parsedEIP2930tx = zksync.utils.parseEip712(signedEip2930Tx);
+        const parsedEIP2930tx = ethers.Transaction.from(signedEip2930Tx);
 
         const EIP2930TxData = signedTxToTransactionData(parsedEIP2930tx)!;
-        delete eip2930Tx.from;
+
         const expectedEIP2930TxHash = parsedEIP2930tx.hash;
-        const expectedEIP2930SignedHash = ethers.keccak256(zksync.utils.serializeEip712(eip2930Tx));
+        const expectedEIP2930SignedHash = ethers.keccak256(parsedEIP2930tx.unsignedSerialized);
 
         const proposedEIP2930Hashes = await bootloaderUtils.getTransactionHashes(EIP2930TxData);
         expect(proposedEIP2930Hashes.txHash).toEqual(expectedEIP2930TxHash);
         expect(proposedEIP2930Hashes.signedTxHash).toEqual(expectedEIP2930SignedHash);
     });
 
-    // bh ERROR - zksync.utils.parseEip712
-    test.skip('Should check bootloader utils: EIP1559 tx hash', async () => {
+    test('Should check bootloader utils: EIP1559 tx hash', async () => {
         const bootloaderUtils = bootloaderUtilsContract();
 
         // Testing EIP1559 transactions
@@ -169,12 +165,12 @@ describe('System behavior checks', () => {
             maxPriorityFeePerGas: 100
         });
         const signedEip1559Tx = await alice.signTransaction(eip1559Tx);
-        const parsedEIP1559tx = zksync.utils.parseEip712(signedEip1559Tx);
+        const parsedEIP1559tx = ethers.Transaction.from(signedEip1559Tx);
 
         const EIP1559TxData = signedTxToTransactionData(parsedEIP1559tx)!;
-        delete eip1559Tx.from;
+
         const expectedEIP1559TxHash = parsedEIP1559tx.hash;
-        const expectedEIP1559SignedHash = ethers.keccak256(zksync.utils.serializeEip712(eip1559Tx));
+        const expectedEIP1559SignedHash = ethers.keccak256(parsedEIP1559tx.unsignedSerialized);
 
         const proposedEIP1559Hashes = await bootloaderUtils.getTransactionHashes(EIP1559TxData);
         expect(proposedEIP1559Hashes.txHash).toEqual(expectedEIP1559TxHash);
@@ -422,7 +418,7 @@ function signedTxToTransactionData(tx: ethers.TransactionLike) {
             value: tx.value || 0,
             reserved: [tx.chainId || 0, 0, 0, 0],
             data: tx.data!,
-            signature: ethers.concat([tx.r, tx.s, new Uint8Array([unpackV(tx.v)])]),
+            signature: tx.signature.serialized,
             factoryDeps: [],
             paymasterInput: '0x',
             reservedDynamic: '0x'
@@ -443,7 +439,7 @@ function signedTxToTransactionData(tx: ethers.TransactionLike) {
             value: tx.value || 0,
             reserved: [0, 0, 0, 0],
             data: tx.data!,
-            signature: ethers.concat([tx.r, tx.s, unpackV(tx.v)]),
+            signature: tx.signature.serialized,
             factoryDeps: [],
             paymasterInput: '0x',
             reservedDynamic: '0x'
@@ -464,7 +460,7 @@ function signedTxToTransactionData(tx: ethers.TransactionLike) {
             value: tx.value || 0,
             reserved: [0, 0, 0, 0],
             data: tx.data!,
-            signature: ethers.concat([tx.r, tx.s, unpackV(tx.v)]),
+            signature: tx.signature.serialized,
             factoryDeps: [],
             paymasterInput: '0x',
             reservedDynamic: '0x'

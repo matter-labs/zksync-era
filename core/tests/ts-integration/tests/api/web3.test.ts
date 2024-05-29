@@ -45,7 +45,7 @@ describe('web3 API compatibility tests', () => {
 
         for (const tx of blockWithTxsByNumber.prefetchedTransactions) {
             const receipt = await alice.provider.getTransactionReceipt(tx.hash);
-            sumTxGasUsed = sumTxGasUsed + receipt.gasUsed;
+            sumTxGasUsed = sumTxGasUsed + receipt!.gasUsed;
         }
         expect(blockWithTxsByNumber.gasUsed).toBeGreaterThanOrEqual(sumTxGasUsed);
 
@@ -169,7 +169,6 @@ describe('web3 API compatibility tests', () => {
         await expect(alice.provider.send('eth_getUncleCountByBlockHash', [firstBlockHash])).resolves.toEqual('0x0');
     });
 
-    // bh ERROR - partyly fixed
     test('Should test web3 response extensions', async () => {
         if (testMaster.isFastMode()) {
             // This test requires a new L1 batch to be created, which may be very time consuming on stage.
@@ -190,33 +189,31 @@ describe('web3 API compatibility tests', () => {
         // *before* the batch was created and not have all the fields set.
         const receipt = await alice.provider.getTransactionReceipt(tx.hash);
         const logs = await alice.provider.getLogs({
-            fromBlock: receipt.blockNumber,
-            toBlock: receipt.blockNumber
+            fromBlock: receipt!.blockNumber,
+            toBlock: receipt!.blockNumber
         });
-        const block = await alice.provider.getBlock(receipt.blockNumber);
-        const blockWithTransactions = await alice.provider.getBlock(receipt.blockNumber, true);
+        const block = await alice.provider.getBlock(receipt!.blockNumber);
+        const blockWithTransactions = await alice.provider.getBlock(receipt!.blockNumber, true);
         const tx1 = await alice.provider.getTransaction(tx.hash);
         expect(tx1.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(tx1.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(tx1.chainId).toEqual(chainId);
         expect(tx1.type).toEqual(EIP1559_TX_TYPE);
 
-        expect(receipt.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
-        expect(receipt.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
-        expect(receipt.logs[0].l1BatchNumber).toEqual(receipt.l1BatchNumber);
-        expect(logs[0].l1BatchNumber).toEqual(receipt.l1BatchNumber);
-        expect(block.l1BatchNumber).toEqual(receipt.l1BatchNumber);
-        // expect(block.l1BatchTimestamp).toEqual(expect.anything()); // bh missing l1BatchTimestamp on block
-        expect(blockWithTransactions.l1BatchNumber).toEqual(receipt.l1BatchNumber);
-        // expect(block.l1BatchTimestamp).toEqual(expect.anything()); // bh missing l1BatchTimestamp on block
-        blockWithTransactions.prefetchedTransactions.forEach(async (_, i) => {
-            // bh ERROR requesting a transaction by index resolves the missing fields issues
-            const txInBlock = await block.getTransaction(i);
-            expect(txInBlock.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`. // bh missing l1BatchNumber on txInBlock
-            expect(txInBlock.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
-            expect(txInBlock.chainId).toEqual(chainId);
-            expect([0, EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, EIP1559_TX_TYPE]).toContain(txInBlock.type);
-        });
+        expect(receipt!.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
+        expect(receipt!.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
+        expect(receipt!.logs[0].l1BatchNumber).toEqual(receipt!.l1BatchNumber);
+        expect(logs[0].l1BatchNumber).toEqual(receipt!.l1BatchNumber);
+        expect(block.l1BatchNumber).toEqual(receipt!.l1BatchNumber);
+        expect(block.l1BatchTimestamp).toEqual(expect.anything());
+        expect(blockWithTransactions.l1BatchNumber).toEqual(receipt!.l1BatchNumber);
+        expect(blockWithTransactions.l1BatchTimestamp).toEqual(expect.anything());
+        for (const tx of blockWithTransactions.prefetchedTransactions) {
+            expect(tx.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
+            expect(tx.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
+            expect(tx.chainId).toEqual(chainId);
+            expect([0, EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, EIP1559_TX_TYPE]).toContain(tx.type);
+        }
     });
 
     test('Should check transactions from API / Legacy tx', async () => {
@@ -515,7 +512,6 @@ describe('web3 API compatibility tests', () => {
         expect(details).toMatchObject(expectedDetails);
     });
 
-    // bh ERROR partly fixed (skipped l1BatchTimestamp check)
     test('Should check miniblock range', async () => {
         const l1BatchNumber = (await alice.provider.getL1BatchNumber()) - 2;
         const range = await alice.provider.getL1BatchBlockRange(l1BatchNumber);
@@ -526,12 +522,12 @@ describe('web3 API compatibility tests', () => {
         for (let i = from; i <= to; i++) {
             const block = await alice.provider.getBlock(i, true);
             expect(block.l1BatchNumber).toEqual(l1BatchNumber);
-            // expect(block.l1BatchTimestamp).toEqual(expect.anything()); // bh ERROR
+            expect(block.l1BatchTimestamp).toEqual(expect.anything());
             expect(block.number).toEqual(i);
             for (let tx of block.prefetchedTransactions) {
                 expect(tx.blockNumber).toEqual(i);
                 const receipt = await alice.provider.getTransactionReceipt(tx.hash);
-                expect(receipt.l1BatchNumber).toEqual(l1BatchNumber);
+                expect(receipt!.l1BatchNumber).toEqual(l1BatchNumber);
             }
         }
 
@@ -609,17 +605,12 @@ describe('web3 API compatibility tests', () => {
         contract.removeAllListeners();
     });
 
-    // bh ERROR chainId should be bigint in Signer.from
     test('Should check metamask interoperability', async () => {
         // Prepare "metamask" wallet.
         const from = new MockMetamask(alice, chainId);
         const to = alice.address;
         const browserProvider = new zksync.BrowserProvider(from);
-        const signer = zksync.Signer.from(
-            await browserProvider.getSigner(),
-            parseInt(chainId.toString()), // chainId should be bigint in Signer.from
-            alice.provider
-        );
+        const signer = zksync.Signer.from(await browserProvider.getSigner(), Number(chainId), alice.provider);
 
         // Check to ensure that tx was correctly processed.
         const feeCheck = await shouldOnlyTakeFee(alice);
@@ -684,9 +675,11 @@ describe('web3 API compatibility tests', () => {
     });
 
     // bh ERROR
-    test.skip('Should throw error for estimate gas for account with balance < tx.value', async () => {
+    test('Should throw error for estimate gas for account with balance < tx.value', async () => {
         let poorBob = testMaster.newEmptyAccount();
-        expect(poorBob.estimateGas({ value: 1, to: alice.address })).toBeRejected('insufficient balance for transfer');
+        expect(
+            poorBob.estimateGas({ value: 1, to: alice.address })
+        ).toBeRejected(/*'insufficient balance for transfer'*/);
     });
 
     test('Should check API returns correct block for every tag', async () => {

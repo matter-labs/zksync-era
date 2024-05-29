@@ -2,7 +2,7 @@
  * This suite contains tests checking the mempool behavior: how transactions are inserted,
  * scheduled, processed and/or postponed.
  */
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 
 describe('Tests for the mempool behavior', () => {
@@ -92,8 +92,7 @@ describe('Tests for the mempool behavior', () => {
         await expect(alice.provider.getTransaction(tx2.hash)).resolves.toBeNull();
     });
 
-    // bh ERROR timeout
-    test.skip('Should reject a pre-sent transaction with not enough balance', async () => {
+    test('Should reject a pre-sent transaction with not enough balance', async () => {
         // In this test we send tx with the nonce from the future that should be rejected,
         // i.e. transaction should pass the API server, but be rejected once queried by the mempool.
         // To do so we create an account that has balance to execute just one transaction, and

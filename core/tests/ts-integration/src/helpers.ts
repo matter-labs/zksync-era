@@ -72,10 +72,10 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
     // Send a dummy transaction and wait until the new L1 batch is created.
     const oldReceipt = await anyTransaction(wallet);
     // Invariant: even with 1 transaction, l1 batch must be eventually sealed, so this loop must exit.
-    while (!(await wallet.provider.getTransactionReceipt(oldReceipt.hash)).l1BatchNumber) {
+    while (!(await wallet.provider.getTransactionReceipt(oldReceipt.hash))?.l1BatchNumber) {
         await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
-    return await wallet.provider.getTransactionReceipt(oldReceipt.hash);
+    return (await wallet.provider.getTransactionReceipt(oldReceipt.hash))!;
 }
 
 /**
