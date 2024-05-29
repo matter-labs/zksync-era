@@ -19,6 +19,11 @@ use crate::{
 
 pub const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
 pub const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
+pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version24;
+pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSemanticVersion {
+    minor: PROVER_PROTOCOL_VERSION,
+    patch: VersionPatch(0),
+};
 
 /// `ProtocolVersionId` is a unique identifier of the protocol version.
 /// Note, that it is an identifier of the `minor` semver version of the protocol, with
@@ -79,7 +84,7 @@ impl ProtocolVersionId {
     // Otherwise, the prover will not be able to work with new versions.
     // TODO(PLA-954): Move to prover workspace
     pub fn current_prover_version() -> Self {
-        Self::Version24
+        PROVER_PROTOCOL_VERSION
     }
 
     pub fn next() -> Self {
@@ -308,10 +313,7 @@ impl ProtocolSemanticVersion {
     // Otherwise, the prover will not be able to work with new versions.
     // TODO(PLA-954): Move to prover workspace
     pub fn current_prover_version() -> Self {
-        Self {
-            minor: ProtocolVersionId::current_prover_version(),
-            patch: VersionPatch(0),
-        }
+        PROVER_PROTOCOL_SEMANTIC_VERSION
     }
 
     pub fn try_from_packed(packed: U256) -> Result<Self, String> {
