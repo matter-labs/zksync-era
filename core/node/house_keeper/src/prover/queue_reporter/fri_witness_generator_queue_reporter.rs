@@ -29,28 +29,38 @@ impl FriWitnessGeneratorQueueReporter {
         &self,
     ) -> HashMap<(AggregationRound, ProtocolVersionId), JobCountStatistics> {
         let mut conn = self.pool.connection().await.unwrap();
-        HashMap::from([
-            (conn
-                .fri_witness_generator_dal()
+        let mut result = HashMap::new();
+        result.extend(
+            conn.fri_witness_generator_dal()
                 .get_witness_jobs_stats(AggregationRound::BasicCircuits)
-                .await,),
-            (conn
-                .fri_witness_generator_dal()
+                .await
+                .into_iter(),
+        );
+        result.extend(
+            conn.fri_witness_generator_dal()
                 .get_witness_jobs_stats(AggregationRound::LeafAggregation)
-                .await,),
-            (conn
-                .fri_witness_generator_dal()
+                .await
+                .into_iter(),
+        );
+        result.extend(
+            conn.fri_witness_generator_dal()
                 .get_witness_jobs_stats(AggregationRound::NodeAggregation)
-                .await,),
-            (conn
-                .fri_witness_generator_dal()
+                .await
+                .into_iter(),
+        );
+        result.extend(
+            conn.fri_witness_generator_dal()
                 .get_witness_jobs_stats(AggregationRound::RecursionTip)
-                .await,),
-            (conn
-                .fri_witness_generator_dal()
+                .await
+                .into_iter(),
+        );
+        result.extend(
+            conn.fri_witness_generator_dal()
                 .get_witness_jobs_stats(AggregationRound::Scheduler)
-                .await,),
-        ])
+                .await
+                .into_iter(),
+        );
+        result
     }
 }
 

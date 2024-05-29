@@ -423,7 +423,7 @@ impl FriProverDal<'_, '_> {
             let mut result = HashMap::new();
 
             for row in &rows {
-                let mut stats = result
+                let stats = result
                     .entry(JobIdentifiers::new(
                         row.circuit_id as u8,
                         row.aggregation_round as u8,
