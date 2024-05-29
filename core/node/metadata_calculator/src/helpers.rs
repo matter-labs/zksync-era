@@ -446,8 +446,8 @@ impl AsyncTreeRecovery {
                     tags.insert(CHUNK_SIZE_KEY.to_owned(), desired_chunk_size.to_string());
                 }
                 Ok(())
-            })?
-            .context("failed updating Merkle tree tags")?;
+            })
+            .context("failed updating Merkle tree tags")??;
             anyhow::Ok(tree)
         })
         .await??;
