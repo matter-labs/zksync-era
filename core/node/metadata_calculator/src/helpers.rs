@@ -300,12 +300,35 @@ impl AsyncTreeReader {
     }
 
     pub async fn info(self) -> MerkleTreeInfo {
-        tokio::task::spawn_blocking(move || MerkleTreeInfo {
-            mode: self.mode,
-            root_hash: self.inner.root_hash(),
-            next_l1_batch_number: self.inner.next_l1_batch_number(),
-            min_l1_batch_number: self.inner.min_l1_batch_number(),
-            leaf_count: self.inner.leaf_count(),
+        tokio::task::spawn_blocking(move || {
+            loop {
+                let next_l1_batch_number = self.inner.next_l1_batch_number();
+                let latest_l1_batch_number = next_l1_batch_number.checked_sub(1);
+                let root_info = if let Some(number) = latest_l1_batch_number {
+                    self.inner.root_info(L1BatchNumber(number))
+                } else {
+                    // No L1 batches in the tree yet.
+                    Some((ZkSyncTree::empty_tree_hash(), 0))
+                };
+                let Some((root_hash, leaf_count)) = root_info else {
+                    // It is possible (although very unlikely) that the latest tree version was removed after requesting it,
+                    // hence the outer loop; RocksDB doesn't provide consistent data views by default.
+                    tracing::info!(
+                        "Tree version at L1 batch {latest_l1_batch_number:?} was removed after requesting the latest tree L1 batch; \
+                         re-requesting tree information"
+                    );
+                    continue;
+                };
+
+                // `min_l1_batch_number` is not necessarily consistent with other retrieved tree data, but this looks fine.
+                break MerkleTreeInfo {
+                    mode: self.mode,
+                    root_hash,
+                    next_l1_batch_number,
+                    min_l1_batch_number: self.inner.min_l1_batch_number(),
+                    leaf_count,
+                };
+            }
         })
         .await
         .unwrap()
