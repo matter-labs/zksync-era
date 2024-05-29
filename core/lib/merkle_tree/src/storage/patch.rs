@@ -751,7 +751,7 @@ mod tests {
         let key = Key::from(1234_u64);
         let (_, patch) =
             Storage::new(&db, &(), 0, true).extend(vec![TreeEntry::new(key, 1, ValueHash::zero())]);
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
 
         let mut patch = WorkingPatchSet::new(1, db.root(0).unwrap());
         let (greatest_leaf, load_result) = patch.load_greatest_key(&db).unwrap();
@@ -767,7 +767,7 @@ mod tests {
             2,
             ValueHash::zero(),
         )]);
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
 
         let mut patch = WorkingPatchSet::new(2, db.root(1).unwrap());
         let (greatest_leaf, load_result) = patch.load_greatest_key(&db).unwrap();
@@ -782,7 +782,7 @@ mod tests {
             3,
             ValueHash::zero(),
         )]);
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
 
         let mut patch = WorkingPatchSet::new(3, db.root(2).unwrap());
         let (greatest_leaf, load_result) = patch.load_greatest_key(&db).unwrap();

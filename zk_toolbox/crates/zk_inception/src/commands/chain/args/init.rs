@@ -1,8 +1,12 @@
 use clap::Parser;
 use common::forge::ForgeScriptArgs;
+use common::Prompt;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use super::genesis::GenesisArgsFinal;
+use crate::defaults::LOCAL_RPC_URL;
+use crate::types::L1Network;
 use crate::{commands::chain::args::genesis::GenesisArgs, configs::ChainConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -16,6 +20,8 @@ pub struct InitArgs {
     pub genesis_args: GenesisArgs,
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_paymaster: Option<bool>,
+    #[clap(long, help = "L1 RPC URL")]
+    pub l1_rpc_url: Option<String>,
 }
 
 impl InitArgs {
@@ -26,10 +32,25 @@ impl InitArgs {
                 .ask()
         });
 
+        let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
+            let mut prompt = Prompt::new("What is the RPC URL of the L1 network?");
+            if config.l1_network == L1Network::Localhost {
+                prompt = prompt.default(LOCAL_RPC_URL);
+            }
+            prompt
+                .validate_with(|val: &String| -> Result<(), String> {
+                    Url::parse(val)
+                        .map(|_| ())
+                        .map_err(|_| "Invalid RPC url".to_string())
+                })
+                .ask()
+        });
+
         InitArgsFinal {
             forge_args: self.forge_args,
             genesis_args: self.genesis_args.fill_values_with_prompt(config),
             deploy_paymaster,
+            l1_rpc_url,
         }
     }
 }
@@ -39,4 +60,5 @@ pub struct InitArgsFinal {
     pub forge_args: ForgeScriptArgs,
     pub genesis_args: GenesisArgsFinal,
     pub deploy_paymaster: bool,
+    pub l1_rpc_url: String,
 }

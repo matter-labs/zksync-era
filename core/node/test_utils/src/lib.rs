@@ -66,7 +66,7 @@ pub fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: BaseSystemContractsHashes::default().bootloader,
             default_aa_code_hash: BaseSystemContractsHashes::default().default_aa,
-            protocol_version: ProtocolVersionId::latest(),
+            protocol_version: Some(ProtocolVersionId::latest()),
         },
         aux_data_hash: H256::zero(),
         meta_parameters_hash: H256::zero(),

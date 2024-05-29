@@ -74,7 +74,7 @@ impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
                 updated_version: Some(updated_version),
                 stale_keys_by_version: HashMap::from([(updated_version, command.stale_keys)]),
             };
-            database.apply_patch(patch);
+            database.apply_patch(patch).unwrap();
             tracing::debug!("Persisted patch #{persisted_count}");
             persisted_count += 1;
             // An `Arc<PersistenceCommand>` must be dropped only after the command is applied. Otherwise,
@@ -198,7 +198,7 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
         self.inner.start_profiling(operation)
     }
 
-    fn apply_patch(&mut self, mut patch: PatchSet) {
+    fn apply_patch(&mut self, mut patch: PatchSet) -> anyhow::Result<()> {
         let partial_patch = if let Some(updated_version) = patch.updated_version {
             assert_eq!(
                 updated_version, self.updated_version,
@@ -254,6 +254,7 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             unreachable!("Persistence thread never exits when `ParallelDatabase` is alive");
         }
         self.commands.push_back(weak_command);
+        Ok(())
     }
 }
 
@@ -286,10 +287,10 @@ impl<DB: PruneDatabase> PruneDatabase for ParallelDatabase<DB> {
             .collect()
     }
 
-    fn prune(&mut self, patch: PrunePatchSet) {
+    fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()> {
         // Require the underlying database to be fully synced.
         self.wait_sync();
-        self.inner.prune(patch);
+        self.inner.prune(patch)
     }
 }
 
@@ -367,7 +368,7 @@ impl<DB: Database> Database for MaybeParallel<DB> {
         }
     }
 
-    fn apply_patch(&mut self, patch: PatchSet) {
+    fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
         match self {
             Self::Sequential(db) => db.apply_patch(patch),
             Self::Parallel(db) => db.apply_patch(patch),
@@ -390,7 +391,7 @@ impl<DB: PruneDatabase> PruneDatabase for MaybeParallel<DB> {
         }
     }
 
-    fn prune(&mut self, patch: PrunePatchSet) {
+    fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()> {
         match self {
             Self::Sequential(db) => db.prune(patch),
             Self::Parallel(db) => db.prune(patch),
@@ -447,14 +448,16 @@ mod tests {
         let mut parallel_db = ParallelDatabase::new(db.clone(), UPDATED_VERSION, 1);
         assert!(parallel_db.manifest().is_none());
         let manifest = Manifest::new(UPDATED_VERSION, &());
-        parallel_db.apply_patch(PatchSet::from_manifest(manifest));
+        parallel_db
+            .apply_patch(PatchSet::from_manifest(manifest))
+            .unwrap();
         assert_eq!(parallel_db.commands.len(), 1);
         assert_eq!(
             parallel_db.manifest().unwrap().version_count,
             UPDATED_VERSION
         );
 
-        parallel_db.apply_patch(mock_patch_set(0, 10));
+        parallel_db.apply_patch(mock_patch_set(0, 10)).unwrap();
         assert_eq!(parallel_db.root(UPDATED_VERSION).unwrap().leaf_count(), 10);
 
         let keys: Vec<_> = (0..20)
@@ -477,7 +480,7 @@ mod tests {
             assert!(node.is_none(), "{node:?}");
         }
 
-        parallel_db.apply_patch(mock_patch_set(10, 15));
+        parallel_db.apply_patch(mock_patch_set(10, 15)).unwrap();
 
         let nodes = parallel_db.tree_nodes(&keys);
         for (i, node) in nodes[..15].iter().enumerate() {

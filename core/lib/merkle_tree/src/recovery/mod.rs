@@ -35,8 +35,9 @@
 //! before extending the tree; these nodes are guaranteed to be the *only* DB reads necessary
 //! to insert new entries.
 
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
 
+use anyhow::Context as _;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
 use crate::{
@@ -60,10 +61,10 @@ pub struct MerkleTreeRecovery<DB, H = Blake2Hasher> {
 impl<DB: PruneDatabase> MerkleTreeRecovery<DB> {
     /// Creates tree recovery with the default Blake2 hasher.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics in the same situations as [`Self::with_hasher()`].
-    pub fn new(db: DB, recovered_version: u64) -> Self {
+    /// Errors in the same situations as [`Self::with_hasher()`].
+    pub fn new(db: DB, recovered_version: u64) -> anyhow::Result<Self> {
         Self::with_hasher(db, recovered_version, Blake2Hasher)
     }
 }
@@ -71,20 +72,19 @@ impl<DB: PruneDatabase> MerkleTreeRecovery<DB> {
 impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
     /// Loads a tree with the specified hasher.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// - Panics if the tree DB exists and it's not being recovered, or if it's being recovered
+    /// - Errors if the tree DB exists and it's not being recovered, or if it's being recovered
     ///   for a different tree version.
-    /// - Panics if the hasher or basic tree parameters (e.g., the tree depth)
+    /// - Errors if the hasher or basic tree parameters (e.g., the tree depth)
     ///   do not match those of the tree loaded from the database.
-    pub fn with_hasher(mut db: DB, recovered_version: u64, hasher: H) -> Self {
+    pub fn with_hasher(mut db: DB, recovered_version: u64, hasher: H) -> anyhow::Result<Self> {
         let manifest = db.manifest();
         let mut manifest = if let Some(manifest) = manifest {
             if manifest.version_count > 0 {
                 let expected_version = manifest.version_count - 1;
-                assert_eq!(
-                    recovered_version,
-                    expected_version,
+                anyhow::ensure!(
+                    recovered_version == expected_version,
                     "Requested to recover tree version {recovered_version}, but it is currently being recovered \
                     for version {expected_version}"
                 );
@@ -99,19 +99,40 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
 
         manifest.version_count = recovered_version + 1;
         if let Some(tags) = &manifest.tags {
-            tags.assert_consistency(&hasher, true);
+            tags.ensure_consistency(&hasher, true)?;
         } else {
             let mut tags = TreeTags::new(&hasher);
             tags.is_recovering = true;
             manifest.tags = Some(tags);
         }
-        db.apply_patch(PatchSet::from_manifest(manifest));
+        db.apply_patch(PatchSet::from_manifest(manifest))?;
 
-        Self {
+        Ok(Self {
             db: MaybeParallel::Sequential(db),
             hasher,
             recovered_version,
-        }
+        })
+    }
+
+    /// Updates custom tags for the tree using the provided closure. The update is atomic and unconditional.
+    ///
+    /// # Errors
+    ///
+    /// Propagates database I/O errors.
+    pub fn update_custom_tags<R>(
+        &mut self,
+        update: impl FnOnce(&mut HashMap<String, String>) -> R,
+    ) -> anyhow::Result<R> {
+        let mut manifest = self
+            .db
+            .manifest()
+            .context("Merkle tree manifest disappeared")?;
+        let tags = manifest
+            .tags
+            .get_or_insert_with(|| TreeTags::new(&self.hasher));
+        let output = update(&mut tags.custom);
+        self.db.apply_patch(PatchSet::from_manifest(manifest))?;
+        Ok(output)
     }
 
     /// Returns the version of the tree being recovered.
@@ -151,7 +172,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             %entries.key_range = entries_key_range(&entries),
         ),
     )]
-    pub fn extend_linear(&mut self, entries: Vec<TreeEntry>) {
+    pub fn extend_linear(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
         tracing::debug!("Started extending tree");
         RECOVERY_METRICS.chunk_size.observe(entries.len());
 
@@ -162,9 +183,10 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         tracing::debug!("Finished processing keys; took {stage_latency:?}");
 
         let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::ApplyPatch].start();
-        self.db.apply_patch(patch);
+        self.db.apply_patch(patch)?;
         let stage_latency = stage_latency.observe();
         tracing::debug!("Finished persisting to DB; took {stage_latency:?}");
+        Ok(())
     }
 
     /// Extends a tree with a chunk of entries. Unlike [`Self::extend_linear()`], entries may be
@@ -177,7 +199,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             entries.len = entries.len(),
         ),
     )]
-    pub fn extend_random(&mut self, entries: Vec<TreeEntry>) {
+    pub fn extend_random(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
         tracing::debug!("Started extending tree");
         RECOVERY_METRICS.chunk_size.observe(entries.len());
 
@@ -188,9 +210,10 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         tracing::debug!("Finished processing keys; took {stage_latency:?}");
 
         let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::ApplyPatch].start();
-        self.db.apply_patch(patch);
+        self.db.apply_patch(patch)?;
         let stage_latency = stage_latency.observe();
         tracing::debug!("Finished persisting to DB; took {stage_latency:?}");
+        Ok(())
     }
 
     /// Finalizes the recovery process marking it as complete in the tree manifest.
@@ -200,7 +223,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         fields(recovered_version = self.recovered_version),
     )]
     #[allow(clippy::missing_panics_doc, clippy::range_plus_one)]
-    pub fn finalize(mut self) -> DB {
+    pub fn finalize(mut self) -> anyhow::Result<DB> {
         let mut manifest = self.db.manifest().unwrap();
         // ^ `unwrap()` is safe: manifest is inserted into the DB on creation
 
@@ -209,7 +232,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         } else {
             // Marginal case: an empty tree is recovered (i.e., `extend()` was never called).
             let patch = PatchSet::for_empty_root(manifest.clone(), self.recovered_version);
-            self.db.apply_patch(patch);
+            self.db.apply_patch(patch)?;
             0
         };
         tracing::debug!(
@@ -224,7 +247,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             stale_keys,
             self.recovered_version..self.recovered_version + 1,
         );
-        self.db.prune(prune_patch);
+        self.db.prune(prune_patch)?;
         tracing::debug!(
             "Pruned {stale_keys_len} stale keys in {:?}",
             started_at.elapsed()
@@ -234,10 +257,10 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             .tags
             .get_or_insert_with(|| TreeTags::new(&self.hasher))
             .is_recovering = false;
-        self.db.apply_patch(PatchSet::from_manifest(manifest));
+        self.db.apply_patch(PatchSet::from_manifest(manifest))?;
         tracing::debug!("Updated tree manifest to mark recovery as complete");
 
-        self.db.join()
+        Ok(self.db.join())
     }
 }
 

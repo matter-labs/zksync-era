@@ -179,7 +179,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                     .clone()
                     .build_pubdata(false),
             ),
-            initially_written_slots: None,
+            state_diffs: None,
         }
     }
 }
