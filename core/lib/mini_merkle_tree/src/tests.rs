@@ -1,7 +1,8 @@
 //! Tests for `MiniMerkleTree`.
 
-use super::*;
 use std::collections::VecDeque;
+
+use super::*;
 
 #[test]
 fn tree_depth_is_computed_correctly() {
@@ -210,7 +211,7 @@ fn merkle_proofs_are_valid_for_intervals() {
         verify_range_merkle_proof(&leaves[..i], 0, &start_path, &end_path, merkle_root);
     }
 
-    tree.cache(25);
+    tree.trim_start(25);
     leaves.drain(..25);
 
     for i in 1..=25 {
@@ -285,7 +286,7 @@ fn dynamic_merkle_tree_growth() {
     }
 
     // Shouldn't shrink after caching
-    tree.cache(6);
+    tree.trim_start(6);
     assert_eq!(tree.binary_tree_size, 8);
     assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(3));
 }
@@ -314,7 +315,7 @@ fn caching_leaves() {
         let (root_hash, path) = tree.merkle_root_and_path(49 - i);
         assert_eq!(root_hash, expected_root_hash);
         assert_eq!(path, expected_path);
-        tree.cache(1);
+        tree.trim_start(1);
     }
 
     let mut tree = MiniMerkleTree::new(leaves, None);
@@ -322,7 +323,7 @@ fn caching_leaves() {
         let (root_hash, path) = tree.merkle_root_and_path(49 - i * 5);
         assert_eq!(root_hash, expected_root_hash);
         assert_eq!(path, expected_path);
-        tree.cache(5);
+        tree.trim_start(5);
     }
 }
 
@@ -347,15 +348,15 @@ fn pushing_new_leaves() {
         tree.push([number; 88]);
         assert_eq!(tree.merkle_root(), *expected_root);
 
-        tree.cache(2);
+        tree.trim_start(2);
         assert_eq!(tree.merkle_root(), *expected_root);
     }
 }
 
 #[test]
-fn cache_all_and_grow() {
+fn trim_all_and_grow() {
     let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(4), None);
-    tree.cache(4);
+    tree.trim_start(4);
     tree.push([1; 88]);
     let expected_root = "0xfa4c924185122254742622b10b68df8de89d33f685ee579f37a50c552b0d245d"
         .parse()
@@ -364,14 +365,14 @@ fn cache_all_and_grow() {
 }
 
 #[test]
-fn cache_all_and_check_root() {
+fn trim_all_and_check_root() {
     let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(4), None);
     let root = tree.merkle_root();
-    tree.cache(4);
+    tree.trim_start(4);
     assert_eq!(tree.merkle_root(), root);
 
     let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(4), Some(8));
     let root = tree.merkle_root();
-    tree.cache(4);
+    tree.trim_start(4);
     assert_eq!(tree.merkle_root(), root);
 }

@@ -156,7 +156,7 @@ where
     /// Does not affect the root hash, but makes it impossible to get the paths to the cached leaves.
     /// # Panics
     /// Panics if `count` is greater than the number of non-cached leaves in the tree.
-    pub fn cache(&mut self, count: usize) {
+    pub fn trim_start(&mut self, count: usize) {
         assert!(self.hashes.len() >= count, "not enough leaves to cache");
         let mut new_cache = vec![];
         let root = self.compute_merkle_root_and_path(count, None, Some(&mut new_cache));
