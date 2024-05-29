@@ -1,8 +1,14 @@
+use std::sync::Arc;
+
 use zksync_config::configs::{DatabaseSecrets, PostgresConfig};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 
 use crate::{
-    implementations::resources::pools::{MasterPool, PoolResource, ProverPool, ReplicaPool},
+    implementations::resources::{
+        healthcheck::AppHealthCheckResource,
+        pools::{MasterPool, PoolResource, ProverPool, ReplicaPool},
+    },
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -115,6 +121,26 @@ impl WiringLayer for PoolsLayer {
                 None,
             ))?;
         }
+
+        // Insert health checks for the core pool.
+        let connection_pool = if self.with_replica {
+            context
+                .get_resource::<PoolResource<ReplicaPool>>()
+                .await?
+                .get()
+                .await?
+        } else {
+            context
+                .get_resource::<PoolResource<MasterPool>>()
+                .await?
+                .get()
+                .await?
+        };
+        let db_health_check = ConnectionPoolHealthCheck::new(connection_pool);
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        app_health
+            .insert_custom_component(Arc::new(db_health_check))
+            .map_err(WiringError::internal)?;
 
         Ok(())
     }
