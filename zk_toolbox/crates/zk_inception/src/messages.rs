@@ -9,6 +9,16 @@ pub(super) const MSG_LINK_TO_CODE_PROMPT: &str = "Where's the code located?";
 pub(super) const MSG_L1_NETWORK_PROMPT: &str = "Select the L1 network";
 pub(super) const MSG_START_CONTAINERS_PROMPT: &str =
     "Do you want to start containers after creating the ecosystem?";
+pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
+pub(super) const MSG_CREATING_ECOSYSTEM: &str = "Creating ecosystem";
+pub(super) const MSG_CREATED_ECOSYSTEM: &str = "Ecosystem created successfully";
+pub(super) const MSG_CLONING_ERA_REPO_SPINNER: &str = "Cloning zksync-era repository...";
+pub(super) const MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER: &str =
+    "Creating initial configurations...";
+pub(super) const MSG_CREATING_DEFAULT_CHAIN_SPINNER: &str = "Creating default chain...";
+pub(super) const MSG_STARTING_CONTAINERS_SPINNER: &str = "Starting containers...";
+pub(super) const MSG_ECOSYSTEM_ALREADY_EXISTS_ERR: &str = "Ecosystem already exists";
+pub(super) const MSG_ECOSYSTEM_CONFIG_INVALID_ERR: &str = "Invalid ecosystem configuration";
 
 /// Ecosystem init related messages
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
