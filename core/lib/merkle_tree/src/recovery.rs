@@ -35,7 +35,7 @@
 //! before extending the tree; these nodes are guaranteed to be the *only* DB reads necessary
 //! to insert new entries.
 
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
 
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
@@ -109,6 +109,24 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             hasher,
             recovered_version,
         }
+    }
+
+    /// Updates custom tags for the tree using the provided closure. The update is atomic and unconditional.
+    #[allow(clippy::missing_panics_doc)] // should never be triggered; the manifest is added in the constructor
+    pub fn update_custom_tags<R>(
+        &mut self,
+        update: impl FnOnce(&mut HashMap<String, String>) -> R,
+    ) -> R {
+        let mut manifest = self
+            .db
+            .manifest()
+            .expect("Merkle tree manifest disappeared");
+        let tags = manifest
+            .tags
+            .get_or_insert_with(|| TreeTags::new(&self.hasher));
+        let output = update(&mut tags.custom);
+        self.db.apply_patch(PatchSet::from_manifest(manifest));
+        output
     }
 
     /// Returns the version of the tree being recovered.

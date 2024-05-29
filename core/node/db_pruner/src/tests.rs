@@ -6,7 +6,15 @@ use test_log::test;
 use zksync_dal::pruning_dal::PruningInfo;
 use zksync_db_connection::connection::Connection;
 use zksync_health_check::CheckHealth;
-use zksync_types::{block::L2BlockHeader, Address, L2BlockNumber, ProtocolVersion, H256};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{
+    create_l1_batch, create_l1_batch_metadata, create_l2_block,
+    l1_batch_metadata_to_commitment_artifacts,
+};
+use zksync_types::{
+    aggregated_operations::AggregatedActionType, block::L2BlockHeader, Address, L2BlockNumber,
+    ProtocolVersion, H256,
+};
 
 use super::*;
 
@@ -354,6 +362,191 @@ async fn pruner_is_resistant_to_errors() {
 
     stop_sender.send_replace(true);
     pruner_task_handle.await.unwrap().unwrap();
+}
+
+/// Seals an L1 batch with a single L2 block.
+async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: u32) {
+    let block_header = create_l2_block(number);
+    storage
+        .blocks_dal()
+        .insert_l2_block(&block_header)
+        .await
+        .unwrap();
+
+    let header = create_l1_batch(number);
+    storage
+        .blocks_dal()
+        .insert_mock_l1_batch(&header)
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(number))
+        .await
+        .unwrap();
+}
+
+async fn save_l1_batch_metadata(storage: &mut Connection<'_, Core>, number: u32) {
+    let metadata = create_l1_batch_metadata(number);
+    storage
+        .blocks_dal()
+        .save_l1_batch_tree_data(L1BatchNumber(number), &metadata.tree_data())
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(
+            L1BatchNumber(number),
+            &l1_batch_metadata_to_commitment_artifacts(&metadata),
+        )
+        .await
+        .unwrap();
+}
+
+async fn mark_l1_batch_as_executed(storage: &mut Connection<'_, Core>, number: u32) {
+    storage
+        .eth_sender_dal()
+        .insert_bogus_confirmed_eth_tx(
+            L1BatchNumber(number),
+            AggregatedActionType::Execute,
+            H256::from_low_u64_be(number.into()),
+            chrono::Utc::now(),
+        )
+        .await
+        .unwrap();
+}
+
+async fn mark_l1_batch_as_consistent(storage: &mut Connection<'_, Core>, number: u32) {
+    storage
+        .blocks_dal()
+        .set_consistency_checker_last_processed_l1_batch(L1BatchNumber(number))
+        .await
+        .unwrap();
+}
+
+async fn collect_conditions_output(
+    conditions: &[Arc<dyn PruneCondition>],
+    number: L1BatchNumber,
+) -> Vec<bool> {
+    let mut output = Vec::with_capacity(conditions.len());
+    for condition in conditions {
+        output.push(condition.is_batch_prunable(number).await.unwrap());
+    }
+    output
+}
+
+#[tokio::test]
+async fn real_conditions_work_as_expected() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let conditions: Vec<Arc<dyn PruneCondition>> = vec![
+        Arc::new(L1BatchExistsCondition { pool: pool.clone() }),
+        Arc::new(NextL1BatchHasMetadataCondition { pool: pool.clone() }),
+        Arc::new(NextL1BatchWasExecutedCondition { pool: pool.clone() }),
+        Arc::new(ConsistencyCheckerProcessedBatch { pool: pool.clone() }),
+    ];
+
+    assert_eq!(
+        collect_conditions_output(&conditions, L1BatchNumber(1)).await,
+        [false; 4]
+    );
+
+    // Add 2 batches to the storage.
+    for number in 1..=2 {
+        seal_l1_batch(&mut storage, number).await;
+    }
+    assert_eq!(
+        collect_conditions_output(&conditions, L1BatchNumber(1)).await,
+        [true, false, false, false]
+    );
+
+    // Add metadata for both batches.
+    for number in 1..=2 {
+        save_l1_batch_metadata(&mut storage, number).await;
+    }
+    assert_eq!(
+        collect_conditions_output(&conditions, L1BatchNumber(1)).await,
+        [true, true, false, false]
+    );
+
+    // Mark both batches as executed.
+    for number in 1..=2 {
+        mark_l1_batch_as_executed(&mut storage, number).await;
+    }
+    assert_eq!(
+        collect_conditions_output(&conditions, L1BatchNumber(1)).await,
+        [true, true, true, false]
+    );
+
+    // Mark both batches as consistent.
+    for number in 1..=2 {
+        mark_l1_batch_as_consistent(&mut storage, number).await;
+    }
+    assert_eq!(
+        collect_conditions_output(&conditions, L1BatchNumber(1)).await,
+        [true, true, true, true]
+    );
+}
+
+#[tokio::test]
+async fn pruner_with_real_conditions() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let config = DbPrunerConfig {
+        removal_delay: Duration::from_millis(10), // non-zero to not have a tight loop in `DbPruner::run()`
+        pruned_batch_chunk_size: 1,
+        minimum_l1_batch_age: Duration::ZERO,
+    };
+    let pruner = DbPruner::new(config, pool.clone());
+    let mut health_check = pruner.health_check();
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let pruner_handle = tokio::spawn(pruner.run(stop_receiver));
+
+    let batch_handles = (1_u32..=5).map(|number| {
+        let pool = pool.clone();
+        tokio::spawn(async move {
+            // Emulate producing batches with overlapping life cycle.
+            tokio::time::sleep(Duration::from_millis(u64::from(number) * 10)).await;
+
+            let mut storage = pool.connection().await.unwrap();
+            seal_l1_batch(&mut storage, number).await;
+            tokio::time::sleep(Duration::from_millis(15)).await;
+            save_l1_batch_metadata(&mut storage, number).await;
+            tokio::time::sleep(Duration::from_millis(12)).await;
+            mark_l1_batch_as_consistent(&mut storage, number).await;
+            tokio::time::sleep(Duration::from_millis(17)).await;
+            mark_l1_batch_as_executed(&mut storage, number).await;
+        })
+    });
+
+    // Wait until all batches went through their life cycle.
+    for handle in batch_handles {
+        handle.await.unwrap();
+    }
+
+    health_check
+        .wait_for(|health| {
+            if !matches!(health.status(), HealthStatus::Ready) {
+                return false;
+            }
+            let Some(details) = health.details() else {
+                return false;
+            };
+            let details: DbPrunerHealth = serde_json::from_value(details.clone()).unwrap();
+            details.last_hard_pruned_l1_batch == Some(L1BatchNumber(4))
+        })
+        .await;
+
+    stop_sender.send_replace(true);
+    pruner_handle.await.unwrap().unwrap();
 }
 
 #[tokio::test]
