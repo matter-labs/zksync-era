@@ -2,12 +2,7 @@ use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 use types::{ChainId, L1BatchCommitDataGeneratorMode};
 
-use crate::{
-    consts::GENESIS_FILE,
-    traits::{
-        PathWithBasePath, ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath,
-    },
-};
+use crate::{consts::GENESIS_FILE, traits::FileConfigWithDefaultName};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GenesisConfig {
@@ -25,11 +20,6 @@ pub struct GenesisConfig {
     pub other: serde_json::Value,
 }
 
-impl PathWithBasePath for GenesisConfig {
+impl FileConfigWithDefaultName for GenesisConfig {
     const FILE_NAME: &'static str = GENESIS_FILE;
 }
-
-impl ReadConfig for GenesisConfig {}
-impl ReadConfigWithBasePath for GenesisConfig {}
-impl SaveConfig for GenesisConfig {}
-impl SaveConfigWithBasePath for GenesisConfig {}

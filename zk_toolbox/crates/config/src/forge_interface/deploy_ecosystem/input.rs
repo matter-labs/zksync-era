@@ -7,10 +7,7 @@ use types::ChainId;
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
-    traits::{
-        PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithComment,
-        SaveConfigWithCommentAndBasePath,
-    },
+    traits::{FileConfig, FileConfigWithDefaultName},
     ContractsConfig, GenesisConfig, WalletsConfig,
 };
 
@@ -57,24 +54,18 @@ impl Default for InitialDeploymentConfig {
     }
 }
 
-impl PathWithBasePath for InitialDeploymentConfig {
+impl FileConfigWithDefaultName for InitialDeploymentConfig {
     const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
 }
-impl ReadConfig for InitialDeploymentConfig {}
-impl SaveConfigWithComment for InitialDeploymentConfig {}
-impl SaveConfigWithCommentAndBasePath for InitialDeploymentConfig {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Erc20DeploymentConfig {
     pub tokens: Vec<Erc20DeploymentTokensConfig>,
 }
 
-impl PathWithBasePath for Erc20DeploymentConfig {
+impl FileConfigWithDefaultName for Erc20DeploymentConfig {
     const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
 }
-impl ReadConfig for Erc20DeploymentConfig {}
-impl SaveConfigWithComment for Erc20DeploymentConfig {}
-impl SaveConfigWithCommentAndBasePath for Erc20DeploymentConfig {}
 
 impl Default for Erc20DeploymentConfig {
     fn default() -> Self {
@@ -117,8 +108,7 @@ pub struct DeployL1Config {
     pub tokens: TokensDeployL1Config,
 }
 
-impl ReadConfig for DeployL1Config {}
-impl SaveConfig for DeployL1Config {}
+impl FileConfig for DeployL1Config {}
 
 impl DeployL1Config {
     pub fn new(
@@ -211,8 +201,7 @@ pub struct DeployErc20Config {
     pub tokens: HashMap<String, TokenDeployErc20Config>,
 }
 
-impl ReadConfig for DeployErc20Config {}
-impl SaveConfig for DeployErc20Config {}
+impl FileConfig for DeployErc20Config {}
 
 impl DeployErc20Config {
     pub fn new(

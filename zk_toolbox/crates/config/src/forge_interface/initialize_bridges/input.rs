@@ -2,13 +2,9 @@ use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use types::ChainId;
 
-use crate::{
-    traits::{ReadConfig, SaveConfig},
-    ChainConfig,
-};
+use crate::{traits::FileConfig, ChainConfig};
 
-impl ReadConfig for InitializeBridgeInput {}
-impl SaveConfig for InitializeBridgeInput {}
+impl FileConfig for InitializeBridgeInput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeBridgeInput {

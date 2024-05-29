@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     consts::WALLETS_FILE,
-    traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    traits::{FileConfig, FileConfigWithDefaultName},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,12 +48,9 @@ impl WalletsConfig {
     }
 }
 
-impl PathWithBasePath for WalletsConfig {
+impl FileConfigWithDefaultName for WalletsConfig {
     const FILE_NAME: &'static str = WALLETS_FILE;
 }
-impl ReadConfig for WalletsConfig {}
-impl SaveConfig for WalletsConfig {}
-impl SaveConfigWithBasePath for WalletsConfig {}
 
 /// ETH config from zkync repository
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -63,4 +60,4 @@ pub(crate) struct EthMnemonicConfig {
     pub(crate) base_path: String,
 }
 
-impl ReadConfig for EthMnemonicConfig {}
+impl FileConfig for EthMnemonicConfig {}

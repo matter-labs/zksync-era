@@ -12,7 +12,7 @@ use xshell::Shell;
 use crate::{
     consts::{CONFIG_NAME, CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, WALLETS_FILE},
     create_localhost_wallets,
-    traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfig, GenesisConfig, WalletsConfig,
 };
 
@@ -114,9 +114,6 @@ impl ChainConfig {
     }
 }
 
-impl PathWithBasePath for ChainConfigInternal {
+impl FileConfigWithDefaultName for ChainConfigInternal {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
-impl ReadConfig for ChainConfigInternal {}
-impl SaveConfig for ChainConfigInternal {}
-impl SaveConfigWithBasePath for ChainConfigInternal {}

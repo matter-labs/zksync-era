@@ -2,12 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    consts::GENERAL_FILE,
-    traits::{
-        PathWithBasePath, ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath,
-    },
-};
+use crate::{consts::GENERAL_FILE, traits::FileConfigWithDefaultName};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GeneralConfig {
@@ -17,13 +12,9 @@ pub struct GeneralConfig {
     pub other: serde_json::Value,
 }
 
-impl PathWithBasePath for GeneralConfig {
+impl FileConfigWithDefaultName for GeneralConfig {
     const FILE_NAME: &'static str = GENERAL_FILE;
 }
-impl ReadConfig for GeneralConfig {}
-impl ReadConfigWithBasePath for GeneralConfig {}
-impl SaveConfig for GeneralConfig {}
-impl SaveConfigWithBasePath for GeneralConfig {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RocksDBConfig {

@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::deploy_ecosystem::output::DeployL1Output,
-    traits::{
-        PathWithBasePath, ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath,
-    },
+    traits::{FileConfig, FileConfigWithDefaultName},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -68,13 +66,9 @@ impl ContractsConfig {
     }
 }
 
-impl PathWithBasePath for ContractsConfig {
+impl FileConfigWithDefaultName for ContractsConfig {
     const FILE_NAME: &'static str = CONTRACTS_FILE;
 }
-impl ReadConfig for ContractsConfig {}
-impl ReadConfigWithBasePath for ContractsConfig {}
-impl SaveConfig for ContractsConfig {}
-impl SaveConfigWithBasePath for ContractsConfig {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
@@ -85,8 +79,7 @@ pub struct EcosystemContracts {
     pub diamond_cut_data: String,
 }
 
-impl ReadConfig for EcosystemContracts {}
-impl SaveConfig for EcosystemContracts {}
+impl FileConfig for EcosystemContracts {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BridgesContracts {

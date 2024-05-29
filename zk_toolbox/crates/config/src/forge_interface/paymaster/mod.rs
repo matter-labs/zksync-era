@@ -2,10 +2,7 @@ use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use types::ChainId;
 
-use crate::{
-    traits::{ReadConfig, SaveConfig},
-    ChainConfig,
-};
+use crate::{traits::FileConfig, ChainConfig};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployPaymasterInput {
@@ -24,13 +21,11 @@ impl DeployPaymasterInput {
         })
     }
 }
-impl SaveConfig for DeployPaymasterInput {}
-impl ReadConfig for DeployPaymasterInput {}
+impl FileConfig for DeployPaymasterInput {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployPaymasterOutput {
     pub paymaster: Address,
 }
 
-impl SaveConfig for DeployPaymasterOutput {}
-impl ReadConfig for DeployPaymasterOutput {}
+impl FileConfig for DeployPaymasterOutput {}

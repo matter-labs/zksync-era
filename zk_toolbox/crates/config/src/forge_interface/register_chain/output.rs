@@ -1,7 +1,7 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::{ReadConfig, SaveConfig};
+use crate::traits::FileConfig;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RegisterChainOutput {
@@ -9,5 +9,4 @@ pub struct RegisterChainOutput {
     pub governance_addr: Address,
 }
 
-impl ReadConfig for RegisterChainOutput {}
-impl SaveConfig for RegisterChainOutput {}
+impl FileConfig for RegisterChainOutput {}

@@ -3,10 +3,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use types::{ChainId, L1BatchCommitDataGeneratorMode};
 
-use crate::{
-    traits::{ReadConfig, SaveConfig},
-    ChainConfig, ContractsConfig,
-};
+use crate::{traits::FileConfig, ChainConfig, ContractsConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Bridgehub {
@@ -51,8 +48,7 @@ pub struct ChainL1Config {
     pub governance_min_delay: u64,
 }
 
-impl ReadConfig for RegisterChainL1Config {}
-impl SaveConfig for RegisterChainL1Config {}
+impl FileConfig for RegisterChainL1Config {}
 
 impl RegisterChainL1Config {
     pub fn new(chain_config: &ChainConfig, contracts: &ContractsConfig) -> anyhow::Result<Self> {

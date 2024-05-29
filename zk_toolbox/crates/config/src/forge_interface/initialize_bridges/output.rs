@@ -1,9 +1,9 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::ReadConfig;
+use crate::traits::FileConfig;
 
-impl ReadConfig for InitializeBridgeOutput {}
+impl FileConfig for InitializeBridgeOutput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeBridgeOutput {

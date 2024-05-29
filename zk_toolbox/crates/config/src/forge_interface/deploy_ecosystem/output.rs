@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     consts::ERC20_CONFIGS_FILE,
-    traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    traits::{FileConfig, FileConfigWithDefaultName},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -21,8 +21,7 @@ pub struct DeployL1Output {
     pub deployed_addresses: DeployL1DeployedAddressesOutput,
 }
 
-impl ReadConfig for DeployL1Output {}
-impl SaveConfig for DeployL1Output {}
+impl FileConfig for DeployL1Output {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployL1ContractsConfigOutput {
@@ -94,9 +93,6 @@ pub struct DeployErc20Output {
     pub tokens: HashMap<String, TokenDeployErc20Output>,
 }
 
-impl PathWithBasePath for DeployErc20Output {
+impl FileConfigWithDefaultName for DeployErc20Output {
     const FILE_NAME: &'static str = ERC20_CONFIGS_FILE;
 }
-impl ReadConfig for DeployErc20Output {}
-impl SaveConfig for DeployErc20Output {}
-impl SaveConfigWithBasePath for DeployErc20Output {}

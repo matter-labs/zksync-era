@@ -13,7 +13,7 @@ use crate::{
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
-    traits::{PathWithBasePath, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
 };
 
@@ -81,12 +81,9 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
     }
 }
 
-impl PathWithBasePath for EcosystemConfig {
+impl FileConfigWithDefaultName for EcosystemConfig {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
-impl ReadConfig for EcosystemConfig {}
-impl SaveConfig for EcosystemConfig {}
-impl SaveConfigWithBasePath for EcosystemConfig {}
 
 impl EcosystemConfig {
     fn get_shell(&self) -> &Shell {

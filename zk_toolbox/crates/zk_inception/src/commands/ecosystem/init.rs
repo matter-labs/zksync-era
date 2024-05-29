@@ -37,7 +37,8 @@ use config::{
         script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS},
     },
     traits::{
-        PathWithBasePath, ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath,
+        FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
+        SaveConfigWithBasePath,
     },
     ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
     AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,

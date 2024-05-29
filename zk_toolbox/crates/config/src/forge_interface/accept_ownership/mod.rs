@@ -1,10 +1,9 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::{ReadConfig, SaveConfig};
+use crate::traits::FileConfig;
 
-impl ReadConfig for AcceptOwnershipInput {}
-impl SaveConfig for AcceptOwnershipInput {}
+impl FileConfig for AcceptOwnershipInput {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AcceptOwnershipInput {

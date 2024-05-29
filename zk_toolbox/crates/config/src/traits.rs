@@ -7,13 +7,23 @@ use common::files::{
 use serde::{de::DeserializeOwned, Serialize};
 use xshell::Shell;
 
-pub trait PathWithBasePath {
+pub trait FileConfig {}
+
+pub trait FileConfigWithDefaultName {
     const FILE_NAME: &'static str;
 
     fn get_path_with_base_path(base_path: impl AsRef<Path>) -> PathBuf {
         base_path.as_ref().join(Self::FILE_NAME)
     }
 }
+
+impl<T> FileConfig for T where T: FileConfigWithDefaultName {}
+impl<T> ReadConfig for T where T: FileConfig + Clone + DeserializeOwned {}
+impl<T> SaveConfig for T where T: FileConfig + Serialize {}
+impl<T> SaveConfigWithComment for T where T: FileConfig + Serialize {}
+impl<T> ReadConfigWithBasePath for T where T: FileConfigWithDefaultName + Clone + DeserializeOwned {}
+impl<T> SaveConfigWithBasePath for T where T: FileConfigWithDefaultName + Serialize {}
+impl<T> SaveConfigWithCommentAndBasePath for T where T: FileConfigWithDefaultName + Serialize {}
 
 /// Reads a config file from a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
@@ -35,7 +45,7 @@ pub trait ReadConfig: DeserializeOwned + Clone {
 
 /// Reads a config file from a base path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
-pub trait ReadConfigWithBasePath: DeserializeOwned + Clone + ReadConfig + PathWithBasePath {
+pub trait ReadConfigWithBasePath: ReadConfig + FileConfigWithDefaultName {
     fn read_with_base_path(shell: &Shell, base_path: impl AsRef<Path>) -> anyhow::Result<Self> {
         <Self as ReadConfig>::read(shell, base_path.as_ref().join(Self::FILE_NAME))
     }
@@ -51,7 +61,7 @@ pub trait SaveConfig: Serialize + Sized {
 
 /// Saves a config file from a base path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
-pub trait SaveConfigWithBasePath: Serialize + Sized + SaveConfig + PathWithBasePath {
+pub trait SaveConfigWithBasePath: SaveConfig + FileConfigWithDefaultName {
     fn save_with_base_path(
         &self,
         shell: &Shell,
@@ -88,7 +98,7 @@ pub trait SaveConfigWithComment: Serialize + Sized {
 /// Saves a config file from a base path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`.
 pub trait SaveConfigWithCommentAndBasePath:
-    Serialize + Sized + SaveConfigWithComment + PathWithBasePath
+    SaveConfigWithComment + FileConfigWithDefaultName
 {
     fn save_with_comment_and_base_path(
         &self,
