@@ -33,32 +33,27 @@ impl FriWitnessGeneratorQueueReporter {
         result.extend(
             conn.fri_witness_generator_dal()
                 .get_witness_jobs_stats(AggregationRound::BasicCircuits)
-                .await
-                .into_iter(),
+                .await,
         );
         result.extend(
             conn.fri_witness_generator_dal()
                 .get_witness_jobs_stats(AggregationRound::LeafAggregation)
-                .await
-                .into_iter(),
+                .await,
         );
         result.extend(
             conn.fri_witness_generator_dal()
                 .get_witness_jobs_stats(AggregationRound::NodeAggregation)
-                .await
-                .into_iter(),
+                .await,
         );
         result.extend(
             conn.fri_witness_generator_dal()
                 .get_witness_jobs_stats(AggregationRound::RecursionTip)
-                .await
-                .into_iter(),
+                .await,
         );
         result.extend(
             conn.fri_witness_generator_dal()
                 .get_witness_jobs_stats(AggregationRound::Scheduler)
-                .await
-                .into_iter(),
+                .await,
         );
         result
     }
@@ -71,12 +66,12 @@ fn emit_metrics_for_round(
 ) {
     if stats.queued > 0 || stats.in_progress > 0 {
         tracing::trace!(
-                "Found {} free and {} in progress {:?} FRI witness generators jobs for protocol version {}",
-                stats.queued,
-                stats.in_progress,
-                round,
-                protocol_version
-            );
+            "Found {} free and {} in progress {:?} FRI witness generators jobs for protocol version {}",
+            stats.queued,
+            stats.in_progress,
+            round,
+            protocol_version
+        );
     }
 
     SERVER_METRICS.witness_generator_jobs_by_round[&(
@@ -103,9 +98,7 @@ impl PeriodicJob for FriWitnessGeneratorQueueReporter {
         for ((round, protocol_version), stats) in stats_for_all_rounds {
             emit_metrics_for_round(round, protocol_version, &stats);
 
-            let entry = aggregated
-                .entry(protocol_version)
-                .or_insert_with(|| JobCountStatistics::default());
+            let entry = aggregated.entry(protocol_version).or_default();
             entry.queued += stats.queued;
             entry.in_progress += stats.in_progress;
         }

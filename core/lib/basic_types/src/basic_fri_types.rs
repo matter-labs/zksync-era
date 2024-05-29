@@ -191,16 +191,6 @@ pub struct JobIdentifiers {
     pub protocol_version: u16,
 }
 
-impl JobIdentifiers {
-    pub fn new(circuit_id: u8, aggregation_round: u8, protocol_version: u16) -> Self {
-        Self {
-            circuit_id,
-            aggregation_round,
-            protocol_version,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

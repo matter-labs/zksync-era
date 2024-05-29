@@ -423,16 +423,13 @@ impl FriProverDal<'_, '_> {
             let mut result = HashMap::new();
 
             for row in &rows {
-                let stats = result
-                    .entry(JobIdentifiers::new(
-                        row.circuit_id as u8,
-                        row.aggregation_round as u8,
-                        row.protocol_version as u16,
-                    ))
-                    .or_insert(JobCountStatistics {
-                        queued: 0,
-                        in_progress: 0,
-                    });
+                let stats: &mut JobCountStatistics = result
+                    .entry(JobIdentifiers {
+                        circuit_id: row.circuit_id as u8,
+                        aggregation_round: row.aggregation_round as u8,
+                        protocol_version: row.protocol_version as u16,
+                    })
+                    .or_default();
                 match row.status.as_ref() {
                     "queued" => stats.queued = row.count as usize,
                     "in_progress" => stats.in_progress = row.count as usize,
@@ -625,7 +622,7 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri
             WHERE
                 l1_batch_number = $1
-                AND is_node_final_proof = true
+                AND is_node_final_proof = TRUE
                 AND status = 'successful'
             ORDER BY
                 circuit_id ASC
@@ -692,9 +689,12 @@ impl FriProverDal<'_, '_> {
     pub async fn protocol_version_for_job(&mut self, job_id: u32) -> ProtocolVersionId {
         sqlx::query!(
             r#"
-            SELECT protocol_version
-            FROM prover_jobs_fri
-            WHERE id = $1
+            SELECT
+                protocol_version
+            FROM
+                prover_jobs_fri
+            WHERE
+                id = $1
             "#,
             job_id as i32
         )
@@ -712,11 +712,9 @@ impl FriProverDal<'_, '_> {
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                prover_jobs_fri
+            DELETE FROM prover_jobs_fri
             WHERE
                 l1_batch_number = $1;
-            
             "#,
             i64::from(l1_batch_number.0)
         )
@@ -730,11 +728,9 @@ impl FriProverDal<'_, '_> {
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                prover_jobs_fri_archive
+            DELETE FROM prover_jobs_fri_archive
             WHERE
                 l1_batch_number = $1;
-            
             "#,
             i64::from(l1_batch_number.0)
         )
@@ -753,17 +749,25 @@ impl FriProverDal<'_, '_> {
     }
 
     pub async fn delete_prover_jobs_fri(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!("DELETE FROM prover_jobs_fri")
-            .execute(self.storage.conn())
-            .await
+        sqlx::query!(
+            r#"
+            DELETE FROM prover_jobs_fri
+            "#
+        )
+        .execute(self.storage.conn())
+        .await
     }
 
     pub async fn delete_prover_jobs_fri_archive(
         &mut self,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!("DELETE FROM prover_jobs_fri_archive")
-            .execute(self.storage.conn())
-            .await
+        sqlx::query!(
+            r#"
+            DELETE FROM prover_jobs_fri_archive
+            "#
+        )
+        .execute(self.storage.conn())
+        .await
     }
 
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
@@ -789,7 +793,10 @@ impl FriProverDal<'_, '_> {
                 WHERE
                     l1_batch_number = $1
                     AND attempts >= $2
-                    AND (status = 'in_progress' OR status = 'failed')
+                    AND (
+                        status = 'in_progress'
+                        OR status = 'failed'
+                    )
                 RETURNING
                     id,
                     status,

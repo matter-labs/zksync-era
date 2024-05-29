@@ -879,7 +879,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         rtwj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
                         AND prover_jobs_fri.aggregation_round = $1
-                        AND prover_jobs_fri.is_node_final_proof = true
+                        AND prover_jobs_fri.is_node_final_proof = TRUE
                     GROUP BY
                         prover_jobs_fri.l1_batch_number,
                         rtwj.number_of_final_node_jobs
@@ -1083,7 +1083,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     SELECT
                         l1_batch_number
                     FROM
-                    recursion_tip_witness_jobs_fri
+                        recursion_tip_witness_jobs_fri
                     WHERE
                         status = 'queued'
                         AND protocol_version = $1
@@ -1365,17 +1365,19 @@ impl FriWitnessGeneratorDal<'_, '_> {
             .await
             .unwrap()
             .into_iter()
-            .fold(HashMap::new(), |mut acc, row| {
-                acc.insert(
-                    (aggregation_round, ProtocolVersionId::try_from(row.get::<i32, &str>("protocol_version") as u16)
-                        .unwrap()),
-                    JobCountStatistics {
-                        queued: row.get::<i64, &str>("queued") as usize,
-                        in_progress: row.get::<i64, &str>("in_progress") as usize,
-                    },
+            .map(|row| {
+                let key = (
+                    aggregation_round,
+                    ProtocolVersionId::try_from(row.get::<i32, &str>("protocol_version") as u16)
+                        .unwrap(),
                 );
-                acc
+                let value = JobCountStatistics {
+                    queued: row.get::<i64, &str>("queued") as usize,
+                    in_progress: row.get::<i64, &str>("in_progress") as usize,
+                };
+                (key, value)
             })
+            .collect()
     }
 
     fn input_table_name_for(aggregation_round: AggregationRound) -> &'static str {
