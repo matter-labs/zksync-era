@@ -15,7 +15,6 @@ use common::{
 use xshell::{cmd, Shell};
 
 use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
-use crate::forge_utils::check_the_balance;
 use crate::{
     accept_ownership::accept_owner,
     commands::{
@@ -26,6 +25,7 @@ use crate::{
     },
     forge_utils::fill_forge_private_key,
 };
+use crate::{consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, forge_utils::check_the_balance};
 use config::{
     forge_interface::{
         deploy_ecosystem::{
@@ -41,7 +41,6 @@ use config::{
         SaveConfigWithBasePath,
     },
     ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
-    AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
 };
 use types::{L1Network, ProverMode, WalletCreation};
 

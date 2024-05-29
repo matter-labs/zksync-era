@@ -1,6 +1,6 @@
+use crate::consts::MINIMUM_BALANCE_FOR_WALLET;
 use anyhow::anyhow;
 use common::forge::ForgeScript;
-use config::MINIMUM_BALANCE_FOR_WALLET;
 use ethers::types::{H256, U256};
 
 pub fn fill_forge_private_key(

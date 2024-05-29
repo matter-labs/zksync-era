@@ -12,6 +12,7 @@ use config::EcosystemConfig;
 pub mod accept_ownership;
 mod commands;
 mod config_manipulations;
+mod consts;
 mod defaults;
 pub mod forge_utils;
 pub mod server;

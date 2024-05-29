@@ -37,6 +37,3 @@ pub(crate) const ERA_CHAIN_ID: ChainId = ChainId(270);
 
 pub(crate) const TEST_CONFIG_PATH: &str = "etc/test_config/constant/eth.json";
 pub(crate) const BASE_PATH: &str = "m/44'/60'/0'";
-pub const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
-
-pub const MINIMUM_BALANCE_FOR_WALLET: u128 = 5000000000000000000;
