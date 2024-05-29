@@ -206,6 +206,7 @@ const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptio
 
 type InitHyperCmdActionOptions = {
     skipSetupCompletely: boolean;
+    skipContractCompilationOverride?: boolean;
     bumpChainId: boolean;
     baseTokenName?: string;
     runObservability: boolean;
@@ -213,6 +214,7 @@ type InitHyperCmdActionOptions = {
 };
 export const initHyperCmdAction = async ({
     skipSetupCompletely,
+    skipContractCompilationOverride,
     bumpChainId,
     baseTokenName,
     runObservability,
@@ -224,7 +226,7 @@ export const initHyperCmdAction = async ({
         config.bumpChainId();
     }
     if (!skipSetupCompletely) {
-        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, deploymentMode });
+        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, skipContractCompilation: skipContractCompilationOverride, runObservability, deploymentMode });
     }
     await initDatabase({ skipVerifierDeployment: true });
     await initHyperchain({ includePaymaster: true, baseTokenName, deploymentMode });
@@ -262,6 +264,7 @@ initCommand
     .command('hyper')
     .description('Registers a hyperchain and deploys L2 contracts only. It requires an already deployed shared bridge.')
     .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
+    .option('--skip-contract-compilation-override')
     .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--validium-mode', 'deploy contracts in Validium mode')
