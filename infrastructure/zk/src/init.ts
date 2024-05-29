@@ -16,8 +16,12 @@ import * as server from './server';
 import { createVolumes, up } from './up';
 
 // Checks if all required tools are installed with the correct versions
-const checkEnv = async (): Promise<void> => {
+const checkEnv = async (runObservability: boolean): Promise<void> => {
     const tools = ['node', 'yarn', 'docker', 'cargo'];
+    if (runObservability) {
+        tools.push('yq');
+    }
+
     for (const tool of tools) {
         await utils.exec(`which ${tool}`);
     }
@@ -37,6 +41,23 @@ const submoduleUpdate = async (): Promise<void> => {
     await utils.exec('git submodule update');
 };
 
+// clone dockprom and zksync-era dashboards
+const setupObservability = async (): Promise<void> => {
+    // clone dockprom, era-observability repos and export era dashboards to dockprom
+    await utils.spawn(
+        `rm -rf ./target/dockprom && git clone git@github.com:stefanprodan/dockprom.git ./target/dockprom \
+            && rm -rf ./target/era-observability && git clone git@github.com:matter-labs/era-observability.git ./target/era-observability \
+            && cp ./target/era-observability/dashboards/* ./target/dockprom/grafana/provisioning/dashboards
+        `
+    );
+    // add scrape configuration to prometheus
+    await utils.spawn(
+        `yq eval '.scrape_configs += [{"job_name": "zksync", "scrape_interval": "5s", "honor_labels": true, "static_configs": [{"targets": ["host.docker.internal:3312"]}]}]' \
+            -i ./target/dockprom/prometheus/prometheus.yml
+        `
+    );
+};
+
 // Sets up docker environment and compiles contracts
 type InitSetupOptions = {
     skipEnvSetup: boolean;
@@ -50,6 +71,10 @@ const initSetup = async ({
     runObservability,
     deploymentMode
 }: InitSetupOptions): Promise<void> => {
+    if (runObservability) {
+        await announced('Pulling observability repos', setupObservability());
+    }
+
     await announced(
         `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
     );
@@ -58,7 +83,7 @@ const initSetup = async ({
     }
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
-        await announced('Checking environment', checkEnv());
+        await announced('Checking environment', checkEnv(runObservability));
         await announced('Checking git hooks', env.gitHooks());
         await announced('Create volumes', createVolumes());
         await announced('Setting up containers', up(runObservability));
