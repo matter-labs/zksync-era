@@ -154,7 +154,7 @@ impl InternalApiConfig {
                 .map(|a| a.transparent_proxy_admin_addr),
             user_facing_diamond_proxy_addr: contracts_config
                 .user_facing_diamond_proxy_addr
-                .unwrap_or_else(|| contracts_config.diamond_proxy_addr),
+                .unwrap_or(contracts_config.diamond_proxy_addr),
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),

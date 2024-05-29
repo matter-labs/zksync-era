@@ -106,6 +106,7 @@ async function migrateToSyncLayer() {
 
     // FIXME: consider creating new sync_layer_* variable.
     updateContractsEnv(envFile, migrationLog, ['SYNC_LAYER_DIAMOND_PROXY_ADDR']);
+    env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.SYNC_LAYER_DIAMOND_PROXY_ADDR!, envFile, true);
 }
 
 async function prepareValidatorsOnSyncLayer() {
