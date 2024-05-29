@@ -591,12 +591,7 @@ impl<'a> SnapshotsApplier<'a> {
         // we cannot insert all factory deps because of field size limit triggered by UNNEST
         // in underlying query, see `https://www.postgresql.org/docs/current/limits.html`
         // there were around 100 thousand contracts on mainnet, where this issue first manifested
-        let chunk_size = 1000;
-        let chunks_count = factory_deps.factory_deps.len().div_ceil(chunk_size);
-        for chunk_id in 0..chunks_count {
-            let chunk_start = chunk_id * chunk_size;
-            let chunk_end = min(factory_deps.factory_deps.len(), (chunk_id + 1) * chunk_size);
-            let chunk = &factory_deps.factory_deps[chunk_start..chunk_end];
+        for chunk in factory_deps.factory_deps.chunks(1000) {
             let chunk_deps_hashmap: HashMap<H256, Vec<u8>> = chunk
                 .iter()
                 .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0.clone()))
