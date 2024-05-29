@@ -13,15 +13,13 @@ Ensure you have followed
 [these instructions](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/setup-dev.md) to set up
 dependencies on your machine (don't worry about the Environment section for now).
 
-### Install From Git
+### Installation
 
 Install zk_inception from git:
 
 ```bash
 cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception --force
 ```
-
-### Install From Local Copy
 
 Manually building from a local copy of the [ZkSync](https://github.com/matter-labs/zksync-era/) repository:
 
@@ -44,7 +42,7 @@ that connects all ZK chains, like the BridgeHub, the shared bridges, and state t
 To create a ZK Stack project, you must first create an ecosystem:
 
 ```bash
-# Skip if you are manually building from a local copy of the ZkSync repository, which is an existing ecosystem
+# Skip this step if you are manually building from a local copy of the ZkSync repository (which is an existing ecosystem)
 zk_inception ecosystem create
 ```
 
@@ -54,8 +52,8 @@ copy of the ZkSync repository, you can later run `zk_inception containers`
 All subsequent commands should be executed from within the ecosystem folder you created:
 
 ```bash
-# If you are manually building from a local copy of the ZkSync repository, `path/to/ecosystem/name` is `cd -`
-cd `path/to/ecosystem/name`
+# `cd -` if you are manually building from a local copy of the ZkSync repository and are in the `zk_toolbox` folder
+cd `path/to/ecosystem/folder`
 ```
 
 If the ecosystem has never been deployed before, initialization is required:
@@ -97,7 +95,7 @@ zk_inception ecosystem change-default-chain
 
 ### Initializing ZK Chain Created By 3rd Party
 
-If contracts were deployed by a third party (e.g., MatterLabs), you may need to run the genesis process locally:
+If contracts were deployed by a third party (e.g., MatterLabs) and sent to you as a local copy, you may need to run the genesis process:
 
 ```bash
 zk_inception chain genesis
