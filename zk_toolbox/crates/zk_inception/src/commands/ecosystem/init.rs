@@ -253,7 +253,7 @@ async fn deploy_ecosystem(
                 ContractsConfig::get_path_with_base_path(&ecosystem_config.config)
             }
             L1Network::Sepolia | L1Network::Mainnet => ecosystem_config
-                .get_ecosystem_path()
+                .get_preexisting_configs_path()
                 .join(ecosystem_config.l1_network.to_string().to_lowercase()),
         });
 

@@ -7,7 +7,9 @@ use xshell::Shell;
 
 use crate::{
     consts::{
-        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY, LOCAL_DB_PATH, WALLETS_FILE
+        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
+        ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY, LOCAL_DB_PATH,
+        WALLETS_FILE,
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
@@ -178,7 +180,7 @@ impl EcosystemConfig {
         self.link_to_code.join(CONFIGS_PATH)
     }
 
-    pub fn get_ecosystem_path(&self) -> PathBuf {
+    pub fn get_preexisting_configs_path(&self) -> PathBuf {
         self.link_to_code.join(ECOSYSTEM_PATH)
     }
 
