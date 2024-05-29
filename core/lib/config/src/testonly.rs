@@ -244,6 +244,8 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l1_multicall3_addr: g.gen(),
             base_token_addr: g.gen(),
             ecosystem_contracts: self.sample(g),
+            user_facing_bridgehub_proxy_addr: g.gen(),
+            user_facing_diamond_proxy_addr: g.gen(),
         }
     }
 }

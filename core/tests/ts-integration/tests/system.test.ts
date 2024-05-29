@@ -23,7 +23,7 @@ const contracts = {
 
 const BUILTIN_CREATE2_FACTORY_ADDRESS = '0x0000000000000000000000000000000000010000';
 
-describe.skip('System behavior checks', () => {
+describe('System behavior checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 
@@ -211,7 +211,7 @@ describe.skip('System behavior checks', () => {
         expect(proposedEIP712Hashes.signedTxHash).toEqual(expectedEIP712SignedHash);
     });
 
-    test('Should execute withdrawals with different parameters in one block', async () => {
+    test.skip('Should execute withdrawals with different parameters in one block', async () => {
         // This test checks the SDK/system contracts (not even the server) behavior, and it's very time-consuming,
         // so it doesn't make sense to run it outside the localhost environment.
         if (testMaster.isFastMode()) {
@@ -258,7 +258,7 @@ describe.skip('System behavior checks', () => {
         testMaster.reporter.debug('Finalized withdrawal for Bob');
     });
 
-    test('Should execute a withdrawal with same parameters twice', async () => {
+    test.skip('Should execute a withdrawal with same parameters twice', async () => {
         // This test is a logical copy of the previous one, but in this one we send two withdrawals from the same account
         // It's skipped outside the localhost environment for the same reason.
         if (testMaster.isFastMode()) {

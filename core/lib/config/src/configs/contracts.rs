@@ -38,6 +38,10 @@ pub struct ContractsConfig {
     pub l1_multicall3_addr: Address,
     pub ecosystem_contracts: Option<EcosystemContracts>,
     pub base_token_addr: Option<Address>,
+
+    // fixme: maybe refactor
+    pub user_facing_bridgehub_proxy_addr: Option<Address>,
+    pub user_facing_diamond_proxy_addr: Option<Address>,
 }
 
 impl ContractsConfig {
@@ -58,6 +62,8 @@ impl ContractsConfig {
             governance_addr: Address::repeat_byte(0x13),
             base_token_addr: Some(Address::repeat_byte(0x14)),
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
+            user_facing_bridgehub_proxy_addr: Some(Address::repeat_byte(0x15)),
+            user_facing_diamond_proxy_addr: Some(Address::repeat_byte(0x16)),
         }
     }
 }
