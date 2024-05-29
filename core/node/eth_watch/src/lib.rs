@@ -49,7 +49,6 @@ pub struct EthWatch {
 impl EthWatch {
     pub async fn new(
         diamond_proxy_addr: Address,
-        state_transition_manager_address: Option<Address>,
         governance_contract: &Contract,
         mut client: Box<dyn EthClient>,
         pool: ConnectionPool<Core>,
@@ -63,7 +62,7 @@ impl EthWatch {
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id)?;
         let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
-            state_transition_manager_address.unwrap_or(diamond_proxy_addr),
+            diamond_proxy_addr,
             state.last_seen_version_id,
             governance_contract,
         );
