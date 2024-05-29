@@ -396,7 +396,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_prover_jobs_stats(&mut self) -> HashMap<JobIdentifiers, JobCountStatistics> {
         {
-            sqlx::query!(
+            let rows = sqlx::query!(
                 r#"
                 SELECT
                     COUNT(*) AS "count!",
@@ -418,38 +418,29 @@ impl FriProverDal<'_, '_> {
             )
             .fetch_all(self.storage.conn())
             .await
-            .unwrap()
-            .into_iter()
-            .map(|row| {
-                (
-                    row.circuit_id,
-                    row.aggregation_round,
-                    row.status,
-                    row.count as u64,
-                    row.protocol_version,
-                )
-            })
-            .fold(
-                HashMap::new(),
-                |mut acc, (circuit_id, aggregation_round, status, value, protocol_version)| {
-                    let stats = acc
-                        .entry(JobIdentifiers::new(
-                            circuit_id as u8,
-                            aggregation_round as u8,
-                            protocol_version as u16,
-                        ))
-                        .or_insert(JobCountStatistics {
-                            queued: 0,
-                            in_progress: 0,
-                        });
-                    match status.as_ref() {
-                        "queued" => stats.queued = value as usize,
-                        "in_progress" => stats.in_progress = value as usize,
-                        _ => (),
-                    }
-                    acc
-                },
-            )
+            .unwrap();
+
+            let mut result = HashMap::new();
+
+            for row in &rows {
+                let mut stats = result
+                    .entry(JobIdentifiers::new(
+                        row.circuit_id as u8,
+                        row.aggregation_round as u8,
+                        row.protocol_version as u16,
+                    ))
+                    .or_insert(JobCountStatistics {
+                        queued: 0,
+                        in_progress: 0,
+                    });
+                match row.status.as_ref() {
+                    "queued" => stats.queued = row.count as usize,
+                    "in_progress" => stats.in_progress = row.count as usize,
+                    _ => (),
+                }
+            }
+
+            result
         }
     }
 
