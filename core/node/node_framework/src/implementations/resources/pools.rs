@@ -53,7 +53,7 @@ impl<P: PoolKind> PoolResource<P> {
     fn builder(&self) -> ConnectionPoolBuilder<P::DbMarker> {
         let mut builder = ConnectionPool::builder(self.url.clone(), self.max_connections);
         builder.set_statement_timeout(self.statement_timeout);
-        builder.set_statement_timeout(self.acquire_timeout);
+        builder.set_acquire_timeout(self.acquire_timeout);
         builder
     }
 
