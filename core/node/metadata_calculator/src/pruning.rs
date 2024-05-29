@@ -112,7 +112,7 @@ impl MerkleTreePruningTask {
                     tracing::error!("Merkle tree pruning thread unexpectedly stopped");
                     return pruner_task_handle
                         .await
-                        .context("Merkle tree pruning thread panicked");
+                        .context("Merkle tree pruning thread panicked")?;
                 };
 
                 if prev_target_version != target_retained_version {
@@ -138,7 +138,7 @@ impl MerkleTreePruningTask {
         drop(pruner_handle);
         pruner_task_handle
             .await
-            .context("Merkle tree pruning thread panicked")
+            .context("Merkle tree pruning thread panicked")?
     }
 }
 
