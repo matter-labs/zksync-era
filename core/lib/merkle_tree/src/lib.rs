@@ -256,6 +256,8 @@ impl<DB: PruneDatabase> MerkleTree<DB> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::types::TreeTags;
 
@@ -268,6 +270,7 @@ mod tests {
             depth: 256,
             hasher: "blake2s256".to_string(),
             is_recovering: false,
+            custom: HashMap::new(),
         });
 
         MerkleTree::new(db);
@@ -282,6 +285,7 @@ mod tests {
             depth: 128,
             hasher: "blake2s256".to_string(),
             is_recovering: false,
+            custom: HashMap::new(),
         });
 
         MerkleTree::new(db);
@@ -296,6 +300,7 @@ mod tests {
             depth: 256,
             hasher: "sha256".to_string(),
             is_recovering: false,
+            custom: HashMap::new(),
         });
 
         MerkleTree::new(db);
