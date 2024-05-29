@@ -39,7 +39,6 @@ describe('Upgrade test', function () {
     let bootloaderHash: string;
     let scheduleTransparentOperation: string;
     let executeOperation: string;
-    let finalizeOperation: string;
     let forceDeployAddress: string;
     let forceDeployBytecode: string;
     let logs: fs.WriteStream;

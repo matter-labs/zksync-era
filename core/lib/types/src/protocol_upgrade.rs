@@ -367,14 +367,12 @@ impl TryFrom<Call> for ProtocolUpgrade {
                 );
 
                 // The second item must be a tuple of diamond cut data
-                let tokens = data.pop().unwrap().into_tuple().unwrap();
-
-                tokens
+                data.pop().unwrap().into_tuple().unwrap()
             } else {
                 return Err(crate::ethabi::Error::InvalidData);
             };
 
-        ProtocolUpgrade::try_from_decoded_tokens(diamond_cut_tokens, eth_hash, eth_block.into())
+        ProtocolUpgrade::try_from_decoded_tokens(diamond_cut_tokens, eth_hash, eth_block)
     }
 }
 
