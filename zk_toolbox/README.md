@@ -42,6 +42,7 @@ that connects all ZK chains, like the BridgeHub, the shared bridges, and state t
 To create a ZK Stack project, you must first create an ecosystem:
 
 ```bash
+# Only create ecosystem if you are NOT manually building from a local copy of the ZkSync repository
 zk_inception ecosystem create
 ```
 
@@ -51,6 +52,7 @@ If you chose to not start database & L1 containers after creating the ecosystem,
 All subsequent commands should be executed from within the ecosystem folder you created:
 
 ```bash
+# if you are building from a local copy of the ZkSync repository, `path/to/ecosystem/name` is `cd -`
 cd `path/to/ecosystem/name`
 ```
 
@@ -63,16 +65,10 @@ zk_inception ecosystem init
 This command also initializes the first ZK chain. Note that the very first chain becomes the default one, but you can
 override it with another by using the `--chain <name>` flag.
 
-To change the default ZK chain, use:
-
-```bash
-zk_inception ecosystem change-default-chain
-```
-
 IMPORTANT: It is not yet possible to use an existing ecosystem and register a chain to it. this feature will be added in
 the future.
 
-### ZK Chain
+### Creating Additional ZK Chains
 
 Upon ecosystem creation, the first ZK chain is automatically generated. However, you can create additional chains and
 switch between them:
@@ -89,6 +85,8 @@ zk_inception chain init
 
 Initialization utilizes the ecosystem's governance to register it in the BridgeHub.
 
+### Initializing A ZK Chain Created By A 3rd Party
+
 If contracts were deployed by a third party (e.g., MatterLabs), you may need to run the genesis process locally:
 
 ```bash
@@ -97,7 +95,15 @@ zk_inception chain genesis
 
 This ensures proper initialization of the server.
 
-### Zk Server
+### Change Default ZK Chain
+
+To change the default ZK chain, use:
+
+```bash
+zk_inception ecosystem change-default-chain
+```
+
+### Running The Chain Using ZK Server
 
 For running the chain:
 
