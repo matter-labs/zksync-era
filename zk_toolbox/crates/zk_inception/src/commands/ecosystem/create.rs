@@ -15,8 +15,8 @@ use crate::commands::{
 };
 use config::traits::SaveConfigWithBasePath;
 use config::{
-    create_local_configs_dir, create_wallets, EcosystemConfig, EcosystemConfigFromFileError,
-    ZKSYNC_ERA_GIT_REPO,
+    create_local_configs_dir, create_wallets, get_default_era_chain_id, EcosystemConfig,
+    EcosystemConfigFromFileError, ZKSYNC_ERA_GIT_REPO,
 };
 
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -68,6 +68,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         link_to_code: link_to_code.clone(),
         chains: chains_path.clone(),
         config: configs_path,
+        era_chain_id: get_default_era_chain_id(),
         default_chain: default_chain_name.clone(),
         l1_rpc_url: args.l1_rpc_url,
         prover_version: chain_config.prover_version,

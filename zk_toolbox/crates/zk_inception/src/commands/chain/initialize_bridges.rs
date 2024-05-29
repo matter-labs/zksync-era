@@ -41,7 +41,7 @@ pub async fn initialize_bridges(
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
     build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
-    let input = InitializeBridgeInput::new(chain_config, ecosystem_config.era_chain_id())?;
+    let input = InitializeBridgeInput::new(chain_config, ecosystem_config.era_chain_id)?;
     let foundry_contracts_path = chain_config.path_to_foundry();
     input.save(
         shell,

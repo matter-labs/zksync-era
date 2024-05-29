@@ -278,7 +278,7 @@ async fn deploy_ecosystem_inner(
         &default_genesis_config,
         &wallets_config,
         initial_deployment_config,
-        config.era_chain_id(),
+        config.era_chain_id,
         config.prover_version == ProverMode::NoProofs,
     );
     deploy_config.save(shell, deploy_config_path)?;

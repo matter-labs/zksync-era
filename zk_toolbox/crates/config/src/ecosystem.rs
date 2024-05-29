@@ -7,9 +7,7 @@ use xshell::Shell;
 
 use crate::{
     consts::{
-        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
-        ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY, LOCAL_DB_PATH,
-        WALLETS_FILE,
+        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY, LOCAL_DB_PATH, WALLETS_FILE
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
@@ -44,6 +42,7 @@ pub struct EcosystemConfig {
     pub config: PathBuf,
     pub default_chain: String,
     pub l1_rpc_url: String,
+    pub era_chain_id: ChainId,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
     pub shell: OnceCell<Shell>,
@@ -72,6 +71,7 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
             config: config.config.clone(),
             default_chain: config.default_chain.clone(),
             l1_rpc_url: config.l1_rpc_url.clone(),
+            era_chain_id: config.era_chain_id,
             prover_version: config.prover_version,
             wallet_creation: config.wallet_creation,
             shell: Default::default(),
@@ -174,10 +174,6 @@ impl EcosystemConfig {
             .collect()
     }
 
-    pub fn era_chain_id(&self) -> ChainId {
-        ERA_CHAIN_ID
-    }
-
     pub fn get_default_configs_path(&self) -> PathBuf {
         self.link_to_code.join(CONFIGS_PATH)
     }
@@ -199,7 +195,7 @@ impl EcosystemConfig {
             config: self.config.clone(),
             default_chain: self.default_chain.clone(),
             l1_rpc_url: self.l1_rpc_url.clone(),
-            era_chain_id: ERA_CHAIN_ID,
+            era_chain_id: self.era_chain_id,
             prover_version: self.prover_version,
             wallet_creation: self.wallet_creation,
         }
@@ -213,4 +209,8 @@ pub enum EcosystemConfigFromFileError {
     NotExists,
     #[error("Invalid ecosystem configuration")]
     InvalidConfig { source: anyhow::Error },
+}
+
+pub fn get_default_era_chain_id() -> ChainId {
+    ERA_CHAIN_ID
 }

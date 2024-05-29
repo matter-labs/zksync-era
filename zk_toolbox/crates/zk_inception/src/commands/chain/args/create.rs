@@ -7,8 +7,8 @@ use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
 use crate::defaults::L2_CHAIN_ID;
-use types::{BaseToken, L1BatchCommitDataGeneratorMode, ProverMode, WalletCreation};
 use ethers::types::Address;
+use types::{BaseToken, L1BatchCommitDataGeneratorMode, ProverMode, WalletCreation};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ChainCreateArgs {
