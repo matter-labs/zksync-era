@@ -300,12 +300,35 @@ impl AsyncTreeReader {
     }
 
     pub async fn info(self) -> MerkleTreeInfo {
-        tokio::task::spawn_blocking(move || MerkleTreeInfo {
-            mode: self.mode,
-            root_hash: self.inner.root_hash(),
-            next_l1_batch_number: self.inner.next_l1_batch_number(),
-            min_l1_batch_number: self.inner.min_l1_batch_number(),
-            leaf_count: self.inner.leaf_count(),
+        tokio::task::spawn_blocking(move || {
+            loop {
+                let next_l1_batch_number = self.inner.next_l1_batch_number();
+                let latest_l1_batch_number = next_l1_batch_number.checked_sub(1);
+                let root_info = if let Some(number) = latest_l1_batch_number {
+                    self.inner.root_info(L1BatchNumber(number))
+                } else {
+                    // No L1 batches in the tree yet.
+                    Some((ZkSyncTree::empty_tree_hash(), 0))
+                };
+                let Some((root_hash, leaf_count)) = root_info else {
+                    // It is possible (although very unlikely) that the latest tree version was removed after requesting it,
+                    // hence the outer loop; RocksDB doesn't provide consistent data views by default.
+                    tracing::info!(
+                        "Tree version at L1 batch {latest_l1_batch_number:?} was removed after requesting the latest tree L1 batch; \
+                         re-requesting tree information"
+                    );
+                    continue;
+                };
+
+                // `min_l1_batch_number` is not necessarily consistent with other retrieved tree data, but this looks fine.
+                break MerkleTreeInfo {
+                    mode: self.mode,
+                    root_hash,
+                    next_l1_batch_number,
+                    min_l1_batch_number: self.inner.min_l1_batch_number(),
+                    leaf_count,
+                };
+            }
         })
         .await
         .unwrap()
@@ -393,6 +416,39 @@ impl AsyncTreeRecovery {
             .as_ref()
             .expect(Self::INCONSISTENT_MSG)
             .recovered_version()
+    }
+
+    pub async fn ensure_desired_chunk_size(
+        &mut self,
+        desired_chunk_size: u64,
+    ) -> anyhow::Result<()> {
+        const CHUNK_SIZE_KEY: &str = "recovery.desired_chunk_size";
+
+        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+        let tree = tokio::task::spawn_blocking(move || {
+            // **Important.** Tags should not be mutated on error (i.e., it would be an error to unconditionally call `tags.insert()`
+            // and then check the previous value).
+            tree.update_custom_tags(|tags| {
+                if let Some(chunk_size_in_tree) = tags.get(CHUNK_SIZE_KEY) {
+                    let chunk_size_in_tree: u64 = chunk_size_in_tree
+                        .parse()
+                        .with_context(|| format!("error parsing desired_chunk_size `{chunk_size_in_tree}` in Merkle tree tags"))?;
+                    anyhow::ensure!(
+                        chunk_size_in_tree == desired_chunk_size,
+                        "Mismatch between the configured desired chunk size ({desired_chunk_size}) and one that was used previously ({chunk_size_in_tree}). \
+                         Either change the desired chunk size in configuration, or reset Merkle tree recovery by clearing its RocksDB directory"
+                    );
+                } else {
+                    tags.insert(CHUNK_SIZE_KEY.to_owned(), desired_chunk_size.to_string());
+                }
+                Ok(())
+            })?;
+            anyhow::Ok(tree)
+        })
+        .await??;
+
+        self.inner = Some(tree);
+        Ok(())
     }
 
     /// Returns an entry for the specified keys.
