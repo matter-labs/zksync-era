@@ -10,6 +10,10 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Layer that inserts the `TreeApiHttpClient` into the `ServiceContext` resources, if there is no
+/// other client already inserted.
+///
+/// In case a client is already provided in the contest, the layer does nothing.
 #[derive(Debug)]
 pub struct TreeApiClientLayer {
     url: Option<String>,
@@ -30,11 +34,25 @@ impl WiringLayer for TreeApiClientLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         if let Some(url) = &self.url {
             let client = Arc::new(TreeApiHttpClient::new(url));
+            match context.insert_resource(TreeApiClientResource(client.clone())) {
+                Ok(()) => {
+                    // There was no client added before, we added one.
+                }
+                Err(WiringError::ResourceAlreadyProvided { .. }) => {
+                    // Some other client was already added. We don't want to replace it.
+                    return Ok(());
+                }
+                err @ Err(_) => {
+                    // Propagate any other error.
+                    return err;
+                }
+            }
+
+            // Only provide the health check if necessary.
             let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
             app_health
-                .insert_custom_component(client.clone())
+                .insert_custom_component(client)
                 .map_err(WiringError::internal)?;
-            context.insert_resource(TreeApiClientResource(client))?;
         }
         Ok(())
     }

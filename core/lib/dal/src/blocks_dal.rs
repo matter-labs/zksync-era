@@ -9,7 +9,7 @@ use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use zksync_db_connection::{
     connection::Connection,
-    error::DalResult,
+    error::{DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
     interpolate_query, match_query_as,
 };
@@ -18,6 +18,7 @@ use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHeader, StorageOracleInfo},
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
+    writes::TreeWrite,
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
 
@@ -164,6 +165,8 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
+    /// Gets a number of the earliest L1 batch that is ready for commitment generation (i.e., doesn't have commitment
+    /// yet, and has tree data).
     pub async fn get_next_l1_batch_ready_for_commitment_generation(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {
@@ -183,6 +186,34 @@ impl BlocksDal<'_, '_> {
             "#
         )
         .instrument("get_next_l1_batch_ready_for_commitment_generation")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    /// Gets a number of the last L1 batch that is ready for commitment generation (i.e., doesn't have commitment
+    /// yet, and has tree data).
+    pub async fn get_last_l1_batch_ready_for_commitment_generation(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE
+                hash IS NOT NULL
+                AND commitment IS NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_last_l1_batch_ready_for_commitment_generation")
         .report_latency()
         .fetch_optional(self.storage)
         .await?;
@@ -2174,6 +2205,83 @@ impl BlocksDal<'_, '_> {
         .execute(self.storage)
         .await?;
         Ok(())
+    }
+
+    pub async fn set_tree_writes(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        tree_writes: Vec<TreeWrite>,
+    ) -> DalResult<()> {
+        let instrumentation =
+            Instrumented::new("set_tree_writes").with_arg("l1_batch_number", &l1_batch_number);
+        let tree_writes = bincode::serialize(&tree_writes)
+            .map_err(|err| instrumentation.arg_error("tree_writes", err))?;
+
+        let query = sqlx::query!(
+            r#"
+            UPDATE l1_batches
+            SET
+                tree_writes = $1
+            WHERE
+                number = $2
+            "#,
+            &tree_writes,
+            i64::from(l1_batch_number.0),
+        );
+
+        instrumentation.with(query).execute(self.storage).await?;
+
+        Ok(())
+    }
+
+    pub async fn get_tree_writes(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<Vec<TreeWrite>>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                tree_writes
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0),
+        )
+        .try_map(|row| {
+            row.tree_writes
+                .map(|data| bincode::deserialize(&data).decode_column("tree_writes"))
+                .transpose()
+        })
+        .instrument("get_tree_writes")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .flatten())
+    }
+
+    pub async fn check_tree_writes_presence(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<bool> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                (tree_writes IS NOT NULL) AS "tree_writes_are_present!"
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0),
+        )
+        .instrument("check_tree_writes_presence")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| row.tree_writes_are_present)
+        .unwrap_or(false))
     }
 }
 

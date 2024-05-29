@@ -10,6 +10,7 @@ use std::{
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use test_casing::test_casing;
+use zksync_dal::Connection;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, StorageLog, H256};

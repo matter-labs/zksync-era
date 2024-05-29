@@ -29,6 +29,7 @@ thiserror.workspace = true
 tracing.workspace = true
 once_cell.workspace = true
 futures.workspace = true
+itertools.workspace = true
 
 # dependencies for the tree API server
 reqwest.workspace = true

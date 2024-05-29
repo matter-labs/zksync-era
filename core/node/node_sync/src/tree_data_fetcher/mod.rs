@@ -7,7 +7,7 @@ use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{block::L1BatchTreeData, Address, L1BatchNumber};
 use zksync_web3_decl::{
@@ -169,27 +169,6 @@ impl TreeDataFetcher {
         })
     }
 
-    async fn get_rollup_last_leaf_index(
-        storage: &mut Connection<'_, Core>,
-        mut l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<u64> {
-        // With overwhelming probability, there's at least one initial write in an L1 batch,
-        // so this loop will execute for 1 iteration.
-        loop {
-            let maybe_index = storage
-                .storage_logs_dedup_dal()
-                .max_enumeration_index_for_l1_batch(l1_batch_number)
-                .await?;
-            if let Some(index) = maybe_index {
-                return Ok(index + 1);
-            }
-            tracing::warn!(
-                "No initial writes in L1 batch #{l1_batch_number}; trying the previous batch"
-            );
-            l1_batch_number -= 1;
-        }
-    }
-
     async fn step(&mut self) -> Result<StepOutcome, TreeDataFetcherError> {
         let Some(l1_batch_to_fetch) = self.get_batch_to_fetch().await? else {
             return Ok(StepOutcome::NoProgress);
@@ -218,8 +197,12 @@ impl TreeDataFetcher {
 
         let stage_latency = self.metrics.stage_latency[&ProcessingStage::Persistence].start();
         let mut storage = self.pool.connection_tagged("tree_data_fetcher").await?;
-        let rollup_last_leaf_index =
-            Self::get_rollup_last_leaf_index(&mut storage, l1_batch_to_fetch).await?;
+        let rollup_last_leaf_index = storage
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_by_l1_batch(l1_batch_to_fetch)
+            .await?
+            .unwrap_or(0)
+            + 1;
         let tree_data = L1BatchTreeData {
             hash: root_hash,
             rollup_last_leaf_index,
