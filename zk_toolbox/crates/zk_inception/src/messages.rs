@@ -1,3 +1,6 @@
+/// Common messages
+pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
+
 /// Ecosystem create related messages
 pub(super) const MSG_L1_NETWORK_HELP: &str = "L1 Network";
 pub(super) const MSG_LINK_TO_CODE_HELP: &str = "Code link";
@@ -9,7 +12,6 @@ pub(super) const MSG_LINK_TO_CODE_PROMPT: &str = "Where's the code located?";
 pub(super) const MSG_L1_NETWORK_PROMPT: &str = "Select the L1 network";
 pub(super) const MSG_START_CONTAINERS_PROMPT: &str =
     "Do you want to start containers after creating the ecosystem?";
-pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
 pub(super) const MSG_CREATING_ECOSYSTEM: &str = "Creating ecosystem";
 pub(super) const MSG_CREATED_ECOSYSTEM: &str = "Ecosystem created successfully";
 pub(super) const MSG_CLONING_ERA_REPO_SPINNER: &str = "Cloning zksync-era repository...";
@@ -51,3 +53,35 @@ pub(super) const MSG_SAVE_INITIAL_CONFIG_ATTENTION: &str =
     "ATTENTION: This file contains sensible placeholders. Please check them and update with the desired values.";
 pub(super) const MSG_SAVE_ERC20_CONFIG_ATTENTION: &str =
     "ATTENTION: This file should be filled with the desired ERC20 tokens to deploy.";
+
+/// Chain Create related messages
+pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
+pub(super) const MSG_WALLET_CREATION_HELP: &str = "Wallet options";
+pub(super) const MSG_WALLET_PATH_HELP: &str = "Wallet path";
+pub(super) const MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP: &str = "Commit data generation mode";
+pub(super) const MSG_BASE_TOKEN_ADDRESS_HELP: &str = "Base token address";
+pub(super) const MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP: &str = "Base token nominator";
+pub(super) const MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP: &str = "Base token denominator";
+pub(super) const MSG_SET_AS_DEFAULT_HELP: &str = "Set as default chain";
+pub(super) const MSG_CHAIN_NAME_PROMPT: &str = "What do you want to name the chain?";
+pub(super) const MSG_CHAIN_ID_PROMPT: &str = "What's the chain id?";
+pub(super) const MSG_WALLET_CREATION_PROMPT: &str = "Select how do you want to create the wallet";
+pub(super) const MSG_PROVER_VERSION_PROMPT: &str = "Select the prover mode";
+pub(super) const MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT: &str =
+    "Select the commit data generator mode";
+pub(super) const MSG_WALLET_PATH_PROMPT: &str = "What is the wallet path?";
+pub(super) const MSG_BASE_TOKEN_SELECTION_PROMPT: &str = "Select the base token to use";
+pub(super) const MSG_BASE_TOKEN_ADDRESS_PROMPT: &str = "What is the token address?";
+pub(super) const MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT: &str =
+    "What is the base token price nominator?";
+pub(super) const MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT: &str =
+    "What is the base token price denominator?";
+pub(super) const MSG_SET_AS_DEFAULT_PROMPT: &str = "Set this chain as default?";
+pub(super) const MSG_WALLET_PATH_INVALID_ERR: &str = "Invalid path";
+pub(super) const MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR: &str = "Number is not zero";
+pub(super) const MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR: &str =
+    "Number should be greater than zero";
+pub(super) const MSG_CREATING_CHAIN: &str = "Creating chain";
+pub(super) const MSG_CHAIN_CREATED: &str = "Chain created successfully";
+pub(super) const MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER: &str =
+    "Creating chain configurations...";

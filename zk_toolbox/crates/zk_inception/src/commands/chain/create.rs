@@ -7,6 +7,10 @@ use crate::{
     commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
     configs::{ChainConfig, EcosystemConfig, SaveConfig},
     consts::{CONFIG_NAME, LOCAL_CONFIGS_PATH, LOCAL_DB_PATH, WALLETS_FILE},
+    messages::{
+        MSG_CHAIN_CREATED, MSG_CREATING_CHAIN, MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER,
+        MSG_SELECTED_CONFIG,
+    },
     types::ChainId,
     wallets::create_wallets,
 };
@@ -23,10 +27,10 @@ fn create(
 ) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt(ecosystem_config.list_of_chains().len() as u32);
 
-    logger::note("Selected config:", logger::object_to_string(&args));
-    logger::info("Creating chain");
+    logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
+    logger::info(MSG_CREATING_CHAIN);
 
-    let spinner = Spinner::new("Creating chain configurations...");
+    let spinner = Spinner::new(MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER);
     let name = args.chain_name.clone();
     let set_as_default = args.set_as_default;
     create_chain_inner(args, ecosystem_config, shell)?;
@@ -36,7 +40,7 @@ fn create(
     }
     spinner.finish();
 
-    logger::success("Chain created successfully");
+    logger::success(MSG_CHAIN_CREATED);
 
     Ok(())
 }
