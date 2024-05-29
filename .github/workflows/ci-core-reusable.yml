@@ -182,7 +182,7 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
-          ci_run pre_download_compilers
+          ci_run pre_download_compilers.sh
           ci_run sccache --start-server
 
       - name: Init
@@ -304,7 +304,7 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
-          ci_run pre_download_compilers
+          ci_run pre_download_compilers.sh
           ci_run sccache --start-server
 
       - name: Init

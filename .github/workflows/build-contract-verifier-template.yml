@@ -104,7 +104,7 @@ jobs:
           mkdir -p ./volumes/postgres
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
-          ci_run pre_download_compilers
+          ci_run pre_download_compilers.sh
           ci_run sccache --start-server
 
       - name: init
