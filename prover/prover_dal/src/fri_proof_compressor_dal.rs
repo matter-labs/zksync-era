@@ -1,12 +1,10 @@
 #![doc = include_str!("../doc/FriProofCompressorDal.md")]
-use std::{str::FromStr, time::Duration};
+use std::{collections::HashMap, str::FromStr, time::Duration};
 
-use sqlx::Row;
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        JobCountStatisticsByProtocolVersion, ProofCompressionJobInfo, ProofCompressionJobStatus,
-        StuckJobs,
+        JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
     },
     L1BatchNumber,
 };
@@ -232,28 +230,29 @@ impl FriProofCompressorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn get_jobs_stats(&mut self) -> Vec<JobCountStatisticsByProtocolVersion> {
-        sqlx::query(
+    pub async fn get_jobs_stats(&mut self) -> HashMap<ProtocolVersionId, JobCountStatistics> {
+        sqlx::query!(
             "SELECT
-                    protocol_version,
-                    COUNT(*) FILTER (WHERE status = 'queued') as queued,
-                    COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress \
-                 FROM proof_compression_jobs_fri \
-                 GROUP BY status, protocol_version",
+                protocol_version,
+                COUNT(*) FILTER (WHERE status = 'queued') as queued,
+                COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
+            FROM proof_compression_jobs_fri
+            GROUP BY status, protocol_version",
         )
         .fetch_all(self.storage.conn())
         .await
         .unwrap()
         .into_iter()
-        .map(|row| JobCountStatisticsByProtocolVersion {
-            protocol_version: ProtocolVersionId::try_from(
-                row.get::<i32, &str>("protocol_version") as u16
-            )
-            .unwrap(),
-            queued: row.get::<i64, &str>("queued") as usize,
-            in_progress: row.get::<i64, &str>("in_progress") as usize,
+        .fold(HashMap::new(), |mut acc, row| {
+            acc.insert(
+                ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
+                JobCountStatistics {
+                    queued: row.queued.unwrap() as usize,
+                    in_progress: row.in_progress.unwrap() as usize,
+                },
+            );
+            acc
         })
-        .collect::<Vec<JobCountStatisticsByProtocolVersion>>()
     }
 
     pub async fn get_oldest_not_compressed_batch(&mut self) -> Option<L1BatchNumber> {

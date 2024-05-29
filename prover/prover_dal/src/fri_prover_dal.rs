@@ -2,7 +2,7 @@
 use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
-    basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
+    basic_fri_types::{AggregationRound, CircuitIdRoundTuple, JobIdentifiers},
     protocol_version::ProtocolVersionId,
     prover_dal::{
         correct_circuit_id, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo,
@@ -394,7 +394,7 @@ impl FriProverDal<'_, '_> {
             .unwrap();
     }
 
-    pub async fn get_prover_jobs_stats(&mut self) -> HashMap<(u8, u8, u16), JobCountStatistics> {
+    pub async fn get_prover_jobs_stats(&mut self) -> HashMap<JobIdentifiers, JobCountStatistics> {
         {
             sqlx::query!(
                 r#"
@@ -433,7 +433,7 @@ impl FriProverDal<'_, '_> {
                 HashMap::new(),
                 |mut acc, (circuit_id, aggregation_round, status, value, protocol_version)| {
                     let stats = acc
-                        .entry((
+                        .entry(JobIdentifiers::new(
                             circuit_id as u8,
                             aggregation_round as u8,
                             protocol_version as u16,

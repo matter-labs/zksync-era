@@ -34,13 +34,6 @@ pub struct ExtendedJobCountStatistics {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct JobCountStatisticsByProtocolVersion {
-    pub protocol_version: ProtocolVersionId,
-    pub queued: usize,
-    pub in_progress: usize,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
 pub struct JobCountStatistics {
     pub queued: usize,
     pub in_progress: usize,

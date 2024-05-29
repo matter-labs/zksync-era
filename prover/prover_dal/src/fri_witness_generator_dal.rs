@@ -1,12 +1,12 @@
 #![doc = include_str!("../doc/FriWitnessGeneratorDal.md")]
-use std::{convert::TryFrom, str::FromStr, time::Duration};
+use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        correct_circuit_id, BasicWitnessGeneratorJobInfo, JobCountStatisticsByProtocolVersion,
+        correct_circuit_id, BasicWitnessGeneratorJobInfo, JobCountStatistics,
         LeafAggregationJobMetadata, LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata,
         NodeWitnessGeneratorJobInfo, RecursionTipWitnessGeneratorJobInfo,
         SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
@@ -1345,7 +1345,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_witness_jobs_stats(
         &mut self,
         aggregation_round: AggregationRound,
-    ) -> Vec<JobCountStatisticsByProtocolVersion> {
+    ) -> HashMap<(AggregationRound, ProtocolVersionId), JobCountStatistics> {
         let table_name = Self::input_table_name_for(aggregation_round);
         let sql = format!(
             r#"
@@ -1365,15 +1365,17 @@ impl FriWitnessGeneratorDal<'_, '_> {
             .await
             .unwrap()
             .into_iter()
-            .map(|row| JobCountStatisticsByProtocolVersion {
-                protocol_version: ProtocolVersionId::try_from(
-                    row.get::<i32, &str>("protocol_version") as u16,
-                )
-                .unwrap(),
-                queued: row.get::<i64, &str>("queued") as usize,
-                in_progress: row.get::<i64, &str>("in_progress") as usize,
+            .fold(HashMap::new(), |mut acc, row| {
+                acc.insert(
+                    (aggregation_round, ProtocolVersionId::try_from(row.get::<i32, &str>("protocol_version") as u16)
+                        .unwrap()),
+                    JobCountStatistics {
+                        queued: row.get::<i64, &str>("queued") as usize,
+                        in_progress: row.get::<i64, &str>("in_progress") as usize,
+                    },
+                );
+                acc
             })
-            .collect()
     }
 
     fn input_table_name_for(aggregation_round: AggregationRound) -> &'static str {
@@ -1431,7 +1433,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             l1_batch_number,
             merkle_tree_paths_blob_url: row.merkle_tree_paths_blob_url,
             attempts: row.attempts as u32,
-            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            status: row.status.parse::<WitnessJobStatus>().unwrap(),
             error: row.error,
             created_at: row.created_at,
             updated_at: row.updated_at,

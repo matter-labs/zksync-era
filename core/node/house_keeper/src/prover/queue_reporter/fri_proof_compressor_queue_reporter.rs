@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
-use zksync_types::prover_dal::JobCountStatisticsByProtocolVersion;
+use zksync_types::{prover_dal::JobCountStatistics, ProtocolVersionId};
 
 use crate::{
     periodic_job::PeriodicJob,
@@ -26,7 +28,7 @@ impl FriProofCompressorQueueReporter {
 
     async fn get_job_statistics(
         pool: &ConnectionPool<Prover>,
-    ) -> Vec<JobCountStatisticsByProtocolVersion> {
+    ) -> HashMap<ProtocolVersionId, JobCountStatistics> {
         pool.connection()
             .await
             .unwrap()
@@ -43,22 +45,22 @@ impl PeriodicJob for FriProofCompressorQueueReporter {
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stats = Self::get_job_statistics(&self.pool).await;
 
-        for stats in stats.iter() {
+        for (protocol_version, stats) in &stats {
             if stats.queued > 0 {
                 tracing::info!(
                     "Found {} free {} in progress proof compressor jobs for protocol version {}",
                     stats.queued,
                     stats.in_progress,
-                    stats.protocol_version
+                    protocol_version
                 );
             }
 
             PROVER_FRI_METRICS.proof_compressor_jobs
-                [&(JobStatus::Queued, stats.protocol_version.to_string())]
+                [&(JobStatus::Queued, protocol_version.to_string())]
                 .set(stats.queued as u64);
 
             PROVER_FRI_METRICS.proof_compressor_jobs
-                [&(JobStatus::InProgress, stats.protocol_version.to_string())]
+                [&(JobStatus::InProgress, protocol_version.to_string())]
                 .set(stats.in_progress as u64);
         }
 
