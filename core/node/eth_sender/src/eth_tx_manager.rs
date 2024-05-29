@@ -260,7 +260,7 @@ impl EthTxManager {
         if let Some(previous_sent_tx) = previous_sent_tx {
             METRICS.transaction_resent.inc();
             tracing::info!(
-                "Resending operation tx {} with \
+                "Resending tx {} at block {current_block} with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
                 blob_fee_per_gas {blob_base_fee_per_gas:?}, \
@@ -276,7 +276,7 @@ impl EthTxManager {
             );
         } else {
             tracing::info!(
-                "Sending operation tx {} with \
+                "Sending tx {} at block {current_block} with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
                 blob_fee_per_gas {blob_base_fee_per_gas:?}",
@@ -340,11 +340,11 @@ impl EthTxManager {
                 .await
             {
                 tracing::warn!(
-                    "Error Sending operation tx {} with \
-                base_fee_per_gas {base_fee_per_gas:?}, \
-                priority_fee_per_gas {priority_fee_per_gas:?}, \
-                blob_fee_per_gas {blob_base_fee_per_gas:?},\
-                error {error}",
+                    "Error Sending tx {} at block {current_block} with \
+                    base_fee_per_gas {base_fee_per_gas:?}, \
+                    priority_fee_per_gas {priority_fee_per_gas:?}, \
+                    blob_fee_per_gas {blob_base_fee_per_gas:?},\
+                    error {error}",
                     tx.id
                 );
             }
@@ -827,11 +827,6 @@ impl EthTxManager {
             .config
             .max_txs_in_flight
             .saturating_sub(number_inflight_txs as u64);
-        tracing::info!(
-            "Attempting to send {number_inflight_txs} new transactions, \
-        there are {number_of_available_slots_for_eth_txs} slots available for them, \
-        current block is {current_block}"
-        );
 
         if number_of_available_slots_for_eth_txs > 0 {
             // Get the new eth tx and create history item for them
