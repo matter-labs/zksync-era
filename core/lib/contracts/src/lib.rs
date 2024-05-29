@@ -25,23 +25,32 @@ pub enum ContractLanguage {
     Yul,
 }
 
-const BRIDGEHUB_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/bridgehub/IBridgehub.sol/IBridgehub.json";
-const STATE_TRANSITION_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/state-transition/IStateTransitionManager.sol/IStateTransitionManager.json";
-const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json";
-const DIAMOND_INIT_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IDiamondInit.sol/IDiamondInit.json";
-const GOVERNANCE_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/governance/IGovernance.sol/IGovernance.json";
-const MULTICALL3_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/dev-contracts/Multicall3.sol/Multicall3.json";
-const VERIFIER_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/state-transition/Verifier.sol/Verifier.json";
+/// During the transition period we have to support both paths for contracts artifacts
+/// One for forge and another for hardhat.
+/// Meanwhile, hardhat has one more intermediate folder. That's why, we have to represent each contract
+/// by two constants, intermediate folder and actual contract name. For Forge we use only second part
+const HARDHAT_PATH_PREFIX: &str = "contracts/l1-contracts/artifacts/contracts";
+const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts-foundry/out";
+
+const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
+const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
+    "state-transition",
+    "IStateTransitionManager.sol/IStateTransitionManager.json",
+);
+const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
+    "state-transition/",
+    "chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
+);
+const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
+    "state-transition",
+    "chain-interfaces/IDiamondInit.sol/IDiamondInit.json",
+);
+const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
+const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
+const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
-const _FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
+const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
     "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 const LOADNEXT_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
@@ -70,6 +79,26 @@ fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option
     })
 }
 
+fn load_contract_for_hardhat(path: (&str, &str)) -> Option<Contract> {
+    let path = Path::new(HARDHAT_PATH_PREFIX).join(path.0).join(path.1);
+    load_contract_if_present(path)
+}
+
+fn load_contract_for_forge(file_path: &str) -> Option<Contract> {
+    let path = Path::new(FORGE_PATH_PREFIX).join(file_path);
+    load_contract_if_present(path)
+}
+
+fn load_contract_for_both_compilers(path: (&str, &str)) -> Contract {
+    if let Some(contract) = load_contract_for_forge(path.1) {
+        return contract;
+    };
+
+    load_contract_for_hardhat(path).unwrap_or_else(|| {
+        panic!("Failed to load contract from {:?}", path);
+    })
+}
+
 pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
     load_contract_if_present(&path).unwrap_or_else(|| {
         panic!("Failed to load contract from {:?}", path);
@@ -91,31 +120,31 @@ pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> String {
 }
 
 pub fn bridgehub_contract() -> Contract {
-    load_contract(BRIDGEHUB_CONTRACT_FILE)
+    load_contract_for_both_compilers(BRIDGEHUB_CONTRACT_FILE)
 }
 
 pub fn governance_contract() -> Contract {
-    load_contract_if_present(GOVERNANCE_CONTRACT_FILE).expect("Governance contract not found")
+    load_contract_for_both_compilers(GOVERNANCE_CONTRACT_FILE)
 }
 
 pub fn state_transition_manager_contract() -> Contract {
-    load_contract(STATE_TRANSITION_CONTRACT_FILE)
+    load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
 }
 
 pub fn hyperchain_contract() -> Contract {
-    load_contract(ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
+    load_contract_for_both_compilers(ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
 }
 
 pub fn diamond_init_contract() -> Contract {
-    load_contract(DIAMOND_INIT_CONTRACT_FILE)
+    load_contract_for_both_compilers(DIAMOND_INIT_CONTRACT_FILE)
 }
 
 pub fn multicall_contract() -> Contract {
-    load_contract(MULTICALL3_CONTRACT_FILE)
+    load_contract_for_both_compilers(MULTICALL3_CONTRACT_FILE)
 }
 
 pub fn verifier_contract() -> Contract {
-    load_contract(VERIFIER_CONTRACT_FILE)
+    load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
 }
 
 #[derive(Debug, Clone)]

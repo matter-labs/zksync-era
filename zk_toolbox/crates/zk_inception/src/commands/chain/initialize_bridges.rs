@@ -43,6 +43,7 @@ pub async fn initialize_bridges(
     build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
     let input = InitializeBridgeInput::new(chain_config, ecosystem_config.era_chain_id)?;
     let foundry_contracts_path = chain_config.path_to_foundry();
+    let secrets = chain_config.get_secrets_config()?;
     input.save(
         shell,
         INITIALIZE_BRIDGES_SCRIPT_PARAMS.input(&chain_config.link_to_code),
@@ -54,7 +55,7 @@ pub async fn initialize_bridges(
             forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(ecosystem_config.l1_rpc_url.clone())
+        .with_rpc_url(secrets.l1.l1_rpc_url.clone())
         .with_broadcast();
 
     forge = fill_forge_private_key(

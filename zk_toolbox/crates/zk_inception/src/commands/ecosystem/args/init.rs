@@ -1,10 +1,13 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{forge::ForgeScriptArgs, PromptConfirm};
+use common::{forge::ForgeScriptArgs, Prompt, PromptConfirm};
 use serde::{Deserialize, Serialize};
+use types::L1Network;
+use url::Url;
 
 use crate::commands::chain::args::genesis::GenesisArgs;
+use crate::defaults::LOCAL_RPC_URL;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemArgs {
@@ -14,19 +17,35 @@ pub struct EcosystemArgs {
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
+    #[clap(long, help = "L1 RPC URL")]
+    pub l1_rpc_url: Option<String>,
 }
 
 impl EcosystemArgs {
-    pub fn fill_values_with_prompt(self) -> EcosystemArgsFinal {
+    pub fn fill_values_with_prompt(self, l1_network: L1Network) -> EcosystemArgsFinal {
         let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
             PromptConfirm::new("Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)")
                 .default(true)
                 .ask()
         });
 
+        let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
+            let mut prompt = Prompt::new("What is the RPC URL of the L1 network?");
+            if l1_network == L1Network::Localhost {
+                prompt = prompt.default(LOCAL_RPC_URL);
+            }
+            prompt
+                .validate_with(|val: &String| -> Result<(), String> {
+                    Url::parse(val)
+                        .map(|_| ())
+                        .map_err(|_| "Invalid RPC url".to_string())
+                })
+                .ask()
+        });
         EcosystemArgsFinal {
             deploy_ecosystem,
             ecosystem_contracts_path: self.ecosystem_contracts_path,
+            l1_rpc_url,
         }
     }
 }
@@ -35,6 +54,7 @@ impl EcosystemArgs {
 pub struct EcosystemArgsFinal {
     pub deploy_ecosystem: bool,
     pub ecosystem_contracts_path: Option<PathBuf>,
+    pub l1_rpc_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -57,7 +77,7 @@ pub struct EcosystemInitArgs {
 }
 
 impl EcosystemInitArgs {
-    pub fn fill_values_with_prompt(self) -> EcosystemInitArgsFinal {
+    pub fn fill_values_with_prompt(self, l1_network: L1Network) -> EcosystemInitArgsFinal {
         let deploy_paymaster = self.deploy_paymaster.unwrap_or_else(|| {
             PromptConfirm::new("Do you want to deploy paymaster?")
                 .default(true)
@@ -68,7 +88,7 @@ impl EcosystemInitArgs {
                 .default(true)
                 .ask()
         });
-        let ecosystem = self.ecosystem.fill_values_with_prompt();
+        let ecosystem = self.ecosystem.fill_values_with_prompt(l1_network);
 
         EcosystemInitArgsFinal {
             deploy_paymaster,

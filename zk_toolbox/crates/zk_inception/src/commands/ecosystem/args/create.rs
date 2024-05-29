@@ -5,13 +5,13 @@ use common::{slugify, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
-use url::Url;
+use types::{L1Network, WalletCreation};
 
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
     defaults::LOCAL_RPC_URL,
 };
-use types::{L1Network, WalletCreation};
+use url::Url;
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct EcosystemCreateArgs {

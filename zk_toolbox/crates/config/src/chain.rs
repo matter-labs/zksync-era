@@ -10,10 +10,12 @@ use types::{
 use xshell::Shell;
 
 use crate::{
-    consts::{CONFIG_NAME, CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, WALLETS_FILE},
+    consts::{
+        CONFIG_NAME, CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
+    },
     create_localhost_wallets,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, GenesisConfig, WalletsConfig,
+    ContractsConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -83,6 +85,10 @@ impl ChainConfig {
     }
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
         ContractsConfig::read(self.get_shell(), self.configs.join(CONTRACTS_FILE))
+    }
+
+    pub fn get_secrets_config(&self) -> anyhow::Result<SecretsConfig> {
+        SecretsConfig::read(self.get_shell(), self.configs.join(SECRETS_FILE))
     }
 
     pub fn path_to_foundry(&self) -> PathBuf {

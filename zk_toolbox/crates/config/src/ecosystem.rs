@@ -72,7 +72,7 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
             chains: config.chains.clone(),
             config: config.config.clone(),
             default_chain: config.default_chain.clone(),
-            l1_rpc_url: config.l1_rpc_url.clone(),
+            l1_rpc_url: config.l1_rpc_url,
             era_chain_id: config.era_chain_id,
             prover_version: config.prover_version,
             wallet_creation: config.wallet_creation,

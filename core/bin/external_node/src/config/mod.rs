@@ -17,6 +17,7 @@ use zksync_config::{
 use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
+use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
 use zksync_node_api_server::{
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfig, Namespace},
@@ -746,6 +747,15 @@ pub(crate) struct ExperimentalENConfig {
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
 
+    // Snapshot recovery
+    /// Approximate chunk size (measured in the number of entries) to recover in a single iteration.
+    /// Reasonable values are order of 100,000 (meaning an iteration takes several seconds).
+    ///
+    /// **Important.** This value cannot be changed in the middle of tree recovery (i.e., if a node is stopped in the middle
+    /// of recovery and then restarted with a different config).
+    #[serde(default = "ExperimentalENConfig::default_snapshots_recovery_tree_chunk_size")]
+    pub snapshots_recovery_tree_chunk_size: u64,
+
     // Commitment generator
     /// Maximum degree of parallelism during commitment generation, i.e., the maximum number of L1 batches being processed in parallel.
     /// If not specified, commitment generator will use a value roughly equal to the number of CPU cores with some clamping applied.
@@ -757,12 +767,17 @@ impl ExperimentalENConfig {
         128
     }
 
+    fn default_snapshots_recovery_tree_chunk_size() -> u64 {
+        MetadataCalculatorRecoveryConfig::default().desired_chunk_size
+    }
+
     #[cfg(test)]
     fn mock() -> Self {
         Self {
             state_keeper_db_block_cache_capacity_mb:
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
+            snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
             commitment_generator_max_parallelism: None,
         }
     }

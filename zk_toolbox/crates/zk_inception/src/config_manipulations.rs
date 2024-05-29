@@ -7,8 +7,7 @@ use config::{
         register_chain::output::RegisterChainOutput,
     },
     traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, DatabasesConfig, EcosystemConfig, GeneralConfig, GenesisConfig,
-    SecretsConfig,
+    ChainConfig, ContractsConfig, DatabasesConfig, GeneralConfig, GenesisConfig, SecretsConfig,
 };
 use types::ProverMode;
 
@@ -23,19 +22,25 @@ pub(crate) fn update_genesis(shell: &Shell, config: &ChainConfig) -> anyhow::Res
     Ok(())
 }
 
-pub(crate) fn update_secrets(
+pub(crate) fn update_database_secrets(
     shell: &Shell,
     config: &ChainConfig,
     db_config: &DatabasesConfig,
-    ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     let mut secrets = SecretsConfig::read_with_base_path(shell, &config.configs)?;
     secrets.database.server_url = db_config.server.full_url();
     secrets.database.prover_url = db_config.prover.full_url();
-    secrets
-        .l1
-        .l1_rpc_url
-        .clone_from(&ecosystem_config.l1_rpc_url);
+    secrets.save_with_base_path(shell, &config.configs)?;
+    Ok(())
+}
+
+pub(crate) fn update_l1_rpc_url_secret(
+    shell: &Shell,
+    config: &ChainConfig,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    let mut secrets = SecretsConfig::read_with_base_path(shell, &config.configs)?;
+    secrets.l1.l1_rpc_url = l1_rpc_url;
     secrets.save_with_base_path(shell, &config.configs)?;
     Ok(())
 }
@@ -57,7 +62,6 @@ pub fn update_l1_contracts(
     config: &ChainConfig,
     register_chain_output: &RegisterChainOutput,
 ) -> anyhow::Result<ContractsConfig> {
-    // let contracts_config_path = config.configs.join(CONTRACTS_FILE);
     let mut contracts_config = ContractsConfig::read_with_base_path(shell, &config.configs)?;
     contracts_config.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
     contracts_config.l1.governance_addr = register_chain_output.governance_addr;

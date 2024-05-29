@@ -4667,6 +4667,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "prover_version"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "zksync_types",
+]
+
+[[package]]
 name = "ptr_meta"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

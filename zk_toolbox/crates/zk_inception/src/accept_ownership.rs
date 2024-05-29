@@ -22,6 +22,7 @@ pub async fn accept_admin(
     governor: Option<H256>,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)
@@ -30,7 +31,7 @@ pub async fn accept_admin(
             forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(ecosystem_config.l1_rpc_url.clone())
+        .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_signature("acceptAdmin()");
     accept_ownership(
@@ -51,6 +52,7 @@ pub async fn accept_owner(
     governor: Option<H256>,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)
@@ -59,7 +61,7 @@ pub async fn accept_owner(
             forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(ecosystem_config.l1_rpc_url.clone())
+        .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_signature("acceptOwner()");
     accept_ownership(
