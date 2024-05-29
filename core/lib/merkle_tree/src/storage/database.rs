@@ -81,7 +81,11 @@ pub trait Database: Send + Sync {
     fn start_profiling(&self, operation: ProfiledTreeOperation) -> Box<dyn Any>;
 
     /// Applies changes in the `patch` to this database. This operation should be atomic.
-    fn apply_patch(&mut self, patch: PatchSet);
+    ///
+    /// # Errors
+    ///
+    /// Returns I/O errors.
+    fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()>;
 }
 
 impl<DB: Database + ?Sized> Database for &mut DB {
@@ -109,8 +113,8 @@ impl<DB: Database + ?Sized> Database for &mut DB {
         (**self).start_profiling(operation)
     }
 
-    fn apply_patch(&mut self, patch: PatchSet) {
-        (**self).apply_patch(patch);
+    fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
+        (**self).apply_patch(patch)
     }
 }
 
@@ -150,11 +154,11 @@ impl Database for PatchSet {
         Box::new(()) // no stats are collected
     }
 
-    fn apply_patch(&mut self, mut other: PatchSet) {
+    fn apply_patch(&mut self, mut other: PatchSet) -> anyhow::Result<()> {
         if let Some(other_updated_version) = other.updated_version {
             if let Some(updated_version) = self.updated_version {
-                assert_eq!(
-                    other_updated_version, updated_version,
+                anyhow::ensure!(
+                    other_updated_version == updated_version,
                     "Cannot merge patches with different updated versions"
                 );
 
@@ -163,7 +167,7 @@ impl Database for PatchSet {
                 // ^ `unwrap()`s are safe by design.
                 patch.merge(other_patch);
             } else {
-                assert!(
+                anyhow::ensure!(
                     self.patches_by_version.keys().all(|&ver| ver > other_updated_version),
                     "Cannot update {self:?} from {other:?}; this would break the update version invariant \
                      (the update version being lesser than all inserted versions)"
@@ -188,6 +192,7 @@ impl Database for PatchSet {
         }
         // `PatchSet` invariants hold by construction: the updated version (if set) is still lower
         // than all other versions by design.
+        Ok(())
     }
 }
 
@@ -244,10 +249,15 @@ impl<DB: Database> Patched<DB> {
     }
 
     /// Flushes changes from RAM to the wrapped database.
-    pub fn flush(&mut self) {
+    ///
+    /// # Errors
+    ///
+    /// Proxies database I/O errors.
+    pub fn flush(&mut self) -> anyhow::Result<()> {
         if let Some(patch) = self.patch.take() {
-            self.inner.apply_patch(patch);
+            self.inner.apply_patch(patch)?;
         }
+        Ok(())
     }
 
     /// Forgets about changes held in RAM.
@@ -343,12 +353,13 @@ impl<DB: Database> Database for Patched<DB> {
         self.inner.start_profiling(operation)
     }
 
-    fn apply_patch(&mut self, patch: PatchSet) {
+    fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
         if let Some(existing_patch) = &mut self.patch {
-            existing_patch.apply_patch(patch);
+            existing_patch.apply_patch(patch)?;
         } else {
             self.patch = Some(patch);
         }
+        Ok(())
     }
 }
 
@@ -384,7 +395,11 @@ pub trait PruneDatabase: Database {
     fn stale_keys(&self, version: u64) -> Vec<NodeKey>;
 
     /// Atomically prunes the tree and updates information about the minimum retained version.
-    fn prune(&mut self, patch: PrunePatchSet);
+    ///
+    /// # Errors
+    ///
+    /// Propagates database I/O errors.
+    fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()>;
 }
 
 impl<T: PruneDatabase + ?Sized> PruneDatabase for &mut T {
@@ -396,8 +411,8 @@ impl<T: PruneDatabase + ?Sized> PruneDatabase for &mut T {
         (**self).stale_keys(version)
     }
 
-    fn prune(&mut self, patch: PrunePatchSet) {
-        (**self).prune(patch);
+    fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()> {
+        (**self).prune(patch)
     }
 }
 
@@ -416,7 +431,7 @@ impl PruneDatabase for PatchSet {
             .unwrap_or_default()
     }
 
-    fn prune(&mut self, patch: PrunePatchSet) {
+    fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()> {
         for key in &patch.pruned_node_keys {
             let Some(patch) = self.patches_by_version.get_mut(&key.version) else {
                 continue;
@@ -430,6 +445,7 @@ impl PruneDatabase for PatchSet {
 
         self.stale_keys_by_version
             .retain(|version, _| !patch.deleted_stale_key_versions.contains(version));
+        Ok(())
     }
 }
 
@@ -479,7 +495,7 @@ mod tests {
             vec![],
             Operation::Insert,
         );
-        patch.apply_patch(new_patch);
+        patch.apply_patch(new_patch).unwrap();
 
         for ver in (0..9).chain(11..20) {
             assert!(patch.root(ver).is_none());
@@ -518,7 +534,7 @@ mod tests {
             vec![],
             Operation::Update,
         );
-        patch.apply_patch(new_patch);
+        patch.apply_patch(new_patch).unwrap();
 
         for ver in (0..9).chain(10..20) {
             assert!(patch.root(ver).is_none());
@@ -542,7 +558,7 @@ mod tests {
         let new_root = Root::new(3, Node::Internal(InternalNode::default()));
         let new_nodes = generate_nodes(1, &[3, 4, 5]);
         let patch = create_patch(1, new_root, new_nodes.clone());
-        patched.apply_patch(patch);
+        patched.apply_patch(patch).unwrap();
 
         let (&old_key, expected_node) = old_nodes.iter().next().unwrap();
         let node = patched.tree_node(&old_key, true).unwrap();
@@ -619,7 +635,7 @@ mod tests {
             vec![],
             Operation::Update,
         );
-        patched.apply_patch(new_patch);
+        patched.apply_patch(new_patch).unwrap();
 
         for ver in (0..9).chain(10..20) {
             assert!(patched.root(ver).is_none());

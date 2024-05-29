@@ -191,15 +191,15 @@ impl AsyncTree {
     const INCONSISTENT_MSG: &'static str =
         "`AsyncTree` is in inconsistent state, which could occur after one of its async methods was cancelled or returned an error";
 
-    pub fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> Self {
+    pub fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> anyhow::Result<Self> {
         let tree = match mode {
             MerkleTreeMode::Full => ZkSyncTree::new(db),
             MerkleTreeMode::Lightweight => ZkSyncTree::new_lightweight(db),
-        };
-        Self {
+        }?;
+        Ok(Self {
             inner: Some(tree),
             mode,
-        }
+        })
     }
 
     fn as_ref(&self) -> &ZkSyncTree {
@@ -253,13 +253,13 @@ impl AsyncTree {
 
         let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
-            let metadata = tree.process_l1_batch(&batch.storage_logs);
-            (tree, metadata)
+            let metadata = tree.process_l1_batch(&batch.storage_logs)?;
+            anyhow::Ok((tree, metadata))
         })
         .await
         .with_context(|| {
             format!("Merkle tree panicked when processing L1 batch #{batch_number}")
-        })?;
+        })??;
 
         self.inner = Some(tree);
         Ok(metadata)
@@ -270,17 +270,17 @@ impl AsyncTree {
         let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
         self.inner = Some(
             tokio::task::spawn_blocking(|| {
-                tree.save();
-                tree
+                tree.save()?;
+                anyhow::Ok(tree)
             })
             .await
-            .context("Merkle tree panicked during saving")?,
+            .context("Merkle tree panicked during saving")??,
         );
         Ok(())
     }
 
-    pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
-        self.as_mut().roll_back_logs(last_l1_batch_to_keep);
+    pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
+        self.as_mut().roll_back_logs(last_l1_batch_to_keep)
     }
 }
 
@@ -300,12 +300,35 @@ impl AsyncTreeReader {
     }
 
     pub async fn info(self) -> MerkleTreeInfo {
-        tokio::task::spawn_blocking(move || MerkleTreeInfo {
-            mode: self.mode,
-            root_hash: self.inner.root_hash(),
-            next_l1_batch_number: self.inner.next_l1_batch_number(),
-            min_l1_batch_number: self.inner.min_l1_batch_number(),
-            leaf_count: self.inner.leaf_count(),
+        tokio::task::spawn_blocking(move || {
+            loop {
+                let next_l1_batch_number = self.inner.next_l1_batch_number();
+                let latest_l1_batch_number = next_l1_batch_number.checked_sub(1);
+                let root_info = if let Some(number) = latest_l1_batch_number {
+                    self.inner.root_info(L1BatchNumber(number))
+                } else {
+                    // No L1 batches in the tree yet.
+                    Some((ZkSyncTree::empty_tree_hash(), 0))
+                };
+                let Some((root_hash, leaf_count)) = root_info else {
+                    // It is possible (although very unlikely) that the latest tree version was removed after requesting it,
+                    // hence the outer loop; RocksDB doesn't provide consistent data views by default.
+                    tracing::info!(
+                        "Tree version at L1 batch {latest_l1_batch_number:?} was removed after requesting the latest tree L1 batch; \
+                         re-requesting tree information"
+                    );
+                    continue;
+                };
+
+                // `min_l1_batch_number` is not necessarily consistent with other retrieved tree data, but this looks fine.
+                break MerkleTreeInfo {
+                    mode: self.mode,
+                    root_hash,
+                    next_l1_batch_number,
+                    min_l1_batch_number: self.inner.min_l1_batch_number(),
+                    leaf_count,
+                };
+            }
         })
         .await
         .unwrap()
@@ -340,7 +363,7 @@ struct WeakAsyncTreeReader {
 impl WeakAsyncTreeReader {
     fn upgrade(&self) -> Option<AsyncTreeReader> {
         Some(AsyncTreeReader {
-            inner: ZkSyncTreeReader::new(self.db.upgrade()?.into()),
+            inner: ZkSyncTreeReader::new(self.db.upgrade()?.into()).ok()?,
             mode: self.mode,
         })
     }
@@ -381,11 +404,15 @@ impl AsyncTreeRecovery {
     const INCONSISTENT_MSG: &'static str =
         "`AsyncTreeRecovery` is in inconsistent state, which could occur after one of its async methods was cancelled";
 
-    pub fn new(db: RocksDBWrapper, recovered_version: u64, mode: MerkleTreeMode) -> Self {
-        Self {
-            inner: Some(MerkleTreeRecovery::new(db, recovered_version)),
+    pub fn new(
+        db: RocksDBWrapper,
+        recovered_version: u64,
+        mode: MerkleTreeMode,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            inner: Some(MerkleTreeRecovery::new(db, recovered_version)?),
             mode,
-        }
+        })
     }
 
     pub fn recovered_version(&self) -> u64 {
@@ -393,6 +420,40 @@ impl AsyncTreeRecovery {
             .as_ref()
             .expect(Self::INCONSISTENT_MSG)
             .recovered_version()
+    }
+
+    pub async fn ensure_desired_chunk_size(
+        &mut self,
+        desired_chunk_size: u64,
+    ) -> anyhow::Result<()> {
+        const CHUNK_SIZE_KEY: &str = "recovery.desired_chunk_size";
+
+        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+        let tree = tokio::task::spawn_blocking(move || {
+            // **Important.** Tags should not be mutated on error (i.e., it would be an error to unconditionally call `tags.insert()`
+            // and then check the previous value).
+            tree.update_custom_tags(|tags| {
+                if let Some(chunk_size_in_tree) = tags.get(CHUNK_SIZE_KEY) {
+                    let chunk_size_in_tree: u64 = chunk_size_in_tree
+                        .parse()
+                        .with_context(|| format!("error parsing desired_chunk_size `{chunk_size_in_tree}` in Merkle tree tags"))?;
+                    anyhow::ensure!(
+                        chunk_size_in_tree == desired_chunk_size,
+                        "Mismatch between the configured desired chunk size ({desired_chunk_size}) and one that was used previously ({chunk_size_in_tree}). \
+                         Either change the desired chunk size in configuration, or reset Merkle tree recovery by clearing its RocksDB directory"
+                    );
+                } else {
+                    tags.insert(CHUNK_SIZE_KEY.to_owned(), desired_chunk_size.to_string());
+                }
+                Ok(())
+            })
+            .context("failed updating Merkle tree tags")??;
+            anyhow::Ok(tree)
+        })
+        .await??;
+
+        self.inner = Some(tree);
+        Ok(())
     }
 
     /// Returns an entry for the specified keys.
@@ -416,23 +477,24 @@ impl AsyncTreeRecovery {
     }
 
     /// Extends the tree with a chunk of recovery entries.
-    pub async fn extend(&mut self, entries: Vec<TreeEntry>) {
+    pub async fn extend(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
         let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let tree = tokio::task::spawn_blocking(move || {
-            tree.extend_random(entries);
-            tree
+            tree.extend_random(entries)?;
+            anyhow::Ok(tree)
         })
         .await
-        .unwrap();
+        .context("extending tree with recovery entries panicked")??;
 
         self.inner = Some(tree);
+        Ok(())
     }
 
-    pub async fn finalize(self) -> AsyncTree {
+    pub async fn finalize(self) -> anyhow::Result<AsyncTree> {
         let tree = self.inner.expect(Self::INCONSISTENT_MSG);
         let db = tokio::task::spawn_blocking(|| tree.finalize())
             .await
-            .unwrap();
+            .context("finalizing tree panicked")??;
         AsyncTree::new(db, self.mode)
     }
 }
@@ -452,19 +514,19 @@ pub(super) enum GenericAsyncTree {
 }
 
 impl GenericAsyncTree {
-    pub async fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> Self {
+    pub async fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> anyhow::Result<Self> {
         tokio::task::spawn_blocking(move || {
             let Some(manifest) = db.manifest() else {
-                return Self::Empty { db, mode };
+                return Ok(Self::Empty { db, mode });
             };
-            if let Some(version) = manifest.recovered_version() {
-                Self::Recovering(AsyncTreeRecovery::new(db, version, mode))
+            anyhow::Ok(if let Some(version) = manifest.recovered_version() {
+                Self::Recovering(AsyncTreeRecovery::new(db, version, mode)?)
             } else {
-                Self::Ready(AsyncTree::new(db, mode))
-            }
+                Self::Ready(AsyncTree::new(db, mode)?)
+            })
         })
         .await
-        .unwrap()
+        .context("loading Merkle tree panicked")?
     }
 }
 
@@ -856,7 +918,7 @@ mod tests {
 
     async fn create_tree(temp_dir: &TempDir) -> AsyncTree {
         let db = create_db(mock_config(temp_dir.path())).await.unwrap();
-        AsyncTree::new(db, MerkleTreeMode::Full)
+        AsyncTree::new(db, MerkleTreeMode::Full).unwrap()
     }
 
     async fn assert_log_equivalence(

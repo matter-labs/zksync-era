@@ -22,7 +22,7 @@ use zksync_db_connection::{
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_metadata_calculator::{
     api_server::{TreeApiClient, TreeApiHttpClient},
-    MetadataCalculator, MetadataCalculatorConfig,
+    MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
 use zksync_node_api_server::{
     execution_sandbox::VmConcurrencyLimiter,
@@ -139,6 +139,9 @@ async fn run_tree(
             .merkle_tree_include_indices_and_filters_in_block_cache,
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
+        recovery: MetadataCalculatorRecoveryConfig {
+            desired_chunk_size: config.experimental.snapshots_recovery_tree_chunk_size,
+        },
     };
 
     let max_concurrency = config
