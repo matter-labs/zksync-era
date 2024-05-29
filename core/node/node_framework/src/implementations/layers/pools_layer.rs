@@ -1,4 +1,5 @@
 use zksync_config::configs::{DatabaseSecrets, PostgresConfig};
+use zksync_dal::{ConnectionPool, Core};
 
 use crate::{
     implementations::resources::pools::{MasterPool, PoolResource, ProverPool, ReplicaPool},
@@ -74,19 +75,35 @@ impl WiringLayer for PoolsLayer {
             ));
         }
 
+        if self.with_master || self.with_replica {
+            if let Some(threshold) = self.config.slow_query_threshold() {
+                ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
+            }
+            if let Some(threshold) = self.config.long_connection_threshold() {
+                ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
+            }
+        }
+
         if self.with_master {
+            let pool_size = self.config.max_connections()?;
+            let pool_size_master = self.config.max_connections_master().unwrap_or(pool_size);
+
             context.insert_resource(PoolResource::<MasterPool>::new(
                 self.secrets.master_url()?,
-                self.config.max_connections()?,
-                self.config.statement_timeout(),
+                pool_size_master,
+                None,
+                None,
             ))?;
         }
 
         if self.with_replica {
+            // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
+            // on Postgres.
             context.insert_resource(PoolResource::<ReplicaPool>::new(
                 self.secrets.replica_url()?,
                 self.config.max_connections()?,
                 self.config.statement_timeout(),
+                self.config.acquire_timeout(),
             ))?;
         }
 
@@ -94,7 +111,8 @@ impl WiringLayer for PoolsLayer {
             context.insert_resource(PoolResource::<ProverPool>::new(
                 self.secrets.prover_url()?,
                 self.config.max_connections()?,
-                self.config.statement_timeout(),
+                None,
+                None,
             ))?;
         }
 
