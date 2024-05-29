@@ -37,7 +37,7 @@ pub struct MiniMerkleTree<const LEAF_SIZE: usize, H = KeccakHasher> {
     hasher: H,
     hashes: VecDeque<H256>,
     binary_tree_size: usize,
-    head_index: usize,
+    start_index: usize,
     left_cache: Vec<H256>,
 }
 
@@ -97,21 +97,21 @@ where
             hasher,
             hashes,
             binary_tree_size,
-            head_index: 0,
+            start_index: 0,
             left_cache: vec![],
         }
     }
 
     /// Returns `true` if the tree is empty.
     pub fn is_empty(&self) -> bool {
-        self.head_index == 0 && self.hashes.is_empty()
+        self.start_index == 0 && self.hashes.is_empty()
     }
 
     /// Returns the root hash of this tree.
     pub fn merkle_root(&self) -> H256 {
         if self.hashes.is_empty() {
             let depth = tree_depth_by_size(self.binary_tree_size);
-            if self.head_index == 0 {
+            if self.start_index == 0 {
                 self.hasher.empty_subtree_hash(depth)
             } else {
                 self.left_cache[depth]
@@ -124,17 +124,14 @@ where
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
     /// `index` is relative to the leftmost uncached leaf.
     pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
-        let mut right_path = vec![];
-        let root_hash = self.compute_merkle_root_and_path(index, None, Some(&mut right_path));
-        (root_hash, right_path)
+        let mut end_path = vec![];
+        let root_hash = self.compute_merkle_root_and_path(index, None, Some(&mut end_path));
+        (root_hash, end_path)
     }
 
     /// Returns the root hash and the Merkle proofs for an interval of leafs.
     /// The interval is [0, `length`), where `0` is the leftmost uncached leaf.
-    pub fn merkle_root_and_paths_for_interval(
-        &self,
-        length: usize,
-    ) -> (H256, Vec<H256>, Vec<H256>) {
+    pub fn merkle_root_and_paths_for_range(&self, length: usize) -> (H256, Vec<H256>, Vec<H256>) {
         let (mut left_path, mut right_path) = (vec![], vec![]);
         let root_hash = self.compute_merkle_root_and_path(
             length - 1,
@@ -150,7 +147,7 @@ where
     pub fn push(&mut self, leaf: [u8; LEAF_SIZE]) {
         let leaf_hash = self.hasher.hash_bytes(&leaf);
         self.hashes.push_back(leaf_hash);
-        if self.head_index + self.hashes.len() > self.binary_tree_size {
+        if self.start_index + self.hashes.len() > self.binary_tree_size {
             self.binary_tree_size *= 2;
         }
     }
@@ -164,27 +161,27 @@ where
         let mut new_cache = vec![];
         let root = self.compute_merkle_root_and_path(count, None, Some(&mut new_cache));
         self.hashes.drain(..count);
-        self.head_index += count;
+        self.start_index += count;
         new_cache.push(root);
         self.left_cache = new_cache;
     }
 
     fn compute_merkle_root_and_path(
         &self,
-        mut right_index: usize,
-        mut left_path: Option<&mut Vec<H256>>,
-        mut right_path: Option<&mut Vec<H256>>,
+        mut end_index: usize,
+        mut start_path: Option<&mut Vec<H256>>,
+        mut end_path: Option<&mut Vec<H256>>,
     ) -> H256 {
         let depth = tree_depth_by_size(self.binary_tree_size);
-        if let Some(left_path) = left_path.as_deref_mut() {
+        if let Some(left_path) = start_path.as_deref_mut() {
             left_path.reserve(depth);
         }
-        if let Some(right_path) = right_path.as_deref_mut() {
+        if let Some(right_path) = end_path.as_deref_mut() {
             right_path.reserve(depth);
         }
 
         let mut hashes = self.hashes.clone();
-        let mut head_index = self.head_index;
+        let mut head_index = self.start_index;
 
         for level in 0..depth {
             let empty_hash_at_level = self.hasher.empty_subtree_hash(level);
@@ -205,8 +202,8 @@ where
                 }
             };
 
-            push_sibling_hash(left_path.as_deref_mut(), 0);
-            push_sibling_hash(right_path.as_deref_mut(), right_index);
+            push_sibling_hash(start_path.as_deref_mut(), 0);
+            push_sibling_hash(end_path.as_deref_mut(), end_index);
 
             let level_len = hashes.len() / 2;
             for i in 0..level_len {
@@ -214,7 +211,7 @@ where
             }
 
             hashes.drain(level_len..);
-            right_index = (right_index + head_index % 2) / 2;
+            end_index = (end_index + head_index % 2) / 2;
             head_index /= 2;
         }
 

@@ -156,20 +156,20 @@ fn verify_merkle_proof(
     assert_eq!(hash, merkle_root);
 }
 
-fn verify_interval_merkle_proof(
+fn verify_range_merkle_proof(
     items: &[[u8; 88]],
     mut head_index: usize,
-    left_path: &[H256],
-    right_path: &[H256],
+    start_path: &[H256],
+    end_path: &[H256],
     merkle_root: H256,
 ) {
-    assert_eq!(left_path.len(), right_path.len());
+    assert_eq!(start_path.len(), end_path.len());
 
     let hasher = KeccakHasher;
     let mut hashes: Vec<_> = items.iter().map(|item| hasher.hash_bytes(item)).collect();
     let mut level_len = hashes.len();
 
-    for (left_item, right_item) in left_path.iter().zip(right_path.iter()) {
+    for (left_item, right_item) in start_path.iter().zip(end_path.iter()) {
         let parity = head_index % 2;
         let next_level_len = level_len / 2 + (parity | (level_len % 2));
 
@@ -211,16 +211,16 @@ fn merkle_proofs_are_valid_for_intervals() {
     let mut tree = MiniMerkleTree::new(leaves.clone().into_iter(), None);
 
     for i in 1..=50 {
-        let (merkle_root, left_path, right_path) = tree.merkle_root_and_paths_for_interval(i);
-        verify_interval_merkle_proof(&leaves[..i], 0, &left_path, &right_path, merkle_root);
+        let (merkle_root, start_path, end_path) = tree.merkle_root_and_paths_for_range(i);
+        verify_range_merkle_proof(&leaves[..i], 0, &start_path, &end_path, merkle_root);
     }
 
     tree.cache(25);
     leaves.drain(..25);
 
     for i in 1..=25 {
-        let (merkle_root, left_path, right_path) = tree.merkle_root_and_paths_for_interval(i);
-        verify_interval_merkle_proof(&leaves[..i], 25, &left_path, &right_path, merkle_root);
+        let (merkle_root, start_path, end_path) = tree.merkle_root_and_paths_for_range(i);
+        verify_range_merkle_proof(&leaves[..i], 25, &start_path, &end_path, merkle_root);
     }
 }
 
