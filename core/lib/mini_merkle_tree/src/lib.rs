@@ -163,7 +163,7 @@ where
         assert!(self.hashes.len() >= count, "not enough leaves to cache");
         let mut new_cache = vec![];
         let root = self.compute_merkle_root_and_path(count, None, Some(&mut new_cache));
-        self.hashes.drain(0..count);
+        self.hashes.drain(..count);
         self.head_index += count;
         new_cache.push(root);
         self.left_cache = new_cache;
@@ -175,8 +175,6 @@ where
         mut left_path: Option<&mut Vec<H256>>,
         mut right_path: Option<&mut Vec<H256>>,
     ) -> H256 {
-        // assert!(right_index < self.hashes.len(), "invalid tree leaf index");
-
         let depth = tree_depth_by_size(self.binary_tree_size);
         if let Some(left_path) = left_path.as_deref_mut() {
             left_path.reserve(depth);
@@ -186,54 +184,37 @@ where
         }
 
         let mut hashes = self.hashes.clone();
-        let mut level_len = hashes.len();
         let mut head_index = self.head_index;
 
         for level in 0..depth {
             let empty_hash_at_level = self.hasher.empty_subtree_hash(level);
 
-            let sibling_hash = |index: usize| {
-                if index == 0 && head_index % 2 == 1 {
-                    self.left_cache[level]
-                } else if index == level_len - 1 && (head_index + index) % 2 == 0 {
-                    empty_hash_at_level
-                } else {
-                    // `index` is relative to `head_index`
-                    let sibling = ((head_index + index) ^ 1) - head_index;
-                    hashes.get(sibling).copied().unwrap_or_default()
+            if head_index % 2 == 1 {
+                hashes.push_front(self.left_cache[level]);
+            }
+            if hashes.len() % 2 == 1 {
+                hashes.push_back(empty_hash_at_level);
+            }
+
+            let push_sibling_hash = |path: Option<&mut Vec<H256>>, index: usize| {
+                // `index` is relative to `head_index`
+                if let Some(path) = path {
+                    let sibling = ((head_index + index) ^ 1) - head_index + head_index % 2;
+                    let hash = hashes.get(sibling).copied().unwrap_or_default();
+                    path.push(hash);
                 }
             };
 
-            if let Some(left_path) = left_path.as_deref_mut() {
-                left_path.push(sibling_hash(0));
-            }
-            if let Some(right_path) = right_path.as_deref_mut() {
-                right_path.push(sibling_hash(right_index));
-            }
+            push_sibling_hash(left_path.as_deref_mut(), 0);
+            push_sibling_hash(right_path.as_deref_mut(), right_index);
 
-            let parity = head_index % 2;
-            // If our queue starts from the right child or ends with the left child,
-            // we need to round the length up.
-            let next_level_len = level_len / 2 + (parity | (level_len % 2));
-
-            for i in 0..next_level_len {
-                let lhs = if i == 0 && parity == 1 {
-                    // If the leftmost element is a right child, we need to use cache.
-                    self.left_cache[level]
-                } else {
-                    hashes[2 * i - parity]
-                };
-                let rhs = if i == next_level_len - 1 && (level_len - parity) % 2 == 1 {
-                    // If the rightmost element is a left child, we need to use the empty hash.
-                    empty_hash_at_level
-                } else {
-                    hashes[2 * i + 1 - parity]
-                };
-                hashes[i] = self.hasher.compress(&lhs, &rhs);
+            let level_len = hashes.len() / 2;
+            for i in 0..level_len {
+                hashes[i] = self.hasher.compress(&hashes[2 * i], &hashes[2 * i + 1]);
             }
 
-            right_index = (right_index + parity) / 2;
-            level_len = next_level_len;
+            hashes.drain(level_len..);
+            right_index = (right_index + head_index % 2) / 2;
             head_index /= 2;
         }
 
