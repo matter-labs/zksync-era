@@ -284,13 +284,21 @@ impl EthTxManager {
             );
         }
 
-        METRICS.used_base_fee_per_gas.observe(base_fee_per_gas);
-        METRICS
-            .used_priority_fee_per_gas
-            .observe(priority_fee_per_gas);
-
         if let Some(blob_base_fee_per_gas) = blob_base_fee_per_gas {
-            METRICS.used_blob_fee_per_gas.observe(blob_base_fee_per_gas);
+            METRICS
+                .blob_tx_used_blob_fee_per_gas
+                .observe(blob_base_fee_per_gas);
+            METRICS
+                .blob_tx_used_base_fee_per_gas
+                .observe(base_fee_per_gas);
+            METRICS
+                .blob_tx_used_priority_fee_per_gas
+                .observe(priority_fee_per_gas);
+        } else {
+            METRICS.used_base_fee_per_gas.observe(base_fee_per_gas);
+            METRICS
+                .used_priority_fee_per_gas
+                .observe(priority_fee_per_gas);
         }
 
         let blob_gas_price = if has_blob_sidecar {
