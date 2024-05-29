@@ -86,6 +86,8 @@ pub(super) struct EthSenderMetrics {
     pub used_base_fee_per_gas: Histogram<u64>,
     #[metrics(buckets = FEE_BUCKETS)]
     pub used_priority_fee_per_gas: Histogram<u64>,
+    #[metrics(buckets = FEE_BUCKETS)]
+    pub used_blob_fee_per_gas: Histogram<u64>,
     /// Last L1 block observed by the Ethereum sender.
     pub last_known_l1_block: Family<BlockNumberVariant, Gauge<usize>>,
     /// Number of in-flight txs produced by the Ethereum sender.
