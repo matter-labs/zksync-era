@@ -366,7 +366,6 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             timestamp_criteria_max_allowed_lag: self.sample(rng),
             l1_batch_min_age_before_execute_seconds: self.sample(rng),
             max_acceptable_priority_fee_in_gwei: self.sample(rng),
-            proof_loading_mode: self.sample(rng),
             pubdata_sending_mode: PubdataSendingMode::Calldata,
         }
     }

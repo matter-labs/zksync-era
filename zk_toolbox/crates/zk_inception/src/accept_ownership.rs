@@ -5,6 +5,7 @@ use common::{
 use ethers::{abi::Address, types::H256};
 use xshell::Shell;
 
+use crate::forge_utils::check_the_balance;
 use crate::{
     configs::{
         forge_interface::accept_ownership::AcceptOwnershipInput, EcosystemConfig, SaveConfig,
@@ -13,19 +14,20 @@ use crate::{
     forge_utils::fill_forge_private_key,
 };
 
-pub fn accept_admin(
+pub async fn accept_admin(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
     governor: Option<H256>,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(&ACCEPT_GOVERNANCE.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(ecosystem_config.l1_rpc_url.clone())
+        .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_signature("acceptAdmin()");
     accept_ownership(
@@ -36,21 +38,23 @@ pub fn accept_admin(
         target_address,
         forge,
     )
+    .await
 }
 
-pub fn accept_owner(
+pub async fn accept_owner(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
     governor: Option<H256>,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(&ACCEPT_GOVERNANCE.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(ecosystem_config.l1_rpc_url.clone())
+        .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_signature("acceptOwner()");
     accept_ownership(
@@ -61,9 +65,10 @@ pub fn accept_owner(
         target_address,
         forge,
     )
+    .await
 }
 
-fn accept_ownership(
+async fn accept_ownership(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
@@ -82,6 +87,7 @@ fn accept_ownership(
 
     forge = fill_forge_private_key(forge, governor)?;
 
+    check_the_balance(&forge).await?;
     let spinner = Spinner::new("Accepting governance");
     forge.run(shell)?;
     spinner.finish();

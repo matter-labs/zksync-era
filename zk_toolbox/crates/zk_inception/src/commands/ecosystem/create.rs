@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::bail;
@@ -48,7 +49,9 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         spinner.finish();
         link_to_code
     } else {
-        PathBuf::from_str(&args.link_to_code)?
+        let path = PathBuf::from_str(&args.link_to_code)?;
+        update_submodules_recursive(shell, &path)?;
+        path
     };
 
     let spinner = Spinner::new("Creating initial configurations...");
@@ -66,7 +69,6 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         chains: chains_path.clone(),
         config: configs_path,
         default_chain: default_chain_name.clone(),
-        l1_rpc_url: args.l1_rpc_url,
         era_chain_id: ERA_CHAIN_ID,
         prover_version: chain_config.prover_version,
         wallet_creation: args.wallet_creation,
@@ -107,4 +109,15 @@ fn clone_era_repo(shell: &Shell) -> anyhow::Result<PathBuf> {
     ))
     .run()?;
     Ok(shell.current_dir().join("zksync-era"))
+}
+
+fn update_submodules_recursive(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(link_to_code);
+    Cmd::new(cmd!(
+        shell,
+        "git submodule update --init --recursive
+"
+    ))
+    .run()?;
+    Ok(())
 }

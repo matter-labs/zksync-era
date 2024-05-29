@@ -7,6 +7,7 @@ use std::{
 use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
+use zksync_state::ReadStorageFactory;
 use zksync_types::{
     block::L2BlockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolVersionId, storage_writes_deduplicator::StorageWritesDeduplicator,
@@ -61,6 +62,7 @@ pub struct ZkSyncStateKeeper {
     output_handler: OutputHandler,
     batch_executor_base: Box<dyn BatchExecutor>,
     sealer: Arc<dyn ConditionalSealer>,
+    storage_factory: Arc<dyn ReadStorageFactory>,
 }
 
 impl ZkSyncStateKeeper {
@@ -70,6 +72,7 @@ impl ZkSyncStateKeeper {
         batch_executor_base: Box<dyn BatchExecutor>,
         output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
+        storage_factory: Arc<dyn ReadStorageFactory>,
     ) -> Self {
         Self {
             stop_receiver,
@@ -77,6 +80,7 @@ impl ZkSyncStateKeeper {
             batch_executor_base,
             output_handler,
             sealer,
+            storage_factory,
         }
     }
 
@@ -142,6 +146,7 @@ impl ZkSyncStateKeeper {
         let mut batch_executor = self
             .batch_executor_base
             .init_batch(
+                self.storage_factory.clone(),
                 l1_batch_env.clone(),
                 system_env.clone(),
                 &self.stop_receiver,
@@ -194,6 +199,7 @@ impl ZkSyncStateKeeper {
             batch_executor = self
                 .batch_executor_base
                 .init_batch(
+                    self.storage_factory.clone(),
                     l1_batch_env.clone(),
                     system_env.clone(),
                     &self.stop_receiver,

@@ -35,12 +35,13 @@
 //! before extending the tree; these nodes are guaranteed to be the *only* DB reads necessary
 //! to insert new entries.
 
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
 
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
 use crate::{
     hasher::{HashTree, HasherWithStats},
+    metrics::{RecoveryStage, RECOVERY_METRICS},
     storage::{PatchSet, PruneDatabase, PrunePatchSet, Storage},
     types::{Key, Manifest, Root, TreeEntry, TreeTags, ValueHash},
 };
@@ -110,6 +111,24 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         }
     }
 
+    /// Updates custom tags for the tree using the provided closure. The update is atomic and unconditional.
+    #[allow(clippy::missing_panics_doc)] // should never be triggered; the manifest is added in the constructor
+    pub fn update_custom_tags<R>(
+        &mut self,
+        update: impl FnOnce(&mut HashMap<String, String>) -> R,
+    ) -> R {
+        let mut manifest = self
+            .db
+            .manifest()
+            .expect("Merkle tree manifest disappeared");
+        let tags = manifest
+            .tags
+            .get_or_insert_with(|| TreeTags::new(&self.hasher));
+        let output = update(&mut tags.custom);
+        self.db.apply_patch(PatchSet::from_manifest(manifest));
+        output
+    }
+
     /// Returns the version of the tree being recovered.
     pub fn recovered_version(&self) -> u64 {
         self.recovered_version
@@ -149,15 +168,18 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
     )]
     pub fn extend_linear(&mut self, entries: Vec<TreeEntry>) {
         tracing::debug!("Started extending tree");
+        RECOVERY_METRICS.chunk_size.observe(entries.len());
 
-        let started_at = Instant::now();
+        let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::Extend].start();
         let storage = Storage::new(&self.db, &self.hasher, self.recovered_version, false);
         let patch = storage.extend_during_linear_recovery(entries);
-        tracing::debug!("Finished processing keys; took {:?}", started_at.elapsed());
+        let stage_latency = stage_latency.observe();
+        tracing::debug!("Finished processing keys; took {stage_latency:?}");
 
-        let started_at = Instant::now();
+        let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::ApplyPatch].start();
         self.db.apply_patch(patch);
-        tracing::debug!("Finished persisting to DB; took {:?}", started_at.elapsed());
+        let stage_latency = stage_latency.observe();
+        tracing::debug!("Finished persisting to DB; took {stage_latency:?}");
     }
 
     /// Extends a tree with a chunk of entries. Unlike [`Self::extend_linear()`], entries may be
@@ -172,15 +194,18 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
     )]
     pub fn extend_random(&mut self, entries: Vec<TreeEntry>) {
         tracing::debug!("Started extending tree");
+        RECOVERY_METRICS.chunk_size.observe(entries.len());
 
-        let started_at = Instant::now();
+        let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::Extend].start();
         let storage = Storage::new(&self.db, &self.hasher, self.recovered_version, false);
         let patch = storage.extend_during_random_recovery(entries);
-        tracing::debug!("Finished processing keys; took {:?}", started_at.elapsed());
+        let stage_latency = stage_latency.observe();
+        tracing::debug!("Finished processing keys; took {stage_latency:?}");
 
-        let started_at = Instant::now();
+        let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::ApplyPatch].start();
         self.db.apply_patch(patch);
-        tracing::debug!("Finished persisting to DB; took {:?}", started_at.elapsed());
+        let stage_latency = stage_latency.observe();
+        tracing::debug!("Finished persisting to DB; took {stage_latency:?}");
     }
 
     /// Finalizes the recovery process marking it as complete in the tree manifest.
