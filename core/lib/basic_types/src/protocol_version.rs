@@ -75,6 +75,9 @@ impl ProtocolVersionId {
         Self::Version24
     }
 
+    // This value should be manually updated for every protocol upgrade
+    // Otherwise, the prover will not be able to work with new versions.
+    // TODO(PLA-954): Move to prover workspace
     pub fn current_prover_version() -> Self {
         Self::Version24
     }
@@ -301,6 +304,9 @@ impl ProtocolSemanticVersion {
         Self { minor, patch }
     }
 
+    // This value should be manually updated for every protocol upgrade
+    // Otherwise, the prover will not be able to work with new versions.
+    // TODO(PLA-954): Move to prover workspace
     pub fn current_prover_version() -> Self {
         Self {
             minor: ProtocolVersionId::current_prover_version(),
