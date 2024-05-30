@@ -130,6 +130,7 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.storage.rollback_to_timestamp(timestamp);
         self.storage_frames_stack.rollback_to_timestamp(timestamp);
+        self.transient_storage.rollback_to_timestamp(timestamp);
         self.transient_storage_frames_stack
             .rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
