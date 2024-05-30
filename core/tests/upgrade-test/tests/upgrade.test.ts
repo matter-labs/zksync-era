@@ -198,7 +198,7 @@ describe('Upgrade test', function () {
                 },
                 factoryDeps: [forceDeployBytecode],
                 bootloaderHash,
-                upgradeTimestamp: 0,
+                upgradeTimestamp: 0
             }
         );
         scheduleTransparentOperation = chainUpgradeData.scheduleTransparentOperation;
