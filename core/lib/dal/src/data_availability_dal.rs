@@ -132,7 +132,7 @@ impl DataAvailabilityDal<'_, '_> {
         Ok(())
     }
 
-    /// Assumes that the l1_batches are sorted by number, and returns the first one that is ready for DA dispatch.
+    /// Assumes that the L1 batches are sorted by number, and returns the first one that is ready for DA dispatch.
     pub async fn get_first_da_blob_awaiting_inclusion(
         &mut self,
     ) -> DalResult<Option<DataAvailabilityBlob>> {
@@ -161,7 +161,7 @@ impl DataAvailabilityDal<'_, '_> {
         .map(DataAvailabilityBlob::from))
     }
 
-    /// Fetches the pubdata and l1_batch_number for the l1_batches that are ready for DA dispatch.
+    /// Fetches the pubdata and `l1_batch_number` for the L1 batches that are ready for DA dispatch.
     pub async fn get_ready_for_da_dispatch_l1_batches(
         &mut self,
         limit: usize,

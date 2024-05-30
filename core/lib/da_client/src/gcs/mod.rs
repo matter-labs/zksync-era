@@ -13,7 +13,7 @@ use zksync_da_layers::{
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{pubdata_da::StorablePubdata, L1BatchNumber};
 
-/// An implementation of the DataAvailabilityClient trait that stores the pubdata in the GCS.
+/// An implementation of the `DataAvailabilityClient` trait that stores the pubdata in the GCS.
 #[derive(Clone)]
 pub struct GCSDAClient {
     object_store: Arc<dyn ObjectStore>,

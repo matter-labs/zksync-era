@@ -6,8 +6,8 @@ use zksync_da_layers::{
     DataAvailabilityClient,
 };
 
-/// A no-op implementation of the DataAvailabilityClient trait, that doesn't store the pubdata.
-#[derive(Clone, Debug)]
+/// A no-op implementation of the `DataAvailabilityClient` trait, that doesn't store the pubdata.
+#[derive(Clone, Debug, Default)]
 pub struct NoDAClient;
 
 impl NoDAClient {
