@@ -12,7 +12,6 @@ use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
 use crate::{
