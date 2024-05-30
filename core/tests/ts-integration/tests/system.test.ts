@@ -14,6 +14,7 @@ import * as ethers from 'ethers';
 import { BigNumberish, BytesLike } from 'ethers';
 import { hashBytecode, serialize } from 'zksync-ethers/build/utils';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
+import { DataAvailabityMode } from '../src/types';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -318,7 +319,11 @@ describe('System behavior checks', () => {
 
         // The current gas per pubdata depends on a lot of factors, so it wouldn't be sustainable to check the exact value.
         // We'll just check that it is greater than zero.
-        expect(currentGasPerPubdata.toNumber()).toBeGreaterThan(0);
+        if (testMaster.environment().l1BatchCommitDataGeneratorMode !== DataAvailabityMode.Validium) {
+            expect(currentGasPerPubdata.toNumber()).toBeGreaterThan(0);
+        } else {
+            expect(currentGasPerPubdata.toNumber()).toEqual(0);
+        }
     });
 
     it('should reject transaction with huge gas limit', async () => {
