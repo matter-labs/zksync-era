@@ -1,6 +1,6 @@
 use clap::Parser;
-use common::{slugify, Prompt};
-use config::{ChainConfig, DatabaseConfig, DatabasesConfig};
+use common::{db::DatabaseConfig, slugify, Prompt};
+use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -9,11 +9,11 @@ use crate::defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL, DATABASE_
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
 pub struct GenesisArgs {
     #[clap(long, help = "Server database url without database name")]
-    pub server_db_url: Option<String>,
+    pub server_db_url: Option<Url>,
     #[clap(long, help = "Server database name")]
     pub server_db_name: Option<String>,
     #[clap(long, help = "Prover database url without database name")]
-    pub prover_db_url: Option<String>,
+    pub prover_db_url: Option<Url>,
     #[clap(long, help = "Prover database name")]
     pub prover_db_name: Option<String>,
     #[clap(long, short, help = "Use default database urls and names")]
@@ -31,10 +31,8 @@ impl GenesisArgs {
         let chain_name = config.name.clone();
         if self.use_default {
             GenesisArgsFinal {
-                server_db_url: DATABASE_SERVER_URL.to_string(),
-                server_db_name: server_name,
-                prover_db_url: DATABASE_PROVER_URL.to_string(),
-                prover_db_name: prover_name,
+                server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
+                prover_db: DatabaseConfig::new(DATABASE_PROVER_URL.clone(), prover_name),
                 dont_drop: self.dont_drop,
             }
         } else {
@@ -42,7 +40,7 @@ impl GenesisArgs {
                 Prompt::new(&format!(
                     "Please provide server database url for chain {chain_name}"
                 ))
-                .default(DATABASE_SERVER_URL)
+                .default(DATABASE_SERVER_URL.as_str())
                 .ask()
             });
             let server_db_name = slugify(&self.server_db_name.unwrap_or_else(|| {
@@ -56,7 +54,7 @@ impl GenesisArgs {
                 Prompt::new(&format!(
                     "Please provide prover database url for chain {chain_name}"
                 ))
-                .default(DATABASE_PROVER_URL)
+                .default(DATABASE_PROVER_URL.as_str())
                 .ask()
             });
             let prover_db_name = slugify(&self.prover_db_name.unwrap_or_else(|| {
@@ -67,10 +65,8 @@ impl GenesisArgs {
                 .ask()
             }));
             GenesisArgsFinal {
-                server_db_url,
-                server_db_name,
-                prover_db_url,
-                prover_db_name,
+                server_db: DatabaseConfig::new(server_db_url, server_db_name),
+                prover_db: DatabaseConfig::new(prover_db_url, prover_db_name),
                 dont_drop: self.dont_drop,
             }
         }
@@ -79,21 +75,7 @@ impl GenesisArgs {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenesisArgsFinal {
-    pub server_db_url: String,
-    pub server_db_name: String,
-    pub prover_db_url: String,
-    pub prover_db_name: String,
+    pub server_db: DatabaseConfig,
+    pub prover_db: DatabaseConfig,
     pub dont_drop: bool,
-}
-
-impl GenesisArgsFinal {
-    pub fn databases_config(&self) -> anyhow::Result<DatabasesConfig> {
-        let server_url = Url::parse(&self.server_db_url)?;
-        let prover_url = Url::parse(&self.prover_db_url)?;
-
-        Ok(DatabasesConfig {
-            server: DatabaseConfig::new(server_url, self.server_db_name.clone()),
-            prover: DatabaseConfig::new(prover_url, self.prover_db_name.clone()),
-        })
-    }
 }

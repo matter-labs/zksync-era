@@ -1,0 +1,38 @@
+use std::path::Path;
+
+use common::logger;
+use config::EcosystemConfig;
+use xshell::Shell;
+
+use super::{args::DatabaseCommonArgs, drop::drop_database, setup::setup_database};
+use crate::dals::{get_dals, Dal};
+
+pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> {
+    let args = args.fill_values_with_prompt("reset");
+    if args.selected_dals.none() {
+        logger::outro("No databases selected");
+        return Ok(());
+    }
+
+    let ecoseystem_config = EcosystemConfig::from_file(shell)?;
+
+    let dals = get_dals(shell, &args.selected_dals)?;
+    for dal in dals {
+        logger::info(&format!("Resetting database {}", dal.path));
+        reset_database(shell, ecoseystem_config.link_to_code.clone(), dal).await?;
+    }
+
+    logger::outro("Databases resetted");
+
+    Ok(())
+}
+
+async fn reset_database(
+    shell: &Shell,
+    link_to_code: impl AsRef<Path>,
+    dal: Dal,
+) -> anyhow::Result<()> {
+    drop_database(dal.clone()).await?;
+    setup_database(shell, link_to_code, dal)?;
+    Ok(())
+}
