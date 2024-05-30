@@ -3,6 +3,7 @@
 use std::{
     any::Any,
     collections::{HashMap, VecDeque},
+    error::Error as StdError,
     mem,
     sync::{mpsc, Arc},
     thread,
@@ -29,7 +30,7 @@ struct PersistenceCommand {
 #[derive(Debug)]
 enum Command {
     Persist(PersistenceCommand),
-    Stop,
+    Stop(mpsc::SyncSender<()>),
 }
 
 /// FIXME
@@ -40,9 +41,55 @@ pub struct PersistenceThreadHandle {
 
 impl PersistenceThreadHandle {
     /// Emulates stopping persisting updates; any updates afterwards will not actually be persisted.
-    /// This should only be used in tests.
+    ///
+    /// This method should only be used in tests. It is blocking (waits until all previous persistence commands are processed).
     pub fn test_stop_processing(self) {
-        self.command_sender.send(Command::Stop).ok();
+        let (stop_sender, stop_receiver) = mpsc::sync_channel(0);
+        self.command_sender.send(Command::Stop(stop_sender)).ok();
+        stop_receiver.recv().ok();
+    }
+}
+
+#[derive(Debug, Default)]
+enum HandleOrError {
+    #[default]
+    Nothing,
+    Handle(thread::JoinHandle<anyhow::Result<()>>),
+    Err(Arc<dyn StdError + Send + Sync>),
+}
+
+impl HandleOrError {
+    fn check(&mut self) -> anyhow::Result<()> {
+        let err_arc = match self {
+            Self::Handle(handle) if handle.is_finished() => {
+                let Self::Handle(handle) = mem::take(self) else {
+                    unreachable!("just checked variant earlier");
+                };
+                let err = match handle.join() {
+                    Err(_) => anyhow::anyhow!("persistence thread panicked"),
+                    Ok(Ok(())) => anyhow::anyhow!("persistence thread unexpectedly stopped"),
+                    Ok(Err(err)) => err,
+                };
+                let err: Box<dyn StdError + Send + Sync> = err.into();
+                let err: Arc<dyn StdError + Send + Sync> = err.into();
+                *self = Self::Err(err.clone());
+                err
+            }
+            Self::Handle(_) => return Ok(()),
+            Self::Err(err) => err.clone(),
+            Self::Nothing => unreachable!("only used temporarily to take out `JoinHandle`"),
+        };
+        Err(anyhow::Error::new(err_arc))
+    }
+
+    fn join(self) -> anyhow::Result<()> {
+        match self {
+            Self::Handle(handle) => handle
+                .join()
+                .map_err(|_| anyhow::anyhow!("persistence thread panicked"))?,
+            Self::Err(err) => Err(anyhow::Error::new(err)),
+            Self::Nothing => unreachable!("only used temporarily to take out `JoinHandle`"),
+        }
     }
 }
 
@@ -60,8 +107,7 @@ pub(crate) struct ParallelDatabase<DB> {
     inner: DB,
     updated_version: u64,
     command_sender: mpsc::SyncSender<Command>,
-    persistence_handle: Option<thread::JoinHandle<anyhow::Result<()>>>,
-    // Weak references to the sent persistence commands. We garbage-collect persisted refs in `apply_patch()`.
+    persistence_handle: HandleOrError,
     commands: VecDeque<PersistenceCommand>,
 }
 
@@ -73,7 +119,7 @@ impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
             inner,
             updated_version,
             command_sender,
-            persistence_handle: Some(thread::spawn(move || {
+            persistence_handle: HandleOrError::Handle(thread::spawn(move || {
                 Self::run_persistence(persistence_database, updated_version, &command_receiver)
             })),
             commands: VecDeque::with_capacity(buffer_capacity),
@@ -95,7 +141,7 @@ impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
         while let Ok(command) = command_receiver.recv() {
             let command = match command {
                 Command::Persist(command) => command,
-                Command::Stop => anyhow::bail!("emulated persistence crash"),
+                Command::Stop(_) => anyhow::bail!("emulated persistence crash"),
             };
 
             tracing::debug!("Persisting patch #{persisted_count}");
@@ -125,28 +171,13 @@ impl<DB: Database> ParallelDatabase<DB> {
         }
 
         // Check that the persistence thread hasn't panicked
-        let persistence_handle = self
-            .persistence_handle
-            .as_ref()
-            .context("persistence thread previously panicked")?;
-        if persistence_handle.is_finished() {
-            mem::take(&mut self.persistence_handle)
-                .unwrap()
-                .join()
-                .map_err(|_| anyhow::anyhow!("persistence thread panicked"))??;
-            anyhow::bail!("persistence thread never exits when `ParallelDatabase` is alive");
-        }
-        Ok(())
+        self.persistence_handle.check()
     }
 
-    fn join(mut self) -> anyhow::Result<DB> {
-        let join_handle = mem::take(&mut self.persistence_handle)
-            .context("persistence thread previously panicked")?;
+    fn join(self) -> anyhow::Result<DB> {
         drop(self.command_sender);
         drop(self.commands);
-        join_handle
-            .join()
-            .map_err(|_| anyhow::anyhow!("persistence thread panicked"))??;
+        self.persistence_handle.join()?;
         Ok(self.inner)
     }
 }
@@ -255,7 +286,7 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             patch
                 .patches_by_version
                 .remove(&updated_version)
-                .expect("PatchSet invariant violated: missing patch for the updated version")
+                .context("PatchSet invariant violated: missing patch for the updated version")?
         } else {
             // We only support manifest updates.
             anyhow::ensure!(
@@ -266,10 +297,11 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
         };
 
         let mut stale_keys_by_version = patch.stale_keys_by_version;
-        assert!(
+        anyhow::ensure!(
             stale_keys_by_version.is_empty()
                 || (stale_keys_by_version.len() == 1
-                    && stale_keys_by_version.contains_key(&self.updated_version))
+                    && stale_keys_by_version.contains_key(&self.updated_version)),
+            "Invalid stale keys update: {stale_keys_by_version:?}"
         );
         let stale_keys = stale_keys_by_version
             .remove(&self.updated_version)
@@ -285,10 +317,7 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             .send(Command::Persist(command.clone()))
             .is_err()
         {
-            mem::take(&mut self.persistence_handle)
-                .context("persistence thread previously panicked")?
-                .join()
-                .map_err(|_| anyhow::anyhow!("persistence thread panicked"))??;
+            self.persistence_handle.check()?;
             anyhow::bail!("persistence thread never exits when `ParallelDatabase` is alive");
         }
         self.commands.push_back(command);
@@ -556,7 +585,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
 
-        let mut parallel_db = ParallelDatabase::new(db, UPDATED_VERSION, 4);
+        let mut parallel_db = ParallelDatabase::new(db.clone(), UPDATED_VERSION, 4);
         let handle = parallel_db.persistence_thread_handle();
 
         // Queue up a couple of patch sets
@@ -574,7 +603,9 @@ mod tests {
             .to_string();
         assert!(err.contains("emulated persistence crash"), "{err}");
 
-        let db = parallel_db.join().unwrap();
+        let err = parallel_db.join().unwrap_err().to_string();
+        assert!(err.contains("emulated persistence crash"), "{err}");
+
         // Check that the last patch set was dropped.
         assert_eq!(db.root(UPDATED_VERSION).unwrap().leaf_count(), 10);
     }
