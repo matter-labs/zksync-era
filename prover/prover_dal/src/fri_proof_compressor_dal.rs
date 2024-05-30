@@ -266,6 +266,8 @@ impl FriProofCompressorDal<'_, '_> {
                 ) AS in_progress
             FROM
                 proof_compression_jobs_fri
+            WHERE
+                protocol_version IS NOT NULL
             GROUP BY
                 status,
                 protocol_version
