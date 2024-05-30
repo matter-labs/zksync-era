@@ -35,6 +35,7 @@ pub(super) const MSG_L1_RPC_URL_INVALID_ERR: &str = "Invalid RPC URL";
 pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR: &str = "Invalid path";
 pub(super) const MSG_GENESIS_DATABASE_ERR: &str = "Unable to perform genesis on the database";
 pub(super) const MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR: &str = "Ecosystem contracts config not found";
+pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_INITIALIZING_CHAIN: &str = "Initializing chain";
@@ -50,16 +51,16 @@ pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
 
-/// Ecosystem Default related messages
+/// Ecosystem default related messages
 pub(super) const MSG_DEFAULT_CHAIN_PROMPT: &str = "What chain you want to set as default?";
 
-/// Ecosystem Config related messages
+/// Ecosystem config related messages
 pub(super) const MSG_SAVE_INITIAL_CONFIG_ATTENTION: &str =
     "ATTENTION: This file contains sensible placeholders. Please check them and update with the desired values.";
 pub(super) const MSG_SAVE_ERC20_CONFIG_ATTENTION: &str =
     "ATTENTION: This file should be filled with the desired ERC20 tokens to deploy.";
 
-/// Chain Create related messages
+/// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
 pub(super) const MSG_WALLET_CREATION_HELP: &str = "Wallet options";
 pub(super) const MSG_WALLET_PATH_HELP: &str = "Wallet path";
@@ -91,5 +92,23 @@ pub(super) const MSG_CHAIN_CREATED: &str = "Chain created successfully";
 pub(super) const MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER: &str =
     "Creating chain configurations...";
 
-/// Chain Init related messages
-pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
+/// Chain genesis related messages
+pub(super) const MSG_SERVER_DB_URL_HELP: &str = "Server database url without database name";
+pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
+pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";
+pub(super) const MSG_PROVER_DB_NAME_HELP: &str = "Prover database name";
+pub(super) const MSG_GENESIS_USE_DEFAULT_HELP: &str = "Use default database urls and names";
+pub(super) const MSG_SERVER_DB_URL_PROMPT: &str = "Please provide server database url for chain";
+pub(super) const MSG_SERVER_DB_NAME_PROMPT: &str = "Please provide server database name for chain";
+pub(super) const MSG_PROVER_DB_URL_PROMPT: &str = "Please provide prover database url for chain";
+pub(super) const MSG_PROVER_DB_NAME_PROMPT: &str = "Please provide prover database name for chain";
+pub(super) const MSG_GENESIS_COMPLETED: &str = "Genesis completed successfully";
+pub(super) const MSG_GENESIS_DATABASE_CONFIG_ERR: &str = "Database config was not fully generated";
+pub(super) const MSG_STARTING_GENESIS: &str = "Starting genesis process";
+pub(super) const MSG_INITIALIZING_DATABASES_SPINNER: &str = "Initializing databases...";
+pub(super) const MSG_STARTING_GENESIS_SPINNER: &str =
+    "Starting the genesis of the server. Building the entire server may take a lot of time...";
+pub(super) const MSG_INITIALIZING_SERVER_DATABASE: &str = "Initializing server database";
+pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop server database";
+pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
+pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
