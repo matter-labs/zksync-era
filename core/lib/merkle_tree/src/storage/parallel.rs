@@ -15,6 +15,7 @@ use anyhow::Context as _;
 use super::{patch::PartialPatchSet, Database, NodeKeys, PatchSet};
 use crate::{
     errors::DeserializeError,
+    metrics::{RecoveryStage, RECOVERY_METRICS},
     types::{Manifest, Node, NodeKey, ProfiledTreeOperation, Root},
     PruneDatabase, PrunePatchSet,
 };
@@ -97,10 +98,13 @@ impl HandleOrError {
 /// are queued up and are used in `Database` methods. A queue can sometimes be stale (i.e., changes
 /// at its head may have been applied), but this is fine as long as changes are applied atomically and sequentially.
 ///
+/// The only use case where this struct is used right now is tree recovery. Correspondingly, some reported metrics
+/// are specific to recovery and would need to be reworked if this struct is eventually used for other use cases.
+///
 /// # Assumptions
 ///
 /// - This is the only mutable database instance.
-/// - All database updates update the same tree version (e.g., the tree is being recovered).
+/// - All database updates update the same tree version.
 /// - The application supports latest changes being dropped.
 #[derive(Debug)]
 pub(crate) struct ParallelDatabase<DB> {
@@ -148,7 +152,11 @@ impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
                 }
             };
 
-            tracing::debug!("Persisting patch #{persisted_count}");
+            tracing::debug!(
+                "Persisting patch #{persisted_count} with {} nodes and {} stale keys",
+                command.patch.nodes.len(),
+                command.stale_keys.len()
+            );
             // Reconstitute a `PatchSet` and apply it to the underlying database.
             let patch = PatchSet {
                 manifest: command.manifest,
@@ -156,8 +164,11 @@ impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
                 updated_version: Some(updated_version),
                 stale_keys_by_version: HashMap::from([(updated_version, command.stale_keys)]),
             };
+            let stage_latency =
+                RECOVERY_METRICS.stage_latency[&RecoveryStage::ParallelPersistence].start();
             database.apply_patch(patch)?;
-            tracing::debug!("Persisted patch #{persisted_count}");
+            let stage_latency = stage_latency.observe();
+            tracing::debug!("Persisted patch #{persisted_count} in {stage_latency:?}");
             persisted_count += 1;
         }
         Ok(())
@@ -171,6 +182,7 @@ impl<DB: Database> ParallelDatabase<DB> {
                 .retain(|command| Arc::strong_count(&command.patch) > 1);
             thread::sleep(Duration::from_millis(50)); // TODO: more intelligent approach
         }
+        RECOVERY_METRICS.parallel_persistence_buffer_size.set(0);
 
         // Check that the persistence thread hasn't panicked
         self.persistence_handle.check(false)
@@ -179,6 +191,7 @@ impl<DB: Database> ParallelDatabase<DB> {
     fn join(self) -> anyhow::Result<DB> {
         drop(self.command_sender);
         drop(self.commands);
+        RECOVERY_METRICS.parallel_persistence_buffer_size.set(0);
         self.persistence_handle.join()?;
         Ok(self.inner)
     }
@@ -280,6 +293,9 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             // if the persistence thread has failed, but this is OK because we'll propagate the failure below anyway.
             self.commands
                 .retain(|command| Arc::strong_count(&command.patch) > 1);
+            RECOVERY_METRICS
+                .parallel_persistence_buffer_size
+                .set(self.commands.len());
             tracing::debug!(
                 "Retained {} buffered persistence command(s)",
                 self.commands.len()
@@ -325,6 +341,7 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             );
         }
         self.commands.push_back(command);
+        RECOVERY_METRICS.parallel_persistence_buffer_size.inc_by(1);
         Ok(())
     }
 }
