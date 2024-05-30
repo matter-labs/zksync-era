@@ -44,7 +44,6 @@ describe('Upgrade test', function () {
     let bootloaderHash: string;
     let scheduleTransparentOperation: string;
     let executeOperation: string;
-    let finalizeOperation: string;
     let forceDeployAddress: string;
     let forceDeployBytecode: string;
     let logs: fs.WriteStream;
@@ -180,38 +179,39 @@ describe('Upgrade test', function () {
         const delegateCalldata = L2_FORCE_DEPLOY_UPGRADER_ABI.encodeFunctionData('forceDeploy', [[forceDeployment]]);
         const data = COMPLEX_UPGRADER_ABI.encodeFunctionData('upgrade', [delegateTo, delegateCalldata]);
 
-        const calldata = await prepareUpgradeCalldata(govWallet, alice._providerL2(), {
-            l2ProtocolUpgradeTx: {
-                txType: 254,
-                from: '0x0000000000000000000000000000000000008007', // FORCE_DEPLOYER address
-                to: '0x000000000000000000000000000000000000800f', // ComplexUpgrader address
-                gasLimit: process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!,
-                gasPerPubdataByteLimit: zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
-                maxFeePerGas: 0,
-                maxPriorityFeePerGas: 0,
-                paymaster: 0,
-                value: 0,
-                reserved: [0, 0, 0, 0],
-                data,
-                signature: '0x',
-                factoryDeps: [zksync.utils.hashBytecode(forceDeployBytecode)],
-                paymasterInput: '0x',
-                reservedDynamic: '0x'
-            },
-            factoryDeps: [forceDeployBytecode],
-            bootloaderHash,
-            upgradeTimestamp: 0
-        });
-        scheduleTransparentOperation = calldata.scheduleTransparentOperation;
-        executeOperation = calldata.executeOperation;
-        finalizeOperation = calldata.finalizeOperation;
+        const { stmUpgradeData, chainUpgradeData } = await prepareUpgradeCalldata(
+            govWallet,
+            alice._providerL2(),
+            mainContract.address,
+            {
+                l2ProtocolUpgradeTx: {
+                    txType: 254,
+                    from: '0x0000000000000000000000000000000000008007', // FORCE_DEPLOYER address
+                    to: '0x000000000000000000000000000000000000800f', // ComplexUpgrader address
+                    gasLimit: process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!,
+                    gasPerPubdataByteLimit: zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
+                    maxFeePerGas: 0,
+                    maxPriorityFeePerGas: 0,
+                    paymaster: 0,
+                    value: 0,
+                    reserved: [0, 0, 0, 0],
+                    data,
+                    signature: '0x',
+                    factoryDeps: [zksync.utils.hashBytecode(forceDeployBytecode)],
+                    paymasterInput: '0x',
+                    reservedDynamic: '0x'
+                },
+                factoryDeps: [forceDeployBytecode],
+                bootloaderHash,
+                upgradeTimestamp: 0
+            }
+        );
+        scheduleTransparentOperation = chainUpgradeData.scheduleTransparentOperation;
+        executeOperation = chainUpgradeData.executeOperation;
 
-        const scheduleUpgrade = await govWallet.sendTransaction({
-            to: governanceContract.address,
-            data: scheduleTransparentOperation,
-            type: 0
-        });
-        await scheduleUpgrade.wait();
+        await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation);
+        await sendGovernanceOperation(stmUpgradeData.executeOperation);
+        await sendGovernanceOperation(scheduleTransparentOperation);
 
         // Wait for server to process L1 event.
         await utils.sleep(2);
@@ -223,7 +223,7 @@ describe('Upgrade test', function () {
         expect(batchDetails.baseSystemContractsHashes.bootloader).to.eq(bootloaderHash);
     });
 
-    step('Execute upgrade', async () => {
+    step('Finalize upgrade on the target chain', async () => {
         // Wait for batches with old bootloader to be executed on L1.
         let l1BatchNumber = await alice.provider.getL1BatchNumber();
         while (
@@ -244,23 +244,8 @@ describe('Upgrade test', function () {
             throw new Error('Server did not execute old blocks');
         }
 
-        // Send execute tx.
-        const execute = await govWallet.sendTransaction({
-            to: governanceContract.address,
-            data: executeOperation,
-            type: 0
-        });
-        await execute.wait();
-    });
-
-    step('Finalize upgrade on the target chain', async () => {
-        // Send finalize tx.
-        const finalize = await govWallet.sendTransaction({
-            to: mainContract.address,
-            data: finalizeOperation,
-            type: 0
-        });
-        await finalize.wait();
+        // Execute the upgrade
+        await sendGovernanceOperation(executeOperation);
 
         let bootloaderHashL1 = await mainContract.getL2BootloaderBytecodeHash();
         expect(bootloaderHashL1).eq(bootloaderHash);
@@ -298,6 +283,16 @@ describe('Upgrade test', function () {
             await utils.exec('pkill zksync_server');
         } catch (_) {}
     });
+
+    async function sendGovernanceOperation(data: string) {
+        await (
+            await govWallet.sendTransaction({
+                to: governanceContract.address,
+                data: data,
+                type: 0
+            })
+        ).wait();
+    }
 });
 
 async function checkedRandomTransfer(
@@ -359,6 +354,7 @@ async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.Tr
 async function prepareUpgradeCalldata(
     govWallet: ethers.Wallet,
     l2Provider: zksync.Provider,
+    mainContract: zksync.types.Address,
     params: {
         l2ProtocolUpgradeTx: {
             txType: BigNumberish;
@@ -437,10 +433,31 @@ async function prepareUpgradeCalldata(
         newProtocolVersion
     ]);
 
+    // Execute this upgrade on a specific chain under this STM.
+    const chainUpgradeCalldata = ADMIN_FACET_ABI.encodeFunctionData('upgradeChainFromVersion', [
+        oldProtocolVersion,
+        upgradeParam
+    ]);
+
+    const stmUpgradeData = prepareGovernanceCalldata(stmAddress, stmUpgradeCalldata);
+    const chainUpgradeData = prepareGovernanceCalldata(mainContract, chainUpgradeCalldata);
+
+    return {
+        chainUpgradeData,
+        stmUpgradeData
+    };
+}
+
+interface UpgradeCalldata {
+    scheduleTransparentOperation: string;
+    executeOperation: string;
+}
+
+function prepareGovernanceCalldata(to: string, data: BytesLike): UpgradeCalldata {
     const call = {
-        target: stmAddress,
+        target: to,
         value: 0,
-        data: stmUpgradeCalldata
+        data
     };
     const governanceOperation = {
         calls: [call],
@@ -457,16 +474,9 @@ async function prepareUpgradeCalldata(
     // Get transaction data of the `execute`
     const executeOperation = GOVERNANCE_ABI.encodeFunctionData('execute', [governanceOperation]);
 
-    // Execute this upgrade on a specific chain under this STM.
-    const finalizeOperation = ADMIN_FACET_ABI.encodeFunctionData('upgradeChainFromVersion', [
-        oldProtocolVersion,
-        upgradeParam
-    ]);
-
     return {
         scheduleTransparentOperation,
-        executeOperation,
-        finalizeOperation
+        executeOperation
     };
 }
 

@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_INITIALIZING_BRIDGES_SPINNER};
 use anyhow::Context;
 use common::{
     cmd::Cmd,
@@ -7,18 +8,19 @@ use common::{
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
+use config::{
+    forge_interface::{
+        initialize_bridges::{input::InitializeBridgeInput, output::InitializeBridgeOutput},
+        script_params::INITIALIZE_BRIDGES_SCRIPT_PARAMS,
+    },
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, EcosystemConfig,
+};
 use xshell::{cmd, Shell};
 
-use crate::forge_utils::check_the_balance;
 use crate::{
-    configs::{
-        forge_interface::initialize_bridges::{
-            input::InitializeBridgeInput, output::InitializeBridgeOutput,
-        },
-        update_l2_shared_bridge, ChainConfig, EcosystemConfig, ReadConfig, SaveConfig,
-    },
-    consts::INITIALIZE_BRIDGES,
-    forge_utils::fill_forge_private_key,
+    config_manipulations::update_l2_shared_bridge,
+    forge_utils::{check_the_balance, fill_forge_private_key},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -26,9 +28,9 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
-        .context("Chain not initialized. Please create a chain first")?;
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let spinner = Spinner::new("Initializing bridges");
+    let spinner = Spinner::new(MSG_INITIALIZING_BRIDGES_SPINNER);
     initialize_bridges(shell, &chain_config, &ecosystem_config, args).await?;
     spinner.finish();
 
@@ -45,10 +47,16 @@ pub async fn initialize_bridges(
     let input = InitializeBridgeInput::new(chain_config, ecosystem_config.era_chain_id)?;
     let foundry_contracts_path = chain_config.path_to_foundry();
     let secrets = chain_config.get_secrets_config()?;
-    input.save(shell, INITIALIZE_BRIDGES.input(&chain_config.link_to_code))?;
+    input.save(
+        shell,
+        INITIALIZE_BRIDGES_SCRIPT_PARAMS.input(&chain_config.link_to_code),
+    )?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
-        .script(&INITIALIZE_BRIDGES.script(), forge_args.clone())
+        .script(
+            &INITIALIZE_BRIDGES_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
         .with_ffi()
         .with_rpc_url(secrets.l1.l1_rpc_url.clone())
         .with_broadcast();
@@ -61,8 +69,10 @@ pub async fn initialize_bridges(
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
-    let output =
-        InitializeBridgeOutput::read(shell, INITIALIZE_BRIDGES.output(&chain_config.link_to_code))?;
+    let output = InitializeBridgeOutput::read(
+        shell,
+        INITIALIZE_BRIDGES_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+    )?;
 
     update_l2_shared_bridge(shell, chain_config, &output)?;
     Ok(())

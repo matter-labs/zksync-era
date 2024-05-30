@@ -3,7 +3,7 @@ use zksync_contracts::{load_contract, read_bytecode};
 use zksync_types::{fee::Fee, Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled},
     vm_latest::{tests::tester::VmTesterBuilder, HistoryEnabled},
 };
 
@@ -28,20 +28,22 @@ fn test_storage(txs: Vec<TestTxInfo>) -> u32 {
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
-        .with_random_rich_accounts(1)
+        .with_random_rich_accounts(txs.len() as u32)
         .with_custom_contracts(vec![(bytecode, test_contract_address, false)])
         .build();
 
-    let account = &mut vm.rich_accounts[0];
-
     let mut last_result = None;
 
-    for tx in txs {
+    for (id, tx) in txs.into_iter().enumerate() {
         let TestTxInfo {
             calldata,
             fee_overrides,
             should_fail,
         } = tx;
+
+        let account = &mut vm.rich_accounts[id];
+
+        vm.vm.make_snapshot();
 
         let tx = account.get_l2_tx_for_execute(
             Execute {
@@ -57,8 +59,10 @@ fn test_storage(txs: Vec<TestTxInfo>) -> u32 {
         let result = vm.vm.execute(VmExecutionMode::OneTx);
         if should_fail {
             assert!(result.result.is_failed(), "Transaction should fail");
+            vm.vm.rollback_to_the_latest_snapshot();
         } else {
             assert!(!result.result.is_failed(), "Transaction should not fail");
+            vm.vm.pop_snapshot_no_rollback();
         }
 
         last_result = Some(result);
@@ -151,7 +155,7 @@ fn test_transient_storage_behavior_panic() {
         "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
     );
 
-    let first_tstore_test = contract
+    let basic_tstore_test = contract
         .function("tStoreAndRevert")
         .unwrap()
         .encode_input(&[Token::Uint(U256::one()), Token::Bool(false)])
@@ -165,12 +169,16 @@ fn test_transient_storage_behavior_panic() {
 
     test_storage(vec![
         TestTxInfo {
-            calldata: first_tstore_test,
+            calldata: basic_tstore_test.clone(),
             ..TestTxInfo::default()
         },
         TestTxInfo {
             fee_overrides: Some(small_fee),
             should_fail: true,
+            ..TestTxInfo::default()
+        },
+        TestTxInfo {
+            calldata: basic_tstore_test,
             ..TestTxInfo::default()
         },
     ]);
