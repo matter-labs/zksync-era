@@ -128,3 +128,12 @@ pub(super) const MSG_WALLET_PATH_REQUIRED_ERR: &str = "Wallet path for in file o
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
+
+/// Containers related messages
+pub(super) const MSG_STARTING_CONTAINERS: &str = "Starting containers";
+pub(super) const MSG_STARTING_DOCKER_CONTAINERS_SPINNER: &str =
+    "Starting containers using docker...";
+pub(super) const MSG_CONTAINERS_STARTED: &str = "Containers started successfully";
+pub(super) const MSG_RETRY_START_CONTAINERS_PROMPT: &str =
+    "Failed to start containers. Make sure there is nothing running on default ports for Ethereum node l1 and postgres. Want to try again?";
+pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosystem folder.";
