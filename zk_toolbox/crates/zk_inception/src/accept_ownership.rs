@@ -1,3 +1,4 @@
+use crate::messages::MSG_ACCEPTING_GOVERNANCE_SPINNER;
 use common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
@@ -94,7 +95,7 @@ async fn accept_ownership(
     forge = fill_forge_private_key(forge, governor)?;
 
     check_the_balance(&forge).await?;
-    let spinner = Spinner::new("Accepting governance");
+    let spinner = Spinner::new(MSG_ACCEPTING_GOVERNANCE_SPINNER);
     forge.run(shell)?;
     spinner.finish();
     Ok(())

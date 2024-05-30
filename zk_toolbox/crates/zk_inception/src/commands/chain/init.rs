@@ -17,6 +17,7 @@ use config::{
 use xshell::Shell;
 
 use super::args::init::InitArgsFinal;
+use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_SELECTED_CONFIG};
 use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
@@ -24,20 +25,27 @@ use crate::{
     },
     config_manipulations::{update_genesis, update_l1_contracts, update_l1_rpc_url_secret},
     forge_utils::{check_the_balance, fill_forge_private_key},
+    messages::{
+        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
+        MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR,
+        MSG_REGISTERING_CHAIN_SPINNER,
+    },
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
     let config = EcosystemConfig::from_file(shell)?;
-    let chain_config = config.load_chain(chain_name).context("Chain not found")?;
+    let chain_config = config
+        .load_chain(chain_name)
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let mut args = args.fill_values_with_prompt(&chain_config);
 
-    logger::note("Selected config:", logger::object_to_string(&chain_config));
-    logger::info("Initializing chain");
+    logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
+    logger::info(msg_initializing_chain(""));
 
     init(&mut args, shell, &config, &chain_config).await?;
 
-    logger::success("Chain initialized successfully");
+    logger::success(MSG_CHAIN_INITIALIZED);
     Ok(())
 }
 
@@ -57,7 +65,7 @@ pub async fn init(
     // Copy ecosystem contracts
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
-    let spinner = Spinner::new("Registering chain...");
+    let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     contracts_config = register_chain(
         shell,
         init_args.forge_args.clone(),
@@ -67,7 +75,7 @@ pub async fn init(
     )
     .await?;
     spinner.finish();
-    let spinner = Spinner::new("Accepting admin...");
+    let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
         shell,
         ecosystem_config,
@@ -95,7 +103,7 @@ pub async fn init(
 
     genesis(init_args.genesis_args.clone(), shell, chain_config)
         .await
-        .context("Unable to perform genesis on the database")?;
+        .context(MSG_GENESIS_DATABASE_ERR)?;
 
     Ok(())
 }
@@ -111,7 +119,7 @@ async fn register_chain(
 
     let contracts = config
         .get_contracts_config()
-        .context("Ecosystem contracts config not found")?;
+        .context(MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR)?;
     let deploy_config = RegisterChainL1Config::new(chain_config, &contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
 

@@ -1,3 +1,4 @@
+use crate::messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER};
 use anyhow::Context;
 use common::{
     config::global_config,
@@ -24,7 +25,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
-        .context("Chain not initialized. Please create a chain first")?;
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
     deploy_paymaster(shell, &chain_config, args).await
 }
 
@@ -52,7 +53,7 @@ pub async fn deploy_paymaster(
         chain_config.get_wallets_config()?.governor_private_key(),
     )?;
 
-    let spinner = Spinner::new("Deploying paymaster");
+    let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     spinner.finish();
