@@ -13,7 +13,6 @@ pub fn load_envfile(path: impl AsRef<std::path::Path>) -> anyhow::Result<()> {
         .filter(|l| !l.starts_with('#'))
         .filter_map(|l| l.split_once('='))
         .for_each(|(k, v)| std::env::set_var(k, v));
-
     Ok(())
 }
 
@@ -28,7 +27,8 @@ pub fn update_envfile(
     let mut out = std::io::BufWriter::new(std::fs::File::create_new(&swapfile)?);
     let mut found = false;
 
-    std::fs::read_to_string(path)?
+    std::fs::read_to_string(path)
+        .unwrap_or_default()
         .lines()
         .map(|l| {
             if l.starts_with(&prefix) {
