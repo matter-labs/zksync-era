@@ -2,7 +2,6 @@ use crate::messages::{msg_address_doesnt_have_enough_money_prompt, MSG_DEPLOYER_
 use anyhow::anyhow;
 use common::forge::ForgeScript;
 use ethers::types::{H256, U256};
-
 use crate::consts::MINIMUM_BALANCE_FOR_WALLET;
 
 pub fn fill_forge_private_key(
