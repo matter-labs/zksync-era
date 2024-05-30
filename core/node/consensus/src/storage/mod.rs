@@ -13,7 +13,7 @@ use zksync_node_sync::{
     SyncState,
 };
 use zksync_state_keeper::io::common::IoCursor;
-use zksync_types::{L1BatchNumber,L2BlockNumber};
+use zksync_types::{L1BatchNumber,L2BlockNumber,commitment::L1BatchWithMetadata};
 
 use super::config;
 
@@ -166,6 +166,10 @@ impl<'a> Connection<'a> {
             .context("sqlx")?)
     }
 
+    pub async fn batch(&mut self, ctx: &ctx::Ctx, number: L1BatchNumber) -> ctx::Result<Option<L1BatchWithMetadata>> {
+        Ok(ctx.wait(self.0.blocks_dal().get_l1_batch_metadata(number)).await?.context("get_l1_batch_metadata()")?)
+    }
+
     /// Wrapper for `FetcherCursor::new()`.
     pub async fn new_payload_queue(
         &mut self,
@@ -301,10 +305,6 @@ impl<'a> Connection<'a> {
             payload: payload.encode(),
             justification,
         }))
-    }
-
-    pub fn batch(&mut self, ctx: &ctx::Ctx, number: L1BatchNumber) -> Option<(L1BatchWithMetadata,Vec<Payload>)> {
-
     }
 }
 

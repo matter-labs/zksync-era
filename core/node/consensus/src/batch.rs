@@ -1,12 +1,14 @@
+#![allow(unused)]
 use zksync_types::{StorageKey, AccountTreeId, block::L2BlockHasher, block::unpack_block_info, ProtocolVersionId, L2BlockNumber, ethabi, Address, web3,L1BatchNumber,H256,U256};
 use zksync_l1_contract_interface::i_executor;
 use zksync_system_constants as constants;
 use zksync_dal::consensus_dal::Payload;
-use zksync_merkle_tree::{TreeEntryWithProof};
+//use zksync_merkle_tree::{TreeEntryWithProof};
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_metadata_calculator::api_server::{TreeEntryWithProof,TreeApiClient};
 use anyhow::Context as _;
 use crate::ConnectionPool;
+use zksync_concurrency::{ctx,error::Wrap as _};
 
 /// Commitment to the last block of a batch.
 struct LastBlockCommit {
@@ -54,21 +56,25 @@ impl LastBlockProof {
         StorageKey::new(Self::addr(), <[u8;32]>::from(key).into()).hashed_key_u256()
     }
 
-    async fn make(ctx: &ctx::Ctx, n: L1BatchNumber, pool: &ConnectionPool, tree: &dyn TreeApiClient) -> anyhow::Result<Self> {
+    async fn make(ctx: &ctx::Ctx, n: L1BatchNumber, pool: &ConnectionPool, tree: &dyn TreeApiClient) -> ctx::Result<Self> {
         let mut conn = pool.connection(ctx).await.wrap("pool.connection()")?;
-        let batch = conn.blocks_dal().get_l1_batch_metadata(n).await?.context("batch not in storage")?;
+        let batch = conn.batch(ctx,n).await.wrap("batch()")?.context("batch not in storage")?;
 
         let proofs = tree.get_proofs(n,vec![Self::current_l2_block_info_key(),Self::tx_rolling_hash_key()]).await.context("get_proofs()")?;
-        anyhow::ensure!(proofs.len()==2);
+        if proofs.len()!=2 {
+            return Err(anyhow::format_err!("proofs.len()!=2").into());
+        }
         let current_l2_block_info = proofs[0].clone();
         let tx_rolling_hash = proofs[1].clone();
         let (block_number,_) = unpack_block_info(current_l2_block_info.value.as_bytes().into());
         let prev = block_number.checked_sub(1).context("block_number underflow")?;
-        let proofs = tree.get_proofs(n,vec![Self::l2_block_hash_entry_key(prev.into())],n).await.context("get_proofs()")?;
-        anyhow::ensure!(proofs.len()==1);
-        let l2_block_hash_entry_key = &proofs[0];
+        let proofs = tree.get_proofs(n,vec![Self::l2_block_hash_entry_key(prev.into())]).await.context("get_proofs()")?;
+        if proofs.len()!=1 {
+            return Err(anyhow::format_err!("proofs.len()!=1").into());
+        }
+        let l2_block_hash_entry = proofs[0].clone();
         Ok(Self {
-            info: StoredBatchInfo(&batch).into_compact(),
+            info: i_executor::structures::StoredBatchInfo(&batch).into_compact(),
             protocol_version: batch.header.protocol_version.context("missing protocol_version")?,
 
             current_l2_block_info,
@@ -86,7 +92,7 @@ impl LastBlockProof {
         // Check the protocol version.
         anyhow::ensure!(self.protocol_version >= ProtocolVersionId::Version13, "unsupported protocol version");
 
-        let (block_number,block_timestamp) = unpack_block_info(self.current_l2_block_info.base.value.as_bytes().into());
+        let (block_number,block_timestamp) = unpack_block_info(self.current_l2_block_info.value.as_bytes().into());
         let prev = block_number.checked_sub(1).context("block_number underflow")?;
         
         // Verify merkle paths.
@@ -99,7 +105,7 @@ impl LastBlockProof {
             self.info.batch_hash,
         )?;
         self.l2_block_hash_entry.verify(
-            Self::l2_block_hash_entry_key(prev.into())
+            Self::l2_block_hash_entry_key(prev.into()),
             self.info.batch_hash,
         )?;
 
@@ -109,8 +115,8 @@ impl LastBlockProof {
             L2BlockHasher::hash(
                 L2BlockNumber(prev.try_into().context("block_number overflow")?),
                 block_timestamp,
-                self.l2_block_hash_entry.base.value,
-                self.tx_rolling_hash.base.value,
+                self.l2_block_hash_entry.value,
+                self.tx_rolling_hash.value,
                 self.protocol_version,
             ),
         ))

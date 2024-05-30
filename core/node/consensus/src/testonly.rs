@@ -397,13 +397,13 @@ impl StateKeeperRunner {
                         stop_recv,
                         Box::new(io),
                         Box::new(MainBatchExecutor::new(
-                            Arc::new(async_cache),
                             false,
                             false,
                         )),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
+                        Arc::new(async_cache),
                     )
                     .run()
                     .await

@@ -35,7 +35,7 @@ struct TreeProofsResponse {
     entries: Vec<TreeEntryWithProof>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TreeEntryWithProof {
     #[serde(default, skip_serializing_if = "H256::is_zero")]
     pub value: H256,
