@@ -2,7 +2,7 @@
 use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
-    basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
+    basic_fri_types::{AggregationRound, CircuitIdRoundTuple, JobIdentifiers},
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
         correct_circuit_id, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo,
@@ -362,29 +362,29 @@ impl FriProverDal<'_, '_> {
         protocol_version: ProtocolSemanticVersion,
     ) {
         sqlx::query!(
-                    r#"
-                    INSERT INTO
-                        prover_jobs_fri (
-                            l1_batch_number,
-                            circuit_id,
-                            circuit_blob_url,
-                            aggregation_round,
-                            sequence_number,
-                            depth,
-                            is_node_final_proof,
-                            protocol_version,
-                            status,
-                            created_at,
-                            updated_at,
-                            protocol_version_patch
-                        )
-                    VALUES
-                        ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
-                    ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number) DO
-                    UPDATE
-                    SET
-                        updated_at = NOW()
-                    "#,
+            r#"
+            INSERT INTO
+                prover_jobs_fri (
+                    l1_batch_number,
+                    circuit_id,
+                    circuit_blob_url,
+                    aggregation_round,
+                    sequence_number,
+                    depth,
+                    is_node_final_proof,
+                    protocol_version,
+                    status,
+                    created_at,
+                    updated_at,
+                    protocol_version_patch
+                )
+            VALUES
+                ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
+            ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number) DO
+            UPDATE
+            SET
+                updated_at = NOW()
+            "#,
             i64::from(l1_batch_number.0),
             i16::from(circuit_id),
             circuit_blob_url,
@@ -395,64 +395,55 @@ impl FriProverDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
     }
 
-    pub async fn get_prover_jobs_stats(&mut self) -> HashMap<(u8, u8), JobCountStatistics> {
+    pub async fn get_prover_jobs_stats(&mut self) -> HashMap<JobIdentifiers, JobCountStatistics> {
         {
-            sqlx::query!(
+            let rows = sqlx::query!(
                 r#"
                 SELECT
                     COUNT(*) AS "count!",
                     circuit_id AS "circuit_id!",
                     aggregation_round AS "aggregation_round!",
-                    status AS "status!"
+                    status AS "status!",
+                    protocol_version AS "protocol_version!"
                 FROM
                     prover_jobs_fri
                 WHERE
-                    status <> 'skipped'
-                    AND status <> 'successful'
+                    status = 'queued'
+                    OR status = 'in_progress'
                 GROUP BY
                     circuit_id,
                     aggregation_round,
-                    status
+                    status,
+                    protocol_version
                 "#
             )
             .fetch_all(self.storage.conn())
             .await
-            .unwrap()
-            .into_iter()
-            .map(|row| {
-                (
-                    row.circuit_id,
-                    row.aggregation_round,
-                    row.status,
-                    row.count as usize,
-                )
-            })
-            .fold(
-                HashMap::new(),
-                |mut acc, (circuit_id, aggregation_round, status, value)| {
-                    let stats = acc
-                        .entry((circuit_id as u8, aggregation_round as u8))
-                        .or_insert(JobCountStatistics {
-                            queued: 0,
-                            in_progress: 0,
-                            failed: 0,
-                            successful: 0,
-                        });
-                    match status.as_ref() {
-                        "queued" => stats.queued = value,
-                        "in_progress" => stats.in_progress = value,
-                        "failed" => stats.failed = value,
-                        "successful" => stats.successful = value,
-                        _ => (),
-                    }
-                    acc
-                },
-            )
+            .unwrap();
+
+            let mut result = HashMap::new();
+
+            for row in &rows {
+                let stats: &mut JobCountStatistics = result
+                    .entry(JobIdentifiers {
+                        circuit_id: row.circuit_id as u8,
+                        aggregation_round: row.aggregation_round as u8,
+                        protocol_version: row.protocol_version as u16,
+                    })
+                    .or_default();
+                match row.status.as_ref() {
+                    "queued" => stats.queued = row.count as usize,
+                    "in_progress" => stats.in_progress = row.count as usize,
+                    _ => (),
+                }
+            }
+
+            result
         }
     }
 
@@ -637,7 +628,7 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri
             WHERE
                 l1_batch_number = $1
-                AND is_node_final_proof = true
+                AND is_node_final_proof = TRUE
                 AND status = 'successful'
             ORDER BY
                 circuit_id ASC
@@ -726,11 +717,9 @@ impl FriProverDal<'_, '_> {
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                prover_jobs_fri
+            DELETE FROM prover_jobs_fri
             WHERE
                 l1_batch_number = $1;
-            
             "#,
             i64::from(l1_batch_number.0)
         )
@@ -744,11 +733,9 @@ impl FriProverDal<'_, '_> {
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                prover_jobs_fri_archive
+            DELETE FROM prover_jobs_fri_archive
             WHERE
                 l1_batch_number = $1;
-            
             "#,
             i64::from(l1_batch_number.0)
         )
@@ -767,17 +754,25 @@ impl FriProverDal<'_, '_> {
     }
 
     pub async fn delete_prover_jobs_fri(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!("DELETE FROM prover_jobs_fri")
-            .execute(self.storage.conn())
-            .await
+        sqlx::query!(
+            r#"
+            DELETE FROM prover_jobs_fri
+            "#
+        )
+        .execute(self.storage.conn())
+        .await
     }
 
     pub async fn delete_prover_jobs_fri_archive(
         &mut self,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!("DELETE FROM prover_jobs_fri_archive")
-            .execute(self.storage.conn())
-            .await
+        sqlx::query!(
+            r#"
+            DELETE FROM prover_jobs_fri_archive
+            "#
+        )
+        .execute(self.storage.conn())
+        .await
     }
 
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
@@ -803,7 +798,10 @@ impl FriProverDal<'_, '_> {
                 WHERE
                     l1_batch_number = $1
                     AND attempts >= $2
-                    AND (status = 'in_progress' OR status = 'failed')
+                    AND (
+                        status = 'in_progress'
+                        OR status = 'failed'
+                    )
                 RETURNING
                     id,
                     status,

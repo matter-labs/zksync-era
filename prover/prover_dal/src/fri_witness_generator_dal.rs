@@ -895,7 +895,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         rtwj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
                         AND prover_jobs_fri.aggregation_round = $1
-                        AND prover_jobs_fri.is_node_final_proof = true
+                        AND prover_jobs_fri.is_node_final_proof = TRUE
                     GROUP BY
                         prover_jobs_fri.l1_batch_number,
                         rtwj.number_of_final_node_jobs
@@ -1099,7 +1099,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     SELECT
                         l1_batch_number
                     FROM
-                    recursion_tip_witness_jobs_fri
+                        recursion_tip_witness_jobs_fri
                     WHERE
                         status = 'queued'
                         AND protocol_version = $1
@@ -1365,30 +1365,39 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_witness_jobs_stats(
         &mut self,
         aggregation_round: AggregationRound,
-    ) -> JobCountStatistics {
+    ) -> HashMap<(AggregationRound, ProtocolVersionId), JobCountStatistics> {
         let table_name = Self::input_table_name_for(aggregation_round);
         let sql = format!(
             r#"
-                SELECT COUNT(*) as "count", status as "status"
-                FROM {}
-                GROUP BY status
+                SELECT
+                    protocol_version,
+                    COUNT(*) FILTER (WHERE status = 'queued') as queued,
+                    COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
+                FROM
+                    {}
+                GROUP BY
+                    protocol_version
                 "#,
             table_name,
         );
-        let mut results: HashMap<String, i64> = sqlx::query(&sql)
+        sqlx::query(&sql)
             .fetch_all(self.storage.conn())
             .await
             .unwrap()
             .into_iter()
-            .map(|row| (row.get("status"), row.get::<i64, &str>("count")))
-            .collect::<HashMap<String, i64>>();
-
-        JobCountStatistics {
-            queued: results.remove("queued").unwrap_or(0i64) as usize,
-            in_progress: results.remove("in_progress").unwrap_or(0i64) as usize,
-            failed: results.remove("failed").unwrap_or(0i64) as usize,
-            successful: results.remove("successful").unwrap_or(0i64) as usize,
-        }
+            .map(|row| {
+                let key = (
+                    aggregation_round,
+                    ProtocolVersionId::try_from(row.get::<i32, &str>("protocol_version") as u16)
+                        .unwrap(),
+                );
+                let value = JobCountStatistics {
+                    queued: row.get::<i64, &str>("queued") as usize,
+                    in_progress: row.get::<i64, &str>("in_progress") as usize,
+                };
+                (key, value)
+            })
+            .collect()
     }
 
     fn input_table_name_for(aggregation_round: AggregationRound) -> &'static str {
@@ -1449,7 +1458,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             l1_batch_number,
             merkle_tree_paths_blob_url: row.merkle_tree_paths_blob_url,
             attempts: row.attempts as u32,
-            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            status: row.status.parse::<WitnessJobStatus>().unwrap(),
             error: row.error,
             created_at: row.created_at,
             updated_at: row.updated_at,

@@ -106,7 +106,8 @@ impl FriProtocolVersionsDal<'_, '_> {
                 prover_fri_protocol_versions
             ORDER BY
                 id DESC
-            LIMIT 1
+            LIMIT
+                1
             "#,
         )
         .fetch_one(self.storage.conn())
@@ -129,8 +130,12 @@ impl FriProtocolVersionsDal<'_, '_> {
     }
 
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!("DELETE FROM prover_fri_protocol_versions")
-            .execute(self.storage.conn())
-            .await
+        sqlx::query!(
+            r#"
+            DELETE FROM prover_fri_protocol_versions
+            "#
+        )
+        .execute(self.storage.conn())
+        .await
     }
 }
