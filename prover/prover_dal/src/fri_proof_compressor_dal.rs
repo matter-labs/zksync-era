@@ -275,13 +275,16 @@ impl FriProofCompressorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| {
-            let key = ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap();
-            let value = JobCountStatistics {
-                queued: row.queued.unwrap() as usize,
-                in_progress: row.in_progress.unwrap() as usize,
-            };
-            (key, value)
+        .map(|row| match row.protocol_version {
+            Some(protocol_version) => {
+                let key = ProtocolVersionId::try_from(protocol_version as u16).unwrap();
+                let value = JobCountStatistics {
+                    queued: row.queued.unwrap() as usize,
+                    in_progress: row.in_progress.unwrap() as usize,
+                };
+                (key, value)
+            }
+            None => {}
         })
         .collect()
     }
