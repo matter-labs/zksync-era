@@ -1,30 +1,27 @@
-use zksync_config::{
-    configs::{da_dispatcher::DADispatcherConfig, eth_sender::PubdataSendingMode},
-    EthConfig,
-};
-use zksync_da_layers::DataAvailabilityInterface;
+use zksync_config::configs::da_dispatcher::DADispatcherConfig;
+use zksync_da_layers::DataAvailabilityClient;
 use zksync_dal::Core;
 use zksync_db_connection::connection_pool::ConnectionPool;
 
 use crate::{
-    implementations::resources::pools::{MasterPool, PoolResource},
+    implementations::resources::{
+        da_client::DAClientResource,
+        pools::{MasterPool, PoolResource},
+    },
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// A layer that wires the data availability dispatcher task.
 #[derive(Debug)]
 pub struct DataAvailabilityDispatcherLayer {
     da_config: DADispatcherConfig,
-    eth_config: EthConfig,
 }
 
 impl DataAvailabilityDispatcherLayer {
-    pub fn new(da_config: DADispatcherConfig, eth_config: EthConfig) -> Self {
-        Self {
-            da_config,
-            eth_config,
-        }
+    pub fn new(da_config: DADispatcherConfig) -> Self {
+        Self { da_config }
     }
 }
 
@@ -36,17 +33,14 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let master_pool = master_pool_resource.get().await.unwrap();
+        let master_pool = master_pool_resource.get().await?;
+        let da_client = context.get_resource::<DAClientResource>().await?.0;
 
-        if self.eth_config.sender.unwrap().pubdata_sending_mode == PubdataSendingMode::Custom {
-            let da_client = zksync_da_client::new_da_client(self.da_config.clone()).await;
-
-            context.add_task(Box::new(DataAvailabilityDispatcherTask {
-                main_pool: master_pool,
-                da_config: self.da_config,
-                client: da_client,
-            }));
-        }
+        context.add_task(Box::new(DataAvailabilityDispatcherTask {
+            main_pool: master_pool,
+            da_config: self.da_config,
+            client: da_client,
+        }));
 
         Ok(())
     }
@@ -56,7 +50,7 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
 struct DataAvailabilityDispatcherTask {
     main_pool: ConnectionPool<Core>,
     da_config: DADispatcherConfig,
-    client: Box<dyn DataAvailabilityInterface>,
+    client: Box<dyn DataAvailabilityClient>,
 }
 
 #[async_trait::async_trait]

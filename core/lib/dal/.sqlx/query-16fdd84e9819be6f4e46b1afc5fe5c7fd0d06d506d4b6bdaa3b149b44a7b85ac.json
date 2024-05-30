@@ -12,7 +12,7 @@
     "parameters": {
       "Left": [
         "Int8",
-        "Bytea"
+        "Text"
       ]
     },
     "nullable": [

@@ -18,6 +18,7 @@ zksync_basic_types.workspace = true
 zksync_config.workspace = true
 zksync_protobuf.workspace = true
 zksync_types.workspace = true
+zksync_da_layers.workspace = true
 
 anyhow.workspace = true
 prost.workspace = true

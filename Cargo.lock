@@ -2822,9 +2822,11 @@ dependencies = [
 [[package]]
 name = "hyperchain_da"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da.git?rev=5629d56ec3d851a7ff03e72c5e0765c55af595d5#5629d56ec3d851a7ff03e72c5e0765c55af595d5"
+source = "git+https://github.com/matter-labs/hyperchain-da.git?rev=ad24b39e90a4a32db53d0a46fac8bf2c995f7a51#ad24b39e90a4a32db53d0a46fac8bf2c995f7a51"
 dependencies = [
+ "anyhow",
  "async-trait",
+ "serde",
 ]
 
 [[package]]
@@ -8117,12 +8119,14 @@ name = "zksync_config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "hyperchain_da",
  "rand 0.8.5",
  "secrecy",
  "serde",
  "zksync_basic_types",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
+ "zksync_system_constants",
 ]
 
 [[package]]
@@ -8362,6 +8366,7 @@ dependencies = [
  "futures 0.3.28",
  "governor",
  "hex",
+ "hyperchain_da",
  "itertools 0.10.5",
  "jsonrpsee",
  "lru",
@@ -8476,6 +8481,7 @@ dependencies = [
 name = "zksync_da_client"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "hyperchain_da",
  "tracing",
@@ -8491,6 +8497,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "hyperchain_da",
+ "rand 0.8.5",
  "tokio",
  "tracing",
  "vise",
@@ -8555,6 +8562,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "envy",
+ "hyperchain_da",
  "serde",
  "zksync_basic_types",
  "zksync_config",
@@ -9142,6 +9150,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "hex",
+ "hyperchain_da",
  "prost 0.12.1",
  "rand 0.8.5",
  "secrecy",

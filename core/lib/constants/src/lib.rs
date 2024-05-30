@@ -1,6 +1,7 @@
 pub mod blocks;
 pub mod contracts;
 pub mod crypto;
+pub mod data_availability;
 pub mod ethereum;
 pub mod fees;
 pub mod system_context;

@@ -7,6 +7,7 @@ import "zksync/config/object_store.proto";
 message DALayer {
   optional string name = 1; // required
   optional string private_key = 2; // required
+  optional string light_node_url = 3;
 }
 
 message DataAvailabilityDispatcher {

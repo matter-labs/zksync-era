@@ -19,6 +19,7 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
+        da_client::DataAvailabilityClientLayer,
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
@@ -400,13 +401,20 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
+    fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
         let da_config = try_load_config!(self.configs.da_dispatcher_config);
-        self.node.add_layer(DataAvailabilityDispatcherLayer::new(
+        self.node.add_layer(DataAvailabilityClientLayer::new(
             da_config,
             eth_sender_config,
         ));
+        Ok(self)
+    }
+
+    fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
+        let da_config = try_load_config!(self.configs.da_dispatcher_config);
+        self.node
+            .add_layer(DataAvailabilityDispatcherLayer::new(da_config));
         Ok(self)
     }
 
@@ -492,7 +500,7 @@ impl MainNodeBuilder {
                     self = self.add_commitment_generator_layer()?;
                 }
                 Component::DADispatcher => {
-                    self = self.add_da_dispatcher_layer()?;
+                    self = self.add_da_client_layer()?.add_da_dispatcher_layer()?;
                 }
             }
         }

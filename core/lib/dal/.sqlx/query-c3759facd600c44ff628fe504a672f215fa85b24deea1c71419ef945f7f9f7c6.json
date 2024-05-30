@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batch_number,\n                blob_id,\n                inclusion_data,\n                sent_at\n            FROM\n                data_availability\n            WHERE\n                inclusion_data IS NULL\n                AND blob_id IS NOT NULL\n            ORDER BY\n                l1_batch_number\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "blob_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "inclusion_data",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "sent_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "c3759facd600c44ff628fe504a672f215fa85b24deea1c71419ef945f7f9f7c6"
+}

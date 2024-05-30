@@ -11,9 +11,10 @@ impl FromEnv for DADispatcherConfig {
 #[cfg(test)]
 mod tests {
     use zksync_config::configs::{
-        da_dispatcher::{DADispatcherConfig, DALayerInfo, DataAvailabilityMode},
+        da_dispatcher::{DADispatcherConfig, DataAvailabilityMode},
         object_store::{ObjectStoreConfig, ObjectStoreMode},
     };
+    use zksync_da_layers::{clients::celestia::config::CelestiaConfig, config::DALayerConfig};
 
     use super::*;
     use crate::test_utils::EnvMutex;
@@ -40,18 +41,17 @@ mod tests {
         }
     }
 
-    fn expected_da_layer_config(
-        name: &str,
+    fn expected_celestia_da_layer_config(
         pk: &str,
         interval: u32,
         rows_limit: u32,
         max_retries: u16,
     ) -> DADispatcherConfig {
         DADispatcherConfig {
-            da_mode: DataAvailabilityMode::DALayer(DALayerInfo {
-                name: name.to_owned(),
+            da_mode: DataAvailabilityMode::DALayer(DALayerConfig::Celestia(CelestiaConfig {
+                light_node_url: "localhost:12345".to_string(),
                 private_key: pk.to_owned(),
-            }),
+            })),
             polling_interval: Some(interval),
             query_rows_limit: Some(rows_limit),
             max_retries: Some(max_retries),
@@ -75,15 +75,15 @@ mod tests {
             DA_DISPATCHER_QUERY_ROWS_LIMIT=60
             DA_DISPATCHER_MAX_RETRIES=7
             DA_DISPATCHER_DA_MODE="DALayer"
-            DA_DISPATCHER_NAME="testDALayer"
+            DA_DISPATCHER_CLIENT_NAME="Celestia"
+            DA_DISPATCHER_LIGHT_NODE_URL="localhost:12345"
             DA_DISPATCHER_PRIVATE_KEY="0xf55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
         "#;
         lock.set_env(config);
         let actual = DADispatcherConfig::from_env().unwrap();
         assert_eq!(
             actual,
-            expected_da_layer_config(
-                "testDALayer",
+            expected_celestia_da_layer_config(
                 "0xf55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73",
                 5,
                 60,
