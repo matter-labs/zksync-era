@@ -183,7 +183,7 @@ fn verify_range_merkle_proof(
             hashes[i] = hasher.compress(&hashes[2 * i], &hashes[2 * i + 1]);
         }
 
-        hashes.drain(next_level_len..);
+        hashes.truncate(next_level_len);
         start_index /= 2;
     }
 

@@ -108,8 +108,10 @@ where
             );
             binary_tree_size = min_tree_size.max(binary_tree_size);
         }
+
+        let depth = tree_depth_by_size(binary_tree_size);
         assert!(
-            tree_depth_by_size(binary_tree_size) <= MAX_TREE_DEPTH,
+            depth <= MAX_TREE_DEPTH,
             "Tree contains more than {} items; this is not supported",
             1 << MAX_TREE_DEPTH
         );
@@ -119,7 +121,7 @@ where
             hashes,
             binary_tree_size,
             start_index: 0,
-            cache: vec![],
+            cache: vec![H256::default(); depth + 1],
         }
     }
 
@@ -138,7 +140,7 @@ where
                 self.cache[depth]
             }
         } else {
-            self.compute_merkle_root_and_path(0, None, None)
+            self.compute_merkle_root_and_path(0, None)
         }
     }
 
@@ -146,20 +148,17 @@ where
     /// `index` is relative to the leftmost uncached leaf.
     pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
         let mut end_path = vec![];
-        let root_hash = self.compute_merkle_root_and_path(index, None, Some(&mut end_path));
+        let root_hash = self.compute_merkle_root_and_path(index, Some(&mut end_path));
         (root_hash, end_path)
     }
 
     /// Returns the root hash and the Merkle proofs for a range of leafs.
     /// The range is 0..length, where `0` is the leftmost untrimmed leaf.
     pub fn merkle_root_and_paths_for_range(&self, length: usize) -> (H256, Vec<H256>, Vec<H256>) {
-        let (mut left_path, mut right_path) = (vec![], vec![]);
-        let root_hash = self.compute_merkle_root_and_path(
-            length - 1,
-            Some(&mut left_path),
-            Some(&mut right_path),
-        );
-        (root_hash, left_path, right_path)
+        let mut right_path = vec![];
+        let root_hash = self.compute_merkle_root_and_path(length - 1, Some(&mut right_path));
+        let depth = tree_depth_by_size(self.binary_tree_size);
+        (root_hash, self.cache[..depth].to_vec(), right_path)
     }
 
     /// Adds a raw hash to the tree (replaces leftmost empty leaf).
@@ -188,7 +187,7 @@ where
         assert!(self.hashes.len() >= count, "not enough leaves to cache");
         let mut new_cache = vec![];
         // Cache is a subset of the path to the first untrimmed leaf.
-        let root = self.compute_merkle_root_and_path(count, None, Some(&mut new_cache));
+        let root = self.compute_merkle_root_and_path(count, Some(&mut new_cache));
         self.hashes.drain(..count);
         self.start_index += count;
         // It is important to add the root in case we just trimmed all leaves *and*
@@ -200,51 +199,38 @@ where
     fn compute_merkle_root_and_path(
         &self,
         mut end_index: usize,
-        mut start_path: Option<&mut Vec<H256>>,
         mut end_path: Option<&mut Vec<H256>>,
     ) -> H256 {
         let depth = tree_depth_by_size(self.binary_tree_size);
-        if let Some(left_path) = start_path.as_deref_mut() {
-            left_path.reserve(depth);
-        }
         if let Some(right_path) = end_path.as_deref_mut() {
             right_path.reserve(depth);
         }
 
         let mut hashes = self.hashes.clone();
-        let mut start_index = self.start_index;
+        let mut absolute_start_index = self.start_index;
 
         for level in 0..depth {
-            let empty_hash_at_level = self.hasher.empty_subtree_hash(level);
-            if start_index % 2 == 1 {
+            if absolute_start_index % 2 == 1 {
                 hashes.push_front(self.cache[level]);
+                end_index += 1;
             }
             if hashes.len() % 2 == 1 {
+                let empty_hash_at_level = self.hasher.empty_subtree_hash(level);
                 hashes.push_back(empty_hash_at_level);
             }
-
-            let push_sibling_hash = |path: Option<&mut Vec<H256>>, index: usize| {
-                // `index` is relative to `head_index`
-                if let Some(path) = path {
-                    let sibling = ((start_index + index) ^ 1) - start_index + start_index % 2;
-                    // When trimming all existing leaves,
-                    // the first untrimmed leaf and its sibling might not exist.
-                    let hash = hashes.get(sibling).copied().unwrap_or_default();
-                    path.push(hash);
-                }
-            };
-
-            push_sibling_hash(start_path.as_deref_mut(), 0);
-            push_sibling_hash(end_path.as_deref_mut(), end_index);
+            if let Some(path) = end_path.as_deref_mut() {
+                let hash = hashes.get(end_index ^ 1).copied().unwrap_or_default();
+                path.push(hash);
+            }
 
             let level_len = hashes.len() / 2;
             for i in 0..level_len {
                 hashes[i] = self.hasher.compress(&hashes[2 * i], &hashes[2 * i + 1]);
             }
 
-            hashes.drain(level_len..);
-            end_index = (end_index + start_index % 2) / 2;
-            start_index /= 2;
+            hashes.truncate(level_len);
+            end_index /= 2;
+            absolute_start_index /= 2;
         }
 
         hashes[0]
