@@ -19,7 +19,7 @@ use crate::{
     PruneDatabase, PrunePatchSet,
 };
 
-/// Persistence command passed to a persistence thread over a bounded MPSC channel.
+/// Persistence command passed to a persistence thread over a bounded channel.
 #[derive(Debug, Clone)]
 struct PersistenceCommand {
     manifest: Manifest,
@@ -27,13 +27,14 @@ struct PersistenceCommand {
     stale_keys: Vec<NodeKey>,
 }
 
+/// Command to a background persistence thread.
 #[derive(Debug)]
 enum Command {
     Persist(PersistenceCommand),
     Stop(mpsc::SyncSender<()>),
 }
 
-/// FIXME
+/// Handle allowing to control background persistence for Merkle tree.
 #[derive(Debug)]
 pub struct PersistenceThreadHandle {
     command_sender: mpsc::SyncSender<Command>,
@@ -50,6 +51,7 @@ impl PersistenceThreadHandle {
     }
 }
 
+/// Thread join handle, or an error produced by the thread.
 #[derive(Debug, Default)]
 enum HandleOrError {
     #[default]
@@ -155,8 +157,6 @@ impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
             database.apply_patch(patch)?;
             tracing::debug!("Persisted patch #{persisted_count}");
             persisted_count += 1;
-            // An `Arc<PersistenceCommand>` must be dropped only after the command is applied. Otherwise,
-            // `Database` methods may see a state in which neither commands nor the underlying database contain the applied patch set.
         }
         Ok(())
     }
@@ -275,7 +275,7 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             );
 
             // Garbage-collect patches already applied by the persistence thread. This will remove all patches
-            // if the persistence thread has panicked, but this is OK because we'll panic below anyway.
+            // if the persistence thread has failed, but this is OK because we'll propagate the failure below anyway.
             self.commands
                 .retain(|command| Arc::strong_count(&command.patch) > 1);
             tracing::debug!(
@@ -318,7 +318,9 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             .is_err()
         {
             self.persistence_handle.check()?;
-            anyhow::bail!("persistence thread never exits when `ParallelDatabase` is alive");
+            anyhow::bail!(
+                "persistence thread never exits normally when `ParallelDatabase` is alive"
+            );
         }
         self.commands.push_back(command);
         Ok(())

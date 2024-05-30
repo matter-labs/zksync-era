@@ -275,6 +275,11 @@ impl<DB: 'static + Clone + PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H>
     ///   Also controls memory usage, since each chunk translates into a non-trivial database patch (order of 1 kB / entry;
     ///   i.e., a chunk with 200,000 entries would translate to a 200 MB patch).
     ///
+    /// # Return value
+    ///
+    /// On success, returns a handle allowing to control background persistence thread. For now, it can only be used to emulate persistence crashes;
+    /// the handle can be dropped otherwise.
+    ///
     /// # Safety
     ///
     /// If recovery is interrupted (e.g., its process crashes), then some of the latest chunks may not be persisted,
