@@ -21,7 +21,7 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
-    recovery::MerkleTreeRecovery,
+    recovery::{MerkleTreeRecovery, PersistenceThreadHandle},
     Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
     TreeEntryWithProof, TreeInstruction,
 };
@@ -409,14 +409,24 @@ impl AsyncTreeRecovery {
         recovered_version: u64,
         mode: MerkleTreeMode,
     ) -> anyhow::Result<Self> {
+        Ok(Self::with_handle(db, recovered_version, mode)?.0)
+    }
+
+    // Public for testing purposes
+    pub fn with_handle(
+        db: RocksDBWrapper,
+        recovered_version: u64,
+        mode: MerkleTreeMode,
+    ) -> anyhow::Result<(Self, PersistenceThreadHandle)> {
         const PERSISTENCE_BUFFER_CAPACITY: usize = 4;
 
         let mut recovery = MerkleTreeRecovery::new(db, recovered_version)?;
-        recovery.parallelize_persistence(PERSISTENCE_BUFFER_CAPACITY)?;
-        Ok(Self {
+        let handle = recovery.parallelize_persistence(PERSISTENCE_BUFFER_CAPACITY)?;
+        let this = Self {
             inner: Some(recovery),
             mode,
-        })
+        };
+        Ok((this, handle))
     }
 
     pub fn recovered_version(&self) -> u64 {
