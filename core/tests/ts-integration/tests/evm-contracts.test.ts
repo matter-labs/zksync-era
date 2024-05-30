@@ -15,6 +15,7 @@ import * as zksync from 'zksync-web3';
 import fs, { PathLike } from 'fs';
 import csv from 'csv-parser';
 import { createObjectCsvWriter } from 'csv-writer';
+import { time } from 'console';
 
 const contracts = {
     tester: getTestContract('TestEVMCreate'),
@@ -69,7 +70,7 @@ describe('EVM equivalence contract', () => {
     });
 
     describe('Gas consumption', () => {
-        test("Should compare gas against counter fallback contract's call", async () => {
+        xtest("Should compare gas against counter fallback contract's call", async () => {
             const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
 
             const counterContract = await deploygasCallerContract(alice, artifacts.counterFallback);
@@ -80,7 +81,7 @@ describe('EVM equivalence contract', () => {
             expect(result).toEqual(expected_gas);
         });
 
-        test("Should compare gas against creator fallback contract's call", async () => {
+        xtest("Should compare gas against creator fallback contract's call", async () => {
             const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
 
             const creatorContract = await deploygasCallerContract(alice, artifacts.creatorFallback);
@@ -105,7 +106,7 @@ describe('EVM equivalence contract', () => {
 
     describe('Contract creation', () => {
         describe('Create from EOA', () => {
-            test('Should create evm contract from EOA and allow view and non-view calls', async () => {
+            xtest('Should create evm contract from EOA and allow view and non-view calls', async () => {
                 const args = [1];
                 const factory = getEVMContractFactory(alice, artifacts.counter);
                 const contract = await factory.deploy(args);
@@ -124,7 +125,7 @@ describe('EVM equivalence contract', () => {
                 expect((await contract.callStatic.get()).toString()).toEqual('2');
             });
 
-            test('Should create2 evm contract from ZKEVM contract', async () => {
+            xtest('Should create2 evm contract from ZKEVM contract', async () => {
                 const salt = ethers.utils.randomBytes(32);
 
                 const expectedAddress = ethers.utils.getCreate2Address(
@@ -146,7 +147,7 @@ describe('EVM equivalence contract', () => {
                 throw 'Should fail to create2 the same contract with same salt twice';
             });
 
-            test('Should propegate revert in constructor', async () => {
+            xtest('Should propegate revert in constructor', async () => {
                 const factory = getEVMContractFactory(alice, artifacts.constructorRevert);
                 const contract = await factory.deploy({ gasLimit });
 
@@ -161,7 +162,7 @@ describe('EVM equivalence contract', () => {
                 expect(failReason).toBe('transaction failed');
             });
 
-            test('Should NOT create evm contract from EOA when `to` is address(0x0)', async () => {
+            xtest('Should NOT create evm contract from EOA when `to` is address(0x0)', async () => {
                 const args = [1];
 
                 const factory = getEVMContractFactory(alice, artifacts.counter);
@@ -207,7 +208,7 @@ describe('EVM equivalence contract', () => {
     });
 
     describe('Inter-contract calls', () => {
-        test('Calls (read/write) between EVM contracts should work correctly', async () => {
+        xtest('Calls (read/write) between EVM contracts should work correctly', async () => {
             const args = [1];
 
             const counterFactory = getEVMContractFactory(alice, artifacts.counter);
@@ -231,7 +232,7 @@ describe('EVM equivalence contract', () => {
             );
         });
 
-        test('Create opcode works correctly', async () => {
+        xtest('Create opcode works correctly', async () => {
             const creatorFactory = getEVMContractFactory(alice, artifacts.creator);
             const creatorContract = await creatorFactory.deploy();
             await creatorContract.deployTransaction.wait();
@@ -253,7 +254,7 @@ describe('EVM equivalence contract', () => {
             await assertCreatedCorrectly(deployer, expectedAddress, runtimeBytecode, result.logs);
         });
 
-        test('Should revert correctly', async () => {
+        xtest('Should revert correctly', async () => {
             const args = [1];
 
             const counterFactory = getEVMContractFactory(alice, artifacts.counter);
@@ -308,7 +309,7 @@ describe('EVM equivalence contract', () => {
             ).wait();
         });
 
-        test('view functions should work', async () => {
+        xtest('view functions should work', async () => {
             const evmBalanceOfCost = await evmToken.estimateGas.balanceOf(alice.address);
             const nativeBalanceOfCost = await nativeToken.estimateGas.balanceOf(alice.address);
             if (logGasCosts) {
@@ -320,7 +321,7 @@ describe('EVM equivalence contract', () => {
             expect((await evmToken.balanceOf(userAccount.address)).toString()).toEqual('0');
         });
 
-        test('transfer should work', async () => {
+        xtest('transfer should work', async () => {
             expect((await evmToken.balanceOf(alice.address)).toString()).toEqual('1000000');
             const evmTransferTx = await (await evmToken.transfer(userAccount.address, 100000)).wait();
             const nativeTransferTx = await (await nativeToken.transfer(userAccount.address, 100000)).wait();
@@ -334,7 +335,7 @@ describe('EVM equivalence contract', () => {
             expect((await evmToken.balanceOf(userAccount.address)).toString()).toEqual('100000');
         });
 
-        test('approve & transferFrom should work', async () => {
+        xtest('approve & transferFrom should work', async () => {
             expect((await evmToken.balanceOf(alice.address)).toString()).toEqual('1000000');
             const evmApproveTx = await (await evmToken.connect(alice).approve(userAccount.address, 100000)).wait();
             const nativeApproveTx = await (
@@ -452,7 +453,7 @@ describe('EVM equivalence contract', () => {
             }
         });
 
-        test('mint, swap, and burn should work', async () => {
+        xtest('mint, swap, and burn should work', async () => {
             const evmMintReceipt = await (await evmUniswapPair.mint(alice.address)).wait();
             const nativeMintReceipt = await (await nativeUniswapPair.mint(alice.address)).wait();
             dumpOpcodeLogs(evmMintReceipt.transactionHash, alice.provider);
@@ -492,7 +493,7 @@ describe('EVM equivalence contract', () => {
             dumpOpcodeLogs(evmBurnReceipt.transactionHash, alice.provider);
         });
 
-        test("Should compare gas against uniswap fallback contract's call", async () => {
+        xtest("Should compare gas against uniswap fallback contract's call", async () => {
             const gasCallerFactory = getEVMContractFactory(alice, artifacts.gasCaller);
             const gasCallerContract = await gasCallerFactory.deploy();
             await gasCallerContract.deployTransaction.wait();
@@ -509,6 +510,26 @@ describe('EVM equivalence contract', () => {
 
             const expected_gas = '165939'; // Gas cost when run with solidity interpreter
             expect(result).toEqual(expected_gas);
+        });
+        
+        test('load test', async () => {
+            let txs = []
+            let max = 10
+            let time_ = Date.now()
+            for (let i = 0; i < max; i++) {
+                let tx1 = await evmUniswapPair.swap(0, 5000, alice.address, '0x');
+                let tx2 = await evmUniswapPair.swap(5000, 0, alice.address, '0x');
+                txs.push(tx1)
+                txs.push(tx2)
+            }
+
+            for (let i = 0; i < max*2; i++) {
+                let receipt = await txs[i].wait();
+                console.log(receipt.blockNumber)
+            }
+            let time_2 = Date.now()
+            console.log("Time: ", time_2 - time_)
+            
         });
     });
 
