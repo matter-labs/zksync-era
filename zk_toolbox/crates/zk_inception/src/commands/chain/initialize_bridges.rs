@@ -1,16 +1,12 @@
 use std::path::Path;
 
+use anyhow::Context;
 use common::{
     cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use xshell::{cmd, Shell};
-
-use crate::forge_utils::fill_forge_private_key;
-use crate::{config_manipulations::update_l2_shared_bridge, forge_utils::check_the_balance};
-use anyhow::Context;
 use config::{
     forge_interface::{
         initialize_bridges::{input::InitializeBridgeInput, output::InitializeBridgeOutput},
@@ -18,6 +14,12 @@ use config::{
     },
     traits::{ReadConfig, SaveConfig},
     ChainConfig, EcosystemConfig,
+};
+use xshell::{cmd, Shell};
+
+use crate::{
+    config_manipulations::update_l2_shared_bridge,
+    forge_utils::{check_the_balance, fill_forge_private_key},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {

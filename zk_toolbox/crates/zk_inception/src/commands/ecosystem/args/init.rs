@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
 
-use crate::commands::chain::args::genesis::GenesisArgs;
-use crate::defaults::LOCAL_RPC_URL;
+use crate::{commands::chain::args::genesis::GenesisArgs, defaults::LOCAL_RPC_URL};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemArgs {

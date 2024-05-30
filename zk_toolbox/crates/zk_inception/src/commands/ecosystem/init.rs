@@ -12,20 +12,6 @@ use common::{
     spinner::Spinner,
     Prompt,
 };
-use xshell::{cmd, Shell};
-
-use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
-use crate::{
-    accept_ownership::accept_owner,
-    commands::{
-        chain,
-        ecosystem::create_configs::{
-            create_erc20_deployment_config, create_initial_deployments_config,
-        },
-    },
-    forge_utils::fill_forge_private_key,
-};
-use crate::{consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, forge_utils::check_the_balance};
 use config::{
     forge_interface::{
         deploy_ecosystem::{
@@ -43,6 +29,20 @@ use config::{
     ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use types::{L1Network, ProverMode, WalletCreation};
+use xshell::{cmd, Shell};
+
+use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
+use crate::{
+    accept_ownership::accept_owner,
+    commands::{
+        chain,
+        ecosystem::create_configs::{
+            create_erc20_deployment_config, create_initial_deployments_config,
+        },
+    },
+    consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+    forge_utils::{check_the_balance, fill_forge_private_key},
+};
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
