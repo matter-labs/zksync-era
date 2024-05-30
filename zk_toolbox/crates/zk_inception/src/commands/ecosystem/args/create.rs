@@ -4,14 +4,15 @@ use clap::Parser;
 use common::{slugify, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter};
+use strum_macros::EnumIter;
 
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
     messages::{
         MSG_ECOSYSTEM_NAME_PROMPT, MSG_L1_NETWORK_HELP, MSG_L1_NETWORK_PROMPT,
-        MSG_LINK_TO_CODE_HELP, MSG_LINK_TO_CODE_PROMPT, MSG_REPOSITORY_ORIGIN_PROMPT,
-        MSG_START_CONTAINERS_HELP, MSG_START_CONTAINERS_PROMPT,
+        MSG_LINK_TO_CODE_HELP, MSG_LINK_TO_CODE_PROMPT, MSG_LINK_TO_CODE_SELECTION_CLONE,
+        MSG_LINK_TO_CODE_SELECTION_PATH, MSG_REPOSITORY_ORIGIN_PROMPT, MSG_START_CONTAINERS_HELP,
+        MSG_START_CONTAINERS_PROMPT,
     },
     types::L1Network,
     wallets::WalletCreation,
@@ -90,10 +91,17 @@ impl EcosystemCreateArgsFinal {
     }
 }
 
-#[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
+#[derive(Debug, Clone, EnumIter, PartialEq, Eq)]
 enum LinkToCodeSelection {
-    #[strum(serialize = "Clone for me (recommended)")]
     Clone,
-    #[strum(serialize = "I have the code already")]
     Path,
+}
+
+impl std::fmt::Display for LinkToCodeSelection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LinkToCodeSelection::Clone => write!(f, "{MSG_LINK_TO_CODE_SELECTION_CLONE}"),
+            LinkToCodeSelection::Path => write!(f, "{MSG_LINK_TO_CODE_SELECTION_PATH}"),
+        }
+    }
 }

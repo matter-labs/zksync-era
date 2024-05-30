@@ -23,6 +23,8 @@ pub(super) const MSG_CREATING_DEFAULT_CHAIN_SPINNER: &str = "Creating default ch
 pub(super) const MSG_STARTING_CONTAINERS_SPINNER: &str = "Starting containers...";
 pub(super) const MSG_ECOSYSTEM_ALREADY_EXISTS_ERR: &str = "Ecosystem already exists";
 pub(super) const MSG_ECOSYSTEM_CONFIG_INVALID_ERR: &str = "Invalid ecosystem configuration";
+pub(super) const MSG_LINK_TO_CODE_SELECTION_CLONE: &str = "Clone for me (recommended)";
+pub(super) const MSG_LINK_TO_CODE_SELECTION_PATH: &str = "I have the code already";
 
 /// Ecosystem and chain init related messages
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
