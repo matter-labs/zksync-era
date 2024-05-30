@@ -5,18 +5,6 @@ use common::{
     logger,
     spinner::Spinner,
 };
-use xshell::Shell;
-
-use super::args::init::InitArgsFinal;
-use crate::{
-    accept_ownership::accept_admin,
-    commands::chain::{
-        args::init::InitArgs, deploy_paymaster, genesis::genesis, initialize_bridges,
-    },
-    config_manipulations::{update_l1_contracts, update_l1_rpc_url_secret},
-    forge_utils::fill_forge_private_key,
-};
-use crate::{config_manipulations::update_genesis, forge_utils::check_the_balance};
 use config::{
     copy_configs,
     forge_interface::{
@@ -25,6 +13,17 @@ use config::{
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
+};
+use xshell::Shell;
+
+use super::args::init::InitArgsFinal;
+use crate::{
+    accept_ownership::accept_admin,
+    commands::chain::{
+        args::init::InitArgs, deploy_paymaster, genesis::genesis, initialize_bridges,
+    },
+    config_manipulations::{update_genesis, update_l1_contracts, update_l1_rpc_url_secret},
+    forge_utils::{check_the_balance, fill_forge_private_key},
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
