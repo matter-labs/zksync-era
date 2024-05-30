@@ -47,9 +47,10 @@ fn calculating_chunk_count() {
 async fn create_tree_recovery(
     path: &Path,
     l1_batch: L1BatchNumber,
-) -> (AsyncTreeRecovery, PersistenceThreadHandle) {
+    config: &MetadataCalculatorRecoveryConfig,
+) -> (AsyncTreeRecovery, Option<PersistenceThreadHandle>) {
     let db = create_db(mock_config(path)).await.unwrap();
-    AsyncTreeRecovery::with_handle(db, l1_batch.0.into(), MerkleTreeMode::Full).unwrap()
+    AsyncTreeRecovery::with_handle(db, l1_batch.0.into(), MerkleTreeMode::Full, config).unwrap()
 }
 
 #[tokio::test]
@@ -69,7 +70,7 @@ async fn basic_recovery_workflow() {
         println!("Recovering tree with {chunk_count} chunks");
 
         let tree_path = temp_dir.path().join(format!("recovery-{chunk_count}"));
-        let (tree, _) = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
+        let (tree, _) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
         let (health_check, health_updater) = ReactiveHealthCheck::new("tree");
         let recovery_options = RecoveryOptions {
             chunk_count,
@@ -185,22 +186,38 @@ impl HandleRecoveryEvent for TestEventListener {
     }
 }
 
-#[test_casing(6, Product(([5, 7, 8], [false, true])))]
+#[derive(Debug, Clone, Copy)]
+enum FaultToleranceCase {
+    Sequential,
+    Parallel,
+    ParallelWithCrash,
+}
+
+impl FaultToleranceCase {
+    const ALL: [Self; 3] = [Self::Sequential, Self::Parallel, Self::ParallelWithCrash];
+}
+
+#[test_casing(9, Product(([5, 7, 8], FaultToleranceCase::ALL)))]
 #[tokio::test]
-async fn recovery_fault_tolerance(chunk_count: u64, crash_persistence: bool) {
+async fn recovery_fault_tolerance(chunk_count: u64, case: FaultToleranceCase) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let snapshot_recovery = prepare_recovery_snapshot_with_genesis(pool.clone(), &temp_dir).await;
 
     let tree_path = temp_dir.path().join("recovery");
-    let (tree, _) = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
+    let mut config = MetadataCalculatorRecoveryConfig::default();
+    assert!(config.parallel_persistence_buffer.is_some());
+    if matches!(case, FaultToleranceCase::Sequential) {
+        config.parallel_persistence_buffer = None;
+    }
+
+    let (tree, _) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
     let (stop_sender, stop_receiver) = watch::channel(false);
     let recovery_options = RecoveryOptions {
         chunk_count,
         concurrency_limit: 1,
         events: Box::new(TestEventListener::new(1, stop_sender)),
     };
-    let config = MetadataCalculatorRecoveryConfig::default();
     let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery, &config)
         .await
         .unwrap();
@@ -211,12 +228,12 @@ async fn recovery_fault_tolerance(chunk_count: u64, crash_persistence: bool) {
         .is_none());
 
     // Emulate a restart and recover 2 more chunks (or 1 + emulated persistence crash).
-    let (mut tree, handle) = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
+    let (mut tree, handle) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
     assert_ne!(tree.root_hash().await, snapshot_recovery.l1_batch_root_hash);
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut event_listener = TestEventListener::new(2, stop_sender).expect_recovered_chunks(1);
-    let expected_recovered_chunks = if crash_persistence {
-        event_listener = event_listener.crash_persistence_after(1, handle);
+    let expected_recovered_chunks = if matches!(case, FaultToleranceCase::ParallelWithCrash) {
+        event_listener = event_listener.crash_persistence_after(1, handle.unwrap());
         2
     } else {
         drop(handle); // necessary to terminate the background persistence thread in time
@@ -230,7 +247,7 @@ async fn recovery_fault_tolerance(chunk_count: u64, crash_persistence: bool) {
     let recovery_result = tree
         .recover(snapshot, recovery_options, &pool, &stop_receiver)
         .await;
-    if crash_persistence {
+    if matches!(case, FaultToleranceCase::ParallelWithCrash) {
         let err = format!("{:#}", recovery_result.unwrap_err());
         assert!(err.contains("emulated persistence crash"), "{err}");
     } else {
@@ -238,7 +255,7 @@ async fn recovery_fault_tolerance(chunk_count: u64, crash_persistence: bool) {
     }
 
     // Emulate another restart and recover remaining chunks.
-    let (mut tree, _) = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
+    let (mut tree, _) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
     assert_ne!(tree.root_hash().await, snapshot_recovery.l1_batch_root_hash);
     let (stop_sender, stop_receiver) = watch::channel(false);
     let recovery_options = RecoveryOptions {

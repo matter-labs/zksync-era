@@ -189,7 +189,7 @@ impl GenericAsyncTree {
                         "Starting Merkle tree recovery with status {snapshot_recovery:?}"
                     );
                     let l1_batch = snapshot_recovery.l1_batch_number;
-                    let tree = AsyncTreeRecovery::new(db, l1_batch.0.into(), mode)?;
+                    let tree = AsyncTreeRecovery::new(db, l1_batch.0.into(), mode, config)?;
                     (tree, snapshot_recovery)
                 } else {
                     // Start the tree from scratch. The genesis block will be filled in `TreeUpdater::loop_updating_tree()`.

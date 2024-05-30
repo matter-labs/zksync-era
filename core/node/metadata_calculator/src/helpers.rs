@@ -33,7 +33,7 @@ use zksync_types::{
 use super::{
     metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
     pruning::PruningHandles,
-    MetadataCalculatorConfig,
+    MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
 
 /// General information about the Merkle tree.
@@ -408,8 +408,9 @@ impl AsyncTreeRecovery {
         db: RocksDBWrapper,
         recovered_version: u64,
         mode: MerkleTreeMode,
+        config: &MetadataCalculatorRecoveryConfig,
     ) -> anyhow::Result<Self> {
-        Ok(Self::with_handle(db, recovered_version, mode)?.0)
+        Ok(Self::with_handle(db, recovered_version, mode, config)?.0)
     }
 
     // Public for testing purposes
@@ -417,11 +418,13 @@ impl AsyncTreeRecovery {
         db: RocksDBWrapper,
         recovered_version: u64,
         mode: MerkleTreeMode,
-    ) -> anyhow::Result<(Self, PersistenceThreadHandle)> {
-        const PERSISTENCE_BUFFER_CAPACITY: usize = 4;
-
+        config: &MetadataCalculatorRecoveryConfig,
+    ) -> anyhow::Result<(Self, Option<PersistenceThreadHandle>)> {
         let mut recovery = MerkleTreeRecovery::new(db, recovered_version)?;
-        let handle = recovery.parallelize_persistence(PERSISTENCE_BUFFER_CAPACITY)?;
+        let handle = config
+            .parallel_persistence_buffer
+            .map(|buffer_capacity| recovery.parallelize_persistence(buffer_capacity.get()))
+            .transpose()?;
         let this = Self {
             inner: Some(recovery),
             mode,
@@ -542,13 +545,18 @@ pub(super) enum GenericAsyncTree {
 }
 
 impl GenericAsyncTree {
-    pub async fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> anyhow::Result<Self> {
+    pub async fn new(
+        db: RocksDBWrapper,
+        config: &MetadataCalculatorConfig,
+    ) -> anyhow::Result<Self> {
+        let mode = config.mode;
+        let recovery = config.recovery.clone();
         tokio::task::spawn_blocking(move || {
             let Some(manifest) = db.manifest() else {
                 return Ok(Self::Empty { db, mode });
             };
             anyhow::Ok(if let Some(version) = manifest.recovered_version() {
-                Self::Recovering(AsyncTreeRecovery::new(db, version, mode)?)
+                Self::Recovering(AsyncTreeRecovery::new(db, version, mode, &recovery)?)
             } else {
                 Self::Ready(AsyncTree::new(db, mode)?)
             })

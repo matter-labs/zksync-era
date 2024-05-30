@@ -755,6 +755,12 @@ pub(crate) struct ExperimentalENConfig {
     /// of recovery and then restarted with a different config).
     #[serde(default = "ExperimentalENConfig::default_snapshots_recovery_tree_chunk_size")]
     pub snapshots_recovery_tree_chunk_size: u64,
+    /// Buffer capacity for parallel persistence operations. Should be reasonably small since larger buffer means more RAM usage;
+    /// buffer elements are persisted tree chunks. OTOH, small buffer can lead to persistence parallelization being inefficient.
+    ///
+    /// If not set, parallel persistence will be disabled.
+    #[serde(default)] // Temporarily use a conservative option (sequential recovery) as default
+    pub snapshots_recovery_tree_parallel_persistence_buffer: Option<NonZeroUsize>,
 
     // Commitment generator
     /// Maximum degree of parallelism during commitment generation, i.e., the maximum number of L1 batches being processed in parallel.
@@ -778,6 +784,7 @@ impl ExperimentalENConfig {
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
             snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
+            snapshots_recovery_tree_parallel_persistence_buffer: None,
             commitment_generator_max_parallelism: None,
         }
     }
