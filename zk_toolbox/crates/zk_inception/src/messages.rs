@@ -73,8 +73,12 @@ pub(super) const MSG_SAVE_ERC20_CONFIG_ATTENTION: &str =
     "ATTENTION: This file should be filled with the desired ERC20 tokens to deploy.";
 
 /// Ecosystem change default related messages
-pub(super) const MSG_CHAIN_DOESNT_EXIST_ERR_1: &str = "Chain with name";
-pub(super) const MSG_CHAIN_DOESNT_EXIST_ERR_2: &str = "doesnt exist, please choose one of";
+pub(super) fn msg_chain_doesnt_exist_err(chain_name: &str, chains: &Vec<String>) -> String {
+    format!(
+        "Chain with name {} doesnt exist, please choose one of {:?}",
+        chain_name, chains
+    )
+}
 
 /// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";

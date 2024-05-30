@@ -5,9 +5,7 @@ use crate::{
     commands::ecosystem::args::change_default::ChangeDefaultChain,
     configs::{EcosystemConfig, SaveConfig},
     consts::CONFIG_NAME,
-    messages::{
-        MSG_CHAIN_DOESNT_EXIST_ERR_1, MSG_CHAIN_DOESNT_EXIST_ERR_2, MSG_DEFAULT_CHAIN_PROMPT,
-    },
+    messages::{msg_chain_doesnt_exist_err, MSG_DEFAULT_CHAIN_PROMPT},
 };
 
 pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
@@ -21,11 +19,7 @@ pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
     });
 
     if !chains.contains(&chain_name) {
-        anyhow::bail!(
-            "{MSG_CHAIN_DOESNT_EXIST_ERR_1} {} {MSG_CHAIN_DOESNT_EXIST_ERR_2} {:?}",
-            chain_name,
-            &chains
-        );
+        anyhow::bail!(msg_chain_doesnt_exist_err(&chain_name, &chains));
     }
     ecosystem_config.default_chain = chain_name;
     ecosystem_config.save(shell, CONFIG_NAME)
