@@ -175,7 +175,6 @@ describe('Upgrade test', function () {
         const delegateCalldata = L2_FORCE_DEPLOY_UPGRADER_ABI.encodeFunctionData('forceDeploy', [[forceDeployment]]);
         const data = COMPLEX_UPGRADER_ABI.encodeFunctionData('upgrade', [delegateTo, delegateCalldata]);
 
-        const oldProtocolVersion = await alice._providerL2().send('zks_getProtocolVersion', [null]);
         const calldata = await prepareUpgradeCalldata(govWallet, alice._providerL2(), {
             l2ProtocolUpgradeTx: {
                 txType: 254,
@@ -196,8 +195,7 @@ describe('Upgrade test', function () {
             },
             factoryDeps: [forceDeployBytecode],
             bootloaderHash,
-            upgradeTimestamp: 0,
-            oldProtocolVersion: oldProtocolVersion.version_id
+            upgradeTimestamp: 0
         });
         scheduleTransparentOperation = calldata.scheduleTransparentOperation;
         executeOperation = calldata.executeOperation;
@@ -387,7 +385,6 @@ async function prepareUpgradeCalldata(
         l1ContractsUpgradeCalldata?: BytesLike;
         postUpgradeCalldata?: BytesLike;
         upgradeTimestamp: BigNumberish;
-        oldProtocolVersion?: BigNumberish;
     }
 ) {
     const upgradeAddress = process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR;
@@ -400,9 +397,10 @@ async function prepareUpgradeCalldata(
     const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, govWallet);
     const stmAddress = await zksyncContract.getStateTransitionManager();
 
-    const oldProtocolVersion = params.oldProtocolVersion ?? (await zksyncContract.getProtocolVersion());
-    const newProtocolVersion = ethers.BigNumber.from(oldProtocolVersion).add(1);
-    params.l2ProtocolUpgradeTx.nonce ??= newProtocolVersion;
+    const oldProtocolVersion = await zksyncContract.getProtocolVersion();
+    const newProtocolVersion = addToProtocolVersion(oldProtocolVersion, 1, 1);
+
+    params.l2ProtocolUpgradeTx.nonce ??= unpackNumberSemVer(newProtocolVersion)[1];
     const upgradeInitData = L1_DEFAULT_UPGRADE_ABI.encodeFunctionData('upgrade', [
         [
             params.l2ProtocolUpgradeTx,
@@ -475,4 +473,27 @@ async function mintToWallet(
     const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
     const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, ethersWallet);
     await (await l1Erc20Contract.mint(ethersWallet.address, amountToMint)).wait();
+}
+
+const SEMVER_MINOR_VERSION_MULTIPLIER = 4294967296;
+
+function unpackNumberSemVer(semver: number): [number, number, number] {
+    const major = 0;
+    const minor = Math.floor(semver / SEMVER_MINOR_VERSION_MULTIPLIER);
+    const patch = semver % SEMVER_MINOR_VERSION_MULTIPLIER;
+    return [major, minor, patch];
+}
+
+// The major version is always 0 for now
+export function packSemver(major: number, minor: number, patch: number) {
+    if (major !== 0) {
+        throw new Error('Major version must be 0');
+    }
+
+    return minor * SEMVER_MINOR_VERSION_MULTIPLIER + patch;
+}
+
+export function addToProtocolVersion(packedProtocolVersion: number, minor: number, patch: number) {
+    const [major, minorVersion, patchVersion] = unpackNumberSemVer(packedProtocolVersion);
+    return packSemver(major, minorVersion + minor, patchVersion + patch);
 }

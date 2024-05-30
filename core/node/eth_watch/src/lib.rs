@@ -9,8 +9,8 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
-    ProtocolVersionId,
+    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
+    web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
 };
 
 pub use self::client::EthHttpQueryClient;
@@ -31,7 +31,7 @@ mod tests;
 
 #[derive(Debug)]
 struct EthWatchState {
-    last_seen_version_id: ProtocolVersionId,
+    last_seen_protocol_version: ProtocolSemanticVersion,
     next_expected_priority_id: PriorityOpId,
     last_processed_ethereum_block: u64,
 }
@@ -64,7 +64,7 @@ impl EthWatch {
             PriorityOpsEventProcessor::new(state.next_expected_priority_id)?;
         let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
             state_transition_manager_address.unwrap_or(diamond_proxy_addr),
-            state.last_seen_version_id,
+            state.last_seen_protocol_version,
             governance_contract,
         );
         let event_processors: Vec<Box<dyn EventProcessor>> = vec![
@@ -97,9 +97,9 @@ impl EthWatch {
             .await?
             .map_or(PriorityOpId(0), |e| e + 1);
 
-        let last_seen_version_id = storage
+        let last_seen_protocol_version = storage
             .protocol_versions_dal()
-            .last_version_id()
+            .latest_semantic_version()
             .await?
             .context("expected at least one (genesis) version to be present in DB")?;
 
@@ -121,7 +121,7 @@ impl EthWatch {
 
         Ok(EthWatchState {
             next_expected_priority_id,
-            last_seen_version_id,
+            last_seen_protocol_version,
             last_processed_ethereum_block,
         })
     }

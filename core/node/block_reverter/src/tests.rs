@@ -26,11 +26,12 @@ fn gen_storage_logs() -> Vec<StorageLog> {
 
 fn initialize_merkle_tree(path: &Path, storage_logs: &[StorageLog]) -> Vec<H256> {
     let db = RocksDB::new(path).unwrap().with_sync_writes();
-    let mut tree = ZkSyncTree::new(db.into());
+    let mut tree = ZkSyncTree::new(db.into()).unwrap();
     let hashes = storage_logs.iter().enumerate().map(|(i, log)| {
-        let output =
-            tree.process_l1_batch(&[TreeInstruction::write(log.key, i as u64 + 1, log.value)]);
-        tree.save();
+        let output = tree
+            .process_l1_batch(&[TreeInstruction::write(log.key, i as u64 + 1, log.value)])
+            .unwrap();
+        tree.save().unwrap();
         output.root_hash
     });
     hashes.collect()
@@ -181,7 +182,7 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
     }
 
     let db = RocksDB::new(&merkle_tree_path).unwrap();
-    let tree = ZkSyncTree::new(db.into());
+    let tree = ZkSyncTree::new(db.into()).unwrap();
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(6));
 
     let sk_cache = RocksdbStorage::builder(&sk_cache_path).await.unwrap();

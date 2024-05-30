@@ -12,6 +12,7 @@ members = [
     "prover_fri_gateway",
     "proof_fri_compressor",
     "prover_cli",
+    "prover_version",
 ]
 
 resolver = "2"

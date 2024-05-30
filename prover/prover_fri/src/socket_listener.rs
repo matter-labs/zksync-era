@@ -12,8 +12,8 @@ pub mod gpu_socket_listener {
     use zksync_object_store::bincode;
     use zksync_prover_fri_types::WitnessVectorArtifacts;
     use zksync_types::{
+        protocol_version::ProtocolSemanticVersion,
         prover_dal::{GpuProverInstanceStatus, SocketAddress},
-        ProtocolVersionId,
     };
 
     use crate::{
@@ -27,7 +27,7 @@ pub mod gpu_socket_listener {
         pool: ConnectionPool<Prover>,
         specialized_prover_group_id: u8,
         zone: String,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     }
 
     impl SocketListener {
@@ -37,7 +37,7 @@ pub mod gpu_socket_listener {
             pool: ConnectionPool<Prover>,
             specialized_prover_group_id: u8,
             zone: String,
-            protocol_version: ProtocolVersionId,
+            protocol_version: ProtocolSemanticVersion,
         ) -> Self {
             Self {
                 address,
