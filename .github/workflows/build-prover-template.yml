@@ -57,7 +57,7 @@ jobs:
           - proof-fri-compressor
           - proof-fri-gpu-compressor
     outputs:
-      protocol_version: ${{ steps.protocol-version.outputs.protocol_version }}
+      protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -148,6 +148,7 @@ jobs:
           exit 1
 
       - name: protocol-version
+        id: protocolversion
         # TODO: use -C flag, when it will become stable.
         shell: bash
         run: |
