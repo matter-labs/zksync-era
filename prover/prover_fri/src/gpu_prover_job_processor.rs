@@ -30,7 +30,8 @@ pub mod gpu_prover {
     };
     use zksync_queued_job_processor::{async_trait, JobProcessor};
     use zksync_types::{
-        basic_fri_types::CircuitIdRoundTuple, prover_dal::SocketAddress, ProtocolVersionId,
+        basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
+        prover_dal::SocketAddress,
     };
     use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
@@ -64,7 +65,7 @@ pub mod gpu_prover {
         prover_context: ProverContext,
         address: SocketAddress,
         zone: String,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     }
 
     impl Prover {
@@ -79,7 +80,7 @@ pub mod gpu_prover {
             witness_vector_queue: SharedWitnessVectorQueue,
             address: SocketAddress,
             zone: String,
-            protocol_version: ProtocolVersionId,
+            protocol_version: ProtocolSemanticVersion,
         ) -> Self {
             Prover {
                 blob_store,

@@ -42,8 +42,8 @@ use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     block::StorageOracleInfo,
-    protocol_version::ProtocolVersionId,
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256,
+    protocol_version::ProtocolSemanticVersion,
+    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -89,7 +89,7 @@ pub struct BasicWitnessGenerator {
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool<Core>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
 }
 
 impl BasicWitnessGenerator {
@@ -99,7 +99,7 @@ impl BasicWitnessGenerator {
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool<Core>,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             config: Arc::new(config),
