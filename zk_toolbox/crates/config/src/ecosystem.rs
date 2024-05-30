@@ -177,6 +177,7 @@ impl EcosystemConfig {
         self.link_to_code.join(CONFIGS_PATH)
     }
 
+    /// Path to the predefined ecosystem configs
     pub fn get_preexisting_configs_path(&self) -> PathBuf {
         self.link_to_code.join(ECOSYSTEM_PATH)
     }
