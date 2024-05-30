@@ -2,7 +2,6 @@ use std::{
     env,
     ffi::OsString,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
-    path::PathBuf,
     time::Duration,
 };
 

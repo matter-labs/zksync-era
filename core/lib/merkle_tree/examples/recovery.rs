@@ -2,6 +2,7 @@
 
 use std::time::Instant;
 
+use anyhow::Context as _;
 use clap::Parser;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tempfile::TempDir;
@@ -47,7 +48,7 @@ impl Cli {
             .init();
     }
 
-    fn run(self) {
+    fn run(self) -> anyhow::Result<()> {
         Self::init_logging();
         tracing::info!("Launched with options: {self:?}");
 
@@ -57,7 +58,7 @@ impl Cli {
             mock_db = PatchSet::default();
             &mut mock_db
         } else {
-            let dir = TempDir::new().expect("failed creating temp dir for RocksDB");
+            let dir = TempDir::new().context("failed creating temp dir for RocksDB")?;
             tracing::info!(
                 "Created temp dir for RocksDB: {}",
                 dir.path().to_string_lossy()
@@ -66,7 +67,8 @@ impl Cli {
                 block_cache_capacity: self.block_cache,
                 ..RocksDBOptions::default()
             };
-            let db = RocksDB::with_options(dir.path(), db_options).unwrap();
+            let db =
+                RocksDB::with_options(dir.path(), db_options).context("failed creating RocksDB")?;
             rocksdb = RocksDBWrapper::from(db);
             _temp_dir = Some(dir);
             &mut rocksdb
@@ -83,7 +85,8 @@ impl Cli {
 
         let mut last_key = Key::zero();
         let mut last_leaf_index = 0;
-        let mut recovery = MerkleTreeRecovery::with_hasher(db, recovered_version, hasher);
+        let mut recovery = MerkleTreeRecovery::with_hasher(db, recovered_version, hasher)
+            .context("cannot create tree")?;
         let recovery_started_at = Instant::now();
         for updated_idx in 0..self.update_count {
             let started_at = Instant::now();
@@ -108,9 +111,13 @@ impl Cli {
                 })
                 .collect();
             if self.random {
-                recovery.extend_random(recovery_entries);
+                recovery
+                    .extend_random(recovery_entries)
+                    .context("failed extending tree during recovery")?;
             } else {
-                recovery.extend_linear(recovery_entries);
+                recovery
+                    .extend_linear(recovery_entries)
+                    .context("failed extending tree during recovery")?;
             }
             tracing::info!(
                 "Updated tree with recovery chunk #{updated_idx} in {:?}",
@@ -118,17 +125,22 @@ impl Cli {
             );
         }
 
-        let tree = MerkleTree::new(recovery.finalize());
+        let db = recovery
+            .finalize()
+            .context("failed finalizing tree recovery")?;
+        let tree = MerkleTree::new(db).context("tree has invalid metadata after recovery")?;
         tracing::info!(
             "Recovery finished in {:?}; verifying consistency...",
             recovery_started_at.elapsed()
         );
         let started_at = Instant::now();
-        tree.verify_consistency(recovered_version, true).unwrap();
+        tree.verify_consistency(recovered_version, true)
+            .context("tree is inconsistent")?;
         tracing::info!("Verified consistency in {:?}", started_at.elapsed());
+        Ok(())
     }
 }
 
-fn main() {
-    Cli::parse().run();
+fn main() -> anyhow::Result<()> {
+    Cli::parse().run()
 }

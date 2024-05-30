@@ -172,3 +172,8 @@ export const announced = async (fn: string, promise: Promise<void> | void) => {
     const timestampLine = timestamp(`(${time}ms)`);
     console.log(`${successLine} ${timestampLine}`);
 };
+
+export function unpackStringSemVer(semver: string): [number, number, number] {
+    const [major, minor, patch] = semver.split('.');
+    return [parseInt(major), parseInt(minor), parseInt(patch)];
+}

@@ -189,11 +189,11 @@ impl GenericAsyncTree {
                         "Starting Merkle tree recovery with status {snapshot_recovery:?}"
                     );
                     let l1_batch = snapshot_recovery.l1_batch_number;
-                    let tree = AsyncTreeRecovery::new(db, l1_batch.0.into(), mode);
+                    let tree = AsyncTreeRecovery::new(db, l1_batch.0.into(), mode)?;
                     (tree, snapshot_recovery)
                 } else {
                     // Start the tree from scratch. The genesis block will be filled in `TreeUpdater::loop_updating_tree()`.
-                    return Ok(Some(AsyncTree::new(db, mode)));
+                    return Ok(Some(AsyncTree::new(db, mode)?));
                 }
             }
         };
@@ -279,7 +279,7 @@ impl AsyncTreeRecovery {
             "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {:?}",
             snapshot.expected_root_hash
         );
-        let tree = tree.finalize().await;
+        let tree = tree.finalize().await?;
         finalize_latency.observe();
         tracing::info!(
             "Tree recovery has finished, the recovery took {:?}! resuming normal tree operation",
@@ -398,7 +398,7 @@ impl AsyncTreeRecovery {
 
         let extend_tree_latency =
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::ExtendTree].start();
-        tree.extend(all_entries).await;
+        tree.extend(all_entries).await?;
         let extend_tree_latency = extend_tree_latency.observe();
         tracing::debug!(
             "Extended Merkle tree with entries for chunk {key_chunk:?} in {extend_tree_latency:?}"

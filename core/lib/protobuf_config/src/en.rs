@@ -1,3 +1,4 @@
+use anyhow::Context;
 use zksync_basic_types::{L1ChainId, L2ChainId};
 use zksync_config::configs::en_config::ENConfig;
 use zksync_protobuf::{required, ProtoRepr};
