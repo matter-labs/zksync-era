@@ -31,7 +31,7 @@ impl FriProtocolVersionsDal<'_, '_> {
                 )
             VALUES
                 ($1, $2, $3, $4, $5, NOW(), $6)
-            ON CONFLICT (id) DO NOTHING
+            ON CONFLICT (id, protocol_version_patch) DO NOTHING
             "#,
             id.minor as i32,
             l1_verifier_config
