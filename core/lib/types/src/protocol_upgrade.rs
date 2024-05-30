@@ -351,7 +351,12 @@ impl TryFrom<Call> for ProtocolUpgrade {
 
         let diamond_cut_tokens =
             if signature.to_vec() == ADMIN_EXECUTE_UPGRADE_FUNCTION.short_signature().to_vec() {
-                ADMIN_EXECUTE_UPGRADE_FUNCTION.decode_input(data)?
+                ADMIN_EXECUTE_UPGRADE_FUNCTION
+                    .decode_input(data)?
+                    .pop()
+                    .unwrap()
+                    .into_tuple()
+                    .unwrap()
             } else if signature.to_vec()
                 == ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION
                     .short_signature()
