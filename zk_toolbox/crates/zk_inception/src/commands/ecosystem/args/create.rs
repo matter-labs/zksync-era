@@ -5,6 +5,7 @@ use common::{slugify, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
+use types::{L1Network, WalletCreation};
 
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
@@ -15,7 +16,6 @@ use crate::{
         MSG_START_CONTAINERS_PROMPT,
     },
 };
-use types::{L1Network, WalletCreation};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct EcosystemCreateArgs {

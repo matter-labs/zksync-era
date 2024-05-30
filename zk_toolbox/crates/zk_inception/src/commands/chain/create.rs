@@ -1,9 +1,5 @@
 use std::cell::OnceCell;
 
-use crate::messages::{
-    MSG_CHAIN_CREATED, MSG_CREATING_CHAIN, MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER,
-    MSG_SELECTED_CONFIG,
-};
 use common::{logger, spinner::Spinner};
 use config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
@@ -12,7 +8,13 @@ use config::{
 use types::ChainId;
 use xshell::Shell;
 
-use crate::commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal};
+use crate::{
+    commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
+    messages::{
+        MSG_CHAIN_CREATED, MSG_CREATING_CHAIN, MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER,
+        MSG_SELECTED_CONFIG,
+    },
+};
 
 pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
