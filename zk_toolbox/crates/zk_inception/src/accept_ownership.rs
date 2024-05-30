@@ -1,12 +1,8 @@
+use crate::messages::MSG_ACCEPTING_GOVERNANCE_SPINNER;
 use common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
 };
-use xshell::Shell;
-
-use crate::forge_utils::check_the_balance;
-use crate::forge_utils::fill_forge_private_key;
-use crate::messages::MSG_ACCEPTING_GOVERNANCE_SPINNER;
 use config::{
     forge_interface::{
         accept_ownership::AcceptOwnershipInput, script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
@@ -15,6 +11,9 @@ use config::{
     EcosystemConfig,
 };
 use ethers::types::{Address, H256};
+use xshell::Shell;
+
+use crate::forge_utils::{check_the_balance, fill_forge_private_key};
 
 pub async fn accept_admin(
     shell: &Shell,

@@ -5,6 +5,7 @@ use common::{slugify, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
+use types::{BaseToken, L1BatchCommitDataGeneratorMode, ProverMode, WalletCreation};
 
 use crate::{
     defaults::L2_CHAIN_ID,
@@ -20,7 +21,6 @@ use crate::{
         MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
     },
 };
-use types::{BaseToken, L1BatchCommitDataGeneratorMode, ProverMode, WalletCreation};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ChainCreateArgs {

@@ -1,8 +1,15 @@
-use std::path::Path;
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use anyhow::bail;
 use common::{cmd::Cmd, logger, spinner::Spinner};
+use config::{
+    create_local_configs_dir, create_wallets, get_default_era_chain_id,
+    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
+    ZKSYNC_ERA_GIT_REPO,
+};
 use xshell::{cmd, Shell};
 
 use crate::commands::ecosystem::{
@@ -18,11 +25,6 @@ use crate::messages::{
     MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
     MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
     MSG_STARTING_CONTAINERS_SPINNER,
-};
-use config::traits::SaveConfigWithBasePath;
-use config::{
-    create_local_configs_dir, create_wallets, get_default_era_chain_id, EcosystemConfig,
-    EcosystemConfigFromFileError, ZKSYNC_ERA_GIT_REPO,
 };
 
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {

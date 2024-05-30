@@ -1,7 +1,8 @@
+use std::path::PathBuf;
+
 use anyhow::{anyhow, Context};
 use common::{docker, logger, spinner::Spinner};
 use config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
-use std::path::PathBuf;
 use xshell::Shell;
 
 use crate::messages::{

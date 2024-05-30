@@ -5,6 +5,15 @@ use common::{
     logger,
     spinner::Spinner,
 };
+use config::{
+    copy_configs,
+    forge_interface::{
+        register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
+        script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
+    },
+    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
+    ChainConfig, ContractsConfig, EcosystemConfig,
+};
 use xshell::Shell;
 
 use super::args::init::InitArgsFinal;
@@ -14,23 +23,13 @@ use crate::{
     commands::chain::{
         args::init::InitArgs, deploy_paymaster, genesis::genesis, initialize_bridges,
     },
-    config_manipulations::{update_l1_contracts, update_l1_rpc_url_secret},
-    forge_utils::fill_forge_private_key,
+    config_manipulations::{update_genesis, update_l1_contracts, update_l1_rpc_url_secret},
+    forge_utils::{check_the_balance, fill_forge_private_key},
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR,
         MSG_REGISTERING_CHAIN_SPINNER,
     },
-};
-use crate::{config_manipulations::update_genesis, forge_utils::check_the_balance};
-use config::{
-    copy_configs,
-    forge_interface::{
-        register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
-        script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
-    },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig,
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {

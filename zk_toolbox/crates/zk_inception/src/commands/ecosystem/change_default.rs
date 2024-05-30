@@ -1,9 +1,9 @@
 use common::PromptSelect;
+use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::Shell;
 
 use crate::commands::ecosystem::args::change_default::ChangeDefaultChain;
 use crate::messages::{msg_chain_doesnt_exist_err, MSG_DEFAULT_CHAIN_PROMPT};
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 
 pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;

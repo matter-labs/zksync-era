@@ -1,14 +1,10 @@
+use crate::messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER};
 use anyhow::Context;
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use xshell::Shell;
-
-use crate::messages::MSG_CHAIN_NOT_INITIALIZED;
-use crate::{config_manipulations::update_paymaster, forge_utils::check_the_balance};
-use crate::{forge_utils::fill_forge_private_key, messages::MSG_DEPLOYING_PAYMASTER};
 use config::{
     forge_interface::{
         paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
@@ -16,6 +12,12 @@ use config::{
     },
     traits::{ReadConfig, SaveConfig},
     ChainConfig, EcosystemConfig,
+};
+use xshell::Shell;
+
+use crate::{
+    config_manipulations::update_paymaster,
+    forge_utils::{check_the_balance, fill_forge_private_key},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {

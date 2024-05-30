@@ -6,12 +6,11 @@ use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
 
-use crate::commands::chain::args::genesis::GenesisArgs;
-use crate::defaults::LOCAL_RPC_URL;
 use crate::messages::{
     MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEPLOY_PAYMASTER_PROMPT,
     MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
 };
+use crate::{commands::chain::args::genesis::GenesisArgs, defaults::LOCAL_RPC_URL};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemArgs {

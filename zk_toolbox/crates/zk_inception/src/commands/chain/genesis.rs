@@ -7,6 +7,7 @@ use common::{
     logger,
     spinner::Spinner,
 };
+use config::{ChainConfig, DatabasesConfig, EcosystemConfig};
 use xshell::Shell;
 
 use super::args::genesis::GenesisArgsFinal;
@@ -22,7 +23,6 @@ use crate::{
     },
     server::{RunServer, ServerMode},
 };
-use config::{ChainConfig, DatabasesConfig, EcosystemConfig};
 
 const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
 const PROVER_MIGRATIONS: &str = "prover/prover_dal/migrations";
