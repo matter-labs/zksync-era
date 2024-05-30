@@ -251,12 +251,12 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         scheduleTransparentOperation,
         executeOperation,
         diamondCut,
-        governanceOperation,
+        governanceOperation
     };
 
     if (prepareDirectOperation) {
-        if(!chainId) {
-            throw new Error("chainId is required for direct operation");
+        if (!chainId) {
+            throw new Error('chainId is required for direct operation');
         }
 
         const stmDirecUpgradeCalldata = stm.interface.encodeFunctionData('executeUpgrade', [chainId, diamondCut]);
@@ -265,13 +265,13 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
             value: 0,
             data: stmDirecUpgradeCalldata
         };
-    
+
         const stmDirectGovernanceOperation = {
             calls: [stmDirectCall],
             predecessor: ethers.constants.HashZero,
             salt: ethers.constants.HashZero
         };
-    
+
         const stmScheduleOperationDirect = governance.interface.encodeFunctionData('scheduleTransparent', [
             stmDirectGovernanceOperation,
             0 // delay
@@ -283,7 +283,7 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         result = {
             ...result,
             stmScheduleOperationDirect,
-            stmExecuteOperationDirect,
+            stmExecuteOperationDirect
         };
     }
 
@@ -303,7 +303,7 @@ export function buildDefaultUpgradeTx(
     zksyncAddress,
     postUpgradeCalldataFlag,
     prepareDirectOperation?,
-    chainId?,
+    chainId?
 ) {
     const commonData = JSON.parse(fs.readFileSync(getCommonDataFileName(), { encoding: 'utf-8' }));
     const newProtocolVersionSemVer: string = commonData.protocolVersion;
@@ -587,7 +587,7 @@ command
             options.zksyncAddress,
             options.postUpgradeCalldata,
             options.prepareDirectOperation,
-            options.chainId,
+            options.chainId
         );
     });
 
