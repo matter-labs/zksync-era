@@ -149,14 +149,17 @@ impl DebugNamespace {
                 .diff_with_block_args(&block_args),
         );
 
-        request.set_default_gas_limit(
-            self.state
-                .tx_sender
-                .get_default_eth_call_gas(block_args)
-                .await
-                .map_err(Web3Error::InternalError)?
-                .into(),
-        );
+        if request.gas_limit.is_none() {
+            request.gas_limit = Some(
+                self.state
+                    .tx_sender
+                    .get_default_eth_call_gas(block_args)
+                    .await
+                    .map_err(Web3Error::InternalError)?
+                    .into(),
+            )
+        }
+
         let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 

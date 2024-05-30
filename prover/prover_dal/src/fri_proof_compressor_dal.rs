@@ -26,21 +26,28 @@ impl FriProofCompressorDal<'_, '_> {
         protocol_version: ProtocolVersionId,
     ) {
         sqlx::query!(
-                r#"
-                INSERT INTO
-                    proof_compression_jobs_fri (l1_batch_number, fri_proof_blob_url, status, created_at, updated_at, protocol_version)
-                VALUES
-                    ($1, $2, $3, NOW(), NOW(), $4)
-                ON CONFLICT (l1_batch_number) DO NOTHING
-                "#,
-                i64::from(block_number.0),
-                fri_proof_blob_url,
-                ProofCompressionJobStatus::Queued.to_string(),
-                protocol_version as i32
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap();
+            r#"
+            INSERT INTO
+                proof_compression_jobs_fri (
+                    l1_batch_number,
+                    fri_proof_blob_url,
+                    status,
+                    created_at,
+                    updated_at,
+                    protocol_version
+                )
+            VALUES
+                ($1, $2, $3, NOW(), NOW(), $4)
+            ON CONFLICT (l1_batch_number) DO NOTHING
+            "#,
+            i64::from(block_number.0),
+            fri_proof_blob_url,
+            ProofCompressionJobStatus::Queued.to_string(),
+            protocol_version as i32
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap();
     }
 
     pub async fn skip_proof_compression_job(&mut self, block_number: L1BatchNumber) {
@@ -371,9 +378,13 @@ impl FriProofCompressorDal<'_, '_> {
     }
 
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!("DELETE FROM proof_compression_jobs_fri")
-            .execute(self.storage.conn())
-            .await
+        sqlx::query!(
+            r#"
+            DELETE FROM proof_compression_jobs_fri
+            "#
+        )
+        .execute(self.storage.conn())
+        .await
     }
 
     pub async fn requeue_stuck_jobs_for_batch(
@@ -394,7 +405,10 @@ impl FriProofCompressorDal<'_, '_> {
                 WHERE
                     l1_batch_number = $1
                     AND attempts >= $2
-                    AND (status = 'in_progress' OR status = 'failed')
+                    AND (
+                        status = 'in_progress'
+                        OR status = 'failed'
+                    )
                 RETURNING
                     status,
                     attempts

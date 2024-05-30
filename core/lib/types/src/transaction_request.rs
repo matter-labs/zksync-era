@@ -92,10 +92,6 @@ impl CallRequest {
 
         Ok(CallOverrides { enforced_base_fee })
     }
-
-    pub fn set_default_gas_limit(&mut self, default_gas_limit: U256) {
-        self.gas = self.gas.or(Some(default_gas_limit));
-    }
 }
 
 /// Call Request Builder

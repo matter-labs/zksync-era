@@ -24,7 +24,7 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     api,
-    block::{pack_block_info, unpack_block_info, L2BlockHasher},
+    block::{pack_block_info, unpack_block_info, L2BlockHasher, L2BlockHeader},
     fee_model::BatchFeeInput,
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
@@ -428,6 +428,8 @@ impl BlockArgs {
                 | api::BlockId::Number(api::BlockNumber::Committed)
         )
     }
+
+    fn resolve_l2_block_header(&self) -> L2BlockHeader {}
 
     pub(crate) async fn resolve_block_info(
         &self,
