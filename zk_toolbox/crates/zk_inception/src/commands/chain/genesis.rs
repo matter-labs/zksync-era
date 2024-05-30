@@ -12,10 +12,7 @@ use xshell::Shell;
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
-    configs::{
-        update_database_secrets, update_general_config, ChainConfig, DatabasesConfig,
-        EcosystemConfig,
-    },
+    config_manipulations::{update_database_secrets, update_general_config},
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_COMPLETED,
@@ -25,6 +22,7 @@ use crate::{
     },
     server::{RunServer, ServerMode},
 };
+use config::{ChainConfig, DatabasesConfig, EcosystemConfig};
 
 const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
 const PROVER_MIGRATIONS: &str = "prover/prover_dal/migrations";

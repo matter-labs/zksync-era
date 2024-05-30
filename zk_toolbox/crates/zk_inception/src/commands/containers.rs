@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use xshell::Shell;
 
 use crate::{
-    configs::EcosystemConfig,
+    configs::{EcosystemConfig, DOCKER_COMPOSE_FILE},
     consts::DOCKER_COMPOSE_FILE,
     messages::{
         MSG_CONTAINERS_STARTED, MSG_FAILED_TO_FIND_ECOSYSTEM_ERR,

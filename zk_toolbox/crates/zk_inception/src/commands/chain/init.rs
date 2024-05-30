@@ -13,15 +13,7 @@ use crate::{
     commands::chain::{
         args::init::InitArgs, deploy_paymaster, genesis::genesis, initialize_bridges,
     },
-    configs::{
-        copy_configs,
-        forge_interface::register_chain::{
-            input::RegisterChainL1Config, output::RegisterChainOutput,
-        },
-        update_genesis, update_l1_contracts, ChainConfig, ContractsConfig, EcosystemConfig,
-        ReadConfig, SaveConfig,
-    },
-    consts::{CONTRACTS_FILE, REGISTER_CHAIN},
+    config_manipulations::{update_l1_contracts, update_l1_rpc_url_secret},
     forge_utils::fill_forge_private_key,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
@@ -29,8 +21,20 @@ use crate::{
         MSG_REGISTERING_CHAIN_SPINNER,
     },
 };
-use crate::{configs::update_l1_rpc_url_secret, messages::MSG_CHAIN_NOT_FOUND_ERR};
-use crate::{forge_utils::check_the_balance, messages::MSG_SELECTED_CONFIG};
+use crate::{config_manipulations::update_genesis, forge_utils::check_the_balance};
+use crate::{
+    forge_utils::check_the_balance,
+    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_SELECTED_CONFIG},
+};
+use config::{
+    copy_configs,
+    forge_interface::{
+        register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
+        script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
+    },
+    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
+    ChainConfig, ContractsConfig, EcosystemConfig,
+};
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
@@ -60,10 +64,10 @@ pub async fn init(
     update_genesis(shell, chain_config)?;
     update_l1_rpc_url_secret(shell, chain_config, init_args.l1_rpc_url.clone())?;
     let mut contracts_config =
-        ContractsConfig::read(shell, ecosystem_config.config.join(CONTRACTS_FILE))?;
+        ContractsConfig::read_with_base_path(shell, &ecosystem_config.config)?;
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
     // Copy ecosystem contracts
-    contracts_config.save(shell, chain_config.configs.join(CONTRACTS_FILE))?;
+    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     contracts_config = register_chain(
@@ -115,7 +119,7 @@ async fn register_chain(
     chain_config: &ChainConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = REGISTER_CHAIN.input(&config.link_to_code);
+    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
 
     let contracts = config
         .get_contracts_config()
@@ -124,7 +128,7 @@ async fn register_chain(
     deploy_config.save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&config.path_to_foundry())
-        .script(&REGISTER_CHAIN.script(), forge_args.clone())
+        .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
         .with_broadcast();
@@ -133,7 +137,9 @@ async fn register_chain(
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
-    let register_chain_output =
-        RegisterChainOutput::read(shell, REGISTER_CHAIN.output(&chain_config.link_to_code))?;
+    let register_chain_output = RegisterChainOutput::read(
+        shell,
+        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+    )?;
     update_l1_contracts(shell, chain_config, &register_chain_output)
 }

@@ -6,6 +6,7 @@ use common::{
 };
 use xshell::Shell;
 
+use crate::{config_manipulations::update_paymaster, forge_utils::check_the_balance};
 use crate::{
     configs::{
         forge_interface::paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
@@ -16,6 +17,14 @@ use crate::{
     messages::MSG_DEPLOYING_PAYMASTER,
 };
 use crate::{forge_utils::check_the_balance, messages::MSG_CHAIN_NOT_INITIALIZED};
+use config::{
+    forge_interface::{
+        paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
+        script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
+    },
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, EcosystemConfig,
+};
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
@@ -33,11 +42,14 @@ pub async fn deploy_paymaster(
 ) -> anyhow::Result<()> {
     let input = DeployPaymasterInput::new(chain_config)?;
     let foundry_contracts_path = chain_config.path_to_foundry();
-    input.save(shell, DEPLOY_PAYMASTER.input(&chain_config.link_to_code))?;
+    input.save(
+        shell,
+        DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&chain_config.link_to_code),
+    )?;
     let secrets = chain_config.get_secrets_config()?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
-        .script(&DEPLOY_PAYMASTER.script(), forge_args.clone())
+        .script(&DEPLOY_PAYMASTER_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(secrets.l1.l1_rpc_url.clone())
         .with_broadcast();
@@ -52,8 +64,10 @@ pub async fn deploy_paymaster(
     forge.run(shell)?;
     spinner.finish();
 
-    let output =
-        DeployPaymasterOutput::read(shell, DEPLOY_PAYMASTER.output(&chain_config.link_to_code))?;
+    let output = DeployPaymasterOutput::read(
+        shell,
+        DEPLOY_PAYMASTER_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+    )?;
 
     update_paymaster(shell, chain_config, &output)?;
     Ok(())

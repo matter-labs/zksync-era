@@ -1,17 +1,20 @@
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use clap::{Parser, ValueEnum};
-use ethers::abi::Address;
-use ethers::middleware::Middleware;
-use ethers::prelude::{LocalWallet, Signer, U256};
-use ethers::{abi::AbiEncode, types::H256};
+use ethers::{
+    middleware::Middleware,
+    prelude::{LocalWallet, Signer},
+    types::{Address, H256, U256},
+    utils::hex::ToHex,
+};
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 use xshell::{cmd, Shell};
 
-use crate::cmd::Cmd;
-use crate::ethereum::create_ethers_client;
+use crate::{cmd::Cmd, ethereum::create_ethers_client};
 
 /// Forge is a wrapper around the forge binary.
 pub struct Forge {
@@ -123,7 +126,7 @@ impl ForgeScript {
         self.private_key().and_then(|a| {
             LocalWallet::from_bytes(a.as_bytes())
                 .ok()
-                .map(|a| a.address())
+                .map(|a| Address::from_slice(a.address().as_bytes()))
         })
     }
 

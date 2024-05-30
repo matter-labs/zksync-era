@@ -1,12 +1,9 @@
 use common::PromptSelect;
 use xshell::Shell;
 
-use crate::{
-    commands::ecosystem::args::change_default::ChangeDefaultChain,
-    configs::{EcosystemConfig, SaveConfig},
-    consts::CONFIG_NAME,
-    messages::{msg_chain_doesnt_exist_err, MSG_DEFAULT_CHAIN_PROMPT},
-};
+use crate::commands::ecosystem::args::change_default::ChangeDefaultChain;
+use crate::messages::{msg_chain_doesnt_exist_err, MSG_DEFAULT_CHAIN_PROMPT};
+use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 
 pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -22,5 +19,5 @@ pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
         anyhow::bail!(msg_chain_doesnt_exist_err(&chain_name, &chains));
     }
     ecosystem_config.default_chain = chain_name;
-    ecosystem_config.save(shell, CONFIG_NAME)
+    ecosystem_config.save_with_base_path(shell, ".")
 }

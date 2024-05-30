@@ -17,6 +17,10 @@ use crate::{
     types::L1Network,
     wallets::WalletCreation,
 };
+use strum_macros::{Display, EnumIter};
+use types::{L1Network, WalletCreation};
+
+use crate::commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct EcosystemCreateArgs {

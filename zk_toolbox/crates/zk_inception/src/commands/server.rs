@@ -8,6 +8,7 @@ use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_STARTING_SERVER},
     server::{RunServer, ServerMode},
 };
+use config::{ChainConfig, EcosystemConfig};
 
 pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;

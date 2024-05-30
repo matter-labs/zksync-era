@@ -2,7 +2,6 @@ use std::{path::PathBuf, str::FromStr};
 
 use clap::Parser;
 use common::{slugify, Prompt, PromptConfirm, PromptSelect};
-use ethers::types::H160;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
@@ -23,6 +22,8 @@ use crate::{
     types::{BaseToken, L1BatchCommitDataGeneratorMode, ProverMode},
     wallets::WalletCreation,
 };
+use ethers::types::Address;
+use types::{BaseToken, L1BatchCommitDataGeneratorMode, ProverMode, WalletCreation};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ChainCreateArgs {
@@ -100,7 +101,7 @@ impl ChainCreateArgs {
                     }
                     Ok(())
                 };
-                let address: H160 = Prompt::new(MSG_BASE_TOKEN_ADDRESS_PROMPT).ask();
+                let address = Prompt::new(MSG_BASE_TOKEN_ADDRESS_PROMPT).ask();
                 let nominator = Prompt::new(MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT)
                     .validate_with(number_validator)
                     .ask();

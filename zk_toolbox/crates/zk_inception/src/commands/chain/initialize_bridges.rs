@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use anyhow::Context;
 use common::{
     cmd::Cmd,
     config::global_config,
@@ -9,6 +8,8 @@ use common::{
 };
 use xshell::{cmd, Shell};
 
+use crate::forge_utils::fill_forge_private_key;
+use crate::{config_manipulations::update_l2_shared_bridge, forge_utils::check_the_balance};
 use crate::{
     configs::{
         forge_interface::initialize_bridges::{
@@ -21,6 +22,15 @@ use crate::{
     messages::MSG_INITIALIZING_BRIDGES_SPINNER,
 };
 use crate::{forge_utils::check_the_balance, messages::MSG_CHAIN_NOT_INITIALIZED};
+use anyhow::Context;
+use config::{
+    forge_interface::{
+        initialize_bridges::{input::InitializeBridgeInput, output::InitializeBridgeOutput},
+        script_params::INITIALIZE_BRIDGES_SCRIPT_PARAMS,
+    },
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, EcosystemConfig,
+};
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
@@ -46,10 +56,16 @@ pub async fn initialize_bridges(
     let input = InitializeBridgeInput::new(chain_config, ecosystem_config.era_chain_id)?;
     let foundry_contracts_path = chain_config.path_to_foundry();
     let secrets = chain_config.get_secrets_config()?;
-    input.save(shell, INITIALIZE_BRIDGES.input(&chain_config.link_to_code))?;
+    input.save(
+        shell,
+        INITIALIZE_BRIDGES_SCRIPT_PARAMS.input(&chain_config.link_to_code),
+    )?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
-        .script(&INITIALIZE_BRIDGES.script(), forge_args.clone())
+        .script(
+            &INITIALIZE_BRIDGES_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
         .with_ffi()
         .with_rpc_url(secrets.l1.l1_rpc_url.clone())
         .with_broadcast();
@@ -62,8 +78,10 @@ pub async fn initialize_bridges(
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
-    let output =
-        InitializeBridgeOutput::read(shell, INITIALIZE_BRIDGES.output(&chain_config.link_to_code))?;
+    let output = InitializeBridgeOutput::read(
+        shell,
+        INITIALIZE_BRIDGES_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+    )?;
 
     update_l2_shared_bridge(shell, chain_config, &output)?;
     Ok(())
