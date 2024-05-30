@@ -178,10 +178,10 @@ where
                 return Ok(result);
             }
             Err(err) => {
-                tracing::warn!(%err, "Failed DA dispatch request {retries}/{max_retries} for batch {batch_number}, retrying in {backoff_secs} seconds.");
                 if retries > max_retries {
                     return Err(err);
                 }
+                tracing::warn!(%err, "Failed DA dispatch request {retries}/{max_retries} for batch {batch_number}, retrying in {backoff_secs} seconds.");
                 retries += 1;
                 let sleep_duration = Duration::from_secs(backoff_secs)
                     .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
