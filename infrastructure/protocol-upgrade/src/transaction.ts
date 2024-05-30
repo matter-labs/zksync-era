@@ -612,7 +612,7 @@ command
             options.nonce,
             options.governanceAddr,
             'stmScheduleTransparentOperation',
-            'Proposing upgrade for STM '
+            'Proposing upgrade for STM'
         );
     });
 
@@ -637,7 +637,7 @@ command
             options.nonce,
             options.governanceAddr,
             'stmExecuteOperation',
-            'Executing upgrade for STM '
+            'Executing upgrade for STM'
         );
     });
 
@@ -663,7 +663,7 @@ command
             options.nonce,
             options.governanceAddr,
             'scheduleTransparentOperation',
-            'Proposing "upgradeChainFromVersion" upgrade '
+            'Proposing "upgradeChainFromVersion" upgrade'
         );
     });
 
@@ -689,7 +689,7 @@ command
             options.nonce,
             options.governanceAddr,
             'executeOperation',
-            'Executing "upgradeChainFromVersion" upgrade '
+            'Executing "upgradeChainFromVersion" upgrade'
         );
     });
 
@@ -715,7 +715,7 @@ command
             options.nonce,
             options.governanceAddr,
             'stmScheduleOperationDirect',
-            'Executing direct upgrade via STM '
+            'Executing direct upgrade via STM'
         );
     });
 
@@ -741,7 +741,7 @@ command
             options.nonce,
             options.governanceAddr,
             'stmExecuteOperationDirect',
-            'Executing direct upgrade via STM '
+            'Executing direct upgrade via STM'
         );
     });
 
