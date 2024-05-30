@@ -61,14 +61,18 @@ enum HandleOrError {
 }
 
 impl HandleOrError {
-    fn check(&mut self) -> anyhow::Result<()> {
+    /// Checks whether the thread handle has exited, and returns an error if it exited with an error.
+    /// If `join` is set, waits for the thread handle to exit.
+    fn check(&mut self, join: bool) -> anyhow::Result<()> {
         let err_arc = match self {
-            Self::Handle(handle) if handle.is_finished() => {
+            Self::Handle(handle) if join || handle.is_finished() => {
                 let Self::Handle(handle) = mem::take(self) else {
                     unreachable!("just checked variant earlier");
                 };
                 let err = match handle.join() {
                     Err(_) => anyhow::anyhow!("persistence thread panicked"),
+                    // Handling normal exits depends on whether we expect the thread to exit.
+                    Ok(Ok(())) if join => return Ok(()),
                     Ok(Ok(())) => anyhow::anyhow!("persistence thread unexpectedly stopped"),
                     Ok(Err(err)) => err,
                 };
@@ -84,14 +88,8 @@ impl HandleOrError {
         Err(anyhow::Error::new(err_arc))
     }
 
-    fn join(self) -> anyhow::Result<()> {
-        match self {
-            Self::Handle(handle) => handle
-                .join()
-                .map_err(|_| anyhow::anyhow!("persistence thread panicked"))?,
-            Self::Err(err) => Err(anyhow::Error::new(err)),
-            Self::Nothing => unreachable!("only used temporarily to take out `JoinHandle`"),
-        }
+    fn join(mut self) -> anyhow::Result<()> {
+        self.check(true)
     }
 }
 
@@ -175,7 +173,7 @@ impl<DB: Database> ParallelDatabase<DB> {
         }
 
         // Check that the persistence thread hasn't panicked
-        self.persistence_handle.check()
+        self.persistence_handle.check(false)
     }
 
     fn join(self) -> anyhow::Result<DB> {
@@ -321,7 +319,7 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             .send(Command::Persist(command.clone()))
             .is_err()
         {
-            self.persistence_handle.check()?;
+            self.persistence_handle.check(true)?;
             anyhow::bail!(
                 "persistence thread never exits normally when `ParallelDatabase` is alive"
             );
