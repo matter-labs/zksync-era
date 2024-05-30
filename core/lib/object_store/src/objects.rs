@@ -158,6 +158,20 @@ impl dyn ObjectStore + '_ {
         V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
     }
 
+    /// Fetches the value for the given encoded key if it exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an object with the `encoded_key` does not exist, cannot be accessed,
+    /// or cannot be deserialized.
+    pub async fn get_by_encoded_key<V: StoredObject>(
+        &self,
+        encoded_key: String,
+    ) -> Result<V, ObjectStoreError> {
+        let bytes = self.get_raw(V::BUCKET, &encoded_key).await?;
+        V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
+    }
+
     /// Stores the value associating it with the key. If the key already exists,
     /// the value is replaced.
     ///
