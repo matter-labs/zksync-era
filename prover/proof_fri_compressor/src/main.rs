@@ -10,6 +10,7 @@ use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{DatabaseSecrets, FriProofCompressorConfig, ObservabilityConfig};
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -73,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
         .create_store()
         .await;
 
-    let protocol_version = ProtocolSemanticVersion::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let proof_compressor = ProofCompressor::new(
         blob_store,

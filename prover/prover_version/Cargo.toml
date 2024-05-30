@@ -11,4 +11,4 @@ categories.workspace = true
 
 [dependencies]
 hex.workspace = true
-zksync_types.workspace = true
+zksync_prover_fri_types.workspace = true

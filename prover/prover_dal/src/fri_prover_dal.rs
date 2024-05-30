@@ -409,7 +409,8 @@ impl FriProverDal<'_, '_> {
                     circuit_id AS "circuit_id!",
                     aggregation_round AS "aggregation_round!",
                     status AS "status!",
-                    protocol_version AS "protocol_version!"
+                    protocol_version AS "protocol_version!",
+                    protocol_version_patch AS "protocol_version_patch!"
                 FROM
                     prover_jobs_fri
                 WHERE
@@ -419,7 +420,8 @@ impl FriProverDal<'_, '_> {
                     circuit_id,
                     aggregation_round,
                     status,
-                    protocol_version
+                    protocol_version,
+                    protocol_version_patch
                 "#
             )
             .fetch_all(self.storage.conn())
@@ -434,6 +436,7 @@ impl FriProverDal<'_, '_> {
                         circuit_id: row.circuit_id as u8,
                         aggregation_round: row.aggregation_round as u8,
                         protocol_version: row.protocol_version as u16,
+                        protocol_version_patch: row.protocol_version_patch as u32,
                     })
                     .or_default();
                 match row.status.as_ref() {

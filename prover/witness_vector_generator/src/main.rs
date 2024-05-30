@@ -13,6 +13,7 @@ use zksync_config::configs::{
 };
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::protocol_version::ProtocolSemanticVersion;
@@ -87,7 +88,7 @@ async fn main() -> anyhow::Result<()> {
     let zone_url = &fri_prover_config.zone_read_url;
     let zone = get_zone(zone_url).await.context("get_zone()")?;
 
-    let protocol_version = ProtocolSemanticVersion::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let witness_vector_generator = WitnessVectorGenerator::new(
         blob_store,
