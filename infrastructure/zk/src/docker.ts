@@ -71,7 +71,7 @@ async function dockerCommand(
 }
 
 function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: string, protocolVersionTag: string) {
-    const tagList = [
+    let tagList = [
         'server-v2',
         'external-node',
         'prover',
@@ -101,7 +101,7 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         'witness-generator',
         'witness-vector-generator',
     ].includes(image)) {
-        tagList.push(`2.0-${protocolVersionTag}-${imageTagShaTS}`, `${protocolVersionTag}-${imageTagShaTS}`])
+        tagList.push([`2.0-${protocolVersionTag}-${imageTagShaTS}`, `${protocolVersionTag}-${imageTagShaTS}`])
     }
 
     return tagList;
