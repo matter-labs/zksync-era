@@ -101,6 +101,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("base_token_addr")?,
+            l2_standard_deployer_proxy_addr: l2
+                .l2_standard_deployer_proxy_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l2_standard_deployer_proxy_addr")?,
         })
     }
 
@@ -135,6 +141,9 @@ impl ProtoRepr for proto::Contracts {
             }),
             l2: Some(proto::L2 {
                 testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),
+                l2_standard_deployer_proxy_addr: this
+                    .l2_standard_deployer_proxy_addr
+                    .map(|a| format!("{:?}", a)),
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {

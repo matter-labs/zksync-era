@@ -71,6 +71,7 @@ mod tests {
                 transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
+            l2_standard_deployer_proxy_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
         }
     }
 

@@ -310,8 +310,12 @@ impl StateKeeperRunner {
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);
-            let (persistence, l2_block_sealer) =
-                StateKeeperPersistence::new(self.pool.0.clone(), Address::repeat_byte(11), 5);
+            let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
+                self.pool.0.clone(),
+                Address::repeat_byte(11),
+                Address::default(),
+                5,
+            );
             let tree_writes_persistence = TreeWritesPersistence::new(self.pool.0.clone());
 
             let io = ExternalIO::new(

@@ -833,6 +833,9 @@ async fn add_state_keeper_to_task_futures(
         contracts_config
             .l2_shared_bridge_addr
             .context("`l2_shared_bridge_addr` config is missing")?,
+        contracts_config
+            .l2_standard_deployer_proxy_addr
+            .context("`l2_standard_deployer_proxy_addr` config is missing")?,
         state_keeper_config.l2_block_seal_queue_capacity,
     );
     task_futures.push(tokio::spawn(l2_block_sealer.run()));
