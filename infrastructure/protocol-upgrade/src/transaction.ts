@@ -313,7 +313,6 @@ export function buildDefaultUpgradeTx(
     l2UpgraderAddress,
     oldProtocolVersion,
     oldProtocolVersionDeadline,
-    newProtocolVersion,
     upgradeTimestamp,
     newAllowList,
     stmAddress,
@@ -323,10 +322,10 @@ export function buildDefaultUpgradeTx(
     postUpgradeCalldataFlag
 ) {
     const commonData = JSON.parse(fs.readFileSync(getCommonDataFileName(), { encoding: 'utf-8' }));
-    const protocolVersionSemVer: string = commonData.protocolVersion;
-    const packedProtocolVersion = packSemver(...unpackStringSemVer(protocolVersionSemVer));
+    const newProtocolVersionSemVer: string = commonData.protocolVersion;
+    const packedNewProtocolVersion = packSemver(...unpackStringSemVer(newProtocolVersionSemVer));
     console.log(
-        `Building default upgrade tx for ${environment} protocol version ${protocolVersionSemVer} upgradeTimestamp ${upgradeTimestamp} `
+        `Building default upgrade tx for ${environment} protocol version ${newProtocolVersionSemVer} upgradeTimestamp ${upgradeTimestamp} `
     );
     let facetCuts = [];
     let facetCutsFileName = getFacetCutsFileName(environment);
@@ -386,7 +385,7 @@ export function buildDefaultUpgradeTx(
 
     let proposeUpgradeTx = buildProposeUpgrade(
         ethers.BigNumber.from(upgradeTimestamp),
-        packedProtocolVersion,
+        packedNewProtocolVersion,
         '0x',
         postUpgradeCalldata,
         cryptoVerifierParams,
@@ -404,7 +403,7 @@ export function buildDefaultUpgradeTx(
         upgradeData = prepareTransparentUpgradeCalldataForNewGovernance(
             oldProtocolVersion,
             oldProtocolVersionDeadline,
-            newProtocolVersion,
+            packedNewProtocolVersion,
             l1upgradeCalldata,
             upgradeAddress,
             facetCuts,
@@ -424,8 +423,8 @@ export function buildDefaultUpgradeTx(
         proposeUpgradeTx,
         l1upgradeCalldata,
         upgradeAddress,
-        protocolVersionSemVer,
-        packedProtocolVersion,
+        protocolVersionSemVer: newProtocolVersionSemVer,
+        packedProtocolVersion: packedNewProtocolVersion,
         diamondUpgradeProposalId,
         upgradeTimestamp,
         ...upgradeData
@@ -692,8 +691,11 @@ command
     .option('--new-allow-list <newAllowList>')
     .option('--l2-upgrader-address <l2UpgraderAddress>')
     .option('--diamond-upgrade-proposal-id <diamondUpgradeProposalId>')
+    .option('--old-protocol-version <oldProtocolVersion>')
+    .option('--old-protocol-version-deadline <oldProtocolVersionDeadline>')
     .option('--l1rpc <l1prc>')
     .option('--zksync-address <zksyncAddress>')
+    .option('--state-transition-manager-address <stateTransitionManagerAddress>')
     .option('--chain-id <chainId>')
     .option('--use-new-governance')
     .option('--post-upgrade-calldata')
@@ -715,10 +717,9 @@ command
             options.l2UpgraderAddress,
             options.oldProtocolVersion,
             options.oldProtocolVersionDeadline,
-            options.newProtocolVersion,
             options.upgradeTimestamp,
             options.newAllowList,
-            options.stmAddress,
+            options.stateTransitionManagerAddress,
             options.zksyncAddress,
             options.chainId,
             options.useNewGovernance,
