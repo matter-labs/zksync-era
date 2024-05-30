@@ -104,7 +104,7 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
             'witness-vector-generator'
         ].includes(image)
     ) {
-        tagList.push([`2.0-${protocolVersionTag}-${imageTagShaTS}`, `${protocolVersionTag}-${imageTagShaTS}`]);
+        tagList.push(`2.0-${protocolVersionTag}-${imageTagShaTS}`, `${protocolVersionTag}-${imageTagShaTS}`);
     }
 
     return tagList;
