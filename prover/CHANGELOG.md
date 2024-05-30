@@ -1,5 +1,22 @@
 # Changelog
 
+## [14.4.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.3.0...prover-v14.4.0) (2024-05-30)
+
+
+### Features
+
+* Make house keeper emit correct protocol version ([#2062](https://github.com/matter-labs/zksync-era/issues/2062)) ([a58a7e8](https://github.com/matter-labs/zksync-era/commit/a58a7e8ec8599eb957e5693308b789e7ace5c126))
+* **pli:** add support for persistent config ([#1907](https://github.com/matter-labs/zksync-era/issues/1907)) ([9d5631c](https://github.com/matter-labs/zksync-era/commit/9d5631cdd330a288335db11a71ecad89ee32a0f4))
+* Protocol semantic version ([#2059](https://github.com/matter-labs/zksync-era/issues/2059)) ([3984dcf](https://github.com/matter-labs/zksync-era/commit/3984dcfbdd890f0862c9c0f3e7757fb8b0c8184a))
+* **prover:** Add `prover_version` binary. ([#2089](https://github.com/matter-labs/zksync-era/issues/2089)) ([e1822f6](https://github.com/matter-labs/zksync-era/commit/e1822f6ad150a28df75b06b97b9ff01d671b83b6))
+
+
+### Bug Fixes
+
+* fix null protocol version error ([#2094](https://github.com/matter-labs/zksync-era/issues/2094)) ([aab3a7f](https://github.com/matter-labs/zksync-era/commit/aab3a7ff97870aea155fbc542c4c0f55ee816341))
+* fix query for proof compressor metrics ([#2103](https://github.com/matter-labs/zksync-era/issues/2103)) ([d23d24e](https://github.com/matter-labs/zksync-era/commit/d23d24e9e13af052612be81e913da89bc160de4d))
+* **prover_dal:** fix `save_prover_protocol_version` query ([#2096](https://github.com/matter-labs/zksync-era/issues/2096)) ([d8dd1ae](https://github.com/matter-labs/zksync-era/commit/d8dd1aedd7b67b09b6d5c0f29ba90069e0c80b4e))
+
 ## [14.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.2.0...prover-v14.3.0) (2024-05-23)
 
 
