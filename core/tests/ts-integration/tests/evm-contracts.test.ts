@@ -511,25 +511,24 @@ describe('EVM equivalence contract', () => {
             const expected_gas = '165939'; // Gas cost when run with solidity interpreter
             expect(result).toEqual(expected_gas);
         });
-        
+
         test('load test', async () => {
-            let txs = []
-            let max = 10
-            let time_ = Date.now()
+            let txs = [];
+            let max = 10;
+            let time_ = Date.now();
             for (let i = 0; i < max; i++) {
                 let tx1 = await evmUniswapPair.swap(0, 5000, alice.address, '0x');
                 let tx2 = await evmUniswapPair.swap(5000, 0, alice.address, '0x');
-                txs.push(tx1)
-                txs.push(tx2)
+                txs.push(tx1);
+                txs.push(tx2);
             }
 
-            for (let i = 0; i < max*2; i++) {
+            for (let i = 0; i < max * 2; i++) {
                 let receipt = await txs[i].wait();
-                console.log(receipt.blockNumber)
+                console.log(receipt.blockNumber);
             }
-            let time_2 = Date.now()
-            console.log("Time: ", time_2 - time_)
-            
+            let time_2 = Date.now();
+            console.log('Time: ', time_2 - time_);
         });
     });
 
