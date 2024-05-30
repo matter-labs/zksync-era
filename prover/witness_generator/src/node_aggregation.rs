@@ -25,7 +25,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::NodeAggregationJobMetadata, L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
@@ -76,7 +76,7 @@ pub struct NodeAggregationWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
 }
 
 impl NodeAggregationWitnessGenerator {
@@ -84,7 +84,7 @@ impl NodeAggregationWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             config,
