@@ -695,9 +695,13 @@ impl FriProverDal<'_, '_> {
     pub async fn protocol_version_for_job(&mut self, job_id: u32) -> ProtocolSemanticVersion {
         let result = sqlx::query!(
             r#"
-            SELECT protocol_version, protocol_version_patch
-            FROM prover_jobs_fri
-            WHERE id = $1
+            SELECT
+                protocol_version,
+                protocol_version_patch
+            FROM
+                prover_jobs_fri
+            WHERE
+                id = $1
             "#,
             job_id as i32
         )

@@ -71,8 +71,7 @@ impl FriProtocolVersionsDal<'_, '_> {
                 prover_fri_protocol_versions
             WHERE
                 id = $1
-                AND
-                protocol_version_patch = $2
+                AND protocol_version_patch = $2
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32

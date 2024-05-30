@@ -27,7 +27,15 @@ impl FriProofCompressorDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                proof_compression_jobs_fri (l1_batch_number, fri_proof_blob_url, status, created_at, updated_at, protocol_version, protocol_version_patch)
+                proof_compression_jobs_fri (
+                    l1_batch_number,
+                    fri_proof_blob_url,
+                    status,
+                    created_at,
+                    updated_at,
+                    protocol_version,
+                    protocol_version_patch
+                )
             VALUES
                 ($1, $2, $3, NOW(), NOW(), $4, $5)
             ON CONFLICT (l1_batch_number) DO NOTHING
