@@ -128,7 +128,7 @@ eth:
     aggregated_block_execute_deadline: 10
     timestamp_criteria_max_allowed_lag: 30
     max_eth_tx_data_size: 120000
-    aggregated_proof_sizes: [ 1,4 ]
+    aggregated_proof_sizes: 1
     max_aggregated_tx_gas: 4000000
     max_acceptable_priority_fee_in_gwei: 100000000000
     pubdata_sending_mode: BLOBS

@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+
+use anyhow::Context;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -28,6 +31,12 @@ pub fn decode_yaml_repr<T: ProtoRepr>(yaml: &str) -> anyhow::Result<T::Type> {
     let this: T = zksync_protobuf::serde::deserialize_proto_with_options(d, false)?;
     this.read()
 }
+
+pub fn read_yaml_repr<T: ProtoRepr>(path_buf: PathBuf) -> anyhow::Result<T::Type> {
+    let yaml = std::fs::read_to_string(&path_buf).context("failed decoding  YAML config")?;
+    decode_yaml_repr::<T>(&yaml)
+}
+
 //
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.

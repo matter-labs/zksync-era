@@ -213,6 +213,8 @@ pub struct Web3JsonRpcConfig {
     /// (additionally to natively bridged tokens).
     #[serde(default)]
     pub whitelisted_tokens_for_aa: Vec<Address>,
+    pub api_namespaces: Option<Vec<String>>,
+    pub extended_api_tracing: bool,
 }
 
 impl Web3JsonRpcConfig {
@@ -251,6 +253,8 @@ impl Web3JsonRpcConfig {
             mempool_cache_size: Default::default(),
             tree_api_url: None,
             whitelisted_tokens_for_aa: Default::default(),
+            api_namespaces: None,
+            extended_api_tracing: false,
         }
     }
 

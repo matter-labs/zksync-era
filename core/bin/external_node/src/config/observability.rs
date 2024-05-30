@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use serde::Deserialize;
 use vlog::LogFormat;
+use zksync_config::configs::{GeneralConfig, ObservabilityConfig};
 
 use super::{ConfigurationSource, Environment};
 
@@ -97,5 +98,33 @@ impl ObservabilityENConfig {
             tracing::info!("No sentry URL was provided");
         }
         Ok(guard)
+    }
+
+    pub(crate) fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
+        let observability = general_config
+            .observability
+            .as_ref()
+            .context("Observability is required")?;
+        let (prometheus_port, prometheus_pushgateway_url, prometheus_push_interval_ms) =
+            if let Some(api) = general_config.api_config.as_ref() {
+                (
+                    Some(api.prometheus.listener_port),
+                    Some(api.prometheus.pushgateway_url.clone()),
+                    api.prometheus.push_interval_ms.unwrap_or_default(),
+                )
+            } else {
+                (None, None, 0)
+            };
+        Ok(Self {
+            prometheus_port,
+            prometheus_pushgateway_url,
+            prometheus_push_interval_ms,
+            sentry_url: observability.sentry_url.clone(),
+            sentry_environment: observability.sentry_environment.clone(),
+            log_format: observability
+                .log_format
+                .parse()
+                .context("Invalid log format")?,
+        })
     }
 }

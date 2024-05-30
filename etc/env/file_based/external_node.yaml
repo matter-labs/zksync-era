@@ -1,3 +1,4 @@
 l1_chain_id: 9
 l2_chain_id: 270
 main_node_url: http://localhost:3050
+l1_batch_commit_data_generator_mode: Rollup

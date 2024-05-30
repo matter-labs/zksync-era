@@ -12,6 +12,9 @@ pub struct ExperimentalDBConfig {
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
+    pub reads_persistence_enabled: bool,
+    pub processing_delay_ms: u64,
+    pub include_indices_and_filters_in_block_cache: bool,
 }
 
 impl Default for ExperimentalDBConfig {
@@ -20,6 +23,9 @@ impl Default for ExperimentalDBConfig {
             state_keeper_db_block_cache_capacity_mb:
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
+            reads_persistence_enabled: true,
+            processing_delay_ms: 0,
+            include_indices_and_filters_in_block_cache: false,
         }
     }
 }

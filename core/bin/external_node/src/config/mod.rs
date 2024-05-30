@@ -2,19 +2,23 @@ use std::{
     env,
     ffi::OsString,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
+    path::PathBuf,
     time::Duration,
 };
 
 use anyhow::Context;
+use futures::StreamExt;
 use serde::Deserialize;
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
         consensus::{ConsensusConfig, ConsensusSecrets},
+        en_config::ENConfig,
+        GeneralConfig, Secrets,
     },
     ObjectStoreConfig,
 };
-use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
+use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, read_yaml_repr};
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
@@ -415,6 +419,134 @@ pub(crate) struct OptionalENConfig {
 }
 
 impl OptionalENConfig {
+    fn from_configs(general_config: &GeneralConfig, enconfig: &ENConfig) -> anyhow::Result<Self> {
+        let api = general_config
+            .api_config
+            .as_ref()
+            .context("Api is required")?;
+        let db = general_config
+            .db_config
+            .as_ref()
+            .context("Db config is required")?;
+        let postgres = general_config
+            .postgres_config
+            .as_ref()
+            .context("Db config is required")?;
+        let state_keeper = general_config
+            .state_keeper_config
+            .as_ref()
+            .context("Db config is required")?;
+
+        let api_namespaces = api
+            .web3_json_rpc
+            .api_namespaces
+            .as_ref()
+            .map(|a| a.iter().map(|a| serde_json::from_str(a).unwrap()).collect());
+
+        Ok(OptionalENConfig {
+            filters_limit: api
+                .web3_json_rpc
+                .filters_limit
+                .map(|a| a as usize)
+                .unwrap_or_else(OptionalENConfig::default_filters_limit),
+            subscriptions_limit: api
+                .web3_json_rpc
+                .subscriptions_limit
+                .map(|a| a as usize)
+                .unwrap_or_else(OptionalENConfig::default_subscriptions_limit),
+            req_entities_limit: api
+                .web3_json_rpc
+                .req_entities_limit
+                .map(|a| a as usize)
+                .unwrap_or_else(OptionalENConfig::default_req_entities_limit),
+            max_tx_size_bytes: api.web3_json_rpc.max_tx_size,
+            vm_execution_cache_misses_limit: api.web3_json_rpc.vm_execution_cache_misses_limit,
+            transactions_per_sec_limit: None,
+            fee_history_limit: api.web3_json_rpc.fee_history_limit(),
+            max_batch_request_size: api.web3_json_rpc.max_batch_request_size(),
+            max_response_body_size_mb: api.web3_json_rpc.max_response_body_size().global,
+            max_response_body_size_overrides_mb: api
+                .web3_json_rpc
+                .max_response_body_size()
+                .overrides,
+            pubsub_polling_interval_ms: api.web3_json_rpc.pubsub_interval().as_millis() as u64,
+            max_nonce_ahead: api.web3_json_rpc.max_nonce_ahead,
+            vm_concurrency_limit: api.web3_json_rpc.vm_concurrency_limit(),
+            factory_deps_cache_size_mb: api.web3_json_rpc.factory_deps_cache_size(),
+            initial_writes_cache_size_mb: api.web3_json_rpc.initial_writes_cache_size(),
+            latest_values_cache_size_mb: api.web3_json_rpc.latest_values_cache_size(),
+            filters_disabled: api.web3_json_rpc.filters_disabled,
+            mempool_cache_update_interval_ms: api
+                .web3_json_rpc
+                .mempool_cache_update_interval()
+                .as_millis() as u64,
+            mempool_cache_size: api.web3_json_rpc.mempool_cache_size(),
+
+            healthcheck_slow_time_limit_ms: api.healthcheck.slow_time_limit_ms,
+            healthcheck_hard_time_limit_ms: api.healthcheck.hard_time_limit_ms,
+            estimate_gas_scale_factor: api.web3_json_rpc.gas_price_scale_factor,
+            estimate_gas_acceptable_overestimation: api
+                .web3_json_rpc
+                .estimate_gas_acceptable_overestimation,
+            gas_price_scale_factor: api.web3_json_rpc.gas_price_scale_factor,
+            merkle_tree_max_l1_batches_per_iter: db.merkle_tree.max_l1_batches_per_iter,
+            merkle_tree_max_open_files: db.experimental.state_keeper_db_max_open_files,
+            merkle_tree_multi_get_chunk_size: db.merkle_tree.multi_get_chunk_size,
+            merkle_tree_block_cache_size_mb: db
+                .experimental
+                .state_keeper_db_block_cache_capacity_mb,
+            merkle_tree_memtable_capacity_mb: db.merkle_tree.memtable_capacity_mb,
+            merkle_tree_stalled_writes_timeout_sec: db.merkle_tree.stalled_writes_timeout_sec,
+            database_long_connection_threshold_ms: postgres.long_connection_threshold_ms,
+            database_slow_query_threshold_ms: postgres.slow_query_threshold_ms,
+            l2_block_seal_queue_capacity: state_keeper.l2_block_seal_queue_capacity,
+            main_node_rate_limit_rps: Self::default_main_node_rate_limit_rps(),
+            l1_batch_commit_data_generator_mode: enconfig.l1_batch_commit_data_generator_mode,
+            snapshots_recovery_enabled: enconfig
+                .snapshot_recovery
+                .as_ref()
+                .map(|a| a.enabled)
+                .unwrap_or_default(),
+            snapshots_recovery_postgres_max_concurrency: enconfig
+                .snapshot_recovery
+                .as_ref()
+                .map(|a| a.postgres_max_concurrency)
+                .flatten()
+                .unwrap_or_else(Self::default_snapshots_recovery_postgres_max_concurrency),
+            pruning_enabled: enconfig
+                .pruning
+                .as_ref()
+                .map(|a| a.enabled)
+                .unwrap_or_default(),
+            pruning_chunk_size: enconfig
+                .pruning
+                .as_ref()
+                .map(|a| a.chunk_size)
+                .flatten()
+                .unwrap_or_else(Self::default_pruning_chunk_size),
+            pruning_removal_delay_sec: enconfig
+                .pruning
+                .as_ref()
+                .map(|a| a.removal_delay_sec)
+                .flatten()
+                .unwrap_or_else(Self::default_pruning_removal_delay_sec),
+            pruning_data_retention_sec: enconfig
+                .pruning
+                .as_ref()
+                .map(|a| a.data_retention_sec)
+                .flatten()
+                .unwrap_or_else(Self::default_pruning_data_retention_sec),
+            contracts_diamond_proxy_addr: None,
+            protective_reads_persistence_enabled: db.experimental.reads_persistence_enabled,
+            merkle_tree_processing_delay_ms: db.experimental.processing_delay_ms,
+            merkle_tree_include_indices_and_filters_in_block_cache: db
+                .experimental
+                .include_indices_and_filters_in_block_cache,
+            api_namespaces,
+            extended_rpc_tracing: api.web3_json_rpc.extended_api_tracing,
+        })
+    }
+
     const fn default_filters_limit() -> usize {
         10_000
     }
@@ -676,6 +808,34 @@ impl RequiredENConfig {
             .context("could not load external node config")
     }
 
+    fn from_configs(
+        general: &GeneralConfig,
+        en_config: &ENConfig,
+        secrets: &Secrets,
+    ) -> anyhow::Result<Self> {
+        let api_config = general
+            .api_config
+            .as_ref()
+            .context("Api config is required")?;
+        let db_config = general.db_config.as_ref().context("Database config")?;
+        Ok(RequiredENConfig {
+            l1_chain_id: en_config.l1_chain_id,
+            l2_chain_id: en_config.l2_chain_id,
+            http_port: api_config.web3_json_rpc.http_port,
+            ws_port: api_config.web3_json_rpc.ws_port,
+            healthcheck_port: api_config.healthcheck.port,
+            eth_client_url: secrets
+                .l1
+                .as_ref()
+                .context("Eth config is required")?
+                .l1_rpc_url
+                .clone(),
+            main_node_url: en_config.main_node_url.clone(),
+            state_cache_path: db_config.state_keeper_db_path.clone(),
+            merkle_tree_path: db_config.merkle_tree.path.clone(),
+        })
+    }
+
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
@@ -786,6 +946,26 @@ impl ExperimentalENConfig {
     pub fn state_keeper_db_block_cache_capacity(&self) -> usize {
         self.state_keeper_db_block_cache_capacity_mb * BYTES_IN_MEGABYTE
     }
+    pub fn from_configs(
+        general_config: &GeneralConfig,
+        enconfig: &ENConfig,
+    ) -> anyhow::Result<Self> {
+        let db_config = general_config.db_config.as_ref().context("db_config")?;
+        let snapshot_recovery = enconfig
+            .snapshot_recovery
+            .as_ref()
+            .context("snapshot_recovery")?;
+        Ok(Self {
+            state_keeper_db_block_cache_capacity_mb: db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity_mb,
+            state_keeper_db_max_open_files: db_config.experimental.state_keeper_db_max_open_files,
+            snapshots_recovery_tree_chunk_size: snapshot_recovery
+                .tree_chunk_size
+                .unwrap_or_else(Self::default_snapshots_recovery_tree_chunk_size),
+            commitment_generator_max_parallelism: enconfig.commitment_generator_max_parallelism,
+        })
+    }
 }
 
 pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
@@ -834,9 +1014,27 @@ pub struct ApiComponentConfig {
     pub tree_api_remote_url: Option<String>,
 }
 
+impl ApiComponentConfig {
+    fn from_configs(en_config: &ENConfig) -> Self {
+        ApiComponentConfig {
+            tree_api_remote_url: en_config.tree_api_remote_url.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TreeComponentConfig {
     pub api_port: Option<u16>,
+}
+
+impl TreeComponentConfig {
+    fn from_configs(general_config: &GeneralConfig) -> Self {
+        let api_port = general_config
+            .api_config
+            .as_ref()
+            .map(|a| a.merkle_tree.port);
+        TreeComponentConfig { api_port }
+    }
 }
 
 /// External Node Config contains all the configuration required for the EN operation.
@@ -872,6 +1070,65 @@ impl ExternalNodeConfig<()> {
             tree_component: envy::prefixed("EN_TREE_")
                 .from_env::<TreeComponentConfig>()
                 .context("could not load external node config (tree component params)")?,
+            remote: (),
+        })
+    }
+
+    pub fn from_files(
+        general_config_path: PathBuf,
+        external_node_config_patch: PathBuf,
+        secrets_configs: PathBuf,
+        consensus: Option<PathBuf>,
+    ) -> anyhow::Result<Self> {
+        let general_config = read_yaml_repr::<proto::general::GeneralConfig>(general_config_path)
+            .context("failed decoding general YAML config")?;
+        let external_node_config =
+            read_yaml_repr::<proto::en::ExternalNode>(external_node_config_patch)
+                .context("failed decoding external node YAML config")?;
+        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(secrets_configs)
+            .context("failed decoding secrets YAML config")?;
+
+        let consensus = consensus
+            .map(|path| read_yaml_repr::<proto::consensus::Config>(path))
+            .transpose()
+            .context("failed decoding consensus YAML config")?;
+
+        let required = RequiredENConfig::from_configs(
+            &general_config,
+            &external_node_config,
+            &secrets_config,
+        )?;
+        let optional = OptionalENConfig::from_configs(&general_config, &external_node_config)?;
+        let postgres = PostgresConfig {
+            database_url: secrets_config
+                .database
+                .as_ref()
+                .context("DB secrets is required")?
+                .server_url
+                .clone()
+                .context("Server url is required")?,
+            max_connections: general_config
+                .postgres_config
+                .as_ref()
+                .context("Postgres config is required")?
+                .max_connections()?,
+        };
+        let observability = ObservabilityENConfig::from_configs(&general_config)?;
+        let experimental =
+            ExperimentalENConfig::from_configs(&general_config, &external_node_config)?;
+
+        let api_component = ApiComponentConfig::from_configs(&external_node_config);
+        let tree_component = TreeComponentConfig::from_configs(&general_config);
+
+        Ok(Self {
+            required,
+            postgres,
+            optional,
+            observability,
+            experimental,
+            consensus,
+            api_component,
+            tree_component,
             remote: (),
         })
     }
