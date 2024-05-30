@@ -58,7 +58,7 @@ impl PeriodicJob for FriProverQueueReporter {
                 .config
                 .get_group_id_for_circuit_id_and_aggregation_round(
                     circuit_id,
-                    job_identifiers.aggregation_round as u8,
+                    job_identifiers.aggregation_round,
                 )
                 .unwrap_or(u8::MAX);
 
