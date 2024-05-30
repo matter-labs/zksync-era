@@ -10,7 +10,7 @@
 node_modules
 *.log
 target
-a.out 
+a.out
 .gitconfig
 cobertura.xml
 tags
@@ -30,15 +30,18 @@ Cargo.lock
 !/Cargo.lock
 !/infrastructure/zksync-crypto/Cargo.lock
 !/prover/Cargo.lock
+!/zk_toolbox/Cargo.lock
 
 /etc/env/target/*
 /etc/env/.current
-/etc/env/configs
+/etc/env/configs/*
 !/etc/env/configs/dev.toml
 !/etc/env/configs/dev_validium.toml
 !/etc/env/configs/dev_validium_docker.toml
 !/etc/env/configs/ext-node.toml
+!/etc/env/configs/ext-node-validium.toml
 !/etc/env/configs/ext-node-docker.toml
+!/etc/env/configs/ext-node-validium-docker.toml
 /etc/env/l1-inits
 /etc/env/l2-inits
 !/etc/env/base
@@ -91,3 +94,10 @@ verified_sources
 hyperchain-*.yml
 /etc/hyperchains/prover-keys
 /etc/hyperchains/artifacts
+
+# Prover keys that should not be commited
+prover/vk_setup_data_generator_server_fri/data/setup_*
+
+# Zk Toolbox
+chains/era/configs/*
+configs/*

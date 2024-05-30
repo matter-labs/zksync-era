@@ -18,11 +18,11 @@ use crate::{
     report::ReportLabel,
     sdk::{
         error::ClientError,
+        ethabi,
         ethereum::PriorityOpHolder,
         utils::{
             get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
         },
-        web3::ethabi,
         EthNamespaceClient,
     },
     utils::format_gwei,
@@ -103,7 +103,8 @@ impl AccountLifespan {
         ethereum.set_polling_interval(ETH_POLLING_INTERVAL);
         let gas_price = ethereum
             .client()
-            .get_gas_price("executor")
+            .as_ref()
+            .get_gas_price()
             .await
             .map_err(|_| ClientError::Other)?;
 

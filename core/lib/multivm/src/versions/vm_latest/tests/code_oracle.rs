@@ -1,6 +1,6 @@
 use ethabi::Token;
 use zk_evm_1_5_0::aux_structures::Timestamp;
-use zksync_types::{get_known_code_key, web3::signing::keccak256, Address, Execute, U256};
+use zksync_types::{get_known_code_key, web3::keccak256, Address, Execute, U256};
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use crate::{

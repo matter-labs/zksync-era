@@ -1,18 +1,18 @@
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use zksync_config::GenesisConfig;
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
+use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
 
+use crate::client::{ForNetwork, L2};
+
 #[cfg_attr(
-    all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "en")
+    feature = "server",
+    rpc(server, client, namespace = "en", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
-    all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "en")
-)]
-#[cfg_attr(
-    all(not(feature = "client"), feature = "server"),
-    rpc(server, namespace = "en")
+    not(feature = "server"),
+    rpc(client, namespace = "en", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 pub trait EnNamespace {
     #[method(name = "syncL2Block")]
@@ -38,4 +38,7 @@ pub trait EnNamespace {
     /// Get tokens that are white-listed and it can be used by paymasters.
     #[method(name = "whitelistedTokensForAA")]
     async fn whitelisted_tokens_for_aa(&self) -> RpcResult<Vec<Address>>;
+
+    #[method(name = "getEcosystemContracts")]
+    async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts>;
 }

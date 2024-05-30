@@ -13,8 +13,8 @@ use zksync_types::{
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     snapshots::SnapshotRecoveryStatus,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2BlockNumber, L2ChainId,
-    PriorityOpId, ProtocolVersion, ProtocolVersionId, VmEvent, H160, H256, U256,
+    Address, Execute, K256PrivateKey, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2BlockNumber,
+    L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, VmEvent, H160, H256, U256,
 };
 
 use crate::{
@@ -65,7 +65,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
         fee,
         Default::default(),
         L2ChainId::from(270),
-        &H256::random(),
+        &K256PrivateKey::random(),
         None,
         Default::default(),
     )
@@ -300,6 +300,8 @@ async fn remove_stuck_txs() {
             L2BlockNumber(1),
             &[mock_execution_result(executed_tx.clone())],
             U256::from(1),
+            ProtocolVersionId::latest(),
+            false,
         )
         .await
         .unwrap();

@@ -1,14 +1,9 @@
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, L1ChainId, L2ChainId, H256};
-
-use crate::configs::chain::L1BatchCommitDataGeneratorMode;
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct SharedBridge {
-    pub bridgehub_proxy_addr: Address,
-    pub state_transition_proxy_addr: Address,
-    pub transparent_proxy_admin_addr: Address,
-}
+use zksync_basic_types::{
+    commitment::L1BatchCommitmentMode,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
+    Address, L1ChainId, L2ChainId, H256,
+};
 
 /// This config represents the genesis state of the chain.
 /// Each chain has this config immutable and we update it only during the protocol upgrade
@@ -16,7 +11,7 @@ pub struct SharedBridge {
 pub struct GenesisConfig {
     // TODO make fields non optional, once we fully moved to file based configs.
     // Now for backward compatibility we keep it optional
-    pub protocol_version: Option<u16>,
+    pub protocol_version: Option<ProtocolSemanticVersion>,
     pub genesis_root_hash: Option<H256>,
     pub rollup_last_leaf_index: Option<u64>,
     pub genesis_commitment: Option<H256>,
@@ -29,9 +24,8 @@ pub struct GenesisConfig {
     pub recursion_circuits_set_vks_hash: H256,
     pub recursion_scheduler_level_vk_hash: H256,
     pub fee_account: Address,
-    pub shared_bridge: Option<SharedBridge>,
     pub dummy_verifier: bool,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
 impl GenesisConfig {
@@ -41,11 +35,6 @@ impl GenesisConfig {
             rollup_last_leaf_index: Some(26),
             recursion_scheduler_level_vk_hash: H256::repeat_byte(0x02),
             fee_account: Default::default(),
-            shared_bridge: Some(SharedBridge {
-                bridgehub_proxy_addr: Address::repeat_byte(0x14),
-                state_transition_proxy_addr: Address::repeat_byte(0x16),
-                transparent_proxy_admin_addr: Address::repeat_byte(0x16),
-            }),
             recursion_node_level_vk_hash: H256::repeat_byte(0x03),
             recursion_leaf_level_vk_hash: H256::repeat_byte(0x04),
             recursion_circuits_set_vks_hash: H256::repeat_byte(0x05),
@@ -53,10 +42,13 @@ impl GenesisConfig {
             bootloader_hash: Default::default(),
             default_aa_hash: Default::default(),
             l1_chain_id: L1ChainId(9),
-            protocol_version: Some(22),
+            protocol_version: Some(ProtocolSemanticVersion {
+                minor: ProtocolVersionId::latest(),
+                patch: 0.into(),
+            }),
             l2_chain_id: L2ChainId::default(),
             dummy_verifier: false,
-            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
+            l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
         }
     }
 }

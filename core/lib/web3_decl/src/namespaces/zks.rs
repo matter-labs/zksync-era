@@ -1,30 +1,31 @@
 use std::collections::HashMap;
 
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-        TransactionDetails,
+        TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
-    fee_model::FeeParams,
+    fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
     Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 
-use crate::types::Token;
+use crate::{
+    client::{ForNetwork, L2},
+    types::{Bytes, Token},
+};
 
 #[cfg_attr(
-    all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "zks")
+    feature = "server",
+    rpc(server, client, namespace = "zks", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
-    all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "zks")
-)]
-#[cfg_attr(
-    all(not(feature = "client"), feature = "server"),
-    rpc(server, namespace = "zks")
+    not(feature = "server"),
+    rpc(client, namespace = "zks", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 pub trait ZksNamespace {
     #[method(name = "estimateFee")]
@@ -121,4 +122,13 @@ pub trait ZksNamespace {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Option<Proof>>;
+
+    #[method(name = "getBatchFeeInput")]
+    async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput>;
+
+    #[method(name = "sendRawTransactionWithDetailedOutput")]
+    async fn send_raw_transaction_with_detailed_output(
+        &self,
+        tx_bytes: Bytes,
+    ) -> RpcResult<TransactionDetailedResult>;
 }

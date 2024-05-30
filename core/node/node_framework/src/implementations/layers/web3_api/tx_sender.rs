@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use zksync_core::api_server::{
+use zksync_node_api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
     tx_sender::{ApiContracts, TxSenderBuilder, TxSenderConfig},
 };
@@ -9,7 +9,7 @@ use zksync_state::PostgresStorageCaches;
 use crate::{
     implementations::resources::{
         fee_input::FeeInputResource,
-        pools::ReplicaPoolResource,
+        pools::{PoolResource, ReplicaPool},
         state_keeper::ConditionalSealerResource,
         web3_api::{TxSenderResource, TxSinkResource},
     },
@@ -58,7 +58,7 @@ impl WiringLayer for TxSenderLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get required resources.
         let tx_sink = context.get_resource::<TxSinkResource>().await?.0;
-        let pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
+        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = pool_resource.get().await?;
         let sealer = match context.get_resource::<ConditionalSealerResource>().await {
             Ok(sealer) => Some(sealer.0),

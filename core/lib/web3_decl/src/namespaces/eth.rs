@@ -1,29 +1,27 @@
-use jsonrpsee::{
-    core::{RpcResult, SubscriptionResult},
-    proc_macros::rpc,
-};
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{BlockId, BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
     transaction_request::CallRequest,
     Address, H256,
 };
 
-use crate::types::{
-    Block, Bytes, FeeHistory, Filter, FilterChanges, Index, Log, PubSubFilter, SyncState,
-    TransactionReceipt, U256, U64,
+use crate::{
+    client::{ForNetwork, L2},
+    types::{
+        Block, Bytes, FeeHistory, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt,
+        U256, U64,
+    },
 };
 
 #[cfg_attr(
-    all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "eth")
+    feature = "server",
+    rpc(server, client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
-    all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "eth")
-)]
-#[cfg_attr(
-    all(not(feature = "client"), feature = "server"),
-    rpc(server, namespace = "eth")
+    not(feature = "server"),
+    rpc(client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 pub trait EthNamespace {
     #[method(name = "blockNumber")]
@@ -176,9 +174,22 @@ pub trait EthNamespace {
     ) -> RpcResult<FeeHistory>;
 }
 
-#[rpc(server, namespace = "eth")]
-pub trait EthPubSub {
-    #[subscription(name = "subscribe" => "subscription", unsubscribe = "unsubscribe", item = PubSubResult)]
-    async fn subscribe(&self, sub_type: String, filter: Option<PubSubFilter>)
-        -> SubscriptionResult;
+#[cfg(feature = "server")]
+mod pub_sub {
+    use jsonrpsee::{core::SubscriptionResult, proc_macros::rpc};
+
+    use crate::types::PubSubFilter;
+
+    #[rpc(server, namespace = "eth")]
+    pub trait EthPubSub {
+        #[subscription(name = "subscribe" => "subscription", unsubscribe = "unsubscribe", item = PubSubResult)]
+        async fn subscribe(
+            &self,
+            sub_type: String,
+            filter: Option<PubSubFilter>,
+        ) -> SubscriptionResult;
+    }
 }
+
+#[cfg(feature = "server")]
+pub use self::pub_sub::EthPubSubServer;

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Context as _;
 use circuit_definitions::{
     circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit,
@@ -20,6 +22,7 @@ use zksync_prover_fri_types::circuit_definitions::{
     },
 };
 use zksync_types::H256;
+use zksync_utils::locate_workspace;
 
 use crate::keystore::Keystore;
 
@@ -28,9 +31,7 @@ pub fn get_leaf_vk_params(
 ) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
     let mut leaf_vk_commits = vec![];
 
-    for circuit_type in
-        (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
-    {
+    for circuit_type in BaseLayerCircuitType::as_iter_u8() {
         let recursive_circuit_type = base_circuit_type_into_recursive_leaf_circuit_type(
             BaseLayerCircuitType::from_numeric_value(circuit_type),
         );
@@ -114,23 +115,28 @@ pub fn calculate_snark_vk_hash(keystore: &Keystore) -> anyhow::Result<H256> {
     Ok(H256::from_slice(&computed_vk_hash))
 }
 
+/// Returns workspace of the core component, we assume that prover is one folder deeper.
+/// Or fallback to current dir
+pub fn core_workspace_dir_or_current_dir() -> PathBuf {
+    locate_workspace()
+        .map(|a| a.join(".."))
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
 #[cfg(test)]
 mod tests {
-    use std::{env, path::PathBuf, str::FromStr};
+    use std::{path::PathBuf, str::FromStr};
 
     use super::*;
 
     #[test]
     fn test_keyhash_generation() {
-        let mut path_to_input = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+        let mut path_to_input = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
         path_to_input.push("historical_data");
 
         for version in 18..=22 {
             let basepath = path_to_input.join(format!("{}", version));
-            let keystore = Keystore::new_with_optional_setup_path(
-                basepath.as_os_str().to_str().unwrap().to_string(),
-                None,
-            );
+            let keystore = Keystore::new_with_optional_setup_path(basepath, None);
 
             let expected =
                 H256::from_str(&keystore.load_commitments().unwrap().snark_wrapper).unwrap();

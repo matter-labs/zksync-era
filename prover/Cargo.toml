@@ -4,7 +4,6 @@ members = [
     "prover_fri_utils",
     "prover_fri_types",
     "prover_dal",
-
     # binaries
     "witness_generator",
     "vk_setup_data_generator_server_fri",
@@ -13,6 +12,7 @@ members = [
     "prover_fri_gateway",
     "proof_fri_compressor",
     "prover_cli",
+    "prover_version",
 ]
 
 resolver = "2"
@@ -31,12 +31,13 @@ categories = ["cryptography"]
 anyhow = "1.0"
 async-trait = "0.1"
 bincode = "1"
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2"}
-circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
+circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
 clap = "4.4.6"
 colored = "2.0"
 const-decoder = "0.3.0"
 ctrlc = "3.1"
+dialoguer = "0.11"
 futures = "0.3"
 hex = "0.4"
 itertools = "0.10.5"
@@ -57,7 +58,7 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 sha3 = "0.10.8"
-shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.4.2" }
+shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.5.0" }
 sqlx = { version = "0.7.3", default-features = false }
 structopt = "0.3.26"
 strum = { version = "0.24" }
@@ -70,7 +71,7 @@ vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev
 vk_setup_data_generator_server_fri = { path = "vk_setup_data_generator_server_fri" }
 vlog = { path = "../core/lib/vlog" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
 zkevm_test_harness_1_3_3 = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3", package = "zkevm_test_harness" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_config = { path = "../core/lib/config" }
@@ -86,6 +87,11 @@ zksync_state = { path = "../core/lib/state" }
 zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }
 zksync_utils = { path = "../core/lib/utils" }
+zksync_eth_client = { path = "../core/lib/eth_client" }
+zksync_contracts = { path = "../core/lib/contracts" }
+
+wrapper_prover = { package = "wrapper-prover", git = "https://github.com/matter-labs/era-heavy-ops-service.git", rev = "3d33e06" }
+
 
 # for `perf` profiling
 [profile.perf]

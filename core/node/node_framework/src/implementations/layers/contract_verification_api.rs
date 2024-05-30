@@ -2,7 +2,7 @@ use zksync_config::ContractVerifierConfig;
 use zksync_dal::{ConnectionPool, Core};
 
 use crate::{
-    implementations::resources::pools::{MasterPoolResource, ReplicaPoolResource},
+    implementations::resources::pools::{MasterPool, PoolResource, ReplicaPool},
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -19,12 +19,12 @@ impl WiringLayer for ContractVerificationApiLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let master_pool = context
-            .get_resource::<MasterPoolResource>()
+            .get_resource::<PoolResource<MasterPool>>()
             .await?
             .get()
             .await?;
         let replica_pool = context
-            .get_resource::<ReplicaPoolResource>()
+            .get_resource::<PoolResource<ReplicaPool>>()
             .await?
             .get()
             .await?;
@@ -51,7 +51,7 @@ impl Task for ContractVerificationApiTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_core::api_server::contract_verification::start_server(
+        zksync_contract_verification_server::start_server(
             self.master_pool,
             self.replica_pool,
             self.config,

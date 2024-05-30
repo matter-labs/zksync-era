@@ -2,7 +2,7 @@ use ethabi::Token;
 use zksync_contracts::{
     deployer_contract, load_contract, test_contracts::LoadnextContractExecutionParams,
 };
-use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
+use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_system_constants::{
     CONTRACT_DEPLOYER_ADDRESS, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
@@ -13,8 +13,8 @@ use zksync_types::{
     l1::{OpProcessingType, PriorityQueueType},
     l2::L2Tx,
     utils::deployed_address_create,
-    Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, Nonce,
-    PackedEthSignature, PriorityOpId, Transaction, H256, U256,
+    Address, Execute, ExecuteTransactionCommon, K256PrivateKey, L1TxCommonData, L2ChainId, Nonce,
+    PriorityOpId, Transaction, H256, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -36,14 +36,14 @@ pub enum TxType {
 
 #[derive(Debug, Clone)]
 pub struct Account {
-    private_key: H256,
+    private_key: K256PrivateKey,
     pub address: Address,
     pub nonce: Nonce,
 }
 
 impl Account {
-    pub fn new(private_key: H256) -> Self {
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+    pub fn new(private_key: K256PrivateKey) -> Self {
+        let address = private_key.address();
         Self {
             private_key,
             address,
@@ -52,8 +52,7 @@ impl Account {
     }
 
     pub fn random() -> Self {
-        let pk = H256::random();
-        Self::new(pk)
+        Self::new(K256PrivateKey::random())
     }
 
     pub fn get_l2_tx_for_execute(&mut self, execute: Execute, fee: Option<Fee>) -> Transaction {
@@ -246,7 +245,7 @@ impl Account {
     }
 
     pub fn get_pk_signer(&self) -> PrivateKeySigner {
-        PrivateKeySigner::new(self.private_key)
+        PrivateKeySigner::new(self.private_key.clone())
     }
 
     pub async fn sign_legacy_tx(&self, tx: TransactionParameters) -> Vec<u8> {

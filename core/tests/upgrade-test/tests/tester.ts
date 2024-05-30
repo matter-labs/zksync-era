@@ -1,18 +1,18 @@
 import * as ethers from 'ethers';
-import * as zkweb3 from 'zksync-ethers';
+import * as zksync from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 
 type Network = string;
 
 export class Tester {
-    public runningFee: Map<zkweb3.types.Address, ethers.BigNumber>;
+    public runningFee: Map<zksync.types.Address, ethers.BigNumber>;
     constructor(
         public network: Network,
         public ethProvider: ethers.providers.Provider,
         public ethWallet: ethers.Wallet,
-        public syncWallet: zkweb3.Wallet,
-        public web3Provider: zkweb3.Provider
+        public syncWallet: zksync.Wallet,
+        public web3Provider: zksync.Provider
     ) {
         this.runningFee = new Map();
     }
@@ -36,9 +36,9 @@ export class Tester {
             ethWallet = new ethers.Wallet(process.env.MASTER_WALLET_PK!);
         }
         ethWallet = ethWallet.connect(ethProvider);
-        const web3Provider = new zkweb3.Provider(process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL ||  "http://localhost:3050");
+        const web3Provider = new zksync.Provider(process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL ||  "http://localhost:3050");
         web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
-        const syncWallet = new zkweb3.Wallet(ethWallet.privateKey, web3Provider, ethProvider);
+        const syncWallet = new zksync.Wallet(ethWallet.privateKey, web3Provider, ethProvider);
 
 
         // Since some tx may be pending on stage, we don't want to get stuck because of it.
@@ -64,6 +64,6 @@ export class Tester {
     }
 
     emptyWallet() {
-        return zkweb3.Wallet.createRandom().connect(this.web3Provider).connectToL1(this.ethProvider);
+        return zksync.Wallet.createRandom().connect(this.web3Provider).connectToL1(this.ethProvider);
     }
 }

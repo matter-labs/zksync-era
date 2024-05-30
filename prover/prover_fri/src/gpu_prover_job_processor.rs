@@ -24,12 +24,15 @@ pub mod gpu_prover {
             circuit_definitions::{
                 base_layer::ZkSyncBaseLayerProof, recursion_layer::ZkSyncRecursionLayerProof,
             },
-            eip4844_proof_config, recursion_layer_proof_config,
+            recursion_layer_proof_config,
         },
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
     use zksync_queued_job_processor::{async_trait, JobProcessor};
-    use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::SocketAddress};
+    use zksync_types::{
+        basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
+        prover_dal::SocketAddress,
+    };
     use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
     use crate::{
@@ -62,6 +65,7 @@ pub mod gpu_prover {
         prover_context: ProverContext,
         address: SocketAddress,
         zone: String,
+        protocol_version: ProtocolSemanticVersion,
     }
 
     impl Prover {
@@ -76,6 +80,7 @@ pub mod gpu_prover {
             witness_vector_queue: SharedWitnessVectorQueue,
             address: SocketAddress,
             zone: String,
+            protocol_version: ProtocolSemanticVersion,
         ) -> Self {
             Prover {
                 blob_store,
@@ -89,6 +94,7 @@ pub mod gpu_prover {
                     .expect("failed initializing gpu prover context"),
                 address,
                 zone,
+                protocol_version,
             }
         }
 
@@ -141,11 +147,6 @@ pub mod gpu_prover {
                     recursion_layer_proof_config(),
                     circuit.numeric_circuit_type(),
                 ),
-                CircuitWrapper::Eip4844(circuit) => (
-                    GpuProofConfig::from_eip4844_circuit(circuit),
-                    eip4844_proof_config(),
-                    ProverServiceDataKey::eip4844().circuit_id,
-                ),
             };
 
             let started_at = Instant::now();
@@ -188,7 +189,6 @@ pub mod gpu_prover {
                 CircuitWrapper::Recursive(_) => FriProofWrapper::Recursive(
                     ZkSyncRecursionLayerProof::from_inner(circuit_id, proof),
                 ),
-                CircuitWrapper::Eip4844(_) => FriProofWrapper::Eip4844(proof),
             };
             ProverArtifacts::new(prover_job.block_number, proof_wrapper)
         }
@@ -293,6 +293,7 @@ pub mod gpu_prover {
                 self.public_blob_store.as_deref(),
                 self.config.shall_save_to_public_bucket,
                 &mut storage_processor,
+                self.protocol_version,
             )
             .await;
             Ok(())

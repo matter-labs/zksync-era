@@ -1,11 +1,8 @@
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, Address, H256};
 use zksync_config::{
-    configs::{
-        chain::{NetworkConfig, StateKeeperConfig},
-        genesis::SharedBridge,
-    },
+    configs::chain::{NetworkConfig, StateKeeperConfig},
     GenesisConfig,
 };
 
@@ -19,6 +16,7 @@ struct ContractsForGenesis {
     pub genesis_rollup_leaf_index: Option<u64>,
     pub genesis_batch_commitment: Option<H256>,
     pub genesis_protocol_version: Option<u16>,
+    pub genesis_protocol_semantic_version: Option<ProtocolSemanticVersion>,
     pub fri_recursion_scheduler_level_vk_hash: H256,
     pub fri_recursion_node_level_vk_hash: H256,
     pub fri_recursion_leaf_level_vk_hash: H256,
@@ -47,25 +45,24 @@ impl FromEnv for GenesisConfig {
         let network_config = &NetworkConfig::from_env()?;
         let contracts_config = &ContractsForGenesis::from_env()?;
         let state_keeper = StateKeeperConfig::from_env()?;
-        let shared_bridge = if let Some(state_transition_proxy_addr) =
-            contracts_config.state_transition_proxy_addr
-        {
-            Some(SharedBridge {
-                bridgehub_proxy_addr: contracts_config
-                    .bridgehub_proxy_addr
-                    .context("Must be specified with bridgehub_proxy_addr")?,
-                state_transition_proxy_addr,
-                transparent_proxy_admin_addr: contracts_config
-                    .transparent_proxy_admin_addr
-                    .context("Must be specified with transparent_proxy_admin_addr")?,
+
+        // This is needed for backward compatibility, so if the new variable `genesis_protocol_semantic_version`
+        // wasn't added yet server could still work. TODO: remove it in the next release.
+        let protocol_version_deprecated = contracts_config
+            .genesis_protocol_version
+            .map(|minor| {
+                minor.try_into().map(|minor| ProtocolSemanticVersion {
+                    minor,
+                    patch: 0.into(),
+                })
             })
-        } else {
-            None
-        };
+            .transpose()?;
 
         #[allow(deprecated)]
         Ok(GenesisConfig {
-            protocol_version: contracts_config.genesis_protocol_version,
+            protocol_version: contracts_config
+                .genesis_protocol_semantic_version
+                .or(protocol_version_deprecated),
             genesis_root_hash: contracts_config.genesis_root,
             rollup_last_leaf_index: contracts_config.genesis_rollup_leaf_index,
             genesis_commitment: contracts_config.genesis_batch_commitment,
@@ -80,7 +77,6 @@ impl FromEnv for GenesisConfig {
             fee_account: state_keeper
                 .fee_account_addr
                 .context("Fee account required for genesis")?,
-            shared_bridge,
             dummy_verifier: false,
             l1_batch_commit_data_generator_mode: state_keeper.l1_batch_commit_data_generator_mode,
         })

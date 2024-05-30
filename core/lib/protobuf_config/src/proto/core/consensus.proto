@@ -35,7 +35,24 @@ message NodeAddr {
   optional string addr = 2; // required; IpAddr
 }
 
+// Weighted member of a validator committee. 
+message WeightedValidator {
+  optional string key = 1; // required; ValidatorPublicKey
+  optional uint64 weight = 2; // required
+}
+
+// Consensus genesis specification.
+message GenesisSpec {
+  optional uint64 chain_id = 1; // required; L2ChainId, should be the same as `l2_chain_id` in the `zksync.config.genesis.Genesis`.
+  optional uint32 protocol_version = 2; // required; validator::ProtocolVersion
+  repeated WeightedValidator validators = 3; // must be non-empty; validator committee.
+  optional string leader = 4; // required; ValidatorPublicKey
+}
+
 message Config {
+  reserved 3;
+  reserved "validators";
+
   // IP:port to listen on, for incoming TCP connections.
   // Use `0.0.0.0:<port>` to listen on all network interfaces (i.e. on all IPs exposed by this VM).
   optional string server_addr = 1; // required; IpAddr
@@ -43,10 +60,6 @@ message Config {
   // Public IP:port to advertise, should forward to server_addr.
   // Can be `127.0.0.1:<port>` for local tests.
   optional string public_addr = 2; // required; Host
-
-  // Public keys of all validators.
-  // Currently it has to be a singleton with a public key corresponding to secret key in CONSENSUS_VALIDATOR_KEY env var.
-  repeated string validators = 3; // required; ValidatorPublicKey
 
   // Maximal allowed size of the payload.
   optional uint64 max_payload_size = 4; // required; bytes
@@ -61,9 +74,10 @@ message Config {
   // Outbound gossip network connections that the node should actively try to
   // establish and maintain.
   repeated NodeAddr gossip_static_outbound = 7;
+
+  // MAIN NODE ONLY: consensus genesis specification.
+  // Used to (re)initialize genesis if needed.
+  // External nodes fetch the genesis from the main node.
+  optional GenesisSpec genesis_spec = 8;
 }
 
-message Secrets {
-  optional string validator_key = 1; // required for validator nodes; ValidatorSecretKey
-  optional string node_key = 2; // required for any node; NodeSecretKey
-}

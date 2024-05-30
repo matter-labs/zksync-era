@@ -36,7 +36,7 @@ jobs:
       - uses: mozilla-actions/sccache-action@v0.0.3
 
       # before
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           ref: ${{ env.BASE }}
           path: before
@@ -55,7 +55,7 @@ jobs:
           | xargs cat > ./before.binpb
 
       # after
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           ref: ${{ env.HEAD }}
           path: after
@@ -73,4 +73,6 @@ jobs:
         with:
           github_token: ${{ github.token }}
       - name: buf breaking
-        run: buf breaking './after.binpb' --against './before.binpb' --config '{"version":"v1","breaking":{"use":["WIRE_JSON","WIRE"]}}' --error-format 'github-actions'
+        run: >
+          buf breaking './after.binpb' --against './before.binpb' --exclude-path 'zksync/config/experimental.proto'
+          --config '{"version":"v1","breaking":{"use":["WIRE_JSON","WIRE"]}}' --error-format 'github-actions'

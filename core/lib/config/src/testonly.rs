@@ -2,7 +2,11 @@ use std::num::NonZeroUsize;
 
 use rand::{distributions::Distribution, Rng};
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple, network::Network, L1ChainId, L2ChainId,
+    basic_fri_types::CircuitIdRoundTuple,
+    commitment::L1BatchCommitmentMode,
+    network::Network,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
 
@@ -144,19 +148,6 @@ impl Distribution<configs::chain::NetworkConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::chain::L1BatchCommitDataGeneratorMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::chain::L1BatchCommitDataGeneratorMode {
-        type T = configs::chain::L1BatchCommitDataGeneratorMode;
-        match rng.gen_range(0..2) {
-            0 => T::Rollup,
-            _ => T::Validium,
-        }
-    }
-}
-
 impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
     #[allow(deprecated)]
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::StateKeeperConfig {
@@ -255,6 +246,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
             base_token_addr: g.gen(),
+            ecosystem_contracts: self.sample(g),
         }
     }
 }
@@ -283,11 +275,21 @@ impl Distribution<configs::database::MerkleTreeConfig> for EncodeDist {
     }
 }
 
+impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalDBConfig {
+        configs::ExperimentalDBConfig {
+            state_keeper_db_block_cache_capacity_mb: self.sample(rng),
+            state_keeper_db_max_open_files: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::database::DBConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::DBConfig {
         configs::database::DBConfig {
             state_keeper_db_path: self.sample(rng),
             merkle_tree: self.sample(rng),
+            experimental: self.sample(rng),
         }
     }
 }
@@ -295,9 +297,6 @@ impl Distribution<configs::database::DBConfig> for EncodeDist {
 impl Distribution<configs::database::PostgresConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::PostgresConfig {
         configs::database::PostgresConfig {
-            master_url: self.sample(rng),
-            replica_url: self.sample(rng),
-            prover_url: self.sample(rng),
             max_connections: self.sample(rng),
             max_connections_master: self.sample(rng),
             acquire_timeout_sec: self.sample(rng),
@@ -316,7 +315,6 @@ impl Distribution<configs::EthConfig> for EncodeDist {
             sender: self.sample(rng),
             gas_adjuster: self.sample(rng),
             watcher: self.sample(rng),
-            web3_url: self.sample(rng),
         }
     }
 }
@@ -371,7 +369,6 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             timestamp_criteria_max_allowed_lag: self.sample(rng),
             l1_batch_min_age_before_execute_seconds: self.sample(rng),
             max_acceptable_priority_fee_in_gwei: self.sample(rng),
-            proof_loading_mode: self.sample(rng),
             pubdata_sending_mode: PubdataSendingMode::Calldata,
         }
     }
@@ -529,6 +526,14 @@ impl Distribution<configs::fri_prover_group::FriProverGroupConfig> for EncodeDis
                 .sample_range(rng)
                 .map(|_| Sample::sample(rng))
                 .collect(),
+            group_13: self
+                .sample_range(rng)
+                .map(|_| Sample::sample(rng))
+                .collect(),
+            group_14: self
+                .sample_range(rng)
+                .map(|_| Sample::sample(rng))
+                .collect(),
         }
     }
 }
@@ -540,6 +545,7 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             basic_generation_timeout_in_secs: self.sample(rng),
             leaf_generation_timeout_in_secs: self.sample(rng),
             node_generation_timeout_in_secs: self.sample(rng),
+            recursion_tip_generation_timeout_in_secs: self.sample(rng),
             scheduler_generation_timeout_in_secs: self.sample(rng),
             max_attempts: self.sample(rng),
             last_l1_batch_to_process: self.sample(rng),
@@ -639,7 +645,6 @@ impl Distribution<configs::ObservabilityConfig> for EncodeDist {
             sentry_environment: self.sample(rng),
             log_format: self.sample(rng),
             opentelemetry: self.sample(rng),
-            sporadic_crypto_errors_substrs: self.sample_collect(rng),
             log_directives: self.sample(rng),
         }
     }
@@ -657,7 +662,13 @@ impl Distribution<configs::OpentelemetryConfig> for EncodeDist {
 impl Distribution<configs::GenesisConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GenesisConfig {
         configs::GenesisConfig {
-            protocol_version: self.sample(rng),
+            protocol_version: Some(ProtocolSemanticVersion {
+                minor: ProtocolVersionId::try_from(
+                    rng.gen_range(0..(ProtocolVersionId::latest() as u16)),
+                )
+                .unwrap(),
+                patch: VersionPatch(rng.gen()),
+            }),
             genesis_root_hash: rng.gen(),
             rollup_last_leaf_index: self.sample(rng),
             genesis_commitment: rng.gen(),
@@ -670,16 +681,18 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             recursion_leaf_level_vk_hash: rng.gen(),
             recursion_scheduler_level_vk_hash: rng.gen(),
             recursion_circuits_set_vks_hash: rng.gen(),
-            shared_bridge: self.sample(rng),
             dummy_verifier: rng.gen(),
-            l1_batch_commit_data_generator_mode: self.sample(rng),
+            l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
+                0 => L1BatchCommitmentMode::Rollup,
+                _ => L1BatchCommitmentMode::Validium,
+            },
         }
     }
 }
 
-impl Distribution<configs::SharedBridge> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SharedBridge {
-        configs::SharedBridge {
+impl Distribution<configs::EcosystemContracts> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EcosystemContracts {
+        configs::EcosystemContracts {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),
@@ -687,16 +700,34 @@ impl Distribution<configs::SharedBridge> for EncodeDist {
     }
 }
 
+impl Distribution<configs::consensus::WeightedValidator> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::WeightedValidator {
+        use configs::consensus::{ValidatorPublicKey, WeightedValidator};
+        WeightedValidator {
+            key: ValidatorPublicKey(self.sample(rng)),
+            weight: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::GenesisSpec {
+        use configs::consensus::{GenesisSpec, ProtocolVersion, ValidatorPublicKey};
+        GenesisSpec {
+            chain_id: L2ChainId::default(),
+            protocol_version: ProtocolVersion(self.sample(rng)),
+            validators: self.sample_collect(rng),
+            leader: ValidatorPublicKey(self.sample(rng)),
+        }
+    }
+}
+
 impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
-        use configs::consensus::{ConsensusConfig, Host, NodePublicKey, ValidatorPublicKey};
+        use configs::consensus::{ConsensusConfig, Host, NodePublicKey};
         ConsensusConfig {
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
-            validators: self
-                .sample_range(rng)
-                .map(|_| ValidatorPublicKey(self.sample(rng)))
-                .collect(),
             max_payload_size: self.sample(rng),
             gossip_dynamic_inbound_limit: self.sample(rng),
             gossip_static_inbound: self
@@ -707,6 +738,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
                 .sample_range(rng)
                 .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
                 .collect(),
+            genesis_spec: self.sample(rng),
         }
     }
 }
@@ -715,8 +747,39 @@ impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusSecrets {
         use configs::consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey};
         ConsensusSecrets {
-            validator_key: self.sample_opt(|| ValidatorSecretKey(self.sample(rng))),
-            node_key: self.sample_opt(|| NodeSecretKey(self.sample(rng))),
+            validator_key: self.sample_opt(|| ValidatorSecretKey(String::into(self.sample(rng)))),
+            node_key: self.sample_opt(|| NodeSecretKey(String::into(self.sample(rng)))),
+        }
+    }
+}
+
+impl Distribution<configs::secrets::L1Secrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::L1Secrets {
+        use configs::secrets::L1Secrets;
+        L1Secrets {
+            l1_rpc_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
+        }
+    }
+}
+
+impl Distribution<configs::secrets::DatabaseSecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DatabaseSecrets {
+        use configs::secrets::DatabaseSecrets;
+        DatabaseSecrets {
+            server_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            server_replica_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            prover_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+        }
+    }
+}
+
+impl Distribution<configs::secrets::Secrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::Secrets {
+        use configs::secrets::Secrets;
+        Secrets {
+            consensus: self.sample_opt(|| self.sample(rng)),
+            database: self.sample_opt(|| self.sample(rng)),
+            l1: self.sample_opt(|| self.sample(rng)),
         }
     }
 }

@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
-use zksync_core::api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy::TxProxy};
+use zksync_node_api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy::TxProxy};
 
 use crate::{
     implementations::resources::{
-        main_node_client::MainNodeClientResource, pools::MasterPoolResource,
+        main_node_client::MainNodeClientResource,
+        pools::{MasterPool, PoolResource},
         web3_api::TxSinkResource,
     },
     service::ServiceContext,
@@ -28,7 +29,7 @@ impl WiringLayer for TxSinkLayer {
         let tx_sink = match self.as_ref() {
             TxSinkLayer::MasterPoolSink => {
                 let pool = context
-                    .get_resource::<MasterPoolResource>()
+                    .get_resource::<PoolResource<MasterPool>>()
                     .await?
                     .get()
                     .await?;

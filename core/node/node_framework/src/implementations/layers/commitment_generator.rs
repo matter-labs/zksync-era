@@ -1,13 +1,26 @@
 use zksync_commitment_generator::CommitmentGenerator;
+use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
-    implementations::resources::{healthcheck::AppHealthCheckResource, pools::MasterPoolResource},
+    implementations::resources::{
+        healthcheck::AppHealthCheckResource,
+        pools::{MasterPool, PoolResource},
+    },
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-pub struct CommitmentGeneratorLayer;
+#[derive(Debug)]
+pub struct CommitmentGeneratorLayer {
+    mode: L1BatchCommitmentMode,
+}
+
+impl CommitmentGeneratorLayer {
+    pub fn new(mode: L1BatchCommitmentMode) -> Self {
+        Self { mode }
+    }
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for CommitmentGeneratorLayer {
@@ -16,10 +29,11 @@ impl WiringLayer for CommitmentGeneratorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<MasterPoolResource>().await?;
-        let main_pool = pool_resource.get().await.unwrap();
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_size = CommitmentGenerator::default_parallelism().get();
+        let main_pool = pool_resource.get_custom(pool_size).await?;
 
-        let commitment_generator = CommitmentGenerator::new(main_pool);
+        let commitment_generator = CommitmentGenerator::new(main_pool, self.mode);
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health

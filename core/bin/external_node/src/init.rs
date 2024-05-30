@@ -3,16 +3,16 @@
 use std::time::Instant;
 
 use anyhow::Context as _;
-use zksync_basic_types::{L1BatchNumber, L2ChainId};
-use zksync_core::sync_layer::genesis::perform_genesis_if_needed;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::AppHealthCheck;
+use zksync_node_sync::genesis::perform_genesis_if_needed;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_snapshots_applier::{SnapshotsApplierConfig, SnapshotsApplierTask};
-use zksync_web3_decl::client::BoxedL2Client;
+use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_web3_decl::client::{DynClient, L2};
 
-use crate::config::read_snapshots_recovery_config;
+use crate::config::SnapshotsRecoveryConfig;
 
 #[derive(Debug)]
 enum InitDecision {
@@ -24,7 +24,7 @@ enum InitDecision {
 
 pub(crate) async fn ensure_storage_initialized(
     pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     app_health: &AppHealthCheck,
     l2_chain_id: L2ChainId,
     consider_snapshot_recovery: bool,
@@ -80,13 +80,12 @@ pub(crate) async fn ensure_storage_initialized(
         InitDecision::SnapshotRecovery => {
             anyhow::ensure!(
                 consider_snapshot_recovery,
-                "Snapshot recovery is required to proceed, but it is not enabled. Enable by supplying \
-                 `--enable-snapshots-recovery` command-line arg to the node binary, or reset the node storage \
-                 to sync from genesis"
+                "Snapshot recovery is required to proceed, but it is not enabled. Enable by setting \
+                 `EN_SNAPSHOTS_RECOVERY_ENABLED=true` env variable to the node binary, or use a Postgres dump for recovery"
             );
 
             tracing::warn!("Proceeding with snapshot recovery. This is an experimental feature; use at your own risk");
-            let recovery_config = read_snapshots_recovery_config()?;
+            let recovery_config = SnapshotsRecoveryConfig::new()?;
             let blob_store = ObjectStoreFactory::new(recovery_config.snapshots_object_store)
                 .create_store()
                 .await;

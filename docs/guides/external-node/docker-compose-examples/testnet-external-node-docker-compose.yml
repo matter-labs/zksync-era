@@ -46,7 +46,7 @@ services:
       - POSTGRES_PASSWORD=notsecurepassword
       - PGPORT=5430
   external-node:
-    image: "matterlabs/external-node:2.0-v23.0.0"
+    image: "matterlabs/external-node:2.0-v24.2.0"
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +76,7 @@ services:
       EN_SNAPSHOTS_RECOVERY_ENABLED: "true"
       EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: "zksync-era-boojnet-external-node-snapshots"
       EN_SNAPSHOTS_OBJECT_STORE_MODE: "GCSAnonymousReadOnly"
-      RUST_LOG: "zksync_core=info,zksync_core::metadata_calculator=debug,zksync_dal=info,zksync_eth_client=info,zksync_merkle_tree=info,zksync_storage=info,zksync_state=debug,zksync_types=info,vm=info,zksync_external_node=info,zksync_utils=debug,zksync_snapshots_applier=info"
+      RUST_LOG: "warn,zksync=info,zksync_core::metadata_calculator=debug,zksync_state=debug,zksync_utils=debug,zksync_web3_decl::client=error"
 
 volumes:
   testnet-postgres: {}

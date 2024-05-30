@@ -8,10 +8,7 @@ use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
-    compute_setups::{
-        generate_base_layer_vks_and_proofs, generate_eip4844_vks,
-        generate_recursive_layer_vks_and_proofs,
-    },
+    compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
     data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
     proof_wrapper_utils::{
         check_trusted_setup_file_existace, get_wrapper_setup_and_vk_from_scheduler_vk,
@@ -43,11 +40,6 @@ fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
     tracing::info!("Generating verification keys for Base layer.");
     generate_base_layer_vks_and_proofs(&mut in_memory_source)
         .map_err(|err| anyhow::anyhow!("Failed generating base vk's: {err}"))?;
-
-    // This must happen before we start generating recursive layer.
-    tracing::info!("Generating 4844 base layer.");
-    generate_eip4844_vks(&mut in_memory_source)
-        .map_err(|err| anyhow::anyhow!("Failed generating 4844 vk's: {err}"))?;
 
     tracing::info!("Generating verification keys for Recursive layer.");
     generate_recursive_layer_vks_and_proofs(&mut in_memory_source)
@@ -95,8 +87,6 @@ enum CircuitSelector {
     Recursive,
     /// Select circuits from basic group.
     Basic,
-    /// EIP 4844 circuit
-    Eip4844,
 }
 
 #[derive(Debug, Parser)]
@@ -168,7 +158,7 @@ fn print_stats(digests: HashMap<String, String>) -> anyhow::Result<()> {
 
 fn keystore_from_optional_path(path: Option<String>, setup_path: Option<String>) -> Keystore {
     if let Some(path) = path {
-        return Keystore::new_with_optional_setup_path(path, setup_path);
+        return Keystore::new_with_optional_setup_path(path.into(), setup_path);
     }
     if setup_path.is_some() {
         panic!("--setup_path must not be set when --path is not set");
@@ -197,7 +187,6 @@ fn generate_setup_keys(
                 .numeric_circuit
                 .expect("--numeric-circuit must be provided"),
         ),
-        CircuitSelector::Eip4844 => ProverServiceDataKey::eip4844(),
     };
 
     let digest = generator

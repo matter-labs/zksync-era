@@ -12,6 +12,7 @@ mod contract_verifier;
 mod contracts;
 mod database;
 mod eth;
+mod experimental;
 mod general;
 mod genesis;
 mod house_keeper;
@@ -20,6 +21,7 @@ mod observability;
 mod proof_data_handler;
 pub mod proto;
 mod prover;
+mod secrets;
 mod snapshots_creator;
 pub mod testonly;
 #[cfg(test)]

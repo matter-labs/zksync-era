@@ -1,23 +1,25 @@
-use std::{collections::VecDeque, convert::TryFrom, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::VecDeque, convert::TryFrom, sync::Arc, time::Duration};
 
+use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use rand::Rng;
 use tokio::time::timeout;
 use zksync_eth_signer::PrivateKeySigner;
-use zksync_types::{tx::primitives::PackedEthSignature, Address, L2ChainId, H256};
+use zksync_types::{Address, K256PrivateKey, L2ChainId, H256};
+use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
     config::LoadtestConfig,
     corrupted_tx::CorruptedSigner,
     fs_utils::{loadnext_contract, TestContract},
     rng::{LoadtestRng, Random},
-    sdk::{signer::Signer, HttpClient, HttpClientBuilder, Wallet, ZksNamespaceClient},
+    sdk::{signer::Signer, Wallet, ZksNamespaceClient},
 };
 
 /// An alias to [`zksync::Wallet`] with HTTP client. Wrapped in `Arc` since
 /// the client cannot be cloned due to limitations in jsonrpsee.
-pub type SyncWallet = Arc<Wallet<PrivateKeySigner, HttpClient>>;
-pub type CorruptedSyncWallet = Arc<Wallet<CorruptedSigner, HttpClient>>;
+pub type SyncWallet = Arc<Wallet<PrivateKeySigner, Client<L2>>>;
+pub type CorruptedSyncWallet = Arc<Wallet<CorruptedSigner, Client<L2>>>;
 
 /// Thread-safe pool of the addresses of accounts used in the loadtest.
 #[derive(Debug, Clone)]
@@ -44,15 +46,15 @@ impl AddressPool {
 #[derive(Debug, Clone)]
 pub struct AccountCredentials {
     /// Ethereum private key.
-    pub eth_pk: H256,
+    pub eth_pk: K256PrivateKey,
     /// Ethereum address derived from the private key.
     pub address: Address,
 }
 
 impl Random for AccountCredentials {
     fn random(rng: &mut LoadtestRng) -> Self {
-        let eth_pk = H256::random_using(rng);
-        let address = pk_to_address(&eth_pk);
+        let eth_pk = K256PrivateKey::random_using(rng);
+        let address = eth_pk.address();
 
         Self { eth_pk, address }
     }
@@ -89,11 +91,17 @@ pub struct AccountPool {
 impl AccountPool {
     /// Generates all the required test accounts and prepares `Wallet` objects.
     pub async fn new(config: &LoadtestConfig) -> anyhow::Result<Self> {
-        let l2_chain_id = L2ChainId::try_from(config.l2_chain_id).unwrap();
+        let l2_chain_id = L2ChainId::try_from(config.l2_chain_id)
+            .map_err(|err| anyhow::anyhow!("invalid L2 chain ID: {err}"))?;
         // Create a client for pinging the RPC.
-        let client = HttpClientBuilder::default()
-            .build(&config.l2_rpc_address)
-            .unwrap();
+        let client = Client::http(
+            config
+                .l2_rpc_address
+                .parse()
+                .context("invalid L2 RPC URL")?,
+        )?
+        .for_network(l2_chain_id.into())
+        .build();
         // Perform a health check: check whether zkSync server is alive.
         let mut server_alive = false;
         for _ in 0usize..3 {
@@ -109,12 +117,14 @@ impl AccountPool {
         let test_contract = loadnext_contract(&config.test_contracts_path)?;
 
         let master_wallet = {
-            let eth_pk = H256::from_str(&config.master_wallet_pk)
-                .expect("Can't parse master wallet private key");
-            let eth_signer = PrivateKeySigner::new(eth_pk);
-            let address = pk_to_address(&eth_pk);
+            let eth_private_key: H256 = config
+                .master_wallet_pk
+                .parse()
+                .context("cannot parse master wallet private key")?;
+            let eth_private_key = K256PrivateKey::from_bytes(eth_private_key)?;
+            let address = eth_private_key.address();
+            let eth_signer = PrivateKeySigner::new(eth_private_key);
             let signer = Signer::new(eth_signer, address, l2_chain_id);
-
             Arc::new(Wallet::with_http_client(&config.l2_rpc_address, signer).unwrap())
         };
 
@@ -138,6 +148,7 @@ impl AccountPool {
 
             for _ in i..range_end {
                 let eth_credentials = AccountCredentials::random(&mut rng);
+                let private_key_bytes = eth_credentials.eth_pk.expose_secret().secret_bytes();
                 let eth_signer = PrivateKeySigner::new(eth_credentials.eth_pk);
                 let address = eth_credentials.address;
                 let signer = Signer::new(eth_signer, address, l2_chain_id);
@@ -155,7 +166,7 @@ impl AccountPool {
                     corrupted_wallet: Arc::new(corrupted_wallet),
                     test_contract: test_contract.clone(),
                     deployed_contract_address: deployed_contract_address.clone(),
-                    rng: rng.derive(eth_credentials.eth_pk),
+                    rng: rng.derive(private_key_bytes),
                 };
                 accounts.push_back(account);
             }
@@ -167,9 +178,4 @@ impl AccountPool {
             addresses: AddressPool::new(addresses),
         })
     }
-}
-
-fn pk_to_address(eth_pk: &H256) -> Address {
-    PackedEthSignature::address_from_private_key(eth_pk)
-        .expect("Can't get an address from the private key")
 }

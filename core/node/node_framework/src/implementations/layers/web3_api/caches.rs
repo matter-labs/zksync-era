@@ -1,9 +1,12 @@
 use std::time::Duration;
 
-use zksync_core::api_server::web3::mempool_cache::{self, MempoolCache};
+use zksync_node_api_server::web3::mempool_cache::{self, MempoolCache};
 
 use crate::{
-    implementations::resources::{pools::ReplicaPoolResource, web3_api::MempoolCacheResource},
+    implementations::resources::{
+        pools::{PoolResource, ReplicaPool},
+        web3_api::MempoolCacheResource,
+    },
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -31,7 +34,7 @@ impl WiringLayer for MempoolCacheLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
+        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = pool_resource.get().await?;
         let mempool_cache = MempoolCache::new(self.capacity);
         let update_task = mempool_cache.update_task(replica_pool, self.update_interval);

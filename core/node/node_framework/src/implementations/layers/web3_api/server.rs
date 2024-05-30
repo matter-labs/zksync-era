@@ -3,13 +3,13 @@ use std::{num::NonZeroU32, time::Duration};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_config::configs::api::MaxResponseSize;
-use zksync_core::api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
+use zksync_node_api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
 
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
         healthcheck::AppHealthCheckResource,
-        pools::ReplicaPoolResource,
+        pools::{PoolResource, ReplicaPool},
         sync_state::SyncStateResource,
         web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
     },
@@ -111,7 +111,7 @@ impl WiringLayer for Web3ServerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get required resources.
-        let replica_resource_pool = context.get_resource::<ReplicaPoolResource>().await?;
+        let replica_resource_pool = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let updaters_pool = replica_resource_pool.get_custom(2).await?;
         let replica_pool = replica_resource_pool.get().await?;
         let tx_sender = context.get_resource::<TxSenderResource>().await?.0;

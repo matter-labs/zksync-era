@@ -6,21 +6,18 @@ use zksync_config::configs::{
 };
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
 use zksync_house_keeper::{
-    blocks_state_reporter::L1BatchMetricsReporter, fri_gpu_prover_archiver::FriGpuProverArchiver,
-    fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
-    fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
-    fri_prover_job_retry_manager::FriProverJobRetryManager,
-    fri_prover_jobs_archiver::FriProverJobArchiver,
-    fri_prover_queue_monitor::FriProverStatsReporter,
-    fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
-    fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
-    fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
+    blocks_state_reporter::L1BatchMetricsReporter,
     periodic_job::PeriodicJob,
-    waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
+    prover::{
+        FriGpuProverArchiver, FriProofCompressorJobRetryManager, FriProofCompressorQueueReporter,
+        FriProverJobRetryManager, FriProverJobsArchiver, FriProverQueueReporter,
+        FriWitnessGeneratorJobRetryManager, FriWitnessGeneratorQueueReporter,
+        WaitingToQueuedFriWitnessJobMover,
+    },
 };
 
 use crate::{
-    implementations::resources::pools::{ProverPoolResource, ReplicaPoolResource},
+    implementations::resources::pools::{PoolResource, ProverPool, ReplicaPool},
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -63,10 +60,10 @@ impl WiringLayer for HouseKeeperLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // initialize resources
-        let replica_pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = replica_pool_resource.get().await?;
 
-        let prover_pool_resource = context.get_resource::<ProverPoolResource>().await?;
+        let prover_pool_resource = context.get_resource::<PoolResource<ProverPool>>().await?;
         let prover_pool = prover_pool_resource.get().await?;
 
         // initialize and add tasks
@@ -116,7 +113,7 @@ impl WiringLayer for HouseKeeperLayer {
             self.house_keeper_config.prover_job_archiver_params()
         {
             let fri_prover_job_archiver =
-                FriProverJobArchiver::new(prover_pool.clone(), archiving_interval, archive_after);
+                FriProverJobsArchiver::new(prover_pool.clone(), archiving_interval, archive_after);
             context.add_task(Box::new(FriProverJobArchiverTask {
                 fri_prover_job_archiver,
             }));
@@ -132,15 +129,7 @@ impl WiringLayer for HouseKeeperLayer {
             }));
         }
 
-        let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
-            self.house_keeper_config.witness_job_moving_interval_ms,
-            prover_pool.clone(),
-        );
-        context.add_task(Box::new(SchedulerCircuitQueuerTask {
-            scheduler_circuit_queuer,
-        }));
-
-        let fri_witness_generator_stats_reporter = FriWitnessGeneratorStatsReporter::new(
+        let fri_witness_generator_stats_reporter = FriWitnessGeneratorQueueReporter::new(
             prover_pool.clone(),
             self.house_keeper_config
                 .witness_generator_stats_reporting_interval_ms,
@@ -149,7 +138,7 @@ impl WiringLayer for HouseKeeperLayer {
             fri_witness_generator_stats_reporter,
         }));
 
-        let fri_prover_stats_reporter = FriProverStatsReporter::new(
+        let fri_prover_stats_reporter = FriProverQueueReporter::new(
             self.house_keeper_config.prover_stats_reporting_interval_ms,
             prover_pool.clone(),
             replica_pool.clone(),
@@ -159,7 +148,7 @@ impl WiringLayer for HouseKeeperLayer {
             fri_prover_stats_reporter,
         }));
 
-        let fri_proof_compressor_stats_reporter = FriProofCompressorStatsReporter::new(
+        let fri_proof_compressor_stats_reporter = FriProofCompressorQueueReporter::new(
             self.house_keeper_config
                 .proof_compressor_stats_reporting_interval_ms,
             prover_pool.clone(),
@@ -276,24 +265,8 @@ impl Task for WaitingToQueuedFriWitnessJobMoverTask {
 }
 
 #[derive(Debug)]
-struct SchedulerCircuitQueuerTask {
-    scheduler_circuit_queuer: SchedulerCircuitQueuer,
-}
-
-#[async_trait::async_trait]
-impl Task for SchedulerCircuitQueuerTask {
-    fn name(&self) -> &'static str {
-        "scheduler_circuit_queuer"
-    }
-
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.scheduler_circuit_queuer.run(stop_receiver.0).await
-    }
-}
-
-#[derive(Debug)]
 struct FriWitnessGeneratorStatsReporterTask {
-    fri_witness_generator_stats_reporter: FriWitnessGeneratorStatsReporter,
+    fri_witness_generator_stats_reporter: FriWitnessGeneratorQueueReporter,
 }
 
 #[async_trait::async_trait]
@@ -311,7 +284,7 @@ impl Task for FriWitnessGeneratorStatsReporterTask {
 
 #[derive(Debug)]
 struct FriProverStatsReporterTask {
-    fri_prover_stats_reporter: FriProverStatsReporter,
+    fri_prover_stats_reporter: FriProverQueueReporter,
 }
 
 #[async_trait::async_trait]
@@ -327,7 +300,7 @@ impl Task for FriProverStatsReporterTask {
 
 #[derive(Debug)]
 struct FriProofCompressorStatsReporterTask {
-    fri_proof_compressor_stats_reporter: FriProofCompressorStatsReporter,
+    fri_proof_compressor_stats_reporter: FriProofCompressorQueueReporter,
 }
 
 #[async_trait::async_trait]
@@ -363,7 +336,7 @@ impl Task for FriProofCompressorJobRetryManagerTask {
 
 #[derive(Debug)]
 struct FriProverJobArchiverTask {
-    fri_prover_job_archiver: FriProverJobArchiver,
+    fri_prover_job_archiver: FriProverJobsArchiver,
 }
 
 #[async_trait::async_trait]
