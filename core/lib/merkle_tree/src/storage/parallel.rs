@@ -385,14 +385,6 @@ pub(crate) enum MaybeParallel<DB> {
 }
 
 impl<DB: PruneDatabase> MaybeParallel<DB> {
-    pub fn wait_sync(&mut self) -> anyhow::Result<()> {
-        if let Self::Parallel(db) = self {
-            db.wait_sync()
-        } else {
-            Ok(())
-        }
-    }
-
     pub fn join(self) -> anyhow::Result<DB> {
         match self {
             Self::Sequential(db) => Ok(db),

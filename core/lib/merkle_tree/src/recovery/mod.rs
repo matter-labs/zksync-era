@@ -306,8 +306,9 @@ impl<DB: 'static + Clone + PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H>
     /// # Errors
     ///
     /// Propagates database I/O errors, should they occur during persistence.
-    pub fn wait_for_persistence(&mut self) -> anyhow::Result<()> {
-        self.db.wait_sync()
+    pub fn wait_for_persistence(self) -> anyhow::Result<()> {
+        self.db.join()?;
+        Ok(())
     }
 }
 

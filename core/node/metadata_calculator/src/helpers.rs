@@ -508,17 +508,11 @@ impl AsyncTreeRecovery {
     }
 
     /// Waits until all pending chunks are persisted.
-    pub async fn wait_for_persistence(&mut self) -> anyhow::Result<()> {
-        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
-        let tree = tokio::task::spawn_blocking(move || {
-            tree.wait_for_persistence()?;
-            anyhow::Ok(tree)
-        })
-        .await
-        .context("panicked while waiting for pending recovery chunks to be persisted")??;
-
-        self.inner = Some(tree);
-        Ok(())
+    pub async fn wait_for_persistence(self) -> anyhow::Result<()> {
+        let tree = self.inner.expect(Self::INCONSISTENT_MSG);
+        tokio::task::spawn_blocking(|| tree.wait_for_persistence())
+            .await
+            .context("panicked while waiting for pending recovery chunks to be persisted")?
     }
 
     pub async fn finalize(self) -> anyhow::Result<AsyncTree> {
