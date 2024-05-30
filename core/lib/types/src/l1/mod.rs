@@ -1,14 +1,14 @@
 //! Definition of zkSync network priority operations: operations initiated from the L1.
 
 use std::convert::TryFrom;
-
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     ethabi::{decode, ParamType, Token},
     web3::Log,
-    Address, L1BlockNumber, PriorityOpId, H160, H256, U256,
+    Address, L1BlockNumber, PriorityOpId, H256, U256,
 };
-use zksync_utils::u256_to_account_address;
+use zksync_utils::{address_to_u256,u256_to_account_address};
 
 use super::Transaction;
 use crate::{
@@ -194,161 +194,240 @@ impl L1Tx {
     }
 }
 
-impl TryFrom<Log> for L1Tx {
-    type Error = L1TxParseError;
+pub struct NewPriorityRequest {
+    tx_id: U256,
+    tx_hash: [u8;32],
+    expiration_timestamp: u64,
+    transaction: L2CanonicalTransaction,
+    factory_deps: Vec<Vec<u8>>,
+}
 
-    fn try_from(event: Log) -> Result<Self, Self::Error> {
+pub struct L2CanonicalTransaction {
+    tx_type: U256,
+    from: U256,
+    to: U256,
+    gas_limit: U256,
+    gas_per_pubdata_byte_limit: U256,
+    max_fee_per_gas: U256,
+    max_priority_fee_per_gas: U256,
+    paymaster: U256,
+    nonce: U256,
+    value: U256,
+    reserved: [U256;4],
+    data: Vec<u8>,
+    signature: Vec<u8>,
+    #[allow(dead_code)]
+    factory_deps: Vec<U256>,
+    #[allow(dead_code)]
+    paymaster_input: Vec<u8>,
+    #[allow(dead_code)]
+    reserved_dynamic: Vec<u8>,
+}
+
+impl NewPriorityRequest {
+    pub fn schema() -> Vec<ParamType> {
+        vec![
+            ParamType::Uint(256),                         // tx ID
+            ParamType::FixedBytes(32),                    // tx hash
+            ParamType::Uint(64),                          // expiration block
+            ParamType::Tuple(L2CanonicalTransaction::schema()), // transaction data
+            ParamType::Array(ParamType::Bytes.into()), // factory deps
+        ]
+    }
+
+    pub fn decode(tokens: Vec<Token>) -> anyhow::Result<Self> {
+        anyhow::ensure!(tokens.len()==5);
+        let mut t = tokens.into_iter();
+        let mut next = ||t.next().unwrap();
+        Ok(Self {
+            tx_id: next().into_uint().context("tx_id")?,
+            tx_hash: next().into_fixed_bytes().and_then(|x|x.try_into().ok()).context("tx_hash")?,
+            expiration_timestamp: next().into_uint().and_then(|x|x.try_into().ok()).context("expiration_timestamp")?,
+            transaction: L2CanonicalTransaction::decode(next().into_tuple().context("transaction")?).context("transaction")?,
+            factory_deps: next().into_array().context("factory_deps")?.into_iter().enumerate().map(|(i,t)|t.into_bytes().context(i)).collect::<Result<_,_>>().context("factory_deps")?,
+        })
+    }
+
+    pub fn encode(self) -> Vec<Token> {
+        vec![
+            Token::Uint(self.tx_id),
+            Token::FixedBytes(self.tx_hash.into()),
+            Token::Uint(self.expiration_timestamp.into()),
+            Token::Tuple(self.transaction.encode()),
+            Token::Array(self.factory_deps.into_iter().map(Token::Bytes).collect()),
+        ]
+    }
+}
+
+impl L2CanonicalTransaction {
+    pub fn schema() -> Vec<ParamType> {
         // TODO: refactor according to tx type
-        let transaction_param_type = ParamType::Tuple(vec![
+        vec![
             ParamType::Uint(8),                                       // `txType`
-            ParamType::Address,                                       // sender
-            ParamType::Address,                                       // to
+            ParamType::Uint(256),                                       // sender
+            ParamType::Uint(256),                                       // to
             ParamType::Uint(256),                                     // gasLimit
             ParamType::Uint(256),                                     // `gasPerPubdataLimit`
             ParamType::Uint(256),                                     // maxFeePerGas
             ParamType::Uint(256),                                     // maxPriorityFeePerGas
-            ParamType::Address,                                       // paymaster
+            ParamType::Uint(256),                                       // paymaster
             ParamType::Uint(256),                                     // nonce (serial ID)
             ParamType::Uint(256),                                     // value
-            ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
+            ParamType::FixedArray(ParamType::Uint(256).into(), 4), // reserved
             ParamType::Bytes,                                         // calldata
             ParamType::Bytes,                                         // signature
             ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
             ParamType::Bytes,                                         // paymaster input
             ParamType::Bytes,                                         // `reservedDynamic`
-        ]);
+        ]
+    }
 
-        let mut dec_ev = decode(
-            &[
-                ParamType::Uint(256),                         // tx ID
-                ParamType::FixedBytes(32),                    // tx hash
-                ParamType::Uint(64),                          // expiration block
-                transaction_param_type,                       // transaction data
-                ParamType::Array(Box::new(ParamType::Bytes)), // factory deps
-            ],
-            &event.data.0,
-        )?;
+    pub fn decode(tokens: Vec<Token>) -> anyhow::Result<Self> {
+        anyhow::ensure!(tokens.len()==16);
+        let mut t = tokens.into_iter();
+        let mut next = || t.next().unwrap();
+        Ok(Self {
+            tx_type: next().into_uint().context("tx_type")?,
+            from: next().into_uint().context("from")?,
+            to: next().into_uint().context("to")?,
+            gas_limit: next().into_uint().context("gas_limit")?,
+            gas_per_pubdata_byte_limit: next().into_uint().context("gas_per_pubdata_byte_limit")?,
+            max_fee_per_gas: next().into_uint().context("max_fee_per_gas")?,
+            max_priority_fee_per_gas: next().into_uint().context("max_priority_fee_per_gas")?,
+            paymaster: next().into_uint().context("paymaster")?,
+            nonce: next().into_uint().context("nonce")?,
+            value: next().into_uint().context("value")?,
+            reserved: next()
+                .into_fixed_array().context("reserved")?
+                .into_iter().enumerate().map(|(i,t)|t.into_uint().context(i))
+                .collect::<Result<Vec<_>,_>>()
+                .context("reserved")? 
+                .try_into()
+                .ok().context("reserved")?,
+            data: next().into_bytes().context("data")?,
+            signature: next().into_bytes().context("signature")?,
+            factory_deps: next().into_array().context("factory_deps")?
+                .into_iter().enumerate().map(|(i,t)|t.into_uint().context(i))
+                .collect::<Result<_,_>>()
+                .context("factory_deps")?,
+            paymaster_input: next().into_bytes().context("paymaster_input")?,
+            reserved_dynamic: next().into_bytes().context("reserved_dynamic")?,
+        })
+    }
 
-        let eth_hash = event
-            .transaction_hash
-            .expect("Event transaction hash is missing");
-        let eth_block = event
-            .block_number
-            .expect("Event block number is missing")
-            .as_u64();
+    pub fn encode(self) -> Vec<Token> {
+        vec![
+            Token::Uint(self.tx_type),
+            Token::Uint(self.from),
+            Token::Uint(self.to),
+            Token::Uint(self.gas_limit),
+            Token::Uint(self.gas_per_pubdata_byte_limit),
+            Token::Uint(self.max_fee_per_gas),
+            Token::Uint(self.max_priority_fee_per_gas),
+            Token::Uint(self.paymaster),
+            Token::Uint(self.nonce),
+            Token::Uint(self.value),
+            Token::FixedArray(self.reserved.into_iter().map(Token::Uint).collect()),
+            Token::Bytes(self.data),
+            Token::Bytes(self.signature),
+            Token::Array(self.factory_deps.into_iter().map(Token::Uint).collect()),
+            Token::Bytes(self.paymaster_input),
+            Token::Bytes(self.reserved_dynamic),
+        ]
+    }
+}
 
-        let serial_id = PriorityOpId(
-            dec_ev
-                .remove(0)
-                .into_uint()
-                .as_ref()
-                .map(U256::as_u64)
-                .unwrap(),
-        );
-
-        let canonical_tx_hash = H256::from_slice(&dec_ev.remove(0).into_fixed_bytes().unwrap());
-
-        let deadline_block = dec_ev.remove(0).into_uint().unwrap().as_u64();
-
-        // Decoding transaction bytes
-        let mut transaction = match dec_ev.remove(0) {
-            Token::Tuple(tx) => tx,
-            _ => unreachable!(),
-        };
-
-        assert_eq!(transaction.len(), 16);
-
-        let tx_type = transaction.remove(0).into_uint().unwrap();
-        assert_eq!(tx_type.clone(), U256::from(PRIORITY_OPERATION_L2_TX_TYPE));
-
-        let sender = transaction.remove(0).into_address().unwrap();
-        let contract_address = transaction.remove(0).into_address().unwrap();
-
-        let gas_limit = transaction.remove(0).into_uint().unwrap();
-
-        let gas_per_pubdata_limit = transaction.remove(0).into_uint().unwrap();
-
-        let max_fee_per_gas = transaction.remove(0).into_uint().unwrap();
-
-        let max_priority_fee_per_gas = transaction.remove(0).into_uint().unwrap();
-        assert_eq!(max_priority_fee_per_gas, U256::zero());
-
-        let paymaster = transaction.remove(0).into_address().unwrap();
-        assert_eq!(paymaster, H160::zero());
-
-        let serial_id_from_tx = transaction.remove(0).into_uint().unwrap();
-        assert_eq!(serial_id_from_tx, serial_id.0.into()); // serial id from decoded from transaction bytes should be equal to one from event
-
-        let msg_value = transaction.remove(0).into_uint().unwrap();
-
-        let reserved = transaction
-            .remove(0)
-            .into_fixed_array()
-            .unwrap()
-            .into_iter()
-            .map(|token| token.into_uint().unwrap())
-            .collect::<Vec<_>>();
-        assert_eq!(reserved.len(), 4);
-
-        let to_mint = reserved[0];
-        let refund_recipient = u256_to_account_address(&reserved[1]);
-
-        // All other reserved fields should be zero
-        for item in reserved.iter().skip(2) {
-            assert_eq!(item, &U256::zero());
+impl From<L1Tx> for NewPriorityRequest {
+    fn from(t:L1Tx) -> Self {
+        Self {
+            tx_id: t.common_data.serial_id.0.into(),
+            tx_hash: t.common_data.canonical_tx_hash.to_fixed_bytes(),
+            expiration_timestamp: t.common_data.deadline_block,
+            transaction: L2CanonicalTransaction {
+                tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
+                from: address_to_u256(&t.common_data.sender),
+                to: address_to_u256(&t.execute.contract_address),
+                gas_limit: t.common_data.gas_limit,
+                gas_per_pubdata_byte_limit: t.common_data.gas_per_pubdata_limit,
+                max_fee_per_gas: t.common_data.max_fee_per_gas,
+                max_priority_fee_per_gas: 0.into(),
+                paymaster: 0.into(),
+                nonce: t.common_data.serial_id.0.into(),
+                value: t.execute.value,
+                reserved: [
+                    t.common_data.to_mint,
+                    address_to_u256(&t.common_data.refund_recipient),
+                    0.into(),
+                    0.into(),
+                ],
+                data: t.execute.calldata,
+                signature: vec![],
+                factory_deps: vec![], // TODO: t.execute.factory_deps.hash(),
+                paymaster_input: vec![],
+                reserved_dynamic: vec![],
+            },
+            factory_deps: t.execute.factory_deps.unwrap(),
         }
+    }
+}
 
-        let calldata = transaction.remove(0).into_bytes().unwrap();
+impl TryFrom<NewPriorityRequest> for L1Tx {
+    type Error = L1TxParseError;
 
-        let signature = transaction.remove(0).into_bytes().unwrap();
-        assert_eq!(signature.len(), 0);
-
+    fn try_from(req: NewPriorityRequest) -> Result<Self, Self::Error> {
+        assert_eq!(req.transaction.tx_type,PRIORITY_OPERATION_L2_TX_TYPE.into());
+        assert_eq!(req.transaction.nonce, req.tx_id); // serial id from decoded from transaction bytes should be equal to one from event
+        assert_eq!(req.transaction.max_priority_fee_per_gas,U256::zero());
+        assert_eq!(req.transaction.paymaster,U256::zero());
+        // TODO: verify tx hash.
+        // TODO: verify factory_deps hashes
+        for item in &req.transaction.reserved[2..] { assert_eq!(item,&U256::zero()); }
+        assert!(req.transaction.signature.is_empty());
         // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
-        let _factory_deps_hashes = transaction.remove(0).into_array().unwrap();
-        let _paymaster_input = transaction.remove(0).into_bytes().unwrap();
-        let _reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
-
-        // Decoding metadata
-
-        // Finally, decode the factory dependencies
-        let factory_deps = match dec_ev.remove(0) {
-            Token::Array(factory_deps) => factory_deps,
-            _ => unreachable!(),
-        };
-
-        let factory_deps = factory_deps
-            .into_iter()
-            .map(|token| token.into_bytes().unwrap())
-            .collect::<Vec<_>>();
+        assert!(req.transaction.paymaster_input.is_empty());
+        assert!(req.transaction.reserved_dynamic.is_empty());
 
         let common_data = L1TxCommonData {
-            serial_id,
-            canonical_tx_hash,
-            sender,
-            deadline_block,
+            serial_id: PriorityOpId(req.transaction.nonce.try_into().unwrap()),
+            canonical_tx_hash: H256::from_slice(&req.tx_hash),
+            sender: u256_to_account_address(&req.transaction.from),
+            deadline_block: req.expiration_timestamp,
             layer_2_tip_fee: U256::zero(),
-            to_mint,
-            refund_recipient,
+            to_mint: req.transaction.reserved[0], 
+            refund_recipient: u256_to_account_address(&req.transaction.reserved[1]),
             full_fee: U256::zero(),
-            gas_limit,
-            max_fee_per_gas,
-            gas_per_pubdata_limit,
+            gas_limit: req.transaction.gas_limit,
+            max_fee_per_gas: req.transaction.max_fee_per_gas,
+            gas_per_pubdata_limit: req.transaction.gas_per_pubdata_byte_limit,
             op_processing_type: OpProcessingType::Common,
             priority_queue_type: PriorityQueueType::Deque,
-            eth_hash,
-            eth_block,
+            eth_hash: H256::default(),
+            eth_block: 0,
         };
 
         let execute = Execute {
-            contract_address,
-            calldata: calldata.to_vec(),
-            factory_deps: Some(factory_deps),
-            value: msg_value,
+            contract_address: u256_to_account_address(&req.transaction.to),
+            calldata: req.transaction.data,
+            factory_deps: Some(req.factory_deps),
+            value: req.transaction.value,
         };
         Ok(Self {
             common_data,
             execute,
-            received_timestamp_ms: unix_timestamp_ms(),
+            received_timestamp_ms: 0,
         })
+    }
+}
+
+impl TryFrom<Log> for L1Tx {
+    type Error = L1TxParseError;
+
+    fn try_from(event: Log) -> Result<Self, Self::Error> {
+        let tokens = decode(&NewPriorityRequest::schema(),&event.data.0)?;
+        let mut tx: L1Tx = NewPriorityRequest::decode(tokens).unwrap().try_into()?;    
+        tx.common_data.eth_hash = event.transaction_hash.expect("Event transaction hash is missing");
+        tx.common_data.eth_block = event.block_number.expect("Event block number is missing").try_into().unwrap();
+        tx.received_timestamp_ms = unix_timestamp_ms();
+        Ok(tx)
     }
 }
