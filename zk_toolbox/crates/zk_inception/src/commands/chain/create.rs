@@ -4,16 +4,9 @@ use common::{logger, spinner::Spinner};
 use xshell::Shell;
 
 use crate::commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal};
-use crate::{
-    commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
-    configs::{ChainConfig, EcosystemConfig, SaveConfig},
-    consts::{CONFIG_NAME, LOCAL_CONFIGS_PATH, LOCAL_DB_PATH, WALLETS_FILE},
-    messages::{
-        MSG_CHAIN_CREATED, MSG_CREATING_CHAIN, MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER,
-        MSG_SELECTED_CONFIG,
-    },
-    types::ChainId,
-    wallets::create_wallets,
+use crate::messages::{
+    MSG_CHAIN_CREATED, MSG_CREATING_CHAIN, MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER,
+    MSG_SELECTED_CONFIG,
 };
 use config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,

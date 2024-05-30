@@ -14,13 +14,8 @@ use crate::{
         MSG_LINK_TO_CODE_SELECTION_PATH, MSG_REPOSITORY_ORIGIN_PROMPT, MSG_START_CONTAINERS_HELP,
         MSG_START_CONTAINERS_PROMPT,
     },
-    types::L1Network,
-    wallets::WalletCreation,
 };
-use strum_macros::{Display, EnumIter};
 use types::{L1Network, WalletCreation};
-
-use crate::commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct EcosystemCreateArgs {

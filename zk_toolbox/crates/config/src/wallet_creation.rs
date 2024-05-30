@@ -7,7 +7,6 @@ use xshell::Shell;
 
 use crate::{
     consts::{BASE_PATH, TEST_CONFIG_PATH},
-    messages::MSG_WALLET_PATH_REQUIRED_ERR,
     traits::{ReadConfig, SaveConfigWithBasePath},
     EthMnemonicConfig, WalletsConfig,
 };
@@ -29,7 +28,9 @@ pub fn create_wallets(
         // Use id of chain for creating
         WalletCreation::Localhost => create_localhost_wallets(shell, link_to_code, id)?,
         WalletCreation::InFile => {
-            let path = initial_wallet_path.ok_or(anyhow::anyhow!(MSG_WALLET_PATH_REQUIRED_ERR))?;
+            let path = initial_wallet_path.ok_or(anyhow::anyhow!(
+                "Wallet path for in file option is required"
+            ))?;
             WalletsConfig::read(shell, path)?
         }
     };

@@ -4,16 +4,11 @@ use anyhow::Context;
 use common::cmd::Cmd;
 use xshell::{cmd, Shell};
 
-use crate::{
-    configs::ChainConfig,
-    consts::{CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE, WALLETS_FILE},
-    messages::MSG_FAILED_TO_RUN_SERVER_ERR,
-};
+use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
 use config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, GeneralConfig, GenesisConfig,
     SecretsConfig, WalletsConfig,
 };
-use xshell::{cmd, Shell};
 
 pub struct RunServer {
     components: Option<Vec<String>>,

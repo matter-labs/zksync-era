@@ -19,10 +19,7 @@ use crate::{
         MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP, MSG_WALLET_CREATION_PROMPT,
         MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
     },
-    types::{BaseToken, L1BatchCommitDataGeneratorMode, ProverMode},
-    wallets::WalletCreation,
 };
-use ethers::types::Address;
 use types::{BaseToken, L1BatchCommitDataGeneratorMode, ProverMode, WalletCreation};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]

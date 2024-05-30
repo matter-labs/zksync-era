@@ -8,6 +8,7 @@ use common::{
 use xshell::Shell;
 
 use super::args::init::InitArgsFinal;
+use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_SELECTED_CONFIG};
 use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
@@ -22,10 +23,6 @@ use crate::{
     },
 };
 use crate::{config_manipulations::update_genesis, forge_utils::check_the_balance};
-use crate::{
-    forge_utils::check_the_balance,
-    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_SELECTED_CONFIG},
-};
 use config::{
     copy_configs,
     forge_interface::{

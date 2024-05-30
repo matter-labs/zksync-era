@@ -5,21 +5,13 @@ use anyhow::bail;
 use common::{cmd::Cmd, logger, spinner::Spinner};
 use xshell::{cmd, Shell};
 
-use crate::commands::{
-    chain::create_chain_inner,
-    containers::{initialize_docker, start_containers},
-    ecosystem::{
-        args::create::EcosystemCreateArgs,
-        create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-    },
+use crate::commands::ecosystem::{
+    args::create::EcosystemCreateArgs,
+    create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
 };
 use crate::commands::{
     chain::create_chain_inner,
     containers::{initialize_docker, start_containers},
-    ecosystem::{
-        args::create::EcosystemCreateArgs,
-        create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-    },
 };
 use crate::messages::{
     MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATED_ECOSYSTEM, MSG_CREATING_DEFAULT_CHAIN_SPINNER,

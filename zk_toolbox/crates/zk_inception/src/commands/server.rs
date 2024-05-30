@@ -4,7 +4,6 @@ use xshell::Shell;
 
 use crate::{
     commands::args::RunServerArgs,
-    configs::{ChainConfig, EcosystemConfig},
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_STARTING_SERVER},
     server::{RunServer, ServerMode},
 };

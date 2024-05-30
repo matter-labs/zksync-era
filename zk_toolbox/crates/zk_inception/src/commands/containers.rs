@@ -1,16 +1,12 @@
 use anyhow::{anyhow, Context};
 use common::{docker, logger, spinner::Spinner};
+use config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
 use std::path::PathBuf;
 use xshell::Shell;
 
-use crate::{
-    configs::{EcosystemConfig, DOCKER_COMPOSE_FILE},
-    consts::DOCKER_COMPOSE_FILE,
-    messages::{
-        MSG_CONTAINERS_STARTED, MSG_FAILED_TO_FIND_ECOSYSTEM_ERR,
-        MSG_RETRY_START_CONTAINERS_PROMPT, MSG_STARTING_CONTAINERS,
-        MSG_STARTING_DOCKER_CONTAINERS_SPINNER,
-    },
+use crate::messages::{
+    MSG_CONTAINERS_STARTED, MSG_FAILED_TO_FIND_ECOSYSTEM_ERR, MSG_RETRY_START_CONTAINERS_PROMPT,
+    MSG_STARTING_CONTAINERS, MSG_STARTING_DOCKER_CONTAINERS_SPINNER,
 };
 
 pub fn run(shell: &Shell) -> anyhow::Result<()> {

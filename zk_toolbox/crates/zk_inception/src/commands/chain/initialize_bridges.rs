@@ -9,19 +9,8 @@ use common::{
 use xshell::{cmd, Shell};
 
 use crate::forge_utils::fill_forge_private_key;
+use crate::messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_INITIALIZING_BRIDGES_SPINNER};
 use crate::{config_manipulations::update_l2_shared_bridge, forge_utils::check_the_balance};
-use crate::{
-    configs::{
-        forge_interface::initialize_bridges::{
-            input::InitializeBridgeInput, output::InitializeBridgeOutput,
-        },
-        update_l2_shared_bridge, ChainConfig, EcosystemConfig, ReadConfig, SaveConfig,
-    },
-    consts::INITIALIZE_BRIDGES,
-    forge_utils::fill_forge_private_key,
-    messages::MSG_INITIALIZING_BRIDGES_SPINNER,
-};
-use crate::{forge_utils::check_the_balance, messages::MSG_CHAIN_NOT_INITIALIZED};
 use anyhow::Context;
 use config::{
     forge_interface::{

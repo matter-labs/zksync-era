@@ -2,21 +2,11 @@ use std::path::Path;
 
 use xshell::Shell;
 
-use crate::{
-    configs::{
-        forge_interface::deploy_ecosystem::input::{
-            Erc20DeploymentConfig, InitialDeploymentConfig,
-        },
-        SaveConfigWithComment,
-    },
-    consts::{ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE},
-    messages::{MSG_SAVE_ERC20_CONFIG_ATTENTION, MSG_SAVE_INITIAL_CONFIG_ATTENTION},
-};
+use crate::messages::{MSG_SAVE_ERC20_CONFIG_ATTENTION, MSG_SAVE_INITIAL_CONFIG_ATTENTION};
 use config::{
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
     traits::SaveConfigWithCommentAndBasePath,
 };
-use xshell::Shell;
 
 pub fn create_initial_deployments_config(
     shell: &Shell,

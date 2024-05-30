@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use ethers::types::H160;
 
 /// Common messages
@@ -152,9 +150,6 @@ pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 
-/// Wallet related messages
-pub(super) const MSG_WALLET_PATH_REQUIRED_ERR: &str = "Wallet path for in file option is required";
-
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
 
@@ -177,18 +172,4 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(address: &H160) -> Str
     format!(
         "Address {address:?} doesn't have enough money to deploy contracts do you want to continue?"
     )
-}
-
-/// Traits related messages
-pub(super) fn msg_failed_to_open_config_file_err(path: &Path) -> String {
-    format!(
-        "Failed to open config file. Please check if the file exists: {:?}",
-        path
-    )
-}
-pub(super) fn msg_failed_to_parse_config_file_err(path: &Path) -> String {
-    format!("Failed to parse config file {:?}.", path)
-}
-pub(super) fn msg_unsupported_file_extension_err(path: &Path) -> String {
-    format!("Unsupported file extension for config file {:?}.", path)
 }

@@ -6,17 +6,9 @@ use common::{
 };
 use xshell::Shell;
 
+use crate::messages::MSG_CHAIN_NOT_INITIALIZED;
 use crate::{config_manipulations::update_paymaster, forge_utils::check_the_balance};
-use crate::{
-    configs::{
-        forge_interface::paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
-        update_paymaster, ChainConfig, EcosystemConfig, ReadConfig, SaveConfig,
-    },
-    consts::DEPLOY_PAYMASTER,
-    forge_utils::fill_forge_private_key,
-    messages::MSG_DEPLOYING_PAYMASTER,
-};
-use crate::{forge_utils::check_the_balance, messages::MSG_CHAIN_NOT_INITIALIZED};
+use crate::{forge_utils::fill_forge_private_key, messages::MSG_DEPLOYING_PAYMASTER};
 use config::{
     forge_interface::{
         paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
