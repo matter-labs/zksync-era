@@ -9,7 +9,6 @@ use common::{
 };
 use xshell::{cmd, Shell};
 
-use crate::forge_utils::check_the_balance;
 use crate::{
     configs::{
         forge_interface::initialize_bridges::{
@@ -19,16 +18,18 @@ use crate::{
     },
     consts::INITIALIZE_BRIDGES,
     forge_utils::fill_forge_private_key,
+    messages::MSG_INITIALIZING_BRIDGES_SPINNER,
 };
+use crate::{forge_utils::check_the_balance, messages::MSG_CHAIN_NOT_INITIALIZED};
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
-        .context("Chain not initialized. Please create a chain first")?;
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let spinner = Spinner::new("Initializing bridges");
+    let spinner = Spinner::new(MSG_INITIALIZING_BRIDGES_SPINNER);
     initialize_bridges(shell, &chain_config, &ecosystem_config, args).await?;
     spinner.finish();
 

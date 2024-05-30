@@ -1,5 +1,7 @@
 /// Common messages
 pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
+pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
+    "Chain not initialized. Please create a chain first";
 
 /// Ecosystem create related messages
 pub(super) const MSG_L1_NETWORK_HELP: &str = "L1 Network";
@@ -40,8 +42,6 @@ pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_INITIALIZING_CHAIN: &str = "Initializing chain";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
-pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
-    "Chain not initialized. Please create a chain first";
 pub(super) const MSG_ECOSYSTEM_INITIALIZED: &str = "Ecosystem initialized successfully with chains";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_INTALLING_DEPS_SPINNER: &str = "Installing and building dependencies...";
@@ -112,3 +112,9 @@ pub(super) const MSG_INITIALIZING_SERVER_DATABASE: &str = "Initializing server d
 pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop server database";
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
+
+/// Chain initialize bridges related messages
+pub(super) const MSG_INITIALIZING_BRIDGES_SPINNER: &str = "Initializing bridges";
+
+/// Chain deploy paymaster related messages
+pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
