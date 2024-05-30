@@ -49,7 +49,7 @@ export const command = new Command('lint')
     .description('lint code')
     .option('--check')
     .arguments(`[extension] ${ARGS.join('|')}`)
-    .action(async (extension: typeof ARGS[number] | null, cmd: Command) => {
+    .action(async (extension: (typeof ARGS)[number] | null, cmd: Command) => {
         if (extension) {
             switch (extension) {
                 case 'rust':
