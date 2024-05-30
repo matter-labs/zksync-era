@@ -1,0 +1,14 @@
+[package]
+name = "prover_version"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+hex.workspace = true
+zksync_types.workspace = true

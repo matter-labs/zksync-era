@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    COUNT(*) AS \"count!\",\n                    circuit_id AS \"circuit_id!\",\n                    aggregation_round AS \"aggregation_round!\",\n                    status AS \"status!\",\n                    protocol_version AS \"protocol_version!\"\n                FROM\n                    prover_jobs_fri\n                WHERE\n                    status = 'queued'\n                    OR status = 'in_progress'\n                GROUP BY\n                    circuit_id,\n                    aggregation_round,\n                    status,\n                    protocol_version\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "circuit_id!",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "aggregation_round!",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "status!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "protocol_version!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "edd1c3d3b31e63c839dba1cd00e983cda046c798eb22a08909099cbbb397fef9"
+}

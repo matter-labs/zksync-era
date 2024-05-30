@@ -248,13 +248,15 @@ impl BlockReverter {
         storage_root_hash: H256,
     ) -> anyhow::Result<()> {
         let db = RocksDB::new(path).context("failed initializing RocksDB for Merkle tree")?;
-        let mut tree = ZkSyncTree::new_lightweight(db.into());
+        let mut tree =
+            ZkSyncTree::new_lightweight(db.into()).context("failed initializing Merkle tree")?;
 
         if tree.next_l1_batch_number() <= last_l1_batch_to_keep {
             tracing::info!("Tree is behind the L1 batch to roll back to; skipping");
             return Ok(());
         }
-        tree.roll_back_logs(last_l1_batch_to_keep);
+        tree.roll_back_logs(last_l1_batch_to_keep)
+            .context("cannot roll back Merkle tree")?;
 
         tracing::info!("Checking match of the tree root hash and root hash from Postgres");
         let tree_root_hash = tree.root_hash();
@@ -263,7 +265,7 @@ impl BlockReverter {
             "Mismatch between the tree root hash {tree_root_hash:?} and storage root hash {storage_root_hash:?} after rollback"
         );
         tracing::info!("Saving tree changes to disk");
-        tree.save();
+        tree.save().context("failed saving tree changes")?;
         Ok(())
     }
 
