@@ -60,6 +60,10 @@ pub(super) const MSG_SAVE_INITIAL_CONFIG_ATTENTION: &str =
 pub(super) const MSG_SAVE_ERC20_CONFIG_ATTENTION: &str =
     "ATTENTION: This file should be filled with the desired ERC20 tokens to deploy.";
 
+/// Ecosystem change default related messages
+pub(super) const MSG_CHAIN_DOESNT_EXIST_ERR_1: &str = "Chain with name";
+pub(super) const MSG_CHAIN_DOESNT_EXIST_ERR_2: &str = "doesnt exist, please choose one of";
+
 /// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
 pub(super) const MSG_WALLET_CREATION_HELP: &str = "Wallet options";
@@ -137,3 +141,13 @@ pub(super) const MSG_CONTAINERS_STARTED: &str = "Containers started successfully
 pub(super) const MSG_RETRY_START_CONTAINERS_PROMPT: &str =
     "Failed to start containers. Make sure there is nothing running on default ports for Ethereum node l1 and postgres. Want to try again?";
 pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosystem folder.";
+
+/// Server related messages
+pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
+pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
+
+/// Forge utils related messages
+pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
+pub(super) const MSG_ADDRESS_DOESNT_HAVE_ENOUGH_MONEY_PROMPT_PREFIX: &str = "Address";
+pub(super) const MSG_ADDRESS_DOESNT_HAVE_ENOUGH_MONEY_PROMPT: &str =
+    "doesn't have enough money to deploy contracts do you want to continue?";

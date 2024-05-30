@@ -7,6 +7,7 @@ use xshell::{cmd, Shell};
 use crate::{
     configs::ChainConfig,
     consts::{CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE, WALLETS_FILE},
+    messages::MSG_FAILED_TO_RUN_SERVER_ERR,
 };
 
 pub struct RunServer {
@@ -79,7 +80,7 @@ impl RunServer {
             cmd = cmd.with_force_run();
         }
 
-        cmd.run().context("Failed to run server")?;
+        cmd.run().context(MSG_FAILED_TO_RUN_SERVER_ERR)?;
         Ok(())
     }
 
