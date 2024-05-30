@@ -43,7 +43,15 @@ impl DataAvailabilityClient for GCSDAClient {
         Ok(DispatchResponse { blob_id: key })
     }
 
-    async fn get_inclusion_data(&self, _: String) -> Result<Option<InclusionData>, anyhow::Error> {
+    async fn get_inclusion_data(
+        &self,
+        key: String,
+    ) -> Result<Option<InclusionData>, anyhow::Error> {
+        let key_u32 = key.parse::<u32>().unwrap();
+        self.object_store
+            .get::<StorablePubdata>(L1BatchNumber(key_u32))
+            .await?;
+
         // Using default here because we don't get any inclusion data from GCS, thus there's
         // nothing to check on L1.
         return Ok(Some(InclusionData::default()));
