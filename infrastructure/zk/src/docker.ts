@@ -74,10 +74,7 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     let tagList = [
         'server-v2',
         'external-node',
-        'prover',
         'contract-verifier',
-        'prover-v2',
-        'circuit-synthesizer',
         'witness-generator',
         'prover-fri',
         'prover-gpu-fri',
@@ -95,11 +92,9 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         [
             'proof-fri-compressor',
             'proof-fri-gpu-compressor',
-            'prover',
             'prover-fri',
             'prover-fri-gateway',
             'prover-gpu-fri',
-            'prover-v2',
             'witness-generator',
             'witness-vector-generator'
         ].includes(image)
