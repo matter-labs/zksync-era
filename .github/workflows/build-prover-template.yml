@@ -149,11 +149,13 @@ jobs:
 
       - name: protocol-version
         # TODO: use -C flag, when it will become stable.
+        shell: bash
         run: |
           ci_run cargo build --release --manifest-path prover/Cargo.toml --bin prover_version
           PPV=$(ci_run prover/target/release/prover_version)
           echo Protocol version is ${PPV}
           echo "protocol_version=${PPV}" >> $GITHUB_OUTPUT
+          echo "PROTOCOL_VERSION=${PPV}" >> $GITHUB_ENV
 
       - name: update-images
         env:
@@ -171,10 +173,11 @@ jobs:
   
   copy-images:
     name: Copy images between docker registries
+    needs: build-images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      PROTOCOL_VERSION: ${{ needs.build-images.outputs.protocol_version }}
     runs-on: matterlabs-ci-runner
-    needs: build-images
     if: ${{ inputs.action == 'push' }}
     strategy:
       matrix:
@@ -198,6 +201,9 @@ jobs:
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+          docker buildx imagetools create \
+            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
       - name: Login and push to Europe GAR
         run: |
@@ -205,4 +211,7 @@ jobs:
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+          docker buildx imagetools create \
+            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }}
           
