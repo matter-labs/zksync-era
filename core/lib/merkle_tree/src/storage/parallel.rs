@@ -122,7 +122,7 @@ impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
             updated_version,
             command_sender,
             persistence_handle: HandleOrError::Handle(thread::spawn(move || {
-                Self::run_persistence(persistence_database, updated_version, &command_receiver)
+                Self::run_persistence(persistence_database, updated_version, command_receiver)
             })),
             commands: VecDeque::with_capacity(buffer_capacity),
         }
@@ -137,13 +137,17 @@ impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
     fn run_persistence(
         mut database: DB,
         updated_version: u64,
-        command_receiver: &mpsc::Receiver<Command>,
+        command_receiver: mpsc::Receiver<Command>,
     ) -> anyhow::Result<()> {
         let mut persisted_count = 0;
         while let Ok(command) = command_receiver.recv() {
             let command = match command {
                 Command::Persist(command) => command,
-                Command::Stop(_) => anyhow::bail!("emulated persistence crash"),
+                Command::Stop(_sender) => {
+                    // Ensure that `PersistenceThreadHandle::test_stop_processing()` returns after the processing loop terminates.
+                    drop(command_receiver);
+                    anyhow::bail!("emulated persistence crash");
+                }
             };
 
             tracing::debug!("Persisting patch #{persisted_count}");
