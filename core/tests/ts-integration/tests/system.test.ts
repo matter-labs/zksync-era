@@ -319,7 +319,7 @@ describe('System behavior checks', () => {
 
         // The current gas per pubdata depends on a lot of factors, so it wouldn't be sustainable to check the exact value.
         // We'll just check that it is greater than zero.
-        if (testMaster.environment().l1BatchCommitDataGeneratorMode !== DataAvailabityMode.Validium) {
+        if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Rollup) {
             expect(currentGasPerPubdata.toNumber()).toBeGreaterThan(0);
         } else {
             expect(currentGasPerPubdata.toNumber()).toEqual(0);
