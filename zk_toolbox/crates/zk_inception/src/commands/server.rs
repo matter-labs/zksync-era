@@ -1,10 +1,10 @@
 use anyhow::Context;
 use common::{config::global_config, logger};
+use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::{
     commands::args::RunServerArgs,
-    configs::{ChainConfig, EcosystemConfig},
     server::{RunServer, ServerMode},
 };
 

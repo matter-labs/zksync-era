@@ -2,7 +2,7 @@ import fs from 'fs';
 import { Command } from 'commander';
 import { DEFAULT_UPGRADE_PATH, getNameOfTheLastUpgrade, getTimestampInSeconds } from './utils';
 
-function createNewUpgrade(name, protocolVersion: number) {
+function createNewUpgrade(name, protocolVersion: string) {
     const timestamp = getTimestampInSeconds();
     const upgradePath = `${DEFAULT_UPGRADE_PATH}/${timestamp}-${name}`;
     fs.mkdirSync(upgradePath, { recursive: true });

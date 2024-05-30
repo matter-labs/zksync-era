@@ -971,3 +971,5 @@ upcasting
 foundryup
 uncached
 untrimmed
+UNNEST
+semver

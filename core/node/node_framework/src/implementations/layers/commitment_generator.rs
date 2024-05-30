@@ -30,7 +30,8 @@ impl WiringLayer for CommitmentGeneratorLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let main_pool = pool_resource.get().await?;
+        let pool_size = CommitmentGenerator::default_parallelism().get();
+        let main_pool = pool_resource.get_custom(pool_size).await?;
 
         let commitment_generator = CommitmentGenerator::new(main_pool, self.mode);
 

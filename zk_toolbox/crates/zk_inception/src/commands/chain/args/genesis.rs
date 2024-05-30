@@ -1,12 +1,10 @@
 use clap::Parser;
 use common::{slugify, Prompt};
+use config::{ChainConfig, DatabaseConfig, DatabasesConfig};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{
-    configs::{ChainConfig, DatabaseConfig, DatabasesConfig},
-    defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL, DATABASE_SERVER_URL},
-};
+use crate::defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL, DATABASE_SERVER_URL};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
 pub struct GenesisArgs {

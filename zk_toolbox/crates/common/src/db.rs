@@ -1,12 +1,13 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::{config::global_config, logger};
 use sqlx::{
     migrate::{Migrate, MigrateError, Migrator},
     Connection, PgConnection,
 };
 use url::Url;
 use xshell::Shell;
+
+use crate::{config::global_config, logger};
 
 pub async fn init_db(db_url: &Url, name: &str) -> anyhow::Result<()> {
     // Connect to the database.
