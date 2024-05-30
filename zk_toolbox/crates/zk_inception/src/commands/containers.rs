@@ -1,9 +1,9 @@
+use std::path::PathBuf;
+
 use anyhow::{anyhow, Context};
 use common::{docker, logger, spinner::Spinner};
-use std::path::PathBuf;
-use xshell::Shell;
-
 use config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
+use xshell::Shell;
 
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem =

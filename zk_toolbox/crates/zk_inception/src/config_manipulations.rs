@@ -1,6 +1,3 @@
-use xshell::Shell;
-
-use crate::defaults::{ROCKS_DB_STATE_KEEPER, ROCKS_DB_TREE};
 use config::{
     forge_interface::{
         initialize_bridges::output::InitializeBridgeOutput, paymaster::DeployPaymasterOutput,
@@ -10,6 +7,9 @@ use config::{
     ChainConfig, ContractsConfig, DatabasesConfig, GeneralConfig, GenesisConfig, SecretsConfig,
 };
 use types::ProverMode;
+use xshell::Shell;
+
+use crate::defaults::{ROCKS_DB_STATE_KEEPER, ROCKS_DB_TREE};
 
 pub(crate) fn update_genesis(shell: &Shell, config: &ChainConfig) -> anyhow::Result<()> {
     let mut genesis = GenesisConfig::read_with_base_path(shell, &config.configs)?;

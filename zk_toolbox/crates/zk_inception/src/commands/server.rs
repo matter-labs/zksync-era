@@ -1,12 +1,12 @@
 use anyhow::Context;
 use common::{config::global_config, logger};
+use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::{
     commands::args::RunServerArgs,
     server::{RunServer, ServerMode},
 };
-use config::{ChainConfig, EcosystemConfig};
 
 pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
