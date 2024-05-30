@@ -580,7 +580,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             self.write_transient_storage_value(ReducedTstoreLogQuery {
                 // We currently only support rollup shard id
                 shard_id: 0,
-                address: key.address().clone(),
+                address: *key.address(),
                 key: h256_to_u256(*key.key()),
                 written_value: U256::zero(),
                 read_value: current_value,
