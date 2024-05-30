@@ -19,7 +19,8 @@ use zksync_prover_fri_utils::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    basic_fri_types::CircuitIdRoundTuple, prover_dal::GpuProverInstanceStatus, ProtocolVersionId,
+    basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
+    prover_dal::GpuProverInstanceStatus,
 };
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
@@ -31,7 +32,7 @@ pub struct WitnessVectorGenerator {
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     zone: String,
     config: FriWitnessVectorGeneratorConfig,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
     max_attempts: u32,
 }
 
@@ -42,7 +43,7 @@ impl WitnessVectorGenerator {
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         zone: String,
         config: FriWitnessVectorGeneratorConfig,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
         max_attempts: u32,
     ) -> Self {
         Self {

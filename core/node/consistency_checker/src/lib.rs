@@ -150,17 +150,14 @@ impl LocalL1BatchCommitData {
         batch_number: L1BatchNumber,
         commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Option<Self>> {
-        let Some(storage_l1_batch) = storage
+        let Some(commit_tx_id) = storage
             .blocks_dal()
-            .get_storage_l1_batch(batch_number)
+            .get_eth_commit_tx_id(batch_number)
             .await?
         else {
             return Ok(None);
         };
 
-        let Some(commit_tx_id) = storage_l1_batch.eth_commit_tx_id else {
-            return Ok(None);
-        };
         let commit_tx_hash = storage
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
@@ -171,7 +168,7 @@ impl LocalL1BatchCommitData {
 
         let Some(l1_batch) = storage
             .blocks_dal()
-            .get_l1_batch_with_metadata(storage_l1_batch)
+            .get_l1_batch_metadata(batch_number)
             .await?
         else {
             return Ok(None);

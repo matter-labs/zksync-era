@@ -1,7 +1,10 @@
 use anyhow::Context as _;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_dal::{CoreDal, DalError};
-use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{
+    api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
+    L2BlockNumber,
+};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
@@ -90,17 +93,24 @@ impl EnNamespace {
         let mut storage = self.state.acquire_connection().await?;
         let genesis_batch = storage
             .blocks_dal()
-            .get_storage_l1_batch(L1BatchNumber(0))
+            .get_l1_batch_metadata(L1BatchNumber(0))
             .await
             .map_err(DalError::generalize)?
             .context("Genesis batch doesn't exist")?;
-
-        let protocol_version = genesis_batch
+        let minor = genesis_batch
+            .header
             .protocol_version
-            .context("Genesis is not finished")? as u16;
+            .context("Genesis is not finished")?;
+        let patch = storage
+            .protocol_versions_dal()
+            .first_patch_for_version(minor)
+            .await
+            .map_err(DalError::generalize)?
+            .context("Genesis is not finished")?;
+        let protocol_version = ProtocolSemanticVersion { minor, patch };
         let verifier_config = storage
             .protocol_versions_dal()
-            .l1_verifier_config_for_version(protocol_version.try_into().unwrap())
+            .l1_verifier_config_for_version(protocol_version)
             .await
             .context("Genesis is not finished")?;
         let fee_account = storage
@@ -112,31 +122,12 @@ impl EnNamespace {
 
         let config = GenesisConfig {
             protocol_version: Some(protocol_version),
-            genesis_root_hash: Some(H256::from_slice(
-                &genesis_batch.hash.context("Genesis is not finished")?,
-            )),
-            rollup_last_leaf_index: Some(
-                genesis_batch
-                    .rollup_last_leaf_index
-                    .context("Genesis is not finished")? as u64,
-            ),
-            genesis_commitment: Some(H256::from_slice(
-                &genesis_batch
-                    .commitment
-                    .context("Genesis is not finished")?,
-            )),
-            bootloader_hash: Some(H256::from_slice(
-                &genesis_batch
-                    .bootloader_code_hash
-                    .context("Genesis is not finished")?,
-            )),
-            default_aa_hash: Some(H256::from_slice(
-                &genesis_batch
-                    .default_aa_code_hash
-                    .context("Genesis is not finished")?,
-            )),
+            genesis_root_hash: Some(genesis_batch.metadata.root_hash),
+            rollup_last_leaf_index: Some(genesis_batch.metadata.rollup_last_leaf_index),
+            genesis_commitment: Some(genesis_batch.metadata.commitment),
+            bootloader_hash: Some(genesis_batch.header.base_system_contracts_hashes.bootloader),
+            default_aa_hash: Some(genesis_batch.header.base_system_contracts_hashes.default_aa),
             l1_chain_id: self.state.api_config.l1_chain_id,
-
             l2_chain_id: self.state.api_config.l2_chain_id,
             recursion_node_level_vk_hash: verifier_config.params.recursion_node_level_vk_hash,
             recursion_leaf_level_vk_hash: verifier_config.params.recursion_leaf_level_vk_hash,

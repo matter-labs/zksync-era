@@ -1,7 +1,14 @@
+use std::sync::Arc;
+
 use zksync_config::configs::{DatabaseSecrets, PostgresConfig};
+use zksync_dal::{ConnectionPool, Core};
+use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 
 use crate::{
-    implementations::resources::pools::{MasterPool, PoolResource, ProverPool, ReplicaPool},
+    implementations::resources::{
+        healthcheck::AppHealthCheckResource,
+        pools::{MasterPool, PoolResource, ProverPool, ReplicaPool},
+    },
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -74,19 +81,35 @@ impl WiringLayer for PoolsLayer {
             ));
         }
 
+        if self.with_master || self.with_replica {
+            if let Some(threshold) = self.config.slow_query_threshold() {
+                ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
+            }
+            if let Some(threshold) = self.config.long_connection_threshold() {
+                ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
+            }
+        }
+
         if self.with_master {
+            let pool_size = self.config.max_connections()?;
+            let pool_size_master = self.config.max_connections_master().unwrap_or(pool_size);
+
             context.insert_resource(PoolResource::<MasterPool>::new(
                 self.secrets.master_url()?,
-                self.config.max_connections()?,
-                self.config.statement_timeout(),
+                pool_size_master,
+                None,
+                None,
             ))?;
         }
 
         if self.with_replica {
+            // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
+            // on Postgres.
             context.insert_resource(PoolResource::<ReplicaPool>::new(
                 self.secrets.replica_url()?,
                 self.config.max_connections()?,
                 self.config.statement_timeout(),
+                self.config.acquire_timeout(),
             ))?;
         }
 
@@ -94,9 +117,30 @@ impl WiringLayer for PoolsLayer {
             context.insert_resource(PoolResource::<ProverPool>::new(
                 self.secrets.prover_url()?,
                 self.config.max_connections()?,
-                self.config.statement_timeout(),
+                None,
+                None,
             ))?;
         }
+
+        // Insert health checks for the core pool.
+        let connection_pool = if self.with_replica {
+            context
+                .get_resource::<PoolResource<ReplicaPool>>()
+                .await?
+                .get()
+                .await?
+        } else {
+            context
+                .get_resource::<PoolResource<MasterPool>>()
+                .await?
+                .get()
+                .await?
+        };
+        let db_health_check = ConnectionPoolHealthCheck::new(connection_pool);
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        app_health
+            .insert_custom_component(Arc::new(db_health_check))
+            .map_err(WiringError::internal)?;
 
         Ok(())
     }

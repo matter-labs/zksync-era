@@ -7846,7 +7846,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#9bbf7ffd2c38ee8b9667e96eaf0c111037fe976f"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#0c5cdca00cca4fa0a8c49147a11048c24f8a4b12"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8021,6 +8021,7 @@ dependencies = [
  "num_enum 0.7.2",
  "serde",
  "serde_json",
+ "serde_with",
  "strum",
  "thiserror",
  "tiny-keccak 2.0.2",
@@ -8931,6 +8932,7 @@ dependencies = [
  "zksync_dal",
  "zksync_db_connection",
  "zksync_health_check",
+ "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_types",
 ]
