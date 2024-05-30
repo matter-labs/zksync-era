@@ -4639,6 +4639,7 @@ dependencies = [
  "dialoguer",
  "hex",
  "prover_dal",
+ "serde_json",
  "sqlx",
  "strum",
  "tokio",
@@ -4654,6 +4655,7 @@ dependencies = [
  "zksync_prover_fri_types",
  "zksync_prover_interface",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
