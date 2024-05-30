@@ -424,8 +424,10 @@ impl BatchExecutor for TestBatchExecutorBuilder {
             self.txs.pop_front().unwrap(),
             self.rollback_set.clone(),
         );
-        let handle = tokio::task::spawn_blocking(move || executor.run());
-
+        let handle = tokio::task::spawn_blocking(move || {
+            executor.run();
+            Ok(())
+        });
         Some(BatchExecutorHandle::from_raw(handle, commands_sender))
     }
 }
@@ -829,10 +831,11 @@ impl BatchExecutor for MockBatchExecutor {
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
                         resp.send(default_vm_batch_result()).unwrap();
-                        return;
+                        break;
                     }
                 }
             }
+            anyhow::Ok(())
         });
         Some(BatchExecutorHandle::from_raw(handle, send))
     }
