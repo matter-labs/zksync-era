@@ -1,15 +1,14 @@
 use std::cell::OnceCell;
 
 use common::{logger, spinner::Spinner};
+use config::{
+    create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
+    EcosystemConfig,
+};
+use types::ChainId;
 use xshell::Shell;
 
-use crate::{
-    commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
-    configs::{ChainConfig, EcosystemConfig, SaveConfig},
-    consts::{CONFIG_NAME, LOCAL_CONFIGS_PATH, LOCAL_DB_PATH, WALLETS_FILE},
-    types::ChainId,
-    wallets::create_wallets,
-};
+use crate::commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal};
 
 pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -32,7 +31,7 @@ fn create(
     create_chain_inner(args, ecosystem_config, shell)?;
     if set_as_default {
         ecosystem_config.default_chain = name;
-        ecosystem_config.save(shell, CONFIG_NAME)?;
+        ecosystem_config.save_with_base_path(shell, ".")?;
     }
     spinner.finish();
 
@@ -48,8 +47,7 @@ pub(crate) fn create_chain_inner(
 ) -> anyhow::Result<()> {
     let default_chain_name = args.chain_name.clone();
     let chain_path = ecosystem_config.chains.join(&default_chain_name);
-    let chain_configs_path = shell.create_dir(chain_path.join(LOCAL_CONFIGS_PATH))?;
-    let chain_db_path = chain_path.join(LOCAL_DB_PATH);
+    let chain_configs_path = create_local_configs_dir(shell, &chain_path)?;
     let chain_id = ecosystem_config.list_of_chains().len() as u32;
 
     let chain_config = ChainConfig {
@@ -59,7 +57,7 @@ pub(crate) fn create_chain_inner(
         prover_version: args.prover_version,
         l1_network: ecosystem_config.l1_network,
         link_to_code: ecosystem_config.link_to_code.clone(),
-        rocks_db_path: chain_db_path,
+        rocks_db_path: ecosystem_config.get_chain_rocks_db_path(&default_chain_name),
         configs: chain_configs_path.clone(),
         l1_batch_commit_data_generator_mode: args.l1_batch_commit_data_generator_mode,
         base_token: args.base_token,
@@ -69,13 +67,13 @@ pub(crate) fn create_chain_inner(
 
     create_wallets(
         shell,
-        &chain_config.configs.join(WALLETS_FILE),
+        &chain_config.configs,
         &ecosystem_config.link_to_code,
         chain_id,
         args.wallet_creation,
         args.wallet_path,
     )?;
 
-    chain_config.save(shell, chain_path.join(CONFIG_NAME))?;
+    chain_config.save_with_base_path(shell, chain_path)?;
     Ok(())
 }

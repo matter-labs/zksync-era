@@ -5,12 +5,9 @@ use common::{slugify, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
+use types::{L1Network, WalletCreation};
 
-use crate::{
-    commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
-    types::L1Network,
-    wallets::WalletCreation,
-};
+use crate::commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct EcosystemCreateArgs {

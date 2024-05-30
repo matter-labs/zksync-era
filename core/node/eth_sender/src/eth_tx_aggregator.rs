@@ -18,7 +18,7 @@ use zksync_types::{
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
-    protocol_version::{L1VerifierConfig, VerifierParams},
+    protocol_version::{L1VerifierConfig, VerifierParams, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataDA,
     web3::{contract::Error as Web3ContractError, BlockNumber},
     Address, L2ChainId, ProtocolVersionId, H256, U256,
@@ -310,9 +310,15 @@ impl EthTxAggregator {
                     )),
                 ));
             }
-            let protocol_version_id = U256::from_big_endian(&multicall3_protocol_version)
-                .try_into()
-                .unwrap();
+
+            let protocol_version = U256::from_big_endian(&multicall3_protocol_version);
+            // In case the protocol version is smaller than `PACKED_SEMVER_MINOR_MASK`, it will mean that it is
+            // equal to the `protocol_version_id` value, since it the interface from before the semver was supported.
+            let protocol_version_id = if protocol_version < U256::from(PACKED_SEMVER_MINOR_MASK) {
+                ProtocolVersionId::try_from(protocol_version.as_u32() as u16).unwrap()
+            } else {
+                ProtocolVersionId::try_from_packed_semver(protocol_version).unwrap()
+            };
 
             return Ok(MulticallData {
                 base_system_contracts_hashes,

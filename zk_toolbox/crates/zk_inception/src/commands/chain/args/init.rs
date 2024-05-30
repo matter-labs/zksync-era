@@ -1,13 +1,12 @@
 use clap::Parser;
-use common::forge::ForgeScriptArgs;
-use common::Prompt;
+use common::{forge::ForgeScriptArgs, Prompt};
+use config::ChainConfig;
 use serde::{Deserialize, Serialize};
+use types::L1Network;
 use url::Url;
 
 use super::genesis::GenesisArgsFinal;
-use crate::defaults::LOCAL_RPC_URL;
-use crate::types::L1Network;
-use crate::{commands::chain::args::genesis::GenesisArgs, configs::ChainConfig};
+use crate::{commands::chain::args::genesis::GenesisArgs, defaults::LOCAL_RPC_URL};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct InitArgs {

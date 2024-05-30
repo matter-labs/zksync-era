@@ -12,10 +12,26 @@ use common::{
     spinner::Spinner,
     Prompt,
 };
+use config::{
+    forge_interface::{
+        deploy_ecosystem::{
+            input::{
+                DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
+            },
+            output::{DeployErc20Output, DeployL1Output},
+        },
+        script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS},
+    },
+    traits::{
+        FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
+        SaveConfigWithBasePath,
+    },
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
+};
+use types::{L1Network, ProverMode, WalletCreation};
 use xshell::{cmd, Shell};
 
 use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
-use crate::forge_utils::check_the_balance;
 use crate::{
     accept_ownership::accept_owner,
     commands::{
@@ -24,22 +40,8 @@ use crate::{
             create_erc20_deployment_config, create_initial_deployments_config,
         },
     },
-    configs::{
-        forge_interface::deploy_ecosystem::{
-            input::{
-                DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
-            },
-            output::{DeployErc20Output, DeployL1Output},
-        },
-        ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ReadConfig, SaveConfig,
-    },
-    consts::{
-        AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, CONFIGS_PATH, CONTRACTS_FILE, DEPLOY_ECOSYSTEM,
-        DEPLOY_ERC20, ECOSYSTEM_PATH, ERC20_CONFIGS_FILE, GENESIS_FILE,
-    },
-    forge_utils::fill_forge_private_key,
-    types::{L1Network, ProverMode},
-    wallets::WalletCreation,
+    consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+    forge_utils::{check_the_balance, fill_forge_private_key},
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -176,7 +178,7 @@ async fn init(
         initial_deployment_config,
     )
     .await?;
-    contracts.save(shell, ecosystem_config.config.clone().join(CONTRACTS_FILE))?;
+    contracts.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(contracts)
 }
 
@@ -188,12 +190,12 @@ async fn deploy_erc20(
     forge_args: ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<DeployErc20Output> {
-    let deploy_config_path = DEPLOY_ERC20.input(&ecosystem_config.link_to_code);
+    let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
     DeployErc20Config::new(erc20_deployment_config, contracts_config)
         .save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
-        .script(&DEPLOY_ERC20.script(), forge_args.clone())
+        .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
         .with_broadcast();
@@ -208,9 +210,11 @@ async fn deploy_erc20(
     forge.run(shell)?;
     spinner.finish();
 
-    let result =
-        DeployErc20Output::read(shell, DEPLOY_ERC20.output(&ecosystem_config.link_to_code))?;
-    result.save(shell, ecosystem_config.config.join(ERC20_CONFIGS_FILE))?;
+    let result = DeployErc20Output::read(
+        shell,
+        DEPLOY_ERC20_SCRIPT_PARAMS.output(&ecosystem_config.link_to_code),
+    )?;
+    result.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(result)
 }
 
@@ -254,14 +258,11 @@ async fn deploy_ecosystem(
 
     let ecosystem_contracts_path =
         ecosystem_contracts_path.unwrap_or_else(|| match ecosystem_config.l1_network {
-            L1Network::Localhost => ecosystem_config.config.join(CONTRACTS_FILE),
-            L1Network::Sepolia => ecosystem_config
-                .link_to_code
-                .join(ECOSYSTEM_PATH)
-                .join(ecosystem_config.l1_network.to_string().to_lowercase()),
-            L1Network::Mainnet => ecosystem_config
-                .link_to_code
-                .join(ECOSYSTEM_PATH)
+            L1Network::Localhost => {
+                ContractsConfig::get_path_with_base_path(&ecosystem_config.config)
+            }
+            L1Network::Sepolia | L1Network::Mainnet => ecosystem_config
+                .get_preexisting_configs_path()
                 .join(ecosystem_config.l1_network.to_string().to_lowercase()),
         });
 
@@ -275,13 +276,11 @@ async fn deploy_ecosystem_inner(
     initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = DEPLOY_ECOSYSTEM.input(&config.link_to_code);
+    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
 
-    let default_genesis_config = GenesisConfig::read(
-        shell,
-        config.link_to_code.join(CONFIGS_PATH).join(GENESIS_FILE),
-    )
-    .context("Context")?;
+    let default_genesis_config =
+        GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
+            .context("Context")?;
 
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
@@ -295,7 +294,7 @@ async fn deploy_ecosystem_inner(
     deploy_config.save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&config.path_to_foundry())
-        .script(&DEPLOY_ECOSYSTEM.script(), forge_args.clone())
+        .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url.clone())
         .with_broadcast();
@@ -312,7 +311,10 @@ async fn deploy_ecosystem_inner(
     forge.run(shell)?;
     spinner.finish();
 
-    let script_output = DeployL1Output::read(shell, DEPLOY_ECOSYSTEM.output(&config.link_to_code))?;
+    let script_output = DeployL1Output::read(
+        shell,
+        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.link_to_code),
+    )?;
     let mut contracts_config = ContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);
     accept_owner(

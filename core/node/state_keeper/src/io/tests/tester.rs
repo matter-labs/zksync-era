@@ -21,7 +21,7 @@ use zksync_types::{
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     l2::L2Tx,
-    protocol_version::L1VerifierConfig,
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
     tx::TransactionExecutionResult,
     L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
@@ -134,7 +134,10 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                ProtocolVersionId::latest(),
+                ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::latest(),
+                    patch: 0.into(),
+                },
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
                 L1VerifierConfig::default(),

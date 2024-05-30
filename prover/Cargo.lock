@@ -4670,7 +4670,6 @@ dependencies = [
 name = "prover_version"
 version = "0.1.0"
 dependencies = [
- "hex",
  "zksync_types",
 ]
 
@@ -7910,6 +7909,7 @@ dependencies = [
  "num_enum 0.7.2",
  "serde",
  "serde_json",
+ "serde_with",
  "strum",
  "thiserror",
  "tiny-keccak 2.0.2",

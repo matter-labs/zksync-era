@@ -330,7 +330,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     // Check that the L2 block and the protocol version for it are persisted.
     let persisted_protocol_version = storage
         .protocol_versions_dal()
-        .get_protocol_version(ProtocolVersionId::next())
+        .get_protocol_version_with_latest_patch(ProtocolVersionId::next())
         .await
         .unwrap()
         .expect("next protocol version not persisted");

@@ -1,22 +1,24 @@
-use std::path::Path;
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use anyhow::bail;
 use common::{cmd::Cmd, logger, spinner::Spinner};
+use config::{
+    create_local_configs_dir, create_wallets, get_default_era_chain_id,
+    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
+    ZKSYNC_ERA_GIT_REPO,
+};
 use xshell::{cmd, Shell};
 
-use crate::{
-    commands::{
-        chain::create_chain_inner,
-        containers::{initialize_docker, start_containers},
-        ecosystem::{
-            args::create::EcosystemCreateArgs,
-            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-        },
+use crate::commands::{
+    chain::create_chain_inner,
+    containers::{initialize_docker, start_containers},
+    ecosystem::{
+        args::create::EcosystemCreateArgs,
+        create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
     },
-    configs::{EcosystemConfig, EcosystemConfigFromFileError, SaveConfig},
-    consts::{CONFIG_NAME, ERA_CHAIN_ID, LOCAL_CONFIGS_PATH, WALLETS_FILE, ZKSYNC_ERA_GIT_REPO},
-    wallets::create_wallets,
 };
 
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -41,7 +43,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     shell.create_dir(ecosystem_name)?;
     shell.change_dir(ecosystem_name);
 
-    let configs_path = shell.create_dir(LOCAL_CONFIGS_PATH)?;
+    let configs_path = create_local_configs_dir(shell, ".")?;
 
     let link_to_code = if args.link_to_code.is_empty() {
         let spinner = Spinner::new("Cloning zksync-era repository...");
@@ -68,8 +70,8 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         link_to_code: link_to_code.clone(),
         chains: chains_path.clone(),
         config: configs_path,
+        era_chain_id: get_default_era_chain_id(),
         default_chain: default_chain_name.clone(),
-        era_chain_id: ERA_CHAIN_ID,
         prover_version: chain_config.prover_version,
         wallet_creation: args.wallet_creation,
         shell: shell.clone().into(),
@@ -78,13 +80,13 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     // Use 0 id for ecosystem  wallets
     create_wallets(
         shell,
-        &ecosystem_config.config.join(WALLETS_FILE),
+        &ecosystem_config.config,
         &ecosystem_config.link_to_code,
         0,
         args.wallet_creation,
         args.wallet_path,
     )?;
-    ecosystem_config.save(shell, CONFIG_NAME)?;
+    ecosystem_config.save_with_base_path(shell, ".")?;
     spinner.finish();
 
     let spinner = Spinner::new("Creating default chain...");

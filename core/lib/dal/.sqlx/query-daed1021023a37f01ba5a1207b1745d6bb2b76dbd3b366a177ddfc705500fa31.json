@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                recursion_scheduler_level_vk_hash,\n                recursion_node_level_vk_hash,\n                recursion_leaf_level_vk_hash,\n                recursion_circuits_set_vks_hash\n            FROM\n                protocol_patches\n            WHERE\n                minor = $1\n                AND patch = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "recursion_scheduler_level_vk_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "recursion_node_level_vk_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "recursion_leaf_level_vk_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "recursion_circuits_set_vks_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "daed1021023a37f01ba5a1207b1745d6bb2b76dbd3b366a177ddfc705500fa31"
+}

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use async_trait::async_trait;
 use multivm::{
     interface::{
@@ -67,17 +68,15 @@ impl BatchExecutor for MainBatchExecutor {
                 .block_on(
                     storage_factory.access_storage(&stop_receiver, l1_batch_params.number - 1),
                 )
-                .expect("failed getting access to state keeper storage")
+                .context("failed accessing state keeper storage")?
             {
                 executor.run(storage, l1_batch_params, system_env);
             } else {
                 tracing::info!("Interrupted while trying to access state keeper storage");
             }
+            anyhow::Ok(())
         });
-        Some(BatchExecutorHandle {
-            handle,
-            commands: commands_sender,
-        })
+        Some(BatchExecutorHandle::from_raw(handle, commands_sender))
     }
 }
 
@@ -111,19 +110,27 @@ impl CommandReceiver {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
                     let result = self.execute_tx(&tx, &mut vm);
-                    resp.send(result).unwrap();
+                    if resp.send(result).is_err() {
+                        break;
+                    }
                 }
                 Command::RollbackLastTx(resp) => {
                     self.rollback_last_tx(&mut vm);
-                    resp.send(()).unwrap();
+                    if resp.send(()).is_err() {
+                        break;
+                    }
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
                     self.start_next_l2_block(l2_block_env, &mut vm);
-                    resp.send(()).unwrap();
+                    if resp.send(()).is_err() {
+                        break;
+                    }
                 }
                 Command::FinishBatch(resp) => {
                     let vm_block_result = self.finish_batch(&mut vm);
-                    resp.send(vm_block_result).unwrap();
+                    if resp.send(vm_block_result).is_err() {
+                        break;
+                    }
 
                     // `storage_view` cannot be accessed while borrowed by the VM,
                     // so this is the only point at which storage metrics can be obtained
