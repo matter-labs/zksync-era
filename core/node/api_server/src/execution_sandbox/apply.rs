@@ -429,8 +429,6 @@ impl BlockArgs {
         )
     }
 
-    fn resolve_l2_block_header(&self) -> L2BlockHeader {}
-
     pub(crate) async fn resolve_block_info(
         &self,
         connection: &mut Connection<'_, Core>,
