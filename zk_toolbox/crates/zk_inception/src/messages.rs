@@ -1,3 +1,5 @@
+use ethers::types::H160;
+
 /// Common messages
 pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
 pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
@@ -150,6 +152,8 @@ pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 
 /// Forge utils related messages
 pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
-pub(super) const MSG_ADDRESS_DOESNT_HAVE_ENOUGH_MONEY_PROMPT_PREFIX: &str = "Address";
-pub(super) const MSG_ADDRESS_DOESNT_HAVE_ENOUGH_MONEY_PROMPT: &str =
-    "doesn't have enough money to deploy contracts do you want to continue?";
+pub(super) fn msg_address_doesnt_have_enough_money_prompt(address: &H160) -> String {
+    format!(
+        "Address {address:?} doesn't have enough money to deploy contracts do you want to continue?"
+    )
+}

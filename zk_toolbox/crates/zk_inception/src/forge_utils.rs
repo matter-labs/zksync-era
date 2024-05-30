@@ -1,9 +1,6 @@
 use crate::{
     consts::MINIMUM_BALANCE_FOR_WALLET,
-    messages::{
-        MSG_ADDRESS_DOESNT_HAVE_ENOUGH_MONEY_PROMPT,
-        MSG_ADDRESS_DOESNT_HAVE_ENOUGH_MONEY_PROMPT_PREFIX, MSG_DEPLOYER_PK_NOT_SET_ERR,
-    },
+    messages::{msg_address_doesnt_have_enough_money_prompt, MSG_DEPLOYER_PK_NOT_SET_ERR},
 };
 use anyhow::anyhow;
 use common::forge::ForgeScript;
@@ -28,11 +25,7 @@ pub async fn check_the_balance(forge: &ForgeScript) -> anyhow::Result<()> {
         .check_the_balance(MINIMUM_BALANCE_FOR_WALLET.into())
         .await?
     {
-        if common::PromptConfirm::new(format!(
-            "{MSG_ADDRESS_DOESNT_HAVE_ENOUGH_MONEY_PROMPT_PREFIX} {address:?} {MSG_ADDRESS_DOESNT_HAVE_ENOUGH_MONEY_PROMPT}"
-        ))
-        .ask()
-        {
+        if common::PromptConfirm::new(msg_address_doesnt_have_enough_money_prompt(&address)).ask() {
             break;
         }
     }
