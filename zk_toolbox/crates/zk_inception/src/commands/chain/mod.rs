@@ -11,7 +11,10 @@ use common::forge::ForgeScriptArgs;
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
-use crate::commands::chain::args::{create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs};
+use crate::{
+    commands::chain::args::{create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs},
+    configs::EcosystemConfig,
+};
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -27,12 +30,20 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
 }
 
-pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
+pub(crate) async fn run(
+    shell: &Shell,
+    args: ChainCommands,
+    ecosystem_config: EcosystemConfig,
+) -> anyhow::Result<()> {
     match args {
-        ChainCommands::Create(args) => create::run(args, shell),
-        ChainCommands::Init(args) => init::run(args, shell).await,
-        ChainCommands::Genesis(args) => genesis::run(args, shell).await,
-        ChainCommands::InitializeBridges(args) => initialize_bridges::run(args, shell).await,
-        ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
+        ChainCommands::Create(args) => create::run(args, shell, ecosystem_config),
+        ChainCommands::Init(args) => init::run(args, shell, ecosystem_config).await,
+        ChainCommands::Genesis(args) => genesis::run(args, shell, ecosystem_config).await,
+        ChainCommands::InitializeBridges(args) => {
+            initialize_bridges::run(args, shell, ecosystem_config).await
+        }
+        ChainCommands::DeployPaymaster(args) => {
+            deploy_paymaster::run(args, shell, ecosystem_config).await
+        }
     }
 }

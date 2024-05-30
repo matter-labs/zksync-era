@@ -1,9 +1,7 @@
 use std::path::Path;
 
-use anyhow::Context;
 use common::{
     cmd::Cmd,
-    config::global_config,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
@@ -21,13 +19,14 @@ use crate::{
     forge_utils::fill_forge_private_key,
 };
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_chain(chain_name)
-        .context("Chain not initialized. Please create a chain first")?;
+use super::init::load_global_config;
 
+pub async fn run(
+    args: ForgeScriptArgs,
+    shell: &Shell,
+    ecosystem_config: EcosystemConfig,
+) -> anyhow::Result<()> {
+    let chain_config = load_global_config(&ecosystem_config)?;
     let spinner = Spinner::new("Initializing bridges");
     initialize_bridges(shell, &chain_config, &ecosystem_config, args).await?;
     spinner.finish();
