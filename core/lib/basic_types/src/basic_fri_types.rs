@@ -184,6 +184,13 @@ impl TryFrom<i32> for AggregationRound {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
+pub struct JobIdentifiers {
+    pub circuit_id: u8,
+    pub aggregation_round: u8,
+    pub protocol_version: u16,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

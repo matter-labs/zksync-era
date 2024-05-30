@@ -120,8 +120,8 @@ mod tests {
 
     #[test]
     fn entries_in_empty_tree() {
-        let mut tree = MerkleTree::new(PatchSet::default());
-        tree.extend(vec![]);
+        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+        tree.extend(vec![]).unwrap();
         let missing_key = Key::from(123);
 
         let entries = tree.entries(0, &[missing_key]).unwrap();
@@ -136,9 +136,11 @@ mod tests {
 
     #[test]
     fn entries_in_single_node_tree() {
-        let mut tree = MerkleTree::new(PatchSet::default());
+        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
         let key = Key::from(987_654);
-        let output = tree.extend(vec![TreeEntry::new(key, 1, ValueHash::repeat_byte(1))]);
+        let output = tree
+            .extend(vec![TreeEntry::new(key, 1, ValueHash::repeat_byte(1))])
+            .unwrap();
         let missing_key = Key::from(123);
 
         let entries = tree.entries(0, &[key, missing_key]).unwrap();

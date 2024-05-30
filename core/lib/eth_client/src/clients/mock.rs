@@ -695,6 +695,7 @@ mod tests {
     async fn calling_contracts() {
         let client = MockEthereum::builder()
             .with_call_handler(|req, _block_id| {
+                let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
                 let call_signature = &req.data.as_ref().unwrap().0[..4];
                 let contract = zksync_contracts::hyperchain_contract();
                 let pricing_mode_sig = contract
@@ -709,15 +710,13 @@ mod tests {
                     sig if sig == pricing_mode_sig => {
                         ethabi::Token::Uint(0.into()) // "rollup" mode encoding
                     }
-                    sig if sig == protocol_version_sig => {
-                        ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
-                    }
+                    sig if sig == protocol_version_sig => ethabi::Token::Uint(packed_semver),
                     _ => panic!("unexpected call"),
                 }
             })
             .build();
 
-        let protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+        let l1_packed_protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
             .for_contract(
                 client.contract_addr(),
                 &zksync_contracts::hyperchain_contract(),
@@ -725,10 +724,9 @@ mod tests {
             .call(client.as_ref())
             .await
             .unwrap();
-        assert_eq!(
-            protocol_version,
-            (ProtocolVersionId::latest() as u16).into()
-        );
+        let expected_packed_protocol_version =
+            ProtocolVersionId::latest().into_packed_semver_with_patch(0);
+        assert_eq!(l1_packed_protocol_version, expected_packed_protocol_version);
 
         let commitment_mode: L1BatchCommitmentMode =
             CallFunctionArgs::new("getPubdataPricingMode", ())
