@@ -25,65 +25,67 @@ impl FriWitnessGeneratorQueueReporter {
         }
     }
 
-    async fn get_job_statistics(&self) -> HashMap<AggregationRound, JobCountStatistics> {
+    async fn get_job_statistics(
+        &self,
+    ) -> HashMap<(AggregationRound, ProtocolVersionId), JobCountStatistics> {
         let mut conn = self.pool.connection().await.unwrap();
-        HashMap::from([
-            (
-                AggregationRound::BasicCircuits,
-                conn.fri_witness_generator_dal()
-                    .get_witness_jobs_stats(AggregationRound::BasicCircuits)
-                    .await,
-            ),
-            (
-                AggregationRound::LeafAggregation,
-                conn.fri_witness_generator_dal()
-                    .get_witness_jobs_stats(AggregationRound::LeafAggregation)
-                    .await,
-            ),
-            (
-                AggregationRound::NodeAggregation,
-                conn.fri_witness_generator_dal()
-                    .get_witness_jobs_stats(AggregationRound::NodeAggregation)
-                    .await,
-            ),
-            (
-                AggregationRound::RecursionTip,
-                conn.fri_witness_generator_dal()
-                    .get_witness_jobs_stats(AggregationRound::RecursionTip)
-                    .await,
-            ),
-            (
-                AggregationRound::Scheduler,
-                conn.fri_witness_generator_dal()
-                    .get_witness_jobs_stats(AggregationRound::Scheduler)
-                    .await,
-            ),
-        ])
+        let mut result = HashMap::new();
+        result.extend(
+            conn.fri_witness_generator_dal()
+                .get_witness_jobs_stats(AggregationRound::BasicCircuits)
+                .await,
+        );
+        result.extend(
+            conn.fri_witness_generator_dal()
+                .get_witness_jobs_stats(AggregationRound::LeafAggregation)
+                .await,
+        );
+        result.extend(
+            conn.fri_witness_generator_dal()
+                .get_witness_jobs_stats(AggregationRound::NodeAggregation)
+                .await,
+        );
+        result.extend(
+            conn.fri_witness_generator_dal()
+                .get_witness_jobs_stats(AggregationRound::RecursionTip)
+                .await,
+        );
+        result.extend(
+            conn.fri_witness_generator_dal()
+                .get_witness_jobs_stats(AggregationRound::Scheduler)
+                .await,
+        );
+        result
     }
 }
 
-fn emit_metrics_for_round(round: AggregationRound, stats: JobCountStatistics) {
+fn emit_metrics_for_round(
+    round: AggregationRound,
+    protocol_version: ProtocolVersionId,
+    stats: &JobCountStatistics,
+) {
     if stats.queued > 0 || stats.in_progress > 0 {
         tracing::trace!(
-            "Found {} free and {} in progress {:?} FRI witness generators jobs",
+            "Found {} free and {} in progress {:?} FRI witness generators jobs for protocol version {}",
             stats.queued,
             stats.in_progress,
-            round
+            round,
+            protocol_version
         );
     }
 
     SERVER_METRICS.witness_generator_jobs_by_round[&(
         "queued",
         format!("{:?}", round),
-        ProtocolVersionId::current_prover_version().to_string(),
+        protocol_version.to_string(),
     )]
         .set(stats.queued as u64);
     SERVER_METRICS.witness_generator_jobs_by_round[&(
         "in_progress",
         format!("{:?}", round),
-        ProtocolVersionId::current_prover_version().to_string(),
+        protocol_version.to_string(),
     )]
-        .set(stats.queued as u64);
+        .set(stats.in_progress as u64);
 }
 
 #[async_trait]
@@ -92,31 +94,31 @@ impl PeriodicJob for FriWitnessGeneratorQueueReporter {
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stats_for_all_rounds = self.get_job_statistics().await;
-        let mut aggregated = JobCountStatistics::default();
-        for (round, stats) in stats_for_all_rounds {
-            emit_metrics_for_round(round, stats);
-            aggregated = aggregated + stats;
+        let mut aggregated = HashMap::<ProtocolVersionId, JobCountStatistics>::new();
+        for ((round, protocol_version), stats) in stats_for_all_rounds {
+            emit_metrics_for_round(round, protocol_version, &stats);
+
+            let entry = aggregated.entry(protocol_version).or_default();
+            entry.queued += stats.queued;
+            entry.in_progress += stats.in_progress;
         }
 
-        if aggregated.queued > 0 {
-            tracing::trace!(
-                "Found {} free {} in progress witness generators jobs",
-                aggregated.queued,
-                aggregated.in_progress
-            );
+        for (protocol_version, stats) in &aggregated {
+            if stats.queued > 0 || stats.in_progress > 0 {
+                tracing::trace!(
+                    "Found {} free {} in progress witness generators jobs for protocol version {}",
+                    stats.queued,
+                    stats.in_progress,
+                    protocol_version
+                );
+            }
+
+            SERVER_METRICS.witness_generator_jobs[&("queued", protocol_version.to_string())]
+                .set(stats.queued as u64);
+
+            SERVER_METRICS.witness_generator_jobs[&("in_progress", protocol_version.to_string())]
+                .set(stats.in_progress as u64);
         }
-
-        SERVER_METRICS.witness_generator_jobs[&(
-            "queued",
-            ProtocolVersionId::current_prover_version().to_string(),
-        )]
-            .set(aggregated.queued as u64);
-
-        SERVER_METRICS.witness_generator_jobs[&(
-            "in_progress",
-            ProtocolVersionId::current_prover_version().to_string(),
-        )]
-            .set(aggregated.in_progress as u64);
 
         Ok(())
     }

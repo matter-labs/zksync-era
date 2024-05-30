@@ -12,11 +12,10 @@ use xshell::Shell;
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
-    configs::{
-        update_general_config, update_secrets, ChainConfig, DatabasesConfig, EcosystemConfig,
-    },
+    config_manipulations::{update_database_secrets, update_general_config},
     server::{RunServer, ServerMode},
 };
+use config::{ChainConfig, DatabasesConfig, EcosystemConfig};
 
 const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
 const PROVER_MIGRATIONS: &str = "prover/prover_dal/migrations";
@@ -29,7 +28,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
         .context("Chain not initialized. Please create a chain first")?;
     let args = args.fill_values_with_prompt(&chain_config);
 
-    genesis(args, shell, &chain_config, &ecosystem_config).await?;
+    genesis(args, shell, &chain_config).await?;
     logger::outro("Genesis completed successfully");
 
     Ok(())
@@ -39,7 +38,6 @@ pub async fn genesis(
     args: GenesisArgsFinal,
     shell: &Shell,
     config: &ChainConfig,
-    ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     // Clean the rocksdb
     shell.remove_path(&config.rocks_db_path)?;
@@ -49,7 +47,7 @@ pub async fn genesis(
         .databases_config()
         .context("Database config was not fully generated")?;
     update_general_config(shell, config)?;
-    update_secrets(shell, config, &db_config, ecosystem_config)?;
+    update_database_secrets(shell, config, &db_config)?;
 
     logger::note(
         "Selected config:",

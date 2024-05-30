@@ -103,6 +103,7 @@ fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
     let mock = MockEthereum::builder().with_call_handler(move |call, _| {
         tracing::info!("L1 call: {call:?}");
         if call.to == Some(diamond_proxy_addr) {
+            let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
             let call_signature = &call.data.as_ref().unwrap().0[..4];
             let contract = zksync_contracts::hyperchain_contract();
             let pricing_mode_sig = contract
@@ -117,9 +118,7 @@ fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
                 sig if sig == pricing_mode_sig => {
                     return ethabi::Token::Uint(0.into()); // "rollup" mode encoding
                 }
-                sig if sig == protocol_version_sig => {
-                    return ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
-                }
+                sig if sig == protocol_version_sig => return ethabi::Token::Uint(packed_semver),
                 _ => { /* unknown call; panic below */ }
             }
         }

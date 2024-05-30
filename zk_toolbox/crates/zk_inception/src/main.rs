@@ -6,20 +6,16 @@ use common::{
 };
 use xshell::Shell;
 
-use crate::{
-    commands::{args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands},
-    configs::EcosystemConfig,
-};
+use crate::commands::{args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands};
+use config::EcosystemConfig;
 
 pub mod accept_ownership;
 mod commands;
-mod configs;
+mod config_manipulations;
 mod consts;
 mod defaults;
 pub mod forge_utils;
 pub mod server;
-mod types;
-mod wallets;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -35,7 +31,7 @@ pub enum InceptionSubcommands {
     /// Ecosystem related commands
     #[command(subcommand)]
     Ecosystem(EcosystemCommands),
-    /// Hyperchain related commands
+    /// Chain related commands
     #[command(subcommand)]
     Chain(ChainCommands),
     /// Run server

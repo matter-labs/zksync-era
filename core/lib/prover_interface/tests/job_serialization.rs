@@ -69,7 +69,9 @@ async fn prepare_basic_circuits_job_compatibility() {
 /// Simple test to check if we can succesfully parse the proof.
 #[tokio::test]
 async fn test_final_proof_deserialization() {
-    let proof = fs::read("./tests/l1_batch_proof_1.bin").await.unwrap();
+    let proof = fs::read("./tests/l1_batch_proof_1_0_24_0.bin")
+        .await
+        .unwrap();
 
     let results: L1BatchProofForL1 = bincode::deserialize(&proof).unwrap();
     assert_eq!(results.aggregation_result_coords[0][0], 0);
