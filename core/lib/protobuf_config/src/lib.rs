@@ -11,6 +11,7 @@ mod consensus;
 mod contract_verifier;
 mod contracts;
 mod database;
+mod en;
 mod eth;
 mod experimental;
 mod general;

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package zksync.config.en;
+
+
+message ExternalNode {
+  optional string main_node_url = 1; // required
+  optional uint64 l2_chain_id = 2; // required
+  optional uint64 l1_chain_id = 3; // required
+}

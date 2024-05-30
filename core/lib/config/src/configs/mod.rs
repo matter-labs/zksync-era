@@ -28,6 +28,7 @@ pub mod consensus;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod database;
+pub mod en_config;
 pub mod eth_sender;
 pub mod eth_watch;
 mod experimental;
