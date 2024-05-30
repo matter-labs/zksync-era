@@ -2,11 +2,13 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::cmd::Cmd;
+use xshell::{cmd, Shell};
+
+use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
 use config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, GeneralConfig, GenesisConfig,
     SecretsConfig, WalletsConfig,
 };
-use xshell::{cmd, Shell};
 
 pub struct RunServer {
     components: Option<Vec<String>>,
@@ -78,7 +80,7 @@ impl RunServer {
             cmd = cmd.with_force_run();
         }
 
-        cmd.run().context("Failed to run server")?;
+        cmd.run().context(MSG_FAILED_TO_RUN_SERVER_ERR)?;
         Ok(())
     }
 

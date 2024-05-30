@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_INITIALIZING_BRIDGES_SPINNER};
 use anyhow::Context;
 use common::{
     cmd::Cmd,
@@ -27,9 +28,9 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
-        .context("Chain not initialized. Please create a chain first")?;
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let spinner = Spinner::new("Initializing bridges");
+    let spinner = Spinner::new(MSG_INITIALIZING_BRIDGES_SPINNER);
     initialize_bridges(shell, &chain_config, &ecosystem_config, args).await?;
     spinner.finish();
 

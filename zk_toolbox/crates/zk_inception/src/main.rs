@@ -13,6 +13,7 @@ pub mod accept_ownership;
 mod commands;
 mod config_manipulations;
 mod consts;
+mod messages;
 mod defaults;
 pub mod forge_utils;
 pub mod server;
