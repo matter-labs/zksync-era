@@ -1,10 +1,12 @@
-use std::io::Write;
+use std::{io::Write, path::PathBuf};
 
-pub fn get_envfile() -> anyhow::Result<String> {
+use crate::helper::core_workspace_dir_or_current_dir;
+
+pub fn get_envfile() -> anyhow::Result<PathBuf> {
     if let Ok(envfile) = std::env::var("PLI__CONFIG") {
-        return Ok(envfile);
+        return Ok(envfile.into());
     }
-    Ok(std::env::var("ZKSYNC_HOME").map(|home| home + "/etc/pliconfig")?)
+    Ok(core_workspace_dir_or_current_dir().join("/etc/pliconfig"))
 }
 
 pub fn load_envfile(path: impl AsRef<std::path::Path>) -> anyhow::Result<()> {
