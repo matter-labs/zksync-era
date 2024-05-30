@@ -151,7 +151,7 @@ jobs:
         # TODO: use -C flag, when it will become stable.
         shell: bash
         run: |
-          ci_run cargo build --release --manifest-path prover/Cargo.toml --bin prover_version
+          ci_run bash -c "cd prover && cargo build --release --bin prover_version"
           PPV=$(ci_run prover/target/release/prover_version)
           echo Protocol version is ${PPV}
           echo "protocol_version=${PPV}" >> $GITHUB_OUTPUT
