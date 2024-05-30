@@ -5,7 +5,7 @@ use chrono::{NaiveDateTime, Utc};
 use rand::Rng;
 use tokio::sync::watch;
 use zksync_config::DADispatcherConfig;
-use zksync_da_layers::DataAvailabilityClient;
+use zksync_da_layers::{types::IsTransient, DataAvailabilityClient};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
@@ -165,7 +165,7 @@ async fn retry<T, E, Fut, F>(
     mut f: F,
 ) -> Result<T, E>
 where
-    E: std::fmt::Display,
+    E: std::fmt::Display + IsTransient,
     Fut: Future<Output = Result<T, E>>,
     F: FnMut() -> Fut,
 {
@@ -178,9 +178,10 @@ where
                 return Ok(result);
             }
             Err(err) => {
-                if retries > max_retries {
+                if !err.is_transient() || retries > max_retries {
                     return Err(err);
                 }
+
                 tracing::warn!(%err, "Failed DA dispatch request {retries}/{max_retries} for batch {batch_number}, retrying in {backoff_secs} seconds.");
                 retries += 1;
                 let sleep_duration = Duration::from_secs(backoff_secs)

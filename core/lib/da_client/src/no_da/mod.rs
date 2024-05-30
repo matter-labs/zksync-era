@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use zksync_da_layers::{
-    types::{DispatchResponse, InclusionData},
+    types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 
@@ -18,11 +18,11 @@ impl NoDAClient {
 
 #[async_trait]
 impl DataAvailabilityClient for NoDAClient {
-    async fn dispatch_blob(&self, _: u32, _: Vec<u8>) -> Result<DispatchResponse, anyhow::Error> {
+    async fn dispatch_blob(&self, _: u32, _: Vec<u8>) -> Result<DispatchResponse, DAError> {
         Ok(DispatchResponse::default())
     }
 
-    async fn get_inclusion_data(&self, _: String) -> Result<Option<InclusionData>, anyhow::Error> {
+    async fn get_inclusion_data(&self, _: String) -> Result<Option<InclusionData>, DAError> {
         return Ok(Some(InclusionData::default()));
     }
 

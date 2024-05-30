@@ -7,7 +7,7 @@ use std::{
 use async_trait::async_trait;
 use zksync_config::ObjectStoreConfig;
 use zksync_da_layers::{
-    types::{DispatchResponse, InclusionData},
+    types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -33,24 +33,35 @@ impl DataAvailabilityClient for GCSDAClient {
         &self,
         batch_number: u32,
         data: Vec<u8>,
-    ) -> Result<DispatchResponse, anyhow::Error> {
-        let key = self
+    ) -> Result<DispatchResponse, DAError> {
+        if let Err(err) = self
             .object_store
             .put(L1BatchNumber(batch_number), &StorablePubdata { data })
             .await
-            .unwrap();
+        {
+            return Err(DAError {
+                error: anyhow::Error::from(err),
+                is_transient: true,
+            });
+        }
 
-        Ok(DispatchResponse { blob_id: key })
+        Ok(DispatchResponse {
+            blob_id: batch_number.to_string(),
+        })
     }
 
-    async fn get_inclusion_data(
-        &self,
-        key: String,
-    ) -> Result<Option<InclusionData>, anyhow::Error> {
+    async fn get_inclusion_data(&self, key: String) -> Result<Option<InclusionData>, DAError> {
         let key_u32 = key.parse::<u32>().unwrap();
-        self.object_store
+        if let Err(err) = self
+            .object_store
             .get::<StorablePubdata>(L1BatchNumber(key_u32))
-            .await?;
+            .await
+        {
+            return Err(DAError {
+                error: anyhow::Error::from(err),
+                is_transient: true,
+            });
+        }
 
         // Using default here because we don't get any inclusion data from GCS, thus there's
         // nothing to check on L1.
