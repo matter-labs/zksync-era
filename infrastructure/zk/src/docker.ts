@@ -39,9 +39,7 @@ async function dockerCommand(
         ? process.env.IMAGE_TAG_SUFFIX
         : `${COMMIT_SHORT_SHA.trim()}-${UNIX_TIMESTAMP}`;
 
-    const protocolVersionTag: string = process.env.PROTOCOL_VERSION
-        ? process.env.PROTOCOL_VERSION
-        : '';
+    const protocolVersionTag: string = process.env.PROTOCOL_VERSION ? process.env.PROTOCOL_VERSION : '';
 
     // We want an alternative flow for Rust image
     if (image == 'rust') {
@@ -57,7 +55,9 @@ async function dockerCommand(
         image = 'keybase-secret';
     }
 
-    const tagList = customTag ? [customTag] : defaultTagList(image, COMMIT_SHORT_SHA.trim(), imageTagShaTS, protocolVersionTag);
+    const tagList = customTag
+        ? [customTag]
+        : defaultTagList(image, COMMIT_SHORT_SHA.trim(), imageTagShaTS, protocolVersionTag);
 
     // Main build\push flow
     switch (command) {
@@ -90,18 +90,21 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         ? ['latest', 'latest2.0', `2.0-${imageTagSha}`, `${imageTagSha}`, `2.0-${imageTagShaTS}`, `${imageTagShaTS}`]
         : [`latest2.0`, 'latest'];
 
-    if (protocolVersionTag && [
-        'proof-fri-compressor',
-        'proof-fri-gpu-compressor',
-        'prover',
-        'prover-fri',
-        'prover-fri-gateway',
-        'prover-gpu-fri',
-        'prover-v2',
-        'witness-generator',
-        'witness-vector-generator',
-    ].includes(image)) {
-        tagList.push([`2.0-${protocolVersionTag}-${imageTagShaTS}`, `${protocolVersionTag}-${imageTagShaTS}`])
+    if (
+        protocolVersionTag &&
+        [
+            'proof-fri-compressor',
+            'proof-fri-gpu-compressor',
+            'prover',
+            'prover-fri',
+            'prover-fri-gateway',
+            'prover-gpu-fri',
+            'prover-v2',
+            'witness-generator',
+            'witness-vector-generator'
+        ].includes(image)
+    ) {
+        tagList.push([`2.0-${protocolVersionTag}-${imageTagShaTS}`, `${protocolVersionTag}-${imageTagShaTS}`]);
     }
 
     return tagList;
