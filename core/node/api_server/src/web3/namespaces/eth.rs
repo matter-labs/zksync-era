@@ -70,8 +70,8 @@ impl EthNamespace {
         );
         drop(connection);
 
-        if request.gas_limit.is_none() {
-            request.gas_limit = Some(
+        if request.gas.is_none() {
+            request.gas = Some(
                 self.state
                     .tx_sender
                     .get_default_eth_call_gas(block_args)

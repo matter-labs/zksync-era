@@ -149,8 +149,8 @@ impl DebugNamespace {
                 .diff_with_block_args(&block_args),
         );
 
-        if request.gas_limit.is_none() {
-            request.gas_limit = Some(
+        if request.gasne() {
+            request.gase(
                 self.state
                     .tx_sender
                     .get_default_eth_call_gas(block_args)
