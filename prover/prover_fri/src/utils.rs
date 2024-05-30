@@ -24,7 +24,8 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    L1BatchNumber, ProtocolVersionId,
+    protocol_version::ProtocolSemanticVersion,
+    L1BatchNumber,
 };
 
 use crate::metrics::METRICS;
@@ -64,7 +65,7 @@ pub async fn save_proof(
     public_blob_store: Option<&dyn ObjectStore>,
     shall_save_to_public_bucket: bool,
     connection: &mut Connection<'_, Prover>,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
 ) {
     tracing::info!(
         "Successfully proven job: {}, total time taken: {:?}",

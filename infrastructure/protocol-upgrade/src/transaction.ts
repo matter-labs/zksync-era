@@ -16,7 +16,9 @@ import {
     getL2TransactionsFileName,
     getPostUpgradeCalldataFileName,
     getL2UpgradeFileName,
-    VerifierParams
+    VerifierParams,
+    unpackStringSemVer,
+    packSemver
 } from './utils';
 import fs from 'fs';
 import { Command } from 'commander';
@@ -254,9 +256,10 @@ export function buildDefaultUpgradeTx(
     postUpgradeCalldataFlag
 ) {
     const commonData = JSON.parse(fs.readFileSync(getCommonDataFileName(), { encoding: 'utf-8' }));
-    const protocolVersion = commonData.protocolVersion;
+    const protocolVersionSemVer: string = commonData.protocolVersion;
+    const packedProtocolVersion = packSemver(...unpackStringSemVer(protocolVersionSemVer));
     console.log(
-        `Building default upgrade tx for ${environment} protocol version ${protocolVersion} upgradeTimestamp ${upgradeTimestamp} `
+        `Building default upgrade tx for ${environment} protocol version ${protocolVersionSemVer} upgradeTimestamp ${upgradeTimestamp} `
     );
     let facetCuts = [];
     let facetCutsFileName = getFacetCutsFileName(environment);
@@ -316,7 +319,7 @@ export function buildDefaultUpgradeTx(
 
     let proposeUpgradeTx = buildProposeUpgrade(
         ethers.BigNumber.from(upgradeTimestamp),
-        protocolVersion,
+        packedProtocolVersion,
         '0x',
         postUpgradeCalldata,
         cryptoVerifierParams,
@@ -349,7 +352,8 @@ export function buildDefaultUpgradeTx(
         proposeUpgradeTx,
         l1upgradeCalldata,
         upgradeAddress,
-        protocolVersion,
+        protocolVersionSemVer,
+        packedProtocolVersion,
         diamondUpgradeProposalId,
         upgradeTimestamp,
         ...upgradeData
