@@ -266,6 +266,8 @@ impl FriProofCompressorDal<'_, '_> {
                 ) AS in_progress
             FROM
                 proof_compression_jobs_fri
+            WHERE
+                protocol_version IS NOT NULL
             GROUP BY
                 status,
                 protocol_version
@@ -275,16 +277,13 @@ impl FriProofCompressorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| match row.protocol_version {
-            Some(protocol_version) => {
-                let key = ProtocolVersionId::try_from(protocol_version as u16).unwrap();
-                let value = JobCountStatistics {
-                    queued: row.queued.unwrap() as usize,
-                    in_progress: row.in_progress.unwrap() as usize,
-                };
-                (key, value)
-            }
-            None => {}
+        .map(|row| {
+            let key = ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap();
+            let value = JobCountStatistics {
+                queued: row.queued.unwrap() as usize,
+                in_progress: row.in_progress.unwrap() as usize,
+            };
+            (key, value)
         })
         .collect()
     }
