@@ -122,3 +122,9 @@ pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
+
+/// Wallet related messages
+pub(super) const MSG_WALLET_PATH_REQUIRED_ERR: &str = "Wallet path for in file option is required";
+
+/// Accept ownership related messages
+pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
