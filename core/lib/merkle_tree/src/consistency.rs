@@ -283,11 +283,12 @@ mod tests {
     const SECOND_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0100_0000]);
 
     fn prepare_database() -> PatchSet {
-        let mut tree = MerkleTree::new(PatchSet::default());
+        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
         tree.extend(vec![
             TreeEntry::new(FIRST_KEY, 1, H256([1; 32])),
             TreeEntry::new(SECOND_KEY, 2, H256([2; 32])),
-        ]);
+        ])
+        .unwrap();
         tree.db
     }
 
@@ -315,7 +316,7 @@ mod tests {
             .num_threads(1)
             .build()
             .expect("failed initializing `rayon` thread pool");
-        thread_pool.install(|| MerkleTree::new(db).verify_consistency(0, true))
+        thread_pool.install(|| MerkleTree::new(db).unwrap().verify_consistency(0, true))
     }
 
     #[test]

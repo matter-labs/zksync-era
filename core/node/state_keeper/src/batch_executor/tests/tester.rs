@@ -17,8 +17,8 @@ use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
-    block::L2BlockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
-    storage_writes_deduplicator::StorageWritesDeduplicator,
+    block::L2BlockHasher, ethabi::Token, fee::Fee, protocol_version::ProtocolSemanticVersion,
+    snapshots::SnapshotRecoveryStatus, storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
     StorageKey, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
@@ -244,7 +244,10 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                ProtocolVersionId::latest(),
+                ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::latest(),
+                    patch: 0.into(),
+                },
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
                 Default::default(),

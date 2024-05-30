@@ -467,7 +467,7 @@ pub struct L1BatchMetaParameters {
     pub zkporter_is_available: bool,
     pub bootloader_code_hash: H256,
     pub default_aa_code_hash: H256,
-    pub protocol_version: ProtocolVersionId,
+    pub protocol_version: Option<ProtocolVersionId>,
 }
 
 impl L1BatchMetaParameters {
@@ -478,7 +478,10 @@ impl L1BatchMetaParameters {
         result.extend(self.bootloader_code_hash.as_bytes());
         result.extend(self.default_aa_code_hash.as_bytes());
 
-        if self.protocol_version.is_post_1_5_0() {
+        if self
+            .protocol_version
+            .map_or(false, |ver| ver.is_post_1_5_0())
+        {
             // EVM simulator hash for now is the same as the default AA hash.
             result.extend(self.default_aa_code_hash.as_bytes());
         }
@@ -543,13 +546,12 @@ pub struct L1BatchCommitmentHash {
 }
 
 impl L1BatchCommitment {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(input: CommitmentInput) -> Self {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: input.common().bootloader_code_hash,
             default_aa_code_hash: input.common().default_aa_code_hash,
-            protocol_version: input.common().protocol_version,
+            protocol_version: Some(input.common().protocol_version),
         };
 
         Self {
