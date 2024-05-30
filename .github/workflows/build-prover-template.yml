@@ -162,7 +162,7 @@ jobs:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
         run: |
-          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH" \
+          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH,PROTOCOL_VERSION" \
           ci_run zk docker $DOCKER_ACTION $COMPONENT
 
       - name: Show sccache stats
