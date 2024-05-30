@@ -24,8 +24,9 @@ use crate::{
     consts::{CONTRACTS_FILE, REGISTER_CHAIN},
     forge_utils::fill_forge_private_key,
     messages::{
-        MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED, MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR,
-        MSG_GENESIS_DATABASE_ERR, MSG_INITIALIZING_CHAIN, MSG_REGISTERING_CHAIN_SPINNER,
+        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
+        MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR,
+        MSG_REGISTERING_CHAIN_SPINNER,
     },
 };
 use crate::{configs::update_l1_rpc_url_secret, messages::MSG_CHAIN_NOT_FOUND_ERR};
@@ -40,7 +41,7 @@ pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     let mut args = args.fill_values_with_prompt(&chain_config);
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
-    logger::info(MSG_INITIALIZING_CHAIN);
+    logger::info(msg_initializing_chain(""));
 
     init(&mut args, shell, &config, &chain_config).await?;
 

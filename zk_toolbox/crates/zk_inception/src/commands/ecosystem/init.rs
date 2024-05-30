@@ -38,18 +38,16 @@ use crate::{
     },
     forge_utils::fill_forge_private_key,
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
+        msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
+        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
         MSG_DEPLOYING_ERC20_SPINNER, MSG_DISTRIBUTING_ETH_SPINNER,
         MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
-        MSG_INTALLING_DEPS_SPINNER,
+        MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
     },
     types::{L1Network, ProverMode},
     wallets::WalletCreation,
 };
-use crate::{
-    forge_utils::check_the_balance,
-    messages::{MSG_ECOSYSTEM_INITIALIZED, MSG_INITIALIZING_CHAIN, MSG_INITIALIZING_ECOSYSTEM},
-};
+use crate::{forge_utils::check_the_balance, messages::msg_ecosystem_initialized};
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -97,7 +95,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     };
 
     for chain_name in &list_of_chains {
-        logger::info(format!("{MSG_INITIALIZING_CHAIN} {chain_name}"));
+        logger::info(msg_initializing_chain(&chain_name));
         let chain_config = ecosystem_config
             .load_chain(Some(chain_name.clone()))
             .context(MSG_CHAIN_NOT_INITIALIZED)?;
@@ -125,10 +123,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         .await?;
     }
 
-    logger::outro(format!(
-        "{MSG_ECOSYSTEM_INITIALIZED} {}",
-        list_of_chains.join(",")
-    ));
+    logger::outro(msg_ecosystem_initialized(&list_of_chains.join(",")));
 
     Ok(())
 }

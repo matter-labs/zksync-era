@@ -5,26 +5,25 @@ use common::files::{save_json_file, save_toml_file, save_yaml_file};
 use serde::{de::DeserializeOwned, Serialize};
 use xshell::Shell;
 
+use crate::messages::{
+    msg_failed_to_open_config_file_err, msg_failed_to_parse_config_file_err,
+    msg_unsupported_file_extension_err,
+};
+
 /// Reads a config file from a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
 pub trait ReadConfig: DeserializeOwned + Clone {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let file = shell.read_file(&path).with_context(|| {
-            format!(
-                "Failed to open config file. Please check if the file exists: {:?}",
-                path.as_ref()
-            )
-        })?;
-        let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());
+        let file = shell
+            .read_file(&path)
+            .with_context(|| msg_failed_to_open_config_file_err(path.as_ref()))?;
+        let error_context = || msg_failed_to_parse_config_file_err(path.as_ref());
 
         match path.as_ref().extension().and_then(|ext| ext.to_str()) {
             Some("yaml") | Some("yml") => serde_yaml::from_str(&file).with_context(error_context),
             Some("toml") => toml::from_str(&file).with_context(error_context),
             Some("json") => serde_json::from_str(&file).with_context(error_context),
-            _ => bail!(format!(
-                "Unsupported file extension for config file {:?}.",
-                path.as_ref()
-            )),
+            _ => bail!(msg_unsupported_file_extension_err(path.as_ref())),
         }
     }
 }

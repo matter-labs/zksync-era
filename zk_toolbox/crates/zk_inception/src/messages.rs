@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use ethers::types::H160;
 
 /// Common messages
@@ -44,9 +46,7 @@ pub(super) const MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR: &str = "Ecosystem contracts
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
-pub(super) const MSG_INITIALIZING_CHAIN: &str = "Initializing chain";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
-pub(super) const MSG_ECOSYSTEM_INITIALIZED: &str = "Ecosystem initialized successfully with chains";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_INTALLING_DEPS_SPINNER: &str = "Installing and building dependencies...";
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
@@ -54,6 +54,14 @@ pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
+
+pub(super) fn msg_initializing_chain(chain_name: &str) -> String {
+    format!("Initializing chain {chain_name}")
+}
+
+pub(super) fn msg_ecosystem_initialized(chains: &str) -> String {
+    format!("Ecosystem initialized successfully with chains {chains}")
+}
 
 /// Ecosystem default related messages
 pub(super) const MSG_DEFAULT_CHAIN_PROMPT: &str = "What chain you want to set as default?";
@@ -106,10 +114,6 @@ pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
 pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";
 pub(super) const MSG_PROVER_DB_NAME_HELP: &str = "Prover database name";
 pub(super) const MSG_GENESIS_USE_DEFAULT_HELP: &str = "Use default database urls and names";
-pub(super) const MSG_SERVER_DB_URL_PROMPT: &str = "Please provide server database url for chain";
-pub(super) const MSG_SERVER_DB_NAME_PROMPT: &str = "Please provide server database name for chain";
-pub(super) const MSG_PROVER_DB_URL_PROMPT: &str = "Please provide prover database url for chain";
-pub(super) const MSG_PROVER_DB_NAME_PROMPT: &str = "Please provide prover database name for chain";
 pub(super) const MSG_GENESIS_COMPLETED: &str = "Genesis completed successfully";
 pub(super) const MSG_GENESIS_DATABASE_CONFIG_ERR: &str = "Database config was not fully generated";
 pub(super) const MSG_STARTING_GENESIS: &str = "Starting genesis process";
@@ -120,6 +124,19 @@ pub(super) const MSG_INITIALIZING_SERVER_DATABASE: &str = "Initializing server d
 pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop server database";
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
+
+pub(super) fn msg_server_db_url_prompt(chain_name: &str) -> String {
+    format!("Please provide server database url for chain {chain_name}")
+}
+pub(super) fn msg_prover_db_url_prompt(chain_name: &str) -> String {
+    format!("Please provide prover database url for chain {chain_name}")
+}
+pub(super) fn msg_prover_db_name_prompt(chain_name: &str) -> String {
+    format!("Please provide prover database name for chain {chain_name}")
+}
+pub(super) fn msg_server_db_name_prompt(chain_name: &str) -> String {
+    format!("Please provide server database name for chain {chain_name}")
+}
 
 /// Chain initialize bridges related messages
 pub(super) const MSG_INITIALIZING_BRIDGES_SPINNER: &str = "Initializing bridges";
@@ -156,4 +173,18 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(address: &H160) -> Str
     format!(
         "Address {address:?} doesn't have enough money to deploy contracts do you want to continue?"
     )
+}
+
+/// Traits related messages
+pub(super) fn msg_failed_to_open_config_file_err(path: &Path) -> String {
+    format!(
+        "Failed to open config file. Please check if the file exists: {:?}",
+        path
+    )
+}
+pub(super) fn msg_failed_to_parse_config_file_err(path: &Path) -> String {
+    format!("Failed to parse config file {:?}.", path)
+}
+pub(super) fn msg_unsupported_file_extension_err(path: &Path) -> String {
+    format!("Unsupported file extension for config file {:?}.", path)
 }
