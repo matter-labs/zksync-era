@@ -17,9 +17,10 @@ use multivm::{
     interface::{ExecutionResult, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, watch, watch::Receiver};
 use zksync_contracts::BaseSystemContracts;
 use zksync_node_test_utils::create_l2_transaction;
+use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory};
 use zksync_types::{
     fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber,
     L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -204,6 +205,7 @@ impl TestScenario {
             Box::new(batch_executor_base),
             output_handler,
             Arc::new(sealer),
+            Arc::new(MockReadStorageFactory),
         );
         let sk_thread = tokio::spawn(state_keeper.run());
 
@@ -410,6 +412,7 @@ impl TestBatchExecutorBuilder {
 impl BatchExecutor for TestBatchExecutorBuilder {
     async fn init_batch(
         &mut self,
+        _storage_factory: Arc<dyn ReadStorageFactory>,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
         _stop_receiver: &watch::Receiver<bool>,
@@ -421,8 +424,10 @@ impl BatchExecutor for TestBatchExecutorBuilder {
             self.txs.pop_front().unwrap(),
             self.rollback_set.clone(),
         );
-        let handle = tokio::task::spawn_blocking(move || executor.run());
-
+        let handle = tokio::task::spawn_blocking(move || {
+            executor.run();
+            Ok(())
+        });
         Some(BatchExecutorHandle::from_raw(handle, commands_sender))
     }
 }
@@ -810,6 +815,7 @@ pub(crate) struct MockBatchExecutor;
 impl BatchExecutor for MockBatchExecutor {
     async fn init_batch(
         &mut self,
+        _storage_factory: Arc<dyn ReadStorageFactory>,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
         _stop_receiver: &watch::Receiver<bool>,
@@ -825,11 +831,27 @@ impl BatchExecutor for MockBatchExecutor {
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
                         resp.send(default_vm_batch_result()).unwrap();
-                        return;
+                        break;
                     }
                 }
             }
+            anyhow::Ok(())
         });
         Some(BatchExecutorHandle::from_raw(handle, send))
+    }
+}
+
+#[derive(Debug)]
+pub struct MockReadStorageFactory;
+
+#[async_trait]
+impl ReadStorageFactory for MockReadStorageFactory {
+    async fn access_storage(
+        &self,
+        _stop_receiver: &Receiver<bool>,
+        _l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
+        // Presume that the storage is never accessed in mocked environment
+        unimplemented!()
     }
 }

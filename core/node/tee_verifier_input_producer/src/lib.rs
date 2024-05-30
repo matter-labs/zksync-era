@@ -15,7 +15,7 @@ use multivm::zk_evm_latest::ethereum_types::H256;
 use tokio::{runtime::Handle, task::JoinHandle};
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, ReadStorage};
@@ -38,12 +38,12 @@ pub struct TeeVerifierInputProducer {
 impl TeeVerifierInputProducer {
     pub async fn new(
         connection_pool: ConnectionPool<Core>,
-        store_factory: &ObjectStoreFactory,
+        object_store: Arc<dyn ObjectStore>,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         Ok(TeeVerifierInputProducer {
             connection_pool,
-            object_store: store_factory.create_store().await,
+            object_store,
             l2_chain_id,
         })
     }

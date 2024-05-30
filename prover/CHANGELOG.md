@@ -1,5 +1,19 @@
 # Changelog
 
+## [14.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.2.0...prover-v14.3.0) (2024-05-23)
+
+
+### Features
+
+* **config:** remove zksync home ([#2022](https://github.com/matter-labs/zksync-era/issues/2022)) ([d08fe81](https://github.com/matter-labs/zksync-era/commit/d08fe81f4ec6c3aaeb5ad98351e44a63e5b100be))
+* **prover_cli:** add general status for batch command ([#1953](https://github.com/matter-labs/zksync-era/issues/1953)) ([7b0df3b](https://github.com/matter-labs/zksync-era/commit/7b0df3b22f04f1fdead308ec30572f565b34dd5c))
+* **prover:** add GPU feature for compressor ([#1838](https://github.com/matter-labs/zksync-era/issues/1838)) ([e9a2213](https://github.com/matter-labs/zksync-era/commit/e9a2213985928cd3804a3855ccfde6a7d99da238))
+
+
+### Bug Fixes
+
+* **prover:** Fix path to vk_setup_data_generator_server_fri ([#2025](https://github.com/matter-labs/zksync-era/issues/2025)) ([dbe4d6f](https://github.com/matter-labs/zksync-era/commit/dbe4d6f1724a458e61ab56cd94d17e1ecfa4c207))
+
 ## [14.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.1.1...prover-v14.2.0) (2024-05-17)
 
 

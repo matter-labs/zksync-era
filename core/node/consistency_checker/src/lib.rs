@@ -5,7 +5,10 @@ use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, Error as L1ClientError, EthInterface};
+use zksync_eth_client::{
+    clients::{DynClient, L1},
+    CallFunctionArgs, Error as L1ClientError, EthInterface,
+};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
@@ -147,17 +150,14 @@ impl LocalL1BatchCommitData {
         batch_number: L1BatchNumber,
         commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Option<Self>> {
-        let Some(storage_l1_batch) = storage
+        let Some(commit_tx_id) = storage
             .blocks_dal()
-            .get_storage_l1_batch(batch_number)
+            .get_eth_commit_tx_id(batch_number)
             .await?
         else {
             return Ok(None);
         };
 
-        let Some(commit_tx_id) = storage_l1_batch.eth_commit_tx_id else {
-            return Ok(None);
-        };
         let commit_tx_hash = storage
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
@@ -168,7 +168,7 @@ impl LocalL1BatchCommitData {
 
         let Some(l1_batch) = storage
             .blocks_dal()
-            .get_l1_batch_with_metadata(storage_l1_batch)
+            .get_l1_batch_metadata(batch_number)
             .await?
         else {
             return Ok(None);
@@ -305,7 +305,7 @@ pub struct ConsistencyChecker {
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
-    l1_client: Box<dyn EthInterface>,
+    l1_client: Box<DynClient<L1>>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -317,7 +317,7 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        l1_client: Box<dyn EthInterface>,
+        l1_client: Box<DynClient<L1>>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,

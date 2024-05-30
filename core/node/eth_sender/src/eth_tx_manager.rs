@@ -5,6 +5,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
+    clients::{DynClient, L1},
     encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError, Error,
     EthInterface, ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
 };
@@ -77,7 +78,7 @@ impl EthTxManager {
         }
     }
 
-    fn query_client(&self) -> &dyn EthInterface {
+    pub(crate) fn query_client(&self) -> &DynClient<L1> {
         (*self.ethereum_gateway).as_ref()
     }
 

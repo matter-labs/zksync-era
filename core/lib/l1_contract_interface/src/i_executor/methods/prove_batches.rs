@@ -31,6 +31,7 @@ impl Tokenize for &ProveBatches {
             let L1BatchProofForL1 {
                 aggregation_result_coords,
                 scheduler_proof,
+                ..
             } = self.proofs.first().unwrap();
 
             let (_, proof) = serialize_proof(scheduler_proof);

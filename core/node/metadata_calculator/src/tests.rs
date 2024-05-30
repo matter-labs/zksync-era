@@ -26,6 +26,7 @@ use zksync_utils::u32_to_h256;
 
 use super::{
     helpers::L1BatchWithLogs, GenericAsyncTree, MetadataCalculator, MetadataCalculatorConfig,
+    MetadataCalculatorRecoveryConfig,
 };
 
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
@@ -53,6 +54,7 @@ pub(super) fn mock_config(db_path: &Path) -> MetadataCalculatorConfig {
         include_indices_and_filters_in_block_cache: false,
         memtable_capacity: 16 << 20,            // 16 MiB
         stalled_writes_timeout: Duration::ZERO, // writes should never be stalled in tests
+        recovery: MetadataCalculatorRecoveryConfig::default(),
     }
 }
 

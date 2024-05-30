@@ -13,8 +13,8 @@ use zksync_node_test_utils::{
 use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::test_batch_executor::TestBatchExecutorBuilder,
-    OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
+    testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
+    OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{
     api,
@@ -105,7 +105,9 @@ impl StateKeeperHandles {
         let sync_state = SyncState::default();
         let (persistence, l2_block_sealer) =
             StateKeeperPersistence::new(pool.clone(), Address::repeat_byte(1), 5);
+        let tree_writes_persistence = TreeWritesPersistence::new(pool.clone());
         let output_handler = OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+            .with_handler(Box::new(tree_writes_persistence))
             .with_handler(Box::new(sync_state.clone()));
 
         tokio::spawn(l2_block_sealer.run());
@@ -130,6 +132,7 @@ impl StateKeeperHandles {
             Box::new(batch_executor_base),
             output_handler,
             Arc::new(NoopSealer),
+            Arc::new(MockReadStorageFactory),
         );
 
         Self {
@@ -323,7 +326,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     // Check that the L2 block and the protocol version for it are persisted.
     let persisted_protocol_version = storage
         .protocol_versions_dal()
-        .get_protocol_version(ProtocolVersionId::next())
+        .get_protocol_version_with_latest_patch(ProtocolVersionId::next())
         .await
         .unwrap()
         .expect("next protocol version not persisted");

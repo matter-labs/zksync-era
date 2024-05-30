@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE l1_batches\n            SET\n                tree_writes = $1\n            WHERE\n                number = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "120970162104e0560784ee4b8fa44a0202265d741912125f7865e570411997d7"
+}

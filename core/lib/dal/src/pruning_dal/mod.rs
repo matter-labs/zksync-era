@@ -443,25 +443,4 @@ impl PruningDal<'_, '_> {
         .await?;
         Ok(())
     }
-
-    // This method must be separate as VACUUM is not supported inside a transaction
-    pub async fn run_vacuum_after_hard_pruning(&mut self) -> DalResult<()> {
-        sqlx::query!(
-            r#"
-            VACUUM FREEZE l1_batches,
-            miniblocks,
-            storage_logs,
-            events,
-            call_traces,
-            l2_to_l1_logs,
-            transactions
-            "#,
-        )
-        .instrument("hard_prune_batches_range#vacuum")
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
-        Ok(())
-    }
 }
