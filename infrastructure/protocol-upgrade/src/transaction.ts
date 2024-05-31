@@ -219,16 +219,14 @@ interface VerifierParams {
 }
 
 // We should either reuse code or add a test for this function.
-function createInitialCutHash(
-    environment,
-) {
+function createInitialCutHash(environment) {
     let facetCuts = [];
     let facetCutsFileName = getFacetCutsFileName(environment);
     if (fs.existsSync(facetCutsFileName)) {
         console.log(`Found facet cuts file ${facetCutsFileName}`);
         facetCuts = JSON.parse(fs.readFileSync(facetCutsFileName).toString());
     }
-    
+
     // FIXME: potentially provide it in CLI
     const diamondInit = process.env.CONTRACTS_DIAMOND_INIT_ADDR;
     const blobVersionedHashRetriever = process.env.CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR;
@@ -252,7 +250,10 @@ function createInitialCutHash(
         throw new environment('L2 upgrade file is missing for STM init cut hash');
     }
 
-    if (l2BootloaderBytecodeHash === ethers.constants.HashZero || l2DefaultAccountBytecodeHash === ethers.constants.HashZero) {
+    if (
+        l2BootloaderBytecodeHash === ethers.constants.HashZero ||
+        l2DefaultAccountBytecodeHash === ethers.constants.HashZero
+    ) {
         throw new Error('Bootloader hash / default aa is missing');
     }
 
@@ -285,7 +286,7 @@ function createInitialCutHash(
         72_000_000,
         diamondInit,
         true
-    )
+    );
 }
 
 /// Prepares the upgrade data for the StateTransitionManager contract
@@ -301,9 +302,9 @@ function prepareUpgradeDataStm(
     let stm = new StateTransitionManagerFactory();
 
     // Updating a version on STM consists of two steps:
-    // 1. `setNewVersionUpgrade`. this increases the latest protocol version on STM as well as 
+    // 1. `setNewVersionUpgrade`. this increases the latest protocol version on STM as well as
     // provides the upgrade cut hash.
-    // 2. `setChainCreationParams`. this sets the initial cut hash for the new protocol version, i.e. 
+    // 2. `setChainCreationParams`. this sets the initial cut hash for the new protocol version, i.e.
     // it will ensure that any new chain that spawns will use this exact protocol version.
 
     // Step 1: `setNewVersionUpgrade`
@@ -316,7 +317,9 @@ function prepareUpgradeDataStm(
     ]);
 
     // Step 2. `setChainCreationParams`
-    const { genesisUpgrade, genesisBatchHash, genesisIndexRepeatedStorageChanges, genesisBatchCommitment } = JSON.parse(fs.readFileSync(getGenesisFileName(environment), { encoding: 'utf-8' }));
+    const { genesisUpgrade, genesisBatchHash, genesisIndexRepeatedStorageChanges, genesisBatchCommitment } = JSON.parse(
+        fs.readFileSync(getGenesisFileName(environment), { encoding: 'utf-8' })
+    );
     const setChainCreationParamsCalldata = stm.interface.encodeFunctionData('setChainCreationParams', [
         {
             genesisUpgrade,
@@ -352,15 +355,16 @@ export function prepareTransparentUpgradeCalldata(
 
     const stmInitCutHash = createInitialCutHash(environment);
 
-    const { scheduleCalldata: stmScheduleTransparentOperation, executeCalldata: stmExecuteOperation } = prepareUpgradeDataStm(
-        environment,
-        stmAddress,
-        diamondCut,
-        stmInitCutHash,
-        oldProtocolVersion,
-        oldProtocolVersionDeadline,
-        newProtocolVersion
-    );
+    const { scheduleCalldata: stmScheduleTransparentOperation, executeCalldata: stmExecuteOperation } =
+        prepareUpgradeDataStm(
+            environment,
+            stmAddress,
+            diamondCut,
+            stmInitCutHash,
+            oldProtocolVersion,
+            oldProtocolVersionDeadline,
+            newProtocolVersion
+        );
 
     // Prepare calldata for upgrading diamond proxy
     let adminFacet = new AdminFacetFactory();
