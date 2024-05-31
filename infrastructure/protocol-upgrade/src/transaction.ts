@@ -688,7 +688,6 @@ command
         fs.writeFileSync(getGenesisFileName(options.environment), JSON.stringify(genesisData, null, 2));
     });
 
-
 command
     .command('build-default')
     .requiredOption('--upgrade-timestamp <upgradeTimestamp>')
