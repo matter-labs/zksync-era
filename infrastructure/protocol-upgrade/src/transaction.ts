@@ -6,7 +6,8 @@ import {
     AdminFacetFactory,
     GovernanceFactory,
     StateTransitionManagerFactory,
-    DiamondInitFactory
+    DiamondInitFactory,
+    ProxyAdminFactory
 } from 'l1-contracts/typechain';
 import { FacetCut } from 'l1-contracts/src.ts/diamondCut';
 import { IZkSyncFactory } from '../pre-boojum/IZkSyncFactory';
@@ -691,6 +692,21 @@ command
             genesisBatchCommitment: options.genesisBatchCommitment
         };
         fs.writeFileSync(getGenesisFileName(options.environment), JSON.stringify(genesisData, null, 2));
+    });
+
+command
+    .command('proxy-upgrade-calldata')
+    .option('--proxy-admin <proxyAdmin>')
+    .option('--proxy <proxy>')
+    .option('--implementation <implementation>')
+    .action(async (options) => {
+        const proxyAdminFactory = new ProxyAdminFactory();
+        const encodedData = proxyAdminFactory.interface.encodeFunctionData('upgrade', [
+            options.proxy,
+            options.implementation
+        ]);
+        
+        console.log(JSON.stringify(prepareGovernanceTxs([options.proxyAdmin], [encodedData]), null, 2));
     });
 
 command
