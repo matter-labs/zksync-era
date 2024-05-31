@@ -22,7 +22,7 @@ use crate::{
 
 /// Subset of a [`PatchSet`] corresponding to a specific version. All nodes in the subset
 /// have the same version.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(super) struct PartialPatchSet {
     pub root: Option<Root>,
     // TODO (BFT-130): investigate most efficient ways to store key-value pairs:

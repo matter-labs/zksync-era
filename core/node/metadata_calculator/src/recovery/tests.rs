@@ -177,10 +177,9 @@ impl HandleRecoveryEvent for TestEventListener {
 
         let mut persistence_handle = self.persistence_handle.lock().unwrap();
         if let Some((_, crash_threshold)) = &*persistence_handle {
-            if dbg!(processed_chunk_count) >= dbg!(*crash_threshold) {
+            if processed_chunk_count >= *crash_threshold {
                 let (handle, _) = persistence_handle.take().unwrap();
                 handle.test_stop_processing();
-                dbg!("stopped");
             }
         }
     }
