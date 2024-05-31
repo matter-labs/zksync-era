@@ -45,7 +45,7 @@ impl GenesisArgs {
         } else {
             let server_db_url = self.server_db_url.unwrap_or_else(|| {
                 Prompt::new(&msg_server_db_url_prompt(&chain_name))
-                    .default(DATABASE_SERVER_URL)
+                    .default(DATABASE_SERVER_URL.as_str())
                     .ask()
             });
             let server_db_name = slugify(&self.server_db_name.unwrap_or_else(|| {
@@ -55,7 +55,7 @@ impl GenesisArgs {
             }));
             let prover_db_url = self.prover_db_url.unwrap_or_else(|| {
                 Prompt::new(&msg_prover_db_url_prompt(&chain_name))
-                    .default(DATABASE_PROVER_URL)
+                    .default(DATABASE_PROVER_URL.as_str())
                     .ask()
             });
             let prover_db_name = slugify(&self.prover_db_name.unwrap_or_else(|| {
