@@ -4672,7 +4672,7 @@ dependencies = [
 name = "prover_version"
 version = "0.1.0"
 dependencies = [
- "zksync_types",
+ "zksync_prover_fri_types",
 ]
 
 [[package]]
