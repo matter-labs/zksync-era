@@ -1,6 +1,7 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
 use test_casing::test_casing;
+use zksync_base_token_fetcher::NoOpConversionRateFetcher;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::MockEthereum;
 use zksync_types::commitment::L1BatchCommitmentMode;
@@ -48,6 +49,8 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
     // 5 sampled blocks + additional block to account for latest block subtraction
     eth_client.advance_block_number(6);
 
+    let base_token_fetcher = Arc::new(NoOpConversionRateFetcher {});
+
     let adjuster = GasAdjuster::new(
         Box::new(eth_client.clone().into_client()),
         GasAdjusterConfig {
@@ -65,6 +68,7 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
             max_blob_base_fee: None,
         },
         PubdataSendingMode::Calldata,
+        base_token_fetcher,
         commitment_mode,
     )
     .await

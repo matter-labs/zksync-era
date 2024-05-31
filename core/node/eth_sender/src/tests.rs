@@ -3,6 +3,7 @@ use std::sync::Arc;
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
+use zksync_base_token_fetcher::{ConversionRateFetcher, NoOpConversionRateFetcher};
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
     ContractsConfig, EthConfig, GasAdjusterConfig,
@@ -146,6 +147,9 @@ impl EthSenderTester {
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway = Box::new(gateway);
 
+        let base_token_fetcher: Arc<dyn ConversionRateFetcher> =
+            Arc::new(NoOpConversionRateFetcher {});
+
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
                 Box::new(gateway.clone().into_client()),
@@ -156,6 +160,7 @@ impl EthSenderTester {
                     ..eth_sender_config.gas_adjuster.unwrap()
                 },
                 PubdataSendingMode::Calldata,
+                base_token_fetcher,
                 commitment_mode,
             )
             .await

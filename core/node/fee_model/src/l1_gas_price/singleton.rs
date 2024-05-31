@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
+use zksync_base_token_fetcher::ConversionRateFetcher;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_types::{commitment::L1BatchCommitmentMode, url::SensitiveUrl, L1ChainId};
 use zksync_web3_decl::client::Client;
@@ -17,6 +18,7 @@ pub struct GasAdjusterSingleton {
     gas_adjuster_config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
     singleton: Option<Arc<GasAdjuster>>,
+    base_token_fetcher: Arc<dyn ConversionRateFetcher>,
     commitment_mode: L1BatchCommitmentMode,
 }
 
@@ -26,6 +28,7 @@ impl GasAdjusterSingleton {
         web3_url: SensitiveUrl,
         gas_adjuster_config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
+        base_token_fetcher: Arc<dyn ConversionRateFetcher>,
         commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
@@ -34,6 +37,7 @@ impl GasAdjusterSingleton {
             gas_adjuster_config,
             pubdata_sending_mode,
             singleton: None,
+            base_token_fetcher,
             commitment_mode,
         }
     }
@@ -50,6 +54,7 @@ impl GasAdjusterSingleton {
                 Box::new(query_client),
                 self.gas_adjuster_config,
                 self.pubdata_sending_mode,
+                self.base_token_fetcher.clone(),
                 self.commitment_mode,
             )
             .await

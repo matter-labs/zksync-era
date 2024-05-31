@@ -3,6 +3,7 @@
 use std::{slice, sync::Arc, time::Duration};
 
 use multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
+use zksync_base_token_fetcher::NoOpConversionRateFetcher;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
     GasAdjusterConfig,
@@ -66,10 +67,13 @@ impl Tester {
             max_blob_base_fee: None,
         };
 
+        let base_token_fetcher = Arc::new(NoOpConversionRateFetcher);
+
         GasAdjuster::new(
             Box::new(eth_client.into_client()),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
+            base_token_fetcher,
             self.commitment_mode,
         )
         .await

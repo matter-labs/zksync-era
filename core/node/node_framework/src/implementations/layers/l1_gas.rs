@@ -10,6 +10,7 @@ use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{
     implementations::resources::{
+        conversion_rate_fetcher::ConversionRateFetcherResource,
         eth_interface::EthInterfaceResource, fee_input::FeeInputResource,
         l1_tx_params::L1TxParamsResource,
     },
@@ -50,10 +51,15 @@ impl WiringLayer for SequencerL1GasLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let client = context.get_resource::<EthInterfaceResource>().await?.0;
+        let conversion_fetcher = context
+            .get_resource::<ConversionRateFetcherResource>()
+            .await?
+            .0;
         let adjuster = GasAdjuster::new(
             client,
             self.gas_adjuster_config,
             self.pubdata_sending_mode,
+            conversion_fetcher,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         )
         .await

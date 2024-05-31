@@ -1,8 +1,10 @@
+pub mod base_token_fetcher;
 pub mod circuit_breaker_checker;
 pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod contract_verification_api;
+pub mod dev_conversion_rate_api;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod healtcheck_server;

@@ -8000,6 +8000,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_base_token_fetcher"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bigdecimal",
+ "hex",
+ "metrics",
+ "reqwest",
+ "tokio",
+ "tracing",
+ "vlog",
+ "zksync_config",
+ "zksync_protobuf_config",
+]
+
+[[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
@@ -8382,6 +8399,7 @@ dependencies = [
  "vise",
  "vlog",
  "vm_utils",
+ "zksync_base_token_fetcher",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",
@@ -8397,6 +8415,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_db_connection",
+ "zksync_dev_conversion_rate_api",
  "zksync_eth_client",
  "zksync_eth_sender",
  "zksync_eth_signer",
@@ -8513,6 +8532,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_dev_conversion_rate_api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "bigdecimal",
+ "tokio",
+ "tracing",
+ "zksync_config",
+]
+
+[[package]]
 name = "zksync_env_config"
 version = "0.1.0"
 dependencies = [
@@ -8560,6 +8592,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_base_token_fetcher",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
@@ -8901,6 +8934,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_base_token_fetcher",
  "zksync_config",
  "zksync_dal",
  "zksync_eth_client",
@@ -8925,6 +8959,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
+ "zksync_base_token_fetcher",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",
@@ -8934,6 +8969,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_db_connection",
+ "zksync_dev_conversion_rate_api",
  "zksync_env_config",
  "zksync_eth_client",
  "zksync_eth_sender",
@@ -9269,6 +9305,7 @@ dependencies = [
  "tracing",
  "vise",
  "vm_utils",
+ "zksync_base_token_fetcher",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
