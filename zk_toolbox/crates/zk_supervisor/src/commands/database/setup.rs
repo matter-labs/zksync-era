@@ -5,25 +5,31 @@ use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use super::args::DatabaseCommonArgs;
-use crate::dals::{get_dals, Dal};
+use crate::{
+    dals::{get_dals, Dal},
+    messages::{
+        msg_database_info, msg_database_loading, msg_database_success, MSG_DATABASE_SETUP_GERUND,
+        MSG_DATABASE_SETUP_PAST, MSG_NO_DATABASES_SELECTED,
+    },
+};
 
 pub fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> {
     let args = args.parse();
     if args.selected_dals.none() {
-        logger::outro("No databases selected to setup");
+        logger::outro(MSG_NO_DATABASES_SELECTED);
         return Ok(());
     }
 
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    logger::info("Setting up databases");
+    logger::info(msg_database_info(MSG_DATABASE_SETUP_GERUND));
 
     let dals = get_dals(shell, &args.selected_dals)?;
     for dal in dals {
         setup_database(shell, &ecosystem_config.link_to_code, dal)?;
     }
 
-    logger::outro("Databases set up successfully");
+    logger::outro(msg_database_success(MSG_DATABASE_SETUP_PAST));
 
     Ok(())
 }
@@ -37,7 +43,7 @@ pub fn setup_database(
     let _dir_guard = shell.push_dir(dir);
     let url = dal.url.as_str();
 
-    let spinner = Spinner::new(&format!("Setting up DB for dal {}...", dal.path));
+    let spinner = Spinner::new(&msg_database_loading(MSG_DATABASE_SETUP_GERUND, &dal.path));
     Cmd::new(cmd!(
         shell,
         "cargo sqlx database create --database-url {url}"

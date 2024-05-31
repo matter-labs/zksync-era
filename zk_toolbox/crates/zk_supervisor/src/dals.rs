@@ -4,6 +4,8 @@ use config::{EcosystemConfig, SecretsConfig};
 use url::Url;
 use xshell::Shell;
 
+use crate::messages::MSG_CHAIN_NOT_FOUND_ERR;
+
 const CORE_DAL_PATH: &str = "core/lib/dal";
 const PROVER_DAL_PATH: &str = "prover/prover_dal";
 
@@ -61,7 +63,7 @@ fn get_secrets(shell: &Shell) -> anyhow::Result<SecretsConfig> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(global_config().chain_name.clone())
-        .ok_or(anyhow!("Chain not found"))?;
+        .ok_or(anyhow!(MSG_CHAIN_NOT_FOUND_ERR))?;
     let secrets = chain_config.get_secrets_config()?;
 
     Ok(secrets)

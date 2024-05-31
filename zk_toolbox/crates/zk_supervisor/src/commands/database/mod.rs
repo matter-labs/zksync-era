@@ -2,6 +2,11 @@ use clap::Subcommand;
 use xshell::Shell;
 
 use self::args::{new_migration::DatabaseNewMigrationArgs, DatabaseCommonArgs};
+use crate::messages::{
+    MSG_DATABASE_CHECK_SQLX_DATA_ABOUT, MSG_DATABASE_DROP_ABOUT, MSG_DATABASE_MIGRATE_ABOUT,
+    MSG_DATABASE_NEW_MIGRATION_ABOUT, MSG_DATABASE_PREPARE_ABOUT, MSG_DATABASE_RESET_ABOUT,
+    MSG_DATABASE_SETUP_ABOUT,
+};
 
 mod args;
 mod check_sqlx_data;
@@ -14,19 +19,19 @@ mod setup;
 
 #[derive(Subcommand, Debug)]
 pub enum DatabaseCommands {
-    /// Check sqlx-data.json is up to date. If no databases are selected, all databases will be checked.
+    #[clap(about = MSG_DATABASE_CHECK_SQLX_DATA_ABOUT)]
     CheckSqlxData(DatabaseCommonArgs),
-    /// Drop databases. If no databases are selected, all databases will be dropped.
+    #[clap(about = MSG_DATABASE_DROP_ABOUT)]
     Drop(DatabaseCommonArgs),
-    /// Migrate databases. If no databases are selected, all databases will be migrated.
+    #[clap(about = MSG_DATABASE_MIGRATE_ABOUT)]
     Migrate(DatabaseCommonArgs),
-    /// Create new migration
+    #[clap(about = MSG_DATABASE_NEW_MIGRATION_ABOUT)]
     NewMigration(DatabaseNewMigrationArgs),
-    /// Prepare sqlx-data.json. If no databases are selected, all databases will be prepared.
+    #[clap(about = MSG_DATABASE_PREPARE_ABOUT)]
     Prepare(DatabaseCommonArgs),
-    /// Reset databases. If no databases are selected, all databases will be reset.
+    #[clap(about = MSG_DATABASE_RESET_ABOUT)]
     Reset(DatabaseCommonArgs),
-    /// Setup databases. If no databases are selected, all databases will be setup.
+    #[clap(about = MSG_DATABASE_SETUP_ABOUT)]
     Setup(DatabaseCommonArgs),
 }
 

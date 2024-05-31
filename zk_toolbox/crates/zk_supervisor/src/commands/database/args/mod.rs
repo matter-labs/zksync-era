@@ -1,16 +1,17 @@
 use clap::Parser;
 
-use crate::dals::SelectedDals;
+use crate::{
+    dals::SelectedDals,
+    messages::{MSG_DATABASE_COMMON_CORE_HELP, MSG_DATABASE_COMMON_PROVER_HELP},
+};
 
 pub mod new_migration;
 
 #[derive(Debug, Parser)]
 pub struct DatabaseCommonArgs {
-    /// Prover
-    #[clap(short, long, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(short, long, default_missing_value = "true", num_args = 0..=1, help = MSG_DATABASE_COMMON_PROVER_HELP)]
     pub prover: Option<bool>,
-    /// Core
-    #[clap(short, long, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(short, long, default_missing_value = "true", num_args = 0..=1, help = MSG_DATABASE_COMMON_CORE_HELP)]
     pub core: Option<bool>,
 }
 

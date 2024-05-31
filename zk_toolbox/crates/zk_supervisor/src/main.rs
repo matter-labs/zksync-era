@@ -10,6 +10,7 @@ use xshell::Shell;
 
 mod commands;
 mod dals;
+mod messages;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
