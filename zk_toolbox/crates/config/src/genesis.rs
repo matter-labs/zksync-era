@@ -1,6 +1,6 @@
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
-use types::{ChainId, L1BatchCommitDataGeneratorMode};
+use types::{ChainId, L1BatchCommitDataGeneratorMode, ProtocolSemanticVersion};
 
 use crate::{consts::GENESIS_FILE, traits::FileConfigWithDefaultName};
 
@@ -16,6 +16,7 @@ pub struct GenesisConfig {
     pub genesis_rollup_leaf_index: u32,
     pub genesis_root: H256,
     pub genesis_protocol_version: u64,
+    pub genesis_protocol_semantic_version: ProtocolSemanticVersion,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }
