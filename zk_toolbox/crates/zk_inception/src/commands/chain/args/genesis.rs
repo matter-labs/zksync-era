@@ -4,19 +4,26 @@ use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL, DATABASE_SERVER_URL};
+use crate::{
+    defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL, DATABASE_SERVER_URL},
+    messages::{
+        msg_prover_db_name_prompt, msg_prover_db_url_prompt, msg_server_db_name_prompt,
+        msg_server_db_url_prompt, MSG_GENESIS_USE_DEFAULT_HELP, MSG_PROVER_DB_NAME_HELP,
+        MSG_PROVER_DB_URL_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+    },
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
 pub struct GenesisArgs {
-    #[clap(long, help = "Server database url without database name")]
+    #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
     pub server_db_url: Option<Url>,
-    #[clap(long, help = "Server database name")]
+    #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
     pub server_db_name: Option<String>,
-    #[clap(long, help = "Prover database url without database name")]
+    #[clap(long, help = MSG_PROVER_DB_URL_HELP)]
     pub prover_db_url: Option<Url>,
-    #[clap(long, help = "Prover database name")]
+    #[clap(long, help = MSG_PROVER_DB_NAME_HELP)]
     pub prover_db_name: Option<String>,
-    #[clap(long, short, help = "Use default database urls and names")]
+    #[clap(long, short, help = MSG_GENESIS_USE_DEFAULT_HELP)]
     pub use_default: bool,
     #[clap(long, short, action)]
     pub dont_drop: bool,
@@ -37,32 +44,24 @@ impl GenesisArgs {
             }
         } else {
             let server_db_url = self.server_db_url.unwrap_or_else(|| {
-                Prompt::new(&format!(
-                    "Please provide server database url for chain {chain_name}"
-                ))
-                .default(DATABASE_SERVER_URL.as_str())
-                .ask()
+                Prompt::new(&msg_server_db_url_prompt(&chain_name))
+                    .default(DATABASE_SERVER_URL)
+                    .ask()
             });
             let server_db_name = slugify(&self.server_db_name.unwrap_or_else(|| {
-                Prompt::new(&format!(
-                    "Please provide server database name for chain {chain_name}"
-                ))
-                .default(&server_name)
-                .ask()
+                Prompt::new(&msg_server_db_name_prompt(&chain_name))
+                    .default(&server_name)
+                    .ask()
             }));
             let prover_db_url = self.prover_db_url.unwrap_or_else(|| {
-                Prompt::new(&format!(
-                    "Please provide prover database url for chain {chain_name}"
-                ))
-                .default(DATABASE_PROVER_URL.as_str())
-                .ask()
+                Prompt::new(&msg_prover_db_url_prompt(&chain_name))
+                    .default(DATABASE_PROVER_URL)
+                    .ask()
             });
             let prover_db_name = slugify(&self.prover_db_name.unwrap_or_else(|| {
-                Prompt::new(&format!(
-                    "Please provide prover database name for chain {chain_name}"
-                ))
-                .default(&prover_name)
-                .ask()
+                Prompt::new(&msg_prover_db_name_prompt(&chain_name))
+                    .default(&prover_name)
+                    .ask()
             }));
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(server_db_url, server_db_name),
