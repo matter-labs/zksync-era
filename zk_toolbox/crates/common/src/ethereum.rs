@@ -1,13 +1,11 @@
 use std::{ops::Add, time::Duration};
 
-use ethers::prelude::Signer;
 use ethers::{
     core::k256::ecdsa::SigningKey,
     middleware::MiddlewareBuilder,
-    prelude::{Http, LocalWallet, Provider},
-    prelude::{SignerMiddleware, H256},
+    prelude::{Http, LocalWallet, Provider, Signer, SignerMiddleware},
     providers::Middleware,
-    types::{Address, TransactionRequest},
+    types::{Address, TransactionRequest, H256},
 };
 
 use crate::wallets::Wallet;

@@ -3,7 +3,9 @@ use once_cell::sync::OnceCell;
 static CONFIG: OnceCell<GlobalConfig> = OnceCell::new();
 
 pub fn init_global_config(config: GlobalConfig) {
-    CONFIG.set(config).unwrap();
+    CONFIG
+        .set(config)
+        .expect("GlobalConfig already initialized");
 }
 
 pub fn global_config() -> &'static GlobalConfig {

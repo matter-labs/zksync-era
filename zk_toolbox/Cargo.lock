@@ -530,9 +530,27 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sqlx",
- "strum 0.26.2",
  "strum_macros 0.26.2",
  "toml",
+ "url",
+ "xshell",
+]
+
+[[package]]
+name = "config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "common",
+ "ethers",
+ "rand",
+ "serde",
+ "serde_json",
+ "strum 0.26.2",
+ "strum_macros 0.26.2",
+ "thiserror",
+ "types",
  "url",
  "xshell",
 ]
@@ -3922,6 +3940,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 
 [[package]]
+name = "types"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "ethers",
+ "serde",
+ "strum 0.26.2",
+ "strum_macros 0.26.2",
+]
+
+[[package]]
 name = "uint"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4500,6 +4529,7 @@ dependencies = [
  "clap",
  "cliclack",
  "common",
+ "config",
  "console",
  "ethers",
  "human-panic",
@@ -4511,6 +4541,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
+ "types",
  "url",
  "xshell",
 ]

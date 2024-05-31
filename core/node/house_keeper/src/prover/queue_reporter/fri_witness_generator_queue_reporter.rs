@@ -55,6 +55,7 @@ impl FriWitnessGeneratorQueueReporter {
                 .get_witness_jobs_stats(AggregationRound::Scheduler)
                 .await,
         );
+
         result
     }
 }

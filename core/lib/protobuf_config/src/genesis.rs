@@ -30,12 +30,21 @@ impl ProtoRepr for proto::Genesis {
     type Type = configs::GenesisConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         let prover = required(&self.prover).context("prover")?;
+        let protocol_version = if let Some(protocol_version) =
+            &self.genesis_protocol_semantic_version
+        {
+            ProtocolSemanticVersion::from_str(protocol_version).context("protocol_version")?
+        } else {
+            let minor_version = *required(&self.genesis_protocol_version).context("Either genesis_protocol_version or genesis_protocol_semantic_version should be presented")?;
+            ProtocolSemanticVersion::new(
+                (minor_version as u16)
+                    .try_into()
+                    .context("Wrong protocol version")?,
+                0.into(),
+            )
+        };
         Ok(Self::Type {
-            protocol_version: Some(
-                required(&self.genesis_protocol_semantic_version)
-                    .and_then(|x| ProtocolSemanticVersion::from_str(x).map_err(Into::into))
-                    .context("protocol_version")?,
-            ),
+            protocol_version: Some(protocol_version),
             genesis_root_hash: Some(
                 required(&self.genesis_root)
                     .and_then(|x| parse_h256(x))
@@ -99,6 +108,7 @@ impl ProtoRepr for proto::Genesis {
             genesis_root: this.genesis_root_hash.map(|x| format!("{:?}", x)),
             genesis_rollup_leaf_index: this.rollup_last_leaf_index,
             genesis_batch_commitment: this.genesis_commitment.map(|x| format!("{:?}", x)),
+            genesis_protocol_version: this.protocol_version.map(|x| x.minor as u64),
             genesis_protocol_semantic_version: this.protocol_version.map(|x| x.to_string()),
             default_aa_hash: this.default_aa_hash.map(|x| format!("{:?}", x)),
             bootloader_hash: this.bootloader_hash.map(|x| format!("{:?}", x)),
