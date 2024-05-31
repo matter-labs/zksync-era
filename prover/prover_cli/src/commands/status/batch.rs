@@ -8,7 +8,7 @@ use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     prover_dal::{
-        BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafWitnessGeneratorJobInfo,
+        BasicWitnessGeneratorJobInfo, ExtendedJobCountStatistics, LeafWitnessGeneratorJobInfo,
         NodeWitnessGeneratorJobInfo, ProofCompressionJobInfo, ProverJobFriInfo, ProverJobStatus,
         RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo,
     },
@@ -383,7 +383,7 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
 }
 
 fn display_job_status_count(jobs: Vec<ProverJobFriInfo>) {
-    let mut jobs_counts = JobCountStatistics::default();
+    let mut jobs_counts = ExtendedJobCountStatistics::default();
     let total_jobs = jobs.len();
     jobs.iter().for_each(|job| match job.status {
         ProverJobStatus::Queued => jobs_counts.queued += 1,
