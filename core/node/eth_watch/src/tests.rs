@@ -5,7 +5,7 @@ use zksync_contracts::{governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     ethabi::{encode, Hash, Token},
-    l1::{L1Tx, OpProcessingType, PriorityQueueType},
+    l1::{L1Tx, NewPriorityRequest, OpProcessingType, PriorityQueueType},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
     web3::{BlockNumber, Log},
@@ -136,19 +136,19 @@ impl EthClient for MockEthClient {
 }
 
 fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
-    L1Tx {
+    let tx = L1Tx {
         execute: Execute {
             contract_address: Address::repeat_byte(0x11),
             calldata: vec![1, 2, 3],
-            factory_deps: None,
+            factory_deps: Some(vec![]),
             value: U256::zero(),
         },
         common_data: L1TxCommonData {
             serial_id: PriorityOpId(serial_id),
             sender: [1u8; 20].into(),
             deadline_block: 0,
-            eth_hash: [2; 32].into(),
-            eth_block,
+            eth_hash: H256::default(),
+            eth_block: 0,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
             gas_per_pubdata_limit: 1u32.into(),
@@ -158,10 +158,17 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
             to_mint: Default::default(),
             priority_queue_type: PriorityQueueType::Deque,
             op_processing_type: OpProcessingType::Common,
-            canonical_tx_hash: H256::from_low_u64_le(serial_id),
+            canonical_tx_hash: H256::default(),
         },
         received_timestamp_ms: 0,
-    }
+    };
+    // Convert to NewPriorityRequest and back, so that canonical_tx_hash is computed.
+    let mut tx: L1Tx = NewPriorityRequest::from(tx).try_into().unwrap();
+    // Set manually the deprecated fields, which are lost due to conversion.
+    tx.common_data.eth_block = eth_block;
+    tx.common_data.eth_hash = [2; 32].into();
+    tx.common_data.deadline_block = 0;
+    tx
 }
 
 fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
