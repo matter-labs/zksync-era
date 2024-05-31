@@ -1533,7 +1533,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#cd631c9a1d61ec21d7bd22eb74949d43ecfad0fd"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.69",
