@@ -46,7 +46,7 @@ function getMainWalletPk(pathToHome: string, network: string): string {
     if (network.toLowerCase() == 'localhost') {
         const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-        return ethers.Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/0").privateKey;
+        return ethers.Wallet.fromPhrase(ethTestConfig.test_mnemonic).privateKey;
     } else {
         return ensureVariable(process.env.MASTER_WALLET_PK, 'Main wallet private key');
     }
@@ -108,7 +108,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     ).l2TokenAddress(weth.address);
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
-    const l2ChainId = parseInt(genesisConfig.l2_chain_id);
+    const l2ChainId = genesisConfig.l2_chain_id;
     const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
     let minimalL2GasPrice = generalConfig.state_keeper.minimal_l2_gas_price;
     // TODO add support for en
@@ -116,7 +116,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
 
     const validationComputationalGasLimit = parseInt(generalConfig.state_keeper.validation_computational_gas_limit);
     // TODO set it properly
-    const priorityTxMaxGasLimit = 72000000;
+    const priorityTxMaxGasLimit = 72000000n;
     const maxLogsLimit = parseInt(generalConfig.api.web3_json_rpc.req_entities_limit);
 
     return {

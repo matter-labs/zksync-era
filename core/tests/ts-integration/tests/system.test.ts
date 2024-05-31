@@ -391,19 +391,6 @@ export interface TransactionData {
 }
 
 function signedTxToTransactionData(tx: ethers.TransactionLike) {
-    // Transform legacy transaction's `v` part of the signature
-    // to a single byte used in the packed eth signature
-    function unpackV(v: number) {
-        if (v >= 35) {
-            const chainId = Math.floor((v - 35) / 2);
-            return v - chainId * 2 - 8;
-        } else if (v <= 1) {
-            return 27 + v;
-        }
-
-        throw new Error('Invalid `v`');
-    }
-
     function legacyTxToTransactionData(tx: any): TransactionData {
         return {
             txType: 0,

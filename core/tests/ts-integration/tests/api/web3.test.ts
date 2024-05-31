@@ -674,7 +674,6 @@ describe('web3 API compatibility tests', () => {
         ).rejects.toThrow(`Query returned more than ${maxLogsLimit} results.`);
     });
 
-    // bh ERROR
     test('Should throw error for estimate gas for account with balance < tx.value', async () => {
         let poorBob = testMaster.newEmptyAccount();
         expect(

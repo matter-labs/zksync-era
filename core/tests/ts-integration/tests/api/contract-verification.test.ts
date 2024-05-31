@@ -51,7 +51,7 @@ describe('Tests for the contract verification API', () => {
         });
 
         // bh ERROR
-        test.skip('should test contract verification', async () => {
+        test('should test contract verification', async () => {
             const counterContract = await deployContract(alice, contracts.counter, []);
             const constructorArguments = counterContract.interface.encodeDeploy([]);
 
@@ -71,7 +71,7 @@ describe('Tests for the contract verification API', () => {
         });
 
         // bh ERROR
-        test.skip('should test zkVM solc contract verification', async () => {
+        test('should test zkVM solc contract verification', async () => {
             let artifact = contracts.counter;
             // TODO: use plugin compilation when it's ready instead of pre-compiled bytecode.
             artifact.bytecode = fs.readFileSync(

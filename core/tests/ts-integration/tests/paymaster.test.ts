@@ -239,7 +239,6 @@ describe('Paymaster tests', () => {
         ).toBeRejected('Paymaster validation error');
     });
 
-    // bh ERROR
     test('Should deploy nonce-check paymaster and not fail validation', async function () {
         const deployer = new Deployer(hre as any, alice as any);
         const paymaster = await deployPaymaster(deployer);

@@ -141,7 +141,6 @@ describe('Tests for the custom account behavior', () => {
         ).toBeRejected('Violated validation rules');
     });
 
-    // bh ERROR - Error: missing revert data
     test('Should not execute from non-account', async () => {
         // Note that we supply "create" instead of "createAccount" here -- the code is the same, but it'll
         // be treated as a common contract.
