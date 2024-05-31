@@ -13,9 +13,9 @@ pub mod accept_ownership;
 mod commands;
 mod config_manipulations;
 mod consts;
-mod messages;
 mod defaults;
 pub mod forge_utils;
+mod messages;
 pub mod server;
 
 #[derive(Parser, Debug)]

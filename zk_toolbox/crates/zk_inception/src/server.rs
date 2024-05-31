@@ -2,13 +2,13 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::cmd::Cmd;
-use xshell::{cmd, Shell};
-
-use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
 use config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, GeneralConfig, GenesisConfig,
     SecretsConfig, WalletsConfig,
 };
+use xshell::{cmd, Shell};
+
+use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
 
 pub struct RunServer {
     components: Option<Vec<String>>,

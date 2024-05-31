@@ -4,11 +4,13 @@ use config::{ChainConfig, DatabaseConfig, DatabasesConfig};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL, DATABASE_SERVER_URL};
-use crate::messages::{
-    msg_prover_db_name_prompt, msg_prover_db_url_prompt, msg_server_db_name_prompt,
-    msg_server_db_url_prompt, MSG_GENESIS_USE_DEFAULT_HELP, MSG_PROVER_DB_NAME_HELP,
-    MSG_PROVER_DB_URL_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+use crate::{
+    defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL, DATABASE_SERVER_URL},
+    messages::{
+        msg_prover_db_name_prompt, msg_prover_db_url_prompt, msg_server_db_name_prompt,
+        msg_server_db_url_prompt, MSG_GENESIS_USE_DEFAULT_HELP, MSG_PROVER_DB_NAME_HELP,
+        MSG_PROVER_DB_URL_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+    },
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
