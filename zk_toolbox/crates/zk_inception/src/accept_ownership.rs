@@ -1,4 +1,3 @@
-use crate::messages::MSG_ACCEPTING_GOVERNANCE_SPINNER;
 use common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
@@ -13,7 +12,10 @@ use config::{
 use ethers::types::{Address, H256};
 use xshell::Shell;
 
-use crate::forge_utils::{check_the_balance, fill_forge_private_key};
+use crate::{
+    forge_utils::{check_the_balance, fill_forge_private_key},
+    messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
+};
 
 pub async fn accept_admin(
     shell: &Shell,

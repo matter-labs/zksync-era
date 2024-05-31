@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use crate::messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_INITIALIZING_BRIDGES_SPINNER};
 use anyhow::Context;
 use common::{
     cmd::Cmd,
@@ -21,6 +20,7 @@ use xshell::{cmd, Shell};
 use crate::{
     config_manipulations::update_l2_shared_bridge,
     forge_utils::{check_the_balance, fill_forge_private_key},
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_INITIALIZING_BRIDGES_SPINNER},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
