@@ -346,10 +346,19 @@ fn pushing_new_leaves() {
         tree.push([number; 88]);
         tree.push([number; 88]);
         tree.push([number; 88]);
-        assert_eq!(tree.merkle_root(), *expected_root);
+
+        dbg!(i);
+        dbg!(&tree);
+        let (root, start_path, end_path) = tree.merkle_root_and_paths_for_range(1);
+        assert_eq!(root, *expected_root);
+        assert_eq!(start_path.len(), end_path.len());
 
         tree.trim_start(2);
-        assert_eq!(tree.merkle_root(), *expected_root);
+
+        dbg!(i);
+        let (root, start_path, end_path) = tree.merkle_root_and_paths_for_range(1);
+        assert_eq!(root, *expected_root);
+        assert_eq!(start_path.len(), end_path.len());
     }
 }
 

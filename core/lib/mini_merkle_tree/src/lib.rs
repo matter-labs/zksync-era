@@ -131,13 +131,15 @@ where
     }
 
     /// Returns the root hash of this tree.
+    /// # Panics
+    /// Should never panic, unless there is a bug.
     pub fn merkle_root(&self) -> H256 {
         if self.hashes.is_empty() {
             let depth = tree_depth_by_size(self.binary_tree_size);
             if self.start_index == 0 {
                 return self.hasher.empty_subtree_hash(depth);
             } else if self.start_index == self.binary_tree_size {
-                return self.cache[depth].unwrap();
+                return self.cache[depth].expect("cache is invalid");
             }
         }
         self.compute_merkle_root_and_path(0, None, None)
@@ -145,6 +147,8 @@ where
 
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
     /// `index` is relative to the leftmost uncached leaf.
+    /// # Panics
+    /// Panics if `index` is >= than the number of leaves in the tree.
     pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
         assert!(index < self.hashes.len(), "leaf index out of bounds");
         let mut end_path = vec![];
@@ -157,10 +161,13 @@ where
 
     /// Returns the root hash and the Merkle proofs for a range of leafs.
     /// The range is 0..length, where `0` is the leftmost untrimmed leaf.
+    /// # Panics
+    /// Panics if `length` is 0 or greater than the number of leaves in the tree.
     pub fn merkle_root_and_paths_for_range(
         &self,
         length: usize,
     ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
+        assert!(length > 0, "range must not be empty");
         assert!(length <= self.hashes.len(), "not enough leaves in the tree");
         let mut right_path = vec![];
         let root_hash =
@@ -175,6 +182,9 @@ where
         self.hashes.push_back(leaf_hash);
         if self.start_index + self.hashes.len() > self.binary_tree_size {
             self.binary_tree_size *= 2;
+            if self.cache.len() < tree_depth_by_size(self.binary_tree_size) {
+                self.cache.push(Some(self.merkle_root()));
+            }
         }
     }
 
@@ -193,11 +203,13 @@ where
     pub fn trim_start(&mut self, count: usize) {
         assert!(self.hashes.len() >= count, "not enough leaves to cache");
         let mut new_cache = vec![];
-        // Cache is a subset of the path to the first untrimmed leaf.
+        // Cache is a left subset of the path to the first untrimmed leaf.
         let root = self.compute_merkle_root_and_path(count, Some(&mut new_cache), Some(Side::Left));
         self.hashes.drain(..count);
         self.start_index += count;
         if self.start_index == self.binary_tree_size {
+            // In order to be able to get the root of a completely trimmed tree,
+            // we need to cache it.
             new_cache.push(Some(root));
         }
         self.cache = new_cache;
@@ -223,7 +235,7 @@ where
 
         for level in 0..depth {
             if absolute_start_index % 2 == 1 {
-                hashes.push_front(self.cache[level].unwrap());
+                hashes.push_front(self.cache[level].expect("cache is invalid"));
                 end_index += 1;
             }
             if hashes.len() % 2 == 1 {
