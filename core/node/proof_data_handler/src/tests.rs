@@ -18,14 +18,14 @@ use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
 
 use crate::create_proof_processing_router;
 
-// Test the /tee_proof_generation_data endpoint by:
+// Test the /tee_proof_inputs endpoint by:
 // 1. Mocking an object store with a single batch blob containing TEE verifier input
 // 2. Populating the SQL db with relevant information about the status of the TEE verifier input and
 //    TEE proof generation
-// 3. Sending a request to the /tee_proof_generation_data endpoint and asserting that the response
+// 3. Sending a request to the /tee_proof_inputs endpoint and asserting that the response
 //    matches the file from the object store
 #[tokio::test]
-async fn request_tee_proof_generation_data() {
+async fn request_tee_proof_inputs() {
     // prepare a sample mocked TEE verifier input
 
     let batch_number = L1BatchNumber::from(1);
@@ -77,7 +77,7 @@ async fn request_tee_proof_generation_data() {
     let db_conn_pool = ConnectionPool::test_pool().await;
     mock_tee_batch_status(db_conn_pool.clone(), batch_number, &object_path).await;
 
-    // test the /tee_proof_generation_data endpoint; it should return the batch from the object store
+    // test the /tee_proof_inputs endpoint; it should return the batch from the object store
 
     let app = create_proof_processing_router(
         blob_store,
@@ -93,7 +93,7 @@ async fn request_tee_proof_generation_data() {
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/tee_proof_generation_data")
+                .uri("/tee_proof_inputs")
                 .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                 .body(req_body)
                 .unwrap(),

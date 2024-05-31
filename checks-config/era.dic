@@ -977,6 +977,6 @@ TeeRequestProcessor
 l1_batch_number
 RequestProcessorError
 map_err
-tee_proof_generation_data
+tee_proof_inputs
 submit_tee_proof
 ready_to_be_proven

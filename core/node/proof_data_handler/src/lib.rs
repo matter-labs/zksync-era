@@ -83,7 +83,7 @@ fn create_proof_processing_router(
             ),
         )
         .route(
-            "/tee_proof_generation_data",
+            "/tee_proof_inputs",
             post(
                 move |payload: Json<TeeProofGenerationDataRequest>| async move {
                     get_tee_proof_gen_processor
