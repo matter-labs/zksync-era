@@ -117,7 +117,6 @@ pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without dat
 pub(super) const MSG_PROVER_DB_NAME_HELP: &str = "Prover database name";
 pub(super) const MSG_GENESIS_USE_DEFAULT_HELP: &str = "Use default database urls and names";
 pub(super) const MSG_GENESIS_COMPLETED: &str = "Genesis completed successfully";
-pub(super) const MSG_GENESIS_DATABASE_CONFIG_ERR: &str = "Database config was not fully generated";
 pub(super) const MSG_STARTING_GENESIS: &str = "Starting genesis process";
 pub(super) const MSG_INITIALIZING_DATABASES_SPINNER: &str = "Initializing databases...";
 pub(super) const MSG_STARTING_GENESIS_SPINNER: &str =
