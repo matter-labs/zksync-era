@@ -11,7 +11,10 @@ categories.workspace = true
 
 [dependencies]
 zksync_dal.workspace = true
+zksync_types.workspace = true
+zksync_basic_types.workspace = true
 
 anyhow.workspace = true
 tokio = { workspace = true, features = ["rt", "time"] }
 tracing.workspace = true
+reqwest = { workspace = true, features = ["blocking", "json"] }
