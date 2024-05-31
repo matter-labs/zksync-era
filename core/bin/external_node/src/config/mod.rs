@@ -58,7 +58,7 @@ macro_rules! load_config_or_default {
     ($config:expr, $($name:ident).+, $default:ident) => {
         $config
             .as_ref()
-            .map(|a| a.$($name).+.try_into()).transpose()?
+            .map(|a| a.$($name).+.clone().try_into()).transpose()?
             .unwrap_or_else(OptionalENConfig::$default)
     };
 }
@@ -494,21 +494,63 @@ impl OptionalENConfig {
                 general_config.api_config,
                 web3_json_rpc.vm_execution_cache_misses_limit
             ),
+            // Option is deprecated
             transactions_per_sec_limit: None,
-            fee_history_limit: api.web3_json_rpc.fee_history_limit(),
-            max_batch_request_size: api.web3_json_rpc.max_batch_request_size(),
-            max_response_body_size_mb: api.web3_json_rpc.max_response_body_size().global,
-            max_response_body_size_overrides_mb: api
-                .web3_json_rpc
-                .max_response_body_size()
-                .overrides,
-            pubsub_polling_interval_ms: api.web3_json_rpc.pubsub_interval().as_millis() as u64,
-            max_nonce_ahead: api.web3_json_rpc.max_nonce_ahead,
-            vm_concurrency_limit: api.web3_json_rpc.vm_concurrency_limit(),
-            factory_deps_cache_size_mb: api.web3_json_rpc.factory_deps_cache_size(),
-            initial_writes_cache_size_mb: api.web3_json_rpc.initial_writes_cache_size(),
-            latest_values_cache_size_mb: api.web3_json_rpc.latest_values_cache_size(),
-            filters_disabled: api.web3_json_rpc.filters_disabled,
+            fee_history_limit: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.fee_history_limit,
+                default_fee_history_limit
+            ),
+            max_batch_request_size: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.max_batch_request_size,
+                default_max_batch_request_size
+            ),
+            max_response_body_size_mb: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.max_response_body_size_mb,
+                default_max_response_body_size_mb
+            ),
+            max_response_body_size_overrides_mb: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.max_response_body_size_overrides_mb,
+                default_max_response_body_size_overrides_mb
+            ),
+            pubsub_polling_interval_ms: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.pubsub_polling_interval,
+                default_polling_interval
+            ),
+            max_nonce_ahead: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.max_nonce_ahead,
+                default_max_nonce_ahead
+            ),
+            vm_concurrency_limit: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.vm_concurrency_limit,
+                default_vm_concurrency_limit
+            ),
+            factory_deps_cache_size_mb: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.factory_deps_cache_size_mb,
+                default_factory_deps_cache_size_mb
+            ),
+            initial_writes_cache_size_mb: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.initial_writes_cache_size_mb,
+                default_initial_writes_cache_size_mb
+            ),
+            latest_values_cache_size_mb: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.latest_values_cache_size_mb,
+                default_latest_values_cache_size_mb
+            ),
+            filters_disabled: general_config
+                .api_config
+                .as_ref()
+                .map(|a| a.web3_json_rpc.filters_disabled)
+                .unwrap_or_default(),
             mempool_cache_update_interval_ms: api
                 .web3_json_rpc
                 .mempool_cache_update_interval()
@@ -669,6 +711,10 @@ impl OptionalENConfig {
 
     const fn default_max_response_body_size_mb() -> usize {
         10
+    }
+
+    fn default_max_response_body_size_overrides_mb() -> MaxResponseSizeOverrides {
+        MaxResponseSizeOverrides::empty()
     }
 
     const fn default_l2_block_seal_queue_capacity() -> usize {
