@@ -17,8 +17,8 @@ use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
-    block::L2BlockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
-    storage_writes_deduplicator::StorageWritesDeduplicator,
+    block::L2BlockHasher, ethabi::Token, fee::Fee, protocol_version::ProtocolSemanticVersion,
+    snapshots::SnapshotRecoveryStatus, storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
     StorageKey, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
@@ -244,7 +244,10 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                ProtocolVersionId::latest(),
+                ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::latest(),
+                    patch: 0.into(),
+                },
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
                 Default::default(),
@@ -492,7 +495,7 @@ impl StorageSnapshot {
             .collect();
         drop(storage);
 
-        let executor = tester
+        let mut executor = tester
             .create_batch_executor(StorageType::AsyncRocksdbCache)
             .await;
         let mut l2_block_env = L2BlockEnv {
@@ -506,7 +509,7 @@ impl StorageSnapshot {
         for _ in 0..transaction_count {
             let tx = alice.execute();
             let tx_hash = tx.hash(); // probably incorrect
-            let res = executor.execute_tx(tx).await;
+            let res = executor.execute_tx(tx).await.unwrap();
             if let TxExecutionResult::Success { tx_result, .. } = res {
                 let storage_logs = &tx_result.logs.storage_logs;
                 storage_writes_deduplicator
@@ -525,10 +528,10 @@ impl StorageSnapshot {
             l2_block_env.number += 1;
             l2_block_env.timestamp += 1;
             l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
-            executor.start_next_l2_block(l2_block_env).await;
+            executor.start_next_l2_block(l2_block_env).await.unwrap();
         }
 
-        let finished_batch = executor.finish_batch().await;
+        let finished_batch = executor.finish_batch().await.unwrap();
         let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
         storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
         let modified_entries = storage_writes_deduplicator.into_modified_key_values();

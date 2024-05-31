@@ -1,5 +1,6 @@
-use crate::{cmd::Cmd, logger};
 use xshell::{cmd, Shell};
+
+use crate::{cmd::Cmd, logger};
 
 const PREREQUISITES: [Prerequisite; 6] = [
     Prerequisite {
