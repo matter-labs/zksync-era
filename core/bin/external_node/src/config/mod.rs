@@ -946,6 +946,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             filters_disabled: config.optional.filters_disabled,
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
+            l2_standard_deployer_proxy_addr: config.remote.l2_standard_deployer_proxy_addr,
         }
     }
 }
