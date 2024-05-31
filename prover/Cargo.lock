@@ -2824,7 +2824,7 @@ dependencies = [
 [[package]]
 name = "hyperchain_da"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da.git?rev=6be8343f5cc0c22a3e153b2af72a8c7d0717a094#6be8343f5cc0c22a3e153b2af72a8c7d0717a094"
+source = "git+https://github.com/matter-labs/hyperchain-da.git?rev=822542abff3e7c9e42c6e65f4ba29f289a979d3d#822542abff3e7c9e42c6e65f4ba29f289a979d3d"
 dependencies = [
  "anyhow",
  "async-trait",

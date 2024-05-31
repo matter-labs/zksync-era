@@ -318,8 +318,12 @@ impl MainNodeBuilder {
     fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
         let da_config = DADispatcherConfig::from_env()?;
         let eth_config = EthConfig::from_env()?;
-        self.node
-            .add_layer(DataAvailabilityClientLayer::new(da_config, eth_config));
+        let state_keeper_config = StateKeeperConfig::from_env()?;
+        self.node.add_layer(DataAvailabilityClientLayer::new(
+            da_config,
+            eth_config,
+            state_keeper_config,
+        ));
         Ok(self)
     }
 

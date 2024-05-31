@@ -1,5 +1,6 @@
 use zksync_config::{
     configs::{
+        chain::StateKeeperConfig,
         da_dispatcher::{DADispatcherConfig, DataAvailabilityMode},
         eth_sender::PubdataSendingMode,
     },
@@ -20,13 +21,19 @@ use crate::{
 pub struct DataAvailabilityClientLayer {
     da_config: DADispatcherConfig,
     eth_config: EthConfig,
+    state_keeper_config: StateKeeperConfig,
 }
 
 impl DataAvailabilityClientLayer {
-    pub fn new(da_config: DADispatcherConfig, eth_config: EthConfig) -> Self {
+    pub fn new(
+        da_config: DADispatcherConfig,
+        eth_config: EthConfig,
+        state_keeper_config: StateKeeperConfig,
+    ) -> Self {
         Self {
             da_config,
             eth_config,
+            state_keeper_config,
         }
     }
 }
@@ -62,6 +69,10 @@ impl WiringLayer for DataAvailabilityClientLayer {
                 }
             },
         };
+
+        if self.state_keeper_config.max_pubdata_per_batch > client.blob_size_limit() as u64 {
+            panic!("State keeper max pubdata per batch is greater than the client blob size limit");
+        }
 
         context.insert_resource(DAClientResource(client))?;
 

@@ -404,9 +404,11 @@ impl MainNodeBuilder {
     fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
         let da_config = try_load_config!(self.configs.da_dispatcher_config);
+        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         self.node.add_layer(DataAvailabilityClientLayer::new(
             da_config,
             eth_sender_config,
+            state_keeper_config,
         ));
         Ok(self)
     }

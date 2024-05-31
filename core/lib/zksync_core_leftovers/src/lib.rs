@@ -749,14 +749,14 @@ pub async fn initialize_components(
         .context("add_tee_verifier_input_producer_to_task_futures()")?;
     }
 
-    if components.contains(&Component::DADispatcher) {
-        if eth
-            .sender
-            .clone()
-            .context("eth_sender")?
-            .pubdata_sending_mode
-            != PubdataSendingMode::Custom
-        {
+    if eth
+        .sender
+        .clone()
+        .context("eth_sender")?
+        .pubdata_sending_mode
+        == PubdataSendingMode::Custom
+    {
+        if !components.contains(&Component::DADispatcher) {
             panic!("DA dispatcher requires custom pubdata sending mode");
         }
 

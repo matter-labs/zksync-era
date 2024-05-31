@@ -71,6 +71,10 @@ impl DataAvailabilityClient for GCSDAClient {
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
         Box::new(self.clone())
     }
+
+    fn blob_size_limit(&self) -> usize {
+        100 * 1024 * 1024 // 100 MB, high enough to not be a problem
+    }
 }
 
 impl Debug for GCSDAClient {

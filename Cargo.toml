@@ -202,7 +202,7 @@ zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter
 zksync_consensus_utils = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3e6f101ee4124308c4c974caaa259d524549b0c6" }
 zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3e6f101ee4124308c4c974caaa259d524549b0c6" }
 zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3e6f101ee4124308c4c974caaa259d524549b0c6" }
-zksync_da_layers = { package = "hyperchain_da", git = "https://github.com/matter-labs/hyperchain-da.git", rev = "6be8343f5cc0c22a3e153b2af72a8c7d0717a094" }
+zksync_da_layers = { package = "hyperchain_da", git = "https://github.com/matter-labs/hyperchain-da.git", rev = "822542abff3e7c9e42c6e65f4ba29f289a979d3d" }
 
 # "Local" dependencies
 multivm = { path = "core/lib/multivm" }
