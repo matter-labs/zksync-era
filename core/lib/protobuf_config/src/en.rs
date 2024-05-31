@@ -80,6 +80,10 @@ impl ProtoRepr for proto::ExternalNode {
                 .map(NonZeroU32::new)
                 .flatten(),
             tree_api_remote_url: self.tree_api_remote_url.clone(),
+            main_node_rate_limit_rps: self
+                .main_node_rate_limit_rps
+                .map(|a| NonZeroUsize::new(a as usize))
+                .flatten(),
             pruning: read_optional_repr(&self.pruning).context("pruning")?,
             snapshot_recovery: read_optional_repr(&self.snapshot_recovery)
                 .context("snapshot_recovery")?,
@@ -101,8 +105,9 @@ impl ProtoRepr for proto::ExternalNode {
             commitment_generator_max_parallelism: this
                 .commitment_generator_max_parallelism
                 .map(|a| a.get()),
-            snapshot_recovery: None,
-            pruning: None,
+            main_node_rate_limit_rps: this.main_node_rate_limit_rps.map(|a| a.get() as u32),
+            snapshot_recovery: this.snapshot_recovery.as_ref().map(ProtoRepr::build),
+            pruning: this.pruning.as_ref().map(ProtoRepr::build),
         }
     }
 }

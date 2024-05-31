@@ -50,7 +50,7 @@ macro_rules! load_optional_config_or_default {
         $config
             .as_ref()
             .map(|a| a.$($name).+.map(|a| a.try_into())).flatten().transpose()?
-            .unwrap_or_else(OptionalENConfig::$default)
+            .unwrap_or_else(Self::$default)
     };
 }
 
@@ -59,7 +59,7 @@ macro_rules! load_config_or_default {
         $config
             .as_ref()
             .map(|a| a.$($name).+.clone().try_into()).transpose()?
-            .unwrap_or_else(OptionalENConfig::$default)
+            .unwrap_or_else(Self::$default)
     };
 }
 
@@ -67,7 +67,7 @@ macro_rules! load_config {
     ($config:expr, $($name:ident).+) => {
         $config
             .as_ref()
-            .map(|a| a.$($name).+.map(|a| a.try_into())).flatten().transpose()?
+            .map(|a| a.$($name).+.clone().map(|a| a.try_into())).flatten().transpose()?
     };
 }
 
@@ -446,28 +446,8 @@ pub(crate) struct OptionalENConfig {
 
 impl OptionalENConfig {
     fn from_configs(general_config: &GeneralConfig, enconfig: &ENConfig) -> anyhow::Result<Self> {
-        let api = general_config
-            .api_config
-            .as_ref()
-            .context("Api is required")?;
-        let db = general_config
-            .db_config
-            .as_ref()
-            .context("Db config is required")?;
-        let postgres = general_config
-            .postgres_config
-            .as_ref()
-            .context("Db config is required")?;
-        let state_keeper = general_config
-            .state_keeper_config
-            .as_ref()
-            .context("Db config is required")?;
-
-        let api_namespaces = api
-            .web3_json_rpc
-            .api_namespaces
-            .as_ref()
-            .map(|a| a.iter().map(|a| serde_json::from_str(a).unwrap()).collect());
+        let api_namespaces = load_config!(general_config.api_config, web3_json_rpc.api_namespaces)
+            .map(|a: Vec<String>| a.iter().map(|a| serde_json::from_str(a).unwrap()).collect());
 
         Ok(OptionalENConfig {
             filters_limit: load_optional_config_or_default!(
@@ -551,74 +531,138 @@ impl OptionalENConfig {
                 .as_ref()
                 .map(|a| a.web3_json_rpc.filters_disabled)
                 .unwrap_or_default(),
-            mempool_cache_update_interval_ms: api
-                .web3_json_rpc
-                .mempool_cache_update_interval()
-                .as_millis() as u64,
-            mempool_cache_size: api.web3_json_rpc.mempool_cache_size(),
+            mempool_cache_update_interval_ms: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.mempool_cache_update_interval,
+                default_mempool_cache_update_interval_ms
+            ),
+            mempool_cache_size: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.mempool_cache_size,
+                default_mempool_cache_size
+            ),
 
-            healthcheck_slow_time_limit_ms: api.healthcheck.slow_time_limit_ms,
-            healthcheck_hard_time_limit_ms: api.healthcheck.hard_time_limit_ms,
-            estimate_gas_scale_factor: api.web3_json_rpc.gas_price_scale_factor,
-            estimate_gas_acceptable_overestimation: api
-                .web3_json_rpc
-                .estimate_gas_acceptable_overestimation,
-            gas_price_scale_factor: api.web3_json_rpc.gas_price_scale_factor,
-            merkle_tree_max_l1_batches_per_iter: db.merkle_tree.max_l1_batches_per_iter,
-            merkle_tree_max_open_files: db.experimental.state_keeper_db_max_open_files,
-            merkle_tree_multi_get_chunk_size: db.merkle_tree.multi_get_chunk_size,
-            merkle_tree_block_cache_size_mb: db
-                .experimental
-                .state_keeper_db_block_cache_capacity_mb,
-            merkle_tree_memtable_capacity_mb: db.merkle_tree.memtable_capacity_mb,
-            merkle_tree_stalled_writes_timeout_sec: db.merkle_tree.stalled_writes_timeout_sec,
-            database_long_connection_threshold_ms: postgres.long_connection_threshold_ms,
-            database_slow_query_threshold_ms: postgres.slow_query_threshold_ms,
-            l2_block_seal_queue_capacity: state_keeper.l2_block_seal_queue_capacity,
-            main_node_rate_limit_rps: Self::default_main_node_rate_limit_rps(),
+            healthcheck_slow_time_limit_ms: load_config!(
+                general_config.api_config,
+                healthcheck.slow_time_limit_ms
+            ),
+            healthcheck_hard_time_limit_ms: load_config!(
+                general_config.api_config,
+                healthcheck.hard_time_limit_ms
+            ),
+            estimate_gas_scale_factor: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.estimate_gas_scale_factor,
+                default_estimate_gas_scale_factor
+            ),
+            estimate_gas_acceptable_overestimation: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.estimate_gas_acceptable_overestimation,
+                default_estimate_gas_acceptable_overestimation
+            ),
+            gas_price_scale_factor: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.gas_price_scale_factor,
+                default_gas_price_scale_factor
+            ),
+            merkle_tree_max_l1_batches_per_iter: load_config_or_default!(
+                general_config.db_config,
+                merkle_tree.max_l1_batches_per_iter,
+                default_merkle_tree_max_l1_batches_per_iter
+            ),
+            merkle_tree_max_open_files: load_config!(
+                general_config.db_config,
+                experimental.state_keeper_db_max_open_files
+            ),
+            merkle_tree_multi_get_chunk_size: load_config_or_default!(
+                general_config.db_config,
+                merkle_tree.multi_get_chunk_size,
+                default_merkle_tree_multi_get_chunk_size
+            ),
+            merkle_tree_block_cache_size_mb: load_config_or_default!(
+                general_config.db_config,
+                experimental.state_keeper_db_block_cache_capacity_mb,
+                default_merkle_tree_block_cache_size_mb
+            ),
+            merkle_tree_memtable_capacity_mb: load_config_or_default!(
+                general_config.db_config,
+                merkle_tree.memtable_capacity_mb,
+                default_merkle_tree_memtable_capacity_mb
+            ),
+            merkle_tree_stalled_writes_timeout_sec: load_config_or_default!(
+                general_config.db_config,
+                merkle_tree.stalled_writes_timeout_sec,
+                default_merkle_tree_stalled_writes_timeout_sec
+            ),
+            database_long_connection_threshold_ms: load_config!(
+                general_config.postgres_config,
+                long_connection_threshold_ms
+            ),
+            database_slow_query_threshold_ms: load_config!(
+                general_config.postgres_config,
+                slow_query_threshold_ms
+            ),
+            l2_block_seal_queue_capacity: load_config_or_default!(
+                general_config.state_keeper_config,
+                l2_block_seal_queue_capacity,
+                default_l2_block_seal_queue_capacity
+            ),
             l1_batch_commit_data_generator_mode: enconfig.l1_batch_commit_data_generator_mode,
             snapshots_recovery_enabled: enconfig
                 .snapshot_recovery
                 .as_ref()
                 .map(|a| a.enabled)
                 .unwrap_or_default(),
-            snapshots_recovery_postgres_max_concurrency: enconfig
-                .snapshot_recovery
-                .as_ref()
-                .map(|a| a.postgres_max_concurrency)
-                .flatten()
-                .unwrap_or_else(Self::default_snapshots_recovery_postgres_max_concurrency),
+            snapshots_recovery_postgres_max_concurrency: load_optional_config_or_default!(
+                enconfig.snapshot_recovery,
+                postgres_max_concurrency,
+                default_snapshots_recovery_postgres_max_concurrency
+            ),
             pruning_enabled: enconfig
                 .pruning
                 .as_ref()
                 .map(|a| a.enabled)
                 .unwrap_or_default(),
-            pruning_chunk_size: enconfig
-                .pruning
+            pruning_chunk_size: load_optional_config_or_default!(
+                enconfig.pruning,
+                chunk_size,
+                default_pruning_chunk_size
+            ),
+            pruning_removal_delay_sec: load_optional_config_or_default!(
+                enconfig.pruning,
+                removal_delay_sec,
+                default_pruning_removal_delay_sec
+            ),
+            pruning_data_retention_sec: load_optional_config_or_default!(
+                enconfig.pruning,
+                data_retention_sec,
+                default_pruning_data_retention_sec
+            ),
+            protective_reads_persistence_enabled: general_config
+                .db_config
                 .as_ref()
-                .map(|a| a.chunk_size)
-                .flatten()
-                .unwrap_or_else(Self::default_pruning_chunk_size),
-            pruning_removal_delay_sec: enconfig
-                .pruning
+                .map(|a| a.experimental.reads_persistence_enabled)
+                .unwrap_or_default(),
+            merkle_tree_processing_delay_ms: load_config_or_default!(
+                general_config.db_config,
+                experimental.processing_delay_ms,
+                default_merkle_tree_processing_delay_ms
+            ),
+            merkle_tree_include_indices_and_filters_in_block_cache: general_config
+                .db_config
                 .as_ref()
-                .map(|a| a.removal_delay_sec)
-                .flatten()
-                .unwrap_or_else(Self::default_pruning_removal_delay_sec),
-            pruning_data_retention_sec: enconfig
-                .pruning
-                .as_ref()
-                .map(|a| a.data_retention_sec)
-                .flatten()
-                .unwrap_or_else(Self::default_pruning_data_retention_sec),
-            contracts_diamond_proxy_addr: None,
-            protective_reads_persistence_enabled: db.experimental.reads_persistence_enabled,
-            merkle_tree_processing_delay_ms: db.experimental.processing_delay_ms,
-            merkle_tree_include_indices_and_filters_in_block_cache: db
-                .experimental
-                .include_indices_and_filters_in_block_cache,
+                .map(|a| a.experimental.include_indices_and_filters_in_block_cache)
+                .unwrap_or_default(),
+            extended_rpc_tracing: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.extended_api_tracing,
+                default_extended_api_tracing
+            ),
+            main_node_rate_limit_rps: enconfig
+                .main_node_rate_limit_rps
+                .unwrap_or_else(Self::default_main_node_rate_limit_rps),
             api_namespaces,
-            extended_rpc_tracing: api.web3_json_rpc.extended_api_tracing,
+            contracts_diamond_proxy_addr: None,
         })
     }
 
@@ -1027,22 +1071,26 @@ impl ExperimentalENConfig {
     }
     pub fn from_configs(
         general_config: &GeneralConfig,
-        enconfig: &ENConfig,
+        external_node_config: &ENConfig,
     ) -> anyhow::Result<Self> {
-        let db_config = general_config.db_config.as_ref().context("db_config")?;
-        let snapshot_recovery = enconfig
-            .snapshot_recovery
-            .as_ref()
-            .context("snapshot_recovery")?;
         Ok(Self {
-            state_keeper_db_block_cache_capacity_mb: db_config
-                .experimental
-                .state_keeper_db_block_cache_capacity_mb,
-            state_keeper_db_max_open_files: db_config.experimental.state_keeper_db_max_open_files,
-            snapshots_recovery_tree_chunk_size: snapshot_recovery
-                .tree_chunk_size
-                .unwrap_or_else(Self::default_snapshots_recovery_tree_chunk_size),
-            commitment_generator_max_parallelism: enconfig.commitment_generator_max_parallelism,
+            state_keeper_db_block_cache_capacity_mb: load_config_or_default!(
+                general_config.db_config,
+                experimental.state_keeper_db_block_cache_capacity_mb,
+                default_state_keeper_db_block_cache_capacity_mb
+            ),
+
+            state_keeper_db_max_open_files: load_config!(
+                general_config.db_config,
+                experimental.state_keeper_db_max_open_files
+            ),
+            snapshots_recovery_tree_chunk_size: load_optional_config_or_default!(
+                external_node_config.snapshot_recovery,
+                tree_chunk_size,
+                default_snapshots_recovery_tree_chunk_size
+            ),
+            commitment_generator_max_parallelism: external_node_config
+                .commitment_generator_max_parallelism,
         })
     }
 }
