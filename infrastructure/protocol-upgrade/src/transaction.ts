@@ -670,6 +670,25 @@ export const command = new Command('transactions').description(
     'prepare the transactions and their calldata for the upgrade'
 );
 
+// TODO: move to a seaprate file
+command
+    .command('save-genesis-data')
+    .option('--environment <env>')
+    .option('--genesis-upgrade <genesisUpgrade>')
+    .option('--genesis-batch-hash <genesisBatchHash>')
+    .option('--genesis-index-repeated-storage-changes <genesisIndexRepeatedStorageChanges>')
+    .option('--genesis-batch-commitment <genesisBatchCommitment>')
+    .action(async (options) => {
+        const genesisData = {
+            genesisUpgrade: options.genesisUpgrade,
+            genesisBatchHash: options.genesisBatchHash,
+            genesisIndexRepeatedStorageChanges: options.genesisIndexRepeatedStorageChanges,
+            genesisBatchCommitment: options.genesisBatchCommitment
+        };
+        fs.writeFileSync(getGenesisFileName(options.environment), JSON.stringify(genesisData, null, 2));
+    });
+
+
 command
     .command('build-default')
     .requiredOption('--upgrade-timestamp <upgradeTimestamp>')
