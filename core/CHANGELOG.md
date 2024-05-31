@@ -1,5 +1,12 @@
 # Changelog
 
+## [24.5.1](https://github.com/matter-labs/zksync-era/compare/core-v24.5.0...core-v24.5.1) (2024-05-31)
+
+
+### Bug Fixes
+
+* **house-keeper:** Fix queue size queries ([#2106](https://github.com/matter-labs/zksync-era/issues/2106)) ([183502a](https://github.com/matter-labs/zksync-era/commit/183502a17eb47a747f50b6a9d38ab78de984f80e))
+
 ## [24.5.0](https://github.com/matter-labs/zksync-era/compare/core-v24.4.0...core-v24.5.0) (2024-05-30)
 
 
