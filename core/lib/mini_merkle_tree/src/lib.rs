@@ -121,7 +121,7 @@ where
             hashes,
             binary_tree_size,
             start_index: 0,
-            cache: vec![H256::default(); depth + 1],
+            cache: vec![H256::default(); depth],
         }
     }
 
@@ -135,13 +135,12 @@ where
         if self.hashes.is_empty() {
             let depth = tree_depth_by_size(self.binary_tree_size);
             if self.start_index == 0 {
-                self.hasher.empty_subtree_hash(depth)
-            } else {
-                self.cache[depth]
+                return self.hasher.empty_subtree_hash(depth);
+            } else if self.start_index == self.binary_tree_size {
+                return self.cache[depth];
             }
-        } else {
-            self.compute_merkle_root_and_path(0, None)
         }
+        self.compute_merkle_root_and_path(0, None)
     }
 
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
@@ -190,9 +189,9 @@ where
         let root = self.compute_merkle_root_and_path(count, Some(&mut new_cache));
         self.hashes.drain(..count);
         self.start_index += count;
-        // It is important to add the root in case we just trimmed all leaves *and*
-        // the tree will grow on the next push.
-        new_cache.push(root);
+        if self.start_index == self.binary_tree_size {
+            new_cache.push(root);
+        }
         self.cache = new_cache;
     }
 
@@ -209,14 +208,17 @@ where
         let mut hashes = self.hashes.clone();
         let mut absolute_start_index = self.start_index;
 
+        if hashes.is_empty() {
+            hashes.push_back(self.hasher.empty_subtree_hash(0));
+        }
+
         for level in 0..depth {
             if absolute_start_index % 2 == 1 {
                 hashes.push_front(self.cache[level]);
                 end_index += 1;
             }
             if hashes.len() % 2 == 1 {
-                let empty_hash_at_level = self.hasher.empty_subtree_hash(level);
-                hashes.push_back(empty_hash_at_level);
+                hashes.push_back(self.hasher.empty_subtree_hash(level));
             }
             if let Some(path) = end_path.as_deref_mut() {
                 let hash = hashes.get(end_index ^ 1).copied().unwrap_or_default();
