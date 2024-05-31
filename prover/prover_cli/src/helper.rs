@@ -21,7 +21,7 @@ pub fn verifier_contract() -> Contract {
 
 fn read_file_to_json_value(path: &PathBuf) -> serde_json::Value {
     serde_json::from_reader(
-        File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e)),
+        File::open(path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e)),
     )
     .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
 }
