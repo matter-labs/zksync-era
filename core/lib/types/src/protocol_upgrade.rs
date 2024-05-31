@@ -97,24 +97,22 @@ impl ProtocolUpgrade {
 
         let mut decoded = ethabi::decode(
             &[ParamType::Tuple(vec![
-                ParamType::Tuple(L2CanonicalTransaction::schema()), // transaction data
-                ParamType::Array(ParamType::Bytes.into()),          // factory deps
-                ParamType::FixedBytes(32),                          // bootloader code hash
-                ParamType::FixedBytes(32),                          // default account code hash
-                ParamType::Address,                                 // verifier address
-                verifier_params_type,                               // verifier params
-                ParamType::Bytes,                                   // l1 custom data
-                ParamType::Bytes,                                   // l1 post-upgrade custom data
-                ParamType::Uint(256),                               // timestamp
-                ParamType::Uint(256),                               // version id
+                L2CanonicalTransaction::schema(),          // transaction data
+                ParamType::Array(ParamType::Bytes.into()), // factory deps
+                ParamType::FixedBytes(32),                 // bootloader code hash
+                ParamType::FixedBytes(32),                 // default account code hash
+                ParamType::Address,                        // verifier address
+                verifier_params_type,                      // verifier params
+                ParamType::Bytes,                          // l1 custom data
+                ParamType::Bytes,                          // l1 post-upgrade custom data
+                ParamType::Uint(256),                      // timestamp
+                ParamType::Uint(256),                      // version id
             ])],
-            init_calldata
-                .get(4..)
-                .ok_or(crate::ethabi::Error::InvalidData)?,
+            init_calldata.get(4..).ok_or(ethabi::Error::InvalidData)?,
         )?;
 
         let mut decoded = decoded.remove(0).into_tuple().unwrap();
-        let transaction = decoded.remove(0).into_tuple().unwrap();
+        let transaction = decoded.remove(0);
         let factory_deps = decoded.remove(0).into_array().unwrap();
 
         let tx = ProtocolUpgradeTx::decode_tx(
@@ -167,13 +165,7 @@ impl ProtocolUpgrade {
 pub fn decode_set_chain_id_event(
     event: Log,
 ) -> Result<(ProtocolVersionId, ProtocolUpgradeTx), ethabi::Error> {
-    let transaction = ethabi::decode(
-        &[ParamType::Tuple(L2CanonicalTransaction::schema())],
-        &event.data.0,
-    )?
-    .remove(0)
-    .into_tuple()
-    .unwrap();
+    let transaction = ethabi::decode(&[L2CanonicalTransaction::schema()], &event.data.0)?.remove(0);
 
     let full_version_id = h256_to_u256(event.topics[2]);
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
@@ -197,7 +189,7 @@ pub fn decode_set_chain_id_event(
 
 impl ProtocolUpgradeTx {
     pub fn decode_tx(
-        transaction: Vec<Token>,
+        transaction: Token,
         eth_hash: H256,
         eth_block: u64,
         factory_deps: Vec<Token>,

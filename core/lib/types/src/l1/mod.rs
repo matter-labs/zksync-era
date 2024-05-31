@@ -225,65 +225,37 @@ pub struct L2CanonicalTransaction {
 }
 
 impl NewPriorityRequest {
-    pub fn schema() -> Vec<ParamType> {
-        vec![
-            ParamType::Uint(256),                               // tx ID
-            ParamType::FixedBytes(32),                          // tx hash
-            ParamType::Uint(64),                                // expiration block
-            ParamType::Tuple(L2CanonicalTransaction::schema()), // transaction data
-            ParamType::Array(ParamType::Bytes.into()),          // factory deps
-        ]
-    }
-
-    pub fn decode(tokens: Vec<Token>) -> anyhow::Result<Self> {
-        anyhow::ensure!(tokens.len() == 5);
+    pub fn decode(data: &[u8]) -> Result<Self, ethabi::Error> {
+        let tokens = ethabi::decode(
+            &[
+                ParamType::Uint(256),                      // tx ID
+                ParamType::FixedBytes(32),                 // tx hash
+                ParamType::Uint(64),                       // expiration block
+                L2CanonicalTransaction::schema(),          // transaction data
+                ParamType::Array(ParamType::Bytes.into()), // factory deps
+            ],
+            data,
+        )?;
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
         Ok(Self {
-            tx_id: next().into_uint().context("tx_id")?,
-            tx_hash: next()
-                .into_fixed_bytes()
-                .and_then(|x| x.try_into().ok())
-                .context("tx_hash")?,
-            expiration_timestamp: next()
-                .into_uint()
-                .and_then(|x| x.try_into().ok())
-                .context("expiration_timestamp")?,
-            transaction: L2CanonicalTransaction::decode(
-                next().into_tuple().context("transaction")?,
-            )
-            .context("transaction")?,
+            tx_id: next().into_uint().unwrap(),
+            tx_hash: next().into_fixed_bytes().unwrap().try_into().unwrap(),
+            expiration_timestamp: next().into_uint().unwrap().try_into().unwrap(),
+            transaction: L2CanonicalTransaction::decode(next()).unwrap(),
             factory_deps: next()
                 .into_array()
-                .context("factory_deps")?
+                .unwrap()
                 .into_iter()
-                .enumerate()
-                .map(|(i, t)| t.into_bytes().context(i))
-                .collect::<Result<_, _>>()
-                .context("factory_deps")?,
+                .map(|t| t.into_bytes().unwrap())
+                .collect(),
         })
-    }
-
-    pub fn encode(&self) -> Vec<Token> {
-        vec![
-            Token::Uint(self.tx_id),
-            Token::FixedBytes(self.tx_hash.into()),
-            Token::Uint(self.expiration_timestamp.into()),
-            Token::Tuple(self.transaction.encode()),
-            Token::Array(
-                self.factory_deps
-                    .iter()
-                    .map(|b| Token::Bytes(b.clone()))
-                    .collect(),
-            ),
-        ]
     }
 }
 
 impl L2CanonicalTransaction {
-    pub fn schema() -> Vec<ParamType> {
-        // TODO: refactor according to tx type
-        vec![
+    pub fn schema() -> ParamType {
+        ParamType::Tuple(vec![
             ParamType::Uint(256),                                  // `txType`
             ParamType::Uint(256),                                  // sender
             ParamType::Uint(256),                                  // to
@@ -300,10 +272,11 @@ impl L2CanonicalTransaction {
             ParamType::Array(Box::new(ParamType::Uint(256))),      // factory deps
             ParamType::Bytes,                                      // paymaster input
             ParamType::Bytes,                                      // `reservedDynamic`
-        ]
+        ])
     }
 
-    pub fn decode(tokens: Vec<Token>) -> anyhow::Result<Self> {
+    pub fn decode(token: Token) -> anyhow::Result<Self> {
+        let tokens = token.into_tuple().context("not a tuple")?;
         anyhow::ensure!(tokens.len() == 16);
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
@@ -344,8 +317,8 @@ impl L2CanonicalTransaction {
         })
     }
 
-    pub fn encode(&self) -> Vec<Token> {
-        vec![
+    pub fn encode(&self) -> Token {
+        Token::Tuple(vec![
             Token::Uint(self.tx_type),
             Token::Uint(self.from),
             Token::Uint(self.to),
@@ -362,13 +335,11 @@ impl L2CanonicalTransaction {
             Token::Array(self.factory_deps.iter().map(|x| Token::Uint(*x)).collect()),
             Token::Bytes(self.paymaster_input.clone()),
             Token::Bytes(self.reserved_dynamic.clone()),
-        ]
+        ])
     }
 
     pub fn hash(&self) -> H256 {
-        H256::from_slice(&web3::keccak256(&ethabi::encode(&[Token::Tuple(
-            self.encode(),
-        )])))
+        H256::from_slice(&web3::keccak256(&ethabi::encode(&[self.encode()])))
     }
 }
 
@@ -472,8 +443,9 @@ impl TryFrom<Log> for L1Tx {
     type Error = L1TxParseError;
 
     fn try_from(event: Log) -> Result<Self, Self::Error> {
-        let tokens = ethabi::decode(&NewPriorityRequest::schema(), &event.data.0)?;
-        let mut tx: L1Tx = NewPriorityRequest::decode(tokens).unwrap().try_into()?;
+        let mut tx: L1Tx = NewPriorityRequest::decode(&event.data.0)
+            .unwrap()
+            .try_into()?;
         tx.common_data.eth_hash = event
             .transaction_hash
             .expect("Event transaction hash is missing");
