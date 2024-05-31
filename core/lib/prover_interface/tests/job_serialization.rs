@@ -8,7 +8,7 @@ use zksync_prover_interface::{
     inputs::{PrepareBasicCircuitsJob, StorageLogMetadata},
     outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
 };
-use zksync_types::L1BatchNumber;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber, ProtocolVersionId};
 
 /// Tests compatibility of the `PrepareBasicCircuitsJob` serialization to the previously used
 /// one.
@@ -84,6 +84,10 @@ fn test_proof_request_serialization() {
     let proof = SubmitProofRequest::Proof(Box::new(L1BatchProofForL1 {
         aggregation_result_coords: [[0; 32]; 4],
         scheduler_proof: FinalProof::empty(),
+        protocol_version: ProtocolSemanticVersion {
+            minor: ProtocolVersionId::Version25,
+            patch: 10.into(),
+        },
     }));
     let encoded_obj = serde_json::to_string(&proof).unwrap();
     let encoded_json = r#"{
@@ -141,10 +145,12 @@ fn test_proof_request_serialization() {
                     "y": [ 1, 0, 0, 0 ],
                     "infinity": true
                 }
-            }
+            },
+            "protocol_version": "0.25.10"
         }
     }"#;
     let decoded_obj: SubmitProofRequest = serde_json::from_str(&encoded_obj).unwrap();
+    println!("{}", encoded_obj);
     let decoded_json: SubmitProofRequest = serde_json::from_str(encoded_json).unwrap();
     match (decoded_obj, decoded_json) {
         (SubmitProofRequest::Proof(decoded_obj), SubmitProofRequest::Proof(decoded_json)) => {
