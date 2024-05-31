@@ -262,7 +262,7 @@ blobs = chunk(padded_pubdata, ZKSYNC_BLOB_SIZE)
 
 # Each blob is then encoded to be compatible with the CL
 for blob in blobs:
-	encoded_blob = zksync_pubdata_into_ethereum_4844_data(blob)
+    encoded_blob = zksync_pubdata_into_ethereum_4844_data(blob)
 ```
 
 Now we can apply the encoding formula, with some of the data from the blob commit transaction to move from encoded blobs
@@ -275,8 +275,8 @@ BLOB_PUBDATA_COMMITMENT_SIZE = 144
 # Parse the kzg commitment from the commit calldata
 commit_calldata_without_source = commit_calldata[1:]
 for i in range(0, len(commit_calldata_without_source), BLOB_PUBDATA_COMMITMENT_SIZE):
-	# We can skip the opening point and claimed value, ignoring the proof
-	kzg_commitment = commit_calldata_without_source[48:96]
+    # We can skip the opening point and claimed value, ignoring the proof
+    kzg_commitment = commit_calldata_without_source[48:96]
 
 # We then need to pull the blobs in the correct order, this can be found by matching
 # each blob with their kzg_commitment keeping the order from the calldata
@@ -284,7 +284,7 @@ encoded_blobs = pull_blob_for_each_kzg_commitment(kzg_commitments)
 
 # Decode each blob into the zksync specific format
 for encoded_blob in encoded_blobs:
-	decoded_blob = ethereum_4844_data_into_zksync_pubdata(encoded_blob)
+    decoded_blob = ethereum_4844_data_into_zksync_pubdata(encoded_blob)
 
 reconstructed_pubdata = concat(decoded_blobs)
 ```
