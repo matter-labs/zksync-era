@@ -1,4 +1,3 @@
 [submodule "contracts"]
 path = contracts
-url = https://github.com/matias-gonz/era-contracts.git
-    branch = move-l1-contracts
+url = https://github.com/matter-labs/era-contracts.git
