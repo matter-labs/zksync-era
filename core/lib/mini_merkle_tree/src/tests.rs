@@ -173,9 +173,13 @@ fn verify_range_merkle_proof(
     for (start_item, end_item) in start_path.iter().zip(end_path.iter()) {
         if start_index % 2 == 1 {
             hashes.push_front(start_item.unwrap());
+        } else {
+            assert_eq!(start_item, &None);
         }
         if hashes.len() % 2 == 1 {
             hashes.push_back(end_item.unwrap());
+        } else {
+            assert_eq!(end_item, &None);
         }
 
         let next_level_len = hashes.len() / 2;

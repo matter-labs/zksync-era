@@ -183,7 +183,7 @@ where
         if self.start_index + self.hashes.len() > self.binary_tree_size {
             self.binary_tree_size *= 2;
             if self.cache.len() < tree_depth_by_size(self.binary_tree_size) {
-                self.cache.push(Some(self.merkle_root()));
+                self.cache.push(None);
             }
         }
     }
