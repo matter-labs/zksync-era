@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use serde::Deserialize;
 use vlog::LogFormat;
-use zksync_config::configs::{GeneralConfig, ObservabilityConfig};
+use zksync_config::configs::GeneralConfig;
 
 use super::{ConfigurationSource, Environment};
 
@@ -27,6 +27,8 @@ pub(crate) struct ObservabilityENConfig {
     /// Log format to use: either `plain` (default) or `json`.
     #[serde(default)]
     pub log_format: LogFormat,
+    /// Log directives, same as RUST_LOG
+    pub log_directives: Option<String>,
 }
 
 impl ObservabilityENConfig {
@@ -81,6 +83,9 @@ impl ObservabilityENConfig {
 
     pub fn build_observability(&self) -> anyhow::Result<vlog::ObservabilityGuard> {
         let mut builder = vlog::ObservabilityBuilder::new().with_log_format(self.log_format);
+        if let Some(log_directives) = &self.log_directives {
+            builder = builder.with_log_directives(log_directives.clone())
+        }
         // Some legacy deployments use `unset` as an equivalent of `None`.
         let sentry_url = self.sentry_url.as_deref().filter(|&url| url != "unset");
         if let Some(sentry_url) = sentry_url {
@@ -101,10 +106,20 @@ impl ObservabilityENConfig {
     }
 
     pub(crate) fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
-        let observability = general_config
-            .observability
-            .as_ref()
-            .context("Observability is required")?;
+        let (sentry_url, sentry_environment, log_format, log_directives) =
+            if let Some(observability) = general_config.observability.as_ref() {
+                (
+                    observability.sentry_url.clone(),
+                    observability.sentry_environment.clone(),
+                    observability
+                        .log_format
+                        .parse()
+                        .context("Invalid log format")?,
+                    observability.log_directives.clone(),
+                )
+            } else {
+                (None, None, LogFormat::default(), None)
+            };
         let (prometheus_port, prometheus_pushgateway_url, prometheus_push_interval_ms) =
             if let Some(api) = general_config.api_config.as_ref() {
                 (
@@ -119,12 +134,10 @@ impl ObservabilityENConfig {
             prometheus_port,
             prometheus_pushgateway_url,
             prometheus_push_interval_ms,
-            sentry_url: observability.sentry_url.clone(),
-            sentry_environment: observability.sentry_environment.clone(),
-            log_format: observability
-                .log_format
-                .parse()
-                .context("Invalid log format")?,
+            sentry_url,
+            sentry_environment,
+            log_format,
+            log_directives,
         })
     }
 }

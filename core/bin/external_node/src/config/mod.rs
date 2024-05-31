@@ -7,7 +7,6 @@ use std::{
 };
 
 use anyhow::Context;
-use futures::StreamExt;
 use serde::Deserialize;
 use zksync_config::{
     configs::{

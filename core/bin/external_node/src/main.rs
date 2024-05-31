@@ -707,6 +707,18 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(long, default_value = "all")]
     components: ComponentsToRun,
+    /// Path to the yaml config. If set, it will be used instead of env vars.
+    #[arg(long)]
+    config_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with secrets. If set, it will be used instead of env vars.
+    #[arg(long)]
+    secrets_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with genesis. If set, it will be used instead of env vars.
+    #[arg(long)]
+    external_node_config_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with genesis. If set, it will be used instead of env vars.
+    #[arg(long)]
+    consensus_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
@@ -763,7 +775,26 @@ async fn main() -> anyhow::Result<()> {
     // Initial setup.
     let opt = Cli::parse();
 
-    let mut config = ExternalNodeConfig::new().context("Failed to load node configuration")?;
+    let mut config = if let Some(config_path) = opt.config_path.clone() {
+        let secrets_path = opt
+            .secrets_path
+            .clone()
+            .context("File based config can't be used partially please provide all paths")?;
+        let external_node_config_path = opt
+            .external_node_config_path
+            .clone()
+            .context("File based config can't be used partially please provide all paths")?;
+
+        ExternalNodeConfig::from_files(
+            config_path,
+            external_node_config_path,
+            secrets_path,
+            opt.consensus_path.clone(),
+        )?
+    } else {
+        ExternalNodeConfig::new().context("Failed to load node configuration")?
+    };
+
     if !opt.enable_consensus {
         config.consensus = None;
     }
