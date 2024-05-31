@@ -1,6 +1,7 @@
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
-    l2::L2Tx, transaction_request::PaymasterParams, Execute, Nonce, CONTRACT_DEPLOYER_ADDRESS, U256,
+    l2::L2Tx, transaction_request::PaymasterParams, Execute, Nonce, CONTRACT_DEPLOYER_ADDRESS,
+    CONTRACT_DEPLOYER_ADDRESS_EVM, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -58,22 +59,21 @@ where
             Some(nonce) => nonce,
             None => Nonce(self.wallet.get_nonce().await?),
         };
-
-        let main_contract_hash = hash_bytecode(&bytecode);
-        let execute_calldata =
-            Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata);
-
+        //let main_contract_hash = hash_bytecode(&bytecode);
+        //let execute_calldata =
+        //    Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata);
+        let execute_calldata = vec![bytecode.clone(), calldata].concat();
         let mut factory_deps = self.factory_deps.unwrap_or_default();
-        factory_deps.push(bytecode.clone());
+        //factory_deps.push(bytecode.clone());
 
         self.wallet
             .signer
             .sign_execute_contract_for_deploy(
-                CONTRACT_DEPLOYER_ADDRESS,
+                CONTRACT_DEPLOYER_ADDRESS_EVM,
                 execute_calldata,
                 fee,
                 nonce,
-                Some(vec![bytecode.clone()]),
+                Some(factory_deps),
                 paymaster_params,
             )
             .await
@@ -140,12 +140,12 @@ where
             .unwrap_or_default();
 
         let calldata = self.calldata.clone().unwrap_or_default();
-        let main_contract_hash = hash_bytecode(&bytecode);
+        //let main_contract_hash = hash_bytecode(&bytecode);
         let mut factory_deps = self.factory_deps.clone().unwrap_or_default();
-        factory_deps.push(bytecode);
+        //factory_deps.push(bytecode);
         let l2_tx = L2Tx::new(
-            Some(CONTRACT_DEPLOYER_ADDRESS),
-            Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata),
+            Some(CONTRACT_DEPLOYER_ADDRESS_EVM),
+            vec![bytecode.clone(), calldata].concat(),
             Nonce(0),
             Default::default(),
             self.wallet.address(),
