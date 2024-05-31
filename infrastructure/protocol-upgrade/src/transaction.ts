@@ -226,6 +226,7 @@ function createInitialCutHash(environment) {
         console.log(`Found facet cuts file ${facetCutsFileName}`);
         facetCuts = JSON.parse(fs.readFileSync(facetCutsFileName).toString());
     }
+    facetCuts = facetCuts.filter((cut) => cut.action === 0);
 
     // FIXME: potentially provide it in CLI
     const diamondInit = process.env.CONTRACTS_DIAMOND_INIT_ADDR;
