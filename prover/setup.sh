@@ -13,12 +13,9 @@ if [[ -z "${ZKSYNC_HOME}" ]]; then
   exit 1
 fi
 
-sed -i.backup 's/^proof_sending_mode=.*$/proof_sending_mode="OnlyRealProofs"/' ../etc/env/base/eth_sender.toml
-rm ../etc/env/base/eth_sender.toml.backup
-sed -i.backup 's/^setup_data_path=.*$/setup_data_path="vk_setup_data_generator_server_fri\/data\/"/' ../etc/env/base/fri_prover.toml
-rm ../etc/env/base/fri_prover.toml.backup
-sed -i.backup 's/^universal_setup_path=.*$/universal_setup_path="..\/keys\/setup\/setup_2^26.key"/' ../etc/env/base/fri_proof_compressor.toml
-rm ../etc/env/base/fri_proof_compressor.toml.backup
+sed -i '' -e 's/^proof_sending_mode =.*$/proof_sending_mode = "OnlyRealProofs"/' ../etc/env/base/eth_sender.toml
+sed -i '' -e 's;^setup_data_path =.*$;setup_data_path = "vk_setup_data_generator_server_fri/data/";' ../etc/env/base/fri_prover.toml
+sed -i '' -e 's;^universal_setup_path =.*$;universal_setup_path = "../keys/setup/setup_2^26.key";' ../etc/env/base/fri_proof_compressor.toml
 
 zk config compile dev
 
