@@ -1,6 +1,6 @@
 # Pubdata Post 4844
 
-# Motivation
+## Motivation
 
 EIP-4844, commonly known as Proto-Danksharding, is an upgrade to the ethereum protocol that introduces a new data
 availability solution embedded in layer 1. More information about it can be found
@@ -14,7 +14,7 @@ unlike 4844 which supports just 6 per block.
 > 💡 Given the nature of 4844 development from a solidity viewpoint, we’ve had to create a temporary contract
 > `BlobVersionedHash.yul` which acts in place of the eventual `BLOBHASH` opcode.
 
-# Technical Approach
+## Technical Approach
 
 The approach spans both L2 system contracts and L1 zkSync contracts (namely `Executor.sol`). When a batch is sealed on
 L2 we will chunk it into blob-sized pieces (4096 elements \* 31 bytes per what is required by our circuits), take the
