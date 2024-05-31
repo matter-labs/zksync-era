@@ -80,6 +80,10 @@ impl BlockOutputWithProofs {
 
 impl TreeEntryWithProof {
     /// Verifies this proof.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error iff proof is invalid.
     pub fn verify(
         &self,
         hasher: &dyn HashTree,

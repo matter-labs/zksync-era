@@ -5,11 +5,13 @@ use std::convert::TryFrom;
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
-    ethabi::{decode, ParamType, Token},
-    web3::Log,
+    ethabi::{self, ParamType, Token},
+    web3::{self, Log},
     Address, L1BlockNumber, PriorityOpId, H256, U256,
 };
-use zksync_utils::{address_to_u256, u256_to_account_address};
+use zksync_utils::{
+    address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,
+};
 
 use super::Transaction;
 use crate::{
@@ -217,11 +219,8 @@ pub struct L2CanonicalTransaction {
     reserved: [U256; 4],
     data: Vec<u8>,
     signature: Vec<u8>,
-    #[allow(dead_code)]
     factory_deps: Vec<U256>,
-    #[allow(dead_code)]
     paymaster_input: Vec<u8>,
-    #[allow(dead_code)]
     reserved_dynamic: Vec<u8>,
 }
 
@@ -265,13 +264,18 @@ impl NewPriorityRequest {
         })
     }
 
-    pub fn encode(self) -> Vec<Token> {
+    pub fn encode(&self) -> Vec<Token> {
         vec![
             Token::Uint(self.tx_id),
             Token::FixedBytes(self.tx_hash.into()),
             Token::Uint(self.expiration_timestamp.into()),
             Token::Tuple(self.transaction.encode()),
-            Token::Array(self.factory_deps.into_iter().map(Token::Bytes).collect()),
+            Token::Array(
+                self.factory_deps
+                    .iter()
+                    .map(|b| Token::Bytes(b.clone()))
+                    .collect(),
+            ),
         ]
     }
 }
@@ -340,7 +344,7 @@ impl L2CanonicalTransaction {
         })
     }
 
-    pub fn encode(self) -> Vec<Token> {
+    pub fn encode(&self) -> Vec<Token> {
         vec![
             Token::Uint(self.tx_type),
             Token::Uint(self.from),
@@ -352,18 +356,23 @@ impl L2CanonicalTransaction {
             Token::Uint(self.paymaster),
             Token::Uint(self.nonce),
             Token::Uint(self.value),
-            Token::FixedArray(self.reserved.into_iter().map(Token::Uint).collect()),
-            Token::Bytes(self.data),
-            Token::Bytes(self.signature),
-            Token::Array(self.factory_deps.into_iter().map(Token::Uint).collect()),
-            Token::Bytes(self.paymaster_input),
-            Token::Bytes(self.reserved_dynamic),
+            Token::FixedArray(self.reserved.iter().map(|x| Token::Uint(*x)).collect()),
+            Token::Bytes(self.data.clone()),
+            Token::Bytes(self.signature.clone()),
+            Token::Array(self.factory_deps.iter().map(|x| Token::Uint(*x)).collect()),
+            Token::Bytes(self.paymaster_input.clone()),
+            Token::Bytes(self.reserved_dynamic.clone()),
         ]
+    }
+
+    pub fn hash(&self) -> H256 {
+        H256::from_slice(&web3::keccak256(&ethabi::encode(&self.encode())))
     }
 }
 
 impl From<L1Tx> for NewPriorityRequest {
     fn from(t: L1Tx) -> Self {
+        let factory_deps = t.execute.factory_deps.unwrap_or_default();
         Self {
             tx_id: t.common_data.serial_id.0.into(),
             tx_hash: t.common_data.canonical_tx_hash.to_fixed_bytes(),
@@ -387,11 +396,14 @@ impl From<L1Tx> for NewPriorityRequest {
                 ],
                 data: t.execute.calldata,
                 signature: vec![],
-                factory_deps: vec![], // TODO: t.execute.factory_deps.hash(),
+                factory_deps: factory_deps
+                    .iter()
+                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .collect(),
                 paymaster_input: vec![],
                 reserved_dynamic: vec![],
             },
-            factory_deps: t.execute.factory_deps.unwrap(),
+            factory_deps,
         }
     }
 }
@@ -407,8 +419,13 @@ impl TryFrom<NewPriorityRequest> for L1Tx {
         assert_eq!(req.transaction.nonce, req.tx_id); // serial id from decoded from transaction bytes should be equal to one from event
         assert_eq!(req.transaction.max_priority_fee_per_gas, U256::zero());
         assert_eq!(req.transaction.paymaster, U256::zero());
-        // TODO: verify tx hash.
-        // TODO: verify factory_deps hashes
+        assert_eq!(req.transaction.hash(), H256::from_slice(&req.tx_hash));
+        let factory_deps_hashes: Vec<_> = req
+            .factory_deps
+            .iter()
+            .map(|b| h256_to_u256(hash_bytecode(b)))
+            .collect();
+        assert_eq!(req.transaction.factory_deps, factory_deps_hashes);
         for item in &req.transaction.reserved[2..] {
             assert_eq!(item, &U256::zero());
         }
@@ -453,7 +470,7 @@ impl TryFrom<Log> for L1Tx {
     type Error = L1TxParseError;
 
     fn try_from(event: Log) -> Result<Self, Self::Error> {
-        let tokens = decode(&NewPriorityRequest::schema(), &event.data.0)?;
+        let tokens = ethabi::decode(&NewPriorityRequest::schema(), &event.data.0)?;
         let mut tx: L1Tx = NewPriorityRequest::decode(tokens).unwrap().try_into()?;
         tx.common_data.eth_hash = event
             .transaction_hash

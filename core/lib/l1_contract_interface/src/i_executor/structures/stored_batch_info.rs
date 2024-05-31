@@ -62,7 +62,7 @@ impl<'a> Tokenizable for StoredBatchInfo<'a> {
     }
 }
 
-impl<'a> Tokenizable for StoredBatchInfoCompact {
+impl Tokenizable for StoredBatchInfoCompact {
     fn from_token(_token: Token) -> Result<Self, ContractError> {
         // Currently there is no need to decode this struct.
         // We still want to implement `Tokenizable` trait for it, so that *once* it's needed
