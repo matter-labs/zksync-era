@@ -45,6 +45,32 @@ pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
 
+macro_rules! load_optional_config_or_default {
+    ($config:expr, $($name:ident).+, $default:ident) => {
+        $config
+            .as_ref()
+            .map(|a| a.$($name).+.map(|a| a.try_into())).flatten().transpose()?
+            .unwrap_or_else(OptionalENConfig::$default)
+    };
+}
+
+macro_rules! load_config_or_default {
+    ($config:expr, $($name:ident).+, $default:ident) => {
+        $config
+            .as_ref()
+            .map(|a| a.$($name).+.try_into()).transpose()?
+            .unwrap_or_else(OptionalENConfig::$default)
+    };
+}
+
+macro_rules! load_config {
+    ($config:expr, $($name:ident).+) => {
+        $config
+            .as_ref()
+            .map(|a| a.$($name).+.map(|a| a.try_into())).flatten().transpose()?
+    };
+}
+
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 
 /// Encapsulation of configuration source with a mock implementation used in tests.
@@ -444,23 +470,30 @@ impl OptionalENConfig {
             .map(|a| a.iter().map(|a| serde_json::from_str(a).unwrap()).collect());
 
         Ok(OptionalENConfig {
-            filters_limit: api
-                .web3_json_rpc
-                .filters_limit
-                .map(|a| a as usize)
-                .unwrap_or_else(OptionalENConfig::default_filters_limit),
-            subscriptions_limit: api
-                .web3_json_rpc
-                .subscriptions_limit
-                .map(|a| a as usize)
-                .unwrap_or_else(OptionalENConfig::default_subscriptions_limit),
-            req_entities_limit: api
-                .web3_json_rpc
-                .req_entities_limit
-                .map(|a| a as usize)
-                .unwrap_or_else(OptionalENConfig::default_req_entities_limit),
-            max_tx_size_bytes: api.web3_json_rpc.max_tx_size,
-            vm_execution_cache_misses_limit: api.web3_json_rpc.vm_execution_cache_misses_limit,
+            filters_limit: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.filters_limit,
+                default_filters_limit
+            ),
+            subscriptions_limit: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.subscriptions_limit,
+                default_subscriptions_limit
+            ),
+            req_entities_limit: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.req_entities_limit,
+                default_req_entities_limit
+            ),
+            max_tx_size_bytes: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.max_tx_size,
+                default_max_tx_size_bytes
+            ),
+            vm_execution_cache_misses_limit: load_config!(
+                general_config.api_config,
+                web3_json_rpc.vm_execution_cache_misses_limit
+            ),
             transactions_per_sec_limit: None,
             fee_history_limit: api.web3_json_rpc.fee_history_limit(),
             max_batch_request_size: api.web3_json_rpc.max_batch_request_size(),
