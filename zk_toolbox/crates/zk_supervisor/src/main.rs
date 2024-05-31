@@ -6,6 +6,7 @@ use common::{
     init_prompt_theme, logger,
 };
 use config::EcosystemConfig;
+use messages::msg_global_chain_does_not_exist;
 use xshell::Shell;
 
 mod commands;
@@ -97,11 +98,7 @@ fn init_global_config_inner(shell: &Shell, args: &SupervisorGlobalArgs) -> anyho
         if let Ok(config) = EcosystemConfig::from_file(shell) {
             let chains = config.list_of_chains();
             if !chains.contains(name) {
-                anyhow::bail!(
-                    "Chain with name {} doesnt exist, please choose one of {:?}",
-                    name,
-                    &chains
-                );
+                anyhow::bail!(msg_global_chain_does_not_exist(name, &chains.join(", ")));
             }
         }
     }

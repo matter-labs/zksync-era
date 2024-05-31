@@ -1,5 +1,8 @@
 // Ecosystem related messages
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
+pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &str) -> String {
+    format!("Chain with name {chain} doesnt exist, please choose one of: {available_chains}")
+}
 
 // Database related messages
 pub(super) const MSG_NO_DATABASES_SELECTED: &str = "No databases selected";
