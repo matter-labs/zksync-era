@@ -17,7 +17,6 @@ use config::{
 use xshell::Shell;
 
 use super::args::init::InitArgsFinal;
-use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_SELECTED_CONFIG};
 use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
@@ -27,8 +26,8 @@ use crate::{
     forge_utils::{check_the_balance, fill_forge_private_key},
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR,
+        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
     },
 };
 

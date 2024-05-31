@@ -12,19 +12,21 @@ use config::{
 };
 use xshell::{cmd, Shell};
 
-use crate::commands::ecosystem::{
-    args::create::EcosystemCreateArgs,
-    create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-};
-use crate::commands::{
-    chain::create_chain_inner,
-    containers::{initialize_docker, start_containers},
-};
-use crate::messages::{
-    MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATED_ECOSYSTEM, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
-    MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
-    MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
-    MSG_STARTING_CONTAINERS_SPINNER,
+use crate::{
+    commands::{
+        chain::create_chain_inner,
+        containers::{initialize_docker, start_containers},
+        ecosystem::{
+            args::create::EcosystemCreateArgs,
+            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
+        },
+    },
+    messages::{
+        MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATED_ECOSYSTEM, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
+        MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
+        MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
+        MSG_STARTING_CONTAINERS_SPINNER,
+    },
 };
 
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {

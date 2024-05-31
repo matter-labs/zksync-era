@@ -6,11 +6,14 @@ use types::L1Network;
 use url::Url;
 
 use super::genesis::GenesisArgsFinal;
-use crate::messages::{
-    MSG_DEPLOY_PAYMASTER_PROMPT, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP,
-    MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+use crate::{
+    commands::chain::args::genesis::GenesisArgs,
+    defaults::LOCAL_RPC_URL,
+    messages::{
+        MSG_DEPLOY_PAYMASTER_PROMPT, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP,
+        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+    },
 };
-use crate::{commands::chain::args::genesis::GenesisArgs, defaults::LOCAL_RPC_URL};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct InitArgs {
