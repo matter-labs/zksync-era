@@ -9,7 +9,7 @@ use super::args::DatabaseCommonArgs;
 use crate::dals::{get_dals, Dal};
 
 pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt("drop");
+    let args = args.parse();
     if args.selected_dals.none() {
         logger::outro("No databases selected to drop");
         return Ok(());

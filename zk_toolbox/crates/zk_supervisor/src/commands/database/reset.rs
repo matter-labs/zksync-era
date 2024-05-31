@@ -8,7 +8,7 @@ use super::{args::DatabaseCommonArgs, drop::drop_database, setup::setup_database
 use crate::dals::{get_dals, Dal};
 
 pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt("reset");
+    let args = args.parse();
     if args.selected_dals.none() {
         logger::outro("No databases selected");
         return Ok(());

@@ -14,19 +14,19 @@ mod setup;
 
 #[derive(Subcommand, Debug)]
 pub enum DatabaseCommands {
-    /// Check sqlx-data.json is up to date
+    /// Check sqlx-data.json is up to date. If no databases are selected, all databases will be checked.
     CheckSqlxData(DatabaseCommonArgs),
-    /// Drop databases
+    /// Drop databases. If no databases are selected, all databases will be dropped.
     Drop(DatabaseCommonArgs),
-    /// Migrate databases
+    /// Migrate databases. If no databases are selected, all databases will be migrated.
     Migrate(DatabaseCommonArgs),
     /// Create new migration
     NewMigration(DatabaseNewMigrationArgs),
-    /// Prepare sqlx-data.json
+    /// Prepare sqlx-data.json. If no databases are selected, all databases will be prepared.
     Prepare(DatabaseCommonArgs),
-    /// Reset databases
+    /// Reset databases. If no databases are selected, all databases will be reset.
     Reset(DatabaseCommonArgs),
-    /// Setup databases
+    /// Setup databases. If no databases are selected, all databases will be setup.
     Setup(DatabaseCommonArgs),
 }
 

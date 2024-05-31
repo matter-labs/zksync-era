@@ -15,17 +15,21 @@ pub struct DatabaseCommonArgs {
 }
 
 impl DatabaseCommonArgs {
-    pub fn fill_values_with_prompt(self, verb: &str) -> DatabaseCommonArgsFinal {
-        let prover = self.prover.unwrap_or_else(|| {
-            common::PromptConfirm::new(format!("Do you want to {verb} the prover database?")).ask()
-        });
-
-        let core = self.core.unwrap_or_else(|| {
-            common::PromptConfirm::new(format!("Do you want to {verb} the core database?")).ask()
-        });
+    pub fn parse(self) -> DatabaseCommonArgsFinal {
+        if self.prover.is_none() && self.core.is_none() {
+            return DatabaseCommonArgsFinal {
+                selected_dals: SelectedDals {
+                    prover: true,
+                    core: true,
+                },
+            };
+        }
 
         DatabaseCommonArgsFinal {
-            selected_dals: SelectedDals { prover, core },
+            selected_dals: SelectedDals {
+                prover: self.prover.unwrap_or(false),
+                core: self.core.unwrap_or(false),
+            },
         }
     }
 }
