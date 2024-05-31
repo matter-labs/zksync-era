@@ -5,7 +5,7 @@
 EIP-4844, commonly known as Proto-Danksharding, is an upgrade to the ethereum protocol that introduces a new data
 availability solution embedded in layer 1. More information about it can be found
 [here](https://ethereum.org/en/roadmap/danksharding/). With proto-danksharding we can utilize the new blob data
-availablitiy for cheaper storage of pubdata when we commit batches resulting in more transactions per batch and cheaper
+availability for cheaper storage of pubdata when we commit batches resulting in more transactions per batch and cheaper
 batches/transactions. We want to ensure we have the flexibility at the contract level to process both pubdata via
 calldata, as well as pubdata via blobs. A quick callout here, while 4844 has introduced blobs as new DA layer, it is the
 first step in full Danksharding. With full Danksharding ethereum will be able to handle a total of 64 blobs per block
@@ -82,7 +82,7 @@ pubdata slot calculation from our code:
 One of "worst case" scenarios for the number of state diffs in a batch is when 240kb of pubdata is spent
 on repeated writes, that are all zeroed out. In this case, the number of diffs is 240k / 5 = 48k. This means that they will have
 accommodate 13056000 bytes of calldata for the uncompressed state diffs. Adding 120k on top leaves us with
-roughly 13176000 bytes needed for calldata. 411750 slots are needed to accomodate this amount of data.
+roughly 13176000 bytes needed for calldata. 411750 slots are needed to accommodate this amount of data.
 We round up to 411900 slots just in case.
 ```
 
