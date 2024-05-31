@@ -15,6 +15,7 @@ mod config_manipulations;
 mod consts;
 mod defaults;
 pub mod forge_utils;
+mod messages;
 pub mod server;
 
 #[derive(Parser, Debug)]
