@@ -35,6 +35,10 @@ export function getPostUpgradeCalldataFileName(environment): string {
     return getUpgradePath(environment) + '/postUpgradeCalldata.json';
 }
 
+export function getGenesisFileName(environment): string {
+    return getUpgradePath(environment) + '/genesis.json';
+}
+
 export function getNameOfTheLastUpgrade(): string {
     return fs.readdirSync(DEFAULT_UPGRADE_PATH).sort().reverse()[0];
 }

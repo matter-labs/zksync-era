@@ -5,8 +5,10 @@ import {
     DefaultUpgradeFactory as DefaultUpgradeFactoryL1,
     AdminFacetFactory,
     GovernanceFactory,
-    StateTransitionManagerFactory
+    StateTransitionManagerFactory,
+    DiamondInitFactory
 } from 'l1-contracts/typechain';
+import { compileInitialCutHash } from 'l1-contracts/src.ts/utils';
 import { FacetCut } from 'l1-contracts/src.ts/diamondCut';
 import { IZkSyncFactory } from '../pre-boojum/IZkSyncFactory';
 import { ComplexUpgraderFactory } from 'system-contracts/typechain';
@@ -17,9 +19,9 @@ import {
     getL2TransactionsFileName,
     getPostUpgradeCalldataFileName,
     getL2UpgradeFileName,
-    VerifierParams,
     unpackStringSemVer,
-    packSemver
+    packSemver,
+    getGenesisFileName
 } from './utils';
 import fs from 'fs';
 import { Command } from 'commander';
@@ -177,15 +179,17 @@ interface GovernanceTx {
     operation: any;
 }
 
-function prepareGovernanceTxs(target: string, data: BytesLike): GovernanceTx {
-    const govCall = {
-        target: target,
-        value: 0,
-        data: data
-    };
+function prepareGovernanceTxs(targets: string[], datas: BytesLike[]): GovernanceTx {
+    const govCalls = targets.map((target, i) => {
+        return {
+            target: target,
+            value: 0,
+            data: datas[i]
+        };
+    });
 
     const operation = {
-        calls: [govCall],
+        calls: govCalls,
         predecessor: ethers.constants.HashZero,
         salt: ethers.constants.HashZero
     };
@@ -208,7 +212,126 @@ function prepareGovernanceTxs(target: string, data: BytesLike): GovernanceTx {
     };
 }
 
-export function prepareTransparentUpgradeCalldataForNewGovernance(
+interface VerifierParams {
+    recursionNodeLevelVkHash: string;
+    recursionLeafLevelVkHash: string;
+    recursionCircuitsSetVksHash: string;
+}
+
+// We should either reuse code or add a test for this function.
+function createInitialCutHash(
+    environment,
+) {
+    let facetCuts = [];
+    let facetCutsFileName = getFacetCutsFileName(environment);
+    if (fs.existsSync(facetCutsFileName)) {
+        console.log(`Found facet cuts file ${facetCutsFileName}`);
+        facetCuts = JSON.parse(fs.readFileSync(facetCutsFileName).toString());
+    }
+    
+    // FIXME: potentially provide it in CLI
+    const diamondInit = process.env.CONTRACTS_DIAMOND_INIT_ADDR;
+    const blobVersionedHashRetriever = process.env.CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR;
+
+    let l2BootloaderBytecodeHash = ethers.constants.HashZero;
+    let l2DefaultAccountBytecodeHash = ethers.constants.HashZero;
+
+    const l2upgradeFileName = getL2UpgradeFileName(environment);
+    if (fs.existsSync(l2upgradeFileName)) {
+        console.log(`Found l2 upgrade file ${l2upgradeFileName}`);
+        const l2Upgrade = JSON.parse(fs.readFileSync(l2upgradeFileName).toString());
+
+        if (l2Upgrade.bootloader) {
+            l2BootloaderBytecodeHash = l2Upgrade.bootloader.bytecodeHashes[0];
+        }
+
+        if (l2Upgrade.defaultAA) {
+            l2DefaultAccountBytecodeHash = l2Upgrade.defaultAA.bytecodeHashes[0];
+        }
+    } else {
+        throw new environment('L2 upgrade file is missing for STM init cut hash');
+    }
+
+    if (l2BootloaderBytecodeHash === ethers.constants.HashZero || l2DefaultAccountBytecodeHash === ethers.constants.HashZero) {
+        throw new Error('Bootloader hash / default aa is missing');
+    }
+
+    let verifier = ethers.constants.AddressZero;
+    let verifierParams = {
+        recursionNodeLevelVkHash: ethers.constants.HashZero,
+        recursionLeafLevelVkHash: ethers.constants.HashZero,
+        recursionCircuitsSetVksHash: ethers.constants.HashZero
+    };
+    let cryptoFileName = getCryptoFileName(environment);
+    if (fs.existsSync(cryptoFileName)) {
+        console.log(`Found crypto file ${cryptoFileName}`);
+        const crypto = JSON.parse(fs.readFileSync(cryptoFileName).toString());
+        if (crypto.verifier) {
+            verifier = crypto.verifier.address;
+        }
+        if (crypto.keys) {
+            verifierParams = crypto.keys;
+        }
+    }
+
+    return compileInitialCutHash(
+        facetCuts,
+        verifierParams,
+        l2BootloaderBytecodeHash,
+        l2DefaultAccountBytecodeHash,
+        verifier,
+        blobVersionedHashRetriever,
+        // We always provide constant value for the priorityTxMaxGasLimit
+        72_000_000,
+        diamondInit,
+        true
+    )
+}
+
+/// Prepares the upgrade data for the StateTransitionManager contract
+function prepareUpgradeDataStm(
+    environment: string,
+    stmAddress: string,
+    upgradeDiamondCut: DiamondCutData,
+    initialDiamondCut: DiamondCutData,
+    oldProtocolVersion: number,
+    oldProtocolVersionDeadline: number,
+    newProtocolVersion: number
+): GovernanceTx {
+    let stm = new StateTransitionManagerFactory();
+
+    // Updating a version on STM consists of two steps:
+    // 1. `setNewVersionUpgrade`. this increases the latest protocol version on STM as well as 
+    // provides the upgrade cut hash.
+    // 2. `setChainCreationParams`. this sets the initial cut hash for the new protocol version, i.e. 
+    // it will ensure that any new chain that spawns will use this exact protocol version.
+
+    // Step 1: `setNewVersionUpgrade`
+
+    const stmUpgradeCalldata = stm.interface.encodeFunctionData('setNewVersionUpgrade', [
+        upgradeDiamondCut,
+        oldProtocolVersion,
+        oldProtocolVersionDeadline,
+        newProtocolVersion
+    ]);
+
+    // Step 2. `setChainCreationParams`
+    const { genesisUpgrade, genesisBatchHash, genesisIndexRepeatedStorageChanges, genesisBatchCommitment } = JSON.parse(fs.readFileSync(getGenesisFileName(environment), { encoding: 'utf-8' }));
+    const setChainCreationParamsCalldata = stm.interface.encodeFunctionData('setChainCreationParams', [
+        {
+            genesisUpgrade,
+            genesisBatchHash,
+            genesisIndexRepeatedStorageChanges,
+            genesisBatchCommitment,
+            diamondCut: initialDiamondCut
+        }
+    ]);
+
+    return prepareGovernanceTxs([stmAddress, stmAddress], [stmUpgradeCalldata, setChainCreationParamsCalldata]);
+}
+
+export function prepareTransparentUpgradeCalldata(
+    environment,
     oldProtocolVersion,
     oldProtocolVersionDeadline,
     newProtocolVersion,
@@ -226,16 +349,18 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         initCalldata
     };
     // Prepare calldata for STM
-    let stm = new StateTransitionManagerFactory();
-    const stmUpgradeCalldata = stm.interface.encodeFunctionData('setNewVersionUpgrade', [
+
+    const stmInitCutHash = createInitialCutHash(environment);
+
+    const { scheduleCalldata: stmScheduleTransparentOperation, executeCalldata: stmExecuteOperation } = prepareUpgradeDataStm(
+        environment,
+        stmAddress,
         diamondCut,
+        stmInitCutHash,
         oldProtocolVersion,
         oldProtocolVersionDeadline,
         newProtocolVersion
-    ]);
-
-    const { scheduleCalldata: stmScheduleTransparentOperation, executeCalldata: stmExecuteOperation } =
-        prepareGovernanceTxs(stmAddress, stmUpgradeCalldata);
+    );
 
     // Prepare calldata for upgrading diamond proxy
     let adminFacet = new AdminFacetFactory();
@@ -248,12 +373,12 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         scheduleCalldata: scheduleTransparentOperation,
         executeCalldata: executeOperation,
         operation: governanceOperation
-    } = prepareGovernanceTxs(zksyncAddress, diamondProxyUpgradeCalldata);
+    } = prepareGovernanceTxs([zksyncAddress], [diamondProxyUpgradeCalldata]);
 
     const legacyScheduleTransparentOperation = adminFacet.interface.encodeFunctionData('executeUpgrade', [diamondCut]);
     const { scheduleCalldata: legacyScheduleOperation, executeCalldata: legacyExecuteOperation } = prepareGovernanceTxs(
-        zksyncAddress,
-        legacyScheduleTransparentOperation
+        [zksyncAddress],
+        [legacyScheduleTransparentOperation]
     );
 
     let result: any = {
@@ -271,11 +396,12 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         if (!chainId) {
             throw new Error('chainId is required for direct operation');
         }
+        let stm = new StateTransitionManagerFactory();
 
         const stmDirecUpgradeCalldata = stm.interface.encodeFunctionData('executeUpgrade', [chainId, diamondCut]);
 
         const { scheduleCalldata: stmScheduleOperationDirect, executeCalldata: stmExecuteOperationDirect } =
-            prepareGovernanceTxs(stmAddress, stmDirecUpgradeCalldata);
+            prepareGovernanceTxs([stmAddress], [stmDirecUpgradeCalldata]);
 
         result = {
             ...result,
@@ -379,7 +505,8 @@ export function buildDefaultUpgradeTx(
 
     let l1upgradeCalldata = prepareDefaultCalldataForL1upgrade(proposeUpgradeTx);
 
-    let upgradeData = prepareTransparentUpgradeCalldataForNewGovernance(
+    let upgradeData = prepareTransparentUpgradeCalldata(
+        environment,
         oldProtocolVersion,
         oldProtocolVersionDeadline,
         packedNewProtocolVersion,
