@@ -8,7 +8,6 @@ import {
     StateTransitionManagerFactory,
     DiamondInitFactory
 } from 'l1-contracts/typechain';
-import { compileInitialCutHash } from 'l1-contracts/src.ts/utils';
 import { FacetCut } from 'l1-contracts/src.ts/diamondCut';
 import { IZkSyncFactory } from '../pre-boojum/IZkSyncFactory';
 import { ComplexUpgraderFactory } from 'system-contracts/typechain';
@@ -21,7 +20,8 @@ import {
     getL2UpgradeFileName,
     unpackStringSemVer,
     packSemver,
-    getGenesisFileName
+    getGenesisFileName,
+    compileInitialCutHash
 } from './utils';
 import fs from 'fs';
 import { Command } from 'commander';
