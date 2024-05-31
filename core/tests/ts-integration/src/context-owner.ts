@@ -422,8 +422,7 @@ export class TestContextOwner {
         const erc20MintPromise = l1Erc20Contract
             .mint(this.mainSyncWallet.address, erc20MintAmount, {
                 nonce: nonce++,
-                gasPrice,
-                gasLimit: 1000000n
+                gasPrice
             })
             .then((tx: any) => {
                 this.reporter.debug(`Sent ERC20 mint transaction. Hash: ${tx.hash}, nonce ${tx.nonce}`);
