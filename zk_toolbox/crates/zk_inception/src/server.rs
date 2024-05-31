@@ -8,6 +8,8 @@ use config::{
 };
 use xshell::{cmd, Shell};
 
+use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
+
 pub struct RunServer {
     components: Option<Vec<String>>,
     code_path: PathBuf,
@@ -78,7 +80,7 @@ impl RunServer {
             cmd = cmd.with_force_run();
         }
 
-        cmd.run().context("Failed to run server")?;
+        cmd.run().context(MSG_FAILED_TO_RUN_SERVER_ERR)?;
         Ok(())
     }
 

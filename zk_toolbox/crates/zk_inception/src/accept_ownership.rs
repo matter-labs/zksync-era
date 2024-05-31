@@ -12,7 +12,10 @@ use config::{
 use ethers::types::{Address, H256};
 use xshell::Shell;
 
-use crate::forge_utils::{check_the_balance, fill_forge_private_key};
+use crate::{
+    forge_utils::{check_the_balance, fill_forge_private_key},
+    messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
+};
 
 pub async fn accept_admin(
     shell: &Shell,
@@ -94,7 +97,7 @@ async fn accept_ownership(
     forge = fill_forge_private_key(forge, governor)?;
 
     check_the_balance(&forge).await?;
-    let spinner = Spinner::new("Accepting governance");
+    let spinner = Spinner::new(MSG_ACCEPTING_GOVERNANCE_SPINNER);
     forge.run(shell)?;
     spinner.finish();
     Ok(())
