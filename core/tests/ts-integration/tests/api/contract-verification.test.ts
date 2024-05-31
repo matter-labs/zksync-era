@@ -50,13 +50,12 @@ describe('Tests for the contract verification API', () => {
             }
         });
 
-        // bh ERROR
         test('should test contract verification', async () => {
             const counterContract = await deployContract(alice, contracts.counter, []);
             const constructorArguments = counterContract.interface.encodeDeploy([]);
 
             const requestBody = {
-                contractAddress: counterContract.address,
+                contractAddress: await counterContract.getAddress(),
                 contractName: 'contracts/counter/counter.sol:Counter',
                 sourceCode: getContractSource('counter/counter.sol'),
                 compilerZksolcVersion: ZKSOLC_VERSION,
@@ -70,7 +69,6 @@ describe('Tests for the contract verification API', () => {
             await expectVerifyRequestToSucceed(requestId, requestBody);
         });
 
-        // bh ERROR
         test('should test zkVM solc contract verification', async () => {
             let artifact = contracts.counter;
             // TODO: use plugin compilation when it's ready instead of pre-compiled bytecode.
@@ -83,7 +81,7 @@ describe('Tests for the contract verification API', () => {
             const constructorArguments = counterContract.interface.encodeDeploy([]);
 
             const requestBody = {
-                contractAddress: counterContract.address,
+                contractAddress: await counterContract.getAddress(),
                 contractName: 'contracts/counter/counter.sol:Counter',
                 sourceCode: getContractSource('counter/counter.sol'),
                 compilerZksolcVersion: ZKSOLC_VERSION,
