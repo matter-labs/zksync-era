@@ -3,12 +3,6 @@ use std::{
     str::FromStr,
 };
 
-use crate::messages::{
-    msg_ecosystem_initialized, msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
-    MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20, MSG_DEPLOYING_ERC20_SPINNER,
-    MSG_DISTRIBUTING_ETH_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
-    MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
-};
 use anyhow::Context;
 use common::{
     cmd::Cmd,
@@ -48,6 +42,13 @@ use crate::{
     },
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     forge_utils::{check_the_balance, fill_forge_private_key},
+    messages::{
+        msg_ecosystem_initialized, msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
+        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
+        MSG_DEPLOYING_ERC20_SPINNER, MSG_DISTRIBUTING_ETH_SPINNER,
+        MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
+        MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
+    },
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
