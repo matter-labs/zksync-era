@@ -161,8 +161,8 @@ fn verify_merkle_proof(
 fn verify_range_merkle_proof(
     items: &[[u8; 88]],
     mut start_index: usize,
-    start_path: &[H256],
-    end_path: &[H256],
+    start_path: &[Option<H256>],
+    end_path: &[Option<H256>],
     merkle_root: H256,
 ) {
     assert_eq!(start_path.len(), end_path.len());
@@ -172,10 +172,10 @@ fn verify_range_merkle_proof(
 
     for (start_item, end_item) in start_path.iter().zip(end_path.iter()) {
         if start_index % 2 == 1 {
-            hashes.push_front(*start_item);
+            hashes.push_front(start_item.unwrap());
         }
         if hashes.len() % 2 == 1 {
-            hashes.push_back(*end_item);
+            hashes.push_back(end_item.unwrap());
         }
 
         let next_level_len = hashes.len() / 2;
@@ -202,7 +202,7 @@ fn merkle_proofs_are_valid_in_small_tree() {
 }
 
 #[test]
-fn merkle_proofs_are_valid_for_intervals() {
+fn merkle_proofs_are_valid_for_ranges() {
     let mut leaves: Vec<_> = (1_u8..=50).map(|byte| [byte; 88]).collect();
     let mut tree = MiniMerkleTree::new(leaves.clone().into_iter(), None);
 

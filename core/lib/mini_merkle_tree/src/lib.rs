@@ -39,7 +39,7 @@ pub struct MiniMerkleTree<const LEAF_SIZE: usize, H = KeccakHasher> {
     hashes: VecDeque<H256>,
     binary_tree_size: usize,
     start_index: usize,
-    cache: Vec<H256>,
+    cache: Vec<Option<H256>>,
 }
 
 impl<const LEAF_SIZE: usize> MiniMerkleTree<LEAF_SIZE>
@@ -121,7 +121,7 @@ where
             hashes,
             binary_tree_size,
             start_index: 0,
-            cache: vec![H256::default(); depth],
+            cache: vec![None; depth],
         }
     }
 
@@ -137,27 +137,35 @@ where
             if self.start_index == 0 {
                 return self.hasher.empty_subtree_hash(depth);
             } else if self.start_index == self.binary_tree_size {
-                return self.cache[depth];
+                return self.cache[depth].unwrap();
             }
         }
-        self.compute_merkle_root_and_path(0, None)
+        self.compute_merkle_root_and_path(0, None, None)
     }
 
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
     /// `index` is relative to the leftmost uncached leaf.
     pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
+        assert!(index < self.hashes.len(), "leaf index out of bounds");
         let mut end_path = vec![];
-        let root_hash = self.compute_merkle_root_and_path(index, Some(&mut end_path));
-        (root_hash, end_path)
+        let root_hash = self.compute_merkle_root_and_path(index, Some(&mut end_path), None);
+        (
+            root_hash,
+            end_path.into_iter().map(Option::unwrap).collect(),
+        )
     }
 
     /// Returns the root hash and the Merkle proofs for a range of leafs.
     /// The range is 0..length, where `0` is the leftmost untrimmed leaf.
-    pub fn merkle_root_and_paths_for_range(&self, length: usize) -> (H256, Vec<H256>, Vec<H256>) {
+    pub fn merkle_root_and_paths_for_range(
+        &self,
+        length: usize,
+    ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
+        assert!(length <= self.hashes.len(), "not enough leaves in the tree");
         let mut right_path = vec![];
-        let root_hash = self.compute_merkle_root_and_path(length - 1, Some(&mut right_path));
-        let depth = tree_depth_by_size(self.binary_tree_size);
-        (root_hash, self.cache[..depth].to_vec(), right_path)
+        let root_hash =
+            self.compute_merkle_root_and_path(length - 1, Some(&mut right_path), Some(Side::Right));
+        (root_hash, self.cache.clone(), right_path)
     }
 
     /// Adds a raw hash to the tree (replaces leftmost empty leaf).
@@ -186,11 +194,11 @@ where
         assert!(self.hashes.len() >= count, "not enough leaves to cache");
         let mut new_cache = vec![];
         // Cache is a subset of the path to the first untrimmed leaf.
-        let root = self.compute_merkle_root_and_path(count, Some(&mut new_cache));
+        let root = self.compute_merkle_root_and_path(count, Some(&mut new_cache), Some(Side::Left));
         self.hashes.drain(..count);
         self.start_index += count;
         if self.start_index == self.binary_tree_size {
-            new_cache.push(root);
+            new_cache.push(Some(root));
         }
         self.cache = new_cache;
     }
@@ -198,7 +206,8 @@ where
     fn compute_merkle_root_and_path(
         &self,
         mut end_index: usize,
-        mut end_path: Option<&mut Vec<H256>>,
+        mut end_path: Option<&mut Vec<Option<H256>>>,
+        side: Option<Side>,
     ) -> H256 {
         let depth = tree_depth_by_size(self.binary_tree_size);
         if let Some(right_path) = end_path.as_deref_mut() {
@@ -214,14 +223,18 @@ where
 
         for level in 0..depth {
             if absolute_start_index % 2 == 1 {
-                hashes.push_front(self.cache[level]);
+                hashes.push_front(self.cache[level].unwrap());
                 end_index += 1;
             }
             if hashes.len() % 2 == 1 {
                 hashes.push_back(self.hasher.empty_subtree_hash(level));
             }
             if let Some(path) = end_path.as_deref_mut() {
-                let hash = hashes.get(end_index ^ 1).copied().unwrap_or_default();
+                let hash = match side {
+                    Some(Side::Left) if end_index % 2 == 0 => None,
+                    Some(Side::Right) if end_index % 2 == 1 => None,
+                    _ => hashes.get(end_index ^ 1).copied(),
+                };
                 path.push(hash);
             }
 
@@ -242,6 +255,12 @@ where
 fn tree_depth_by_size(tree_size: usize) -> usize {
     debug_assert!(tree_size.is_power_of_two());
     tree_size.trailing_zeros() as usize
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Side {
+    Left,
+    Right,
 }
 
 /// Hashing of empty binary Merkle trees.
