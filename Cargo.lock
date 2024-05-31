@@ -8000,6 +8000,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_base_token_price_fetcher"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tokio",
+ "tracing",
+ "zksync_dal",
+]
+
+[[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
@@ -8382,6 +8392,7 @@ dependencies = [
  "vise",
  "vlog",
  "vm_utils",
+ "zksync_base_token_price_fetcher",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",
@@ -9176,6 +9187,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
+ "zksync_base_token_price_fetcher",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_crypto",

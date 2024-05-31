@@ -399,6 +399,11 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_base_token_price_fetcher_layer(mut self) -> anyhow::Result<Self> {
+        todo!("Add base token price fetcher layer");
+        // Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
         self = self
@@ -479,6 +484,9 @@ impl MainNodeBuilder {
                 }
                 Component::CommitmentGenerator => {
                     self = self.add_commitment_generator_layer()?;
+                }
+                Component::BaseTokenPriceFetcher => {
+                    self = self.add_base_token_price_fetcher_layer()?;
                 }
             }
         }
