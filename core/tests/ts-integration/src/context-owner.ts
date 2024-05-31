@@ -419,10 +419,12 @@ export class TestContextOwner {
         const baseIsTransferred = false; // we are not transferring the base
         const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
         const l1Erc20Contract = new ethers.Contract(erc20Token, l1Erc20ABI, this.mainEthersWallet);
+        const gasLimit = await l1Erc20Contract.mint.estimateGas(this.mainSyncWallet.address, erc20MintAmount);
         const erc20MintPromise = l1Erc20Contract
             .mint(this.mainSyncWallet.address, erc20MintAmount, {
                 nonce: nonce++,
-                gasPrice
+                gasPrice,
+                gasLimit
             })
             .then((tx: any) => {
                 this.reporter.debug(`Sent ERC20 mint transaction. Hash: ${tx.hash}, nonce ${tx.nonce}`);
@@ -644,10 +646,11 @@ export async function sendTransfers(
         } else {
             const txNonce = startNonce + index;
             reporter?.debug(`Inititated ERC20 transfer with nonce: ${txNonce}`);
+            const gasLimit = await erc20Contract.transfer.estimateGas(ethers.computeAddress(testWalletPK), value);
             const tx = await erc20Contract.transfer(ethers.computeAddress(testWalletPK), value, {
                 nonce: txNonce,
                 gasPrice,
-                gasLimit: 1000000n
+                gasLimit
             });
             reporter?.debug(`Sent ERC20 transfer tx: ${tx.hash}, nonce: ${tx.nonce}`);
 
