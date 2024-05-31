@@ -7,12 +7,13 @@ use crate::{
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", TeeVerifierInputProducerTask)]
 pub struct TeeVerifierInputProducerLayer {
     l2_chain_id: L2ChainId,
 }
@@ -40,7 +41,10 @@ impl WiringLayer for TeeVerifierInputProducerLayer {
         let tee =
             TeeVerifierInputProducer::new(pool_resource, object_store.0, self.l2_chain_id).await?;
 
-        context.add_task(Box::new(TeeVerifierInputProducerTask { tee }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(TeeVerifierInputProducerTask { tee }),
+        );
 
         Ok(())
     }

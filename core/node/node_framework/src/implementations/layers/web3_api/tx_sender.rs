@@ -13,7 +13,7 @@ use crate::{
         state_keeper::ConditionalSealerResource,
         web3_api::{TxSenderResource, TxSinkResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -25,7 +25,8 @@ pub struct PostgresStorageCachesConfig {
     pub latest_values_cache_size: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", PostgresStorageCachesTask, VmConcurrencyBarrierTask)]
 pub struct TxSenderLayer {
     tx_sender_config: TxSenderConfig,
     postgres_storage_caches_config: PostgresStorageCachesConfig,
@@ -79,17 +80,23 @@ impl WiringLayer for TxSenderLayer {
         if values_capacity > 0 {
             let values_cache_task = storage_caches
                 .configure_storage_values_cache(values_capacity, replica_pool.clone());
-            context.add_task(Box::new(PostgresStorageCachesTask {
-                task: values_cache_task,
-            }));
+            context.add_task(
+                context.token::<Self>(),
+                Box::new(PostgresStorageCachesTask {
+                    task: values_cache_task,
+                }),
+            );
         }
 
         // Initialize `VmConcurrencyLimiter`.
         let (vm_concurrency_limiter, vm_concurrency_barrier) =
             VmConcurrencyLimiter::new(self.max_vm_concurrency);
-        context.add_task(Box::new(VmConcurrencyBarrierTask {
-            barrier: vm_concurrency_barrier,
-        }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(VmConcurrencyBarrierTask {
+                barrier: vm_concurrency_barrier,
+            }),
+        );
 
         // Build `TxSender`.
         let mut tx_sender = TxSenderBuilder::new(self.tx_sender_config, replica_pool, tx_sink);

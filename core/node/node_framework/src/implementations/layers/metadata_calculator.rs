@@ -17,7 +17,7 @@ use crate::{
         pools::{MasterPool, PoolResource, ReplicaPool},
         web3_api::TreeApiClientResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -31,7 +31,8 @@ use crate::{
 /// - Resolves `ObjectStoreResource` (optional).
 /// - Adds `tree_health_check` to the `ResourceCollection<HealthCheckResource>`.
 /// - Adds `metadata_calculator` to the node.
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", MetadataCalculatorTask, TreeApiTask)]
 pub struct MetadataCalculatorLayer {
     config: MetadataCalculatorConfig,
     tree_api_config: Option<MerkleTreeApiConfig>,
@@ -92,10 +93,13 @@ impl WiringLayer for MetadataCalculatorLayer {
         if let Some(tree_api_config) = self.tree_api_config {
             let bind_addr = (Ipv4Addr::UNSPECIFIED, tree_api_config.port).into();
             let tree_reader = metadata_calculator.tree_reader();
-            context.add_task(Box::new(TreeApiTask {
-                bind_addr,
-                tree_reader,
-            }));
+            context.add_task(
+                context.token::<Self>(),
+                Box::new(TreeApiTask {
+                    bind_addr,
+                    tree_reader,
+                }),
+            );
         }
 
         context.insert_resource(TreeApiClientResource(Arc::new(
@@ -105,7 +109,7 @@ impl WiringLayer for MetadataCalculatorLayer {
         let metadata_calculator_task = Box::new(MetadataCalculatorTask {
             metadata_calculator,
         });
-        context.add_task(metadata_calculator_task);
+        context.add_task(context.token::<Self>(), metadata_calculator_task);
 
         Ok(())
     }

@@ -21,12 +21,13 @@ use crate::{
         state_keeper::{ConditionalSealerResource, OutputHandlerResource, StateKeeperIOResource},
     },
     resource::Unique,
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", L2BlockSealerTask, MempoolFetcherTask)]
 pub struct MempoolIOLayer {
     zksync_network_id: L2ChainId,
     contracts_config: ContractsConfig,
@@ -96,7 +97,10 @@ impl WiringLayer for MempoolIOLayer {
         let output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(tree_writes_persistence));
         context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
-        context.add_task(Box::new(L2BlockSealerTask(l2_block_sealer)));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(L2BlockSealerTask(l2_block_sealer)),
+        );
 
         // Create mempool fetcher task.
         let mempool_guard = self.build_mempool_guard(&master_pool).await?;
@@ -110,7 +114,10 @@ impl WiringLayer for MempoolIOLayer {
             &self.mempool_config,
             mempool_fetcher_pool,
         );
-        context.add_task(Box::new(MempoolFetcherTask(mempool_fetcher)));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(MempoolFetcherTask(mempool_fetcher)),
+        );
 
         // Create mempool IO resource.
         let mempool_db_pool = master_pool

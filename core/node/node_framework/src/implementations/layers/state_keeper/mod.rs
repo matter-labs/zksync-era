@@ -20,17 +20,13 @@ use crate::{
             StateKeeperIOResource,
         },
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Requests:
-/// - `StateKeeperIOResource`
-/// - `BatchExecutorResource`
-/// - `ConditionalSealerResource`
-///
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", StateKeeperTask, RocksdbCatchupTask)]
 pub struct StateKeeperLayer {
     db_config: DBConfig,
 }
@@ -78,18 +74,21 @@ impl WiringLayer for StateKeeperLayer {
         };
         let (storage_factory, task) = AsyncRocksdbCache::new(
             master_pool.get_custom(2).await?,
-            self.db_config.state_keeper_db_path,
+            self.db_config.state_keeper_db_path.clone(),
             cache_options,
         );
-        context.add_task(Box::new(RocksdbCatchupTask(task)));
+        context.add_task(context.token::<Self>(), Box::new(RocksdbCatchupTask(task)));
 
-        context.add_task(Box::new(StateKeeperTask {
-            io,
-            batch_executor_base,
-            output_handler,
-            sealer,
-            storage_factory: Arc::new(storage_factory),
-        }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(StateKeeperTask {
+                io,
+                batch_executor_base,
+                output_handler,
+                sealer,
+                storage_factory: Arc::new(storage_factory),
+            }),
+        );
         Ok(())
     }
 }

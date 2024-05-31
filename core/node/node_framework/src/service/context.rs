@@ -8,6 +8,20 @@ use crate::{
     wiring_layer::WiringError,
 };
 
+pub trait Requests<T> {}
+pub trait Provides<T> {}
+
+#[derive(Debug)]
+pub struct Token<T>(std::marker::PhantomData<T>);
+
+impl<T> Clone for Token<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for Token<T> {}
+
 /// An interface to the service's resources provided to the tasks during initialization.
 /// Provides the ability to fetch required resources, and also gives access to the Tokio runtime handle.
 #[derive(Debug)]
@@ -19,6 +33,10 @@ pub struct ServiceContext<'a> {
 impl<'a> ServiceContext<'a> {
     pub(super) fn new(layer: &'a str, service: &'a mut ZkStackService) -> Self {
         Self { layer, service }
+    }
+
+    pub fn token<T>(&self) -> Token<T> {
+        Token(std::marker::PhantomData)
     }
 
     /// Provides access to the runtime used by the service.
@@ -38,7 +56,11 @@ impl<'a> ServiceContext<'a> {
     /// Adds a task to the service.
     /// Added tasks will be launched after the wiring process will be finished and all the preconditions
     /// are met.
-    pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
+    pub fn add_task<P: Provides<T>, T: Task>(
+        &mut self,
+        _token: Token<P>,
+        task: Box<T>,
+    ) -> &mut Self {
         tracing::info!("Layer {} has added a new task: {}", self.layer, task.name());
         self.service.runnables.tasks.push(task);
         self

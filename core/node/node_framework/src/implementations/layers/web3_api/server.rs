@@ -13,7 +13,7 @@ use crate::{
         sync_state::SyncStateResource,
         web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -64,7 +64,8 @@ enum Transport {
     Ws,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", Web3ApiTask, ApiTaskGarbageCollector)]
 pub struct Web3ServerLayer {
     transport: Transport,
     port: u16,
@@ -178,8 +179,8 @@ impl WiringLayer for Web3ServerLayer {
             task_sender,
         };
         let garbage_collector_task = ApiTaskGarbageCollector { task_receiver };
-        context.add_task(Box::new(web3_api_task));
-        context.add_task(Box::new(garbage_collector_task));
+        context.add_task(context.token::<Self>(), Box::new(web3_api_task));
+        context.add_task(context.token::<Self>(), Box::new(garbage_collector_task));
 
         Ok(())
     }

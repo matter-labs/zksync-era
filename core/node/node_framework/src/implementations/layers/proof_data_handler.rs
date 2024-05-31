@@ -10,7 +10,7 @@ use crate::{
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -22,7 +22,8 @@ use crate::{
 /// - Resolves `PoolResource<MasterPool>`.
 /// - Resolves `ObjectStoreResource`.
 /// - Adds `proof_data_handler` to the node.
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", ProofDataHandlerTask)]
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
@@ -52,12 +53,15 @@ impl WiringLayer for ProofDataHandlerLayer {
 
         let object_store = context.get_resource::<ObjectStoreResource>().await?;
 
-        context.add_task(Box::new(ProofDataHandlerTask {
-            proof_data_handler_config: self.proof_data_handler_config,
-            blob_store: object_store.0,
-            main_pool,
-            commitment_mode: self.commitment_mode,
-        }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(ProofDataHandlerTask {
+                proof_data_handler_config: self.proof_data_handler_config,
+                blob_store: object_store.0,
+                main_pool,
+                commitment_mode: self.commitment_mode,
+            }),
+        );
 
         Ok(())
     }

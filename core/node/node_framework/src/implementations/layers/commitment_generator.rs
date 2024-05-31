@@ -6,12 +6,13 @@ use crate::{
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", CommitmentGeneratorTask)]
 pub struct CommitmentGeneratorLayer {
     mode: L1BatchCommitmentMode,
 }
@@ -40,9 +41,12 @@ impl WiringLayer for CommitmentGeneratorLayer {
             .insert_component(commitment_generator.health_check())
             .map_err(WiringError::internal)?;
 
-        context.add_task(Box::new(CommitmentGeneratorTask {
-            commitment_generator,
-        }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(CommitmentGeneratorTask {
+                commitment_generator,
+            }),
+        );
 
         Ok(())
     }

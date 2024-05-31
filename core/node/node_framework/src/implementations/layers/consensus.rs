@@ -13,7 +13,7 @@ use crate::{
         pools::{MasterPool, PoolResource},
         sync_state::SyncStateResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -24,7 +24,8 @@ pub enum Mode {
     External,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", MainNodeConsensusTask, FetcherTask)]
 pub struct ConsensusLayer {
     pub mode: Mode,
     pub config: Option<ConsensusConfig>,
@@ -57,7 +58,7 @@ impl WiringLayer for ConsensusLayer {
                     secrets,
                     pool,
                 };
-                context.add_task(Box::new(task));
+                context.add_task(context.token::<Self>(), Box::new(task));
             }
             Mode::External => {
                 let main_node_client = context.get_resource::<MainNodeClientResource>().await?.0;
@@ -94,7 +95,7 @@ impl WiringLayer for ConsensusLayer {
                     sync_state,
                     action_queue_sender,
                 };
-                context.add_task(Box::new(task));
+                context.add_task(context.token::<Self>(), Box::new(task));
             }
         }
         Ok(())

@@ -13,12 +13,13 @@ use crate::{
         eth_interface::EthInterfaceResource, fee_input::FeeInputResource,
         l1_tx_params::L1TxParamsResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", GasAdjusterTask)]
 pub struct SequencerL1GasLayer {
     gas_adjuster_config: GasAdjusterConfig,
     genesis_config: GenesisConfig,
@@ -68,7 +69,10 @@ impl WiringLayer for SequencerL1GasLayer {
 
         context.insert_resource(L1TxParamsResource(gas_adjuster.clone()))?;
 
-        context.add_task(Box::new(GasAdjusterTask { gas_adjuster }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(GasAdjusterTask { gas_adjuster }),
+        );
         Ok(())
     }
 }

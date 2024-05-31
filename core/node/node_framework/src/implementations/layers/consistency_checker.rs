@@ -7,12 +7,13 @@ use crate::{
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", ConsistencyCheckerTask)]
 pub struct ConsistencyCheckerLayer {
     diamond_proxy_addr: Address,
     max_batches_to_recheck: u32,
@@ -61,9 +62,12 @@ impl WiringLayer for ConsistencyCheckerLayer {
             .map_err(WiringError::internal)?;
 
         // Create and add tasks.
-        context.add_task(Box::new(ConsistencyCheckerTask {
-            consistency_checker,
-        }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(ConsistencyCheckerTask {
+                consistency_checker,
+            }),
+        );
 
         Ok(())
     }

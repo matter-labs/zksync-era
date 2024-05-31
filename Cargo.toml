@@ -12,6 +12,7 @@ members = [
     "core/bin/genesis_generator",
     # Node services
     "core/node/node_framework",
+    "core/node/node_framework_derive",
     "core/node/proof_data_handler",
     "core/node/block_reverter",
     "core/node/commitment_generator",
@@ -241,6 +242,7 @@ zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
 
 # Framework and components
 zksync_node_framework = { path = "core/node/node_framework" }
+zksync_node_framework_derive = { path = "core/node/node_framework_derive" }
 zksync_eth_watch = { path = "core/node/eth_watch" }
 zksync_shared_metrics = { path = "core/node/shared_metrics" }
 zksync_proof_data_handler = { path = "core/node/proof_data_handler" }

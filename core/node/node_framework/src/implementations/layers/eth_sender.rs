@@ -13,12 +13,13 @@ use crate::{
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", EthTxManagerTask)]
 pub struct EthTxManagerLayer {
     eth_sender_config: EthConfig,
 }
@@ -64,9 +65,12 @@ impl WiringLayer for EthTxManagerLayer {
             eth_client_blobs,
         );
 
-        context.add_task(Box::new(EthTxManagerTask {
-            eth_tx_manager_actor,
-        }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(EthTxManagerTask {
+                eth_tx_manager_actor,
+            }),
+        );
 
         // Insert circuit breaker.
         let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
@@ -78,7 +82,8 @@ impl WiringLayer for EthTxManagerLayer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", EthTxAggregatorTask)]
 pub struct EthTxAggregatorLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
@@ -152,9 +157,12 @@ impl WiringLayer for EthTxAggregatorLayer {
         )
         .await;
 
-        context.add_task(Box::new(EthTxAggregatorTask {
-            eth_tx_aggregator_actor,
-        }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(EthTxAggregatorTask {
+                eth_tx_aggregator_actor,
+            }),
+        );
 
         // Insert circuit breaker.
         let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;

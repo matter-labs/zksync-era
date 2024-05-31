@@ -8944,6 +8944,7 @@ dependencies = [
  "zksync_node_api_server",
  "zksync_node_consensus",
  "zksync_node_fee_model",
+ "zksync_node_framework_derive",
  "zksync_node_sync",
  "zksync_object_store",
  "zksync_proof_data_handler",
@@ -8956,6 +8957,15 @@ dependencies = [
  "zksync_types",
  "zksync_utils",
  "zksync_web3_decl",
+]
+
+[[package]]
+name = "zksync_node_framework_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 2.0.38",
 ]
 
 [[package]]

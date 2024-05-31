@@ -3,12 +3,13 @@ use zksync_dal::{ConnectionPool, Core};
 
 use crate::{
     implementations::resources::pools::{MasterPool, PoolResource, ReplicaPool},
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", ContractVerificationApiTask)]
 pub struct ContractVerificationApiLayer(pub ContractVerifierConfig);
 
 #[async_trait::async_trait]
@@ -28,11 +29,14 @@ impl WiringLayer for ContractVerificationApiLayer {
             .await?
             .get()
             .await?;
-        context.add_task(Box::new(ContractVerificationApiTask {
-            master_pool,
-            replica_pool,
-            config: self.0,
-        }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(ContractVerificationApiTask {
+                master_pool,
+                replica_pool,
+                config: self.0,
+            }),
+        );
         Ok(())
     }
 }

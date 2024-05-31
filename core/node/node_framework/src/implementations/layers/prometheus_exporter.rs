@@ -3,7 +3,7 @@ use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -14,7 +14,8 @@ use crate::{
 ///
 /// - Adds prometheus health check to the `ResourceCollection<HealthCheckResource>`.
 /// - Adds `prometheus_exporter` to the node.
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", PrometheusExporterTask)]
 pub struct PrometheusExporterLayer(pub PrometheusExporterConfig);
 
 #[derive(Debug)]
@@ -29,11 +30,11 @@ impl WiringLayer for PrometheusExporterLayer {
         "prometheus_exporter"
     }
 
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 
-        let AppHealthCheckResource(app_health) = node.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health
             .insert_component(prometheus_health_check)
             .map_err(WiringError::internal)?;
@@ -43,7 +44,7 @@ impl WiringLayer for PrometheusExporterLayer {
             prometheus_health_updater,
         });
 
-        node.add_task(task);
+        context.add_task(context.token::<Self>(), task);
         Ok(())
     }
 }

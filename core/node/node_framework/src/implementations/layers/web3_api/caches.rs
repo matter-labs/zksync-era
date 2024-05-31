@@ -7,12 +7,13 @@ use crate::{
         pools::{PoolResource, ReplicaPool},
         web3_api::MempoolCacheResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", MempoolCacheUpdateTask)]
 pub struct MempoolCacheLayer {
     capacity: usize,
     update_interval: Duration,
@@ -38,7 +39,10 @@ impl WiringLayer for MempoolCacheLayer {
         let replica_pool = pool_resource.get().await?;
         let mempool_cache = MempoolCache::new(self.capacity);
         let update_task = mempool_cache.update_task(replica_pool, self.update_interval);
-        context.add_task(Box::new(MempoolCacheUpdateTask(update_task)));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(MempoolCacheUpdateTask(update_task)),
+        );
         context.insert_resource(MempoolCacheResource(mempool_cache))?;
         Ok(())
     }

@@ -3,10 +3,15 @@ use std::{collections::HashMap, time::Duration};
 use anyhow::Context;
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{runtime::Runtime, sync::watch};
+pub use zksync_node_framework_derive::Provides;
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
 use self::runnables::Runnables;
-pub use self::{context::ServiceContext, error::ZkStackServiceError, stop_receiver::StopReceiver};
+pub use self::{
+    context::{Provides, Requests, ServiceContext},
+    error::ZkStackServiceError,
+    stop_receiver::StopReceiver,
+};
 use crate::{
     resource::{ResourceId, StoredResource},
     service::runnables::TaskReprs,

@@ -6,7 +6,7 @@ use tokio::{runtime::Runtime, sync::Barrier};
 
 use crate::{
     service::{
-        ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackServiceBuilder,
+        Provides, ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackServiceBuilder,
         ZkStackServiceError,
     },
     task::Task,
@@ -107,7 +107,8 @@ fn test_run_with_error_tasks() {
 }
 
 // `ZkStack` Service's `run()` method has to take into account errors on wiring step.
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", ErrorTask)]
 struct TaskErrorLayer;
 
 #[async_trait::async_trait]
@@ -117,7 +118,7 @@ impl WiringLayer for TaskErrorLayer {
     }
 
     async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        node.add_task(Box::new(ErrorTask));
+        node.add_task(node.token::<Self>(), Box::new(ErrorTask));
         Ok(())
     }
 }
@@ -144,7 +145,8 @@ fn test_run_with_failed_tasks() {
     assert_matches!(result.unwrap_err(), ZkStackServiceError::Task(_));
 }
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", SuccessfulTask, RemainingTask)]
 struct TasksLayer {
     successful_task_was_run: Arc<Mutex<bool>>,
     remaining_task_was_run: Arc<Mutex<bool>>,
@@ -160,14 +162,21 @@ impl WiringLayer for TasksLayer {
         // Barrier is needed to make sure that both tasks have started, otherwise the second task
         // may exit even before it starts.
         let barrier = Arc::new(Barrier::new(2));
-        node.add_task(Box::new(SuccessfulTask(
-            barrier.clone(),
-            self.successful_task_was_run.clone(),
-        )))
-        .add_task(Box::new(RemainingTask(
-            barrier.clone(),
-            self.remaining_task_was_run.clone(),
-        )));
+        let token = node.token::<Self>();
+        node.add_task(
+            token,
+            Box::new(SuccessfulTask(
+                barrier.clone(),
+                self.successful_task_was_run.clone(),
+            )),
+        )
+        .add_task(
+            token,
+            Box::new(RemainingTask(
+                barrier.clone(),
+                self.remaining_task_was_run.clone(),
+            )),
+        );
         Ok(())
     }
 }

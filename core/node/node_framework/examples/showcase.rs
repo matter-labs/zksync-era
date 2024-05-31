@@ -9,7 +9,7 @@ use std::{
 
 use zksync_node_framework::{
     resource::Resource,
-    service::{ServiceContext, StopReceiver, ZkStackServiceBuilder},
+    service::{Provides, ServiceContext, StopReceiver, ZkStackServiceBuilder},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -182,6 +182,8 @@ impl WiringLayer for DatabaseLayer {
 }
 
 /// Layer where we add tasks.
+#[derive(Provides)]
+#[provides(PutTask, CheckTask)]
 struct TasksLayer;
 
 #[async_trait::async_trait]
@@ -198,8 +200,8 @@ impl WiringLayer for TasksLayer {
         let put_task = PutTask { db: db.clone() };
         let check_task = CheckTask { db };
         // These tasks will be launched by the service once the wiring process is complete.
-        context.add_task(Box::new(put_task));
-        context.add_task(Box::new(check_task));
+        context.add_task(context.token::<Self>(), Box::new(put_task));
+        context.add_task(context.token::<Self>(), Box::new(check_task));
         Ok(())
     }
 }

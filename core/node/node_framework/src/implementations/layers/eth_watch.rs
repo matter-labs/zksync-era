@@ -11,12 +11,13 @@ use crate::{
         eth_interface::EthInterfaceResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::{Provides, ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Provides)]
+#[provides(local = "true", EthWatchTask)]
 pub struct EthWatchLayer {
     eth_watch_config: EthWatchConfig,
     contracts_config: ContractsConfig,
@@ -52,13 +53,16 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
         );
-        context.add_task(Box::new(EthWatchTask {
-            main_pool,
-            client: eth_client,
-            governance_contract: governance_contract(),
-            diamond_proxy_address: self.contracts_config.diamond_proxy_addr,
-            poll_interval: self.eth_watch_config.poll_interval(),
-        }));
+        context.add_task(
+            context.token::<Self>(),
+            Box::new(EthWatchTask {
+                main_pool,
+                client: eth_client,
+                governance_contract: governance_contract(),
+                diamond_proxy_address: self.contracts_config.diamond_proxy_addr,
+                poll_interval: self.eth_watch_config.poll_interval(),
+            }),
+        );
 
         Ok(())
     }
