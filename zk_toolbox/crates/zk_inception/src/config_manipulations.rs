@@ -1,10 +1,11 @@
+use common::db::DatabaseConfig;
 use config::{
     forge_interface::{
         initialize_bridges::output::InitializeBridgeOutput, paymaster::DeployPaymasterOutput,
         register_chain::output::RegisterChainOutput,
     },
     traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, DatabasesConfig, GeneralConfig, GenesisConfig, SecretsConfig,
+    ChainConfig, ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig,
 };
 use types::ProverMode;
 use xshell::Shell;
@@ -25,11 +26,12 @@ pub(crate) fn update_genesis(shell: &Shell, config: &ChainConfig) -> anyhow::Res
 pub(crate) fn update_database_secrets(
     shell: &Shell,
     config: &ChainConfig,
-    db_config: &DatabasesConfig,
+    server_db_config: &DatabaseConfig,
+    prover_db_config: &DatabaseConfig,
 ) -> anyhow::Result<()> {
     let mut secrets = SecretsConfig::read_with_base_path(shell, &config.configs)?;
-    secrets.database.server_url = db_config.server.full_url();
-    secrets.database.prover_url = db_config.prover.full_url();
+    secrets.database.server_url = server_db_config.full_url();
+    secrets.database.prover_url = prover_db_config.full_url();
     secrets.save_with_base_path(shell, &config.configs)?;
     Ok(())
 }

@@ -34,4 +34,13 @@ impl Spinner {
             self.time.elapsed().as_secs_f64()
         ));
     }
+
+    /// Interrupt the spinner with a failed message.
+    pub fn fail(self) {
+        self.pb.error(format!(
+            "{} failed in {} secs",
+            self.msg,
+            self.time.elapsed().as_secs_f64()
+        ));
+    }
 }

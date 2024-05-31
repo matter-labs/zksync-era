@@ -531,6 +531,7 @@ dependencies = [
  "serde_yaml",
  "sqlx",
  "strum_macros 0.26.2",
+ "tokio",
  "toml",
  "url",
  "xshell",
@@ -4533,6 +4534,7 @@ dependencies = [
  "console",
  "ethers",
  "human-panic",
+ "lazy_static",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -4550,7 +4552,16 @@ dependencies = [
 name = "zk_supervisor"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "clap",
+ "common",
+ "config",
  "human-panic",
+ "strum 0.26.2",
+ "strum_macros 0.26.2",
+ "tokio",
+ "url",
+ "xshell",
 ]
 
 [[package]]
