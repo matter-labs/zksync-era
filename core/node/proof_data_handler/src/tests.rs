@@ -130,7 +130,7 @@ async fn submit_tee_proof() {
         "Proof": {
             "signature": [ 0, 1, 2, 3, 4 ],
             "pubkey": [ 5, 6, 7, 8, 9 ],
-            "attestation": [ 10, 11, 12, 13, 14 ]
+            "proof": [ 10, 11, 12, 13, 14 ]
         }
     }"#;
     let tee_proof_request =

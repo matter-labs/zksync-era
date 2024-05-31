@@ -83,7 +83,7 @@ impl TeeProofGenerationDal<'_, '_> {
         block_number: L1BatchNumber,
         signature: &[u8],
         pubkey: &[u8],
-        attestation: &[u8],
+        proof: &[u8],
         tee_type: TeeType,
     ) -> Result<(), SqlxError> {
         sqlx::query!(
@@ -93,7 +93,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 status = 'generated',
                 signature = $1,
                 pubkey = $2,
-                attestation = $3,
+                proof = $3,
                 tee_type = $4,
                 updated_at = NOW()
             WHERE
@@ -101,7 +101,7 @@ impl TeeProofGenerationDal<'_, '_> {
             "#,
             signature,
             pubkey,
-            attestation,
+            proof,
             tee_type.to_string(),
             i64::from(block_number.0)
         )

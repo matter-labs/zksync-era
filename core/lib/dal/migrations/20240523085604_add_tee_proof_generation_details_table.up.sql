@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS tee_proof_generation_details
     status                  TEXT      NOT NULL,
     signature               BYTEA,
     pubkey                  BYTEA,
-    attestation             BYTEA,
+    proof                   BYTEA,
     tee_type                TEXT,
     created_at              TIMESTAMP NOT NULL,
     updated_at              TIMESTAMP NOT NULL,

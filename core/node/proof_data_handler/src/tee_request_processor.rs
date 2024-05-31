@@ -86,8 +86,8 @@ impl TeeRequestProcessor {
                 dal.save_proof_artifacts_metadata(
                     l1_batch_number,
                     &proof.signature,
-                    &proof.signature,
-                    &proof.attestation,
+                    &proof.pubkey,
+                    &proof.proof,
                     TeeType::Sgx,
                 )
                 .await

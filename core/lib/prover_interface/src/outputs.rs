@@ -17,7 +17,7 @@ pub struct L1BatchProofForL1 {
 pub struct L1BatchTeeProofForL1 {
     pub signature: Vec<u8>,
     pub pubkey: Vec<u8>,
-    pub attestation: Vec<u8>,
+    pub proof: Vec<u8>,
 }
 
 impl fmt::Debug for L1BatchProofForL1 {
