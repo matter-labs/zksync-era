@@ -1,15 +1,15 @@
-import { BigNumberish } from '@ethersproject/bignumber';
-import { Bytes, BytesLike, ethers } from 'ethers';
-import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-contracts/typechain';
+import {BigNumberish} from '@ethersproject/bignumber';
+import {BytesLike, ethers} from 'ethers';
+import {ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2} from 'l2-contracts/typechain';
 import {
     DefaultUpgradeFactory as DefaultUpgradeFactoryL1,
     AdminFacetFactory,
     GovernanceFactory,
     StateTransitionManagerFactory
 } from 'l1-contracts/typechain';
-import { FacetCut } from 'l1-contracts/src.ts/diamondCut';
-import { IZkSyncFactory } from '../pre-boojum/IZkSyncFactory';
-import { ComplexUpgraderFactory } from 'system-contracts/typechain';
+import {FacetCut} from 'l1-contracts/src.ts/diamondCut';
+import {IZkSyncFactory} from '../pre-boojum/IZkSyncFactory';
+import {ComplexUpgraderFactory} from 'system-contracts/typechain';
 import {
     getCommonDataFileName,
     getCryptoFileName,
@@ -22,12 +22,12 @@ import {
     packSemver
 } from './utils';
 import fs from 'fs';
-import { Command } from 'commander';
-import { web3Url } from 'zk/build/utils';
+import {Command} from 'commander';
+import {web3Url} from 'zk/build/utils';
 import * as path from 'path';
 
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
-const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
+const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, {encoding: 'utf-8'}));
 
 export interface DiamondCutData {
     facetCuts: FacetCut[];
@@ -234,7 +234,7 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         newProtocolVersion
     ]);
 
-    const { scheduleCalldata: stmScheduleTransparentOperation, executeCalldata: stmExecuteOperation } =
+    const {scheduleCalldata: stmScheduleTransparentOperation, executeCalldata: stmExecuteOperation} =
         prepareGovernanceTxs(stmAddress, stmUpgradeCalldata);
 
     // Prepare calldata for upgrading diamond proxy
@@ -251,7 +251,7 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
     } = prepareGovernanceTxs(zksyncAddress, diamondProxyUpgradeCalldata);
 
     const legacyScheduleTransparentOperation = adminFacet.interface.encodeFunctionData('executeUpgrade', [diamondCut]);
-    const { scheduleCalldata: legacyScheduleOperation, executeCalldata: legacyExecuteOperation } = prepareGovernanceTxs(
+    const {scheduleCalldata: legacyScheduleOperation, executeCalldata: legacyExecuteOperation} = prepareGovernanceTxs(
         zksyncAddress,
         legacyScheduleTransparentOperation
     );
@@ -274,7 +274,7 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
 
         const stmDirecUpgradeCalldata = stm.interface.encodeFunctionData('executeUpgrade', [chainId, diamondCut]);
 
-        const { scheduleCalldata: stmScheduleOperationDirect, executeCalldata: stmExecuteOperationDirect } =
+        const {scheduleCalldata: stmScheduleOperationDirect, executeCalldata: stmExecuteOperationDirect} =
             prepareGovernanceTxs(stmAddress, stmDirecUpgradeCalldata);
 
         result = {
@@ -302,7 +302,7 @@ export function buildDefaultUpgradeTx(
     prepareDirectOperation?,
     chainId?
 ) {
-    const commonData = JSON.parse(fs.readFileSync(getCommonDataFileName(), { encoding: 'utf-8' }));
+    const commonData = JSON.parse(fs.readFileSync(getCommonDataFileName(), {encoding: 'utf-8'}));
     const newProtocolVersionSemVer: string = commonData.protocolVersion;
     const packedNewProtocolVersion = packSemver(...unpackStringSemVer(newProtocolVersionSemVer));
     console.log(
@@ -441,9 +441,9 @@ export function getWallet(l1rpc, privateKey) {
     return privateKey
         ? new ethers.Wallet(privateKey, provider)
         : ethers.Wallet.fromMnemonic(
-              process.env.MNEMONIC ? process.env.MNEMONIC : ethTestConfig.mnemonic,
-              "m/44'/60'/0'/0/1"
-          ).connect(provider);
+            process.env.MNEMONIC ? process.env.MNEMONIC : ethTestConfig.mnemonic,
+            "m/44'/60'/0'/0/1"
+        ).connect(provider);
 }
 
 async function sendPreparedTx(
