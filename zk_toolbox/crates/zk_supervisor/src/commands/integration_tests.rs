@@ -1,0 +1,25 @@
+use common::{cmd::Cmd, logger};
+use config::EcosystemConfig;
+use xshell::{cmd, Shell};
+
+use crate::messages::{MSG_INTEGRATION_TESTS_RUN_INFO, MSG_INTEGRATION_TESTS_RUN_SUCCESS};
+
+const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
+
+pub fn run(shell: &Shell) -> anyhow::Result<()> {
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let _dir_guard = shell.push_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
+
+    logger::info(MSG_INTEGRATION_TESTS_RUN_INFO);
+
+    Cmd::new(
+        cmd!(shell, "yarn jest --forceExit --testTimeout 60000")
+            .env("CHAIN_NAME", ecosystem_config.default_chain),
+    )
+    .with_force_run()
+    .run()?;
+
+    logger::outro(MSG_INTEGRATION_TESTS_RUN_SUCCESS);
+
+    Ok(())
+}
