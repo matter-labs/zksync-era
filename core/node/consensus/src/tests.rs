@@ -524,18 +524,18 @@ async fn test_batch_proof() {
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::from_genesis().await;
-        let (mut node, runner) =
-        testonly::StateKeeper::new(ctx, pool.clone()).await?;
+        let (mut node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run_real(ctx));
-        
+
         // Seal a bunch of batches.
-        for _ in 0..5 { node.seal_batch().await; }
+        for _ in 0..5 {
+            node.seal_batch().await;
+        }
         pool.wait_for_payload(ctx, node.last_block()).await?;
         // TODO: actually wait for batches with metadata.
-        
+
         Ok(())
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 }
-
-
-

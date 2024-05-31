@@ -131,7 +131,9 @@ mod tests {
         let entries = tree.entries_with_proofs(0, &[missing_key]).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries[0].base.is_empty());
-        entries[0].verify(&tree.hasher, tree.hasher.empty_tree_hash()).unwrap();
+        entries[0]
+            .verify(&tree.hasher, tree.hasher.empty_tree_hash())
+            .unwrap();
     }
 
     #[test]

@@ -1,6 +1,9 @@
 use zksync_types::{
-    H256, web3,
-    commitment::L1BatchWithMetadata, ethabi::{self,Token}, web3::contract::Error as ContractError, U256,
+    commitment::L1BatchWithMetadata,
+    ethabi::{self, Token},
+    web3,
+    web3::contract::Error as ContractError,
+    H256, U256,
 };
 
 use crate::Tokenizable;
@@ -10,7 +13,7 @@ use crate::Tokenizable;
 pub struct StoredBatchInfo<'a>(pub &'a L1BatchWithMetadata);
 
 /// Compact representation the the `StoredBatchInfo` from `IExecutor.sol`.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct StoredBatchInfoCompact {
     pub batch_number: u64,
     pub batch_hash: H256,
@@ -25,7 +28,9 @@ pub struct StoredBatchInfoCompact {
 impl StoredBatchInfoCompact {
     /// `_hashStoredBatchInfo` from `Executor.sol`.
     pub fn hash(&self) -> H256 {
-        H256(web3::keccak256(&ethabi::encode(&[self.clone().into_token()])))
+        H256(web3::keccak256(&ethabi::encode(&[self
+            .clone()
+            .into_token()])))
     }
 }
 
@@ -36,9 +41,7 @@ impl<'a> StoredBatchInfo<'a> {
             batch_hash: self.0.metadata.root_hash,
             index_repeated_storage_changes: self.0.metadata.rollup_last_leaf_index,
             number_of_layer1_txs: self.0.header.l1_tx_count.into(),
-            priority_operations_hash: self.0
-                .header
-                .priority_ops_onchain_data_hash(),
+            priority_operations_hash: self.0.header.priority_ops_onchain_data_hash(),
             l2_logs_tree_root: self.0.metadata.l2_l1_merkle_root,
             timestamp: self.0.header.timestamp.into(),
             commitment: self.0.metadata.commitment,

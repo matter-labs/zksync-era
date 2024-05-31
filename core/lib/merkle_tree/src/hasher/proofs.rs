@@ -80,7 +80,11 @@ impl BlockOutputWithProofs {
 
 impl TreeEntryWithProof {
     /// Verifies this proof.
-    pub fn verify(&self, hasher: &dyn HashTree, trusted_root_hash: ValueHash) -> anyhow::Result<()> {
+    pub fn verify(
+        &self,
+        hasher: &dyn HashTree,
+        trusted_root_hash: ValueHash,
+    ) -> anyhow::Result<()> {
         if self.base.leaf_index == 0 {
             ensure!(
                 self.base.value.is_zero(),
@@ -88,7 +92,10 @@ impl TreeEntryWithProof {
             );
         }
         let root_hash = hasher.fold_merkle_path(&self.merkle_path, self.base);
-        ensure!(root_hash==trusted_root_hash, "Root hash mismatch: got {root_hash}, want {trusted_root_hash}");
+        ensure!(
+            root_hash == trusted_root_hash,
+            "Root hash mismatch: got {root_hash}, want {trusted_root_hash}"
+        );
         Ok(())
     }
 }

@@ -5,11 +5,19 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_config::{configs, configs::consensus as config};
+use zksync_config::{
+    configs,
+    configs::{
+        chain::OperationsManagerConfig,
+        consensus as config,
+        database::{MerkleTreeConfig, MerkleTreeMode},
+    },
+};
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
+use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::spawn_http_server};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
@@ -19,21 +27,19 @@ use zksync_node_sync::{
     ExternalIO, MainNodeClient, SyncState,
 };
 use zksync_node_test_utils::{create_l1_batch_metadata, create_l2_transaction};
+/// Implements EthInterface
+/// It is enough to use MockEthereum.with_call_handler()
+//use zksync_eth_client::clients::MockEthereum;
+use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::{test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
-    OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
+    AsyncRocksdbCache, MainBatchExecutor, OutputHandler, StateKeeperPersistence,
+    TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
 use zksync_web3_decl::client::{Client, DynClient, L2};
-/// Implements EthInterface
-/// It is enough to use MockEthereum.with_call_handler() 
-//use zksync_eth_client::clients::MockEthereum;
-use zksync_state::{RocksdbStorageOptions};
-use zksync_state_keeper::{AsyncRocksdbCache,MainBatchExecutor};
-use zksync_config::configs::{database::{MerkleTreeConfig,MerkleTreeMode}, chain::OperationsManagerConfig};
-use zksync_metadata_calculator::{MetadataCalculator,MetadataCalculatorConfig};
 
 use crate::{en, ConnectionPool};
 
@@ -343,7 +349,7 @@ impl StateKeeperRunner {
                 L2ChainId::default(),
             )
             .await?;
- 
+
             s.spawn_bg(async {
                 Ok(l2_block_sealer
                     .run()
@@ -354,7 +360,11 @@ impl StateKeeperRunner {
             let rocksdb_dir = tempfile::tempdir().context("tempdir()")?;
 
             let merkle_tree_config = MerkleTreeConfig {
-                path: rocksdb_dir.path().join("merkle_tree").to_string_lossy().into(),
+                path: rocksdb_dir
+                    .path()
+                    .join("merkle_tree")
+                    .to_string_lossy()
+                    .into(),
                 mode: MerkleTreeMode::Lightweight,
                 ..Default::default()
             };
@@ -366,7 +376,8 @@ impl StateKeeperRunner {
                 &operation_manager_config,
             );
             let metadata_calculator = MetadataCalculator::new(config, None, self.pool.0.clone())
-                .await.context("MetadataCalculator::new()")?;
+                .await
+                .context("MetadataCalculator::new()")?;
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();
                 async {
@@ -374,12 +385,12 @@ impl StateKeeperRunner {
                     Ok(())
                 }
             });
-            
+
             let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
                 self.pool.0.clone(),
                 rocksdb_dir.path().join("cache").to_string_lossy().into(),
                 RocksdbStorageOptions {
-                    block_cache_capacity: (1<<20), // 1MB
+                    block_cache_capacity: (1 << 20), // 1MB
                     max_open_files: None,
                 },
             );
@@ -396,10 +407,7 @@ impl StateKeeperRunner {
                     ZkSyncStateKeeper::new(
                         stop_recv,
                         Box::new(io),
-                        Box::new(MainBatchExecutor::new(
-                            false,
-                            false,
-                        )),
+                        Box::new(MainBatchExecutor::new(false, false)),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),

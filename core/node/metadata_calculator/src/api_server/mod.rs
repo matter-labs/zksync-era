@@ -72,7 +72,8 @@ impl TreeEntryWithProof {
                 key,
             },
             merkle_path,
-        }.verify(&Blake2Hasher,trusted_root_hash)
+        }
+        .verify(&Blake2Hasher, trusted_root_hash)
     }
 }
 

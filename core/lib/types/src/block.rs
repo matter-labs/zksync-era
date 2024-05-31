@@ -250,8 +250,20 @@ impl L2BlockHasher {
         }
     }
 
-    pub fn hash(number: L2BlockNumber, timestamp: u64, prev_l2_block_hash: H256, txs_rolling_hash: H256, protocol_version: ProtocolVersionId) -> H256 {
-        Self { number, timestamp, prev_l2_block_hash, txs_rolling_hash }.finalize(protocol_version)
+    pub fn hash(
+        number: L2BlockNumber,
+        timestamp: u64,
+        prev_l2_block_hash: H256,
+        txs_rolling_hash: H256,
+        protocol_version: ProtocolVersionId,
+    ) -> H256 {
+        Self {
+            number,
+            timestamp,
+            prev_l2_block_hash,
+            txs_rolling_hash,
+        }
+        .finalize(protocol_version)
     }
 }
 
