@@ -112,6 +112,10 @@ impl ZksNamespace {
         self.state.api_config.l2_testnet_paymaster_addr
     }
 
+    pub fn get_standard_deployer_proxy_addr_impl(&self) -> Option<Address> {
+        self.state.api_config.l2_standard_deployer_proxy_addr
+    }
+
     pub fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
         self.state.api_config.bridge_addresses.clone()
     }

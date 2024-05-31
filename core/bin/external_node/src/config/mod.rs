@@ -87,6 +87,7 @@ pub(crate) struct RemoteENConfig {
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
+    pub l2_standard_deployer_proxy_addr: Option<Address>,
 }
 
 impl RemoteENConfig {
@@ -98,6 +99,10 @@ impl RemoteENConfig {
         let l2_testnet_paymaster_addr = client
             .get_testnet_paymaster()
             .rpc_context("get_testnet_paymaster")
+            .await?;
+        let l2_standard_deployer_proxy_addr = client
+            .get_standard_deployer_proxy_addr()
+            .rpc_context("get_standard_deployer")
             .await?;
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
         let ecosystem_contracts = client
@@ -168,6 +173,7 @@ impl RemoteENConfig {
                 .as_ref()
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
+            l2_standard_deployer_proxy_addr,
         })
     }
 
@@ -188,6 +194,7 @@ impl RemoteENConfig {
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
+            l2_standard_deployer_proxy_addr: Some(Address::repeat_byte(7)),
         }
     }
 }
