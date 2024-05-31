@@ -4,10 +4,6 @@ use common::{
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use xshell::Shell;
-
-use crate::forge_utils::fill_forge_private_key;
-use crate::{config_manipulations::update_paymaster, forge_utils::check_the_balance};
 use config::{
     forge_interface::{
         paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
@@ -16,13 +12,20 @@ use config::{
     traits::{ReadConfig, SaveConfig},
     ChainConfig, EcosystemConfig,
 };
+use xshell::Shell;
+
+use crate::{
+    config_manipulations::update_paymaster,
+    forge_utils::{check_the_balance, fill_forge_private_key},
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER},
+};
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
-        .context("Chain not initialized. Please create a chain first")?;
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
     deploy_paymaster(shell, &chain_config, args).await
 }
 
@@ -50,7 +53,7 @@ pub async fn deploy_paymaster(
         chain_config.get_wallets_config()?.governor_private_key(),
     )?;
 
-    let spinner = Spinner::new("Deploying paymaster");
+    let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     spinner.finish();

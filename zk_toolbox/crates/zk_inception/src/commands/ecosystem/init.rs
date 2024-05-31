@@ -12,20 +12,6 @@ use common::{
     spinner::Spinner,
     Prompt,
 };
-use xshell::{cmd, Shell};
-
-use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
-use crate::{
-    accept_ownership::accept_owner,
-    commands::{
-        chain,
-        ecosystem::create_configs::{
-            create_erc20_deployment_config, create_initial_deployments_config,
-        },
-    },
-    forge_utils::fill_forge_private_key,
-};
-use crate::{consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, forge_utils::check_the_balance};
 use config::{
     forge_interface::{
         deploy_ecosystem::{
@@ -43,6 +29,27 @@ use config::{
     ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use types::{L1Network, ProverMode, WalletCreation};
+use xshell::{cmd, Shell};
+
+use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
+use crate::{
+    accept_ownership::accept_owner,
+    commands::{
+        chain,
+        ecosystem::create_configs::{
+            create_erc20_deployment_config, create_initial_deployments_config,
+        },
+    },
+    consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+    forge_utils::{check_the_balance, fill_forge_private_key},
+    messages::{
+        msg_ecosystem_initialized, msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
+        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
+        MSG_DEPLOYING_ERC20_SPINNER, MSG_DISTRIBUTING_ETH_SPINNER,
+        MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
+        MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
+    },
+};
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -55,7 +62,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let genesis_args = args.genesis_args.clone();
     let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
 
-    logger::info("Initializing ecosystem");
+    logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
     let contracts_config = init(
         &mut final_ecosystem_args,
@@ -66,7 +73,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     .await?;
 
     if final_ecosystem_args.deploy_erc20 {
-        logger::info("Deploying ERC20 contracts");
+        logger::info(MSG_DEPLOYING_ERC20);
         let erc20_deployment_config = match ecosystem_config.get_erc20_deployment_config() {
             Ok(config) => config,
             Err(_) => create_erc20_deployment_config(shell, &ecosystem_config.config)?,
@@ -90,10 +97,10 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     };
 
     for chain_name in &list_of_chains {
-        logger::info(format!("Initializing chain {chain_name}"));
+        logger::info(msg_initializing_chain(&chain_name));
         let chain_config = ecosystem_config
             .load_chain(Some(chain_name.clone()))
-            .context("Chain not initialized. Please create a chain first")?;
+            .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
         let mut chain_init_args = chain::args::init::InitArgsFinal {
             forge_args: final_ecosystem_args.forge_args.clone(),
@@ -118,10 +125,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         .await?;
     }
 
-    logger::outro(format!(
-        "Ecosystem initialized successfully with chains {}",
-        list_of_chains.join(",")
-    ));
+    logger::outro(msg_ecosystem_initialized(&list_of_chains.join(",")));
 
     Ok(())
 }
@@ -135,7 +139,7 @@ pub async fn distribute_eth(
     if chain_config.wallet_creation == WalletCreation::Localhost
         && ecosystem_config.l1_network == L1Network::Localhost
     {
-        let spinner = Spinner::new("Distributing eth...");
+        let spinner = Spinner::new(MSG_DISTRIBUTING_ETH_SPINNER);
         let wallets = ecosystem_config.get_wallets()?;
         let chain_wallets = chain_config.get_wallets_config()?;
         let mut addresses = vec![
@@ -165,7 +169,7 @@ async fn init(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<ContractsConfig> {
-    let spinner = Spinner::new("Installing and building dependencies...");
+    let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
@@ -205,7 +209,7 @@ async fn deploy_erc20(
         ecosystem_config.get_wallets()?.deployer_private_key(),
     )?;
 
-    let spinner = Spinner::new("Deploying ERC20 contracts...");
+    let spinner = Spinner::new(MSG_DEPLOYING_ERC20_SPINNER);
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     spinner.finish();
@@ -239,15 +243,17 @@ async fn deploy_ecosystem(
     let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
         Some(path) => Some(path.clone()),
         None => {
-            let input_path: String = Prompt::new("Provide the path to the ecosystem contracts or keep it empty and you will be added to ZkSync ecosystem")
-            .allow_empty()
-            .validate_with(|val: &String| {
-                if val.is_empty() {
-                    return Ok(());
-                }
-                PathBuf::from_str(val).map(|_| ()).map_err(|_| "Invalid path".to_string())
-            })
-            .ask();
+            let input_path: String = Prompt::new(MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT)
+                .allow_empty()
+                .validate_with(|val: &String| {
+                    if val.is_empty() {
+                        return Ok(());
+                    }
+                    PathBuf::from_str(val)
+                        .map(|_| ())
+                        .map_err(|_| MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR.to_string())
+                })
+                .ask();
             if input_path.is_empty() {
                 None
             } else {
@@ -306,7 +312,7 @@ async fn deploy_ecosystem_inner(
 
     forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
 
-    let spinner = Spinner::new("Deploying ecosystem contracts...");
+    let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     spinner.finish();

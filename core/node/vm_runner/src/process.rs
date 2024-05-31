@@ -56,7 +56,7 @@ impl VmRunner {
     }
 
     async fn process_batch(
-        batch_executor: BatchExecutorHandle,
+        mut batch_executor: BatchExecutorHandle,
         l2_blocks: Vec<L2BlockExecutionData>,
         mut updates_manager: UpdatesManager,
         mut output_handler: Box<dyn StateKeeperOutputHandler>,
@@ -68,12 +68,19 @@ impl VmRunner {
                     timestamp: l2_block.timestamp,
                     virtual_blocks: l2_block.virtual_blocks,
                 });
+                let block_env = L2BlockEnv::from_l2_block_data(&l2_block);
                 batch_executor
-                    .start_next_l2_block(L2BlockEnv::from_l2_block_data(&l2_block))
-                    .await;
+                    .start_next_l2_block(block_env)
+                    .await
+                    .with_context(|| {
+                        format!("failed starting L2 block with {block_env:?} in batch executor")
+                    })?;
             }
             for tx in l2_block.txs {
-                let exec_result = batch_executor.execute_tx(tx.clone()).await;
+                let exec_result = batch_executor
+                    .execute_tx(tx.clone())
+                    .await
+                    .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
                 let TxExecutionResult::Success {
                     tx_result,
                     tx_metrics,
@@ -102,7 +109,10 @@ impl VmRunner {
                 .await
                 .context("VM runner failed to handle L2 block")?;
         }
-        batch_executor.finish_batch().await;
+        batch_executor
+            .finish_batch()
+            .await
+            .context("failed finishing L1 batch in executor")?;
         output_handler
             .handle_l1_batch(Arc::new(updates_manager))
             .await
