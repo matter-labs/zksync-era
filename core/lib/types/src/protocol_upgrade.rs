@@ -11,12 +11,13 @@ use zksync_contracts::{
     BaseSystemContractsHashes, ADMIN_EXECUTE_UPGRADE_FUNCTION,
     ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION,
 };
-use zksync_utils::{h256_to_u256, u256_to_account_address};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_account_address};
 
 use crate::{
-    ethabi::{decode, encode, ParamType, Token},
+    ethabi::{ParamType, Token},
     helpers::unix_timestamp_ms,
-    web3::{keccak256, Log},
+    l1::L2CanonicalTransaction,
+    web3::Log,
     Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256,
     PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
@@ -80,68 +81,40 @@ pub struct ProtocolUpgrade {
     pub tx: Option<ProtocolUpgradeTx>,
 }
 
-fn get_transaction_param_type() -> ParamType {
-    ParamType::Tuple(vec![
-        ParamType::Uint(256),                                     // `txType`
-        ParamType::Uint(256),                                     // sender
-        ParamType::Uint(256),                                     // to
-        ParamType::Uint(256),                                     // gasLimit
-        ParamType::Uint(256),                                     // `gasPerPubdataLimit`
-        ParamType::Uint(256),                                     // maxFeePerGas
-        ParamType::Uint(256),                                     // maxPriorityFeePerGas
-        ParamType::Uint(256),                                     // paymaster
-        ParamType::Uint(256),                                     // nonce (serial ID)
-        ParamType::Uint(256),                                     // value
-        ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
-        ParamType::Bytes,                                         // calldata
-        ParamType::Bytes,                                         // signature
-        ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
-        ParamType::Bytes,                                         // paymaster input
-        ParamType::Bytes,                                         // `reservedDynamic`
-    ])
-}
-
 impl ProtocolUpgrade {
     fn try_from_decoded_tokens(
         tokens: Vec<ethabi::Token>,
         transaction_hash: H256,
         transaction_block_number: u64,
-    ) -> Result<Self, crate::ethabi::Error> {
+    ) -> Result<Self, ethabi::Error> {
         let init_calldata = tokens[2].clone().into_bytes().unwrap();
 
-        let transaction_param_type: ParamType = get_transaction_param_type();
         let verifier_params_type = ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
             ParamType::FixedBytes(32),
             ParamType::FixedBytes(32),
         ]);
 
-        let mut decoded = decode(
+        let mut decoded = ethabi::decode(
             &[ParamType::Tuple(vec![
-                transaction_param_type,                       // transaction data
-                ParamType::Array(Box::new(ParamType::Bytes)), // factory deps
-                ParamType::FixedBytes(32),                    // bootloader code hash
-                ParamType::FixedBytes(32),                    // default account code hash
-                ParamType::Address,                           // verifier address
-                verifier_params_type,                         // verifier params
-                ParamType::Bytes,                             // l1 custom data
-                ParamType::Bytes,                             // l1 post-upgrade custom data
-                ParamType::Uint(256),                         // timestamp
-                ParamType::Uint(256),                         // version id
+                ParamType::Tuple(L2CanonicalTransaction::schema()), // transaction data
+                ParamType::Array(ParamType::Bytes.into()),          // factory deps
+                ParamType::FixedBytes(32),                          // bootloader code hash
+                ParamType::FixedBytes(32),                          // default account code hash
+                ParamType::Address,                                 // verifier address
+                verifier_params_type,                               // verifier params
+                ParamType::Bytes,                                   // l1 custom data
+                ParamType::Bytes,                                   // l1 post-upgrade custom data
+                ParamType::Uint(256),                               // timestamp
+                ParamType::Uint(256),                               // version id
             ])],
             init_calldata
                 .get(4..)
                 .ok_or(crate::ethabi::Error::InvalidData)?,
         )?;
 
-        let Token::Tuple(mut decoded) = decoded.remove(0) else {
-            unreachable!();
-        };
-
-        let Token::Tuple(transaction) = decoded.remove(0) else {
-            unreachable!()
-        };
-
+        let mut decoded = decoded.remove(0).into_tuple().unwrap();
+        let transaction = decoded.remove(0).into_tuple().unwrap();
         let factory_deps = decoded.remove(0).into_array().unwrap();
 
         let tx = ProtocolUpgradeTx::decode_tx(
@@ -193,13 +166,14 @@ impl ProtocolUpgrade {
 
 pub fn decode_set_chain_id_event(
     event: Log,
-) -> Result<(ProtocolVersionId, ProtocolUpgradeTx), crate::ethabi::Error> {
-    let transaction_param_type: ParamType = get_transaction_param_type();
-
-    let Token::Tuple(transaction) = decode(&[transaction_param_type], &event.data.0)?.remove(0)
-    else {
-        unreachable!()
-    };
+) -> Result<(ProtocolVersionId, ProtocolUpgradeTx), ethabi::Error> {
+    let transaction = ethabi::decode(
+        &[ParamType::Tuple(L2CanonicalTransaction::schema())],
+        &event.data.0,
+    )?
+    .remove(0)
+    .into_tuple()
+    .unwrap();
 
     let full_version_id = h256_to_u256(event.topics[2]);
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
@@ -223,105 +197,60 @@ pub fn decode_set_chain_id_event(
 
 impl ProtocolUpgradeTx {
     pub fn decode_tx(
-        mut transaction: Vec<Token>,
+        transaction: Vec<Token>,
         eth_hash: H256,
         eth_block: u64,
         factory_deps: Vec<Token>,
     ) -> Option<ProtocolUpgradeTx> {
-        let canonical_tx_hash = H256(keccak256(&encode(&[Token::Tuple(transaction.clone())])));
-        assert_eq!(transaction.len(), 16);
-
-        let tx_type = transaction.remove(0).into_uint().unwrap();
-        if tx_type == U256::zero() {
+        let transaction = L2CanonicalTransaction::decode(transaction).unwrap();
+        if transaction.tx_type == U256::zero() {
             // There is no upgrade tx.
             return None;
         }
-
         assert_eq!(
-            tx_type,
+            transaction.tx_type,
             PROTOCOL_UPGRADE_TX_TYPE.into(),
             "Unexpected tx type {} when decoding upgrade",
-            tx_type
+            transaction.tx_type
         );
-
-        // There is an upgrade tx. Decoding it.
-        let sender = transaction.remove(0).into_uint().unwrap();
-        let sender = u256_to_account_address(&sender);
-
-        let contract_address = transaction.remove(0).into_uint().unwrap();
-        let contract_address = u256_to_account_address(&contract_address);
-
-        let gas_limit = transaction.remove(0).into_uint().unwrap();
-
-        let gas_per_pubdata_limit = transaction.remove(0).into_uint().unwrap();
-
-        let max_fee_per_gas = transaction.remove(0).into_uint().unwrap();
-
-        let max_priority_fee_per_gas = transaction.remove(0).into_uint().unwrap();
-        assert_eq!(max_priority_fee_per_gas, U256::zero());
-
-        let paymaster = transaction.remove(0).into_uint().unwrap();
-        let paymaster = u256_to_account_address(&paymaster);
-        assert_eq!(paymaster, Address::zero());
-
-        let upgrade_id = transaction.remove(0).into_uint().unwrap();
-
-        let msg_value = transaction.remove(0).into_uint().unwrap();
-
-        let reserved = transaction
-            .remove(0)
-            .into_fixed_array()
-            .unwrap()
-            .into_iter()
-            .map(|token| token.into_uint().unwrap())
-            .collect::<Vec<_>>();
-        assert_eq!(reserved.len(), 4);
-
-        let to_mint = reserved[0];
-        let refund_recipient = u256_to_account_address(&reserved[1]);
+        assert_eq!(transaction.max_priority_fee_per_gas, U256::zero());
+        assert_eq!(transaction.paymaster, U256::zero());
 
         // All other reserved fields should be zero
-        for item in reserved.iter().skip(2) {
+        for item in &transaction.reserved[2..] {
             assert_eq!(item, &U256::zero());
         }
-
-        let calldata = transaction.remove(0).into_bytes().unwrap();
-
-        let signature = transaction.remove(0).into_bytes().unwrap();
-        assert_eq!(signature.len(), 0);
-
-        let _factory_deps_hashes = transaction.remove(0).into_array().unwrap();
-
-        let paymaster_input = transaction.remove(0).into_bytes().unwrap();
-        assert_eq!(paymaster_input.len(), 0);
-
+        assert!(transaction.signature.is_empty());
+        assert!(transaction.paymaster_input.is_empty());
+        assert!(transaction.reserved_dynamic.is_empty());
         // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
-        let reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
-        assert_eq!(reserved_dynamic.len(), 0);
 
         let common_data = ProtocolUpgradeTxCommonData {
-            canonical_tx_hash,
-            sender,
-            upgrade_id: (upgrade_id.as_u32() as u16).try_into().unwrap(),
-            to_mint,
-            refund_recipient,
-            gas_limit,
-            max_fee_per_gas,
-            gas_per_pubdata_limit,
+            canonical_tx_hash: transaction.hash(),
+            sender: u256_to_account_address(&transaction.from),
+            upgrade_id: transaction.nonce.try_into().unwrap(),
+            to_mint: transaction.reserved[0],
+            refund_recipient: u256_to_account_address(&transaction.reserved[1]),
+            gas_limit: transaction.gas_limit,
+            max_fee_per_gas: transaction.max_fee_per_gas,
+            gas_per_pubdata_limit: transaction.gas_per_pubdata_byte_limit,
             eth_hash,
             eth_block,
         };
-
-        let factory_deps = factory_deps
+        let factory_deps: Vec<_> = factory_deps
             .into_iter()
             .map(|t| t.into_bytes().unwrap())
             .collect();
-
+        let factory_deps_hashes: Vec<_> = factory_deps
+            .iter()
+            .map(|b| h256_to_u256(hash_bytecode(b)))
+            .collect();
+        assert_eq!(transaction.factory_deps, factory_deps_hashes);
         let execute = Execute {
-            contract_address,
-            calldata: calldata.to_vec(),
+            contract_address: u256_to_account_address(&transaction.to),
+            calldata: transaction.data,
             factory_deps: Some(factory_deps),
-            value: msg_value,
+            value: transaction.value,
         };
 
         Some(ProtocolUpgradeTx {
@@ -333,7 +262,7 @@ impl ProtocolUpgradeTx {
 }
 
 impl TryFrom<Call> for ProtocolUpgrade {
-    type Error = crate::ethabi::Error;
+    type Error = ethabi::Error;
 
     fn try_from(call: Call) -> Result<Self, Self::Error> {
         let Call {
@@ -344,7 +273,7 @@ impl TryFrom<Call> for ProtocolUpgrade {
         } = call;
 
         if data.len() < 4 {
-            return Err(crate::ethabi::Error::InvalidData);
+            return Err(ethabi::Error::InvalidData);
         }
 
         let (signature, data) = data.split_at(4);
@@ -396,7 +325,8 @@ impl TryFrom<Log> for GovernanceOperation {
             ParamType::FixedBytes(32),
         ]);
         // Decode data.
-        let mut decoded = decode(&[ParamType::Uint(256), operation_param_type], &event.data.0)?;
+        let mut decoded =
+            ethabi::decode(&[ParamType::Uint(256), operation_param_type], &event.data.0)?;
         // Extract `GovernanceOperation` data.
         let mut decoded_governance_operation = decoded.remove(1).into_tuple().unwrap();
 
@@ -588,7 +518,7 @@ mod tests {
             Token::FixedBytes(H256::random().0.to_vec()),
             Token::FixedBytes(H256::random().0.to_vec()),
         ]);
-        let event_data = encode(&[Token::Uint(U256::zero()), operation_token]);
+        let event_data = ethabi::encode(&[Token::Uint(U256::zero()), operation_token]);
 
         let correct_log = Log {
             address: Default::default(),

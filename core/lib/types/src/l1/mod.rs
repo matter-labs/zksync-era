@@ -206,22 +206,22 @@ pub struct NewPriorityRequest {
 }
 
 pub struct L2CanonicalTransaction {
-    tx_type: U256,
-    from: U256,
-    to: U256,
-    gas_limit: U256,
-    gas_per_pubdata_byte_limit: U256,
-    max_fee_per_gas: U256,
-    max_priority_fee_per_gas: U256,
-    paymaster: U256,
-    nonce: U256,
-    value: U256,
-    reserved: [U256; 4],
-    data: Vec<u8>,
-    signature: Vec<u8>,
-    factory_deps: Vec<U256>,
-    paymaster_input: Vec<u8>,
-    reserved_dynamic: Vec<u8>,
+    pub tx_type: U256,
+    pub from: U256,
+    pub to: U256,
+    pub gas_limit: U256,
+    pub gas_per_pubdata_byte_limit: U256,
+    pub max_fee_per_gas: U256,
+    pub max_priority_fee_per_gas: U256,
+    pub paymaster: U256,
+    pub nonce: U256,
+    pub value: U256,
+    pub reserved: [U256; 4],
+    pub data: Vec<u8>,
+    pub signature: Vec<u8>,
+    pub factory_deps: Vec<U256>,
+    pub paymaster_input: Vec<u8>,
+    pub reserved_dynamic: Vec<u8>,
 }
 
 impl NewPriorityRequest {
@@ -284,7 +284,7 @@ impl L2CanonicalTransaction {
     pub fn schema() -> Vec<ParamType> {
         // TODO: refactor according to tx type
         vec![
-            ParamType::Uint(8),                                    // `txType`
+            ParamType::Uint(256),                                  // `txType`
             ParamType::Uint(256),                                  // sender
             ParamType::Uint(256),                                  // to
             ParamType::Uint(256),                                  // gasLimit
@@ -366,7 +366,9 @@ impl L2CanonicalTransaction {
     }
 
     pub fn hash(&self) -> H256 {
-        H256::from_slice(&web3::keccak256(&ethabi::encode(&self.encode())))
+        H256::from_slice(&web3::keccak256(&ethabi::encode(&[Token::Tuple(
+            self.encode(),
+        )])))
     }
 }
 
