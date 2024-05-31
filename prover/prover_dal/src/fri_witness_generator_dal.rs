@@ -1376,6 +1376,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
                 FROM
                     {}
+                WHERE protocol_version IS NOT NULL
                 GROUP BY
                     protocol_version,
                     protocol_version_patch

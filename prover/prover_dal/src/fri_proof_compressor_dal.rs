@@ -270,7 +270,6 @@ impl FriProofCompressorDal<'_, '_> {
             WHERE
                 protocol_version IS NOT NULL
             GROUP BY
-                status,
                 protocol_version,
                 protocol_version_patch
             "#,
