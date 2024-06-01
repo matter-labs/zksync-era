@@ -723,7 +723,7 @@ command
     .option('--zksync-address <zksyncAddress>')
     .option('--state-transition-manager-address <stateTransitionManagerAddress>')
     .option('--chain-id <chainId>')
-    .option('--prepare-direct-operation <prepareDirectOperation>')
+    .option('--prepare-direct-operation')
     .option('--use-new-governance')
     .option('--post-upgrade-calldata')
     .action(async (options) => {
