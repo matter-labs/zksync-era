@@ -58,6 +58,7 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
+          docker build -t zk-environment-full:latest -f docker/zk-environment-full/Dockerfile  .
 
       - name: Download contracts
         run: |
@@ -111,7 +112,6 @@ jobs:
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
           mkdir -p ./volumes/postgres
-          run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run sccache --start-server
 
