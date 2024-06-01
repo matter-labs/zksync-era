@@ -1,5 +1,5 @@
 import { BigNumberish } from '@ethersproject/bignumber';
-import { Bytes, BytesLike, ethers } from 'ethers';
+import { BytesLike, ethers } from 'ethers';
 import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-contracts/typechain';
 import {
     DefaultUpgradeFactory as DefaultUpgradeFactoryL1,

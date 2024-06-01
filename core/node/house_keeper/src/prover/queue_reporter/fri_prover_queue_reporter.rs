@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::ProtocolVersionId;
 
 use crate::{periodic_job::PeriodicJob, prover::metrics::FRI_PROVER_METRICS};
 
@@ -67,7 +66,7 @@ impl PeriodicJob for FriProverQueueReporter {
                 circuit_id,
                 job_identifiers.aggregation_round,
                 group_id,
-                ProtocolVersionId::try_from(job_identifiers.protocol_version).unwrap(),
+                job_identifiers.get_semantic_protocol_version(),
                 stats.queued as u64,
             );
 
@@ -76,7 +75,7 @@ impl PeriodicJob for FriProverQueueReporter {
                 circuit_id,
                 job_identifiers.aggregation_round,
                 group_id,
-                ProtocolVersionId::try_from(job_identifiers.protocol_version).unwrap(),
+                job_identifiers.get_semantic_protocol_version(),
                 stats.in_progress as u64,
             );
         }
