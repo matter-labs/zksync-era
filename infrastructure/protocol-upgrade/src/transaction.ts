@@ -705,7 +705,7 @@ command
             options.proxy,
             options.implementation
         ]);
-        
+
         console.log(JSON.stringify(prepareGovernanceTxs([options.proxyAdmin], [encodedData]), null, 2));
     });
 

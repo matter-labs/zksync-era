@@ -69,7 +69,15 @@ command
         console.log('Deploying verifier contract');
         const path = getUpgradePath(cmd.environment);
         const tmpFile = `${path}/cryptoTmp.json`;
-        await deployVerifier(cmd.testnetVerifier, cmd.l1Rpc, cmd.privateKey, cmd.create2Address, tmpFile, cmd.nonce, cmd.gasPrice);
+        await deployVerifier(
+            cmd.testnetVerifier,
+            cmd.l1Rpc,
+            cmd.privateKey,
+            cmd.create2Address,
+            tmpFile,
+            cmd.nonce,
+            cmd.gasPrice
+        );
         let tmpData = JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
         console.log(`Verifier contract deployed at ${tmpData.address}`);
         updateCryptoFile('verifier', tmpData, cmd.environment);
