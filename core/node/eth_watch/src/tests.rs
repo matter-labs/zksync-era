@@ -192,7 +192,6 @@ async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch
     let client = MockEthClient::new();
     let watcher = EthWatch::new(
         Address::default(),
-        None,
         &governance_contract(),
         Box::new(client.clone()),
         connection_pool,
@@ -284,7 +283,6 @@ async fn test_normal_operation_governance_upgrades() {
     let mut client = MockEthClient::new();
     let mut watcher = EthWatch::new(
         Address::default(),
-        None,
         &governance_contract(),
         Box::new(client.clone()),
         connection_pool.clone(),

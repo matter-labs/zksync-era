@@ -251,11 +251,12 @@ impl FriProofCompressorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn get_jobs_stats(&mut self) -> HashMap<ProtocolVersionId, JobCountStatistics> {
+    pub async fn get_jobs_stats(&mut self) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
         sqlx::query!(
             r#"
             SELECT
                 protocol_version,
+                protocol_version_patch,
                 COUNT(*) FILTER (
                     WHERE
                         status = 'queued'
@@ -269,8 +270,8 @@ impl FriProofCompressorDal<'_, '_> {
             WHERE
                 protocol_version IS NOT NULL
             GROUP BY
-                status,
-                protocol_version
+                protocol_version,
+                protocol_version_patch
             "#,
         )
         .fetch_all(self.storage.conn())
@@ -278,7 +279,10 @@ impl FriProofCompressorDal<'_, '_> {
         .unwrap()
         .into_iter()
         .map(|row| {
-            let key = ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap();
+            let key = ProtocolSemanticVersion::new(
+                ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
+                VersionPatch(row.protocol_version_patch as u32),
+            );
             let value = JobCountStatistics {
                 queued: row.queued.unwrap() as usize,
                 in_progress: row.in_progress.unwrap() as usize,

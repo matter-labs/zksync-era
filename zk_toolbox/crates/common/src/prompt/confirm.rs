@@ -1,5 +1,6 @@
-use cliclack::Confirm;
 use std::fmt::Display;
+
+use cliclack::Confirm;
 
 pub struct PromptConfirm {
     inner: Confirm,
