@@ -1,5 +1,4 @@
 use std::convert::{TryFrom, TryInto};
-
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     ethabi,
@@ -11,15 +10,15 @@ use zksync_contracts::{
     BaseSystemContractsHashes, ADMIN_EXECUTE_UPGRADE_FUNCTION,
     ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_account_address};
+use zksync_utils::{h256_to_u256};
 
 use crate::{
-    ethabi::{ParamType, Token},
-    helpers::unix_timestamp_ms,
-    l1::L2CanonicalTransaction,
+    abi,
+    helpers,
+    ethabi::{ParamType},
     web3::Log,
     Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256,
-    PROTOCOL_UPGRADE_TX_TYPE, U256,
+    U256,
 };
 
 /// Represents a call to be made during governance operation.
@@ -81,83 +80,46 @@ pub struct ProtocolUpgrade {
     pub tx: Option<ProtocolUpgradeTx>,
 }
 
+impl From<abi::VerifierParams> for VerifierParams {
+    fn from(x: abi::VerifierParams) -> Self {
+        Self {
+            recursion_node_level_vk_hash: x.recursion_node_level_vk_hash.into(),
+            recursion_leaf_level_vk_hash: x.recursion_node_level_vk_hash.into(),
+            recursion_circuits_set_vks_hash: x.recursion_circuits_set_vks_hash.into(),
+        }
+    }
+}
+
 impl ProtocolUpgrade {
-    fn try_from_decoded_tokens(
-        tokens: Vec<ethabi::Token>,
-        transaction_hash: H256,
-        transaction_block_number: u64,
+    /// l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata
+    fn try_from_init_calldata(
+        init_calldata: &[u8],
+        eth_hash: H256,
+        eth_block: u64,
     ) -> Result<Self, ethabi::Error> {
-        let init_calldata = tokens[2].clone().into_bytes().unwrap();
-
-        let verifier_params_type = ParamType::Tuple(vec![
-            ParamType::FixedBytes(32),
-            ParamType::FixedBytes(32),
-            ParamType::FixedBytes(32),
-        ]);
-
-        let mut decoded = ethabi::decode(
-            &[ParamType::Tuple(vec![
-                L2CanonicalTransaction::schema(),          // transaction data
-                ParamType::Array(ParamType::Bytes.into()), // factory deps
-                ParamType::FixedBytes(32),                 // bootloader code hash
-                ParamType::FixedBytes(32),                 // default account code hash
-                ParamType::Address,                        // verifier address
-                verifier_params_type,                      // verifier params
-                ParamType::Bytes,                          // l1 custom data
-                ParamType::Bytes,                          // l1 post-upgrade custom data
-                ParamType::Uint(256),                      // timestamp
-                ParamType::Uint(256),                      // version id
-            ])],
+        let upgrade = ethabi::decode(
+            &[abi::ProposedUpgrade::schema()],
             init_calldata.get(4..).ok_or(ethabi::Error::InvalidData)?,
         )?;
-
-        let mut decoded = decoded.remove(0).into_tuple().unwrap();
-        let transaction = decoded.remove(0);
-        let factory_deps = decoded.remove(0).into_array().unwrap();
-
-        let tx = ProtocolUpgradeTx::decode_tx(
-            transaction,
-            transaction_hash,
-            transaction_block_number,
-            factory_deps,
-        );
-        let bootloader_code_hash = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
-        let default_account_code_hash =
-            H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
-        let verifier_address = decoded.remove(0).into_address().unwrap();
-        let Token::Tuple(mut verifier_params) = decoded.remove(0) else {
-            unreachable!()
-        };
-        let recursion_node_level_vk_hash =
-            H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
-        let recursion_leaf_level_vk_hash =
-            H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
-        let recursion_circuits_set_vks_hash =
-            H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
-
-        let _l1_custom_data = decoded.remove(0);
-        let _l1_post_upgrade_custom_data = decoded.remove(0);
-        let timestamp = decoded.remove(0).into_uint().unwrap();
-        let packed_protocol_semver = decoded.remove(0).into_uint().unwrap();
-
+        let upgrade = abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap()).unwrap();
+        let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
+        let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
         Ok(Self {
-            version: ProtocolSemanticVersion::try_from_packed(packed_protocol_semver)
-                .expect("Version is not supported"),
-            bootloader_code_hash: (bootloader_code_hash != H256::zero())
-                .then_some(bootloader_code_hash),
-            default_account_code_hash: (default_account_code_hash != H256::zero())
-                .then_some(default_account_code_hash),
-            verifier_params: (recursion_node_level_vk_hash != H256::zero()
-                || recursion_leaf_level_vk_hash != H256::zero()
-                || recursion_circuits_set_vks_hash != H256::zero())
-            .then_some(VerifierParams {
-                recursion_node_level_vk_hash,
-                recursion_leaf_level_vk_hash,
-                recursion_circuits_set_vks_hash,
-            }),
-            verifier_address: (verifier_address != Address::zero()).then_some(verifier_address),
-            timestamp: timestamp.as_u64(),
-            tx,
+            version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version).expect("Version is not supported"),
+            bootloader_code_hash: (bootloader_hash!=H256::zero()).then_some(bootloader_hash),
+            default_account_code_hash: (default_account_hash!=H256::zero()).then_some(default_account_hash),
+            verifier_params: (upgrade.verifier_params!=abi::VerifierParams::default()).then_some(upgrade.verifier_params.into()), 
+            verifier_address: (upgrade.verifier != Address::zero()).then_some(upgrade.verifier),
+            timestamp: upgrade.upgrade_timestamp.try_into().unwrap(),
+            tx: (upgrade.l2_protocol_upgrade_tx.tx_type!=U256::zero()).then_some(
+                Transaction::try_from(abi::Transaction::L1 {
+                    tx: upgrade.l2_protocol_upgrade_tx,
+                    factory_deps: upgrade.factory_deps,
+                    eth_hash,
+                    eth_block,
+                    received_timestamp_ms: helpers::unix_timestamp_ms(),
+                }).unwrap().try_into().unwrap(),
+            ),
         })
     }
 }
@@ -165,110 +127,30 @@ impl ProtocolUpgrade {
 pub fn decode_set_chain_id_event(
     event: Log,
 ) -> Result<(ProtocolVersionId, ProtocolUpgradeTx), ethabi::Error> {
-    let transaction = ethabi::decode(&[L2CanonicalTransaction::schema()], &event.data.0)?.remove(0);
+    let tx = ethabi::decode(&[abi::L2CanonicalTransaction::schema()], &event.data.0)?;
+    let tx = abi::L2CanonicalTransaction::decode(tx.into_iter().next().unwrap()).unwrap();
 
     let full_version_id = h256_to_u256(event.topics[2]);
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
         .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
-
-    let eth_hash = event
-        .transaction_hash
-        .expect("Event transaction hash is missing");
-    let eth_block = event
-        .block_number
-        .expect("Event block number is missing")
-        .as_u64();
-
-    let factory_deps: Vec<Token> = Vec::new();
-
-    let upgrade_tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps)
-        .expect("Upgrade tx is missing");
-
-    Ok((protocol_version, upgrade_tx))
-}
-
-impl ProtocolUpgradeTx {
-    pub fn decode_tx(
-        transaction: Token,
-        eth_hash: H256,
-        eth_block: u64,
-        factory_deps: Vec<Token>,
-    ) -> Option<ProtocolUpgradeTx> {
-        let transaction = L2CanonicalTransaction::decode(transaction).unwrap();
-        if transaction.tx_type == U256::zero() {
-            // There is no upgrade tx.
-            return None;
-        }
-        assert_eq!(
-            transaction.tx_type,
-            PROTOCOL_UPGRADE_TX_TYPE.into(),
-            "Unexpected tx type {} when decoding upgrade",
-            transaction.tx_type
-        );
-        assert_eq!(transaction.max_priority_fee_per_gas, U256::zero());
-        assert_eq!(transaction.paymaster, U256::zero());
-
-        // All other reserved fields should be zero
-        for item in &transaction.reserved[2..] {
-            assert_eq!(item, &U256::zero());
-        }
-        assert!(transaction.signature.is_empty());
-        assert!(transaction.paymaster_input.is_empty());
-        assert!(transaction.reserved_dynamic.is_empty());
-        // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
-
-        let common_data = ProtocolUpgradeTxCommonData {
-            canonical_tx_hash: transaction.hash(),
-            sender: u256_to_account_address(&transaction.from),
-            upgrade_id: transaction.nonce.try_into().unwrap(),
-            to_mint: transaction.reserved[0],
-            refund_recipient: u256_to_account_address(&transaction.reserved[1]),
-            gas_limit: transaction.gas_limit,
-            max_fee_per_gas: transaction.max_fee_per_gas,
-            gas_per_pubdata_limit: transaction.gas_per_pubdata_byte_limit,
-            eth_hash,
-            eth_block,
-        };
-        let factory_deps: Vec<_> = factory_deps
-            .into_iter()
-            .map(|t| t.into_bytes().unwrap())
-            .collect();
-        let factory_deps_hashes: Vec<_> = factory_deps
-            .iter()
-            .map(|b| h256_to_u256(hash_bytecode(b)))
-            .collect();
-        assert_eq!(transaction.factory_deps, factory_deps_hashes);
-        let execute = Execute {
-            contract_address: u256_to_account_address(&transaction.to),
-            calldata: transaction.data,
-            factory_deps: Some(factory_deps),
-            value: transaction.value,
-        };
-
-        Some(ProtocolUpgradeTx {
-            common_data,
-            execute,
-            received_timestamp_ms: unix_timestamp_ms(),
-        })
-    }
+    Ok((protocol_version, Transaction::try_from(abi::Transaction::L1 {
+        tx,
+        eth_hash: event.transaction_hash.expect("Event transaction hash is missing"),
+        eth_block: event.block_number.expect("Event block number is missing").as_u64(),
+        factory_deps: vec![],
+        received_timestamp_ms: helpers::unix_timestamp_ms(),
+    }).unwrap().try_into().unwrap()))
 }
 
 impl TryFrom<Call> for ProtocolUpgrade {
     type Error = ethabi::Error;
 
     fn try_from(call: Call) -> Result<Self, Self::Error> {
-        let Call {
-            data,
-            eth_hash,
-            eth_block,
-            ..
-        } = call;
-
-        if data.len() < 4 {
+        if call.data.len() < 4 {
             return Err(ethabi::Error::InvalidData);
         }
 
-        let (signature, data) = data.split_at(4);
+        let (signature, data) = call.data.split_at(4);
 
         let diamond_cut_tokens =
             if signature.to_vec() == ADMIN_EXECUTE_UPGRADE_FUNCTION.short_signature().to_vec() {
@@ -297,7 +179,11 @@ impl TryFrom<Call> for ProtocolUpgrade {
                 return Err(crate::ethabi::Error::InvalidData);
             };
 
-        ProtocolUpgrade::try_from_decoded_tokens(diamond_cut_tokens, eth_hash, eth_block)
+        ProtocolUpgrade::try_from_init_calldata(
+            &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
+            call.eth_hash,
+            call.eth_block,
+        )
     }
 }
 
@@ -497,6 +383,7 @@ impl TryFrom<Transaction> for ProtocolUpgradeTx {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethabi::Token;
 
     #[test]
     fn governance_operation_from_log() {
