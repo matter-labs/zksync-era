@@ -1,4 +1,5 @@
 use std::convert::{TryFrom, TryInto};
+
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     ethabi,
@@ -10,15 +11,11 @@ use zksync_contracts::{
     BaseSystemContractsHashes, ADMIN_EXECUTE_UPGRADE_FUNCTION,
     ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION,
 };
-use zksync_utils::{h256_to_u256};
+use zksync_utils::h256_to_u256;
 
 use crate::{
-    abi,
-    helpers,
-    ethabi::{ParamType},
-    web3::Log,
-    Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256,
-    U256,
+    abi, ethabi::ParamType, helpers, web3::Log, Address, Execute, ExecuteTransactionCommon,
+    Transaction, TransactionType, H256, U256,
 };
 
 /// Represents a call to be made during governance operation.
@@ -105,20 +102,26 @@ impl ProtocolUpgrade {
         let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
         Ok(Self {
-            version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version).expect("Version is not supported"),
-            bootloader_code_hash: (bootloader_hash!=H256::zero()).then_some(bootloader_hash),
-            default_account_code_hash: (default_account_hash!=H256::zero()).then_some(default_account_hash),
-            verifier_params: (upgrade.verifier_params!=abi::VerifierParams::default()).then_some(upgrade.verifier_params.into()), 
+            version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
+                .expect("Version is not supported"),
+            bootloader_code_hash: (bootloader_hash != H256::zero()).then_some(bootloader_hash),
+            default_account_code_hash: (default_account_hash != H256::zero())
+                .then_some(default_account_hash),
+            verifier_params: (upgrade.verifier_params != abi::VerifierParams::default())
+                .then_some(upgrade.verifier_params.into()),
             verifier_address: (upgrade.verifier != Address::zero()).then_some(upgrade.verifier),
             timestamp: upgrade.upgrade_timestamp.try_into().unwrap(),
-            tx: (upgrade.l2_protocol_upgrade_tx.tx_type!=U256::zero()).then_some(
+            tx: (upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero()).then_some(
                 Transaction::try_from(abi::Transaction::L1 {
                     tx: upgrade.l2_protocol_upgrade_tx,
                     factory_deps: upgrade.factory_deps,
                     eth_hash,
                     eth_block,
                     received_timestamp_ms: helpers::unix_timestamp_ms(),
-                }).unwrap().try_into().unwrap(),
+                })
+                .unwrap()
+                .try_into()
+                .unwrap(),
             ),
         })
     }
@@ -133,13 +136,24 @@ pub fn decode_set_chain_id_event(
     let full_version_id = h256_to_u256(event.topics[2]);
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
         .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
-    Ok((protocol_version, Transaction::try_from(abi::Transaction::L1 {
-        tx,
-        eth_hash: event.transaction_hash.expect("Event transaction hash is missing"),
-        eth_block: event.block_number.expect("Event block number is missing").as_u64(),
-        factory_deps: vec![],
-        received_timestamp_ms: helpers::unix_timestamp_ms(),
-    }).unwrap().try_into().unwrap()))
+    Ok((
+        protocol_version,
+        Transaction::try_from(abi::Transaction::L1 {
+            tx,
+            eth_hash: event
+                .transaction_hash
+                .expect("Event transaction hash is missing"),
+            eth_block: event
+                .block_number
+                .expect("Event block number is missing")
+                .as_u64(),
+            factory_deps: vec![],
+            received_timestamp_ms: helpers::unix_timestamp_ms(),
+        })
+        .unwrap()
+        .try_into()
+        .unwrap(),
+    ))
 }
 
 impl TryFrom<Call> for ProtocolUpgrade {
@@ -382,8 +396,9 @@ impl TryFrom<Transaction> for ProtocolUpgradeTx {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ethabi::Token;
+
+    use super::*;
 
     #[test]
     fn governance_operation_from_log() {

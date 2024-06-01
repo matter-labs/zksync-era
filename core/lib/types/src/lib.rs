@@ -6,7 +6,6 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
 use std::{fmt, fmt::Debug};
-use zksync_utils::{address_to_u256,h256_to_u256,bytecode::hash_bytecode,u256_to_account_address};
 
 pub use event::{VmEvent, VmEventGroupKey};
 use fee::encoding_len;
@@ -18,8 +17,14 @@ pub use storage::*;
 pub use tx::Execute;
 pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm_version::VmVersion, *};
 pub use zksync_crypto_primitives::*;
+use zksync_utils::{
+    address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,
+};
 
-use crate::{l2::{L2Tx,TransactionType}, protocol_upgrade::ProtocolUpgradeTxCommonData};
+use crate::{
+    l2::{L2Tx, TransactionType},
+    protocol_upgrade::ProtocolUpgradeTxCommonData,
+};
 pub use crate::{Nonce, H256, U256, U64};
 
 pub type SerialId = u64;
@@ -216,7 +221,7 @@ impl Transaction {
 /// Note, that for EIP712-type transactions, `hash` is not equal to the hash
 /// of the `data`, but rather calculated by special formula.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct InputData { 
+pub struct InputData {
     pub hash: H256,
     pub data: Vec<u8>,
 }
@@ -245,7 +250,11 @@ impl From<Transaction> for abi::Transaction {
         use ExecuteTransactionCommon as E;
         let factory_deps = tx.execute.factory_deps.unwrap_or_default();
         match tx.common_data {
-            E::L2(data) => Self::L2(data.input.expect("input is required for L2 transactions").data),
+            E::L2(data) => Self::L2(
+                data.input
+                    .expect("input is required for L2 transactions")
+                    .data,
+            ),
             E::L1(data) => Self::L1 {
                 tx: abi::L2CanonicalTransaction {
                     tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
@@ -315,7 +324,7 @@ impl From<Transaction> for abi::Transaction {
 }
 
 impl TryFrom<abi::Transaction> for Transaction {
-    type Error = anyhow::Error; 
+    type Error = anyhow::Error;
     fn try_from(tx: abi::Transaction) -> anyhow::Result<Self> {
         Ok(match tx {
             abi::Transaction::L1 {
@@ -329,9 +338,9 @@ impl TryFrom<abi::Transaction> for Transaction {
                     .iter()
                     .map(|b| h256_to_u256(hash_bytecode(b)))
                     .collect();
-                anyhow::ensure!(tx.factory_deps==factory_deps_hashes);
+                anyhow::ensure!(tx.factory_deps == factory_deps_hashes);
                 for item in &tx.reserved[2..] {
-                    anyhow::ensure!(item==&U256::zero());
+                    anyhow::ensure!(item == &U256::zero());
                 }
                 assert_eq!(tx.max_priority_fee_per_gas, U256::zero());
                 assert_eq!(tx.paymaster, U256::zero());
@@ -347,9 +356,13 @@ impl TryFrom<abi::Transaction> for Transaction {
                         value: tx.value,
                     },
                     common_data: match tx.tx_type {
-                        t if t==PRIORITY_OPERATION_L2_TX_TYPE.into() => {
+                        t if t == PRIORITY_OPERATION_L2_TX_TYPE.into() => {
                             ExecuteTransactionCommon::L1(L1TxCommonData {
-                                serial_id: PriorityOpId(tx.nonce.try_into().map_err(|err|anyhow::format_err!("{err}"))?),
+                                serial_id: PriorityOpId(
+                                    tx.nonce
+                                        .try_into()
+                                        .map_err(|err| anyhow::format_err!("{err}"))?,
+                                ),
                                 canonical_tx_hash: hash,
                                 sender: u256_to_account_address(&tx.from),
                                 deadline_block: 0,
@@ -366,7 +379,7 @@ impl TryFrom<abi::Transaction> for Transaction {
                                 eth_block,
                             })
                         }
-                        t if t==PROTOCOL_UPGRADE_TX_TYPE.into() => {
+                        t if t == PROTOCOL_UPGRADE_TX_TYPE.into() => {
                             ExecuteTransactionCommon::ProtocolUpgrade(ProtocolUpgradeTxCommonData {
                                 upgrade_id: tx.nonce.try_into().unwrap(),
                                 canonical_tx_hash: hash,
@@ -385,9 +398,10 @@ impl TryFrom<abi::Transaction> for Transaction {
                     raw_bytes: None,
                     received_timestamp_ms,
                 }
-            },
+            }
             abi::Transaction::L2(raw) => {
-                let (req,_) = transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
+                let (req, _) =
+                    transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
                 L2Tx::from_request_unverified(req)?.into()
             }
         })

@@ -4,8 +4,9 @@ use tokio::sync::RwLock;
 use zksync_contracts::{governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
+    abi,
     ethabi::{encode, Hash, Token},
-    l1::{L1Tx, NewPriorityRequest, OpProcessingType, PriorityQueueType},
+    l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
     web3::{BlockNumber, Log},
@@ -147,8 +148,8 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
             serial_id: PriorityOpId(serial_id),
             sender: [1u8; 20].into(),
             deadline_block: 0,
-            eth_hash: H256::default(),
-            eth_block: 0,
+            eth_hash: [2; 32].into(),
+            eth_block,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
             gas_per_pubdata_limit: 1u32.into(),
@@ -162,17 +163,15 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
         },
         received_timestamp_ms: 0,
     };
-    // Convert to NewPriorityRequest and back, so that canonical_tx_hash is computed.
-    let mut tx: L1Tx = NewPriorityRequest::from(tx).try_into().unwrap();
-    // Set manually the deprecated fields, which are lost due to conversion.
-    tx.common_data.eth_block = eth_block;
-    tx.common_data.eth_hash = [2; 32].into();
-    tx.common_data.deadline_block = 0;
-    tx
+    // Convert to abi::Transaction and back, so that canonical_tx_hash is computed.
+    Transaction::try_from(abi::Transaction::from(Transaction::from(tx)))
+        .unwrap()
+        .try_into()
+        .unwrap()
 }
 
 fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
-    ProtocolUpgradeTx {
+    let tx = ProtocolUpgradeTx {
         execute: Execute {
             contract_address: Address::repeat_byte(0x11),
             calldata: vec![1, 2, 3],
@@ -192,7 +191,12 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
             canonical_tx_hash: H256::from_low_u64_be(id as u64),
         },
         received_timestamp_ms: 0,
-    }
+    };
+    // Convert to abi::Transaction and back, so that canonical_tx_hash is computed.
+    Transaction::try_from(abi::Transaction::from(Transaction::from(tx)))
+        .unwrap()
+        .try_into()
+        .unwrap()
 }
 
 async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch, MockEthClient) {

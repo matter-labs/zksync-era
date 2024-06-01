@@ -1,7 +1,12 @@
-use crate::transaction_request::TransactionRequest;
-use crate::{web3,Address,ethabi,ethabi::{ParamType,Token},U256,H256};
-use zksync_utils::{h256_to_u256,bytecode::hash_bytecode};
 use anyhow::Context as _;
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+
+use crate::{
+    ethabi,
+    ethabi::{ParamType, Token},
+    transaction_request::TransactionRequest,
+    web3, Address, H256, U256,
+};
 
 /// `Transaction` from `system-contracts/contracts/libraries/TransactionHelper.sol`.
 /// `L2CanonicalTransaction` from `l1-contracts/contracts/zksync/interfaces/IMailbox.sol`.
@@ -122,7 +127,6 @@ pub struct NewPriorityRequest {
     pub factory_deps: Vec<Vec<u8>>,
 }
 
-
 impl NewPriorityRequest {
     pub fn decode(data: &[u8]) -> Result<Self, ethabi::Error> {
         let tokens = ethabi::decode(
@@ -153,19 +157,19 @@ impl NewPriorityRequest {
 }
 
 /// `l1-contracts/contracts/state-transition/chain-interfaces/IVerifier.sol:VerifierParams`.
-#[derive(Default,PartialEq)]
+#[derive(Default, PartialEq)]
 pub struct VerifierParams {
-    pub recursion_node_level_vk_hash: [u8;32],
-    pub recursion_leaf_level_vk_hash: [u8;32],
-    pub recursion_circuits_set_vks_hash: [u8;32],
+    pub recursion_node_level_vk_hash: [u8; 32],
+    pub recursion_leaf_level_vk_hash: [u8; 32],
+    pub recursion_circuits_set_vks_hash: [u8; 32],
 }
 
 /// `l1-contracts/contracts/upgrades/BazeZkSyncUpgrade.sol:ProposedUpgrade`.
 pub struct ProposedUpgrade {
     pub l2_protocol_upgrade_tx: L2CanonicalTransaction,
     pub factory_deps: Vec<Vec<u8>>,
-    pub bootloader_hash: [u8;32],
-    pub default_account_hash: [u8;32],
+    pub bootloader_hash: [u8; 32],
+    pub default_account_hash: [u8; 32],
     pub verifier: Address,
     pub verifier_params: VerifierParams,
     pub l1_contracts_upgrade_calldata: Vec<u8>,
@@ -189,9 +193,18 @@ impl VerifierParams {
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
         Ok(Self {
-            recursion_node_level_vk_hash: next().into_fixed_bytes().and_then(|x|x.try_into().ok()).context("recursion_node_level_vk_hash")?,
-            recursion_leaf_level_vk_hash: next().into_fixed_bytes().and_then(|x|x.try_into().ok()).context("recursion_leaf_level_vk_hash")?,
-            recursion_circuits_set_vks_hash: next().into_fixed_bytes().and_then(|x|x.try_into().ok()).context("recursion_circuits_set_vks_hash")?,
+            recursion_node_level_vk_hash: next()
+                .into_fixed_bytes()
+                .and_then(|x| x.try_into().ok())
+                .context("recursion_node_level_vk_hash")?,
+            recursion_leaf_level_vk_hash: next()
+                .into_fixed_bytes()
+                .and_then(|x| x.try_into().ok())
+                .context("recursion_leaf_level_vk_hash")?,
+            recursion_circuits_set_vks_hash: next()
+                .into_fixed_bytes()
+                .and_then(|x| x.try_into().ok())
+                .context("recursion_circuits_set_vks_hash")?,
         })
     }
 }
@@ -218,20 +231,29 @@ impl ProposedUpgrade {
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
         Ok(Self {
-            l2_protocol_upgrade_tx: L2CanonicalTransaction::decode(next()).context("l2_protocol_upgrade_tx")?,
+            l2_protocol_upgrade_tx: L2CanonicalTransaction::decode(next())
+                .context("l2_protocol_upgrade_tx")?,
             factory_deps: next()
                 .into_array()
                 .context("factory_deps")?
                 .into_iter()
                 .enumerate()
-                .map(|(i,b)| b.into_bytes().context(i))
-                .collect::<Result<_,_>>()
+                .map(|(i, b)| b.into_bytes().context(i))
+                .collect::<Result<_, _>>()
                 .context("factory_deps")?,
-            bootloader_hash: next().into_fixed_bytes().and_then(|b|b.try_into().ok()).context("bootloader_hash")?,
-            default_account_hash: next().into_fixed_bytes().and_then(|b|b.try_into().ok()).context("default_account_hash")?,
+            bootloader_hash: next()
+                .into_fixed_bytes()
+                .and_then(|b| b.try_into().ok())
+                .context("bootloader_hash")?,
+            default_account_hash: next()
+                .into_fixed_bytes()
+                .and_then(|b| b.try_into().ok())
+                .context("default_account_hash")?,
             verifier: next().into_address().context("verifier")?,
             verifier_params: VerifierParams::decode(next()).context("verifier_params")?,
-            l1_contracts_upgrade_calldata: next().into_bytes().context("l1_contracts_upgrade_calldata")?,
+            l1_contracts_upgrade_calldata: next()
+                .into_bytes()
+                .context("l1_contracts_upgrade_calldata")?,
             post_upgrade_calldata: next().into_bytes().context("post_upgrade_calldata")?,
             upgrade_timestamp: next().into_uint().context("upgrade_timestamp")?,
             new_protocol_version: next().into_uint().context("new_protocol_version")?,
@@ -248,7 +270,7 @@ pub enum Transaction {
         /// Auxiliary data, not hashed.
         eth_hash: H256,
         eth_block: u64,
-        received_timestamp_ms: u64, 
+        received_timestamp_ms: u64,
     },
     L2(Vec<u8>),
 }
@@ -256,13 +278,15 @@ pub enum Transaction {
 impl Transaction {
     pub fn hash(&self) -> anyhow::Result<H256> {
         Ok(match self {
-            Self::L1 { tx, factory_deps, .. } => {
+            Self::L1 {
+                tx, factory_deps, ..
+            } => {
                 // verify data integrity
                 let factory_deps_hashes: Vec<_> = factory_deps
                     .iter()
                     .map(|b| h256_to_u256(hash_bytecode(b)))
                     .collect();
-                anyhow::ensure!(tx.factory_deps==factory_deps_hashes);
+                anyhow::ensure!(tx.factory_deps == factory_deps_hashes);
                 tx.hash()
             }
             Self::L2(raw) => TransactionRequest::from_bytes_unverified(raw)?.1,

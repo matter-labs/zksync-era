@@ -557,7 +557,9 @@ impl TransactionRequest {
         Some(EIP_712_TX_TYPE.into()) == self.transaction_type
     }
 
-    pub fn from_bytes_unverified(bytes: &[u8]) -> Result<(Self, H256), SerializationTransactionError> {
+    pub fn from_bytes_unverified(
+        bytes: &[u8],
+    ) -> Result<(Self, H256), SerializationTransactionError> {
         let rlp;
         let mut tx = match bytes.first() {
             Some(x) if *x >= 0x80 => {
@@ -625,7 +627,7 @@ impl TransactionRequest {
                 return Err(SerializationTransactionError::AccessListsNotSupported)
             }
             _ => return Err(SerializationTransactionError::UnknownTransactionFormat),
-        }; 
+        };
         let factory_deps_ref = tx
             .eip712_meta
             .as_ref()
@@ -643,7 +645,9 @@ impl TransactionRequest {
         };
 
         // `tx.raw` is set, so unwrap is safe here.
-        let hash = tx.get_tx_hash_with_signed_message_raw(&default_signed_message)?.unwrap();
+        let hash = tx
+            .get_tx_hash_with_signed_message_raw(&default_signed_message)?
+            .unwrap();
         Ok((tx, hash))
     }
 
@@ -651,13 +655,13 @@ impl TransactionRequest {
         bytes: &[u8],
         chain_id: L2ChainId,
     ) -> Result<(Self, H256), SerializationTransactionError> {
-        let (tx,hash) = Self::from_bytes_unverified(bytes)?;
+        let (tx, hash) = Self::from_bytes_unverified(bytes)?;
         if tx.chain_id.is_some() && tx.chain_id != Some(chain_id.as_u64()) {
             return Err(SerializationTransactionError::WrongChainId(tx.chain_id));
         }
-        Ok((tx,hash))
+        Ok((tx, hash))
     }
-    
+
     fn get_default_signed_message(
         &self,
         chain_id: Option<u64>,
@@ -705,7 +709,9 @@ impl TransactionRequest {
             Ok(hash)
         } else {
             let signature = self.get_packed_signature()?;
-            Ok(H256(keccak256(&self.get_signed_bytes(&signature, chain_id))))
+            Ok(H256(keccak256(
+                &self.get_signed_bytes(&signature, chain_id),
+            )))
         }
     }
 
@@ -778,7 +784,9 @@ impl TransactionRequest {
 }
 
 impl L2Tx {
-    pub(crate) fn from_request_unverified(value: TransactionRequest) -> Result<Self, SerializationTransactionError> {
+    pub(crate) fn from_request_unverified(
+        value: TransactionRequest,
+    ) -> Result<Self, SerializationTransactionError> {
         let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
 
@@ -825,7 +833,7 @@ impl L2Tx {
         value: TransactionRequest,
         max_tx_size: usize,
     ) -> Result<Self, SerializationTransactionError> {
-        let tx = Self::from_request_unverified(value)?; 
+        let tx = Self::from_request_unverified(value)?;
         tx.check_encoded_size(max_tx_size)?;
         Ok(tx)
     }
