@@ -403,12 +403,12 @@ impl StoredL2BlockInfo {
 }
 
 #[derive(Debug)]
-struct ResolvedBlockInfo {
+pub(crate) struct ResolvedBlockInfo {
     state_l2_block_number: L2BlockNumber,
     state_l2_block_hash: H256,
     vm_l1_batch_number: L1BatchNumber,
     l1_batch_timestamp: u64,
-    protocol_version: ProtocolVersionId,
+    pub(crate) protocol_version: ProtocolVersionId,
     historical_fee_input: Option<BatchFeeInput>,
 }
 
@@ -429,7 +429,7 @@ impl BlockArgs {
         )
     }
 
-    async fn resolve_block_info(
+    pub(crate) async fn resolve_block_info(
         &self,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<ResolvedBlockInfo> {
