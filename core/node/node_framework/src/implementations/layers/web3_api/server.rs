@@ -29,6 +29,7 @@ pub struct Web3ServerOptionalConfig {
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     // used by circuit breaker.
     pub replication_lag_limit: Option<Duration>,
+    pub extended_rpc_tracing: Option<bool>,
 }
 
 impl Web3ServerOptionalConfig {
@@ -52,6 +53,9 @@ impl Web3ServerOptionalConfig {
         {
             api_builder = api_builder
                 .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
+        }
+        if let Some(extended_rpc_tracing) = self.extended_rpc_tracing {
+            api_builder = api_builder.with_extended_tracing(extended_rpc_tracing)
         }
         api_builder
     }
