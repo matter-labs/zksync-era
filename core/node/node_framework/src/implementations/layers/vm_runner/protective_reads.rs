@@ -62,7 +62,7 @@ struct ProtectiveReadsWriterTask {
 #[async_trait::async_trait]
 impl Task for ProtectiveReadsWriterTask {
     fn id(&self) -> TaskId {
-        TaskId("vm_runner/protective_reads_writer".to_owned())
+        "vm_runner/protective_reads_writer".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
