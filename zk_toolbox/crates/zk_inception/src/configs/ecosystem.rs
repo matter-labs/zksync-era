@@ -189,7 +189,7 @@ impl EcosystemConfig {
 /// Result of checking if the ecosystem exists.
 #[derive(Error, Debug)]
 pub enum EcosystemConfigFromFileError {
-    #[error("Ecosystem configuration not found")]
+    #[error("Ecosystem configuration not found (make sure you are in the ecosystem folder - cd `path/to/ecosystem/name`)")]
     NotExists,
     #[error("Invalid ecosystem configuration")]
     InvalidConfig { source: anyhow::Error },
