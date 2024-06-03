@@ -44,7 +44,18 @@ pub struct Keystore {
 }
 
 fn get_base_path() -> PathBuf {
-    core_workspace_dir_or_current_dir().join("prover/vk_setup_data_generator_server_fri/data")
+    let path = core_workspace_dir_or_current_dir();
+
+    let new_path = path.join("prover/vk_setup_data_generator_server_fri/data");
+    if new_path.exists() {
+        return new_path;
+    }
+
+    let mut components = path.components();
+    components.next_back().unwrap();
+    components
+        .as_path()
+        .join("prover/vk_setup_data_generator_server_fri/data")
 }
 
 impl Default for Keystore {
