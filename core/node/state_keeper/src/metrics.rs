@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use multivm::interface::VmExecutionResultAndLogs;
+use multivm::interface::{VmExecutionResultAndLogs, VmRevertReason};
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
     Metrics,
@@ -91,29 +91,41 @@ pub struct StateKeeperMetrics {
     pub blob_base_fee_too_high: Counter,
 }
 
+fn vm_revert_reason_as_metric_label(reason: &VmRevertReason) -> &'static str {
+    match reason {
+        VmRevertReason::General { .. } => "General",
+        VmRevertReason::InnerTxError => "InnerTxError",
+        VmRevertReason::VmError => "VmError",
+        VmRevertReason::Unknown { .. } => "Unknown",
+    }
+}
+
 impl StateKeeperMetrics {
     pub fn inc_rejected_txs(&self, reason: &'static str) {
-        self.tx_execution_result[&TxExecutionResult {
+        let result = TxExecutionResult {
             status: TxExecutionStatus::Rejected,
             reason: Some(reason),
-        }]
-            .inc();
+        };
+
+        self.tx_execution_result[&result].inc();
     }
 
     pub fn inc_succeeded_txs(&self) {
-        self.tx_execution_result[&TxExecutionResult {
+        let result = TxExecutionResult {
             status: TxExecutionStatus::Success,
             reason: None,
-        }]
-            .inc();
+        };
+
+        self.tx_execution_result[&result].inc();
     }
 
-    pub fn inc_reverted_txs(&self, reason: &'static str) {
-        self.tx_execution_result[&TxExecutionResult {
+    pub fn inc_reverted_txs(&self, reason: &VmRevertReason) {
+        let result = TxExecutionResult {
             status: TxExecutionStatus::Reverted,
-            reason: Some(reason),
-        }]
-            .inc();
+            reason: Some(vm_revert_reason_as_metric_label(reason)),
+        };
+
+        self.tx_execution_result[&result].inc();
     }
 }
 

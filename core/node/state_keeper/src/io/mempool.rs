@@ -271,11 +271,11 @@ impl StateKeeperIO for MempoolIO {
     async fn reject(
         &mut self,
         rejected: &Transaction,
-        error: UnexecutableReason,
+        reason: UnexecutableReason,
     ) -> anyhow::Result<()> {
         anyhow::ensure!(
             !rejected.is_l1(),
-            "L1 transactions should not be rejected: {error}"
+            "L1 transactions should not be rejected: {reason}"
         );
 
         // Reset the nonces in the mempool, but don't insert the transaction back.
@@ -284,15 +284,15 @@ impl StateKeeperIO for MempoolIO {
         // Mark tx as rejected in the storage.
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
 
-        KEEPER_METRICS.inc_rejected_txs(error.as_metric_label());
+        KEEPER_METRICS.inc_rejected_txs(reason.as_metric_label());
 
         tracing::warn!(
-            "Transaction {} is rejected with error: {error}",
+            "Transaction {} is rejected with error: {reason}",
             rejected.hash()
         );
         storage
             .transactions_dal()
-            .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {error}"))
+            .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {reason}"))
             .await?;
         Ok(())
     }

@@ -762,12 +762,7 @@ impl StateKeeperIO for TestIO {
             panic!("Unexpected action: {:?}", action);
         };
         assert_eq!(tx, &expected_tx, "Incorrect transaction has been rejected");
-        assert!(
-            reason == expected_err,
-            "Transaction was rejected with an unexpected error. Expected part was {}, but the actual error was {}",
-            expected_err,
-            reason
-        );
+        assert_eq!(reason, expected_err);
 
         self.skipping_txs = false;
         Ok(())

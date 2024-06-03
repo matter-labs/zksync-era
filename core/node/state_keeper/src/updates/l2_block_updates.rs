@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use multivm::{
-    interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs, VmRevertReason},
+    interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs},
     vm_latest::TransactionVmExt,
 };
 use zksync_types::{
@@ -111,7 +111,7 @@ impl L2BlockUpdates {
                 None
             }
             ExecutionResult::Revert { output } => {
-                KEEPER_METRICS.inc_reverted_txs(vm_revert_reason_as_metric_label(output));
+                KEEPER_METRICS.inc_reverted_txs(output);
                 Some(output.to_string())
             }
             ExecutionResult::Halt { .. } => {
@@ -176,15 +176,6 @@ impl L2BlockUpdates {
             prev_block_hash: self.prev_block_hash,
             max_virtual_blocks_to_create: self.virtual_blocks,
         }
-    }
-}
-
-fn vm_revert_reason_as_metric_label(reason: &VmRevertReason) -> &'static str {
-    match reason {
-        VmRevertReason::General { .. } => "General",
-        VmRevertReason::InnerTxError => "InnerTxError",
-        VmRevertReason::VmError => "VmError",
-        VmRevertReason::Unknown { .. } => "Unknown",
     }
 }
 
