@@ -213,7 +213,9 @@ pub struct Web3JsonRpcConfig {
     /// (additionally to natively bridged tokens).
     #[serde(default)]
     pub whitelisted_tokens_for_aa: Vec<Address>,
+    #[serde(default)]
     pub api_namespaces: Option<Vec<String>>,
+    #[serde(default)]
     pub extended_api_tracing: bool,
 }
 
