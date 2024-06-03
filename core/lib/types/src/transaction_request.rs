@@ -14,7 +14,7 @@ use super::{EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE};
 use crate::{
     fee::Fee,
     l1::L1Tx,
-    l2::{L2Tx, TransactionType},
+    l2::{L2Tx, L2TxEvm, TransactionType},
     web3::{signing::keccak256, types::AccessList},
     Address, Bytes, EIP712TypedStructure, Eip712Domain, L1TxCommonData, L2ChainId, Nonce,
     PackedEthSignature, StructBuilder, LEGACY_TX_TYPE, U256, U64,
@@ -846,6 +846,93 @@ impl From<L2Tx> for CallRequest {
             factory_deps: None,
             custom_signature: Some(tx.common_data.signature.clone()),
             paymaster_params: Some(tx.common_data.paymaster_params.clone()),
+        };
+        meta.factory_deps = tx.execute.factory_deps.clone();
+        let mut request = CallRequestBuilder::default()
+            .from(tx.initiator_account())
+            .gas(tx.common_data.fee.gas_limit)
+            .max_fee_per_gas(tx.common_data.fee.max_fee_per_gas)
+            .max_priority_fee_per_gas(tx.common_data.fee.max_priority_fee_per_gas)
+            .transaction_type(U64::from(tx.common_data.transaction_type as u32))
+            .to(tx.execute.contract_address)
+            .data(Bytes(tx.execute.calldata.clone()))
+            .eip712_meta(meta)
+            .build();
+
+        if tx.common_data.transaction_type == TransactionType::LegacyTransaction {
+            request.transaction_type = None;
+        }
+        request
+    }
+}
+
+impl L2TxEvm {
+    pub fn from_request(
+        value: TransactionRequest,
+        max_tx_size: usize,
+    ) -> Result<Self, SerializationTransactionError> {
+        let fee = value.get_fee_data_checked()?;
+        let nonce = value.get_nonce_checked()?;
+
+        let raw_signature = value.get_signature().unwrap_or_default();
+        // Destruct `eip712_meta` in one go to avoid cloning.
+        let (factory_deps, paymaster_params) = value
+            .eip712_meta
+            .map(|eip712_meta| (eip712_meta.factory_deps, eip712_meta.paymaster_params))
+            .unwrap_or_default();
+
+        if let Some(deps) = factory_deps.as_ref() {
+            validate_factory_deps(deps)?;
+        }
+
+        let mut tx = L2TxEvm::new(
+            value.to,
+            value.input.0.clone(),
+            nonce,
+            fee,
+            value.from.unwrap_or_default(),
+            value.value,
+            factory_deps,
+            paymaster_params.unwrap_or_default(),
+        );
+
+        tx.common_data.transaction_type = match value.transaction_type.map(|t| t.as_u64() as u8) {
+            Some(EIP_712_TX_TYPE) => TransactionType::EIP712Transaction,
+            Some(EIP_1559_TX_TYPE) => TransactionType::EIP1559Transaction,
+            Some(EIP_2930_TX_TYPE) => TransactionType::EIP2930Transaction,
+            _ => TransactionType::LegacyTransaction,
+        };
+        // For fee calculation we use the same structure, as a result, signature may not be provided
+        tx.set_raw_signature(raw_signature);
+
+        if let Some(raw_bytes) = value.raw {
+            tx.set_raw_bytes(raw_bytes);
+        }
+        tx.check_encoded_size(max_tx_size)?;
+        Ok(tx)
+    }
+
+    /// Ensures that encoded transaction size is not greater than `max_tx_size`.
+    fn check_encoded_size(&self, max_tx_size: usize) -> Result<(), SerializationTransactionError> {
+        // since `abi_encoding_len` returns 32-byte words multiplication on 32 is needed
+        let tx_size = self.abi_encoding_len() * 32;
+        if tx_size > max_tx_size {
+            return Err(SerializationTransactionError::OversizedData(
+                max_tx_size,
+                tx_size,
+            ));
+        };
+        Ok(())
+    }
+}
+
+impl From<L2TxEvm> for CallRequest {
+    fn from(tx: L2TxEvm) -> Self {
+        let mut meta = Eip712Meta {
+            gas_per_pubdata: tx.common_data.fee.gas_per_pubdata_limit,
+            factory_deps: None,
+            custom_signature: Some(tx.common_data.signature.clone()),
+            paymaster_params: None,
         };
         meta.factory_deps = tx.execute.factory_deps.clone();
         let mut request = CallRequestBuilder::default()

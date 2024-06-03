@@ -4,7 +4,9 @@ use zksync_eth_signer::{
     error::SignerError, raw_ethereum_tx::TransactionParameters, EthereumSigner,
 };
 use zksync_types::{
-    fee::Fee, l2::L2Tx, Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature,
+    fee::Fee,
+    l2::{L2Tx, L2TxEvm},
+    Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature,
 };
 
 use crate::command::IncorrectnessModifier;
@@ -39,6 +41,23 @@ where
 {
     async fn resign(&mut self, signer: &Signer<S>) {
         let signature = signer.sign_transaction(&*self).await.unwrap();
+        self.set_signature(signature);
+    }
+
+    async fn zero_fee(mut self, signer: &Signer<S>) -> Self {
+        self.common_data.fee = Fee::default();
+        self.resign(signer).await;
+        self
+    }
+}
+
+#[async_trait]
+impl<S> Corrupted<S> for L2TxEvm
+where
+    S: EthereumSigner,
+{
+    async fn resign(&mut self, signer: &Signer<S>) {
+        let signature = signer.sign_transaction_evm(&*self).await.unwrap();
         self.set_signature(signature);
     }
 

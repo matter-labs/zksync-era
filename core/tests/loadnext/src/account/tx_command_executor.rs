@@ -1,5 +1,7 @@
-use std::time::Instant;
+use std::{convert::TryFrom, default, sync::Arc, time::Instant};
 
+use ethers::prelude::*;
+use num::ToPrimitive;
 use zksync::{
     error::ClientError,
     ethereum::PriorityOpHolder,
@@ -13,7 +15,8 @@ use zksync_eth_client::EthInterface;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
-    l2::L2Tx,
+    l2::{L2Tx, L2TxEvm},
+    transaction_request::PaymasterParams,
     Address, H256, U256,
 };
 
@@ -56,6 +59,16 @@ impl AccountLifespan {
         }
     }
 
+    pub(super) async fn execute_tx_command_evm(
+        &mut self,
+        command: &TxCommand,
+    ) -> Result<SubmitResult, ClientError> {
+        match command.command_type {
+            TxType::DeployContract => self.execute_deploy_contract_evm(command).await,
+            _ => Err(ClientError::Other),
+        }
+    }
+
     fn tx_creation_error(err: ClientError) -> ClientError {
         // Translate network errors (so operation will be retried), but don't accept other ones.
         // For example, we will retry operation if fee ticker returned an error,
@@ -69,6 +82,11 @@ impl AccountLifespan {
     }
 
     async fn apply_modifier(&self, tx: L2Tx, modifier: IncorrectnessModifier) -> L2Tx {
+        let wallet = &self.wallet.wallet;
+        tx.apply_modifier(modifier, &wallet.signer).await
+    }
+
+    async fn apply_modifier_evm(&self, tx: L2TxEvm, modifier: IncorrectnessModifier) -> L2TxEvm {
         let wallet = &self.wallet.wallet;
         tx.apply_modifier(modifier, &wallet.signer).await
     }
@@ -212,6 +230,36 @@ impl AccountLifespan {
         Ok(result)
     }
 
+    async fn execute_submit_evm(
+        &mut self,
+        tx: L2TxEvm,
+        modifier: IncorrectnessModifier,
+    ) -> Result<SubmitResult, ClientError> {
+        let nonce = tx.nonce();
+        println!("transaction to send: {:?}", tx);
+        let result = match modifier {
+            IncorrectnessModifier::IncorrectSignature => {
+                let wallet = self.wallet.corrupted_wallet.clone();
+                self.submit(modifier, wallet.send_transaction_evm(tx).await)
+                    .await
+            }
+            _ => {
+                let wallet = self.wallet.wallet.clone();
+                self.submit(modifier, wallet.send_transaction_evm(tx).await)
+                    .await
+            }
+        }?;
+
+        // Update current nonce for future txs
+        // If the transaction has a `tx_hash` and is small enough to be included in a block, this tx will change the nonce.
+        // We can be sure that the nonce will be changed based on this assumption.
+        if let SubmitResult::TxHash(_) = &result {
+            self.current_nonce = Some(nonce + 1)
+        }
+
+        Ok(result)
+    }
+
     async fn execute_withdraw(&mut self, command: &TxCommand) -> Result<SubmitResult, ClientError> {
         let tx = self.build_withdraw(command).await?;
         self.execute_submit(tx, command.modifier).await
@@ -261,6 +309,46 @@ impl AccountLifespan {
         self.execute_submit(tx, command.modifier).await
     }
 
+    async fn execute_deploy_contract_evm(
+        &mut self,
+        command: &TxCommand,
+    ) -> Result<SubmitResult, ClientError> {
+        let wallet = "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+            .parse::<LocalWallet>()
+            .unwrap();
+
+        let provider = Provider::<Http>::try_from("http://localhost:3050").unwrap();
+        let chain_id: u64 = 270;
+        let client = SignerMiddleware::new(provider, wallet.with_chain_id(chain_id));
+
+        let factory = ethers::contract::ContractFactory::new(
+            self.wallet.test_contract.contract.clone(),
+            Bytes::try_from(self.wallet.test_contract.bytecode.clone()).unwrap(),
+            client.into(),
+        );
+        println!(
+            "reads, {}",
+            self.contract_execution_params.reads.to_string()
+        );
+        let contract = factory
+            .deploy(self.contract_execution_params.reads.to_u32().unwrap())
+            .unwrap()
+            .confirmations(0usize)
+            .send()
+            .await
+            .unwrap();
+        println!("{}", contract.address());
+        self.wallet
+            .deployed_contract_address
+            .set(contract.address())
+            .unwrap();
+
+        Ok(SubmitResult::TxHash(H256::zero()))
+
+        //let tx = self.build_deploy_loadnext_contract_evm(command).await?;
+        //self.execute_submit_evm(tx, command.modifier).await
+    }
+
     async fn build_deploy_loadnext_contract(
         &self,
         command: &TxCommand,
@@ -300,6 +388,38 @@ impl AccountLifespan {
         let tx = builder.tx().await.map_err(Self::tx_creation_error)?;
 
         Ok(self.apply_modifier(tx, command.modifier).await)
+    }
+
+    async fn build_deploy_loadnext_contract_evm(
+        &self,
+        command: &TxCommand,
+    ) -> Result<L2TxEvm, ClientError> {
+        let wallet = self.wallet.wallet.clone();
+        let constructor_calldata = ethabi::encode(&[ethabi::Token::Uint(U256::from(
+            self.contract_execution_params.reads,
+        ))]);
+
+        let mut builder = wallet
+            .start_deploy_contract()
+            .bytecode(self.wallet.test_contract.bytecode.clone())
+            .constructor_calldata(constructor_calldata);
+
+        let fee = builder
+            .estimate_fee_evm(Some(PaymasterParams::default()))
+            .await?;
+        builder = builder.fee(fee.clone());
+
+        let paymaster_params = PaymasterParams::default();
+        builder = builder.fee(fee);
+        builder = builder.paymaster_params(paymaster_params);
+
+        if let Some(nonce) = self.current_nonce {
+            builder = builder.nonce(nonce);
+        }
+
+        let tx = builder.tx_evm().await.map_err(Self::tx_creation_error)?;
+
+        Ok(self.apply_modifier_evm(tx, command.modifier).await)
     }
 
     async fn execute_loadnext_contract(

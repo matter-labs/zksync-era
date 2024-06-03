@@ -1,5 +1,9 @@
 use zksync_eth_signer::EthereumSigner;
-use zksync_types::{fee::Fee, l2::L2Tx, Address, Nonce, L2_ETH_TOKEN_ADDRESS, U256};
+use zksync_types::{
+    fee::Fee,
+    l2::{L2Tx, L2TxEvm},
+    Address, Nonce, L2_ETH_TOKEN_ADDRESS, U256,
+};
 
 use crate::{
     error::ClientError,
@@ -40,7 +44,7 @@ where
     }
 
     /// Directly returns the signed transfer transaction for the subsequent usage.
-    pub async fn tx(self) -> Result<L2Tx, ClientError> {
+    pub async fn tx(self) -> Result<L2TxEvm, ClientError> {
         let paymaster_params = self.paymaster_params.clone().unwrap_or_default();
 
         let fee = match self.fee {
@@ -75,7 +79,7 @@ where
         let wallet = self.wallet;
         let tx = self.tx().await?;
 
-        wallet.send_transaction(tx).await
+        wallet.send_transaction_evm(tx).await
     }
 
     /// Sets the transaction token address.

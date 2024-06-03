@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{convert::TryFrom, str::FromStr, sync::Arc};
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
@@ -14,8 +14,14 @@ use zksync_eth_client::{BoundEthInterface, EthInterface, Options};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
-    api::BlockNumber, tokens::ETHEREUM_ADDRESS, Address, Nonce,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    api::BlockNumber, tokens::ETHEREUM_ADDRESS, transaction_request::PaymasterParams, Address,
+    Nonce, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+};
+use zksync_web3_rs::{
+    providers::{Http, Provider},
+    signers::{LocalWallet, Signer},
+    zks_wallet::TransferRequest,
+    ZKSWallet,
 };
 
 use crate::{
@@ -86,10 +92,10 @@ impl Executor {
         tracing::info!("Initializing accounts");
         tracing::info!("Running for MASTER {:?}", self.pool.master_wallet.address());
         self.check_onchain_balance().await?;
-        self.mint().await?;
-        self.deposit_to_master().await?;
+        //self.mint().await?;
+        //self.deposit_to_master().await?;
 
-        self.deposit_eth_to_paymaster().await?;
+        //self.deposit_eth_to_paymaster().await?;
 
         let final_result = self.send_initial_transfers().await?;
         Ok(final_result)
@@ -365,10 +371,10 @@ impl Executor {
         let mut nonce = Nonce(master_wallet.get_nonce().await?);
 
         let txs_amount = accounts_to_process * 2 + 1;
-        let mut handles = Vec::with_capacity(accounts_to_process);
+        //let mut handles = Vec::with_capacity(accounts_to_process);
 
         // 2 txs per account (1 ERC-20 & 1 ETH transfer).
-        let mut eth_txs = Vec::with_capacity(txs_amount * 2);
+        let mut eth_txs = Vec::with_capacity(txs_amount);
         let mut eth_nonce = ethereum.client().pending_nonce("loadnext").await?;
 
         for account in self.pool.accounts.iter().take(accounts_to_process) {
@@ -380,92 +386,113 @@ impl Executor {
             // priority operations in test.
 
             // If we don't need to send l1 txs we don't need to distribute the funds
-            if weight_of_l1_txs != 0.0 {
-                let balance = ethereum
-                    .client()
-                    .eth_balance(target_address, "loadnext")
-                    .await?;
-                let gas_price = ethereum.client().get_gas_price("loadnext").await?;
+            //if weight_of_l1_txs != 0.0 {
+            let balance = ethereum
+                .client()
+                .eth_balance(target_address, "loadnext")
+                .await?;
+            println!("balance: {:?}", balance);
+            println!("eth_to_distribute: {:?}", eth_to_distribute);
+            println!("target_address: {:?}", target_address);
+            let gas_price = ethereum.client().get_gas_price("loadnext").await?;
 
-                if balance < eth_to_distribute {
-                    let options = Options {
-                        nonce: Some(eth_nonce),
-                        max_fee_per_gas: Some(gas_price * 2),
-                        max_priority_fee_per_gas: Some(gas_price * 2),
-                        ..Default::default()
-                    };
-                    let res = ethereum
-                        .transfer(
-                            ETHEREUM_ADDRESS.to_owned(),
-                            eth_to_distribute,
-                            target_address,
-                            Some(options),
-                        )
-                        .await
-                        .unwrap();
-                    eth_nonce += U256::one();
-                    eth_txs.push(res);
-                }
-
-                let ethereum_erc20_balance = ethereum
-                    .erc20_balance(target_address, self.config.main_token)
-                    .await?;
-
-                if ethereum_erc20_balance < U256::from(l1_transfer_amount) {
-                    let options = Options {
-                        nonce: Some(eth_nonce),
-                        max_fee_per_gas: Some(gas_price * 2),
-                        max_priority_fee_per_gas: Some(gas_price * 2),
-                        ..Default::default()
-                    };
-                    let res = ethereum
-                        .transfer(
-                            self.config.main_token,
-                            U256::from(l1_transfer_amount),
-                            target_address,
-                            Some(options),
-                        )
-                        .await?;
-                    eth_nonce += U256::one();
-                    eth_txs.push(res);
-                }
+            if balance < eth_to_distribute {
+                let options = Options {
+                    nonce: Some(eth_nonce),
+                    max_fee_per_gas: Some(gas_price * 2),
+                    max_priority_fee_per_gas: Some(gas_price * 2),
+                    ..Default::default()
+                };
+                let res = ethereum
+                    .transfer(
+                        ETHEREUM_ADDRESS.to_owned(),
+                        eth_to_distribute,
+                        target_address,
+                        Some(options),
+                    )
+                    .await
+                    .unwrap();
+                eth_nonce += U256::one();
+                eth_txs.push(res);
             }
 
+            let ethereum_erc20_balance = ethereum
+                .erc20_balance(target_address, self.config.main_token)
+                .await?;
+
+            if ethereum_erc20_balance < U256::from(l1_transfer_amount) {
+                let options = Options {
+                    nonce: Some(eth_nonce),
+                    max_fee_per_gas: Some(gas_price * 2),
+                    max_priority_fee_per_gas: Some(gas_price * 2),
+                    ..Default::default()
+                };
+                /*let res = ethereum
+                    .transfer(
+                        self.config.main_token,
+                        U256::from(l1_transfer_amount),
+                        target_address,
+                        Some(options),
+                    )
+                    .await?;
+                eth_nonce += U256::one();
+                eth_txs.push(res);*/
+            }
+            //}
+
+            let chain_id: u64 = 270;
+            let l2_wallet = LocalWallet::from_str(
+                "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110",
+            )
+            .expect("Invalid private key")
+            .with_chain_id(chain_id);
+
+            let l2_provider: Provider<Http> = Provider::try_from("http://localhost:3050")
+                .expect("could not instantiate HTTP Provider");
+
+            let zkwallet = ZKSWallet::new(l2_wallet, None, Some(l2_provider), None).unwrap();
+
+            let transfer_request = TransferRequest::new(eth_to_distribute.into())
+                .to(account.wallet.address())
+                .from(zkwallet.l2_address());
+            zkwallet.transfer(&transfer_request, None).await.unwrap();
             // And then we will prepare an L2 transaction to send ERC20 token (for transfers and fees).
             let mut builder = master_wallet
                 .start_transfer()
                 .to(target_address)
-                .amount(l2_transfer_amount.into())
-                .token(self.l2_main_token)
+                .amount(eth_to_distribute.into())
+                .token(L2_ETH_TOKEN_ADDRESS.to_owned())
                 .nonce(nonce);
 
-            let paymaster_params = get_approval_based_paymaster_input_for_estimation(
+            /*let paymaster_params = get_approval_based_paymaster_input_for_estimation(
                 paymaster_address,
                 self.l2_main_token,
                 MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
-            );
+            );*/
 
-            let fee = builder.estimate_fee(Some(paymaster_params)).await?;
+            let fee = builder
+                .estimate_fee(Some(PaymasterParams::default()))
+                .await?;
             builder = builder.fee(fee.clone());
 
-            let paymaster_params = get_approval_based_paymaster_input(
+            /*let paymaster_params = get_approval_based_paymaster_input(
                 paymaster_address,
                 self.l2_main_token,
                 fee.max_total_fee(),
                 Vec::new(),
-            );
+            );*/
             builder = builder.fee(fee);
-            builder = builder.paymaster_params(paymaster_params);
+            builder = builder.paymaster_params(PaymasterParams::default());
 
-            let handle_erc20 = builder.send().await?;
-            handles.push(handle_erc20);
+            //let handle_erc20 = builder.send().await?;
+            //handles.push(handle_erc20);
 
             *nonce += 1;
         }
 
         // Wait for transactions to be committed, if at least one of them fails,
         // return error.
-        for mut handle in handles {
+        /*for mut handle in handles {
             handle.polling_interval(POLLING_INTERVAL).unwrap();
 
             let result = handle
@@ -473,13 +500,62 @@ impl Executor {
                 .wait_for_commit()
                 .await?;
             if result.status == U64::zero() {
-                return Err(anyhow::format_err!("Transfer failed"));
+                println!("Transfer failed, {:?}",result);
+                //return Err(anyhow::format_err!("Transfer failed"));
+            }
+        }*/
+
+        tracing::info!("Master account: Wait for ethereum txs confirmations, {eth_txs:?}");
+        for eth_tx in eth_txs {
+            let res = ethereum.wait_for_tx(eth_tx).await?;
+            println!("eth tx , {:?}", res);
+        }
+
+        eth_txs = Vec::with_capacity(txs_amount);
+        for account in self.pool.accounts.iter().take(accounts_to_process) {
+            let target_address = account.wallet.address();
+
+            // Prior to sending funds in L2, we will send funds in L1 for accounts
+            // to be able to perform priority operations.
+            // We don't actually care whether transactions will be successful or not; at worst we will not use
+            // priority operations in test.
+
+            // If we don't need to send l1 txs we don't need to distribute the funds
+            //if weight_of_l1_txs != 0.0 {
+            let balance = ethereum
+                .client()
+                .eth_balance(target_address, "loadnext")
+                .await?;
+            println!("balance: {:?}", balance);
+            println!("eth_to_distribute: {:?}", eth_to_distribute);
+            println!("target_address: {:?}", target_address);
+            let gas_price = ethereum.client().get_gas_price("loadnext").await?;
+
+            if balance < eth_to_distribute {
+                let options = Options {
+                    nonce: Some(eth_nonce),
+                    max_fee_per_gas: Some(gas_price * 2),
+                    max_priority_fee_per_gas: Some(gas_price * 2),
+                    ..Default::default()
+                };
+                let res = ethereum
+                    .transfer(
+                        ETHEREUM_ADDRESS.to_owned(),
+                        eth_to_distribute,
+                        target_address,
+                        Some(options),
+                    )
+                    .await
+                    .unwrap();
+                eth_nonce += U256::one();
+                eth_txs.push(res);
             }
         }
 
         tracing::info!("Master account: Wait for ethereum txs confirmations, {eth_txs:?}");
         for eth_tx in eth_txs {
-            ethereum.wait_for_tx(eth_tx).await?;
+            let res = ethereum.wait_for_tx(eth_tx).await?;
+            println!("eth tx , {:?}", res);
         }
 
         Ok(())
