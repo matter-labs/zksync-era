@@ -4,6 +4,8 @@ import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
 
+export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
+
 /**
  * Loads the test contract
  *

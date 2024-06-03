@@ -66,7 +66,6 @@ mod metadata;
 mod metrics;
 #[cfg(test)]
 mod tests;
-mod version_sync_task;
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -629,7 +628,8 @@ async fn init_tasks(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone());
+        let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone())
+            .with_l1_data(eth_client.clone(), config.remote.diamond_proxy_addr)?;
         app_health.insert_component(fetcher.health_check())?;
         task_handles.push(tokio::spawn(fetcher.run(stop_receiver.clone())));
     }
@@ -912,20 +912,7 @@ async fn run_node(
     );
     let validate_chain_ids_task = tokio::spawn(validate_chain_ids_task.run(stop_receiver.clone()));
 
-    let version_sync_task_pool = connection_pool.clone();
-    let version_sync_task_main_node_client = main_node_client.clone();
-    let mut stop_receiver_for_version_sync = stop_receiver.clone();
-    let version_sync_task = tokio::spawn(async move {
-        version_sync_task::sync_versions(
-            version_sync_task_pool,
-            version_sync_task_main_node_client,
-        )
-        .await?;
-
-        stop_receiver_for_version_sync.changed().await.ok();
-        Ok(())
-    });
-    let mut task_handles = vec![metrics_task, validate_chain_ids_task, version_sync_task];
+    let mut task_handles = vec![metrics_task, validate_chain_ids_task];
     task_handles.extend(prometheus_task);
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.

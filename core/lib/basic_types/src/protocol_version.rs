@@ -20,16 +20,6 @@ use crate::{
 pub const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
 pub const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
 
-// These values should be manually updated for every protocol upgrade
-// Otherwise, the prover will not be able to work with new versions.
-// TODO(PLA-954): Move to prover workspace
-pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version24;
-pub const PROVER_PROTOCOL_PATCH: VersionPatch = VersionPatch(1);
-pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSemanticVersion {
-    minor: PROVER_PROTOCOL_VERSION,
-    patch: PROVER_PROTOCOL_PATCH,
-};
-
 /// `ProtocolVersionId` is a unique identifier of the protocol version.
 /// Note, that it is an identifier of the `minor` semver version of the protocol, with
 /// the `major` version being `0`. Also, the protocol version on the contracts may contain
@@ -83,10 +73,6 @@ pub enum ProtocolVersionId {
 impl ProtocolVersionId {
     pub fn latest() -> Self {
         Self::Version24
-    }
-
-    pub fn current_prover_version() -> Self {
-        PROVER_PROTOCOL_VERSION
     }
 
     pub fn next() -> Self {
@@ -309,10 +295,6 @@ impl ProtocolSemanticVersion {
 
     pub fn new(minor: ProtocolVersionId, patch: VersionPatch) -> Self {
         Self { minor, patch }
-    }
-
-    pub fn current_prover_version() -> Self {
-        PROVER_PROTOCOL_SEMANTIC_VERSION
     }
 
     pub fn try_from_packed(packed: U256) -> Result<Self, String> {
