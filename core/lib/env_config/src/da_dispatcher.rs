@@ -28,14 +28,14 @@ mod tests {
         max_retries: u16,
     ) -> DADispatcherConfig {
         DADispatcherConfig {
-            da_mode: DataAvailabilityMode::GCS(ObjectStoreConfig {
+            da_mode: DataAvailabilityMode::ObjectStore(ObjectStoreConfig {
                 mode: ObjectStoreMode::GCSWithCredentialFile {
                     bucket_base_url: bucket_base_url.to_owned(),
                     gcs_credential_file_path: "/path/to/credentials.json".to_owned(),
                 },
                 max_retries: 5,
             }),
-            polling_interval: Some(interval),
+            polling_interval_ms: Some(interval),
             query_rows_limit: Some(rows_limit),
             max_retries: Some(max_retries),
         }
@@ -52,7 +52,7 @@ mod tests {
                 light_node_url: "localhost:12345".to_string(),
                 private_key: pk.to_owned(),
             })),
-            polling_interval: Some(interval),
+            polling_interval_ms: Some(interval),
             query_rows_limit: Some(rows_limit),
             max_retries: Some(max_retries),
         }
@@ -61,7 +61,7 @@ mod tests {
     fn expected_no_da_config() -> DADispatcherConfig {
         DADispatcherConfig {
             da_mode: DataAvailabilityMode::NoDA,
-            polling_interval: None,
+            polling_interval_ms: None,
             query_rows_limit: None,
             max_retries: None,
         }
@@ -104,7 +104,7 @@ mod tests {
     }
 
     #[test]
-    fn from_env_gcs() {
+    fn from_env_object_store() {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_DISPATCHER_POLLING_INTERVAL=10

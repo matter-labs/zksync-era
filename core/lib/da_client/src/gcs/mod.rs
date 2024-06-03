@@ -15,20 +15,20 @@ use zksync_types::{pubdata_da::StorablePubdata, L1BatchNumber};
 
 /// An implementation of the `DataAvailabilityClient` trait that stores the pubdata in the GCS.
 #[derive(Clone)]
-pub struct GCSDAClient {
+pub struct ObjectStoreDAClient {
     object_store: Arc<dyn ObjectStore>,
 }
 
-impl GCSDAClient {
-    pub async fn new(object_store_conf: ObjectStoreConfig) -> Self {
-        GCSDAClient {
-            object_store: ObjectStoreFactory::create_from_config(&object_store_conf).await,
-        }
+impl ObjectStoreDAClient {
+    pub async fn new(object_store_conf: ObjectStoreConfig) -> anyhow::Result<Self> {
+        Ok(ObjectStoreDAClient {
+            object_store: ObjectStoreFactory::create_from_config(&object_store_conf).await?,
+        })
     }
 }
 
 #[async_trait]
-impl DataAvailabilityClient for GCSDAClient {
+impl DataAvailabilityClient for ObjectStoreDAClient {
     async fn dispatch_blob(
         &self,
         batch_number: u32,
@@ -40,8 +40,8 @@ impl DataAvailabilityClient for GCSDAClient {
             .await
         {
             return Err(DAError {
+                is_transient: err.is_transient(),
                 error: anyhow::Error::from(err),
-                is_transient: true,
             });
         }
 
@@ -51,20 +51,28 @@ impl DataAvailabilityClient for GCSDAClient {
     }
 
     async fn get_inclusion_data(&self, key: String) -> Result<Option<InclusionData>, DAError> {
-        let key_u32 = key.parse::<u32>().unwrap();
+        let key_u32 = key.parse::<u32>().map_err(|err| DAError {
+            error: anyhow::Error::from(err),
+            is_transient: false,
+        })?;
+
         if let Err(err) = self
             .object_store
             .get::<StorablePubdata>(L1BatchNumber(key_u32))
             .await
         {
+            if let zksync_object_store::ObjectStoreError::KeyNotFound(_) = err {
+                return Ok(None);
+            }
+
             return Err(DAError {
+                is_transient: err.is_transient(),
                 error: anyhow::Error::from(err),
-                is_transient: true,
             });
         }
 
-        // Using default here because we don't get any inclusion data from GCS, thus there's
-        // nothing to check on L1.
+        // Using default here because we don't get any inclusion data from object store, thus
+        // there's nothing to check on L1.
         return Ok(Some(InclusionData::default()));
     }
 
@@ -77,10 +85,10 @@ impl DataAvailabilityClient for GCSDAClient {
     }
 }
 
-impl Debug for GCSDAClient {
+impl Debug for ObjectStoreDAClient {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("GCSDAClient")
+            .debug_struct("ObjectStoreDAClient")
             .field("object_store", &self.object_store)
             .finish()
     }

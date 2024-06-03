@@ -37,7 +37,7 @@ use zksync_config::{
     ApiConfig, DBConfig, EthWatchConfig, GenesisConfig,
 };
 use zksync_contracts::governance_contract;
-use zksync_da_client::{gcs::GCSDAClient, no_da::NoDAClient};
+use zksync_da_client::{gcs::ObjectStoreDAClient, no_da::NoDAClient};
 use zksync_da_dispatcher::DataAvailabilityDispatcher;
 use zksync_da_layers::{
     clients::celestia::CelestiaClient, config::DALayerConfig, DataAvailabilityClient,
@@ -770,7 +770,9 @@ pub async fn initialize_components(
             .await
             .context("failed to build da_dispatcher_pool")?;
         let da_client: Box<dyn DataAvailabilityClient> = match da_config.clone().da_mode {
-            DataAvailabilityMode::GCS(config) => Box::new(GCSDAClient::new(config).await),
+            DataAvailabilityMode::ObjectStore(config) => {
+                Box::new(ObjectStoreDAClient::new(config).await?)
+            }
             DataAvailabilityMode::NoDA => Box::new(NoDAClient::new()),
             DataAvailabilityMode::DALayer(config) => match config {
                 DALayerConfig::Celestia(celestia_config) => {

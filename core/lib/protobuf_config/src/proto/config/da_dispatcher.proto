@@ -11,7 +11,7 @@ message DALayer {
 }
 
 message DataAvailabilityDispatcher {
-  oneof credentials {
+  oneof mode {
     config.object_store.ObjectStore object_store = 1;
     DALayer da_layer = 2;
   }

@@ -13,7 +13,7 @@ pub(super) struct DataAvailabilityDispatcherMetrics {
     pub inclusion_latency: Histogram<Duration>,
     /// Size of the dispatched blob.
     /// Buckets are bytes ranging from 1 KB to 16 MB, which has to satisfy all blob size values.
-    #[metrics(buckets = Buckets::exponential(1_024.0..=16.0 * 1_024.0 * 1_024.0, 2.0))]
+    #[metrics(buckets = Buckets::exponential(1_024.0..=16.0 * 1_024.0 * 1_024.0, 2.0), unit = Unit::Bytes)]
     pub blob_size: Histogram<usize>,
 
     /// Number of transactions resent by the DA dispatcher.

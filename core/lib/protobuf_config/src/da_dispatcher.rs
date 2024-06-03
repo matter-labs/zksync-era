@@ -9,8 +9,8 @@ impl ProtoRepr for proto::DataAvailabilityDispatcher {
     type Type = configs::da_dispatcher::DADispatcherConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        match &self.credentials {
-            Some(proto::data_availability_dispatcher::Credentials::DaLayer(config)) => {
+        match &self.mode {
+            Some(proto::data_availability_dispatcher::Mode::DaLayer(config)) => {
                 let da_config = match required(&config.name).context("da_layer_name")?.as_str() {
                     "celestia" => DALayerConfig::Celestia(
                         zksync_da_layers::clients::celestia::config::CelestiaConfig {
@@ -31,7 +31,7 @@ impl ProtoRepr for proto::DataAvailabilityDispatcher {
                 };
                 Ok(configs::da_dispatcher::DADispatcherConfig {
                     da_mode: DataAvailabilityMode::DALayer(da_config),
-                    polling_interval: Some(
+                    polling_interval_ms: Some(
                         *required(&self.polling_interval).context("polling_interval")?,
                     ),
                     query_rows_limit: Some(
@@ -42,10 +42,10 @@ impl ProtoRepr for proto::DataAvailabilityDispatcher {
                     ),
                 })
             }
-            Some(proto::data_availability_dispatcher::Credentials::ObjectStore(config)) => {
+            Some(proto::data_availability_dispatcher::Mode::ObjectStore(config)) => {
                 Ok(configs::da_dispatcher::DADispatcherConfig {
-                    da_mode: DataAvailabilityMode::GCS(config.read()?),
-                    polling_interval: Some(
+                    da_mode: DataAvailabilityMode::ObjectStore(config.read()?),
+                    polling_interval_ms: Some(
                         *required(&self.polling_interval).context("polling_interval")?,
                     ),
                     query_rows_limit: Some(
@@ -58,7 +58,7 @@ impl ProtoRepr for proto::DataAvailabilityDispatcher {
             }
             None => Ok(configs::da_dispatcher::DADispatcherConfig {
                 da_mode: DataAvailabilityMode::NoDA,
-                polling_interval: None,
+                polling_interval_ms: None,
                 query_rows_limit: None,
                 max_retries: None,
             }),
@@ -66,27 +66,25 @@ impl ProtoRepr for proto::DataAvailabilityDispatcher {
     }
 
     fn build(this: &Self::Type) -> Self {
-        let credentials = match this.da_mode.clone() {
+        let mode = match this.da_mode.clone() {
             DataAvailabilityMode::DALayer(info) => match info {
                 DALayerConfig::Celestia(info) => Some(
-                    proto::data_availability_dispatcher::Credentials::DaLayer(proto::DaLayer {
+                    proto::data_availability_dispatcher::Mode::DaLayer(proto::DaLayer {
                         name: Some("celestia".to_string()),
                         private_key: Some(info.private_key.clone()),
                         light_node_url: Some(info.light_node_url.clone()),
                     }),
                 ),
             },
-            DataAvailabilityMode::GCS(config) => Some(
-                proto::data_availability_dispatcher::Credentials::ObjectStore(ObjectStore::build(
-                    &config,
-                )),
+            DataAvailabilityMode::ObjectStore(config) => Some(
+                proto::data_availability_dispatcher::Mode::ObjectStore(ObjectStore::build(&config)),
             ),
             DataAvailabilityMode::NoDA => None,
         };
 
         Self {
-            credentials,
-            polling_interval: this.polling_interval,
+            mode,
+            polling_interval: this.polling_interval_ms,
             query_rows_limit: this.query_rows_limit,
             max_retries: this.max_retries.map(|x| x as u32),
         }

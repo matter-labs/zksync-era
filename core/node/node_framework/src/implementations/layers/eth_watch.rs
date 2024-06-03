@@ -12,7 +12,7 @@ use crate::{
         pools::{MasterPool, PoolResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -75,8 +75,8 @@ struct EthWatchTask {
 
 #[async_trait::async_trait]
 impl Task for EthWatchTask {
-    fn name(&self) -> &'static str {
-        "eth_watch"
+    fn id(&self) -> TaskId {
+        "eth_watch".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

@@ -8,7 +8,7 @@ use std::{
 
 use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-use zksync_eth_client::{Error, EthInterface};
+use zksync_eth_client::EthInterface;
 use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
 use zksync_web3_decl::client::{DynClient, L1};
 
@@ -41,7 +41,7 @@ impl GasAdjuster {
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         commitment_mode: L1BatchCommitmentMode,
-    ) -> Result<Self, Error> {
+    ) -> anyhow::Result<Self> {
         let eth_client = eth_client.for_component("gas_adjuster");
 
         // Subtracting 1 from the "latest" block number to prevent errors in case
@@ -81,7 +81,7 @@ impl GasAdjuster {
 
     /// Performs an actualization routine for `GasAdjuster`.
     /// This method is intended to be invoked periodically.
-    pub async fn keep_updated(&self) -> Result<(), Error> {
+    pub async fn keep_updated(&self) -> anyhow::Result<()> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
@@ -234,7 +234,7 @@ impl GasAdjuster {
     async fn get_base_fees_history(
         eth_client: &DynClient<L1>,
         block_range: RangeInclusive<usize>,
-    ) -> Result<(Vec<u64>, Vec<U256>), Error> {
+    ) -> anyhow::Result<(Vec<u64>, Vec<U256>)> {
         let mut base_fee_history = Vec::new();
         let mut blob_base_fee_history = Vec::new();
         for block_number in block_range {

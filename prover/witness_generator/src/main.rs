@@ -41,7 +41,7 @@ mod utils;
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
 use zksync_dal::Core;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -126,7 +126,7 @@ async fn main() -> anyhow::Result<()> {
             .context("failed to build a prover_connection_pool")?;
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let protocol_version = ProtocolSemanticVersion::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
     let vk_commitments_in_db = match prover_connection_pool
         .connection()
         .await

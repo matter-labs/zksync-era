@@ -9,7 +9,7 @@ use crate::{
         pools::{MasterPool, PoolResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -55,8 +55,8 @@ struct DataAvailabilityDispatcherTask {
 
 #[async_trait::async_trait]
 impl Task for DataAvailabilityDispatcherTask {
-    fn name(&self) -> &'static str {
-        "da_dispatcher"
+    fn id(&self) -> TaskId {
+        "da_dispatcher".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

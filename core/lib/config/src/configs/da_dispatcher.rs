@@ -5,13 +5,17 @@ use zksync_da_layers::config::DALayerConfig;
 
 use crate::ObjectStoreConfig;
 
+pub const DEFAULT_POLLING_INTERVAL_MS: u32 = 5000;
+pub const DEFAULT_QUERY_ROWS_LIMIT: u32 = 100;
+pub const DEFAULT_MAX_RETRIES: u16 = 5;
+
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(tag = "da_mode")]
 pub enum DataAvailabilityMode {
     /// Uses the data availability layer to dispatch pubdata.
     DALayer(DALayerConfig),
-    /// Stores the pubdata in the Google Cloud Storage.
-    GCS(ObjectStoreConfig),
+    /// Stores the pubdata in the Object Store(GCS/S3/...).
+    ObjectStore(ObjectStoreConfig),
     /// Does not store the pubdata.
     NoDA,
 }
@@ -23,7 +27,7 @@ pub struct DADispatcherConfig {
     #[serde(flatten)]
     pub da_mode: DataAvailabilityMode,
     /// The interval at which the dispatcher will poll the DA layer for inclusion data.
-    pub polling_interval: Option<u32>,
+    pub polling_interval_ms: Option<u32>,
     /// The maximum number of rows to query from the database in a single query.
     pub query_rows_limit: Option<u32>,
     /// The maximum number of retries for the dispatching of a blob.
@@ -39,32 +43,24 @@ impl DADispatcherConfig {
                     private_key: "0x0".to_string(),
                 },
             )),
-            polling_interval: Some(
-                zksync_system_constants::data_availability::DEFAULT_POLLING_INTERVAL,
-            ),
-            query_rows_limit: Some(
-                zksync_system_constants::data_availability::DEFAULT_QUERY_ROWS_LIMIT,
-            ),
-            max_retries: Some(zksync_system_constants::data_availability::DEFAULT_MAX_RETRIES),
+            polling_interval_ms: Some(DEFAULT_POLLING_INTERVAL_MS),
+            query_rows_limit: Some(DEFAULT_QUERY_ROWS_LIMIT),
+            max_retries: Some(DEFAULT_MAX_RETRIES),
         }
     }
 
     pub fn polling_interval(&self) -> Duration {
-        match self.polling_interval {
-            Some(interval) => Duration::from_secs(interval as u64),
-            None => Duration::from_secs(
-                zksync_system_constants::data_availability::DEFAULT_POLLING_INTERVAL as u64,
-            ),
+        match self.polling_interval_ms {
+            Some(interval) => Duration::from_millis(interval as u64),
+            None => Duration::from_millis(DEFAULT_POLLING_INTERVAL_MS as u64),
         }
     }
 
     pub fn query_rows_limit(&self) -> u32 {
-        self.query_rows_limit
-            .unwrap_or(zksync_system_constants::data_availability::DEFAULT_QUERY_ROWS_LIMIT)
+        self.query_rows_limit.unwrap_or(DEFAULT_QUERY_ROWS_LIMIT)
     }
 
     pub fn max_retries(&self) -> u16 {
-        self.max_retries
-            .unwrap_or(zksync_system_constants::data_availability::DEFAULT_MAX_RETRIES)
+        self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES)
     }
 }

@@ -3,7 +3,7 @@
 use std::{fmt, future::Future, time::Duration};
 
 use async_trait::async_trait;
-use google_cloud_auth::{credentials::CredentialsFile, error::Error};
+use google_cloud_auth::{credentials::CredentialsFile, error::Error as AuthError};
 use google_cloud_storage::{
     client::{Client, ClientConfig},
     http::{
@@ -17,37 +17,45 @@ use google_cloud_storage::{
     },
 };
 use http::StatusCode;
+use rand::Rng;
 
 use crate::{
     metrics::GCS_METRICS,
     raw::{Bucket, ObjectStore, ObjectStoreError},
 };
 
-async fn retry<T, E, Fut, F>(max_retries: u16, mut f: F) -> Result<T, E>
+async fn retry<T, Fut, F>(max_retries: u16, mut f: F) -> Result<T, ObjectStoreError>
 where
-    E: fmt::Display,
-    Fut: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, ObjectStoreError>>,
     F: FnMut() -> Fut,
 {
     let mut retries = 1;
-    let mut backoff = 1;
+    let mut backoff_secs = 1;
     loop {
         match f().await {
             Ok(result) => return Ok(result),
-            Err(err) => {
-                tracing::warn!(%err, "Failed GCS request {retries}/{max_retries}, retrying.");
+            Err(err) if err.is_transient() => {
                 if retries > max_retries {
+                    tracing::warn!(%err, "Exhausted {max_retries} retries performing GCS request; returning last error");
                     return Err(err);
                 }
+                tracing::info!(%err, "Failed GCS request {retries}/{max_retries}, retrying.");
                 retries += 1;
-                tokio::time::sleep(Duration::from_secs(backoff)).await;
-                backoff *= 2;
+                // Randomize sleep duration to prevent stampeding the server if multiple requests are initiated at the same time.
+                let sleep_duration = Duration::from_secs(backoff_secs)
+                    .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
+                tokio::time::sleep(sleep_duration).await;
+                backoff_secs *= 2;
+            }
+            Err(err) => {
+                tracing::warn!(%err, "Failed GCS request with a fatal error");
+                return Err(err);
             }
         }
     }
 }
 
-pub struct GoogleCloudStorage {
+pub(crate) struct GoogleCloudStorage {
     bucket_prefix: String,
     max_retries: u16,
     client: Client,
@@ -64,7 +72,7 @@ impl fmt::Debug for GoogleCloudStorage {
 }
 
 #[derive(Debug, Clone)]
-pub enum GoogleCloudStorageAuthMode {
+pub(crate) enum GoogleCloudStorageAuthMode {
     AuthenticatedWithCredentialFile(String),
     Authenticated,
     Anonymous,
@@ -75,26 +83,27 @@ impl GoogleCloudStorage {
         auth_mode: GoogleCloudStorageAuthMode,
         bucket_prefix: String,
         max_retries: u16,
-    ) -> Self {
-        let client_config = retry(max_retries, || Self::get_client_config(auth_mode.clone()))
-            .await
-            .expect("failed fetching GCS client config after retries");
+    ) -> Result<Self, ObjectStoreError> {
+        let client_config = retry(max_retries, || async {
+            Self::get_client_config(auth_mode.clone())
+                .await
+                .map_err(Into::into)
+        })
+        .await?;
 
-        Self {
+        Ok(Self {
             client: Client::new(client_config),
             bucket_prefix,
             max_retries,
-        }
+        })
     }
 
     async fn get_client_config(
         auth_mode: GoogleCloudStorageAuthMode,
-    ) -> Result<ClientConfig, Error> {
+    ) -> Result<ClientConfig, AuthError> {
         match auth_mode {
             GoogleCloudStorageAuthMode::AuthenticatedWithCredentialFile(path) => {
-                let cred_file = CredentialsFile::new_from_file(path)
-                    .await
-                    .expect("failed loading GCS credential file");
+                let cred_file = CredentialsFile::new_from_file(path).await?;
                 ClientConfig::default().with_credentials(cred_file).await
             }
             GoogleCloudStorageAuthMode::Authenticated => ClientConfig::default().with_auth().await,
@@ -127,9 +136,24 @@ impl GoogleCloudStorage {
             ..DeleteObjectRequest::default()
         };
         async move {
-            retry(self.max_retries, || self.client.delete_object(&request))
-                .await
-                .map_err(ObjectStoreError::from)
+            retry(self.max_retries, || async {
+                self.client
+                    .delete_object(&request)
+                    .await
+                    .map_err(ObjectStoreError::from)
+            })
+            .await
+        }
+    }
+}
+
+impl From<AuthError> for ObjectStoreError {
+    fn from(err: AuthError) -> Self {
+        let is_transient =
+            matches!(&err, AuthError::HttpError(err) if err.is_timeout() || err.is_connect());
+        Self::Initialization {
+            source: err.into(),
+            is_transient,
         }
     }
 }
@@ -147,7 +171,12 @@ impl From<HttpError> for ObjectStoreError {
         if is_not_found {
             ObjectStoreError::KeyNotFound(err.into())
         } else {
-            ObjectStoreError::Other(err.into())
+            let is_transient =
+                matches!(&err, HttpError::HttpClient(err) if err.is_timeout() || err.is_connect());
+            ObjectStoreError::Other {
+                is_transient,
+                source: err.into(),
+            }
         }
     }
 }
@@ -168,8 +197,11 @@ impl ObjectStore for GoogleCloudStorage {
             ..GetObjectRequest::default()
         };
         let range = Range::default();
-        let blob = retry(self.max_retries, || {
-            self.client.download_object(&request, &range)
+        let blob = retry(self.max_retries, || async {
+            self.client
+                .download_object(&request, &range)
+                .await
+                .map_err(Into::into)
         })
         .await;
 
@@ -177,7 +209,7 @@ impl ObjectStore for GoogleCloudStorage {
         tracing::trace!(
             "Fetched data from GCS for key {key} from bucket {bucket} and it took: {elapsed:?}"
         );
-        blob.map_err(ObjectStoreError::from)
+        blob
     }
 
     async fn put_raw(
@@ -198,9 +230,11 @@ impl ObjectStore for GoogleCloudStorage {
             bucket: self.bucket_prefix.clone(),
             ..Default::default()
         };
-        let object = retry(self.max_retries, || {
+        let object = retry(self.max_retries, || async {
             self.client
                 .upload_object(&request, value.clone(), &upload_type)
+                .await
+                .map_err(Into::into)
         })
         .await;
 
@@ -208,7 +242,7 @@ impl ObjectStore for GoogleCloudStorage {
         tracing::trace!(
             "Stored data to GCS for key {key} from bucket {bucket} and it took: {elapsed:?}"
         );
-        object.map(drop).map_err(ObjectStoreError::from)
+        object.map(drop)
     }
 
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
@@ -228,38 +262,47 @@ impl ObjectStore for GoogleCloudStorage {
 mod test {
     use std::sync::atomic::{AtomicU16, Ordering};
 
+    use assert_matches::assert_matches;
+
     use super::*;
+
+    fn transient_error() -> ObjectStoreError {
+        ObjectStoreError::Other {
+            is_transient: true,
+            source: "oops".into(),
+        }
+    }
 
     #[tokio::test]
     async fn test_retry_success_immediate() {
-        let result = retry(2, || async { Ok::<_, &'static str>(42) }).await;
-        assert_eq!(result, Ok(42));
+        let result = retry(2, || async { Ok(42) }).await.unwrap();
+        assert_eq!(result, 42);
     }
 
     #[tokio::test]
     async fn test_retry_failure_exhausted() {
-        let result = retry(2, || async { Err::<i32, _>("oops") }).await;
-        assert_eq!(result, Err("oops"));
+        let err = retry(2, || async { Err::<i32, _>(transient_error()) })
+            .await
+            .unwrap_err();
+        assert_matches!(err, ObjectStoreError::Other { .. });
     }
 
-    async fn retry_success_after_n_retries(n: u16) -> Result<u32, String> {
+    async fn retry_success_after_n_retries(n: u16) -> Result<u32, ObjectStoreError> {
         let retries = AtomicU16::new(0);
-        let result = retry(n, || async {
+        retry(n, || async {
             let retries = retries.fetch_add(1, Ordering::Relaxed);
             if retries + 1 == n {
                 Ok(42)
             } else {
-                Err("oops")
+                Err(transient_error())
             }
         })
-        .await;
-
-        result.map_err(|_| "Retry failed".to_string())
+        .await
     }
 
     #[tokio::test]
     async fn test_retry_success_after_retry() {
-        let result = retry(2, || retry_success_after_n_retries(2)).await;
-        assert_eq!(result, Ok(42));
+        let result = retry(2, || retry_success_after_n_retries(2)).await.unwrap();
+        assert_eq!(result, 42);
     }
 }

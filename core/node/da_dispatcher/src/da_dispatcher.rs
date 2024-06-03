@@ -5,8 +5,11 @@ use chrono::{NaiveDateTime, Utc};
 use rand::Rng;
 use tokio::sync::watch;
 use zksync_config::DADispatcherConfig;
-use zksync_da_layers::{types::IsTransient, DataAvailabilityClient};
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_da_layers::{
+    types::{DAError, IsTransient},
+    DataAvailabilityClient,
+};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
 use crate::metrics::METRICS;
@@ -39,26 +42,27 @@ impl DataAvailabilityDispatcher {
                 break;
             }
 
-            let mut conn = pool.connection_tagged("da_dispatcher").await?;
-            if let Err(err) = self.dispatch(&mut conn).await {
+            if let Err(err) = self.dispatch(&pool).await {
                 tracing::warn!("dispatch error {err:?}");
             }
-            if let Err(err) = self.poll_for_inclusion(&mut conn).await {
+
+            if let Err(err) = self.poll_for_inclusion(&pool).await {
                 tracing::warn!("poll_for_inclusion error {err:?}");
             }
 
-            drop(conn);
             tokio::time::sleep(self.config.polling_interval()).await;
         }
         Ok(())
     }
 
     /// Dispatches the blobs to the data availability layer, and saves the blob_id in the database.
-    async fn dispatch(&self, conn: &mut Connection<'_, Core>) -> anyhow::Result<()> {
+    async fn dispatch(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+        let mut conn = pool.connection_tagged("da_dispatcher").await?;
         let batches = conn
             .data_availability_dal()
             .get_ready_for_da_dispatch_l1_batches(self.config.query_rows_limit() as usize)
             .await?;
+        drop(conn);
 
         for batch in batches {
             let dispatch_latency = METRICS.blob_dispatch_latency.start();
@@ -78,6 +82,8 @@ impl DataAvailabilityDispatcher {
 
             let sent_at =
                 NaiveDateTime::from_timestamp_millis(Utc::now().timestamp_millis()).unwrap();
+
+            let mut conn = pool.connection_tagged("da_dispatcher").await?;
             conn.data_availability_dal()
                 .insert_l1_batch_da(
                     batch.l1_batch_number,
@@ -91,6 +97,7 @@ impl DataAvailabilityDispatcher {
                         batch.l1_batch_number
                     )
                 })?;
+            drop(conn);
 
             METRICS
                 .last_dispatched_l1_batch
@@ -108,12 +115,14 @@ impl DataAvailabilityDispatcher {
     }
 
     /// Polls the data availability layer for inclusion data, and saves it in the database.
-    async fn poll_for_inclusion(&self, conn: &mut Connection<'_, Core>) -> anyhow::Result<()> {
+    async fn poll_for_inclusion(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+        let mut conn = pool.connection_tagged("da_dispatcher").await?;
         if let Some(blob_info) = conn
             .data_availability_dal()
             .get_first_da_blob_awaiting_inclusion()
             .await?
         {
+            drop(conn);
             let inclusion_data = self
                 .client
                 .get_inclusion_data(blob_info.blob_id.clone())
@@ -125,6 +134,7 @@ impl DataAvailabilityDispatcher {
                     )
                 })?;
 
+            let mut conn = pool.connection_tagged("da_dispatcher").await?;
             if let Some(inclusion_data) = inclusion_data {
                 conn.data_availability_dal()
                     .save_l1_batch_inclusion_data(
@@ -138,19 +148,19 @@ impl DataAvailabilityDispatcher {
                             blob_info.l1_batch_number
                         )
                     })?;
+                drop(conn);
 
-                let inclusion_latency_seconds =
-                    (Utc::now().timestamp() - blob_info.sent_at.timestamp()) as u64;
+                let inclusion_latency = Utc::now().signed_duration_since(blob_info.sent_at);
                 METRICS
                     .inclusion_latency
-                    .observe(Duration::from_secs(inclusion_latency_seconds));
+                    .observe(inclusion_latency.to_std()?);
                 METRICS
                     .last_included_l1_batch
                     .set(blob_info.l1_batch_number.0 as usize);
 
                 tracing::info!(
                     "Received an inclusion data for a batch_number: {}, inclusion_latency_seconds: {}",
-                    blob_info.l1_batch_number, inclusion_latency_seconds
+                    blob_info.l1_batch_number, inclusion_latency.num_seconds()
                 );
             }
         }
@@ -159,14 +169,13 @@ impl DataAvailabilityDispatcher {
     }
 }
 
-async fn retry<T, E, Fut, F>(
+async fn retry<T, Fut, F>(
     max_retries: u16,
     batch_number: L1BatchNumber,
     mut f: F,
-) -> Result<T, E>
+) -> Result<T, DAError>
 where
-    E: std::fmt::Display + IsTransient,
-    Fut: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, DAError>>,
     F: FnMut() -> Fut,
 {
     let mut retries = 1;
@@ -182,12 +191,12 @@ where
                     return Err(err);
                 }
 
-                tracing::warn!(%err, "Failed DA dispatch request {retries}/{max_retries} for batch {batch_number}, retrying in {backoff_secs} seconds.");
                 retries += 1;
                 let sleep_duration = Duration::from_secs(backoff_secs)
                     .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
+                tracing::warn!(%err, "Failed DA dispatch request {retries}/{max_retries} for batch {batch_number}, retrying in {} milliseconds.", sleep_duration.as_millis());
                 tokio::time::sleep(sleep_duration).await;
-                backoff_secs = (backoff_secs * 2).min(128);
+                backoff_secs = (backoff_secs * 2).min(128); // cap the backoff at 128 seconds
             }
         }
     }

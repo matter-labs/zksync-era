@@ -6,7 +6,7 @@ use zksync_config::{
     },
     EthConfig,
 };
-use zksync_da_client::{gcs::GCSDAClient, no_da::NoDAClient};
+use zksync_da_client::{gcs::ObjectStoreDAClient, no_da::NoDAClient};
 use zksync_da_layers::{
     clients::celestia::CelestiaClient, config::DALayerConfig, DataAvailabilityClient,
 };
@@ -61,7 +61,9 @@ impl WiringLayer for DataAvailabilityClientLayer {
         // wire the right one manually, which is less convenient than the current approach, which
         // uses the config to determine the right client
         let client: Box<dyn DataAvailabilityClient> = match self.da_config.da_mode {
-            DataAvailabilityMode::GCS(config) => Box::new(GCSDAClient::new(config).await),
+            DataAvailabilityMode::ObjectStore(config) => {
+                Box::new(ObjectStoreDAClient::new(config).await?)
+            }
             DataAvailabilityMode::NoDA => Box::new(NoDAClient::new()),
             DataAvailabilityMode::DALayer(config) => match config {
                 DALayerConfig::Celestia(celestia_config) => {
