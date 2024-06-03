@@ -88,7 +88,7 @@ impl From<abi::VerifierParams> for VerifierParams {
 }
 
 impl ProtocolUpgrade {
-    /// l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata
+    /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
     fn try_from_init_calldata(
         init_calldata: &[u8],
         eth_hash: H256,
