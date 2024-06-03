@@ -5,7 +5,8 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
-use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_types::{zk_evm_types::LogQuery, AccountTreeId, L1BatchNumber, L2ChainId, StorageKey};
+use zksync_utils::u256_to_h256;
 
 use crate::{
     storage::StorageSyncTask, ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask,
@@ -134,7 +135,7 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
             .finished
             .as_ref()
             .context("L1 batch is not actually finished")?;
-        let (_, protective_reads): (Vec<_>, Vec<_>) = finished_batch
+        let (_, protective_reads): (Vec<LogQuery>, Vec<LogQuery>) = finished_batch
             .final_execution_state
             .deduplicated_storage_log_queries
             .iter()
@@ -144,10 +145,32 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
             .pool
             .connection_tagged("protective_reads_writer")
             .await?;
-        connection
+        let mut expected_protective_reads = connection
             .storage_logs_dedup_dal()
-            .insert_protective_reads(updates_manager.l1_batch.number, &protective_reads)
+            .get_protective_reads_for_l1_batch(updates_manager.l1_batch.number)
             .await?;
+
+        for protective_read in protective_reads {
+            let address = AccountTreeId::new(protective_read.address);
+            let key = u256_to_h256(protective_read.key);
+            if !expected_protective_reads.remove(&StorageKey::new(address, key)) {
+                tracing::error!(
+                    l1_batch_number = %updates_manager.l1_batch.number,
+                    address = %protective_read.address,
+                    key = %key,
+                    "VM runner produced a protective read that did not happen in state keeper"
+                );
+            }
+        }
+        for remaining_read in expected_protective_reads {
+            tracing::error!(
+                l1_batch_number = %updates_manager.l1_batch.number,
+                address = %remaining_read.address(),
+                key = %remaining_read.key(),
+                "State keeper produced a protective read that did not happen in VM runner"
+            );
+        }
+
         Ok(())
     }
 }
