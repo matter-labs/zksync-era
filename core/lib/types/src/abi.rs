@@ -10,6 +10,7 @@ use crate::{
 
 /// `Transaction` from `system-contracts/contracts/libraries/TransactionHelper.sol`.
 /// `L2CanonicalTransaction` from `l1-contracts/contracts/zksync/interfaces/IMailbox.sol`.
+#[derive(Debug)]
 pub struct L2CanonicalTransaction {
     pub tx_type: U256,
     pub from: U256,
@@ -119,6 +120,7 @@ impl L2CanonicalTransaction {
     }
 }
 
+#[derive(Debug)]
 pub struct NewPriorityRequest {
     pub tx_id: U256,
     pub tx_hash: [u8; 32],
@@ -128,6 +130,18 @@ pub struct NewPriorityRequest {
 }
 
 impl NewPriorityRequest {
+    pub fn encode(&self) -> Vec<Token> {
+        vec![
+            Token::Uint(self.tx_id),
+            Token::FixedBytes(self.tx_hash.into()),
+            Token::Uint(self.expiration_timestamp.into()),
+            self.transaction.encode(),
+            Token::Array(self.factory_deps.iter()
+                .map(|b|Token::Bytes(b.clone()))
+                .collect()),
+        ]
+    }
+
     pub fn decode(data: &[u8]) -> Result<Self, ethabi::Error> {
         let tokens = ethabi::decode(
             &[
@@ -261,6 +275,7 @@ impl ProposedUpgrade {
     }
 }
 
+#[derive(Debug)]
 pub enum Transaction {
     L1 {
         /// Hashed data.
