@@ -3,6 +3,8 @@ use std::time::Instant;
 use axum::{
     body::Body,
     http::{self, Method, Request, StatusCode},
+    response::Response,
+    Router,
 };
 use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use serde_json::json;
@@ -135,7 +137,6 @@ async fn submit_tee_proof() {
     }"#;
     let tee_proof_request =
         serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_request_str).unwrap();
-    let req_body = Body::from(serde_json::to_vec(&tee_proof_request).unwrap());
     let uri = format!("/submit_tee_proof/{}", batch_number.0);
     let app = create_proof_processing_router(
         blob_store,
@@ -146,18 +147,29 @@ async fn submit_tee_proof() {
         },
         L1BatchCommitmentMode::Rollup,
     );
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method(Method::POST)
-                .uri(uri)
-                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-                .body(req_body)
-                .unwrap(),
-        )
-        .await
-        .unwrap();
 
+    // should fail as we haven't saved the attestation for the pubkey yet
+
+    let response = send_submit_tee_proof_request(&app, &uri, &tee_proof_request).await;
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+
+    // save the attestation for the pubkey
+
+    if let SubmitTeeProofRequest::Proof(ref proof) = tee_proof_request {
+        let attestation = [15, 16, 17, 18, 19];
+        let mut proof_dal = db_conn_pool.connection().await.unwrap();
+        proof_dal
+            .tee_proof_generation_dal()
+            .save_attestation(&proof.pubkey, &attestation)
+            .await
+            .expect("Failed to save attestation");
+    } else {
+        panic!("Expected Proof, got {:?}", tee_proof_request);
+    }
+
+    // send the same request again; now it should succeed
+
+    let response = send_submit_tee_proof_request(&app, &uri, &tee_proof_request).await;
     assert_eq!(response.status(), StatusCode::OK);
 
     // there should not be any batches awaiting proof in the db anymore
@@ -211,4 +223,23 @@ async fn mock_tee_batch_status(
 
     let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await.unwrap();
     assert_eq!(oldest_batch_number, batch_number);
+}
+
+async fn send_submit_tee_proof_request(
+    app: &Router,
+    uri: &str,
+    tee_proof_request: &SubmitTeeProofRequest,
+) -> Response {
+    let req_body = Body::from(serde_json::to_vec(tee_proof_request).unwrap());
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri(uri)
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .body(req_body)
+                .unwrap(),
+        )
+        .await
+        .unwrap()
 }

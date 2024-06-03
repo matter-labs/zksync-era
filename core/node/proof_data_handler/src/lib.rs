@@ -9,8 +9,8 @@ use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
-    ProofGenerationDataRequest, SubmitProofRequest, SubmitTeeProofRequest,
-    TeeProofGenerationDataRequest,
+    ProofGenerationDataRequest, RegisterTeeAttestationRequest, SubmitProofRequest,
+    SubmitTeeProofRequest, TeeProofGenerationDataRequest,
 };
 use zksync_types::commitment::L1BatchCommitmentMode;
 
@@ -55,6 +55,7 @@ fn create_proof_processing_router(
     let get_tee_proof_gen_processor =
         TeeRequestProcessor::new(blob_store.clone(), connection_pool.clone(), config.clone());
     let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();
+    let register_tee_attestation_processor = get_tee_proof_gen_processor.clone();
     let get_proof_gen_processor =
         RequestProcessor::new(blob_store, connection_pool, config, commitment_mode);
     let submit_proof_processor = get_proof_gen_processor.clone();
@@ -98,6 +99,16 @@ fn create_proof_processing_router(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitTeeProofRequest>| async move {
                     submit_tee_proof_processor
                         .submit_proof(l1_batch_number, payload)
+                        .await
+                },
+            ),
+        )
+        .route(
+            "/register_tee_attestation",
+            post(
+                move |payload: Json<RegisterTeeAttestationRequest>| async move {
+                    register_tee_attestation_processor
+                        .register_tee_attestation(payload)
                         .await
                 },
             ),

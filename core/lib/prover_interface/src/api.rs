@@ -13,6 +13,8 @@ use crate::{
     outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
 };
 
+// Structs for holding data returned in HTTP responses
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
@@ -23,17 +25,28 @@ pub struct ProofGenerationData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ProofGenerationDataRequest {}
-
-pub type TeeProofGenerationDataRequest = ProofGenerationDataRequest;
-
-#[derive(Debug, Serialize, Deserialize)]
 pub enum GenericProofGenerationDataResponse<T> {
     Success(Option<Box<T>>),
     Error(String),
 }
 
 pub type ProofGenerationDataResponse = GenericProofGenerationDataResponse<ProofGenerationData>;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SimpleResponse {
+    Success,
+    Error(String),
+}
+
+pub type SubmitProofResponse = SimpleResponse;
+pub type RegisterTeeAttestationResponse = SimpleResponse;
+
+// Structs to hold data necessary for making HTTP requests
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProofGenerationDataRequest {}
+
+pub type TeeProofGenerationDataRequest = ProofGenerationDataRequest;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum GenericSubmitProofRequest<T> {
@@ -45,8 +58,8 @@ pub enum GenericSubmitProofRequest<T> {
 pub type SubmitProofRequest = GenericSubmitProofRequest<L1BatchProofForL1>;
 pub type SubmitTeeProofRequest = GenericSubmitProofRequest<L1BatchTeeProofForL1>;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum SubmitProofResponse {
-    Success,
-    Error(String),
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct RegisterTeeAttestationRequest {
+    pub attestation: Vec<u8>,
+    pub pubkey: Vec<u8>,
 }

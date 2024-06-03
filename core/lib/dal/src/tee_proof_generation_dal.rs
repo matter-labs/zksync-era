@@ -177,4 +177,28 @@ impl TeeProofGenerationDal<'_, '_> {
 
         result
     }
+
+    pub async fn save_attestation(
+        &mut self,
+        pubkey: &[u8],
+        attestation: &[u8],
+    ) -> Result<(), SqlxError> {
+        sqlx::query!(
+            r#"
+            INSERT INTO
+                tee_attestations (pubkey, attestation)
+            VALUES
+                ($1, $2)
+            ON CONFLICT (pubkey) DO NOTHING
+            "#,
+            pubkey,
+            attestation
+        )
+        .execute(self.storage.conn())
+        .await?
+        .rows_affected()
+        .eq(&1)
+        .then_some(())
+        .ok_or(sqlx::Error::RowNotFound)
+    }
 }

@@ -5,7 +5,8 @@ use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{tee_proof_generation_dal::TeeType, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
-    GenericProofGenerationDataResponse, SubmitProofResponse, SubmitTeeProofRequest,
+    GenericProofGenerationDataResponse, RegisterTeeAttestationRequest,
+    RegisterTeeAttestationResponse, SubmitProofResponse, SubmitTeeProofRequest,
     TeeProofGenerationDataRequest,
 };
 use zksync_tee_verifier::TeeVerifierInput;
@@ -101,5 +102,21 @@ impl TeeRequestProcessor {
         }
 
         Ok(Json(SubmitProofResponse::Success))
+    }
+
+    pub(crate) async fn register_tee_attestation(
+        &self,
+        Json(payload): Json<RegisterTeeAttestationRequest>,
+    ) -> Result<Json<RegisterTeeAttestationResponse>, RequestProcessorError> {
+        tracing::info!("Received attestation: {:?}", payload);
+
+        let mut connection = self.pool.connection().await.unwrap();
+        let mut dal = connection.tee_proof_generation_dal();
+
+        dal.save_attestation(&payload.pubkey, &payload.attestation)
+            .await
+            .map_err(RequestProcessorError::Sqlx)?;
+
+        Ok(Json(RegisterTeeAttestationResponse::Success))
     }
 }
