@@ -4,14 +4,13 @@ use anyhow::Context as _;
 use multivm::{
     interface::{TxExecutionMode, VmExecutionResultAndLogs, VmInterface},
     tracers::StorageInvocations,
-    vm_latest::constants::ETH_CALL_GAS_LIMIT,
     MultiVMTracer,
 };
 use tracing::{span, Level};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{
-    fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Nonce,
-    PackedEthSignature, Transaction, U256,
+    fee::TransactionExecutionMetrics, l2::L2Tx, transaction_request::CallOverrides,
+    ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
 };
 
 use super::{
@@ -40,7 +39,7 @@ impl TxExecutionArgs {
     }
 
     fn for_eth_call(
-        enforced_base_fee: u64,
+        enforced_base_fee: Option<u64>,
         vm_execution_cache_misses_limit: Option<usize>,
     ) -> Self {
         let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
@@ -48,7 +47,7 @@ impl TxExecutionArgs {
             execution_mode: TxExecutionMode::EthCall,
             enforced_nonce: None,
             added_balance: U256::zero(),
-            enforced_base_fee: Some(enforced_base_fee),
+            enforced_base_fee,
             missed_storage_invocation_limit,
         }
     }
@@ -170,23 +169,21 @@ impl TransactionExecutor {
         vm_permit: VmPermit,
         shared_args: TxSharedArgs,
         connection_pool: ConnectionPool<Core>,
+        call_overrides: CallOverrides,
         mut tx: L2Tx,
         block_args: BlockArgs,
         vm_execution_cache_misses_limit: Option<usize>,
         custom_tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let enforced_base_fee = tx.common_data.fee.max_fee_per_gas.as_u64();
-        let execution_args =
-            TxExecutionArgs::for_eth_call(enforced_base_fee, vm_execution_cache_misses_limit);
+        let execution_args = TxExecutionArgs::for_eth_call(
+            call_overrides.enforced_base_fee,
+            vm_execution_cache_misses_limit,
+        );
 
         if tx.common_data.signature.is_empty() {
             tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
         }
 
-        // Protection against infinite-loop eth_calls and alike:
-        // limiting the amount of gas the call can use.
-        // We can't use `BLOCK_ERGS_LIMIT` here since the VM itself has some overhead.
-        tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let output = self
             .execute_tx_in_sandbox(
                 vm_permit,
