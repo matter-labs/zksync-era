@@ -78,13 +78,10 @@ enum SnapshotsApplierError {
 
 impl SnapshotsApplierError {
     fn object_store(err: ObjectStoreError, context: String) -> Self {
-        match err {
-            ObjectStoreError::KeyNotFound(_) | ObjectStoreError::Serialization(_) => {
-                Self::Fatal(anyhow::Error::from(err).context(context))
-            }
-            ObjectStoreError::Other(_) => {
-                Self::Retryable(anyhow::Error::from(err).context(context))
-            }
+        if err.is_transient() {
+            Self::Retryable(anyhow::Error::from(err).context(context))
+        } else {
+            Self::Fatal(anyhow::Error::from(err).context(context))
         }
     }
 }

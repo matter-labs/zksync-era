@@ -14,7 +14,7 @@ use crate::{
         web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -210,10 +210,10 @@ type ApiJoinHandle = JoinHandle<anyhow::Result<()>>;
 
 #[async_trait::async_trait]
 impl Task for Web3ApiTask {
-    fn name(&self) -> &'static str {
+    fn id(&self) -> TaskId {
         match self.transport {
-            Transport::Http => "web3_http_server",
-            Transport::Ws => "web3_ws_server",
+            Transport::Http => "web3_http_server".into(),
+            Transport::Ws => "web3_ws_server".into(),
         }
     }
 
@@ -236,8 +236,8 @@ struct ApiTaskGarbageCollector {
 
 #[async_trait::async_trait]
 impl Task for ApiTaskGarbageCollector {
-    fn name(&self) -> &'static str {
-        "api_task_garbage_collector"
+    fn id(&self) -> TaskId {
+        "api_task_garbage_collector".into()
     }
 
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
