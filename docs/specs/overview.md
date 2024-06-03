@@ -35,4 +35,4 @@ proof system provides excellent performance, and can be run on just 16Gb of GPU 
 generation to be truly decentralized.
 
 Up to this point we have only talked about a single chain. We will connect these chains into a single ecosystem, called
-[the hyperchain](./the_hyperchain/README.md).
+[ZK Chain ecosystem](./zk_chains/README.md).

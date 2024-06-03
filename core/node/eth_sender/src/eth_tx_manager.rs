@@ -5,8 +5,9 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
-    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, Error, EthInterface,
-    ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
+    clients::{DynClient, L1},
+    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError, Error,
+    EthInterface, ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
@@ -77,7 +78,7 @@ impl EthTxManager {
         }
     }
 
-    fn query_client(&self) -> &dyn EthInterface {
+    pub(crate) fn query_client(&self) -> &DynClient<L1> {
         (*self.ethereum_gateway).as_ref()
     }
 
@@ -223,6 +224,10 @@ impl EthTxManager {
                 next_block_minimal_base_fee
             );
             let err = ClientError::Custom("base_fee_per_gas is too low".into());
+            let err = EnrichedClientError::new(err, "increase_priority_fee")
+                .with_arg("base_fee_per_gas", &base_fee_per_gas)
+                .with_arg("previous_base_fee", &previous_base_fee)
+                .with_arg("next_block_minimal_base_fee", &next_block_minimal_base_fee);
             return Err(ETHSenderError::from(Error::EthereumGateway(err)));
         }
 

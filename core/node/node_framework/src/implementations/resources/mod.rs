@@ -3,7 +3,6 @@ pub mod circuit_breakers;
 pub mod eth_interface;
 pub mod fee_input;
 pub mod healthcheck;
-pub mod l1_batch_commit_data_generator;
 pub mod l1_tx_params;
 pub mod main_node_client;
 pub mod object_store;

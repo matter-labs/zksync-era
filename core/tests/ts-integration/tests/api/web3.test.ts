@@ -6,10 +6,12 @@ import * as zksync from 'zksync-ethers';
 import { types } from 'zksync-ethers';
 import { BigNumberish, ethers, Event } from 'ethers';
 import { serialize } from '@ethersproject/transactions';
-import { deployContract, getTestContract, waitForNewL1Batch, anyTransaction } from '../../src/helpers';
+import { anyTransaction, deployContract, getTestContract, waitForNewL1Batch } from '../../src/helpers';
 import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
 import fetch, { RequestInit } from 'node-fetch';
-import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/src/utils';
+import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/utils';
+import { NodeMode } from '../../src/types';
+
 // Regular expression to match variable-length hex number.
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
@@ -29,7 +31,7 @@ describe('web3 API compatibility tests', () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         l2Token = testMaster.environment().erc20Token.l2Address;
-        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        chainId = testMaster.environment().l2ChainId;
     });
 
     test('Should test block/transaction web3 methods', async () => {
@@ -109,7 +111,7 @@ describe('web3 API compatibility tests', () => {
         // zks_getAllAccountBalances
         // NOTE: `getAllBalances` will not work on external node,
         // since TokenListFetcher is not running
-        if (!process.env.EN_MAIN_NODE_URL) {
+        if (testMaster.environment().nodeMode === NodeMode.Main) {
             const balances = await alice.getAllBalances();
             const tokenBalance = await alice.getBalance(l2Token);
             expect(balances[l2Token.toLowerCase()].eq(tokenBalance));
@@ -174,6 +176,7 @@ describe('web3 API compatibility tests', () => {
             return;
         }
 
+        const EIP1559_TX_TYPE = 2;
         const amount = 1;
         const erc20ABI = ['function transfer(address to, uint256 amount)'];
         const erc20contract = new ethers.Contract(l2Token, erc20ABI, alice);
@@ -195,8 +198,8 @@ describe('web3 API compatibility tests', () => {
         const tx1 = await alice.provider.getTransaction(tx.transactionHash);
         expect(tx1.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(tx1.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
-        expect(tx1.chainId).toEqual(+process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
-        expect(tx1.type).toEqual(0);
+        expect(tx1.chainId).toEqual(testMaster.environment().l2ChainId);
+        expect(tx1.type).toEqual(EIP1559_TX_TYPE);
 
         expect(receipt.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(receipt.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
@@ -209,8 +212,8 @@ describe('web3 API compatibility tests', () => {
         blockWithTransactions.transactions.forEach((txInBlock, _) => {
             expect(txInBlock.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
             expect(txInBlock.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
-            expect(txInBlock.chainId).toEqual(+process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
-            expect([0, EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE]).toContain(txInBlock.type);
+            expect(txInBlock.chainId).toEqual(testMaster.environment().l2ChainId);
+            expect([0, EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, EIP1559_TX_TYPE]).toContain(txInBlock.type);
         });
     });
 
@@ -240,7 +243,7 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should test getFilterChanges for pending transactions', async () => {
-        if (process.env.EN_MAIN_NODE_URL) {
+        if (testMaster.environment().nodeMode === NodeMode.External) {
             // Pending transactions logic doesn't work on EN since we don't have a proper mempool -
             // transactions only appear in the DB after they are included in the block.
             return;
@@ -604,10 +607,10 @@ describe('web3 API compatibility tests', () => {
 
     test('Should check metamask interoperability', async () => {
         // Prepare "metamask" wallet.
-        const from = new MockMetamask(alice);
+        const from = new MockMetamask(alice, testMaster.environment().l2ChainId);
         const to = alice.address;
         const web3Provider = new zksync.Web3Provider(from);
-        const signer = web3Provider.getSigner();
+        const signer = zksync.Signer.from(web3Provider.getSigner(), alice.provider);
 
         // Check to ensure that tx was correctly processed.
         const feeCheck = await shouldOnlyTakeFee(alice);
@@ -647,9 +650,7 @@ describe('web3 API compatibility tests', () => {
 
     test('Should check API returns error when there are too many logs in eth_getLogs', async () => {
         const contract = await deployContract(alice, contracts.events, []);
-        const maxLogsLimit = parseInt(
-            process.env.EN_REQ_ENTITIES_LIMIT ?? process.env.API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT!
-        );
+        const maxLogsLimit = testMaster.environment().maxLogsLimit;
 
         // Send 3 transactions that emit `maxLogsLimit / 2` events.
         const tx1 = await contract.emitManyEvents(maxLogsLimit / 2);
@@ -852,7 +853,7 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should check transaction signature', async () => {
-        const CHAIN_ID = +process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        const CHAIN_ID = testMaster.environment().l2ChainId;
         const value = 1;
         const gasLimit = 350000;
         const gasPrice = await alice.provider.getGasPrice();
@@ -949,10 +950,11 @@ describe('web3 API compatibility tests', () => {
 
 export class MockMetamask {
     readonly isMetaMask: boolean = true;
-    readonly networkVersion = parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!, 10);
-    readonly chainId: string = ethers.utils.hexlify(parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!, 10));
+    readonly chainId: string;
 
-    constructor(readonly wallet: zksync.Wallet) {}
+    constructor(readonly wallet: zksync.Wallet, readonly networkVersion: number) {
+        this.chainId = ethers.utils.hexlify(networkVersion);
+    }
 
     // EIP-1193
     async request(req: { method: string; params?: any[] }) {

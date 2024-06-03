@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Context as _;
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
-use zksync_core::metadata_calculator::{
+use zksync_metadata_calculator::{
     LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
 };
 use zksync_storage::RocksDB;
@@ -18,7 +18,7 @@ use crate::{
         web3_api::TreeApiClientResource,
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -118,8 +118,8 @@ pub struct MetadataCalculatorTask {
 
 #[async_trait::async_trait]
 impl Task for MetadataCalculatorTask {
-    fn name(&self) -> &'static str {
-        "metadata_calculator"
+    fn id(&self) -> TaskId {
+        "metadata_calculator".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -141,8 +141,8 @@ pub struct TreeApiTask {
 
 #[async_trait::async_trait]
 impl Task for TreeApiTask {
-    fn name(&self) -> &'static str {
-        "tree_api"
+    fn id(&self) -> TaskId {
+        "tree_api".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

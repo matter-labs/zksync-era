@@ -1,0 +1,29 @@
+[package]
+name = "common"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+authors.workspace = true
+exclude.workspace = true
+repository.workspace = true
+description.workspace = true
+keywords.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+cliclack.workspace = true
+console.workspace = true
+ethers.workspace = true
+futures.workspace = true
+once_cell.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sqlx.workspace = true
+strum_macros.workspace = true
+tokio.workspace = true
+toml.workspace = true
+url.workspace = true
+xshell.workspace = true

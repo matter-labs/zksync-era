@@ -42,8 +42,8 @@ use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     block::StorageOracleInfo,
-    protocol_version::ProtocolVersionId,
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256,
+    protocol_version::ProtocolSemanticVersion,
+    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -89,7 +89,7 @@ pub struct BasicWitnessGenerator {
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool<Core>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
 }
 
 impl BasicWitnessGenerator {
@@ -99,7 +99,7 @@ impl BasicWitnessGenerator {
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool<Core>,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             config: Arc::new(config),
@@ -485,14 +485,14 @@ async fn generate_witness(
 
     let bootloader_code_bytes = connection
         .factory_deps_dal()
-        .get_factory_dep(header.base_system_contracts_hashes.bootloader)
+        .get_sealed_factory_dep(header.base_system_contracts_hashes.bootloader)
         .await
         .expect("Failed fetching bootloader bytecode from DB")
         .expect("Bootloader bytecode should exist");
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
     let account_bytecode_bytes = connection
         .factory_deps_dal()
-        .get_factory_dep(header.base_system_contracts_hashes.default_aa)
+        .get_sealed_factory_dep(header.base_system_contracts_hashes.default_aa)
         .await
         .expect("Failed fetching default account bytecode from DB")
         .expect("Default account bytecode should exist");

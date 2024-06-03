@@ -1,20 +1,20 @@
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     snapshots::{AllSnapshots, SnapshotHeader},
     L1BatchNumber,
 };
 
+use crate::client::{ForNetwork, L2};
+
 #[cfg_attr(
-    all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "snapshots")
+    feature = "server",
+    rpc(server, client, namespace = "snapshots", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
-    all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "snapshots")
-)]
-#[cfg_attr(
-    all(not(feature = "client"), feature = "server"),
-    rpc(server, namespace = "snapshots")
+    not(feature = "server"),
+    rpc(client, namespace = "snapshots", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 pub trait SnapshotsNamespace {
     #[method(name = "getAllSnapshots")]
