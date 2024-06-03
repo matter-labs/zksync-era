@@ -21,7 +21,7 @@ use crate::{
         },
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -105,8 +105,8 @@ struct StateKeeperTask {
 
 #[async_trait::async_trait]
 impl Task for StateKeeperTask {
-    fn name(&self) -> &'static str {
-        "state_keeper"
+    fn id(&self) -> TaskId {
+        "state_keeper".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -134,8 +134,8 @@ struct RocksdbCatchupTask(AsyncCatchupTask);
 
 #[async_trait::async_trait]
 impl Task for RocksdbCatchupTask {
-    fn name(&self) -> &'static str {
-        "state_keeper/rocksdb_catchup_task"
+    fn id(&self) -> TaskId {
+        "state_keeper/rocksdb_catchup_task".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
