@@ -273,6 +273,12 @@ impl TreeDataProvider for L1DataProvider {
                 })?;
                 // `unwrap()` is safe due to the filtering above
                 let l1_commit_block_number = log.block_number.unwrap();
+                let diff = l1_commit_block_number.saturating_sub(from_block).as_u64();
+                METRICS.l1_commit_block_number_from_diff.observe(diff);
+                tracing::debug!(
+                    "`BlockCommit` event for L1 batch #{number} is at block #{l1_commit_block_number}, \
+                     {diff} block(s) after the `from` block from the filter"
+                );
 
                 let l1_commit_block = self.eth_client.block(l1_commit_block_number.into()).await?;
                 let l1_commit_block = l1_commit_block.ok_or_else(|| {
