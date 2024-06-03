@@ -97,7 +97,8 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             mempool_cache_update_interval: self.sample(rng),
             mempool_cache_size: self.sample(rng),
             whitelisted_tokens_for_aa: self.sample_range(rng).map(|_| rng.gen()).collect(),
-            api_namespaces: self.sample_range(rng).map(|_| self.sample(rng)).collect(),
+            api_namespaces: self
+                .sample_opt(|| self.sample_range(rng).map(|_| self.sample(rng)).collect()),
             extended_api_tracing: self.sample(rng),
         }
     }
