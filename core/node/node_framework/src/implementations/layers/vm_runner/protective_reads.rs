@@ -37,7 +37,7 @@ impl WiringLayer for ProtectiveReadsWriterLayer {
         let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
 
         let (protective_reads_writer, tasks) = ProtectiveReadsWriter::new(
-            master_pool.get_singleton().await?, // TODO: check pool size
+            master_pool.get_custom(3).await?,
             self.protective_reads_writer_config.protective_reads_db_path,
             self.zksync_network_id,
             self.protective_reads_writer_config
