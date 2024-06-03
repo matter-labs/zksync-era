@@ -1,8 +1,9 @@
 //! Test utils.
 
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{collections::HashMap, fmt, future, sync::Arc};
 
 use async_trait::async_trait;
+use tokio::sync::watch;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory};
 use zksync_types::{
     api,
@@ -238,16 +239,12 @@ pub(super) fn mock_snapshot_header(status: &SnapshotRecoveryStatus) -> SnapshotH
         version: SnapshotVersion::Version0.into(),
         l1_batch_number: status.l1_batch_number,
         l2_block_number: status.l2_block_number,
-        storage_logs_chunks: vec![
-            SnapshotStorageLogsChunkMetadata {
-                chunk_id: 0,
-                filepath: "file0".to_string(),
-            },
-            SnapshotStorageLogsChunkMetadata {
-                chunk_id: 1,
-                filepath: "file1".to_string(),
-            },
-        ],
+        storage_logs_chunks: (0..status.storage_logs_chunks_processed.len() as u64)
+            .map(|chunk_id| SnapshotStorageLogsChunkMetadata {
+                chunk_id,
+                filepath: format!("file{chunk_id}"),
+            })
+            .collect(),
         factory_deps_filepath: "some_filepath".to_string(),
     }
 }
@@ -303,4 +300,65 @@ pub(super) async fn prepare_clients(
         ),
     );
     (object_store, client)
+}
+
+/// Object store wrapper that hangs up after processing the specified number of requests.
+/// Used to emulate the snapshot applier being restarted since, if it's configured to have concurrency 1,
+/// the applier will request an object from the store strictly after fully processing all previously requested objects.
+#[derive(Debug)]
+pub(super) struct HangingObjectStore {
+    inner: Arc<dyn ObjectStore>,
+    stop_after_count: usize,
+    count_sender: watch::Sender<usize>,
+}
+
+impl HangingObjectStore {
+    pub fn new(
+        inner: Arc<dyn ObjectStore>,
+        stop_after_count: usize,
+    ) -> (Self, watch::Receiver<usize>) {
+        let (count_sender, count_receiver) = watch::channel(0);
+        let this = Self {
+            inner,
+            stop_after_count,
+            count_sender,
+        };
+        (this, count_receiver)
+    }
+}
+
+#[async_trait]
+impl ObjectStore for HangingObjectStore {
+    async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
+        let mut should_proceed = true;
+        self.count_sender.send_modify(|count| {
+            *count += 1;
+            if dbg!(*count) > self.stop_after_count {
+                should_proceed = false;
+            }
+        });
+
+        if dbg!(should_proceed) {
+            self.inner.get_raw(bucket, key).await
+        } else {
+            future::pending().await // Hang up the snapshot applier task
+        }
+    }
+
+    async fn put_raw(
+        &self,
+        _bucket: Bucket,
+        _key: &str,
+        _value: Vec<u8>,
+    ) -> Result<(), ObjectStoreError> {
+        unreachable!("Should not be used in snapshot applier")
+    }
+
+    async fn remove_raw(&self, _bucket: Bucket, _key: &str) -> Result<(), ObjectStoreError> {
+        unreachable!("Should not be used in snapshot applier")
+    }
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        self.inner.storage_prefix_raw(bucket)
+    }
 }

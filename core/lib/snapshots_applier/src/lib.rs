@@ -192,7 +192,7 @@ impl SnapshotsApplierMainNodeClient for Box<DynClient<L2>> {
 }
 
 /// Snapshot applier configuration options.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SnapshotsApplierConfig {
     /// Number of retries for transient errors before giving up on recovery (i.e., returning an error
     /// from [`Self::run()`]).
