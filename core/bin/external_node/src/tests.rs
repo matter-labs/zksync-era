@@ -156,6 +156,10 @@ async fn external_node_basics(components_str: &'static str) {
         revert_pending_l1_batch: false,
         enable_consensus: false,
         components,
+        config_path: None,
+        secrets_path: None,
+        external_node_config_path: None,
+        consensus_path: None,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
     if opt.components.0.contains(&Component::TreeApi) {
@@ -265,6 +269,10 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
         revert_pending_l1_batch: false,
         enable_consensus: false,
         components: "core".parse().unwrap(),
+        config_path: None,
+        secrets_path: None,
+        external_node_config_path: None,
+        consensus_path: None,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
     if opt.components.0.contains(&Component::TreeApi) {

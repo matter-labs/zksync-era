@@ -17,7 +17,7 @@ impl ProtoRepr for proto::Pruning {
         Ok(Self::Type {
             enabled: self.enabled.unwrap_or_default(),
             chunk_size: self.chunk_size,
-            removal_delay_sec: self.removal_delay_sec.map(|a| NonZeroU64::new(a)).flatten(),
+            removal_delay_sec: self.removal_delay_sec.and_then(NonZeroU64::new),
             data_retention_sec: self.data_retention_sec,
         })
     }
@@ -40,8 +40,7 @@ impl ProtoRepr for proto::SnapshotRecovery {
             enabled: self.enabled.unwrap_or_default(),
             postgres_max_concurrency: self
                 .postgres_max_concurrency
-                .map(|a| NonZeroUsize::new(a as usize))
-                .flatten(),
+                .and_then(|a| NonZeroUsize::new(a as usize)),
             tree_chunk_size: self.tree_chunk_size,
         })
     }
@@ -77,13 +76,11 @@ impl ProtoRepr for proto::ExternalNode {
             .parse(),
             commitment_generator_max_parallelism: self
                 .commitment_generator_max_parallelism
-                .map(NonZeroU32::new)
-                .flatten(),
+                .and_then(NonZeroU32::new),
             tree_api_remote_url: self.tree_api_remote_url.clone(),
             main_node_rate_limit_rps: self
                 .main_node_rate_limit_rps
-                .map(|a| NonZeroUsize::new(a as usize))
-                .flatten(),
+                .and_then(|a| NonZeroUsize::new(a as usize)),
             pruning: read_optional_repr(&self.pruning).context("pruning")?,
             snapshot_recovery: read_optional_repr(&self.snapshot_recovery)
                 .context("snapshot_recovery")?,
