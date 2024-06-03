@@ -28,11 +28,45 @@
 //! - A task that must be started as soon as possible, e.g. healthcheck server.
 //! - A task that may be a driving force for some precondition to be met.
 
-use std::sync::Arc;
+use std::{
+    fmt::{Display, Formatter},
+    ops::Deref,
+    sync::Arc,
+};
 
 use tokio::sync::Barrier;
 
 use crate::service::StopReceiver;
+
+/// A unique human-readable identifier of a task.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TaskId(String);
+
+impl TaskId {
+    pub fn new(value: String) -> Self {
+        TaskId(value)
+    }
+}
+
+impl Display for TaskId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<&str> for TaskId {
+    fn from(value: &str) -> Self {
+        TaskId(value.to_owned())
+    }
+}
+
+impl Deref for TaskId {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 /// A task implementation.
 ///
@@ -41,7 +75,7 @@ use crate::service::StopReceiver;
 #[async_trait::async_trait]
 pub trait Task: 'static + Send {
     /// Unique name of the task.
-    fn name(&self) -> &'static str;
+    fn id(&self) -> TaskId;
 
     /// Runs the task.
     ///
@@ -85,7 +119,7 @@ impl dyn Task {
 #[async_trait::async_trait]
 pub trait OneshotTask: 'static + Send {
     /// Unique name of the task.
-    fn name(&self) -> &'static str;
+    fn id(&self) -> TaskId;
 
     /// Runs the task.
     ///
@@ -130,7 +164,7 @@ impl dyn OneshotTask {
 #[async_trait::async_trait]
 pub trait UnconstrainedTask: 'static + Send {
     /// Unique name of the task.
-    fn name(&self) -> &'static str;
+    fn id(&self) -> TaskId;
 
     /// Runs the task without waiting for any precondition to be met.
     async fn run_unconstrained(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()>;
@@ -141,7 +175,7 @@ pub trait UnconstrainedTask: 'static + Send {
 #[async_trait::async_trait]
 pub trait UnconstrainedOneshotTask: 'static + Send {
     /// Unique name of the task.
-    fn name(&self) -> &'static str;
+    fn id(&self) -> TaskId;
 
     /// Runs the task without waiting for any precondition to be met.
     async fn run_unconstrained_oneshot(

@@ -39,7 +39,7 @@ impl<'a> ServiceContext<'a> {
     /// Added tasks will be launched after the wiring process will be finished and all the preconditions
     /// are met.
     pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
-        tracing::info!("Layer {} has added a new task: {}", self.layer, task.name());
+        tracing::info!("Layer {} has added a new task: {}", self.layer, task.id());
         self.service.runnables.tasks.push(task);
         self
     }
@@ -50,7 +50,7 @@ impl<'a> ServiceContext<'a> {
         tracing::info!(
             "Layer {} has added a new unconstrained task: {}",
             self.layer,
-            task.name()
+            task.id()
         );
         self.service.runnables.unconstrained_tasks.push(task);
         self
@@ -61,7 +61,7 @@ impl<'a> ServiceContext<'a> {
         tracing::info!(
             "Layer {} has added a new precondition: {}",
             self.layer,
-            precondition.name()
+            precondition.id()
         );
         self.service.runnables.preconditions.push(precondition);
         self
@@ -72,7 +72,7 @@ impl<'a> ServiceContext<'a> {
         tracing::info!(
             "Layer {} has added a new oneshot task: {}",
             self.layer,
-            task.name()
+            task.id()
         );
         self.service.runnables.oneshot_tasks.push(task);
         self
@@ -86,7 +86,7 @@ impl<'a> ServiceContext<'a> {
         tracing::info!(
             "Layer {} has added a new unconstrained oneshot task: {}",
             self.layer,
-            task.name()
+            task.id()
         );
         self.service
             .runnables
