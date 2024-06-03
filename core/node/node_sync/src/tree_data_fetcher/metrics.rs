@@ -7,7 +7,7 @@ use vise::{
     Info, Metrics, Unit,
 };
 
-use super::{StepOutcome, TreeDataFetcher, TreeDataFetcherError};
+use super::{provider::TreeDataProviderSource, StepOutcome, TreeDataFetcher, TreeDataFetcherError};
 
 #[derive(Debug, EncodeLabelSet)]
 struct TreeDataFetcherInfo {
@@ -51,6 +51,11 @@ pub(super) struct TreeDataFetcherMetrics {
     /// Latency of a particular stage of processing a single L1 batch.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub stage_latency: Family<ProcessingStage, Histogram<Duration>>,
+    /// Number of steps during binary search of the L1 commit block number.
+    #[metrics(buckets = Buckets::linear(0.0..=32.0, 2.0))]
+    pub l1_commit_block_number_binary_search_steps: Histogram<usize>,
+    /// Number of root hashes fetched from a particular source.
+    pub root_hash_sources: Family<TreeDataProviderSource, Counter>,
 }
 
 impl TreeDataFetcherMetrics {

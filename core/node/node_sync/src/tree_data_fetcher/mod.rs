@@ -179,7 +179,15 @@ impl TreeDataFetcher {
         let root_hash_result = self.data_provider.batch_details(l1_batch_to_fetch).await?;
         stage_latency.observe();
         let root_hash = match root_hash_result {
-            Ok(hash) => hash,
+            Ok(output) => {
+                tracing::debug!(
+                    "Received root hash for L1 batch #{l1_batch_to_fetch} from {source:?}: {root_hash:?}",
+                    source = output.source,
+                    root_hash = output.root_hash
+                );
+                self.metrics.root_hash_sources[&output.source].inc();
+                output.root_hash
+            }
             Err(MissingData::Batch) => {
                 let err = anyhow::anyhow!(
                     "L1 batch #{l1_batch_to_fetch} is sealed locally, but is not present on the main node, \
