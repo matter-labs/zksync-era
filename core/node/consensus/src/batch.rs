@@ -8,9 +8,10 @@ use zksync_l1_contract_interface::i_executor;
 use zksync_metadata_calculator::api_server::{TreeApiClient, TreeEntryWithProof};
 use zksync_system_constants as constants;
 use zksync_types::{
+    abi,
     block::{unpack_block_info, L2BlockHasher},
     ethabi, web3, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
-    StorageKey, H256, U256,
+    StorageKey, Transaction, H256, U256,
 };
 
 use crate::ConnectionPool;
@@ -176,8 +177,12 @@ impl L1BatchProof {
     }
     */
 
-    /// WARNING: the following are not currently verified: l1_gas_price, l2_fair_gas_price, fair_pubdata_price,
-    /// virtual_blocks, operator_address
+    /// WARNING: the following are not currently verified:
+    /// * l1_gas_price
+    /// * l2_fair_gas_price
+    /// * fair_pubdata_price
+    /// * virtual_blocks
+    /// * operator_address
     fn verify(&self, comm: &L1BatchCommit) -> anyhow::Result<()> {
         let (last_number, last_hash) = self.this_batch.verify(&comm.this_batch)?;
         let (mut prev_number, mut prev_hash) = self.prev_batch.verify(&comm.prev_batch)?;
@@ -197,6 +202,12 @@ impl L1BatchProof {
             prev_number += 1;
             let mut hasher = L2BlockHasher::new(prev_number, b.timestamp, prev_hash);
             for t in &b.transactions {
+                // Reconstruct transaction by converting it back and forth to `abi::Transaction`.
+                // This allows us to verify that the transaction actually matches the transaction
+                // hash.
+                // TODO: make consensus payload contain `abi::Transaction` instead.
+                let t2: Transaction = abi::Transaction::try_from(t.clone())?.try_into()?;
+                anyhow::ensure!(t == &t2);
                 hasher.push_tx_hash(t.hash());
             }
             prev_hash = hasher.finalize(self.this_batch.protocol_version);

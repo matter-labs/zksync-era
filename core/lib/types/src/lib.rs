@@ -7,6 +7,7 @@
 
 use std::{fmt, fmt::Debug};
 
+use anyhow::Context as _;
 pub use event::{VmEvent, VmEventGroupKey};
 use fee::encoding_len;
 pub use l1::L1TxCommonData;
@@ -245,14 +246,16 @@ impl fmt::Display for ExecuteTransactionCommon {
     }
 }
 
-impl From<Transaction> for abi::Transaction {
-    fn from(tx: Transaction) -> Self {
+impl TryFrom<Transaction> for abi::Transaction {
+    type Error = anyhow::Error;
+
+    fn try_from(tx: Transaction) -> anyhow::Result<Self> {
         use ExecuteTransactionCommon as E;
         let factory_deps = tx.execute.factory_deps.unwrap_or_default();
-        match tx.common_data {
+        Ok(match tx.common_data {
             E::L2(data) => Self::L2(
                 data.input
-                    .expect("input is required for L2 transactions")
+                    .context("input is required for L2 transactions")?
                     .data,
             ),
             E::L1(data) => Self::L1 {
@@ -319,7 +322,7 @@ impl From<Transaction> for abi::Transaction {
                 eth_block: data.eth_block,
                 received_timestamp_ms: tx.received_timestamp_ms,
             },
-        }
+        })
     }
 }
 

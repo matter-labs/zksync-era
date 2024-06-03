@@ -111,7 +111,7 @@ impl ProtocolUpgrade {
                 .then_some(upgrade.verifier_params.into()),
             verifier_address: (upgrade.verifier != Address::zero()).then_some(upgrade.verifier),
             timestamp: upgrade.upgrade_timestamp.try_into().unwrap(),
-            tx: (upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero()).then_some(
+            tx: (upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero()).then(|| {
                 Transaction::try_from(abi::Transaction::L1 {
                     tx: upgrade.l2_protocol_upgrade_tx,
                     factory_deps: upgrade.factory_deps,
@@ -121,8 +121,8 @@ impl ProtocolUpgrade {
                 })
                 .unwrap()
                 .try_into()
-                .unwrap(),
-            ),
+                .unwrap()
+            }),
         })
     }
 }

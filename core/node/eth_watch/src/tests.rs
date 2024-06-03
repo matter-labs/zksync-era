@@ -164,7 +164,7 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
         received_timestamp_ms: 0,
     };
     // Convert to abi::Transaction and back, so that canonical_tx_hash is computed.
-    Transaction::try_from(abi::Transaction::from(Transaction::from(tx)))
+    Transaction::try_from(abi::Transaction::try_from(Transaction::from(tx)).unwrap())
         .unwrap()
         .try_into()
         .unwrap()
@@ -193,7 +193,7 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
         received_timestamp_ms: 0,
     };
     // Convert to abi::Transaction and back, so that canonical_tx_hash is computed.
-    Transaction::try_from(abi::Transaction::from(Transaction::from(tx)))
+    Transaction::try_from(abi::Transaction::try_from(Transaction::from(tx)).unwrap())
         .unwrap()
         .try_into()
         .unwrap()
