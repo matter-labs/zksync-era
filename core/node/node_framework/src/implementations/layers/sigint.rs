@@ -2,7 +2,7 @@ use tokio::sync::oneshot;
 
 use crate::{
     service::{ServiceContext, StopReceiver},
-    task::UnconstrainedTask,
+    task::{TaskId, UnconstrainedTask},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -29,8 +29,8 @@ struct SigintHandlerTask;
 
 #[async_trait::async_trait]
 impl UnconstrainedTask for SigintHandlerTask {
-    fn name(&self) -> &'static str {
-        "sigint_handler"
+    fn id(&self) -> TaskId {
+        "sigint_handler".into()
     }
 
     async fn run_unconstrained(
