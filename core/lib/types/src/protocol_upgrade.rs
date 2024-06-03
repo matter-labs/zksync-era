@@ -102,11 +102,7 @@ fn get_transaction_param_type() -> ParamType {
 }
 
 impl ProtocolUpgrade {
-    fn try_from_decoded_tokens(
-        tokens: Vec<ethabi::Token>,
-        transaction_hash: H256,
-        transaction_block_number: u64,
-    ) -> Result<Self, crate::ethabi::Error> {
+    fn try_from_decoded_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, crate::ethabi::Error> {
         let init_calldata = tokens[2].clone().into_bytes().unwrap();
 
         let transaction_param_type: ParamType = get_transaction_param_type();
@@ -144,12 +140,7 @@ impl ProtocolUpgrade {
 
         let factory_deps = decoded.remove(0).into_array().unwrap();
 
-        let tx = ProtocolUpgradeTx::decode_tx(
-            transaction,
-            transaction_hash,
-            transaction_block_number,
-            factory_deps,
-        );
+        let tx = ProtocolUpgradeTx::decode_tx(transaction, factory_deps);
         let bootloader_code_hash = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
         let default_account_code_hash =
             H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
@@ -205,18 +196,10 @@ pub fn decode_set_chain_id_event(
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
         .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
 
-    let eth_hash = event
-        .transaction_hash
-        .expect("Event transaction hash is missing");
-    let eth_block = event
-        .block_number
-        .expect("Event block number is missing")
-        .as_u64();
-
     let factory_deps: Vec<Token> = Vec::new();
 
-    let upgrade_tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps)
-        .expect("Upgrade tx is missing");
+    let upgrade_tx =
+        ProtocolUpgradeTx::decode_tx(transaction, factory_deps).expect("Upgrade tx is missing");
 
     Ok((protocol_version, upgrade_tx))
 }
@@ -224,8 +207,6 @@ pub fn decode_set_chain_id_event(
 impl ProtocolUpgradeTx {
     pub fn decode_tx(
         mut transaction: Vec<Token>,
-        eth_hash: H256,
-        eth_block: u64,
         factory_deps: Vec<Token>,
     ) -> Option<ProtocolUpgradeTx> {
         let canonical_tx_hash = H256(keccak256(&encode(&[Token::Tuple(transaction.clone())])));
@@ -308,8 +289,7 @@ impl ProtocolUpgradeTx {
             gas_limit,
             max_fee_per_gas,
             gas_per_pubdata_limit,
-            eth_hash,
-            eth_block,
+            eth_block: 0,
         };
 
         let factory_deps = factory_deps
@@ -336,12 +316,7 @@ impl TryFrom<Call> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;
 
     fn try_from(call: Call) -> Result<Self, Self::Error> {
-        let Call {
-            data,
-            eth_hash,
-            eth_block,
-            ..
-        } = call;
+        let Call { data, .. } = call;
 
         if data.len() < 4 {
             return Err(crate::ethabi::Error::InvalidData);
@@ -376,7 +351,7 @@ impl TryFrom<Call> for ProtocolUpgrade {
                 return Err(crate::ethabi::Error::InvalidData);
             };
 
-        ProtocolUpgrade::try_from_decoded_tokens(diamond_cut_tokens, eth_hash, eth_block)
+        ProtocolUpgrade::try_from_decoded_tokens(diamond_cut_tokens)
     }
 }
 
@@ -505,8 +480,6 @@ pub struct ProtocolUpgradeTxCommonData {
     pub gas_limit: U256,
     /// The maximum number of gas per 1 byte of pubdata.
     pub gas_per_pubdata_limit: U256,
-    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
-    pub eth_hash: H256,
     /// Block in which Ethereum transaction was included.
     pub eth_block: u64,
     /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.

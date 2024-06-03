@@ -117,7 +117,6 @@ pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
         gas_limit: U256::from(100_100),
         max_fee_per_gas: U256::from(1u32),
         gas_per_pubdata_limit: 100.into(),
-        eth_hash: H256::random(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),
         eth_block: 1,
