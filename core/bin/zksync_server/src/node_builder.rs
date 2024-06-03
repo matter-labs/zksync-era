@@ -13,7 +13,6 @@ use zksync_node_api_server::{
     tx_sender::{ApiContracts, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
 };
-use zksync_node_framework::implementations::layers::vm_runner::protective_reads::ProtectiveReadsWriterLayer;
 use zksync_node_framework::{
     implementations::layers::{
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
@@ -38,6 +37,7 @@ use zksync_node_framework::{
             StateKeeperLayer,
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
+        vm_runner::protective_reads::ProtectiveReadsWriterLayer,
         web3_api::{
             caches::MempoolCacheLayer,
             server::{Web3ServerLayer, Web3ServerOptionalConfig},

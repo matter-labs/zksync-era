@@ -1,9 +1,9 @@
-use crate::configs::vm_runner::ProtectiveReadsWriterConfig;
 use crate::{
     configs::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        vm_runner::ProtectiveReadsWriterConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig,

@@ -1,4 +1,3 @@
-use zksync_config::configs::ProtectiveReadsWriterConfig;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -11,7 +10,7 @@ use zksync_config::{
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
