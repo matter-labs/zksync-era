@@ -1,5 +1,18 @@
 # Changelog
 
+## [24.6.0](https://github.com/matter-labs/zksync-era/compare/core-v24.5.1...core-v24.6.0) (2024-06-03)
+
+
+### Features
+
+* **en:** Fetch old L1 batch hashes from L1 ([#2000](https://github.com/matter-labs/zksync-era/issues/2000)) ([dc5a918](https://github.com/matter-labs/zksync-era/commit/dc5a9188a44a51810c9b7609a0887090043507f2))
+* use semver for metrics, move constants to prover workspace ([#2098](https://github.com/matter-labs/zksync-era/issues/2098)) ([7a50a9f](https://github.com/matter-labs/zksync-era/commit/7a50a9f79e516ec150d1f30b9f1c781a5523375b))
+
+
+### Bug Fixes
+
+* **api:** correct default fee data in eth call ([#2072](https://github.com/matter-labs/zksync-era/issues/2072)) ([e71f6f9](https://github.com/matter-labs/zksync-era/commit/e71f6f96bda08f8330c643a31df4ef9e82c9afc2))
+
 ## [24.5.1](https://github.com/matter-labs/zksync-era/compare/core-v24.5.0...core-v24.5.1) (2024-05-31)
 
 

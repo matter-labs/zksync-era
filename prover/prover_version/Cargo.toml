@@ -4,4 +4,4 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-zksync_types.workspace = true
+zksync_prover_fri_types.workspace = true

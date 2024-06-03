@@ -29,7 +29,7 @@ use zksync_types::{
 
 use crate::{
     aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
-    ETHSenderError, EthTxAggregator, EthTxManager,
+    EthSenderError, EthTxAggregator, EthTxManager,
 };
 
 // Alias to conveniently call static methods of `ETHSender`.
@@ -1104,7 +1104,7 @@ async fn test_parse_multicall_data(commitment_mode: L1BatchCommitmentMode) {
             tester
                 .aggregator
                 .parse_multicall_data(wrong_data_instance.clone()),
-            Err(ETHSenderError::ParseError(Error::InvalidOutputType(_)))
+            Err(EthSenderError::Parse(Error::InvalidOutputType(_)))
         );
     }
 }
