@@ -143,6 +143,53 @@ async fn snapshots_creator_can_successfully_recover_db(
 }
 
 #[tokio::test]
+async fn applier_recovers_explicitly_specified_snapshot() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let expected_status = mock_recovery_status();
+    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+
+    let mut task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool.clone(),
+        Box::new(client),
+        object_store,
+    );
+    task.set_snapshot_l1_batch(expected_status.l1_batch_number);
+    let stats = task.run().await.unwrap();
+    assert!(stats.done_work);
+
+    let mut storage = pool.connection().await.unwrap();
+    let all_storage_logs = storage
+        .storage_logs_dal()
+        .dump_all_storage_logs_for_tests()
+        .await;
+    assert_eq!(all_storage_logs.len(), storage_logs.len());
+}
+
+#[tokio::test]
+async fn applier_error_for_missing_explicitly_specified_snapshot() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let expected_status = mock_recovery_status();
+    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+
+    let mut task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool,
+        Box::new(client),
+        object_store,
+    );
+    task.set_snapshot_l1_batch(expected_status.l1_batch_number + 1);
+
+    let err = task.run().await.unwrap_err();
+    assert!(
+        format!("{err:#}").contains("not present on main node"),
+        "{err:#}"
+    );
+}
+
+#[tokio::test]
 async fn health_status_immediately_after_task_start() {
     #[derive(Debug, Clone)]
     struct HangingMainNodeClient(Arc<Barrier>);
