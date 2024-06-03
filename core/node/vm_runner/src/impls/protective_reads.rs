@@ -12,12 +12,15 @@ use crate::{
     OutputHandlerFactory, VmRunner, VmRunnerIo, VmRunnerStorage,
 };
 
+/// A standalone component that writes protective reads asynchronously to state keeper.
 #[derive(Debug)]
 pub struct ProtectiveReadsWriter {
     vm_runner: VmRunner,
 }
 
 impl ProtectiveReadsWriter {
+    /// Create a new protective reads writer from the provided DB parameters and window size which
+    /// regulates how many batches this component can handle at the same time.
     pub async fn new(
         pool: ConnectionPool<Core>,
         rocksdb_path: String,
@@ -47,14 +50,24 @@ impl ProtectiveReadsWriter {
         ))
     }
 
+    /// Continuously loads new available batches and writes the corresponding protective reads
+    /// produced by that batch.
+    ///
+    /// # Errors
+    ///
+    /// Propagates RocksDB and Postgres errors.
     pub async fn run(self, stop_receiver: &watch::Receiver<bool>) -> anyhow::Result<()> {
         self.vm_runner.run(stop_receiver).await
     }
 }
 
+/// A collections of tasks that need to be run in order for protective reads writer to work as
+/// intended.
 #[derive(Debug)]
 pub struct ProtectiveReadsWriterTasks {
+    /// Task that synchronizes storage with new available batches.
     pub loader_task: StorageSyncTask<ProtectiveReadsIo>,
+    /// Task that handles output from processed batches.
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<ProtectiveReadsIo>,
 }
 

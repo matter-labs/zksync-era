@@ -271,6 +271,17 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         })
     }
 
+    /// Access the underlying [`VmRunnerIo`].
+    pub fn io(&self) -> &Io {
+        &self.io
+    }
+
+    /// Block until RocksDB cache instance is caught up with Postgres and then continuously makes
+    /// sure that the new ready batches are loaded into the cache.
+    ///
+    /// # Errors
+    ///
+    /// Propagates RocksDB and Postgres errors.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
@@ -406,9 +417,5 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             system_env,
             l2_blocks,
         }))
-    }
-
-    pub fn io(&self) -> &Io {
-        self.io()
     }
 }

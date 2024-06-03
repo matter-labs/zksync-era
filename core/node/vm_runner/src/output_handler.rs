@@ -203,6 +203,7 @@ impl<Io: VmRunnerIo> Debug for ConcurrentOutputHandlerFactoryTask<Io> {
 }
 
 impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
+    /// Access the underlying [`VmRunnerIo`].
     pub fn io(&self) -> &Io {
         &self.io
     }
