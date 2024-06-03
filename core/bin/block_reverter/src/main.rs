@@ -111,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
     let network = NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
     let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
     let l1_secrets = L1Secrets::from_env().context("L1Secrets::from_env()")?;
-    let postgress_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let era_chain_id = env::var("CONTRACTS_ERA_CHAIN_ID")
         .context("`CONTRACTS_ERA_CHAIN_ID` env variable is not set")?
         .parse()
@@ -122,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
 
     let connection_pool = ConnectionPool::<Core>::builder(
         database_secrets.master_url()?,
-        postgress_config.max_connections()?,
+        postgres_config.max_connections()?,
     )
     .build()
     .await
@@ -194,7 +194,7 @@ async fn main() -> anyhow::Result<()> {
             allow_executed_block_reversion,
         } => {
             if !rollback_tree && rollback_postgres {
-                println!("You want to roll back Postgres DB without rolling back tree.");
+                println!("You want to roll back Postgres DB without rolling back the tree.");
                 println!(
                     "If the tree is not yet rolled back to this L1 batch, then the only way \
                      to make it synced with Postgres will be to completely rebuild it."
