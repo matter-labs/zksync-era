@@ -44,7 +44,7 @@ struct CircuitBreakerCheckerTask {
 #[async_trait::async_trait]
 impl UnconstrainedTask for CircuitBreakerCheckerTask {
     fn id(&self) -> TaskId {
-        TaskId("circuit_breaker_checker".to_owned())
+        "circuit_breaker_checker".into()
     }
 
     async fn run_unconstrained(

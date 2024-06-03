@@ -76,7 +76,7 @@ struct EthWatchTask {
 #[async_trait::async_trait]
 impl Task for EthWatchTask {
     fn id(&self) -> TaskId {
-        TaskId("eth_watch".to_owned())
+        "eth_watch".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

@@ -30,6 +30,7 @@
 
 use std::{
     fmt::{Display, Formatter},
+    ops::Deref,
     sync::Arc,
 };
 
@@ -39,11 +40,31 @@ use crate::service::StopReceiver;
 
 /// A unique human-readable identifier of a task.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TaskId(pub String);
+pub struct TaskId(String);
+
+impl TaskId {
+    pub fn new(value: String) -> Self {
+        TaskId(value)
+    }
+}
 
 impl Display for TaskId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
+    }
+}
+
+impl From<&str> for TaskId {
+    fn from(value: &str) -> Self {
+        TaskId(value.to_owned())
+    }
+}
+
+impl Deref for TaskId {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

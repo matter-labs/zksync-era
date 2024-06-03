@@ -111,7 +111,7 @@ pub struct MainNodeConsensusTask {
 #[async_trait::async_trait]
 impl Task for MainNodeConsensusTask {
     fn id(&self) -> TaskId {
-        TaskId("consensus".to_owned())
+        "consensus".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -148,7 +148,7 @@ pub struct FetcherTask {
 #[async_trait::async_trait]
 impl Task for FetcherTask {
     fn id(&self) -> TaskId {
-        TaskId("consensus_fetcher".to_owned())
+        "consensus_fetcher".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

@@ -76,7 +76,7 @@ pub struct ConsistencyCheckerTask {
 #[async_trait::async_trait]
 impl Task for ConsistencyCheckerTask {
     fn id(&self) -> TaskId {
-        TaskId("consistency_checker".to_owned())
+        "consistency_checker".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

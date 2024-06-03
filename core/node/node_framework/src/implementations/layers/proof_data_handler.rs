@@ -74,7 +74,7 @@ struct ProofDataHandlerTask {
 #[async_trait::async_trait]
 impl Task for ProofDataHandlerTask {
     fn id(&self) -> TaskId {
-        TaskId("proof_data_handler".to_owned())
+        "proof_data_handler".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

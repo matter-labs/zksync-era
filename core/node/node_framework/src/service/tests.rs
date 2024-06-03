@@ -128,7 +128,7 @@ struct ErrorTask;
 #[async_trait::async_trait]
 impl Task for ErrorTask {
     fn id(&self) -> TaskId {
-        TaskId("error_task".to_owned())
+        "error_task".into()
     }
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
         anyhow::bail!("error task")
@@ -179,7 +179,7 @@ struct SuccessfulTask(Arc<Barrier>, Arc<Mutex<bool>>);
 #[async_trait::async_trait]
 impl Task for SuccessfulTask {
     fn id(&self) -> TaskId {
-        TaskId("successful_task".to_owned())
+        "successful_task".into()
     }
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
         self.0.wait().await;
@@ -197,7 +197,7 @@ struct RemainingTask(Arc<Barrier>, Arc<Mutex<bool>>);
 #[async_trait::async_trait]
 impl Task for RemainingTask {
     fn id(&self) -> TaskId {
-        TaskId("remaining_task".to_owned())
+        "remaining_task".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

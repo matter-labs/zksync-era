@@ -51,7 +51,7 @@ impl WiringLayer for PrometheusExporterLayer {
 #[async_trait::async_trait]
 impl Task for PrometheusExporterTask {
     fn id(&self) -> TaskId {
-        TaskId("prometheus_exporter".to_owned())
+        "prometheus_exporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

@@ -53,7 +53,7 @@ pub struct TeeVerifierInputProducerTask {
 #[async_trait::async_trait]
 impl Task for TeeVerifierInputProducerTask {
     fn id(&self) -> TaskId {
-        TaskId("tee_verifier_input_producer".to_owned())
+        "tee_verifier_input_producer".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

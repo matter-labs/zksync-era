@@ -124,7 +124,7 @@ impl fmt::Debug for PostgresStorageCachesTask {
 #[async_trait::async_trait]
 impl Task for PostgresStorageCachesTask {
     fn id(&self) -> TaskId {
-        TaskId("postgres_storage_caches".to_owned())
+        "postgres_storage_caches".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -139,7 +139,7 @@ struct VmConcurrencyBarrierTask {
 #[async_trait::async_trait]
 impl Task for VmConcurrencyBarrierTask {
     fn id(&self) -> TaskId {
-        TaskId("vm_concurrency_barrier_task".to_owned())
+        "vm_concurrency_barrier_task".into()
     }
 
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

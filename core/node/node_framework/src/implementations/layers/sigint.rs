@@ -30,7 +30,7 @@ struct SigintHandlerTask;
 #[async_trait::async_trait]
 impl UnconstrainedTask for SigintHandlerTask {
     fn id(&self) -> TaskId {
-        TaskId("sigint_handler".to_owned())
+        "sigint_handler".into()
     }
 
     async fn run_unconstrained(

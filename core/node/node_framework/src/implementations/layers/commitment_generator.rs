@@ -56,7 +56,7 @@ struct CommitmentGeneratorTask {
 #[async_trait::async_trait]
 impl Task for CommitmentGeneratorTask {
     fn id(&self) -> TaskId {
-        TaskId("commitment_generator".to_owned())
+        "commitment_generator".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

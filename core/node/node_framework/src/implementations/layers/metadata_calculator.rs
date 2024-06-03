@@ -119,7 +119,7 @@ pub struct MetadataCalculatorTask {
 #[async_trait::async_trait]
 impl Task for MetadataCalculatorTask {
     fn id(&self) -> TaskId {
-        TaskId("metadata_calculator".to_owned())
+        "metadata_calculator".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -142,7 +142,7 @@ pub struct TreeApiTask {
 #[async_trait::async_trait]
 impl Task for TreeApiTask {
     fn id(&self) -> TaskId {
-        TaskId("tree_api".to_owned())
+        "tree_api".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

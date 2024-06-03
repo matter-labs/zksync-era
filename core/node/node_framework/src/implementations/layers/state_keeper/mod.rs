@@ -106,7 +106,7 @@ struct StateKeeperTask {
 #[async_trait::async_trait]
 impl Task for StateKeeperTask {
     fn id(&self) -> TaskId {
-        TaskId("state_keeper".to_owned())
+        "state_keeper".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -135,7 +135,7 @@ struct RocksdbCatchupTask(AsyncCatchupTask);
 #[async_trait::async_trait]
 impl Task for RocksdbCatchupTask {
     fn id(&self) -> TaskId {
-        TaskId("state_keeper/rocksdb_catchup_task".to_owned())
+        "state_keeper/rocksdb_catchup_task".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

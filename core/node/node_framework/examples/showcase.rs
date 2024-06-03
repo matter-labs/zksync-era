@@ -98,7 +98,7 @@ impl PutTask {
 impl Task for PutTask {
     fn id(&self) -> TaskId {
         // Task names simply have to be unique. They are used for logging and debugging.
-        TaskId("put_task".to_owned())
+        "put_task".into()
     }
 
     /// This method will be invoked by the framework when the task is started.
@@ -139,7 +139,7 @@ impl CheckTask {
 #[async_trait::async_trait]
 impl Task for CheckTask {
     fn id(&self) -> TaskId {
-        TaskId("check_task".to_owned())
+        "check_task".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

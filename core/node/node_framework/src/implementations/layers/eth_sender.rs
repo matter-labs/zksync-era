@@ -174,7 +174,7 @@ struct EthTxAggregatorTask {
 #[async_trait::async_trait]
 impl Task for EthTxAggregatorTask {
     fn id(&self) -> TaskId {
-        TaskId("eth_tx_aggregator".to_owned())
+        "eth_tx_aggregator".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -190,7 +190,7 @@ struct EthTxManagerTask {
 #[async_trait::async_trait]
 impl Task for EthTxManagerTask {
     fn id(&self) -> TaskId {
-        TaskId("eth_tx_manager".to_owned())
+        "eth_tx_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

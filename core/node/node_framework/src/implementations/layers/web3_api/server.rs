@@ -208,8 +208,8 @@ type ApiJoinHandle = JoinHandle<anyhow::Result<()>>;
 impl Task for Web3ApiTask {
     fn id(&self) -> TaskId {
         match self.transport {
-            Transport::Http => TaskId("web3_http_server".to_owned()),
-            Transport::Ws => TaskId("web3_ws_server".to_owned()),
+            Transport::Http => "web3_http_server".into(),
+            Transport::Ws => "web3_ws_server".into(),
         }
     }
 
@@ -233,7 +233,7 @@ struct ApiTaskGarbageCollector {
 #[async_trait::async_trait]
 impl Task for ApiTaskGarbageCollector {
     fn id(&self) -> TaskId {
-        TaskId("api_task_garbage_collector".to_owned())
+        "api_task_garbage_collector".into()
     }
 
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {

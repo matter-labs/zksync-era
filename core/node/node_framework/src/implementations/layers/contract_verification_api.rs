@@ -47,7 +47,7 @@ pub struct ContractVerificationApiTask {
 #[async_trait::async_trait]
 impl Task for ContractVerificationApiTask {
     fn id(&self) -> TaskId {
-        TaskId("contract_verification_api".to_owned())
+        "contract_verification_api".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

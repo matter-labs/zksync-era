@@ -54,7 +54,7 @@ struct HealthCheckTask {
 #[async_trait::async_trait]
 impl UnconstrainedTask for HealthCheckTask {
     fn id(&self) -> TaskId {
-        TaskId("healthcheck_server".to_owned())
+        "healthcheck_server".into()
     }
 
     async fn run_unconstrained(

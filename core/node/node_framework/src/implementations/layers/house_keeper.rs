@@ -180,7 +180,7 @@ struct PostgresMetricsScrapingTask {
 #[async_trait::async_trait]
 impl Task for PostgresMetricsScrapingTask {
     fn id(&self) -> TaskId {
-        TaskId("postgres_metrics_scraping".to_owned())
+        "postgres_metrics_scraping".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -204,7 +204,7 @@ struct L1BatchMetricsReporterTask {
 #[async_trait::async_trait]
 impl Task for L1BatchMetricsReporterTask {
     fn id(&self) -> TaskId {
-        TaskId("l1_batch_metrics_reporter".to_owned())
+        "l1_batch_metrics_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -220,7 +220,7 @@ struct FriProverJobRetryManagerTask {
 #[async_trait::async_trait]
 impl Task for FriProverJobRetryManagerTask {
     fn id(&self) -> TaskId {
-        TaskId("fri_prover_job_retry_manager".to_owned())
+        "fri_prover_job_retry_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -236,7 +236,7 @@ struct FriWitnessGeneratorJobRetryManagerTask {
 #[async_trait::async_trait]
 impl Task for FriWitnessGeneratorJobRetryManagerTask {
     fn id(&self) -> TaskId {
-        TaskId("fri_witness_generator_job_retry_manager".to_owned())
+        "fri_witness_generator_job_retry_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -254,7 +254,7 @@ struct WaitingToQueuedFriWitnessJobMoverTask {
 #[async_trait::async_trait]
 impl Task for WaitingToQueuedFriWitnessJobMoverTask {
     fn id(&self) -> TaskId {
-        TaskId("waiting_to_queued_fri_witness_job_mover".to_owned())
+        "waiting_to_queued_fri_witness_job_mover".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -272,7 +272,7 @@ struct FriWitnessGeneratorStatsReporterTask {
 #[async_trait::async_trait]
 impl Task for FriWitnessGeneratorStatsReporterTask {
     fn id(&self) -> TaskId {
-        TaskId("fri_witness_generator_stats_reporter".to_owned())
+        "fri_witness_generator_stats_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -290,7 +290,7 @@ struct FriProverStatsReporterTask {
 #[async_trait::async_trait]
 impl Task for FriProverStatsReporterTask {
     fn id(&self) -> TaskId {
-        TaskId("fri_prover_stats_reporter".to_owned())
+        "fri_prover_stats_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -306,7 +306,7 @@ struct FriProofCompressorStatsReporterTask {
 #[async_trait::async_trait]
 impl Task for FriProofCompressorStatsReporterTask {
     fn id(&self) -> TaskId {
-        TaskId("fri_proof_compressor_stats_reporter".to_owned())
+        "fri_proof_compressor_stats_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -324,7 +324,7 @@ struct FriProofCompressorJobRetryManagerTask {
 #[async_trait::async_trait]
 impl Task for FriProofCompressorJobRetryManagerTask {
     fn id(&self) -> TaskId {
-        TaskId("fri_proof_compressor_job_retry_manager".to_owned())
+        "fri_proof_compressor_job_retry_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -342,7 +342,7 @@ struct FriProverJobArchiverTask {
 #[async_trait::async_trait]
 impl Task for FriProverJobArchiverTask {
     fn id(&self) -> TaskId {
-        TaskId("fri_prover_job_archiver".to_owned())
+        "fri_prover_job_archiver".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -357,7 +357,7 @@ struct FriProverGpuArchiverTask {
 #[async_trait::async_trait]
 impl Task for FriProverGpuArchiverTask {
     fn id(&self) -> TaskId {
-        TaskId("fri_prover_gpu_archiver".to_owned())
+        "fri_prover_gpu_archiver".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

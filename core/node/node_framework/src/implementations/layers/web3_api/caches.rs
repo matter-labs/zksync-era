@@ -50,7 +50,7 @@ pub struct MempoolCacheUpdateTask(mempool_cache::MempoolCacheUpdateTask);
 #[async_trait::async_trait]
 impl Task for MempoolCacheUpdateTask {
     fn id(&self) -> TaskId {
-        TaskId("mempool_cache_update_task".to_owned())
+        "mempool_cache_update_task".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

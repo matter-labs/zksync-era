@@ -81,7 +81,7 @@ struct GasAdjusterTask {
 #[async_trait::async_trait]
 impl Task for GasAdjusterTask {
     fn id(&self) -> TaskId {
-        TaskId("gas_adjuster".to_owned())
+        "gas_adjuster".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
