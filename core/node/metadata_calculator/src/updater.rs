@@ -264,7 +264,7 @@ impl TreeUpdater {
                      ({last_l1_batch_with_tree_data}); this may be a result of restoring Postgres from a snapshot. \
                      Truncating Merkle tree versions so that this mismatch is fixed..."
                 );
-                tree.revert_logs(last_l1_batch_with_tree_data);
+                tree.revert_logs(last_l1_batch_with_tree_data)?;
                 tree.save().await?;
                 next_l1_batch_to_seal = tree.next_l1_batch_number();
                 tracing::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");

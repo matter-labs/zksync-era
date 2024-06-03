@@ -95,10 +95,11 @@ impl BatchExecutor for MockBatchExecutor {
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
                         resp.send(default_vm_batch_result()).unwrap();
-                        return;
+                        break;
                     }
                 }
             }
+            anyhow::Ok(())
         });
         Some(BatchExecutorHandle::from_raw(handle, send))
     }

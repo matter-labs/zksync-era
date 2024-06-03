@@ -7836,7 +7836,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#9bbf7ffd2c38ee8b9667e96eaf0c111037fe976f"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#0c5cdca00cca4fa0a8c49147a11048c24f8a4b12"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8011,6 +8011,7 @@ dependencies = [
  "num_enum 0.7.2",
  "serde",
  "serde_json",
+ "serde_with",
  "strum",
  "thiserror",
  "tiny-keccak 2.0.2",
@@ -8604,7 +8605,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.4.0"
+version = "24.6.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8986,6 +8987,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
+ "once_cell",
  "serde",
  "test-casing",
  "thiserror",

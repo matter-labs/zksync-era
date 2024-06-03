@@ -8,7 +8,7 @@ use crate::{
         pools::{MasterPool, PoolResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -52,8 +52,8 @@ pub struct TeeVerifierInputProducerTask {
 
 #[async_trait::async_trait]
 impl Task for TeeVerifierInputProducerTask {
-    fn name(&self) -> &'static str {
-        "tee_verifier_input_producer"
+    fn id(&self) -> TaskId {
+        "tee_verifier_input_producer".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

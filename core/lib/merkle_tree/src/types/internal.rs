@@ -42,22 +42,24 @@ impl TreeTags {
         }
     }
 
-    pub fn assert_consistency(&self, hasher: &dyn HashTree, expecting_recovery: bool) {
-        assert_eq!(
-            self.architecture,
-            Self::ARCHITECTURE,
+    pub fn ensure_consistency(
+        &self,
+        hasher: &dyn HashTree,
+        expecting_recovery: bool,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.architecture == Self::ARCHITECTURE,
             "Unsupported tree architecture `{}`, expected `{}`",
             self.architecture,
             Self::ARCHITECTURE
         );
-        assert_eq!(
-            self.depth, TREE_DEPTH,
+        anyhow::ensure!(
+            self.depth == TREE_DEPTH,
             "Unexpected tree depth: expected {TREE_DEPTH}, got {}",
             self.depth
         );
-        assert_eq!(
-            hasher.name(),
-            self.hasher,
+        anyhow::ensure!(
+            hasher.name() == self.hasher,
             "Mismatch between the provided tree hasher `{}` and the hasher `{}` used \
              in the database",
             hasher.name(),
@@ -65,16 +67,17 @@ impl TreeTags {
         );
 
         if expecting_recovery {
-            assert!(
+            anyhow::ensure!(
                 self.is_recovering,
                 "Tree is expected to be in the process of recovery, but it is not"
             );
         } else {
-            assert!(
+            anyhow::ensure!(
                 !self.is_recovering,
                 "Tree is being recovered; cannot access it until recovery finishes"
             );
         }
+        Ok(())
     }
 }
 

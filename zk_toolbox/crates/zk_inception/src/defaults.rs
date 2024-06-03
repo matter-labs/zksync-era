@@ -1,7 +1,13 @@
-use crate::configs::ChainConfig;
+use config::ChainConfig;
+use lazy_static::lazy_static;
+use url::Url;
 
-pub const DATABASE_SERVER_URL: &str = "postgres://postgres:notsecurepassword@localhost:5432";
-pub const DATABASE_PROVER_URL: &str = "postgres://postgres:notsecurepassword@localhost:5432";
+lazy_static! {
+    pub static ref DATABASE_SERVER_URL: Url =
+        Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
+    pub static ref DATABASE_PROVER_URL: Url =
+        Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
+}
 
 pub const ROCKS_DB_STATE_KEEPER: &str = "main/state_keeper";
 pub const ROCKS_DB_TREE: &str = "main/tree";
@@ -15,6 +21,7 @@ pub struct DBNames {
     pub server_name: String,
     pub prover_name: String,
 }
+
 pub fn generate_db_names(config: &ChainConfig) -> DBNames {
     DBNames {
         server_name: format!(
