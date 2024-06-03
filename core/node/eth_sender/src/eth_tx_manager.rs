@@ -10,8 +10,8 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::{DynClient, L1},
-    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError, Error,
-    EthInterface, ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
+    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError, EthInterface,
+    ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
@@ -127,7 +127,7 @@ impl EthTxManager {
     fn calculate_fees_with_blob_sidecar(
         &self,
         previous_sent_tx: &Option<TxHistory>,
-    ) -> Result<EthFees, ETHSenderError> {
+    ) -> Result<EthFees, EthSenderError> {
         let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
         let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
         let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
