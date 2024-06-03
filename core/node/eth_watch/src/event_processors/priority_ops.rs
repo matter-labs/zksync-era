@@ -40,7 +40,6 @@ impl EventProcessor for PriorityOpsEventProcessor {
         events: Vec<Log>,
     ) -> Result<(), EventProcessorError> {
         let first_log_block_number = events.first().map(|log| log.block_number).flatten();
-
         let last_log_block_number = events.last().map(|log| log.block_number).flatten();
 
         let mut priority_ops = Vec::new();

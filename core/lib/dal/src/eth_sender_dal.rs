@@ -554,9 +554,10 @@ impl EthSenderDal<'_, '_> {
             nonce: i64,
         }
 
+        // We assume that the `eth_txs` table may have `chain_id` column as null only in case the network is an L1
+        // network that was used before the chain id was introduced.
+        // That's why if the chain id is known we should also allow it to be 0.
         let is_known_l1 = Network::from_chain_id(chain_id).is_known_l1_network();
-
-        /// FIXME: prettify this match
         let query = match_query_as!(
             NonceRow,
             [
