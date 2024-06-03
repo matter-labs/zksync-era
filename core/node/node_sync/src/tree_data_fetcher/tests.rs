@@ -110,6 +110,7 @@ impl FetcherHarness {
         let metrics = &*Box::leak(Box::<TreeDataFetcherMetrics>::default());
         let fetcher = TreeDataFetcher {
             data_provider: Box::new(client),
+            diamond_proxy_address: None,
             pool: pool.clone(),
             metrics,
             health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,

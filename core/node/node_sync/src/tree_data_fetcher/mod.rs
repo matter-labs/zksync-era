@@ -92,6 +92,8 @@ enum StepOutcome {
 #[derive(Debug)]
 pub struct TreeDataFetcher {
     data_provider: Box<dyn TreeDataProvider>,
+    // Used in the Info metric
+    diamond_proxy_address: Option<Address>,
     pool: ConnectionPool<Core>,
     metrics: &'static TreeDataFetcherMetrics,
     health_updater: HealthUpdater,
@@ -107,6 +109,7 @@ impl TreeDataFetcher {
     pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
         Self {
             data_provider: Box::new(client.for_component("tree_data_fetcher")),
+            diamond_proxy_address: None,
             pool,
             metrics: &METRICS,
             health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,
@@ -124,12 +127,18 @@ impl TreeDataFetcher {
         eth_client: Box<DynClient<L1>>,
         diamond_proxy_address: Address,
     ) -> anyhow::Result<Self> {
+        anyhow::ensure!(
+            self.diamond_proxy_address.is_none(),
+            "L1 tree data provider is already set up"
+        );
+
         let l1_provider = L1DataProvider::new(
             self.pool.clone(),
             eth_client.for_component("tree_data_fetcher"),
             diamond_proxy_address,
         )?;
         self.data_provider = Box::new(l1_provider.with_fallback(self.data_provider));
+        self.diamond_proxy_address = Some(diamond_proxy_address);
         Ok(self)
     }
 

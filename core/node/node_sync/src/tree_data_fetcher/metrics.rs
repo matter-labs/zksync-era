@@ -13,12 +13,16 @@ use super::{provider::TreeDataProviderSource, StepOutcome, TreeDataFetcher, Tree
 struct TreeDataFetcherInfo {
     #[metrics(unit = Unit::Seconds)]
     poll_interval: DurationAsSecs,
+    diamond_proxy_address: Option<String>,
 }
 
 impl From<&TreeDataFetcher> for TreeDataFetcherInfo {
     fn from(fetcher: &TreeDataFetcher) -> Self {
         Self {
             poll_interval: fetcher.poll_interval.into(),
+            diamond_proxy_address: fetcher
+                .diamond_proxy_address
+                .map(|addr| format!("{addr:?}")),
         }
     }
 }
