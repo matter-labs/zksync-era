@@ -1,3 +1,4 @@
+use zksync_config::configs::ProtectiveReadsWriterConfig;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -61,6 +62,7 @@ pub struct TempConfigStore {
     pub object_store_config: Option<ObjectStoreConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
+    pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
 }
 
 impl TempConfigStore {
@@ -86,6 +88,7 @@ impl TempConfigStore {
             eth: self.eth_sender_config.clone(),
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
+            protective_reads_writer_config: self.protective_reads_writer_config.clone(),
         }
     }
 

@@ -154,6 +154,8 @@ pub enum Component {
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
+    /// VM runner-based component that saves protective reads to Postgres.
+    VmRunnerProtectiveReads,
 }
 
 #[derive(Debug)]

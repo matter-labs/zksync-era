@@ -1,4 +1,5 @@
-use zksync_config::configs::{chain::NetworkConfig, vm_runner::VmRunnerConfig};
+use zksync_config::configs::vm_runner::ProtectiveReadsWriterConfig;
+use zksync_types::L2ChainId;
 use zksync_vm_runner::ProtectiveReadsWriter;
 
 use crate::{
@@ -10,15 +11,18 @@ use crate::{
 
 #[derive(Debug)]
 pub struct ProtectiveReadsWriterLayer {
-    vm_runner_config: VmRunnerConfig,
-    network_config: NetworkConfig,
+    protective_reads_writer_config: ProtectiveReadsWriterConfig,
+    zksync_network_id: L2ChainId,
 }
 
 impl ProtectiveReadsWriterLayer {
-    pub fn new(vm_runner_config: VmRunnerConfig, network_config: NetworkConfig) -> Self {
+    pub fn new(
+        protective_reads_writer_config: ProtectiveReadsWriterConfig,
+        zksync_network_id: L2ChainId,
+    ) -> Self {
         Self {
-            vm_runner_config,
-            network_config,
+            protective_reads_writer_config,
+            zksync_network_id,
         }
     }
 }
@@ -34,9 +38,10 @@ impl WiringLayer for ProtectiveReadsWriterLayer {
 
         let (protective_reads_writer, tasks) = ProtectiveReadsWriter::new(
             master_pool.get_singleton().await?, // TODO: check pool size
-            self.vm_runner_config.protective_reads_db_path,
-            self.network_config.zksync_network_id,
-            self.vm_runner_config.protective_reads_window_size,
+            self.protective_reads_writer_config.protective_reads_db_path,
+            self.zksync_network_id,
+            self.protective_reads_writer_config
+                .protective_reads_window_size,
         )
         .await?;
 

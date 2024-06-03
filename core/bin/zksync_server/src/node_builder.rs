@@ -13,6 +13,7 @@ use zksync_node_api_server::{
     tx_sender::{ApiContracts, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
 };
+use zksync_node_framework::implementations::layers::vm_runner::protective_reads::ProtectiveReadsWriterLayer;
 use zksync_node_framework::{
     implementations::layers::{
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
@@ -399,6 +400,17 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_vm_runner_protective_reads_layer(mut self) -> anyhow::Result<Self> {
+        let protective_reads_writer_config =
+            try_load_config!(self.configs.protective_reads_writer_config);
+        self.node.add_layer(ProtectiveReadsWriterLayer::new(
+            protective_reads_writer_config,
+            self.genesis_config.l2_chain_id,
+        ));
+
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
         self = self
@@ -479,6 +491,9 @@ impl MainNodeBuilder {
                 }
                 Component::CommitmentGenerator => {
                     self = self.add_commitment_generator_layer()?;
+                }
+                Component::VmRunnerProtectiveReads => {
+                    self = self.add_vm_runner_protective_reads_layer()?;
                 }
             }
         }

@@ -20,6 +20,7 @@ pub use self::{
     secrets::{DatabaseSecrets, L1Secrets, Secrets},
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
+    vm_runner::ProtectiveReadsWriterConfig,
 };
 
 pub mod api;
