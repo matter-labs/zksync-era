@@ -716,7 +716,7 @@ struct Cli {
     /// Path to the yaml with genesis. If set, it will be used instead of env vars.
     #[arg(long)]
     external_node_config_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with genesis. If set, it will be used instead of env vars.
+    /// Path to the yaml with consensus.
     #[arg(long)]
     consensus_path: Option<std::path::PathBuf>,
 }

@@ -1068,6 +1068,7 @@ impl ExperimentalENConfig {
     pub fn state_keeper_db_block_cache_capacity(&self) -> usize {
         self.state_keeper_db_block_cache_capacity_mb * BYTES_IN_MEGABYTE
     }
+
     pub fn from_configs(
         general_config: &GeneralConfig,
         external_node_config: &ENConfig,

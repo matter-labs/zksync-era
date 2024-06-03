@@ -23,11 +23,16 @@ pub struct SnapshotRecovery {
 /// Temporary config for initializing external node, will be completely replaced by consensus config later
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ENConfig {
+    // Genesis
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
-    pub main_node_url: SensitiveUrl,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+
+    // Main node configuration
+    pub main_node_url: SensitiveUrl,
     pub main_node_rate_limit_rps: Option<NonZeroUsize>,
+
+    // En specific components
     pub commitment_generator_max_parallelism: Option<NonZeroU32>,
     pub tree_api_remote_url: Option<String>,
     pub snapshot_recovery: Option<SnapshotRecovery>,
