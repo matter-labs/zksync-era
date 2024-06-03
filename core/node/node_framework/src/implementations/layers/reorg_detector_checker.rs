@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Context;
-use zksync_core::reorg_detector::{self, ReorgDetector};
+use zksync_reorg_detector::{self, ReorgDetector};
 
 use crate::{
     implementations::resources::{
@@ -10,6 +10,7 @@ use crate::{
     },
     precondition::Precondition,
     service::{ServiceContext, StopReceiver},
+    task::TaskId,
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -48,15 +49,15 @@ pub struct CheckerPrecondition {
 
 #[async_trait::async_trait]
 impl Precondition for CheckerPrecondition {
-    fn name(&self) -> &'static str {
-        "reorg_detector_checker"
+    fn id(&self) -> TaskId {
+        "reorg_detector_checker".into()
     }
 
-    async fn check(mut self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn check(mut self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         loop {
-            match self.reorg_detector.check_consistency().await {
+            match self.reorg_detector.run_once(stop_receiver.0.clone()).await {
                 Ok(()) => return Ok(()),
-                Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
+                Err(zksync_reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
                     tracing::warn!(
                         "Reorg detected, last correct L1 batch #{}. Waiting till it will be resolved. Sleep for {} seconds and retry",
                         last_correct_l1_batch, REORG_DETECTED_SLEEP_INTERVAL.as_secs()

@@ -8950,6 +8950,7 @@ dependencies = [
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
  "zksync_queued_job_processor",
+ "zksync_reorg_detector",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",

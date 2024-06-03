@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_block_reverter::BlockReverter;
-use zksync_core::reorg_detector::{self, ReorgDetector};
+use zksync_reorg_detector::{self, ReorgDetector};
 
 use crate::{
     implementations::resources::{
@@ -11,7 +11,7 @@ use crate::{
         reverter::BlockReverterResource,
     },
     service::{ServiceContext, StopReceiver},
-    task::UnconstrainedOneshotTask,
+    task::{TaskId, UnconstrainedOneshotTask},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -51,17 +51,17 @@ pub struct RunnerUnconstrainedOneshotTask {
 
 #[async_trait::async_trait]
 impl UnconstrainedOneshotTask for RunnerUnconstrainedOneshotTask {
-    fn name(&self) -> &'static str {
-        "reorg_detector_runner"
+    fn id(&self) -> TaskId {
+        "reorg_detector_runner".into()
     }
 
     async fn run_unconstrained_oneshot(
         mut self: Box<Self>,
-        _stop_receiver: StopReceiver,
+        stop_receiver: StopReceiver,
     ) -> anyhow::Result<()> {
-        match self.reorg_detector.check_consistency().await {
+        match self.reorg_detector.run_once(stop_receiver.0.clone()).await {
             Ok(()) => {}
-            Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
+            Err(zksync_reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
                 tracing::info!("Reverting to l1 batch number {last_correct_l1_batch}");
                 self.reverter.roll_back(last_correct_l1_batch).await?;
                 tracing::info!("Revert successfully completed");
