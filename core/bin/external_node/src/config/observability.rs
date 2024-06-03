@@ -27,7 +27,7 @@ pub(crate) struct ObservabilityENConfig {
     /// Log format to use: either `plain` (default) or `json`.
     #[serde(default)]
     pub log_format: LogFormat,
-    /// Log directives, same as RUST_LOG
+    // Log directives in format that is used in `RUST_LOG`
     pub log_directives: Option<String>,
 }
 
