@@ -165,7 +165,17 @@ async fn health_status_immediately_after_task_start() {
             future::pending().await
         }
 
-        async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>> {
+        async fn fetch_newest_snapshot_l1_batch_number(
+            &self,
+        ) -> EnrichedClientResult<Option<L1BatchNumber>> {
+            self.0.wait().await;
+            future::pending().await
+        }
+
+        async fn fetch_snapshot(
+            &self,
+            _l1_batch_number: L1BatchNumber,
+        ) -> EnrichedClientResult<Option<SnapshotHeader>> {
             self.0.wait().await;
             future::pending().await
         }

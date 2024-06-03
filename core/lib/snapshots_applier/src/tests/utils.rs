@@ -45,8 +45,23 @@ impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
         Ok(self.fetch_l2_block_responses.get(&number).cloned())
     }
 
-    async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>> {
-        Ok(self.fetch_newest_snapshot_response.clone())
+    async fn fetch_newest_snapshot_l1_batch_number(
+        &self,
+    ) -> EnrichedClientResult<Option<L1BatchNumber>> {
+        Ok(self
+            .fetch_newest_snapshot_response
+            .as_ref()
+            .map(|response| response.l1_batch_number))
+    }
+
+    async fn fetch_snapshot(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<SnapshotHeader>> {
+        Ok(self
+            .fetch_newest_snapshot_response
+            .clone()
+            .filter(|response| response.l1_batch_number == l1_batch_number))
     }
 
     async fn fetch_tokens(
