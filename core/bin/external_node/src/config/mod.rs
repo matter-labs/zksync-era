@@ -446,7 +446,11 @@ pub(crate) struct OptionalENConfig {
 impl OptionalENConfig {
     fn from_configs(general_config: &GeneralConfig, enconfig: &ENConfig) -> anyhow::Result<Self> {
         let api_namespaces = load_config!(general_config.api_config, web3_json_rpc.api_namespaces)
-            .map(|a: Vec<String>| a.iter().map(|a| serde_json::from_str(a).unwrap()).collect());
+            .map(|a: Vec<String>| {
+                let result: Result<Vec<_>, _> = a.iter().map(|a| serde_json::from_str(a)).collect();
+                result
+            })
+            .transpose()?;
 
         Ok(OptionalENConfig {
             filters_limit: load_optional_config_or_default!(
@@ -949,7 +953,7 @@ impl RequiredENConfig {
             eth_client_url: secrets
                 .l1
                 .as_ref()
-                .context("Eth config is required")?
+                .context("L1 secrets are required")?
                 .l1_rpc_url
                 .clone(),
             main_node_url: en_config.main_node_url.clone(),
