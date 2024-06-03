@@ -22,7 +22,7 @@ use zksync_db_connection::{
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_metadata_calculator::{
     api_server::{TreeApiClient, TreeApiHttpClient},
-    MetadataCalculator, MetadataCalculatorConfig,
+    MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
 use zksync_node_api_server::{
     execution_sandbox::VmConcurrencyLimiter,
@@ -41,7 +41,7 @@ use zksync_reorg_detector::ReorgDetector;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
     seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
-    StateKeeperPersistence, ZkSyncStateKeeper,
+    StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
@@ -66,7 +66,6 @@ mod metadata;
 mod metrics;
 #[cfg(test)]
 mod tests;
-mod version_sync_task;
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -96,11 +95,8 @@ async fn build_state_keeper(
         stop_receiver_clone.changed().await?;
         result
     }));
-    let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
-        Arc::new(storage_factory),
-        save_call_traces,
-        true,
-    ));
+    let batch_executor_base: Box<dyn BatchExecutor> =
+        Box::new(MainBatchExecutor::new(save_call_traces, true));
 
     let io = ExternalIO::new(
         connection_pool,
@@ -117,6 +113,7 @@ async fn build_state_keeper(
         batch_executor_base,
         output_handler,
         Arc::new(NoopSealer),
+        Arc::new(storage_factory),
     ))
 }
 
@@ -141,6 +138,9 @@ async fn run_tree(
             .merkle_tree_include_indices_and_filters_in_block_cache,
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
+        recovery: MetadataCalculatorRecoveryConfig {
+            desired_chunk_size: config.experimental.snapshots_recovery_tree_chunk_size,
+        },
     };
 
     let max_concurrency = config
@@ -230,9 +230,11 @@ async fn run_core(
         tracing::warn!("Disabling persisting protective reads; this should be safe, but is considered an experimental option at the moment");
         persistence = persistence.without_protective_reads();
     }
+    let tree_writes_persistence = TreeWritesPersistence::new(connection_pool.clone());
 
-    let output_handler =
-        OutputHandler::new(Box::new(persistence)).with_handler(Box::new(sync_state.clone()));
+    let output_handler = OutputHandler::new(Box::new(persistence))
+        .with_handler(Box::new(tree_writes_persistence))
+        .with_handler(Box::new(sync_state.clone()));
     let state_keeper = build_state_keeper(
         action_queue,
         config.required.state_cache_path.clone(),
@@ -626,7 +628,8 @@ async fn init_tasks(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone());
+        let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone())
+            .with_l1_data(eth_client.clone(), config.remote.diamond_proxy_addr)?;
         app_health.insert_component(fetcher.health_check())?;
         task_handles.push(tokio::spawn(fetcher.run(stop_receiver.clone())));
     }
@@ -671,20 +674,6 @@ async fn init_tasks(
             components,
         )
         .await?;
-    }
-
-    if let Some(prometheus) = config.observability.prometheus() {
-        tracing::info!("Starting Prometheus exporter with configuration: {prometheus:?}");
-
-        let (prometheus_health_check, prometheus_health_updater) =
-            ReactiveHealthCheck::new("prometheus_exporter");
-        app_health.insert_component(prometheus_health_check)?;
-        task_handles.push(tokio::spawn(async move {
-            prometheus_health_updater.update(HealthStatus::Ready.into());
-            let result = prometheus.run(stop_receiver).await;
-            drop(prometheus_health_updater);
-            result
-        }));
     }
 
     Ok(())
@@ -882,6 +871,24 @@ async fn run_node(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         app_health.clone(),
     );
+    // Start exporting metrics at the very start so that e.g., snapshot recovery metrics are timely reported.
+    let prometheus_task = if let Some(prometheus) = config.observability.prometheus() {
+        tracing::info!("Starting Prometheus exporter with configuration: {prometheus:?}");
+
+        let (prometheus_health_check, prometheus_health_updater) =
+            ReactiveHealthCheck::new("prometheus_exporter");
+        app_health.insert_component(prometheus_health_check)?;
+        let stop_receiver_for_exporter = stop_receiver.clone();
+        Some(tokio::spawn(async move {
+            prometheus_health_updater.update(HealthStatus::Ready.into());
+            let result = prometheus.run(stop_receiver_for_exporter).await;
+            drop(prometheus_health_updater);
+            result
+        }))
+    } else {
+        None
+    };
+
     // Start scraping Postgres metrics before store initialization as well.
     let pool_for_metrics = singleton_pool_builder.build().await?;
     let mut stop_receiver_for_metrics = stop_receiver.clone();
@@ -905,20 +912,8 @@ async fn run_node(
     );
     let validate_chain_ids_task = tokio::spawn(validate_chain_ids_task.run(stop_receiver.clone()));
 
-    let version_sync_task_pool = connection_pool.clone();
-    let version_sync_task_main_node_client = main_node_client.clone();
-    let mut stop_receiver_for_version_sync = stop_receiver.clone();
-    let version_sync_task = tokio::spawn(async move {
-        version_sync_task::sync_versions(
-            version_sync_task_pool,
-            version_sync_task_main_node_client,
-        )
-        .await?;
-
-        stop_receiver_for_version_sync.changed().await.ok();
-        Ok(())
-    });
-    let mut task_handles = vec![metrics_task, validate_chain_ids_task, version_sync_task];
+    let mut task_handles = vec![metrics_task, validate_chain_ids_task];
+    task_handles.extend(prometheus_task);
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(

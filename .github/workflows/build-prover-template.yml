@@ -32,6 +32,10 @@ on:
         type: string
         default: "89"
         required: false
+    outputs:
+      protocol_version:
+        description: "Protocol version of the binary"
+        value: ${{ jobs.build-images.outputs.protocol_version }}
 
 jobs:
   build-images:
@@ -52,6 +56,8 @@ jobs:
           - prover-fri-gateway
           - proof-fri-compressor
           - proof-fri-gpu-compressor
+    outputs:
+      protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -141,12 +147,23 @@ jobs:
           rm temp.json
           exit 1
 
+      - name: protocol-version
+        id: protocolversion
+        # TODO: use -C flag, when it will become stable.
+        shell: bash
+        run: |
+          ci_run bash -c "cd prover && cargo build --release --bin prover_version"
+          PPV=$(ci_run prover/target/release/prover_version)
+          echo Protocol version is ${PPV}
+          echo "protocol_version=${PPV}" >> $GITHUB_OUTPUT
+          echo "PROTOCOL_VERSION=${PPV}" >> $GITHUB_ENV
+
       - name: update-images
         env:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
         run: |
-          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH" \
+          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH,PROTOCOL_VERSION" \
           ci_run zk docker $DOCKER_ACTION $COMPONENT
 
       - name: Show sccache stats
@@ -157,10 +174,11 @@ jobs:
   
   copy-images:
     name: Copy images between docker registries
+    needs: build-images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      PROTOCOL_VERSION: ${{ needs.build-images.outputs.protocol_version }}
     runs-on: matterlabs-ci-runner
-    needs: build-images
     if: ${{ inputs.action == 'push' }}
     strategy:
       matrix:
@@ -184,6 +202,9 @@ jobs:
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+          docker buildx imagetools create \
+            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
       - name: Login and push to Europe GAR
         run: |
@@ -191,4 +212,7 @@ jobs:
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+          docker buildx imagetools create \
+            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }}
           

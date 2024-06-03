@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::ProtocolVersionId;
 
 use crate::{periodic_job::PeriodicJob, prover::metrics::FRI_PROVER_METRICS};
 
@@ -40,7 +39,7 @@ impl PeriodicJob for FriProverQueueReporter {
         let mut conn = self.prover_connection_pool.connection().await.unwrap();
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
-        for ((circuit_id, aggregation_round), stats) in stats.into_iter() {
+        for (job_identifiers, stats) in &stats {
             // BEWARE, HERE BE DRAGONS.
             // In database, the `circuit_id` stored is the circuit for which the aggregation is done,
             // not the circuit which is running.
@@ -48,32 +47,35 @@ impl PeriodicJob for FriProverQueueReporter {
             // This can aggregate multiple leaf nodes (which may belong to different circuits).
             // This reporting is a hacky forced way to use `circuit_id` 2 which will solve auto scalers.
             // A proper fix will be later provided to solve this at database level.
-            let circuit_id = if aggregation_round == 2 {
+            let circuit_id = if job_identifiers.aggregation_round == 2 {
                 2
             } else {
-                circuit_id
+                job_identifiers.circuit_id
             };
 
             let group_id = self
                 .config
-                .get_group_id_for_circuit_id_and_aggregation_round(circuit_id, aggregation_round)
+                .get_group_id_for_circuit_id_and_aggregation_round(
+                    circuit_id,
+                    job_identifiers.aggregation_round,
+                )
                 .unwrap_or(u8::MAX);
 
             FRI_PROVER_METRICS.report_prover_jobs(
                 "queued",
                 circuit_id,
-                aggregation_round,
+                job_identifiers.aggregation_round,
                 group_id,
-                ProtocolVersionId::current_prover_version(),
+                job_identifiers.get_semantic_protocol_version(),
                 stats.queued as u64,
             );
 
             FRI_PROVER_METRICS.report_prover_jobs(
                 "in_progress",
                 circuit_id,
-                aggregation_round,
+                job_identifiers.aggregation_round,
                 group_id,
-                ProtocolVersionId::current_prover_version(),
+                job_identifiers.get_semantic_protocol_version(),
                 stats.in_progress as u64,
             );
         }

@@ -13,7 +13,7 @@ use zksync_types::{
 use zksync_web3_decl::client::{DynClient, MockClient, L1};
 
 use crate::{
-    types::{Error, SignedCallResult},
+    types::{ContractCallError, SignedCallResult, SigningError},
     BoundEthInterface, Options, RawTransactionBytes,
 };
 
@@ -474,7 +474,7 @@ impl MockEthereum {
         mut raw_tx: Vec<u8>,
         contract_addr: Address,
         options: Options,
-    ) -> Result<SignedCallResult, Error> {
+    ) -> Result<SignedCallResult, SigningError> {
         let max_fee_per_gas = options.max_fee_per_gas.unwrap_or(self.max_fee_per_gas);
         let max_priority_fee_per_gas = options
             .max_priority_fee_per_gas
@@ -569,7 +569,7 @@ impl BoundEthInterface for MockEthereum {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
-    ) -> Result<SignedCallResult, Error> {
+    ) -> Result<SignedCallResult, SigningError> {
         self.sign_prepared_tx(data, contract_addr, options)
     }
 
@@ -578,7 +578,7 @@ impl BoundEthInterface for MockEthereum {
         _token_address: Address,
         _contract_address: Address,
         _erc20_abi: &ethabi::Contract,
-    ) -> Result<U256, Error> {
+    ) -> Result<U256, ContractCallError> {
         unimplemented!("Not needed right now")
     }
 }
@@ -695,6 +695,7 @@ mod tests {
     async fn calling_contracts() {
         let client = MockEthereum::builder()
             .with_call_handler(|req, _block_id| {
+                let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
                 let call_signature = &req.data.as_ref().unwrap().0[..4];
                 let contract = zksync_contracts::hyperchain_contract();
                 let pricing_mode_sig = contract
@@ -709,15 +710,13 @@ mod tests {
                     sig if sig == pricing_mode_sig => {
                         ethabi::Token::Uint(0.into()) // "rollup" mode encoding
                     }
-                    sig if sig == protocol_version_sig => {
-                        ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
-                    }
+                    sig if sig == protocol_version_sig => ethabi::Token::Uint(packed_semver),
                     _ => panic!("unexpected call"),
                 }
             })
             .build();
 
-        let protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+        let l1_packed_protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
             .for_contract(
                 client.contract_addr(),
                 &zksync_contracts::hyperchain_contract(),
@@ -725,10 +724,9 @@ mod tests {
             .call(client.as_ref())
             .await
             .unwrap();
-        assert_eq!(
-            protocol_version,
-            (ProtocolVersionId::latest() as u16).into()
-        );
+        let expected_packed_protocol_version =
+            ProtocolVersionId::latest().into_packed_semver_with_patch(0);
+        assert_eq!(l1_packed_protocol_version, expected_packed_protocol_version);
 
         let commitment_mode: L1BatchCommitmentMode =
             CallFunctionArgs::new("getPubdataPricingMode", ())

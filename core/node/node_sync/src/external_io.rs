@@ -16,8 +16,9 @@ use zksync_state_keeper::{
     updates::UpdatesManager,
 };
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::{ProtocolSemanticVersion, VersionPatch},
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
 
@@ -341,10 +342,13 @@ impl StateKeeperIO for ExternalIO {
             .await?
             .protocol_versions_dal()
             .save_protocol_version(
-                protocol_version
-                    .version_id
-                    .try_into()
-                    .context("cannot convert protocol version")?,
+                ProtocolSemanticVersion {
+                    minor: protocol_version
+                        .version_id
+                        .try_into()
+                        .context("cannot convert protocol version")?,
+                    patch: VersionPatch(0),
+                },
                 protocol_version.timestamp,
                 protocol_version.verification_keys_hashes,
                 protocol_version.base_system_contracts,

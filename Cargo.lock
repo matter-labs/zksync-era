@@ -1015,7 +1015,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#05502ec874bd1dbfd8a72cd7df340a2fe3f6d3a0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#a9b1c3a3cf46e683d6a27db33805d994ca8476ec"
 dependencies = [
  "derivative",
  "serde",
@@ -1077,14 +1077,13 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#05502ec874bd1dbfd8a72cd7df340a2fe3f6d3a0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#a9b1c3a3cf46e683d6a27db33805d994ca8476ec"
 dependencies = [
  "bellman_ce",
  "circuit_encodings 0.1.50",
  "derivative",
  "rayon",
  "serde",
- "zk_evm 1.5.0",
 ]
 
 [[package]]
@@ -3242,13 +3241,16 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#394e1c7d1aec06d2f3abd63bdc2ddf0efef5ac49"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#a9b1c3a3cf46e683d6a27db33805d994ca8476ec"
 dependencies = [
  "boojum",
  "derivative",
+ "hex",
+ "once_cell",
  "rayon",
  "serde",
  "serde_json",
+ "serde_with",
  "zkevm_circuits 1.5.0",
 ]
 
@@ -7834,7 +7836,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#9bbf7ffd2c38ee8b9667e96eaf0c111037fe976f"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#0c5cdca00cca4fa0a8c49147a11048c24f8a4b12"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -7926,7 +7928,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#a93a3a5c34ec1ec31d73191d11ab00b4d8215a3f"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#b7a86c739e8a8f88e788e90893c6e7496f6d7dfc"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
@@ -7984,7 +7986,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#109d9f734804a8b9dc0531c0b576e2a0f55a40de"
+source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#28d2edabf902ea9b08f6a26a4506831fd89346b9"
 dependencies = [
  "bitflags 2.4.1",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -8009,6 +8011,7 @@ dependencies = [
  "num_enum 0.7.2",
  "serde",
  "serde_json",
+ "serde_with",
  "strum",
  "thiserror",
  "tiny-keccak 2.0.2",
@@ -8021,6 +8024,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
+ "futures 0.3.28",
  "serde",
  "tempfile",
  "test-casing",
@@ -8602,7 +8607,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.4.0"
+version = "24.6.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8883,6 +8888,7 @@ dependencies = [
  "zksync_dal",
  "zksync_db_connection",
  "zksync_health_check",
+ "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_types",
 ]
@@ -8921,6 +8927,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
+ "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",
@@ -8928,7 +8935,6 @@ dependencies = [
  "zksync_consistency_checker",
  "zksync_contract_verification_server",
  "zksync_contracts",
- "zksync_core_leftovers",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_env_config",
@@ -8945,9 +8951,12 @@ dependencies = [
  "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
+ "zksync_queued_job_processor",
+ "zksync_reorg_detector",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
+ "zksync_tee_verifier_input_producer",
  "zksync_types",
  "zksync_utils",
  "zksync_web3_decl",
@@ -8982,6 +8991,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
+ "once_cell",
  "serde",
  "test-casing",
  "thiserror",
@@ -9024,6 +9034,7 @@ name = "zksync_object_store"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "bincode",
  "flate2",
@@ -9031,6 +9042,7 @@ dependencies = [
  "google-cloud-storage",
  "http",
  "prost 0.12.1",
+ "rand 0.8.5",
  "serde_json",
  "tempfile",
  "tokio",
@@ -9165,6 +9177,7 @@ dependencies = [
  "anyhow",
  "clap 4.4.6",
  "futures 0.3.28",
+ "prometheus_exporter",
  "serde_json",
  "tikv-jemallocator",
  "tokio",
@@ -9178,6 +9191,9 @@ dependencies = [
  "zksync_core_leftovers",
  "zksync_env_config",
  "zksync_eth_client",
+ "zksync_metadata_calculator",
+ "zksync_node_api_server",
+ "zksync_node_framework",
  "zksync_node_genesis",
  "zksync_protobuf_config",
  "zksync_storage",
@@ -9402,6 +9418,7 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "num",
+ "once_cell",
  "rand 0.8.5",
  "reqwest",
  "serde",
@@ -9437,7 +9454,9 @@ dependencies = [
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
+ "zksync_test_account",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

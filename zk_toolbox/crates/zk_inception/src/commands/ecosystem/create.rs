@@ -1,7 +1,15 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use anyhow::bail;
 use common::{cmd::Cmd, logger, spinner::Spinner};
+use config::{
+    create_local_configs_dir, create_wallets, get_default_era_chain_id,
+    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
+    ZKSYNC_ERA_GIT_REPO,
+};
 use xshell::{cmd, Shell};
 
 use crate::{
@@ -13,16 +21,19 @@ use crate::{
             create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
         },
     },
-    configs::{EcosystemConfig, EcosystemConfigFromFileError, SaveConfig},
-    consts::{CONFIG_NAME, ERA_CHAIN_ID, LOCAL_CONFIGS_PATH, WALLETS_FILE, ZKSYNC_ERA_GIT_REPO},
-    wallets::create_wallets,
+    messages::{
+        MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATED_ECOSYSTEM, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
+        MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
+        MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
+        MSG_STARTING_CONTAINERS_SPINNER,
+    },
 };
 
 pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     match EcosystemConfig::from_file(shell) {
-        Ok(_) => bail!("Ecosystem already exists"),
+        Ok(_) => bail!(MSG_ECOSYSTEM_ALREADY_EXISTS_ERR),
         Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
-            bail!("Invalid ecosystem configuration")
+            bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
         }
         Err(EcosystemConfigFromFileError::NotExists) => create(args, shell)?,
     };
@@ -33,25 +44,27 @@ pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
 
-    logger::note("Selected config:", logger::object_to_string(&args));
-    logger::info("Creating ecosystem");
+    logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
+    logger::info(MSG_CREATING_ECOSYSTEM);
 
     let ecosystem_name = &args.ecosystem_name;
     shell.create_dir(ecosystem_name)?;
     shell.change_dir(ecosystem_name);
 
-    let configs_path = shell.create_dir(LOCAL_CONFIGS_PATH)?;
+    let configs_path = create_local_configs_dir(shell, ".")?;
 
     let link_to_code = if args.link_to_code.is_empty() {
-        let spinner = Spinner::new("Cloning zksync-era repository...");
+        let spinner = Spinner::new(MSG_CLONING_ERA_REPO_SPINNER);
         let link_to_code = clone_era_repo(shell)?;
         spinner.finish();
         link_to_code
     } else {
-        PathBuf::from_str(&args.link_to_code)?
+        let path = PathBuf::from_str(&args.link_to_code)?;
+        update_submodules_recursive(shell, &path)?;
+        path
     };
 
-    let spinner = Spinner::new("Creating initial configurations...");
+    let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
     let chain_config = args.chain_config();
     let chains_path = shell.create_dir("chains")?;
     let default_chain_name = args.chain_args.chain_name.clone();
@@ -65,9 +78,8 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         link_to_code: link_to_code.clone(),
         chains: chains_path.clone(),
         config: configs_path,
+        era_chain_id: get_default_era_chain_id(),
         default_chain: default_chain_name.clone(),
-        l1_rpc_url: args.l1_rpc_url,
-        era_chain_id: ERA_CHAIN_ID,
         prover_version: chain_config.prover_version,
         wallet_creation: args.wallet_creation,
         shell: shell.clone().into(),
@@ -76,27 +88,27 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     // Use 0 id for ecosystem  wallets
     create_wallets(
         shell,
-        &ecosystem_config.config.join(WALLETS_FILE),
+        &ecosystem_config.config,
         &ecosystem_config.link_to_code,
         0,
         args.wallet_creation,
         args.wallet_path,
     )?;
-    ecosystem_config.save(shell, CONFIG_NAME)?;
+    ecosystem_config.save_with_base_path(shell, ".")?;
     spinner.finish();
 
-    let spinner = Spinner::new("Creating default chain...");
+    let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
     create_chain_inner(chain_config, &ecosystem_config, shell)?;
     spinner.finish();
 
     if args.start_containers {
-        let spinner = Spinner::new("Starting containers...");
+        let spinner = Spinner::new(MSG_STARTING_CONTAINERS_SPINNER);
         initialize_docker(shell, &ecosystem_config)?;
         start_containers(shell)?;
         spinner.finish();
     }
 
-    logger::outro("Ecosystem created successfully");
+    logger::outro(MSG_CREATED_ECOSYSTEM);
     Ok(())
 }
 
@@ -107,4 +119,15 @@ fn clone_era_repo(shell: &Shell) -> anyhow::Result<PathBuf> {
     ))
     .run()?;
     Ok(shell.current_dir().join("zksync-era"))
+}
+
+fn update_submodules_recursive(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(link_to_code);
+    Cmd::new(cmd!(
+        shell,
+        "git submodule update --init --recursive
+"
+    ))
+    .run()?;
+    Ok(())
 }
