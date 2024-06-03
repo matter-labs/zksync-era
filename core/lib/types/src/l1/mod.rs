@@ -242,6 +242,7 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
         assert_eq!(req.transaction.nonce, req.tx_id); // serial id from decoded from transaction bytes should be equal to one from event
         assert_eq!(req.transaction.max_priority_fee_per_gas, U256::zero());
         assert_eq!(req.transaction.paymaster, U256::zero());
+        assert_eq!(req.transaction.hash(), H256::from_slice(&req.tx_hash));
         let factory_deps_hashes: Vec<_> = req
             .factory_deps
             .iter()
@@ -255,8 +256,6 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
         // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
         assert!(req.transaction.paymaster_input.is_empty());
         assert!(req.transaction.reserved_dynamic.is_empty());
-        tracing::info!("req = {:?}",req);
-        assert_eq!(req.transaction.hash(), H256::from_slice(&req.tx_hash));
 
         let common_data = L1TxCommonData {
             serial_id: PriorityOpId(req.transaction.nonce.try_into().unwrap()),

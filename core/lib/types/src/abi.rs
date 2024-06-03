@@ -10,7 +10,7 @@ use crate::{
 
 /// `Transaction` from `system-contracts/contracts/libraries/TransactionHelper.sol`.
 /// `L2CanonicalTransaction` from `l1-contracts/contracts/zksync/interfaces/IMailbox.sol`.
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct L2CanonicalTransaction {
     pub tx_type: U256,
     pub from: U256,
@@ -136,9 +136,12 @@ impl NewPriorityRequest {
             Token::FixedBytes(self.tx_hash.into()),
             Token::Uint(self.expiration_timestamp.into()),
             self.transaction.encode(),
-            Token::Array(self.factory_deps.iter()
-                .map(|b|Token::Bytes(b.clone()))
-                .collect()),
+            Token::Array(
+                self.factory_deps
+                    .iter()
+                    .map(|b| Token::Bytes(b.clone()))
+                    .collect(),
+            ),
         ]
     }
 
@@ -154,6 +157,8 @@ impl NewPriorityRequest {
             data,
         )?;
         let mut t = tokens.into_iter();
+        // All the unwraps are save because `ethabi::decode()` has validated
+        // the input.
         let mut next = || t.next().unwrap();
         Ok(Self {
             tx_id: next().into_uint().unwrap(),
@@ -250,7 +255,12 @@ impl ProposedUpgrade {
     pub fn encode(&self) -> Token {
         Token::Tuple(vec![
             self.l2_protocol_upgrade_tx.encode(),
-            Token::Array(self.factory_deps.iter().map(|b|Token::Bytes(b.clone())).collect()),
+            Token::Array(
+                self.factory_deps
+                    .iter()
+                    .map(|b| Token::Bytes(b.clone()))
+                    .collect(),
+            ),
             Token::FixedBytes(self.bootloader_hash.into()),
             Token::FixedBytes(self.default_account_hash.into()),
             Token::Address(self.verifier),

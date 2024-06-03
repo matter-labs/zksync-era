@@ -1,5 +1,6 @@
 use std::convert::{TryFrom, TryInto};
 
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     ethabi,
@@ -77,6 +78,16 @@ pub struct ProtocolUpgrade {
     pub tx: Option<ProtocolUpgradeTx>,
 }
 
+impl From<VerifierParams> for abi::VerifierParams {
+    fn from(x: VerifierParams) -> Self {
+        Self {
+            recursion_node_level_vk_hash: x.recursion_node_level_vk_hash.into(),
+            recursion_leaf_level_vk_hash: x.recursion_node_level_vk_hash.into(),
+            recursion_circuits_set_vks_hash: x.recursion_circuits_set_vks_hash.into(),
+        }
+    }
+}
+
 impl From<abi::VerifierParams> for VerifierParams {
     fn from(x: abi::VerifierParams) -> Self {
         Self {
@@ -93,17 +104,18 @@ impl ProtocolUpgrade {
         init_calldata: &[u8],
         eth_hash: H256,
         eth_block: u64,
-    ) -> Result<Self, ethabi::Error> {
+    ) -> anyhow::Result<Self> {
         let upgrade = ethabi::decode(
             &[abi::ProposedUpgrade::schema()],
-            init_calldata.get(4..).ok_or(ethabi::Error::InvalidData)?,
-        )?;
+            init_calldata.get(4..).context("need >= 4 bytes")?,
+        )
+        .context("ethabi::decode()")?;
         let upgrade = abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap()).unwrap();
         let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
         Ok(Self {
             version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
-                .expect("Version is not supported"),
+                .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?,
             bootloader_code_hash: (bootloader_hash != H256::zero()).then_some(bootloader_hash),
             default_account_code_hash: (default_account_hash != H256::zero())
                 .then_some(default_account_hash),
@@ -111,18 +123,20 @@ impl ProtocolUpgrade {
                 .then_some(upgrade.verifier_params.into()),
             verifier_address: (upgrade.verifier != Address::zero()).then_some(upgrade.verifier),
             timestamp: upgrade.upgrade_timestamp.try_into().unwrap(),
-            tx: (upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero()).then(|| {
-                Transaction::try_from(abi::Transaction::L1 {
-                    tx: upgrade.l2_protocol_upgrade_tx,
-                    factory_deps: upgrade.factory_deps,
-                    eth_hash,
-                    eth_block,
-                    received_timestamp_ms: helpers::unix_timestamp_ms(),
+            tx: (upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero())
+                .then(|| {
+                    Transaction::try_from(abi::Transaction::L1 {
+                        tx: upgrade.l2_protocol_upgrade_tx,
+                        factory_deps: upgrade.factory_deps,
+                        eth_hash,
+                        eth_block,
+                        received_timestamp_ms: helpers::unix_timestamp_ms(),
+                    })
+                    .context("Transaction::try_from()")?
+                    .try_into()
+                    .map_err(|err| anyhow::format_err!("try_into::<ProtocolUpgradeTx>(): {err}"))
                 })
-                .unwrap()
-                .try_into()
-                .unwrap()
-            }),
+                .transpose()?,
         })
     }
 }
@@ -157,17 +171,15 @@ pub fn decode_set_chain_id_event(
 }
 
 impl TryFrom<Call> for ProtocolUpgrade {
-    type Error = ethabi::Error;
+    type Error = anyhow::Error;
 
     fn try_from(call: Call) -> Result<Self, Self::Error> {
-        if call.data.len() < 4 {
-            return Err(ethabi::Error::InvalidData);
-        }
-
+        anyhow::ensure!(call.data.len() >= 4);
         let (signature, data) = call.data.split_at(4);
 
         let diamond_cut_tokens =
             if signature.to_vec() == ADMIN_EXECUTE_UPGRADE_FUNCTION.short_signature().to_vec() {
+                // Unwraps are safe, because we validate the input against the function signature.
                 ADMIN_EXECUTE_UPGRADE_FUNCTION
                     .decode_input(data)?
                     .pop()
@@ -188,16 +200,19 @@ impl TryFrom<Call> for ProtocolUpgrade {
                 );
 
                 // The second item must be a tuple of diamond cut data
+                // Unwraps are safe, because we validate the input against the function signature.
                 data.pop().unwrap().into_tuple().unwrap()
             } else {
-                return Err(crate::ethabi::Error::InvalidData);
+                anyhow::bail!("unknown function");
             };
 
         ProtocolUpgrade::try_from_init_calldata(
+            // Unwrap is safe because we have validated the input against the function signature.
             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
             call.eth_hash,
             call.eth_block,
         )
+        .context("ProtocolUpgrade::try_from_init_calldata()")
     }
 }
 
