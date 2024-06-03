@@ -67,11 +67,13 @@ message ProtocolUpgradeTxCommonData {
   optional bytes max_fee_per_gas = 3; // required; U256
   optional bytes gas_limit = 4; // required; U256
   optional bytes gas_per_pubdata_limit = 5; // required; U256
-  optional bytes eth_hash = 6; // required; U256
-  optional uint64 eth_block = 7; // required
   optional bytes canonical_tx_hash = 8; // required; H256
   optional bytes to_mint = 9; // required; U256
   optional bytes refund_recipient_address = 10; // required; H160
+  
+  // deprecated.
+  optional bytes eth_hash = 6; // required; constant = [0;32]
+  optional uint64 eth_block = 7; // required
 }
 
 message Execute {
