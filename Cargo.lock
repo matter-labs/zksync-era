@@ -8024,6 +8024,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
+ "futures 0.3.28",
  "serde",
  "tempfile",
  "test-casing",
@@ -9032,6 +9034,7 @@ name = "zksync_object_store"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "bincode",
  "flate2",
@@ -9039,6 +9042,7 @@ dependencies = [
  "google-cloud-storage",
  "http",
  "prost 0.12.1",
+ "rand 0.8.5",
  "serde_json",
  "tempfile",
  "tokio",

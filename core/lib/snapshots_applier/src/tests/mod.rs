@@ -50,7 +50,10 @@ async fn snapshots_creator_can_successfully_recover_db(
             if error_counter.fetch_add(1, Ordering::SeqCst) >= 3 {
                 Ok(()) // "recover" after 3 retries
             } else {
-                Err(ObjectStoreError::Other("transient error".into()))
+                Err(ObjectStoreError::Other {
+                    is_transient: true,
+                    source: "transient error".into(),
+                })
             }
         });
         Arc::new(object_store_with_errors)
@@ -315,7 +318,10 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 100);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
     let object_store = ObjectStoreWithErrors::new(object_store, |_| {
-        Err(ObjectStoreError::Other("service not available".into()))
+        Err(ObjectStoreError::Other {
+            is_transient: true,
+            source: "service not available".into(),
+        })
     });
 
     let task = SnapshotsApplierTask::new(
@@ -328,7 +334,7 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
     assert!(err.chain().any(|cause| {
         matches!(
             cause.downcast_ref::<ObjectStoreError>(),
-            Some(ObjectStoreError::Other(_))
+            Some(ObjectStoreError::Other { .. })
         )
     }));
 }
