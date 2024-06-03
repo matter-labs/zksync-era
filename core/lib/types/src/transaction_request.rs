@@ -66,10 +66,31 @@ pub struct CallRequest {
     pub eip712_meta: Option<Eip712Meta>,
 }
 
+/// While some default parameters are usually provided for the `eth_call` methods,
+/// sometimes users may want to override those.
+pub struct CallOverrides {
+    pub enforced_base_fee: Option<u64>,
+}
+
 impl CallRequest {
     /// Function to return a builder for a Call Request
     pub fn builder() -> CallRequestBuilder {
         CallRequestBuilder::default()
+    }
+
+    pub fn get_call_overrides(&self) -> Result<CallOverrides, SerializationTransactionError> {
+        let provided_gas_price = self.max_fee_per_gas.or(self.gas_price);
+        let enforced_base_fee = if let Some(provided_gas_price) = provided_gas_price {
+            Some(
+                provided_gas_price
+                    .try_into()
+                    .map_err(|_| SerializationTransactionError::MaxFeePerGasNotU64)?,
+            )
+        } else {
+            None
+        };
+
+        Ok(CallOverrides { enforced_base_fee })
     }
 }
 
@@ -183,10 +204,16 @@ pub enum SerializationTransactionError {
     AccessListsNotSupported,
     #[error("nonce has max value")]
     TooBigNonce,
-    /// Sanity check error to avoid extremely big numbers specified
+
+    /// Sanity checks to avoid extremely big numbers specified
     /// to gas and pubdata price.
-    #[error("{0}")]
-    TooHighGas(String),
+    #[error("max fee per gas higher than 2^64-1")]
+    MaxFeePerGasNotU64,
+    #[error("max fee per pubdata byte higher than 2^64-1")]
+    MaxFeePerPubdataByteNotU64,
+    #[error("max priority fee per gas higher than 2^64-1")]
+    MaxPriorityFeePerGasNotU64,
+
     /// OversizedData is returned if the raw tx size is greater
     /// than some meaningful limit a user might use. This is not a consensus error
     /// making the transaction invalid, rather a DOS protection.
@@ -736,16 +763,12 @@ impl TransactionRequest {
 
     fn get_fee_data_checked(&self) -> Result<Fee, SerializationTransactionError> {
         if self.gas_price > u64::MAX.into() {
-            return Err(SerializationTransactionError::TooHighGas(
-                "max fee per gas higher than 2^64-1".to_string(),
-            ));
+            return Err(SerializationTransactionError::MaxFeePerGasNotU64);
         }
 
         let gas_per_pubdata_limit = if let Some(meta) = &self.eip712_meta {
             if meta.gas_per_pubdata > u64::MAX.into() {
-                return Err(SerializationTransactionError::TooHighGas(
-                    "max fee per pubdata byte higher than 2^64-1".to_string(),
-                ));
+                return Err(SerializationTransactionError::MaxFeePerPubdataByteNotU64);
             } else if meta.gas_per_pubdata == U256::zero() {
                 return Err(SerializationTransactionError::GasPerPubDataLimitZero);
             }
@@ -757,9 +780,7 @@ impl TransactionRequest {
 
         let max_priority_fee_per_gas = self.max_priority_fee_per_gas.unwrap_or(self.gas_price);
         if max_priority_fee_per_gas > u64::MAX.into() {
-            return Err(SerializationTransactionError::TooHighGas(
-                "max priority fee per gas higher than 2^64-1".to_string(),
-            ));
+            return Err(SerializationTransactionError::MaxPriorityFeePerGasNotU64);
         }
 
         Ok(Fee {
@@ -1316,9 +1337,7 @@ mod tests {
             L2Tx::from_request(tx1, usize::MAX);
         assert_eq!(
             execute_tx1.unwrap_err(),
-            SerializationTransactionError::TooHighGas(
-                "max fee per gas higher than 2^64-1".to_string()
-            )
+            SerializationTransactionError::MaxFeePerGasNotU64
         );
 
         let tx2 = TransactionRequest {
@@ -1332,9 +1351,7 @@ mod tests {
             L2Tx::from_request(tx2, usize::MAX);
         assert_eq!(
             execute_tx2.unwrap_err(),
-            SerializationTransactionError::TooHighGas(
-                "max priority fee per gas higher than 2^64-1".to_string()
-            )
+            SerializationTransactionError::MaxPriorityFeePerGasNotU64
         );
 
         let tx3 = TransactionRequest {
@@ -1352,9 +1369,7 @@ mod tests {
             L2Tx::from_request(tx3, usize::MAX);
         assert_eq!(
             execute_tx3.unwrap_err(),
-            SerializationTransactionError::TooHighGas(
-                "max fee per pubdata byte higher than 2^64-1".to_string()
-            )
+            SerializationTransactionError::MaxFeePerPubdataByteNotU64
         );
     }
 

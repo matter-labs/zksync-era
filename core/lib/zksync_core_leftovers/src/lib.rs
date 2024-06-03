@@ -915,7 +915,6 @@ pub async fn start_eth_watch(
 
     let eth_watch = EthWatch::new(
         diamond_proxy_addr,
-        state_transition_manager_addr,
         &governance.0,
         Box::new(eth_client),
         pool,

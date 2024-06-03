@@ -19,7 +19,7 @@ use zksync_house_keeper::{
 use crate::{
     implementations::resources::pools::{PoolResource, ProverPool, ReplicaPool},
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -179,8 +179,8 @@ struct PostgresMetricsScrapingTask {
 
 #[async_trait::async_trait]
 impl Task for PostgresMetricsScrapingTask {
-    fn name(&self) -> &'static str {
-        "postgres_metrics_scraping"
+    fn id(&self) -> TaskId {
+        "postgres_metrics_scraping".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -203,8 +203,8 @@ struct L1BatchMetricsReporterTask {
 
 #[async_trait::async_trait]
 impl Task for L1BatchMetricsReporterTask {
-    fn name(&self) -> &'static str {
-        "l1_batch_metrics_reporter"
+    fn id(&self) -> TaskId {
+        "l1_batch_metrics_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -219,8 +219,8 @@ struct FriProverJobRetryManagerTask {
 
 #[async_trait::async_trait]
 impl Task for FriProverJobRetryManagerTask {
-    fn name(&self) -> &'static str {
-        "fri_prover_job_retry_manager"
+    fn id(&self) -> TaskId {
+        "fri_prover_job_retry_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -235,8 +235,8 @@ struct FriWitnessGeneratorJobRetryManagerTask {
 
 #[async_trait::async_trait]
 impl Task for FriWitnessGeneratorJobRetryManagerTask {
-    fn name(&self) -> &'static str {
-        "fri_witness_generator_job_retry_manager"
+    fn id(&self) -> TaskId {
+        "fri_witness_generator_job_retry_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -253,8 +253,8 @@ struct WaitingToQueuedFriWitnessJobMoverTask {
 
 #[async_trait::async_trait]
 impl Task for WaitingToQueuedFriWitnessJobMoverTask {
-    fn name(&self) -> &'static str {
-        "waiting_to_queued_fri_witness_job_mover"
+    fn id(&self) -> TaskId {
+        "waiting_to_queued_fri_witness_job_mover".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -271,8 +271,8 @@ struct FriWitnessGeneratorStatsReporterTask {
 
 #[async_trait::async_trait]
 impl Task for FriWitnessGeneratorStatsReporterTask {
-    fn name(&self) -> &'static str {
-        "fri_witness_generator_stats_reporter"
+    fn id(&self) -> TaskId {
+        "fri_witness_generator_stats_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -289,8 +289,8 @@ struct FriProverStatsReporterTask {
 
 #[async_trait::async_trait]
 impl Task for FriProverStatsReporterTask {
-    fn name(&self) -> &'static str {
-        "fri_prover_stats_reporter"
+    fn id(&self) -> TaskId {
+        "fri_prover_stats_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -305,8 +305,8 @@ struct FriProofCompressorStatsReporterTask {
 
 #[async_trait::async_trait]
 impl Task for FriProofCompressorStatsReporterTask {
-    fn name(&self) -> &'static str {
-        "fri_proof_compressor_stats_reporter"
+    fn id(&self) -> TaskId {
+        "fri_proof_compressor_stats_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -323,8 +323,8 @@ struct FriProofCompressorJobRetryManagerTask {
 
 #[async_trait::async_trait]
 impl Task for FriProofCompressorJobRetryManagerTask {
-    fn name(&self) -> &'static str {
-        "fri_proof_compressor_job_retry_manager"
+    fn id(&self) -> TaskId {
+        "fri_proof_compressor_job_retry_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -341,8 +341,8 @@ struct FriProverJobArchiverTask {
 
 #[async_trait::async_trait]
 impl Task for FriProverJobArchiverTask {
-    fn name(&self) -> &'static str {
-        "fri_prover_job_archiver"
+    fn id(&self) -> TaskId {
+        "fri_prover_job_archiver".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -356,8 +356,8 @@ struct FriProverGpuArchiverTask {
 
 #[async_trait::async_trait]
 impl Task for FriProverGpuArchiverTask {
-    fn name(&self) -> &'static str {
-        "fri_prover_gpu_archiver"
+    fn id(&self) -> TaskId {
+        "fri_prover_gpu_archiver".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

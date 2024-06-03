@@ -18,11 +18,11 @@ use zksync_env_config::{
     FromEnv,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
-    protocol_version::ProtocolSemanticVersion,
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
 };
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -195,7 +195,7 @@ async fn get_prover_tasks(
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
-    let protocol_version = ProtocolSemanticVersion::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     tracing::info!(
         "Starting CPU FRI proof generation for with protocol_version: {:?}",
@@ -247,7 +247,7 @@ async fn get_prover_tasks(
         port: prover_config.witness_vector_receiver_port,
     };
 
-    let protocol_version = ProtocolSemanticVersion::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let prover = gpu_prover::Prover::new(
         store_factory.create_store().await,

@@ -1365,18 +1365,21 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_witness_jobs_stats(
         &mut self,
         aggregation_round: AggregationRound,
-    ) -> HashMap<(AggregationRound, ProtocolVersionId), JobCountStatistics> {
+    ) -> HashMap<(AggregationRound, ProtocolSemanticVersion), JobCountStatistics> {
         let table_name = Self::input_table_name_for(aggregation_round);
         let sql = format!(
             r#"
                 SELECT
                     protocol_version,
+                    protocol_version_patch,
                     COUNT(*) FILTER (WHERE status = 'queued') as queued,
                     COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
                 FROM
                     {}
+                WHERE protocol_version IS NOT NULL
                 GROUP BY
-                    protocol_version
+                    protocol_version,
+                    protocol_version_patch
                 "#,
             table_name,
         );
@@ -1386,11 +1389,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
             .unwrap()
             .into_iter()
             .map(|row| {
-                let key = (
-                    aggregation_round,
+                let protocol_semantic_version = ProtocolSemanticVersion::new(
                     ProtocolVersionId::try_from(row.get::<i32, &str>("protocol_version") as u16)
                         .unwrap(),
+                    VersionPatch(row.get::<i32, &str>("protocol_version_patch") as u32),
                 );
+                let key = (aggregation_round, protocol_semantic_version);
                 let value = JobCountStatistics {
                     queued: row.get::<i64, &str>("queued") as usize,
                     in_progress: row.get::<i64, &str>("in_progress") as usize,

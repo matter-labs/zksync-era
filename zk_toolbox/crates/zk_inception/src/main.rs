@@ -4,10 +4,10 @@ use common::{
     config::{global_config, init_global_config, GlobalConfig},
     init_prompt_theme, logger,
 };
+use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands};
-use config::EcosystemConfig;
 
 pub mod accept_ownership;
 mod commands;
@@ -15,6 +15,7 @@ mod config_manipulations;
 mod consts;
 mod defaults;
 pub mod forge_utils;
+mod messages;
 pub mod server;
 
 #[derive(Parser, Debug)]
