@@ -201,6 +201,14 @@ impl VerifierParams {
         ])
     }
 
+    pub fn encode(&self) -> Token {
+        Token::Tuple(vec![
+            Token::FixedBytes(self.recursion_node_level_vk_hash.into()),
+            Token::FixedBytes(self.recursion_leaf_level_vk_hash.into()),
+            Token::FixedBytes(self.recursion_circuits_set_vks_hash.into()),
+        ])
+    }
+
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
         anyhow::ensure!(tokens.len() == 3);
@@ -236,6 +244,21 @@ impl ProposedUpgrade {
             ParamType::Bytes,                          // l1 post-upgrade custom data
             ParamType::Uint(256),                      // timestamp
             ParamType::Uint(256),                      // version id
+        ])
+    }
+
+    pub fn encode(&self) -> Token {
+        Token::Tuple(vec![
+            self.l2_protocol_upgrade_tx.encode(),
+            Token::Array(self.factory_deps.iter().map(|b|Token::Bytes(b.clone())).collect()),
+            Token::FixedBytes(self.bootloader_hash.into()),
+            Token::FixedBytes(self.default_account_hash.into()),
+            Token::Address(self.verifier),
+            self.verifier_params.encode(),
+            Token::Bytes(self.l1_contracts_upgrade_calldata.clone()),
+            Token::Bytes(self.post_upgrade_calldata.clone()),
+            Token::Uint(self.upgrade_timestamp),
+            Token::Uint(self.new_protocol_version),
         ])
     }
 

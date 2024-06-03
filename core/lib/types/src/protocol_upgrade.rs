@@ -87,27 +87,6 @@ impl From<abi::VerifierParams> for VerifierParams {
     }
 }
 
-impl From<ProtocolUpgrade> for abi::ProposedUpgrade {
-    fn from(upgrade: ProtocolUpgrade) -> Self {
-        let abi::Transaction::L1 { tx, factory_deps, eth_hash, eth_block, .. } = upgrade.tx.map(|tx|Transaction::from(tx).try_into().unwrap()).unwrap_or(abi::Transaction::L1 {
-            tx: Default::default(),
-
-        });
-        Self {
-            l2_protocol_upgrade_tx: tx,
-            factory_deps,
-            bootloader_hash: upgrade.bootloader_code_hash,
-            pub default_account_hash: [u8; 32],
-            pub verifier: Address,
-            pub verifier_params: VerifierParams,
-            pub l1_contracts_upgrade_calldata: Vec<u8>,
-            pub post_upgrade_calldata: Vec<u8>,
-            pub upgrade_timestamp: U256,
-            pub new_protocol_version: U256,
-        }
-    }
-}
-
 impl ProtocolUpgrade {
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
     fn try_from_init_calldata(

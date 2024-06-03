@@ -550,76 +550,25 @@ fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
 }
 
 fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
-    let tx_data_token = 
-    let upgrade_token = abi::ProposedUpgrade {
-        l2_protocol_upgrade_tx: match upgrade.tx.clone()  {
-            Some(tx) => {
-                let abi::Transaction::L1{tx,..} = abi::Transaction::try_from(Transaction::from(tx)).unwrap() else { unreachable!() };
-                tx
-            },
-            None => abi::L2CanonicalTransaction::default(),
-        },
-        Token::Tuple(vec![
-        tx_data_token,
-        Token::Array(Vec::new()),
-        Token::FixedBytes(
-            upgrade
-                .bootloader_code_hash
-                .unwrap_or_default()
-                .as_bytes()
-                .to_vec(),
-        ),
-        Token::FixedBytes(
-            upgrade
-                .default_account_code_hash
-                .unwrap_or_default()
-                .as_bytes()
-                .to_vec(),
-        ),
-        Token::Address(upgrade.verifier_address.unwrap_or_default()),
-        Token::Tuple(vec![
-            Token::FixedBytes(
-                upgrade
-                    .verifier_params
-                    .unwrap_or_default()
-                    .recursion_node_level_vk_hash
-                    .as_bytes()
-                    .to_vec(),
-            ),
-            Token::FixedBytes(
-                upgrade
-                    .verifier_params
-                    .unwrap_or_default()
-                    .recursion_leaf_level_vk_hash
-                    .as_bytes()
-                    .to_vec(),
-            ),
-            Token::FixedBytes(
-                upgrade
-                    .verifier_params
-                    .unwrap_or_default()
-                    .recursion_circuits_set_vks_hash
-                    .as_bytes()
-                    .to_vec(),
-            ),
-        ]),
-        Token::Bytes(Default::default()),
-        Token::Bytes(Default::default()),
-        Token::Uint(upgrade.timestamp.into()),
-        Token::Uint(upgrade.version.pack()),
-        Token::Address(Default::default()),
-    ]);
-
-    Token::Tuple(vec![
-        Token::Array(vec![]),
-        Token::Address(Default::default()),
-        Token::Bytes(
-            vec![0u8; 4]
-                .into_iter()
-                .chain(encode(&[upgrade_token]))
-                .collect(),
-        ),
-    ])
+    let abi::Transaction::L1 { tx, factory_deps, eth_hash, eth_block, .. } = upgrade.tx.map(|tx|Transaction::from(tx).try_into().unwrap()).unwrap_or(abi::Transaction::L1 {
+        tx: Default::default(),
+        factory_deps: vec![],
+        eth_hash: H256::zero(),
+        eth_block: 0,
+        received_timestamp_ms: 0,
+    });
+    abi::ProposedUpgrade {
+        l2_protocol_upgrade_tx: tx,
+        factory_deps,
+        bootloader_hash: upgrade.bootloader_code_hash,
+        default_account_hash: upgrade.default_account_code_hash,
+        verifier: upgrade.verifier_address,
+        verifier_params: upgrade.verifier_params.into(),
+        l1_contracts_upgrade_calldata: vec![],
+        post_upgrade_calldata: vec![],
+        upgrade_timestamp: upgrade.timestamp.into(),
+        new_protocol_version: upgrade.version.pack(),
+    }.encode()
 }
 
 async fn setup_db(connection_pool: &ConnectionPool<Core>) {
