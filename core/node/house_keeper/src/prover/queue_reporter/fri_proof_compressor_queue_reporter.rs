@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
-use zksync_types::{prover_dal::JobCountStatistics, ProtocolVersionId};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::JobCountStatistics};
 
 use crate::{
     periodic_job::PeriodicJob,
@@ -24,7 +26,9 @@ impl FriProofCompressorQueueReporter {
         }
     }
 
-    async fn get_job_statistics(pool: &ConnectionPool<Prover>) -> JobCountStatistics {
+    async fn get_job_statistics(
+        pool: &ConnectionPool<Prover>,
+    ) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
         pool.connection()
             .await
             .unwrap()
@@ -41,25 +45,24 @@ impl PeriodicJob for FriProofCompressorQueueReporter {
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stats = Self::get_job_statistics(&self.pool).await;
 
-        if stats.queued > 0 {
-            tracing::info!(
-                "Found {} free {} in progress proof compressor jobs",
-                stats.queued,
-                stats.in_progress
-            );
+        for (protocol_version, stats) in &stats {
+            if stats.queued > 0 {
+                tracing::info!(
+                    "Found {} free {} in progress proof compressor jobs for protocol version {}",
+                    stats.queued,
+                    stats.in_progress,
+                    protocol_version
+                );
+            }
+
+            PROVER_FRI_METRICS.proof_compressor_jobs
+                [&(JobStatus::Queued, protocol_version.to_string())]
+                .set(stats.queued as u64);
+
+            PROVER_FRI_METRICS.proof_compressor_jobs
+                [&(JobStatus::InProgress, protocol_version.to_string())]
+                .set(stats.in_progress as u64);
         }
-
-        PROVER_FRI_METRICS.proof_compressor_jobs[&(
-            JobStatus::Queued,
-            ProtocolVersionId::current_prover_version().to_string(),
-        )]
-            .set(stats.queued as u64);
-
-        PROVER_FRI_METRICS.proof_compressor_jobs[&(
-            JobStatus::InProgress,
-            ProtocolVersionId::current_prover_version().to_string(),
-        )]
-            .set(stats.in_progress as u64);
 
         let oldest_not_compressed_batch = self
             .pool

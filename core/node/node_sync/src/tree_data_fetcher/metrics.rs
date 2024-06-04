@@ -7,18 +7,22 @@ use vise::{
     Info, Metrics, Unit,
 };
 
-use super::{StepOutcome, TreeDataFetcher, TreeDataFetcherError};
+use super::{provider::TreeDataProviderSource, StepOutcome, TreeDataFetcher, TreeDataFetcherError};
 
 #[derive(Debug, EncodeLabelSet)]
 struct TreeDataFetcherInfo {
     #[metrics(unit = Unit::Seconds)]
     poll_interval: DurationAsSecs,
+    diamond_proxy_address: Option<String>,
 }
 
 impl From<&TreeDataFetcher> for TreeDataFetcherInfo {
     fn from(fetcher: &TreeDataFetcher) -> Self {
         Self {
             poll_interval: fetcher.poll_interval.into(),
+            diamond_proxy_address: fetcher
+                .diamond_proxy_address
+                .map(|addr| format!("{addr:?}")),
         }
     }
 }
@@ -39,6 +43,10 @@ pub(super) enum StepOutcomeLabel {
     TransientError,
 }
 
+const BLOCK_DIFF_BUCKETS: Buckets = Buckets::values(&[
+    10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0, 20_000.0, 50_000.0,
+]);
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "external_node_tree_data_fetcher")]
 pub(super) struct TreeDataFetcherMetrics {
@@ -51,6 +59,15 @@ pub(super) struct TreeDataFetcherMetrics {
     /// Latency of a particular stage of processing a single L1 batch.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub stage_latency: Family<ProcessingStage, Histogram<Duration>>,
+    /// Number of steps during binary search of the L1 commit block number.
+    #[metrics(buckets = Buckets::linear(0.0..=32.0, 2.0))]
+    pub l1_commit_block_number_binary_search_steps: Histogram<usize>,
+    /// Difference between the "from" block specified in the event filter and the L1 block number of the fetched event.
+    /// Large values here can signal that fetching data from L1 can break because the filter won't get necessary events.
+    #[metrics(buckets = BLOCK_DIFF_BUCKETS)]
+    pub l1_commit_block_number_from_diff: Histogram<u64>,
+    /// Number of root hashes fetched from a particular source.
+    pub root_hash_sources: Family<TreeDataProviderSource, Counter>,
 }
 
 impl TreeDataFetcherMetrics {

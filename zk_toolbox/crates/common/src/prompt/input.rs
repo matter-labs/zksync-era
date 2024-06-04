@@ -1,5 +1,6 @@
-use cliclack::{Input, Validate};
 use std::str::FromStr;
+
+use cliclack::{Input, Validate};
 
 pub struct Prompt {
     inner: Input,

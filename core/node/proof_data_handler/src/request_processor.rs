@@ -112,17 +112,18 @@ impl RequestProcessor {
             .unwrap()
             .expect(&format!("Missing header for {}", l1_batch_number));
 
-        let protocol_version_id = header.protocol_version.unwrap();
-        let l1_verifier_config = self
+        let minor_version = header.protocol_version.unwrap();
+        let protocol_version = self
             .pool
             .connection()
             .await
             .unwrap()
             .protocol_versions_dal()
-            .l1_verifier_config_for_version(protocol_version_id)
+            .get_protocol_version_with_latest_patch(minor_version)
             .await
+            .unwrap()
             .expect(&format!(
-                "Missing l1 verifier info for protocol version {protocol_version_id:?}",
+                "Missing l1 verifier info for protocol version {minor_version}",
             ));
 
         let batch_header = self
@@ -151,8 +152,8 @@ impl RequestProcessor {
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,
             data: blob,
-            protocol_version_id,
-            l1_verifier_config,
+            protocol_version: protocol_version.version,
+            l1_verifier_config: protocol_version.l1_verifier_config,
             eip_4844_blobs,
         };
         Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
@@ -171,7 +172,7 @@ impl RequestProcessor {
             SubmitProofRequest::Proof(proof) => {
                 let blob_url = self
                     .blob_store
-                    .put(l1_batch_number, &*proof)
+                    .put((l1_batch_number, proof.protocol_version), &*proof)
                     .await
                     .map_err(RequestProcessorError::ObjectStore)?;
 

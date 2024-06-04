@@ -3,7 +3,7 @@ import { ComplexUpgraderFactory, ContractDeployerFactory } from 'system-contract
 import { ForceDeployment, L2CanonicalTransaction } from '../transaction';
 import { ForceDeployUpgraderFactory } from 'l2-contracts/typechain';
 import { Command } from 'commander';
-import { getCommonDataFileName, getL2UpgradeFileName } from '../utils';
+import { getCommonDataFileName, getL2UpgradeFileName, unpackStringSemVer } from '../utils';
 import fs from 'fs';
 import { REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
 
@@ -151,7 +151,9 @@ command
                 l2Upgrade.calldata = prepareCallDataForComplexUpgrader(delegatedCalldata, l2UpgraderAddress);
             }
 
-            l2Upgrade.tx = buildL2CanonicalTransaction(l2Upgrade.calldata, commonData.protocolVersion, toAddress);
+            const protocolVersionSemVer: string = commonData.protocolVersion;
+            const minorVersion = unpackStringSemVer(protocolVersionSemVer)[1];
+            l2Upgrade.tx = buildL2CanonicalTransaction(l2Upgrade.calldata, minorVersion, toAddress);
             fs.writeFileSync(l2upgradeFileName, JSON.stringify(l2Upgrade, null, 2));
         } else {
             throw new Error(`No l2 upgrade file found at ${l2upgradeFileName}`);

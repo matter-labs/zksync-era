@@ -21,7 +21,9 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
-use zksync_types::{basic_fri_types::CircuitIdRoundTuple, ProtocolVersionId};
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
+};
 use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksProverSetupData};
 
 use crate::{
@@ -46,7 +48,7 @@ pub struct Prover {
     // Only pick jobs for the configured circuit id and aggregation rounds.
     // Empty means all jobs are picked.
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
 }
 
 impl Prover {
@@ -58,7 +60,7 @@ impl Prover {
         prover_connection_pool: ConnectionPool<prover_dal::Prover>,
         setup_load_mode: SetupLoadMode,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Prover {
             blob_store,

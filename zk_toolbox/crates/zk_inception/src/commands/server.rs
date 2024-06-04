@@ -1,10 +1,11 @@
 use anyhow::Context;
 use common::{config::global_config, logger};
+use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::{
     commands::args::RunServerArgs,
-    configs::{ChainConfig, EcosystemConfig},
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_STARTING_SERVER},
     server::{RunServer, ServerMode},
 };
 
@@ -14,9 +15,9 @@ pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
     let chain = global_config().chain_name.clone();
     let chain_config = ecosystem_config
         .load_chain(chain)
-        .context("Chain not initialized. Please create a chain first")?;
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    logger::info("Starting server");
+    logger::info(MSG_STARTING_SERVER);
     run_server(args, &chain_config, shell)?;
 
     Ok(())

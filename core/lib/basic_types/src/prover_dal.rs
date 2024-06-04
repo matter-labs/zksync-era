@@ -26,15 +26,21 @@ pub struct FriProverJobMetadata {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct JobCountStatistics {
+pub struct ExtendedJobCountStatistics {
     pub queued: usize,
     pub in_progress: usize,
     pub failed: usize,
     pub successful: usize,
 }
 
-impl Add for JobCountStatistics {
-    type Output = JobCountStatistics;
+#[derive(Debug, Clone, Copy, Default)]
+pub struct JobCountStatistics {
+    pub queued: usize,
+    pub in_progress: usize,
+}
+
+impl Add for ExtendedJobCountStatistics {
+    type Output = ExtendedJobCountStatistics;
 
     fn add(self, rhs: Self) -> Self::Output {
         Self {

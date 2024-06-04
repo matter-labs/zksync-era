@@ -18,7 +18,7 @@ use zksync_config::{
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{basic_fri_types::AggregationRound, ProtocolVersionId};
+use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
@@ -41,6 +41,7 @@ mod utils;
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
 use zksync_dal::Core;
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -125,7 +126,7 @@ async fn main() -> anyhow::Result<()> {
             .context("failed to build a prover_connection_pool")?;
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let protocol_version = ProtocolVersionId::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
     let vk_commitments_in_db = match prover_connection_pool
         .connection()
         .await
