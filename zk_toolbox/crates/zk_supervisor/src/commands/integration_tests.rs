@@ -1,16 +1,22 @@
-use common::{cmd::Cmd, logger};
+use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
-use crate::messages::{MSG_INTEGRATION_TESTS_RUN_INFO, MSG_INTEGRATION_TESTS_RUN_SUCCESS};
+use crate::messages::{
+    MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS, MSG_INTEGRATION_TESTS_RUN_INFO,
+    MSG_INTEGRATION_TESTS_RUN_SUCCESS,
+};
 
 const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
+const CONTRACTS_TEST_DATA_PATH: &str = "etc/contracts-test-data";
 
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let _dir_guard = shell.push_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
+    shell.change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
 
     logger::info(MSG_INTEGRATION_TESTS_RUN_INFO);
+
+    build_test_contracts(shell, &ecosystem_config)?;
 
     Cmd::new(
         cmd!(shell, "yarn jest --forceExit --testTimeout 60000")
@@ -21,5 +27,18 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
 
     logger::outro(MSG_INTEGRATION_TESTS_RUN_SUCCESS);
 
+    Ok(())
+}
+
+fn build_test_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
+    let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS);
+
+    Cmd::new(cmd!(shell, "yarn build")).run()?;
+    Cmd::new(cmd!(shell, "yarn build-yul")).run()?;
+
+    let _dir_guard = shell.push_dir(ecosystem_config.link_to_code.join(CONTRACTS_TEST_DATA_PATH));
+    Cmd::new(cmd!(shell, "yarn build")).run()?;
+
+    spinner.finish();
     Ok(())
 }

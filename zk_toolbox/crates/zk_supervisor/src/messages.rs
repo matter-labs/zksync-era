@@ -63,6 +63,6 @@ pub(super) fn msg_database_new_migration_loading(dal: &str) -> String {
 pub(super) const MSG_DATABASE_NEW_MIGRATION_SUCCESS: &str = "Migration created successfully";
 
 // Integration tests related messages
-pub(super) const MSG_INTEGRATION_TESTS_RUN_ABOUT: &str = "Run integration tests";
 pub(super) const MSG_INTEGRATION_TESTS_RUN_INFO: &str = "Running integration tests";
 pub(super) const MSG_INTEGRATION_TESTS_RUN_SUCCESS: &str = "Integration tests ran successfully";
+pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test contracts...";

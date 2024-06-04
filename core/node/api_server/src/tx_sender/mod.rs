@@ -7,7 +7,7 @@ use multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
-        get_max_batch_gas_limit,
+        get_eth_call_gas_limit, get_max_batch_gas_limit,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -28,6 +28,7 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
+    transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
     ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
@@ -965,6 +966,7 @@ impl TxSender {
     pub(super) async fn eth_call(
         &self,
         block_args: BlockArgs,
+        call_overrides: CallOverrides,
         tx: L2Tx,
     ) -> Result<Vec<u8>, SubmitTxError> {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
@@ -977,6 +979,7 @@ impl TxSender {
                 vm_permit,
                 self.shared_args().await?,
                 self.0.replica_connection_pool.clone(),
+                call_overrides,
                 tx,
                 block_args,
                 vm_execution_cache_misses_limit,
@@ -1035,5 +1038,20 @@ impl TxSender {
             return Err(SubmitTxError::Unexecutable(message));
         }
         Ok(())
+    }
+
+    pub(crate) async fn get_default_eth_call_gas(
+        &self,
+        block_args: BlockArgs,
+    ) -> anyhow::Result<u64> {
+        let mut connection = self.acquire_replica_connection().await?;
+
+        let protocol_version = block_args
+            .resolve_block_info(&mut connection)
+            .await
+            .context("failed to resolve block info")?
+            .protocol_version;
+
+        Ok(get_eth_call_gas_limit(protocol_version.into()))
     }
 }
