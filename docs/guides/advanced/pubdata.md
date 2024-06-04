@@ -12,7 +12,7 @@ One thing to note is that the way that the data is represented changes in a pre-
 level, in a pre-boojum era these are represented as separate fields while in boojum they are packed into a single bytes
 array.
 
-> Note: When the 4844 was integrated this bytes array wes moved from being part of the calldata to blob data.
+> Note: When the 4844 was integrated this bytes array was moved from being part of the calldata to blob data.
 
 While the structure of the pubdata changes, we can use the same strategy to pull the relevant information. First, we
 need to filter all of the transactions to the L1 zkSync contract for only the `commitBlocks/commitBatches` transactions
