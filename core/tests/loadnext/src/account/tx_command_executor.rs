@@ -238,7 +238,6 @@ impl AccountLifespan {
         modifier: IncorrectnessModifier,
     ) -> Result<SubmitResult, ClientError> {
         let nonce = tx.nonce();
-        println!("transaction to send: {:?}", tx);
         let result = match modifier {
             IncorrectnessModifier::IncorrectSignature => {
                 let wallet = self.wallet.corrupted_wallet.clone();
@@ -327,16 +326,10 @@ impl AccountLifespan {
             Bytes::try_from(self.wallet.test_contract.bytecode.clone()).unwrap(),
             client.clone().into(),
         );
-        println!(
-            "reads, {}",
-            self.contract_execution_params.reads.to_string()
-        );
-        let mut deployer = factory
+
+        let deployer = factory
             .deploy(self.contract_execution_params.reads.to_u32().unwrap())
             .unwrap();
-        //let tx_count = client.get_transaction_count(wallet.address(), Some(EthBlockNumber::Latest.into())).await.unwrap();
-        //deployer.tx.set_nonce(tx_count + 1);
-        //deployer.tx.set_from(self.wallet.wallet.address());
         let contract = deployer.confirmations(0usize).send().await.unwrap();
         self.wallet
             .deployed_contract_address
@@ -344,9 +337,6 @@ impl AccountLifespan {
             .ok();
 
         Ok(SubmitResult::TxHash(H256::zero()))
-
-        //let tx = self.build_deploy_loadnext_contract_evm(command).await?;
-        //self.execute_submit_evm(tx, command.modifier).await
     }
 
     async fn build_deploy_loadnext_contract(

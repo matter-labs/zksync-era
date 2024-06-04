@@ -390,9 +390,6 @@ impl Executor {
                 .client()
                 .eth_balance(target_address, "loadnext")
                 .await?;
-            println!("balance: {:?}", balance);
-            println!("eth_to_distribute: {:?}", eth_to_distribute);
-            println!("target_address: {:?}", target_address);
             let gas_price = ethereum.client().get_gas_price("loadnext").await?;
 
             if balance < eth_to_distribute {
@@ -501,62 +498,13 @@ impl Executor {
                 .wait_for_commit()
                 .await?;
             if result.status == U64::zero() {
-                println!("Transfer failed, {:?}",result);
-                //return Err(anyhow::format_err!("Transfer failed"));
+                return Err(anyhow::format_err!("Transfer failed"));
             }
         }*/
 
         tracing::info!("Master account: Wait for ethereum txs confirmations, {eth_txs:?}");
         for eth_tx in eth_txs {
             let res = ethereum.wait_for_tx(eth_tx).await?;
-            println!("eth tx , {:?}", res);
-        }
-
-        eth_txs = Vec::with_capacity(txs_amount);
-        for account in self.pool.accounts.iter().take(accounts_to_process) {
-            let target_address = account.wallet.address();
-
-            // Prior to sending funds in L2, we will send funds in L1 for accounts
-            // to be able to perform priority operations.
-            // We don't actually care whether transactions will be successful or not; at worst we will not use
-            // priority operations in test.
-
-            // If we don't need to send l1 txs we don't need to distribute the funds
-            //if weight_of_l1_txs != 0.0 {
-            let balance = ethereum
-                .client()
-                .eth_balance(target_address, "loadnext")
-                .await?;
-            println!("balance: {:?}", balance);
-            println!("eth_to_distribute: {:?}", eth_to_distribute);
-            println!("target_address: {:?}", target_address);
-            let gas_price = ethereum.client().get_gas_price("loadnext").await?;
-
-            if balance < eth_to_distribute {
-                let options = Options {
-                    nonce: Some(eth_nonce),
-                    max_fee_per_gas: Some(gas_price * 2),
-                    max_priority_fee_per_gas: Some(gas_price * 2),
-                    ..Default::default()
-                };
-                let res = ethereum
-                    .transfer(
-                        ETHEREUM_ADDRESS.to_owned(),
-                        eth_to_distribute,
-                        target_address,
-                        Some(options),
-                    )
-                    .await
-                    .unwrap();
-                eth_nonce += U256::one();
-                eth_txs.push(res);
-            }
-        }
-
-        tracing::info!("Master account: Wait for ethereum txs confirmations, {eth_txs:?}");
-        for eth_tx in eth_txs {
-            let res = ethereum.wait_for_tx(eth_tx).await?;
-            println!("eth tx , {:?}", res);
         }
 
         Ok(())
