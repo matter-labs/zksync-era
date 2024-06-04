@@ -2,10 +2,8 @@ use std::fmt::Debug;
 
 use zksync_eth_signer::{error::SignerError, EthereumSigner};
 use zksync_types::{
-    fee::Fee,
-    l2::{L2Tx, L2TxEvm},
-    transaction_request::PaymasterParams,
-    Address, Eip712Domain, L2ChainId, Nonce, PackedEthSignature, L2_ETH_TOKEN_ADDRESS, U256,
+    fee::Fee, l2::L2Tx, transaction_request::PaymasterParams, Address, Eip712Domain, L2ChainId,
+    Nonce, PackedEthSignature, L2_ETH_TOKEN_ADDRESS, U256,
 };
 
 use crate::{operations::create_transfer_calldata, types::TransactionRequest};
@@ -41,17 +39,6 @@ impl<S: EthereumSigner> Signer<S> {
             .await
     }
 
-    pub async fn sign_transaction_evm(
-        &self,
-        transaction: &L2TxEvm,
-    ) -> Result<PackedEthSignature, SignerError> {
-        let domain = Eip712Domain::new(self.chain_id);
-        let transaction_request: TransactionRequest = transaction.clone().into();
-        self.eth_signer
-            .sign_typed_data(&domain, &transaction_request)
-            .await
-    }
-
     pub async fn sign_transfer(
         &self,
         to: Address,
@@ -60,10 +47,10 @@ impl<S: EthereumSigner> Signer<S> {
         fee: Fee,
         nonce: Nonce,
         paymaster_params: PaymasterParams,
-    ) -> Result<L2TxEvm, SignerError> {
+    ) -> Result<L2Tx, SignerError> {
         // Sign Ether transfer
         if token.is_zero() || token == L2_ETH_TOKEN_ADDRESS {
-            let mut transfer = L2TxEvm::new(
+            let mut transfer = L2Tx::new(
                 Some(to),
                 Default::default(),
                 nonce,
@@ -75,7 +62,7 @@ impl<S: EthereumSigner> Signer<S> {
             );
 
             let signature = self
-                .sign_transaction_evm(&transfer)
+                .sign_transaction(&transfer)
                 .await
                 .map_err(signing_failed_error)?;
             transfer.set_signature(signature);
@@ -85,7 +72,7 @@ impl<S: EthereumSigner> Signer<S> {
 
         // Sign ERC-20 transfer
         let data = create_transfer_calldata(to, amount);
-        let mut transfer = L2TxEvm::new(
+        let mut transfer = L2Tx::new(
             Some(token),
             data,
             nonce,
@@ -97,7 +84,7 @@ impl<S: EthereumSigner> Signer<S> {
         );
 
         let signature = self
-            .sign_transaction_evm(&transfer)
+            .sign_transaction(&transfer)
             .await
             .map_err(signing_failed_error)?;
         transfer.set_signature(signature);
@@ -147,35 +134,6 @@ impl<S: EthereumSigner> Signer<S> {
 
         let signature = self
             .sign_transaction(&execute_contract)
-            .await
-            .map_err(signing_failed_error)?;
-        execute_contract.set_signature(signature);
-
-        Ok(execute_contract)
-    }
-
-    pub async fn sign_execute_contract_for_deploy_evm(
-        &self,
-        contract: Address,
-        calldata: Vec<u8>,
-        fee: Fee,
-        nonce: Nonce,
-        factory_deps: Option<Vec<Vec<u8>>>,
-        paymaster_params: PaymasterParams,
-    ) -> Result<L2TxEvm, SignerError> {
-        let mut execute_contract = L2TxEvm::new(
-            Some(contract),
-            calldata,
-            nonce,
-            fee,
-            self.eth_signer.get_address().await?,
-            U256::zero(),
-            factory_deps,
-            paymaster_params,
-        );
-
-        let signature = self
-            .sign_transaction_evm(&execute_contract)
             .await
             .map_err(signing_failed_error)?;
         execute_contract.set_signature(signature);

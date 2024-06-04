@@ -75,45 +75,6 @@ where
     }
 
     /// Sends the transaction, returning the handle for its awaiting.
-    pub async fn tx_evm(self) -> Result<L2Tx, ClientError> {
-        let paymaster_params = self.paymaster_params.clone().unwrap_or_default();
-
-        let fee = match self.fee {
-            Some(fee) => fee,
-            None => {
-                self.estimate_fee_evm(Some(paymaster_params.clone()))
-                    .await?
-            }
-        };
-
-        let contract_address = self
-            .contract_address
-            .ok_or_else(|| ClientError::MissingRequiredField("contract_address".into()))?;
-
-        let calldata = self
-            .calldata
-            .ok_or_else(|| ClientError::MissingRequiredField("calldata".into()))?;
-
-        let nonce = match self.nonce {
-            Some(nonce) => nonce,
-            None => Nonce(self.wallet.get_nonce().await?),
-        };
-
-        self.wallet
-            .signer
-            .sign_execute_contract(
-                contract_address,
-                calldata,
-                fee,
-                nonce,
-                self.factory_deps,
-                paymaster_params,
-            )
-            .await
-            .map_err(ClientError::SigningError)
-    }
-
-    /// Sends the transaction, returning the handle for its awaiting.
     pub async fn send(self) -> Result<SyncTransactionHandle<'a, P>, ClientError> {
         let wallet = self.wallet;
         let tx = self.tx().await?;
@@ -181,42 +142,6 @@ where
         let paymaster_params = paymaster_params
             .or_else(|| self.paymaster_params.clone())
             .unwrap_or_default();
-
-        let execute = L2Tx::new(
-            Some(contract_address),
-            calldata,
-            Nonce(0),
-            Default::default(),
-            self.wallet.address(),
-            self.value.unwrap_or_default(),
-            self.factory_deps.clone(),
-            paymaster_params,
-        );
-        self.wallet
-            .provider
-            .estimate_fee(execute.into())
-            .await
-            .map_err(Into::into)
-    }
-
-    pub async fn estimate_fee_evm(
-        &self,
-        paymaster_params: Option<PaymasterParams>,
-    ) -> Result<Fee, ClientError> {
-        let contract_address = self
-            .contract_address
-            .ok_or_else(|| ClientError::MissingRequiredField("contract_address".into()))?;
-
-        let calldata = self
-            .calldata
-            .clone()
-            .ok_or_else(|| ClientError::MissingRequiredField("calldata".into()))?;
-
-        /*let paymaster_params = paymaster_params
-        .or_else(|| self.paymaster_params.clone())
-        .unwrap_or_default();*/
-
-        let paymaster_params = PaymasterParams::default();
 
         let execute = L2Tx::new(
             Some(contract_address),

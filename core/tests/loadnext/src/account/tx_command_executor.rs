@@ -1,8 +1,7 @@
-use std::{convert::TryFrom, default, sync::Arc, time::Instant};
+use std::{convert::TryFrom, time::Instant};
 
 use ethers::prelude::*;
 use num::ToPrimitive;
-use types::BlockNumber as EthBlockNumber;
 use zksync::{
     error::ClientError,
     ethereum::PriorityOpHolder,
@@ -13,11 +12,10 @@ use zksync::{
     EthNamespaceClient,
 };
 use zksync_eth_client::EthInterface;
-use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
-    l2::{L2Tx, L2TxEvm},
+    l2::L2Tx,
     transaction_request::PaymasterParams,
     Address, H256, U256,
 };
@@ -51,7 +49,7 @@ impl AccountLifespan {
             TxType::Deposit => self.execute_deposit(command).await,
             TxType::DeployContract => self.execute_deploy_contract(command).await,
             TxType::L2Execute => {
-                self.execute_loadnext_contract_evm(command, ExecutionType::L2)
+                self.execute_loadnext_contract(command, ExecutionType::L2)
                     .await
             }
             TxType::L1Execute => {
@@ -61,14 +59,30 @@ impl AccountLifespan {
         }
     }
 
-    pub(super) async fn execute_tx_command_evm(
-        &mut self,
-        command: &TxCommand,
-    ) -> Result<SubmitResult, ClientError> {
-        match command.command_type {
-            TxType::DeployContract => self.execute_deploy_contract_evm(command).await,
-            _ => Err(ClientError::Other),
-        }
+    pub(super) async fn execute_tx_command_evm(&mut self) -> Result<SubmitResult, ClientError> {
+        let provider = Provider::<Http>::try_from("http://localhost:3050").unwrap();
+        let chain_id: u64 = 270;
+        let client = SignerMiddleware::new(
+            provider,
+            self.wallet.evm_wallet.clone().with_chain_id(chain_id),
+        );
+
+        let factory = ethers::contract::ContractFactory::new(
+            self.wallet.test_contract.contract.clone(),
+            Bytes::try_from(self.wallet.test_contract.bytecode.clone()).unwrap(),
+            client.clone().into(),
+        );
+
+        let deployer = factory
+            .deploy(self.contract_execution_params.reads.to_u32().unwrap())
+            .unwrap();
+        let contract = deployer.confirmations(0usize).send().await.unwrap();
+        self.wallet
+            .deployed_contract_address
+            .set(contract.address())
+            .ok();
+
+        Ok(SubmitResult::TxHash(H256::zero()))
     }
 
     fn tx_creation_error(err: ClientError) -> ClientError {
@@ -84,11 +98,6 @@ impl AccountLifespan {
     }
 
     async fn apply_modifier(&self, tx: L2Tx, modifier: IncorrectnessModifier) -> L2Tx {
-        let wallet = &self.wallet.wallet;
-        tx.apply_modifier(modifier, &wallet.signer).await
-    }
-
-    async fn apply_modifier_evm(&self, tx: L2TxEvm, modifier: IncorrectnessModifier) -> L2TxEvm {
         let wallet = &self.wallet.wallet;
         tx.apply_modifier(modifier, &wallet.signer).await
     }
@@ -232,35 +241,6 @@ impl AccountLifespan {
         Ok(result)
     }
 
-    async fn execute_submit_evm(
-        &mut self,
-        tx: L2TxEvm,
-        modifier: IncorrectnessModifier,
-    ) -> Result<SubmitResult, ClientError> {
-        let nonce = tx.nonce();
-        let result = match modifier {
-            IncorrectnessModifier::IncorrectSignature => {
-                let wallet = self.wallet.corrupted_wallet.clone();
-                self.submit(modifier, wallet.send_transaction_evm(tx).await)
-                    .await
-            }
-            _ => {
-                let wallet = self.wallet.wallet.clone();
-                self.submit(modifier, wallet.send_transaction_evm(tx).await)
-                    .await
-            }
-        }?;
-
-        // Update current nonce for future txs
-        // If the transaction has a `tx_hash` and is small enough to be included in a block, this tx will change the nonce.
-        // We can be sure that the nonce will be changed based on this assumption.
-        if let SubmitResult::TxHash(_) = &result {
-            self.current_nonce = Some(nonce + 1)
-        }
-
-        Ok(result)
-    }
-
     async fn execute_withdraw(&mut self, command: &TxCommand) -> Result<SubmitResult, ClientError> {
         let tx = self.build_withdraw(command).await?;
         self.execute_submit(tx, command.modifier).await
@@ -310,35 +290,6 @@ impl AccountLifespan {
         self.execute_submit(tx, command.modifier).await
     }
 
-    async fn execute_deploy_contract_evm(
-        &mut self,
-        command: &TxCommand,
-    ) -> Result<SubmitResult, ClientError> {
-        let provider = Provider::<Http>::try_from("http://localhost:3050").unwrap();
-        let chain_id: u64 = 270;
-        let client = SignerMiddleware::new(
-            provider,
-            self.wallet.evm_wallet.clone().with_chain_id(chain_id),
-        );
-
-        let factory = ethers::contract::ContractFactory::new(
-            self.wallet.test_contract.contract.clone(),
-            Bytes::try_from(self.wallet.test_contract.bytecode.clone()).unwrap(),
-            client.clone().into(),
-        );
-
-        let deployer = factory
-            .deploy(self.contract_execution_params.reads.to_u32().unwrap())
-            .unwrap();
-        let contract = deployer.confirmations(0usize).send().await.unwrap();
-        self.wallet
-            .deployed_contract_address
-            .set(contract.address())
-            .ok();
-
-        Ok(SubmitResult::TxHash(H256::zero()))
-    }
-
     async fn build_deploy_loadnext_contract(
         &self,
         command: &TxCommand,
@@ -378,38 +329,6 @@ impl AccountLifespan {
         let tx = builder.tx().await.map_err(Self::tx_creation_error)?;
 
         Ok(self.apply_modifier(tx, command.modifier).await)
-    }
-
-    async fn build_deploy_loadnext_contract_evm(
-        &self,
-        command: &TxCommand,
-    ) -> Result<L2TxEvm, ClientError> {
-        let wallet = self.wallet.wallet.clone();
-        let constructor_calldata = ethabi::encode(&[ethabi::Token::Uint(U256::from(
-            self.contract_execution_params.reads,
-        ))]);
-
-        let mut builder = wallet
-            .start_deploy_contract()
-            .bytecode(self.wallet.test_contract.bytecode.clone())
-            .constructor_calldata(constructor_calldata);
-
-        let fee = builder
-            .estimate_fee_evm(Some(PaymasterParams::default()))
-            .await?;
-        builder = builder.fee(fee.clone());
-
-        let paymaster_params = PaymasterParams::default();
-        builder = builder.fee(fee);
-        builder = builder.paymaster_params(paymaster_params);
-
-        if let Some(nonce) = self.current_nonce {
-            builder = builder.nonce(nonce);
-        }
-
-        let tx = builder.tx_evm().await.map_err(Self::tx_creation_error)?;
-
-        Ok(self.apply_modifier_evm(tx, command.modifier).await)
     }
 
     async fn execute_loadnext_contract(
@@ -465,80 +384,8 @@ impl AccountLifespan {
             ExecutionType::L2 => {
                 let mut started_at = Instant::now();
                 let tx = self
-                    .build_execute_loadnext_contract(command, contract_address)
-                    .await?;
-                tracing::trace!(
-                    "Account {:?}: execute_loadnext_contract: tx built in {:?}",
-                    self.wallet.wallet.address(),
-                    started_at.elapsed()
-                );
-                started_at = Instant::now();
-                let result = self.execute_submit(tx, command.modifier).await;
-                tracing::trace!(
-                    "Account {:?}: execute_loadnext_contract: tx executed in {:?}",
-                    self.wallet.wallet.address(),
-                    started_at.elapsed()
-                );
-                result
-            }
-        }
-    }
-
-    async fn execute_loadnext_contract_evm(
-        &mut self,
-        command: &TxCommand,
-        execution_type: ExecutionType,
-    ) -> Result<SubmitResult, ClientError> {
-        const L1_TRANSACTION_GAS_LIMIT: u32 = 5_000_000;
-
-        let Some(&contract_address) = self.wallet.deployed_contract_address.get() else {
-            let label =
-                ReportLabel::skipped("Account haven't successfully deployed a contract yet");
-            return Ok(SubmitResult::ReportLabel(label));
-        };
-
-        match execution_type {
-            ExecutionType::L1 => {
-                let calldata = self.prepare_calldata_for_loadnext_contract();
-                let ethereum = self
-                    .wallet
-                    .wallet
-                    .ethereum(&self.config.l1_rpc_address)
-                    .await?;
-                let response = ethereum
-                    .request_execute(
-                        contract_address,
-                        U256::zero(),
-                        calldata,
-                        L1_TRANSACTION_GAS_LIMIT.into(),
-                        Some(self.wallet.test_contract.factory_deps.clone()),
-                        None,
-                        None,
-                        Default::default(),
-                    )
-                    .await;
-
-                let tx_hash = match response {
-                    Ok(hash) => hash,
-                    Err(ClientError::NetworkError(err)) if err.contains("insufficient funds") => {
-                        let reason =
-                            format!("L1 execution tx failed because of insufficient funds: {err}");
-                        let label = ReportLabel::skipped(reason);
-                        return Ok(SubmitResult::ReportLabel(label));
-                    }
-                    Err(err) => {
-                        let label = ReportLabel::failed(err.to_string());
-                        return Ok(SubmitResult::ReportLabel(label));
-                    }
-                };
-                self.get_priority_op_l2_hash(tx_hash).await
-            }
-
-            ExecutionType::L2 => {
-                let mut started_at = Instant::now();
-                let tx = self
                     .build_execute_loadnext_contract_evm(command, contract_address)
-                    .await?;
+                    .await?; //EVM HERE
                 tracing::trace!(
                     "Account {:?}: execute_loadnext_contract: tx built in {:?}",
                     self.wallet.wallet.address(),
@@ -635,11 +482,7 @@ impl AccountLifespan {
             .contract_address(contract_address);
 
         let fee = builder
-            .estimate_fee_evm(Some(get_approval_based_paymaster_input_for_estimation(
-                self.paymaster_address,
-                self.main_l2_token,
-                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
-            )))
+            .estimate_fee(Some(PaymasterParams::default()))
             .await?;
         tracing::trace!(
             "Account {:?}: fee estimated. Max total fee: {}, gas limit: {}gas; Max gas price: {}WEI, \
@@ -652,20 +495,15 @@ impl AccountLifespan {
         );
         builder = builder.fee(fee.clone());
 
-        let paymaster_params = get_approval_based_paymaster_input(
-            self.paymaster_address,
-            self.main_l2_token,
-            fee.max_total_fee(),
-            Vec::new(),
-        );
+        let paymaster_params = PaymasterParams::default();
         builder = builder.fee(fee);
-        //builder = builder.paymaster_params(paymaster_params);
+        builder = builder.paymaster_params(paymaster_params);
 
         if let Some(nonce) = self.current_nonce {
             builder = builder.nonce(nonce);
         }
 
-        let tx = builder.tx_evm().await.map_err(Self::tx_creation_error)?;
+        let tx = builder.tx().await.map_err(Self::tx_creation_error)?;
 
         Ok(self.apply_modifier(tx, command.modifier).await)
     }

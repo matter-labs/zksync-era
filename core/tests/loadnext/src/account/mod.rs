@@ -316,7 +316,7 @@ impl AccountLifespan {
         let mut attempt = 0;
         loop {
             let start = Instant::now();
-            let result = self.execute_tx_command_evm(&command).await;
+            let result = self.execute_tx_command_evm().await;
 
             let submit_result = match result {
                 Ok(result) => result,

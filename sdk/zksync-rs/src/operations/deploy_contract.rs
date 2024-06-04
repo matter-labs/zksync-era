@@ -1,8 +1,6 @@
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
-    l2::{L2Tx, L2TxEvm},
-    transaction_request::PaymasterParams,
-    Execute, Nonce, CONTRACT_DEPLOYER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS_EVM, U256,
+    l2::L2Tx, transaction_request::PaymasterParams, Execute, Nonce, CONTRACT_DEPLOYER_ADDRESS, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -60,64 +58,20 @@ where
             Some(nonce) => nonce,
             None => Nonce(self.wallet.get_nonce().await?),
         };
-        //let main_contract_hash = hash_bytecode(&bytecode);
-        //let execute_calldata =
-        //    Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata);
-        let execute_calldata = vec![bytecode.clone(), calldata].concat();
+        let main_contract_hash = hash_bytecode(&bytecode);
+        let execute_calldata =
+            Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata);
         let mut factory_deps = self.factory_deps.unwrap_or_default();
-        //factory_deps.push(bytecode.clone());
+        factory_deps.push(bytecode.clone());
 
         self.wallet
             .signer
             .sign_execute_contract_for_deploy(
-                CONTRACT_DEPLOYER_ADDRESS_EVM,
+                CONTRACT_DEPLOYER_ADDRESS,
                 execute_calldata,
                 fee,
                 nonce,
-                Some(factory_deps),
-                paymaster_params,
-            )
-            .await
-            .map_err(ClientError::SigningError)
-    }
-
-    /// Sends the transaction, returning the handle for its awaiting.
-    pub async fn tx_evm(self) -> Result<L2TxEvm, ClientError> {
-        let paymaster_params = self.paymaster_params.clone().unwrap_or_default();
-
-        let fee = match self.fee {
-            Some(fee) => fee,
-            None => {
-                self.estimate_fee_evm(Some(paymaster_params.clone()))
-                    .await?
-            }
-        };
-
-        let bytecode = self
-            .bytecode
-            .ok_or_else(|| ClientError::MissingRequiredField("bytecode".into()))?;
-
-        let calldata = self.calldata.unwrap_or_default();
-
-        let nonce = match self.nonce {
-            Some(nonce) => nonce,
-            None => Nonce(self.wallet.get_nonce().await?),
-        };
-        //let main_contract_hash = hash_bytecode(&bytecode);
-        //let execute_calldata =
-        //    Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata);
-        let execute_calldata = vec![bytecode.clone(), calldata].concat();
-        let mut factory_deps = self.factory_deps.unwrap_or_default();
-        //factory_deps.push(bytecode.clone());
-
-        self.wallet
-            .signer
-            .sign_execute_contract_for_deploy_evm(
-                CONTRACT_DEPLOYER_ADDRESS_EVM,
-                execute_calldata,
-                fee,
-                nonce,
-                Some(factory_deps),
+                Some(vec![bytecode.clone()]),
                 paymaster_params,
             )
             .await
@@ -184,46 +138,12 @@ where
             .unwrap_or_default();
 
         let calldata = self.calldata.clone().unwrap_or_default();
-        //let main_contract_hash = hash_bytecode(&bytecode);
+        let main_contract_hash = hash_bytecode(&bytecode);
         let mut factory_deps = self.factory_deps.clone().unwrap_or_default();
-        //factory_deps.push(bytecode);
+        factory_deps.push(bytecode);
         let l2_tx = L2Tx::new(
-            Some(CONTRACT_DEPLOYER_ADDRESS_EVM),
-            vec![bytecode.clone(), calldata].concat(),
-            Nonce(0),
-            Default::default(),
-            self.wallet.address(),
-            self.value.unwrap_or_default(),
-            Some(factory_deps),
-            paymaster_params,
-        );
-        self.wallet
-            .provider
-            .estimate_fee(l2_tx.into())
-            .await
-            .map_err(Into::into)
-    }
-
-    pub async fn estimate_fee_evm(
-        &self,
-        paymaster_params: Option<PaymasterParams>,
-    ) -> Result<Fee, ClientError> {
-        let bytecode = self
-            .bytecode
-            .clone()
-            .ok_or_else(|| ClientError::MissingRequiredField("bytecode".into()))?;
-
-        let paymaster_params = paymaster_params
-            .or_else(|| self.paymaster_params.clone())
-            .unwrap_or_default();
-
-        let calldata = self.calldata.clone().unwrap_or_default();
-        //let main_contract_hash = hash_bytecode(&bytecode);
-        let mut factory_deps = self.factory_deps.clone().unwrap_or_default();
-        //factory_deps.push(bytecode);
-        let l2_tx = L2TxEvm::new(
-            Some(CONTRACT_DEPLOYER_ADDRESS_EVM),
-            vec![bytecode.clone(), calldata].concat(),
+            Some(CONTRACT_DEPLOYER_ADDRESS),
+            Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata),
             Nonce(0),
             Default::default(),
             self.wallet.address(),

@@ -135,5 +135,3 @@ pub const MINT_AND_BURN_ADDRESS: H160 = H160::zero();
 
 // The `storage_log.value` database value for a contract that was deployed in a failed transaction.
 pub const FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH: H256 = H256::zero();
-
-pub const CONTRACT_DEPLOYER_ADDRESS_EVM: Address = H160::zero();

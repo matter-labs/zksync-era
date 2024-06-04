@@ -1,7 +1,7 @@
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
     api::{BlockIdVariant, BlockNumber, TransactionRequest},
-    l2::{L2Tx, L2TxEvm},
+    l2::L2Tx,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     Address, Bytes, Eip712Domain, U256,
@@ -150,36 +150,6 @@ where
             req.from = Some(self.address());
             req
         };
-        let domain = Eip712Domain::new(self.signer.chain_id);
-        let signature = self
-            .signer
-            .eth_signer
-            .sign_typed_data(&domain, &transaction_request)
-            .await?;
-
-        let encoded_tx = transaction_request.get_signed_bytes(&signature, self.signer.chain_id);
-        let bytes = Bytes(encoded_tx);
-
-        let tx_hash = self.provider.send_raw_transaction(bytes).await?;
-
-        Ok(SyncTransactionHandle::new(tx_hash, &self.provider))
-    }
-
-    pub async fn send_transaction_evm(
-        &self,
-        tx: L2TxEvm,
-    ) -> Result<SyncTransactionHandle<'_, P>, ClientError> {
-        // Since we sign the transaction with the Ethereum signature later on,
-        // we might want to get rid of the signature and the initiator left from `L2Tx`.
-        let transaction_request: TransactionRequest = {
-            let mut req: TransactionRequest = tx.into();
-            if let Some(meta) = req.eip712_meta.as_mut() {
-                meta.custom_signature = None;
-            }
-            req.from = Some(self.address());
-            req
-        };
-        println!("transaction_request: {:?}", transaction_request);
         let domain = Eip712Domain::new(self.signer.chain_id);
         let signature = self
             .signer
