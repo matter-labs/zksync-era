@@ -2,6 +2,7 @@ use std::fmt;
 
 use anyhow::Context;
 use async_trait::async_trait;
+use vise::{EncodeLabelSet, EncodeLabelValue};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_types::{web3, Address, L1BatchNumber, H256, U256, U64};
@@ -12,13 +13,13 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use super::TreeDataFetcherResult;
+use super::{metrics::METRICS, TreeDataFetcherResult};
 
 #[cfg(test)]
 mod tests;
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum MissingData {
+pub(super) enum MissingData {
     /// The provider lacks a requested L1 batch.
     #[error("no requested L1 batch")]
     Batch,
@@ -27,24 +28,34 @@ pub(crate) enum MissingData {
     RootHash,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "source", rename_all = "snake_case")]
+pub(super) enum TreeDataProviderSource {
+    L1CommitEvent,
+    BatchDetailsRpc,
+}
+
+#[derive(Debug)]
+pub(super) struct TreeDataProviderOutput {
+    pub root_hash: H256,
+    pub source: TreeDataProviderSource,
+}
+
+pub(super) type TreeDataProviderResult =
+    TreeDataFetcherResult<Result<TreeDataProviderOutput, MissingData>>;
+
 /// External provider of tree data, such as main node (via JSON-RPC).
 #[async_trait]
-pub(crate) trait TreeDataProvider: fmt::Debug + Send + Sync + 'static {
+pub(super) trait TreeDataProvider: fmt::Debug + Send + Sync + 'static {
     /// Fetches a state root hash for the L1 batch with the specified number.
     ///
     /// It is guaranteed that this method will be called with monotonically increasing `number`s (although not necessarily sequential ones).
-    async fn batch_details(
-        &mut self,
-        number: L1BatchNumber,
-    ) -> TreeDataFetcherResult<Result<H256, MissingData>>;
+    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult;
 }
 
 #[async_trait]
 impl TreeDataProvider for Box<DynClient<L2>> {
-    async fn batch_details(
-        &mut self,
-        number: L1BatchNumber,
-    ) -> TreeDataFetcherResult<Result<H256, MissingData>> {
+    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
         let Some(batch_details) = self
             .get_l1_batch_details(number)
             .rpc_context("get_l1_batch_details")
@@ -53,7 +64,14 @@ impl TreeDataProvider for Box<DynClient<L2>> {
         else {
             return Ok(Err(MissingData::Batch));
         };
-        Ok(batch_details.base.root_hash.ok_or(MissingData::RootHash))
+        Ok(batch_details
+            .base
+            .root_hash
+            .ok_or(MissingData::RootHash)
+            .map(|root_hash| TreeDataProviderOutput {
+                root_hash,
+                source: TreeDataProviderSource::BatchDetailsRpc,
+            }))
     }
 }
 
@@ -128,21 +146,22 @@ impl L1DataProvider {
     async fn guess_l1_commit_block_number(
         eth_client: &DynClient<L1>,
         l1_batch_seal_timestamp: u64,
-    ) -> EnrichedClientResult<U64> {
+    ) -> EnrichedClientResult<(U64, usize)> {
         let l1_batch_seal_timestamp = U256::from(l1_batch_seal_timestamp);
         let (latest_number, latest_timestamp) =
             Self::get_block(eth_client, web3::BlockNumber::Latest).await?;
         if latest_timestamp < l1_batch_seal_timestamp {
-            return Ok(latest_number); // No better estimate at this point
+            return Ok((latest_number, 0)); // No better estimate at this point
         }
         let (earliest_number, earliest_timestamp) =
             Self::get_block(eth_client, web3::BlockNumber::Earliest).await?;
         if earliest_timestamp > l1_batch_seal_timestamp {
-            return Ok(earliest_number); // No better estimate at this point
+            return Ok((earliest_number, 0)); // No better estimate at this point
         }
 
         // At this point, we have `earliest_timestamp <= l1_batch_seal_timestamp <= latest_timestamp`.
         // Binary-search the range until we're sort of accurate.
+        let mut steps = 0;
         let mut left = earliest_number;
         let mut right = latest_number;
         while left + Self::L1_BLOCK_ACCURACY < right {
@@ -154,8 +173,9 @@ impl L1DataProvider {
             } else {
                 right = middle;
             }
+            steps += 1;
         }
-        Ok(left)
+        Ok((left, steps))
     }
 
     /// Gets a block that should be present on L1.
@@ -186,10 +206,7 @@ impl L1DataProvider {
 
 #[async_trait]
 impl TreeDataProvider for L1DataProvider {
-    async fn batch_details(
-        &mut self,
-        number: L1BatchNumber,
-    ) -> TreeDataFetcherResult<Result<H256, MissingData>> {
+    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
         let l1_batch_seal_timestamp = self.l1_batch_seal_timestamp(number).await?;
         let from_block = self.past_l1_batch.and_then(|info| {
             assert!(
@@ -213,15 +230,18 @@ impl TreeDataProvider for L1DataProvider {
         let from_block = match from_block {
             Some(number) => number,
             None => {
-                let approximate_block = Self::guess_l1_commit_block_number(
+                let (approximate_block, steps) = Self::guess_l1_commit_block_number(
                     self.eth_client.as_ref(),
                     l1_batch_seal_timestamp,
                 )
                 .await?;
                 tracing::debug!(
                     number = number.0,
-                    "Guessed L1 block number for L1 batch #{number} commit: {approximate_block}"
+                    "Guessed L1 block number for L1 batch #{number} commit in {steps} binary search steps: {approximate_block}"
                 );
+                METRICS
+                    .l1_commit_block_number_binary_search_steps
+                    .observe(steps);
                 // Subtract to account for imprecise L1 and L2 timestamps etc.
                 approximate_block.saturating_sub(Self::L1_BLOCK_ACCURACY)
             }
@@ -245,7 +265,7 @@ impl TreeDataProvider for L1DataProvider {
         match logs.as_slice() {
             [] => Ok(Err(MissingData::Batch)),
             [log] => {
-                let root_hash_topic = log.topics.get(2).copied().ok_or_else(|| {
+                let root_hash = log.topics.get(2).copied().ok_or_else(|| {
                     let err = "Bogus `BlockCommit` event, does not have the root hash topic";
                     EnrichedClientError::new(ClientError::Custom(err.into()), "batch_details")
                         .with_arg("filter", &filter)
@@ -253,6 +273,12 @@ impl TreeDataProvider for L1DataProvider {
                 })?;
                 // `unwrap()` is safe due to the filtering above
                 let l1_commit_block_number = log.block_number.unwrap();
+                let diff = l1_commit_block_number.saturating_sub(from_block).as_u64();
+                METRICS.l1_commit_block_number_from_diff.observe(diff);
+                tracing::debug!(
+                    "`BlockCommit` event for L1 batch #{number} is at block #{l1_commit_block_number}, \
+                     {diff} block(s) after the `from` block from the filter"
+                );
 
                 let l1_commit_block = self.eth_client.block(l1_commit_block_number.into()).await?;
                 let l1_commit_block = l1_commit_block.ok_or_else(|| {
@@ -265,7 +291,10 @@ impl TreeDataProvider for L1DataProvider {
                     l1_commit_block_number,
                     l1_commit_block_timestamp: l1_commit_block.timestamp,
                 });
-                Ok(Ok(root_hash_topic))
+                Ok(Ok(TreeDataProviderOutput {
+                    root_hash,
+                    source: TreeDataProviderSource::L1CommitEvent,
+                }))
             }
             _ => {
                 tracing::warn!("Non-unique `BlockCommit` event for L1 batch #{number} queried using {filter:?}: {logs:?}");
@@ -284,10 +313,7 @@ pub(super) struct CombinedDataProvider {
 
 #[async_trait]
 impl TreeDataProvider for CombinedDataProvider {
-    async fn batch_details(
-        &mut self,
-        number: L1BatchNumber,
-    ) -> TreeDataFetcherResult<Result<H256, MissingData>> {
+    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
         if let Some(l1) = &mut self.l1 {
             match l1.batch_details(number).await {
                 Err(err) => {
