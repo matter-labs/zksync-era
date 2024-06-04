@@ -1203,19 +1203,19 @@ impl ExternalNodeConfig<()> {
 
     pub fn from_files(
         general_config_path: PathBuf,
-        external_node_config_patch: PathBuf,
-        secrets_configs: PathBuf,
-        consensus: Option<PathBuf>,
+        external_node_config_path: PathBuf,
+        secrets_configs_path: PathBuf,
+        consensus_config_path: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
         let general_config = read_yaml_repr::<proto::general::GeneralConfig>(general_config_path)
             .context("failed decoding general YAML config")?;
         let external_node_config =
-            read_yaml_repr::<proto::en::ExternalNode>(external_node_config_patch)
+            read_yaml_repr::<proto::en::ExternalNode>(external_node_config_path)
                 .context("failed decoding external node YAML config")?;
-        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(secrets_configs)
+        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(secrets_configs_path)
             .context("failed decoding secrets YAML config")?;
 
-        let consensus = consensus
+        let consensus = consensus_config_path
             .map(read_yaml_repr::<proto::consensus::Config>)
             .transpose()
             .context("failed decoding consensus YAML config")?;
