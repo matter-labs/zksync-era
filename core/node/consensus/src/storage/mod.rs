@@ -101,6 +101,18 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
+    /// Wrapper for `consensus_dal().block_payloads()`.
+    pub async fn payloads(
+        &mut self,
+        ctx: &ctx::Ctx,
+        numbers: std::ops::Range<validator::BlockNumber>,
+    ) -> ctx::Result<Vec<Payload>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_payloads(numbers))
+            .await?
+            .map_err(DalError::generalize)?)
+    }
+
     /// Wrapper for `consensus_dal().first_certificate()`.
     pub async fn first_certificate(
         &mut self,

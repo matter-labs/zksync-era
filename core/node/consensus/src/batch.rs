@@ -1,7 +1,7 @@
 #![allow(unused)]
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _};
-//use zksync_merkle_tree::{TreeEntryWithProof};
+use zksync_consensus_roles::validator;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_dal::consensus_dal::Payload;
 use zksync_l1_contract_interface::i_executor;
@@ -34,7 +34,7 @@ struct LastBlockProof {
 }
 
 /// Commitment to an L1 batch.
-struct L1BatchCommit {
+pub struct L1BatchCommit {
     number: L1BatchNumber,
     this_batch: LastBlockCommit,
     prev_batch: LastBlockCommit,
@@ -42,7 +42,7 @@ struct L1BatchCommit {
 
 /// Proof of an L1 batch.
 /// Contains the blocks of this batch.
-struct L1BatchProof {
+pub struct L1BatchProof {
     blocks: Vec<Payload>,
     this_batch: LastBlockProof,
     prev_batch: LastBlockProof,
@@ -80,7 +80,8 @@ impl LastBlockProof {
         StorageKey::new(Self::addr(), <[u8; 32]>::from(key).into()).hashed_key_u256()
     }
 
-    async fn make(
+    /// Loads a LastBlockProof from storage.
+    async fn load(
         ctx: &ctx::Ctx,
         n: L1BatchNumber,
         pool: &ConnectionPool,
@@ -109,11 +110,13 @@ impl LastBlockProof {
         let current_l2_block_info = proofs[0].clone();
         let tx_rolling_hash = proofs[1].clone();
         let (block_number, _) = unpack_block_info(current_l2_block_info.value.as_bytes().into());
-        let prev: L2BlockNumber = block_number
-            .checked_sub(1)
-            .context("L2BlockNumber underflow")?
-            .try_into()
-            .context("L2BlockNumber overflow")?;
+        let prev = L2BlockNumber(
+            block_number
+                .checked_sub(1)
+                .context("L2BlockNumber underflow")?
+                .try_into()
+                .context("L2BlockNumber overflow")?,
+        );
         let proofs = tree
             .get_proofs(n, vec![Self::l2_block_hash_entry_key(prev)])
             .await
@@ -137,7 +140,7 @@ impl LastBlockProof {
 
     /// Verifies the proof against the commit and returns the hash
     /// of the last L2 block.
-    pub fn verify(&self, comm: &LastBlockCommit) -> anyhow::Result<(L2BlockNumber, H256)> {
+    fn verify(&self, comm: &LastBlockCommit) -> anyhow::Result<(L2BlockNumber, H256)> {
         // Verify info.
         anyhow::ensure!(comm.info == self.info.hash());
 
@@ -149,21 +152,21 @@ impl LastBlockProof {
 
         let (block_number, block_timestamp) =
             unpack_block_info(self.current_l2_block_info.value.as_bytes().into());
-        let prev: L2BlockNumber = block_number
-            .checked_sub(1)
-            .context("L2BlockNumber underflow")?
-            .try_into()
-            .context("L2BlockNumber overflow")?;
+        let prev = L2BlockNumber(
+            block_number
+                .checked_sub(1)
+                .context("L2BlockNumber underflow")?
+                .try_into()
+                .context("L2BlockNumber overflow")?,
+        );
 
         // Verify merkle paths.
         self.current_l2_block_info
             .verify(Self::current_l2_block_info_key(), self.info.batch_hash)?;
         self.tx_rolling_hash
             .verify(Self::tx_rolling_hash_key(), self.info.batch_hash)?;
-        self.l2_block_hash_entry.verify(
-            Self::l2_block_hash_entry_key(prev),
-            self.info.batch_hash,
-        )?;
+        self.l2_block_hash_entry
+            .verify(Self::l2_block_hash_entry_key(prev), self.info.batch_hash)?;
 
         // Derive hash of the last block
         Ok((
@@ -177,22 +180,45 @@ impl LastBlockProof {
             ),
         ))
     }
+
+    /// Last L2 block of the batch.
+    pub fn last_block(&self) -> validator::BlockNumber {
+        let (n, _) = unpack_block_info(self.current_l2_block_info.value.as_bytes().into());
+        validator::BlockNumber(n)
+    }
 }
 
 impl L1BatchProof {
-    async fn make(
+    /// Loads an `L1BatchProof` from storage.
+    pub async fn load(
         ctx: &ctx::Ctx,
         number: L1BatchNumber,
         pool: &ConnectionPool,
         tree: &dyn TreeApiClient,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            blocks: pool.get_batch_blocks(),
-            this_batch: LastBlockProof::make(ctx,number,pool,tree).await.with_context(||format!("LastBlockProof::make({number})"))?,
-            prev_batch: LastBlockProof::make(ctx,number-1,pool,tree).await.with_context(||format!("LastBlockProof::make({})",number-1))?,
-        })
+    ) -> ctx::Result<Self> {
+        let prev_batch = LastBlockProof::load(ctx, number - 1, pool, tree)
+            .await
+            .with_wrap(|| format!("LastBlockProof::make({})", number - 1))?;
+        let this_batch = LastBlockProof::load(ctx, number, pool, tree)
+            .await
+            .with_wrap(|| format!("LastBlockProof::make({number})"))?;
+        let mut conn = pool.connection(ctx).await.wrap("connection()")?;
+        let this = Self {
+            blocks: conn
+                .payloads(
+                    ctx,
+                    std::ops::Range {
+                        start: prev_batch.last_block() + 1,
+                        end: this_batch.last_block() + 1,
+                    },
+                )
+                .await
+                .wrap("payloads()")?,
+            prev_batch,
+            this_batch,
+        };
+        Ok(this)
     }
-    
 
     /// WARNING: the following are not currently verified:
     /// * l1_gas_price

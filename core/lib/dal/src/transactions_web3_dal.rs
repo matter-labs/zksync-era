@@ -1,7 +1,12 @@
+use std::collections::HashMap;
+
+use anyhow::Context as _;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
-    match_query_as,
+    connection::Connection,
+    error::{DalResult, SqlxContext as _},
+    instrument::InstrumentExt,
+    interpolate_query, match_query_as,
 };
 use zksync_types::{
     api, api::TransactionReceipt, Address, L2BlockNumber, L2ChainId, Transaction,
@@ -381,7 +386,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_raw_l2_blocks_transactions(
         &mut self,
         blocks: std::ops::Range<L2BlockNumber>,
-    ) -> DalResult<Vec<Transaction>> {
+    ) -> DalResult<HashMap<L2BlockNumber, Vec<Transaction>>> {
         // We do an inner join with `miniblocks.number`, because
         // transaction insertions are not atomic with miniblock insertion.
         let rows = sqlx::query_as!(
@@ -395,17 +400,46 @@ impl TransactionsWeb3Dal<'_, '_> {
             WHERE
                 miniblocks.number BETWEEN $1 AND $2
             ORDER BY
-                miniblock_number, index_in_block
+                miniblock_number,
+                index_in_block
             "#,
-            blocks.start.0.into(),
-            blocks.end.0.into()-1,
+            i64::from(blocks.start.0),
+            i64::from(blocks.end.0 - 1),
         )
+        .try_map(|row| {
+            let to_block_number = |n: Option<i64>| {
+                anyhow::Ok(L2BlockNumber(
+                    n.context("missing")?.try_into().context("overflow")?,
+                ))
+            };
+            Ok((
+                to_block_number(row.miniblock_number).decode_column("miniblock_number")?,
+                Transaction::from(row),
+            ))
+        })
         .instrument("get_raw_l2_blocks_transactions")
         .with_arg("blocks", &blocks)
         .fetch_all(self.storage)
         .await?;
+        let mut txs: HashMap<L2BlockNumber, Vec<Transaction>> = HashMap::new();
+        for (n, tx) in rows {
+            txs.entry(n).or_default().push(tx);
+        }
+        Ok(txs)
+    }
 
-        Ok(rows.into_iter().map(Into::into).collect())
+    pub async fn get_raw_l2_block_transactions(
+        &mut self,
+        block: L2BlockNumber,
+    ) -> DalResult<Vec<Transaction>> {
+        Ok(self
+            .get_raw_l2_blocks_transactions(std::ops::Range {
+                start: block,
+                end: block + 1,
+            })
+            .await?
+            .remove(&block)
+            .unwrap_or_default())
     }
 }
 

@@ -286,28 +286,49 @@ impl ConsensusDal<'_, '_> {
         &mut self,
         numbers: std::ops::Range<validator::BlockNumber>,
     ) -> DalResult<Vec<Payload>> {
-        let numbers = (|| Ok(std::ops::Range {
-            start: L2BlockNumber(u32::try_from(numbers.start)?),
-            end: L2BlockNumber(u32::try_from(numbers.end)?),
-        ) })().map_err(|err| Instrumented::new("block_payload")
-            .with_arg("numbers", &numbers)
-            .arg_error("numbers", err))?;
+        let numbers = (|| {
+            anyhow::Ok(std::ops::Range {
+                start: L2BlockNumber(numbers.start.0.try_into().context(".start")?),
+                end: L2BlockNumber(numbers.end.0.try_into().context("end")?),
+            })
+        })()
+        .map_err(|err| {
+            Instrumented::new("block_payloads")
+                .with_arg("numbers", &numbers)
+                .arg_error("numbers", err)
+        })?;
 
         let blocks = self
             .storage
             .sync_dal()
-            .sync_block_inner(numbers)
+            .sync_blocks_inner(numbers.clone())
             .await?;
-        else {
-            return Ok(None);
-        };
-        let transactions = self
+        let mut transactions = self
             .storage
             .transactions_web3_dal()
-            .get_raw_l2_block_transactions(block_number)
+            .get_raw_l2_blocks_transactions(numbers)
             .await?;
-        Ok(Some(block.into_payload(transactions)))
+        Ok(blocks
+            .into_iter()
+            .map(|b| {
+                let txs = transactions.remove(&b.number).unwrap_or_default();
+                b.into_payload(txs)
+            })
+            .collect())
+    }
 
+    pub async fn block_payload(
+        &mut self,
+        number: validator::BlockNumber,
+    ) -> DalResult<Option<Payload>> {
+        Ok(self
+            .block_payloads(std::ops::Range {
+                start: number,
+                end: number + 1,
+            })
+            .await?
+            .into_iter()
+            .next())
     }
 
     /// Inserts a certificate for the L2 block `cert.header().number`. It verifies that
