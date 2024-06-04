@@ -59,18 +59,6 @@ impl Executor {
         let pool = AccountPool::new(&config).await?;
 
         // derive L2 main token address
-        let l2_main_token_2 = pool
-            .master_wallet
-            .ethereum(&config.l1_rpc_address)
-            .await
-            .expect("Can't get Ethereum client")
-            .l2_token_address(config.main_token, None)
-            .await
-            .unwrap();
-
-        println!("L2 token address 2: {:?}", l2_main_token_2);
-
-        // derive L2 main token address
         let l2_standard_deployer = pool
             .master_wallet
             .provider
@@ -84,7 +72,6 @@ impl Executor {
             .call(&query_client)
             .await?;
 
-        println!("L2 token address: {:?}", l2_main_token);
         Ok(Self {
             config,
             execution_config,
@@ -391,8 +378,6 @@ impl Executor {
         let mut eth_txs = Vec::with_capacity(txs_amount * 2);
         let mut eth_nonce = ethereum.client().pending_nonce().await?;
 
-        println!("Got nonce");
-
         for account in self.pool.accounts.iter().take(accounts_to_process) {
             let target_address = account.wallet.address();
 
@@ -405,8 +390,6 @@ impl Executor {
             if weight_of_l1_txs != 0.0 {
                 let balance = ethereum.query_client().eth_balance(target_address).await?;
                 let gas_price = ethereum.query_client().get_gas_price().await?;
-
-                println!("1");
 
                 if balance < eth_to_distribute {
                     let options = Options {
@@ -424,18 +407,14 @@ impl Executor {
                         )
                         .await
                         .unwrap();
-                    println!("2");
 
                     eth_nonce += U256::one();
                     eth_txs.push(res);
                 }
 
-                println!("3");
                 let ethereum_erc20_balance = ethereum
                     .erc20_balance(target_address, self.config.main_token)
                     .await?;
-
-                println!("Erc20 balance: {:?}", ethereum_erc20_balance);
 
                 if ethereum_erc20_balance < U256::from(l1_transfer_amount) {
                     let options = Options {
@@ -444,7 +423,6 @@ impl Executor {
                         max_priority_fee_per_gas: Some(gas_price * 2),
                         ..Default::default()
                     };
-                    println!("Options: {:?}", options);
                     let res = ethereum
                         .transfer(
                             self.config.main_token,
@@ -453,7 +431,6 @@ impl Executor {
                             Some(options),
                         )
                         .await?;
-                    println!("4");
                     eth_nonce += U256::one();
                     eth_txs.push(res);
                 }
@@ -472,8 +449,6 @@ impl Executor {
                 for initial transfers {necessary_balance:?}"
             );
 
-            println!("{:?}", self.pool.master_wallet.address());
-            println!("Builder starting");
             // And then we will prepare an L2 transaction to send ERC20 token (for transfers and fees).
             let mut builder = master_wallet
                 .start_transfer()
@@ -482,16 +457,13 @@ impl Executor {
                 .token(self.l2_main_token)
                 .nonce(nonce);
 
-            println!("Paymaster address: {:?}", paymaster_address);
             let paymaster_params = get_approval_based_paymaster_input_for_estimation(
                 paymaster_address,
                 self.l2_main_token,
                 MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             );
-            println!("L2 main token: {:?}", self.l2_main_token);
             let fee = builder.estimate_fee(Some(paymaster_params)).await?;
             builder = builder.fee(fee.clone());
-            println!("5");
             let paymaster_params = get_approval_based_paymaster_input(
                 paymaster_address,
                 self.l2_main_token,
@@ -502,7 +474,6 @@ impl Executor {
             builder = builder.paymaster_params(paymaster_params);
 
             let handle_erc20 = builder.send().await?;
-            println!("6");
             handles.push(handle_erc20);
 
             *nonce += 1;
