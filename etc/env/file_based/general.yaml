@@ -325,3 +325,16 @@ observability:
 protective_reads_writer:
   protective_reads_db_path: "./db/main/protective_reads"
   protective_reads_window_size: 3
+
+snapshot_recovery:
+  enabled: true
+  postgres_max_concurrency: 10
+  tree_chunk_size: 200000
+pruning:
+  enabled: true
+  chunk_size: 10
+  removal_delay_sec: 60
+  data_retention_sec: 3600
+
+commitment_generator:
+  max_parallelism: 10
