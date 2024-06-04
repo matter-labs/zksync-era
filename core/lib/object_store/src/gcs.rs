@@ -1,6 +1,6 @@
 //! GCS-based [`ObjectStore`] implementation.
 
-use std::fmt;
+use std::{error::Error as StdError, fmt, io};
 
 use async_trait::async_trait;
 use google_cloud_auth::{credentials::CredentialsFile, error::Error as AuthError};
@@ -85,12 +85,29 @@ impl GoogleCloudStore {
 
 impl From<AuthError> for ObjectStoreError {
     fn from(err: AuthError) -> Self {
-        let is_transient =
-            matches!(&err, AuthError::HttpError(err) if err.is_timeout() || err.is_connect());
+        let is_transient = matches!(
+            &err,
+            AuthError::HttpError(err) if err.is_timeout() || err.is_connect() || has_transient_io_source(err)
+        );
         Self::Initialization {
             source: err.into(),
             is_transient,
         }
+    }
+}
+
+fn has_transient_io_source(mut err: &(dyn StdError + 'static)) -> bool {
+    loop {
+        if err.is::<io::Error>() {
+            // We treat any I/O errors as transient. This isn't always true, but frequently occurring I/O errors
+            // (e.g., "connection reset by peer") *are* transient, and treating an error as transient is a safer option,
+            // even if it can lead to unnecessary retries.
+            return true;
+        }
+        err = match err.source() {
+            Some(source) => source,
+            None => return false,
+        };
     }
 }
 
@@ -107,8 +124,10 @@ impl From<HttpError> for ObjectStoreError {
         if is_not_found {
             ObjectStoreError::KeyNotFound(err.into())
         } else {
-            let is_transient =
-                matches!(&err, HttpError::HttpClient(err) if err.is_timeout() || err.is_connect());
+            let is_transient = matches!(
+                &err,
+                HttpError::HttpClient(err) if err.is_timeout() || err.is_connect() || has_transient_io_source(err)
+            );
             ObjectStoreError::Other {
                 is_transient,
                 source: err.into(),
