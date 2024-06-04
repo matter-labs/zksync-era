@@ -1,5 +1,5 @@
 [package]
-name = "zksync_da_dispatcher"
+name = "zksync_default_da_clients"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -9,17 +9,14 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-
 [dependencies]
-vise.workspace = true
-zksync_dal.workspace = true
-zksync_utils.workspace = true
+serde = { workspace = true, features = ["derive"] }
+tracing = "0.1.40"
+async-trait = "0.1.74"
+anyhow.workspace = true
+
 zksync_config.workspace = true
 zksync_types.workspace = true
+zksync_object_store.workspace = true
 zksync_da_client.workspace = true
-
-tokio = { workspace = true, features = ["time"] }
-anyhow.workspace = true
-tracing.workspace = true
-chrono = "0.4.31"
-rand = "0.8.5"
+zksync_node_framework.workspace = true

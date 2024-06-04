@@ -4,18 +4,8 @@ package zksync.config.da_dispatcher;
 
 import "zksync/config/object_store.proto";
 
-message DALayer {
-  optional string name = 1; // required
-  optional string private_key = 2; // required
-  optional string light_node_url = 3;
-}
-
 message DataAvailabilityDispatcher {
-  oneof mode {
-    config.object_store.ObjectStore object_store = 1;
-    DALayer da_layer = 2;
-  }
-  optional uint32 polling_interval = 3;
-  optional uint32 query_rows_limit = 4;
-  optional uint32 max_retries = 5;
+  optional uint32 polling_interval = 1;
+  optional uint32 query_rows_limit = 2;
+  optional uint32 max_retries = 3;
 }

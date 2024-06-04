@@ -6,7 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use zksync_config::ObjectStoreConfig;
-use zksync_da_layers::{
+use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };

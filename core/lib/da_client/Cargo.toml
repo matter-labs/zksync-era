@@ -10,11 +10,10 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+serde = { workspace = true, features = ["derive"] }
 tracing = "0.1.40"
 async-trait = "0.1.74"
 anyhow.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true
-zksync_da_layers.workspace = true
-zksync_object_store.workspace = true

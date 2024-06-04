@@ -328,9 +328,12 @@ impl MainNodeBuilder {
     }
 
     fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
+        let state_keeper_config = StateKeeperConfig::from_env()?;
         let da_config = DADispatcherConfig::from_env()?;
-        self.node
-            .add_layer(DataAvailabilityDispatcherLayer::new(da_config));
+        self.node.add_layer(DataAvailabilityDispatcherLayer::new(
+            state_keeper_config,
+            da_config,
+        ));
         Ok(self)
     }
 

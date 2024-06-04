@@ -1,5 +1,5 @@
-use zksync_config::configs::da_dispatcher::DADispatcherConfig;
-use zksync_da_layers::DataAvailabilityClient;
+use zksync_config::configs::{chain::StateKeeperConfig, da_dispatcher::DADispatcherConfig};
+use zksync_da_client::DataAvailabilityClient;
 use zksync_dal::Core;
 use zksync_db_connection::connection_pool::ConnectionPool;
 
@@ -16,12 +16,16 @@ use crate::{
 /// A layer that wires the data availability dispatcher task.
 #[derive(Debug)]
 pub struct DataAvailabilityDispatcherLayer {
+    state_keeper_config: StateKeeperConfig,
     da_config: DADispatcherConfig,
 }
 
 impl DataAvailabilityDispatcherLayer {
-    pub fn new(da_config: DADispatcherConfig) -> Self {
-        Self { da_config }
+    pub fn new(state_keeper_config: StateKeeperConfig, da_config: DADispatcherConfig) -> Self {
+        Self {
+            state_keeper_config,
+            da_config,
+        }
     }
 }
 
@@ -35,6 +39,10 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
         let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let master_pool = master_pool_resource.get().await?;
         let da_client = context.get_resource::<DAClientResource>().await?.0;
+
+        if self.state_keeper_config.max_pubdata_per_batch > da_client.blob_size_limit() as u64 {
+            panic!("State keeper max pubdata per batch is greater than the client blob size limit");
+        }
 
         context.add_task(Box::new(DataAvailabilityDispatcherTask {
             main_pool: master_pool,

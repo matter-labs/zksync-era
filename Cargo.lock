@@ -2820,16 +2820,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyperchain_da"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da.git?rev=822542abff3e7c9e42c6e65f4ba29f289a979d3d#822542abff3e7c9e42c6e65f4ba29f289a979d3d"
-dependencies = [
- "anyhow",
- "async-trait",
- "serde",
-]
-
-[[package]]
 name = "iai"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8122,7 +8112,6 @@ name = "zksync_config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "hyperchain_da",
  "rand 0.8.5",
  "secrecy",
  "serde",
@@ -8369,7 +8358,6 @@ dependencies = [
  "futures 0.3.28",
  "governor",
  "hex",
- "hyperchain_da",
  "itertools 0.10.5",
  "jsonrpsee",
  "lru",
@@ -8414,6 +8402,7 @@ dependencies = [
  "zksync_da_dispatcher",
  "zksync_dal",
  "zksync_db_connection",
+ "zksync_default_da_clients",
  "zksync_eth_client",
  "zksync_eth_sender",
  "zksync_eth_signer",
@@ -8486,10 +8475,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "hyperchain_da",
+ "serde",
  "tracing",
  "zksync_config",
- "zksync_object_store",
  "zksync_types",
 ]
 
@@ -8499,12 +8487,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "hyperchain_da",
  "rand 0.8.5",
  "tokio",
  "tracing",
  "vise",
  "zksync_config",
+ "zksync_da_client",
  "zksync_dal",
  "zksync_types",
  "zksync_utils",
@@ -8560,12 +8548,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_default_da_clients"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "tracing",
+ "zksync_config",
+ "zksync_da_client",
+ "zksync_node_framework",
+ "zksync_object_store",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_env_config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "envy",
- "hyperchain_da",
  "serde",
  "zksync_basic_types",
  "zksync_config",
@@ -8967,7 +8969,6 @@ dependencies = [
  "async-trait",
  "ctrlc",
  "futures 0.3.28",
- "hyperchain_da",
  "prometheus_exporter",
  "prover_dal",
  "thiserror",
@@ -9159,7 +9160,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "hex",
- "hyperchain_da",
  "prost 0.12.1",
  "rand 0.8.5",
  "secrecy",
@@ -9239,6 +9239,7 @@ dependencies = [
  "zksync_consensus_executor",
  "zksync_consensus_roles",
  "zksync_core_leftovers",
+ "zksync_default_da_clients",
  "zksync_env_config",
  "zksync_eth_client",
  "zksync_metadata_calculator",

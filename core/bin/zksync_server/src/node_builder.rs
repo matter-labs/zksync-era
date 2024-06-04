@@ -8,6 +8,7 @@ use zksync_config::{
     ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
+use zksync_default_da_clients::no_da::wiring_layer::NoDAClientWiringLayer;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::{ApiContracts, TxSenderConfig},
@@ -19,7 +20,6 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
-        da_client::DataAvailabilityClientLayer,
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
@@ -401,22 +401,18 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = try_load_config!(self.configs.eth);
-        let da_config = try_load_config!(self.configs.da_dispatcher_config);
-        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        self.node.add_layer(DataAvailabilityClientLayer::new(
-            da_config,
-            eth_sender_config,
-            state_keeper_config,
-        ));
+    fn add_no_da_client_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(NoDAClientWiringLayer::new());
         Ok(self)
     }
 
     fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
+        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let da_config = try_load_config!(self.configs.da_dispatcher_config);
-        self.node
-            .add_layer(DataAvailabilityDispatcherLayer::new(da_config));
+        self.node.add_layer(DataAvailabilityDispatcherLayer::new(
+            state_keeper_config,
+            da_config,
+        ));
         Ok(self)
     }
 
@@ -502,7 +498,7 @@ impl MainNodeBuilder {
                     self = self.add_commitment_generator_layer()?;
                 }
                 Component::DADispatcher => {
-                    self = self.add_da_client_layer()?.add_da_dispatcher_layer()?;
+                    self = self.add_no_da_client_layer()?.add_da_dispatcher_layer()?;
                 }
             }
         }

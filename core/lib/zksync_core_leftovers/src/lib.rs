@@ -27,7 +27,6 @@ use zksync_config::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         consensus::ConsensusConfig,
-        da_dispatcher::DataAvailabilityMode,
         database::{MerkleTreeConfig, MerkleTreeMode},
         eth_sender::PubdataSendingMode,
         wallets,
@@ -37,13 +36,11 @@ use zksync_config::{
     ApiConfig, DBConfig, EthWatchConfig, GenesisConfig,
 };
 use zksync_contracts::governance_contract;
-use zksync_da_client::{gcs::ObjectStoreDAClient, no_da::NoDAClient};
+use zksync_da_client::DataAvailabilityClient;
 use zksync_da_dispatcher::DataAvailabilityDispatcher;
-use zksync_da_layers::{
-    clients::celestia::CelestiaClient, config::DALayerConfig, DataAvailabilityClient,
-};
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
+use zksync_default_da_clients::no_da::client::NoDAClient;
 use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
 use zksync_eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
@@ -769,17 +766,8 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build da_dispatcher_pool")?;
-        let da_client: Box<dyn DataAvailabilityClient> = match da_config.clone().da_mode {
-            DataAvailabilityMode::ObjectStore(config) => {
-                Box::new(ObjectStoreDAClient::new(config).await?)
-            }
-            DataAvailabilityMode::NoDA => Box::new(NoDAClient::new()),
-            DataAvailabilityMode::DALayer(config) => match config {
-                DALayerConfig::Celestia(celestia_config) => {
-                    Box::new(CelestiaClient::new(celestia_config))
-                }
-            },
-        };
+        let da_client: Box<dyn DataAvailabilityClient> = Box::new(NoDAClient::new()); // use the NoDAClient as a default one
+
         let da_dispatcher =
             DataAvailabilityDispatcher::new(da_dispatcher_pool, da_config, da_client);
         task_futures.push(tokio::spawn(da_dispatcher.run(stop_receiver.clone())));

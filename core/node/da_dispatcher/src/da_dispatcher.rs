@@ -5,7 +5,7 @@ use chrono::{NaiveDateTime, Utc};
 use rand::Rng;
 use tokio::sync::watch;
 use zksync_config::DADispatcherConfig;
-use zksync_da_layers::{
+use zksync_da_client::{
     types::{DAError, IsTransient},
     DataAvailabilityClient,
 };

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use zksync_da_layers::{
+use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
