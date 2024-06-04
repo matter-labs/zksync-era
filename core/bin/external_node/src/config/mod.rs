@@ -222,8 +222,6 @@ pub(crate) struct OptionalENConfig {
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
-    /// Note: Deprecated option, no longer in use. Left to display a warning in case someone used them.
-    pub transactions_per_sec_limit: Option<u32>,
     /// Limit for fee history block range.
     #[serde(default = "OptionalENConfig::default_fee_history_limit")]
     pub fee_history_limit: u64,
