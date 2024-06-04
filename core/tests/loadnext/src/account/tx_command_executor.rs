@@ -395,9 +395,16 @@ impl AccountLifespan {
 
             ExecutionType::L2 => {
                 let mut started_at = Instant::now();
-                let tx = self
-                    .build_execute_loadnext_contract_evm(command, contract_address)
-                    .await?; //EVM HERE
+                let tx;
+                if self.config.is_evm() {
+                    tx = self
+                        .build_execute_loadnext_contract_evm(command, contract_address)
+                        .await?;
+                } else {
+                    tx = self
+                        .build_execute_loadnext_contract(command, contract_address)
+                        .await?;
+                }
                 tracing::trace!(
                     "Account {:?}: execute_loadnext_contract: tx built in {:?}",
                     self.wallet.wallet.address(),

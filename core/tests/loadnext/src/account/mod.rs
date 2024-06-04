@@ -126,7 +126,11 @@ impl AccountLifespan {
             to: Address::zero(),
             amount: U256::zero(),
         };
-        self.execute_command_evm(deploy_command.clone()).await?; //EVM HERE
+        if self.config.is_evm() {
+            self.execute_command_evm(deploy_command.clone()).await?;
+        } else {
+            self.execute_command(deploy_command.clone()).await?;
+        }
         self.wait_for_all_inflight_tx().await?;
 
         let mut timer = tokio::time::interval(POLLING_INTERVAL);

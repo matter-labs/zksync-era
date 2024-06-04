@@ -93,11 +93,12 @@ impl Executor {
         tracing::info!("Running for MASTER {:?}", self.pool.master_wallet.address());
         self.check_onchain_balance().await?;
 
-        //EVM HERE
-        //self.mint().await?;
-        //self.deposit_to_master().await?;
+        if !self.config.is_evm() {
+            self.mint().await?;
+            self.deposit_to_master().await?;
 
-        //self.deposit_eth_to_paymaster().await?;
+            self.deposit_eth_to_paymaster().await?;
+        }
 
         let final_result = self.send_initial_transfers().await?;
         Ok(final_result)
@@ -584,14 +585,21 @@ impl Executor {
             let max_accounts_per_iter = MAX_OUTSTANDING_NONCE;
             let accounts_to_process = std::cmp::min(accounts_left, max_accounts_per_iter);
 
-            if let Err(err) = self
-                .send_initial_transfers_inner_evm(accounts_to_process)
-                .await
-            {
-                //EVM HERE
-                tracing::warn!("Iteration of the initial funds distribution failed: {err}");
-                retry_counter += 1;
-                continue;
+            if self.config.is_evm() {
+                if let Err(err) = self
+                    .send_initial_transfers_inner_evm(accounts_to_process)
+                    .await
+                {
+                    tracing::warn!("Iteration of the initial funds distribution failed: {err}");
+                    retry_counter += 1;
+                    continue;
+                }
+            } else {
+                if let Err(err) = self.send_initial_transfers_inner(accounts_to_process).await {
+                    tracing::warn!("Iteration of the initial funds distribution failed: {err}");
+                    retry_counter += 1;
+                    continue;
+                }
             }
 
             accounts_processed += accounts_to_process;

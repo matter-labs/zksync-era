@@ -136,6 +136,9 @@ pub struct LoadtestConfig {
     /// in an eventual test failure anyway (e.g., a failure processing transactions).
     #[serde(default)]
     pub fail_fast: bool,
+
+    #[serde(default)]
+    pub is_evm: usize,
 }
 
 fn default_max_inflight_txs() -> usize {
@@ -268,6 +271,10 @@ impl LoadtestConfig {
 
     pub fn duration(&self) -> Duration {
         Duration::from_secs(self.duration_sec)
+    }
+
+    pub fn is_evm(&self) -> bool {
+        self.is_evm != 0
     }
 }
 
