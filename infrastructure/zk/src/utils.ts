@@ -67,7 +67,7 @@ export async function confirmAction() {
     const input = await new Promise((resolve) => {
         rl.question(
             'Dangerous action! (set ZKSYNC_ACTION=dont_ask to always allow)\n' +
-            `Type environment name (${process.env.ZKSYNC_ENV}) to confirm: `,
+                `Type environment name (${process.env.ZKSYNC_ENV}) to confirm: `,
             (input) => {
                 rl.close();
                 resolve(input);
