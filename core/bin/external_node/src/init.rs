@@ -17,7 +17,7 @@ use crate::config::snapshot_recovery_object_store_config;
 #[derive(Debug)]
 pub(crate) struct SnapshotRecoveryConfig {
     /// If not specified, the latest snapshot will be used.
-    pub snapshot_l1_batch: Option<L1BatchNumber>,
+    pub snapshot_l1_batch_override: Option<L1BatchNumber>,
 }
 
 #[derive(Debug)]
@@ -102,10 +102,10 @@ pub(crate) async fn ensure_storage_initialized(
                 Box::new(main_node_client.for_component("snapshot_recovery")),
                 blob_store,
             );
-            if let Some(snapshot_l1_batch) = recovery_config.snapshot_l1_batch {
+            if let Some(snapshot_l1_batch) = recovery_config.snapshot_l1_batch_override {
                 tracing::info!(
                     "Using a specific snapshot with L1 batch #{snapshot_l1_batch}; this may not work \
-                     if the snapshot is too old or non-existent"
+                     if the snapshot is too old (order of several weeks old) or non-existent"
                 );
                 snapshots_applier_task.set_snapshot_l1_batch(snapshot_l1_batch);
             }
