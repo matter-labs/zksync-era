@@ -22,15 +22,22 @@ impl TokenPriceDal<'_, '_> {
     pub async fn fetch_ratio(
         &mut self,
         token_address: Address,
-    ) -> anyhow::Result<Option<TokenPriceData>> {
-        todo!("TokenPriceDal::fetch_ratio");
-
-        let temp = TokenPriceData {
-            token: Address::from_str("").expect("Invalid address"),
-            rate: BigDecimal::from(0),
-            timestamp: 0,
-        };
-        Ok(Some(temp))
+    ) -> anyhow::Result<Option<BigDecimal>> {
+        let ratio = sqlx::query!(
+            r#"
+            SELECT
+                ratio
+            FROM
+                token_price_ratio
+            WHERE
+                token_address = $1
+            "#,
+            token_address.as_bytes(),
+        )
+        .instrument("fetch_token_price_data")
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(ratio.map(|r| BigDecimal::from_str(&r.ratio).unwrap()))
     }
 
     pub async fn insert_ratio(&mut self, token_price_data: TokenPriceData) -> anyhow::Result<()> {
@@ -46,7 +53,7 @@ impl TokenPriceDal<'_, '_> {
             RETURNING
                 *
             "#,
-            token_price_data.token.as_bytes(),
+            token_price_data.address.as_bytes(),
             token_price_data.rate.to_string(),
         )
         .instrument("update_token_price_data")
@@ -64,7 +71,7 @@ impl TokenPriceDal<'_, '_> {
             VALUES
                 ($1, $2, NOW())
             "#,
-            token_price_data.token.as_bytes(),
+            token_price_data.address.as_bytes(),
             token_price_data.rate.to_string(),
         )
         .instrument("insert_token_price_data")

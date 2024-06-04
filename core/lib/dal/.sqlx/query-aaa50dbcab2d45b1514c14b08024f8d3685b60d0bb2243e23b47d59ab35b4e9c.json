@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                ratio\n            FROM\n                token_price_ratio\n            WHERE\n                token_address = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ratio",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "aaa50dbcab2d45b1514c14b08024f8d3685b60d0bb2243e23b47d59ab35b4e9c"
+}

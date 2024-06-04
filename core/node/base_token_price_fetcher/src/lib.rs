@@ -57,19 +57,18 @@ impl BaseTokenPriceFetcher {
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut connection = self.connection_pool.connection().await.unwrap();
+        let address = Address::from_str(&self.config.token_price_api_token)
+            .context("Invalid token price API token")?;
+
         loop {
             if *stop_receiver.borrow() {
                 tracing::debug!("Stopping mempool cache updates");
                 return Ok(());
             }
 
-            let conversion_rate = self.get_price().await?;
-
             let token_price_data = TokenPriceData {
-                token: Address::from_str(&self.config.token_price_api_token)
-                    .expect("Invalid address"),
-                rate: conversion_rate,
-                timestamp: 1, // TODO: replace with actual timestamp
+                address,
+                rate: self.get_price().await?,
             };
 
             connection

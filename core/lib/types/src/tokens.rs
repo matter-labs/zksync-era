@@ -37,7 +37,6 @@ impl TokenMetadata {
 // Information about base token with its address, conversion rate and last update time.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TokenPriceData {
-    pub token: Address,
+    pub address: Address,
     pub rate: BigDecimal,
-    pub timestamp: u64, // TODO: replace for chrono::Utc
 }
