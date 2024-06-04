@@ -39,5 +39,5 @@ impl TokenMetadata {
 pub struct TokenPriceData {
     pub token: Address,
     pub rate: BigDecimal,
-    pub timestamp: u64, // replace for chrono::Utc
+    pub timestamp: u64, // TODO: replace for chrono::Utc
 }

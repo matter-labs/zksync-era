@@ -3,7 +3,6 @@ use std::str::FromStr;
 use chrono::{DateTime, NaiveDateTime};
 use zksync_db_connection::{
     connection::Connection,
-    error::DalResult,
     instrument::{CopyStatement, InstrumentExt},
     write_str, writeln_str,
 };
@@ -20,7 +19,10 @@ pub struct TokenPriceDal<'a, 'c> {
 }
 
 impl TokenPriceDal<'_, '_> {
-    pub async fn fetch_ratio(&mut self, token: Address) -> anyhow::Result<Option<TokenPriceData>> {
+    pub async fn fetch_ratio(
+        &mut self,
+        token_address: Address,
+    ) -> anyhow::Result<Option<TokenPriceData>> {
         todo!("TokenPriceDal::fetch_ratio");
 
         let temp = TokenPriceData {
@@ -32,16 +34,38 @@ impl TokenPriceDal<'_, '_> {
     }
 
     pub async fn insert_ratio(&mut self, token_price_data: TokenPriceData) -> anyhow::Result<()> {
+        // Attempt to update token price data
+        let updated = sqlx::query!(
+            r#"
+            UPDATE token_price_ratio
+            SET
+                ratio = $2,
+                updated_at = NOW()
+            WHERE
+                token_address = $1
+            RETURNING
+                *
+            "#,
+            token_price_data.token.as_bytes(),
+            token_price_data.rate.to_string(),
+        )
+        .instrument("update_token_price_data")
+        .fetch_optional(self.storage)
+        .await?;
+        if updated.is_some() {
+            return Ok(());
+        }
+
+        // Token has no previous price data, insert new row
         sqlx::query!(
             r#"
             INSERT INTO
                 token_price_ratio (token_address, ratio, updated_at)
             VALUES
-                ($1, $2, $3)
+                ($1, $2, NOW())
             "#,
             token_price_data.token.as_bytes(),
             token_price_data.rate.to_string(),
-            NaiveDateTime::default(), // TODO: replace with actual timestamp
         )
         .instrument("insert_token_price_data")
         .execute(self.storage)

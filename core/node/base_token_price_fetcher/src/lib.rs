@@ -12,15 +12,6 @@ pub enum TokenPriceInfoSource {
     Custom,
 }
 
-impl TokenPriceInfoSource {
-    pub fn host(&self) -> &'static str {
-        match self {
-            TokenPriceInfoSource::CoinGecko => "https://api.coingecko.com/api/v3",
-            TokenPriceInfoSource::Custom => panic!("Custom source does not have a host"), // TODO: what should be done here?
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct BaseTokenPriceFetcherConfig {
     token_price_info_source: TokenPriceInfoSource,
@@ -32,8 +23,8 @@ pub struct BaseTokenPriceFetcherConfig {
 impl Default for BaseTokenPriceFetcherConfig {
     fn default() -> Self {
         BaseTokenPriceFetcherConfig {
-            token_price_info_source: TokenPriceInfoSource::CoinGecko,
-            token_price_api_token: "".to_string(),
+            token_price_info_source: TokenPriceInfoSource::Custom,
+            token_price_api_token: "0x0d8775f648430679a709e98d2b0cb6250d2887ef".to_string(),
             poll_interval: 600,
         }
     }
@@ -55,6 +46,15 @@ impl BaseTokenPriceFetcher {
         }
     }
 
+    pub async fn get_price(&self) -> anyhow::Result<BigDecimal> {
+        match self.config.token_price_info_source {
+            TokenPriceInfoSource::Custom => Ok(BigDecimal::from(1)),
+            _ => {
+                todo!("BaseTokenPriceFetcher::get_price")
+            }
+        }
+    }
+
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut connection = self.connection_pool.connection().await.unwrap();
         loop {
@@ -63,25 +63,7 @@ impl BaseTokenPriceFetcher {
                 return Ok(());
             }
 
-            // TODO: parsing depends on the TokenPriceInfoSource we are using
-            // so we need to implement this fetch based on each source
-            let conversion_rate_str = self
-                .http_client
-                .get(format!(
-                    "{}/conversion_rate/0x{}",
-                    self.config.token_price_info_source.host(),
-                    self.config.token_price_api_token,
-                ))
-                .send()
-                .await?
-                .json::<String>()
-                .await
-                .context(
-                    "Unable to parse the response of the native token conversion rate server",
-                )?;
-
-            let conversion_rate = BigDecimal::from_str(&conversion_rate_str)
-                .context("Unable to parse the conversion rate")?;
+            let conversion_rate = self.get_price().await?;
 
             let token_price_data = TokenPriceData {
                 token: Address::from_str(&self.config.token_price_api_token)
@@ -89,8 +71,6 @@ impl BaseTokenPriceFetcher {
                 rate: conversion_rate,
                 timestamp: 1, // TODO: replace with actual timestamp
             };
-            //
-            //
 
             connection
                 .token_price_dal()

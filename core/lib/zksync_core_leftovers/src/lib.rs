@@ -318,7 +318,7 @@ pub async fn initialize_components(
 
     if components.contains(&Component::BaseTokenPriceFetcher) {
         let started_at = Instant::now();
-        tracing::info!("initializing base token price fetcher");
+        tracing::info!("Initializing base token price fetcher");
 
         let config = BaseTokenPriceFetcherConfig::default();
         let base_token_price_fetcher = BaseTokenPriceFetcher::new(config, connection_pool.clone());
