@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto, sync::Arc};
 use tokio::sync::RwLock;
 use zksync_contracts::{governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
@@ -13,10 +14,7 @@ use zksync_types::{
     ProtocolVersionId, Transaction, H256, U256,
 };
 
-use crate::{
-    client::{EthClient, EthClientError},
-    EthWatch,
-};
+use crate::{client::EthClient, EthWatch};
 
 #[derive(Debug)]
 struct FakeEthClientData {
@@ -106,7 +104,7 @@ impl EthClient for MockEthClient {
         from: BlockNumber,
         to: BlockNumber,
         _retries_left: usize,
-    ) -> Result<Vec<Log>, EthClientError> {
+    ) -> EnrichedClientResult<Vec<Log>> {
         let from = self.block_to_number(from).await;
         let to = self.block_to_number(to).await;
         let mut logs = vec![];
@@ -126,11 +124,14 @@ impl EthClient for MockEthClient {
 
     fn set_topics(&mut self, _topics: Vec<Hash>) {}
 
-    async fn scheduler_vk_hash(&self, _verifier_address: Address) -> Result<H256, EthClientError> {
+    async fn scheduler_vk_hash(
+        &self,
+        _verifier_address: Address,
+    ) -> Result<H256, ContractCallError> {
         Ok(H256::zero())
     }
 
-    async fn finalized_block_number(&self) -> Result<u64, EthClientError> {
+    async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 }
@@ -146,8 +147,6 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
         common_data: L1TxCommonData {
             serial_id: PriorityOpId(serial_id),
             sender: [1u8; 20].into(),
-            deadline_block: 0,
-            eth_hash: [2; 32].into(),
             eth_block,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
@@ -175,7 +174,6 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
         common_data: ProtocolUpgradeTxCommonData {
             upgrade_id: id,
             sender: [1u8; 20].into(),
-            eth_hash: [2; 32].into(),
             eth_block,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
