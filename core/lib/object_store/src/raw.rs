@@ -57,21 +57,58 @@ pub type BoxedError = Box<dyn error::Error + Send + Sync>;
 
 /// Errors during [`ObjectStore`] operations.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ObjectStoreError {
+    /// Object store initialization failed.
+    Initialization {
+        source: BoxedError,
+        is_transient: bool,
+    },
     /// An object with the specified key is not found.
     KeyNotFound(BoxedError),
     /// Object (de)serialization failed.
     Serialization(BoxedError),
     /// Other error has occurred when accessing the store (e.g., a network error).
-    Other(BoxedError),
+    Other {
+        source: BoxedError,
+        is_transient: bool,
+    },
+}
+
+impl ObjectStoreError {
+    /// Gives a best-effort estimate whether this error is transient.
+    pub fn is_transient(&self) -> bool {
+        match self {
+            Self::Initialization { is_transient, .. } | Self::Other { is_transient, .. } => {
+                *is_transient
+            }
+            Self::KeyNotFound(_) | Self::Serialization(_) => false,
+        }
+    }
 }
 
 impl fmt::Display for ObjectStoreError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Initialization {
+                source,
+                is_transient,
+            } => {
+                let kind = if *is_transient { "transient" } else { "fatal" };
+                write!(
+                    formatter,
+                    "{kind} error initializing object store: {source}"
+                )
+            }
             Self::KeyNotFound(err) => write!(formatter, "key not found: {err}"),
             Self::Serialization(err) => write!(formatter, "serialization error: {err}"),
-            Self::Other(err) => write!(formatter, "other error: {err}"),
+            Self::Other {
+                source,
+                is_transient,
+            } => {
+                let kind = if *is_transient { "transient" } else { "fatal" };
+                write!(formatter, "{kind} error accessing object store: {source}")
+            }
         }
     }
 }
@@ -79,9 +116,10 @@ impl fmt::Display for ObjectStoreError {
 impl error::Error for ObjectStoreError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            Self::KeyNotFound(err) | Self::Serialization(err) | Self::Other(err) => {
-                Some(err.as_ref())
+            Self::Initialization { source, .. } | Self::Other { source, .. } => {
+                Some(source.as_ref())
             }
+            Self::KeyNotFound(err) | Self::Serialization(err) => Some(err.as_ref()),
         }
     }
 }
@@ -184,14 +222,26 @@ impl ObjectStoreFactory {
     }
 
     /// Creates an [`ObjectStore`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if store initialization fails (e.g., because of incorrect configuration).
     pub async fn create_store(&self) -> Arc<dyn ObjectStore> {
         match &self.origin {
-            ObjectStoreOrigin::Config(config) => Self::create_from_config(config).await,
+            ObjectStoreOrigin::Config(config) => Self::create_from_config(config)
+                .await
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "failed creating object store factory with configuration {config:?}: {err}"
+                    )
+                }),
             ObjectStoreOrigin::Mock(store) => Arc::new(Arc::clone(store)),
         }
     }
 
-    async fn create_from_config(config: &ObjectStoreConfig) -> Arc<dyn ObjectStore> {
+    async fn create_from_config(
+        config: &ObjectStoreConfig,
+    ) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
         match &config.mode {
             ObjectStoreMode::GCS { bucket_base_url } => {
                 tracing::trace!(
@@ -202,8 +252,8 @@ impl ObjectStoreFactory {
                     bucket_base_url.clone(),
                     config.max_retries,
                 )
-                .await;
-                Arc::new(store)
+                .await?;
+                Ok(Arc::new(store))
             }
             ObjectStoreMode::GCSWithCredentialFile {
                 bucket_base_url,
@@ -217,15 +267,15 @@ impl ObjectStoreFactory {
                     bucket_base_url.clone(),
                     config.max_retries,
                 )
-                .await;
-                Arc::new(store)
+                .await?;
+                Ok(Arc::new(store))
             }
             ObjectStoreMode::FileBacked {
                 file_backed_base_path,
             } => {
                 tracing::trace!("Initialized FileBacked Object store");
-                let store = FileBackedObjectStore::new(file_backed_base_path.clone()).await;
-                Arc::new(store)
+                let store = FileBackedObjectStore::new(file_backed_base_path.clone()).await?;
+                Ok(Arc::new(store))
             }
             ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
                 tracing::trace!("Initialized GoogleCloudStoragePublicReadOnly store");
@@ -234,8 +284,8 @@ impl ObjectStoreFactory {
                     bucket_base_url.clone(),
                     config.max_retries,
                 )
-                .await;
-                Arc::new(store)
+                .await?;
+                Ok(Arc::new(store))
             }
         }
     }

@@ -30,7 +30,7 @@ pub enum ContractLanguage {
 /// Meanwhile, hardhat has one more intermediate folder. That's why, we have to represent each contract
 /// by two constants, intermediate folder and actual contract name. For Forge we use only second part
 const HARDHAT_PATH_PREFIX: &str = "contracts/l1-contracts/artifacts/contracts";
-const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts-foundry/out";
+const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
@@ -591,7 +591,8 @@ pub static PRE_BOOJUM_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
 });
 
 pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
-    let abi = r#"{
+    let abi = r#"
+    {
       "anonymous": false,
       "inputs": [
         {
@@ -678,6 +679,127 @@ pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
       ],
       "name": "SetChainIdUpgrade",
       "type": "event"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+// The function that was used in the pre-v23 versions of the contract to upgrade the diamond proxy.
+pub static ADMIN_EXECUTE_UPGRADE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+        "inputs": [
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "facet",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "enum Diamond.Action",
+                    "name": "action",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "bool",
+                    "name": "isFreezable",
+                    "type": "bool"
+                  },
+                  {
+                    "internalType": "bytes4[]",
+                    "name": "selectors",
+                    "type": "bytes4[]"
+                  }
+                ],
+                "internalType": "struct Diamond.FacetCut[]",
+                "name": "facetCuts",
+                "type": "tuple[]"
+              },
+              {
+                "internalType": "address",
+                "name": "initAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "initCalldata",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct Diamond.DiamondCutData",
+            "name": "_diamondCut",
+            "type": "tuple"
+          }
+        ],
+        "name": "executeUpgrade",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+// The function that is used in post-v23 chains to upgrade the chain
+pub static ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+        "inputs": [
+          {
+            "internalType": "uint256",
+            "name": "_oldProtocolVersion",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "facet",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "enum Diamond.Action",
+                    "name": "action",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "bool",
+                    "name": "isFreezable",
+                    "type": "bool"
+                  },
+                  {
+                    "internalType": "bytes4[]",
+                    "name": "selectors",
+                    "type": "bytes4[]"
+                  }
+                ],
+                "internalType": "struct Diamond.FacetCut[]",
+                "name": "facetCuts",
+                "type": "tuple[]"
+              },
+              {
+                "internalType": "address",
+                "name": "initAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "initCalldata",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct Diamond.DiamondCutData",
+            "name": "_diamondCut",
+            "type": "tuple"
+          }
+        ],
+        "name": "upgradeChainFromVersion",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
     }"#;
     serde_json::from_str(abi).unwrap()
 });

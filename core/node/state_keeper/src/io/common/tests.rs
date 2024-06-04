@@ -16,8 +16,8 @@ use zksync_node_test_utils::{
     prepare_recovery_snapshot,
 };
 use zksync_types::{
-    block::L2BlockHasher, fee::TransactionExecutionMetrics, L2ChainId, ProtocolVersion,
-    ProtocolVersionId,
+    block::L2BlockHasher, fee::TransactionExecutionMetrics,
+    protocol_version::ProtocolSemanticVersion, L2ChainId, ProtocolVersion, ProtocolVersionId,
 };
 
 use super::*;
@@ -447,7 +447,10 @@ async fn getting_batch_version_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
-        protocol_version: Some(ProtocolVersionId::Version5 as u16),
+        protocol_version: Some(ProtocolSemanticVersion {
+            minor: ProtocolVersionId::Version5,
+            patch: 0.into(),
+        }),
         ..mock_genesis_config()
     })
     .unwrap();
@@ -461,7 +464,7 @@ async fn getting_batch_version_with_genesis() {
         .load_l1_batch_protocol_version(&mut storage, L1BatchNumber(0))
         .await
         .unwrap();
-    assert_eq!(version, Some(genesis_params.protocol_version()));
+    assert_eq!(version, Some(genesis_params.minor_protocol_version()));
 
     assert!(provider
         .load_l1_batch_protocol_version(&mut storage, L1BatchNumber(1))
@@ -515,7 +518,10 @@ async fn getting_batch_version_after_snapshot_recovery() {
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(&ProtocolVersion {
-            id: ProtocolVersionId::next(),
+            version: ProtocolSemanticVersion {
+                minor: ProtocolVersionId::next(),
+                patch: 0.into(),
+            },
             ..ProtocolVersion::default()
         })
         .await

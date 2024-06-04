@@ -5,7 +5,10 @@ use chrono::Utc;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
-use crate::PruneCondition;
+#[async_trait]
+pub(crate) trait PruneCondition: fmt::Debug + fmt::Display + Send + Sync + 'static {
+    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
+}
 
 #[derive(Debug)]
 pub(super) struct L1BatchOlderThanPruneCondition {
