@@ -15,7 +15,7 @@ use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_consistency_checker::ConsistencyChecker;
 use zksync_core_leftovers::setup_sigint_handler;
-use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
@@ -66,7 +66,6 @@ mod metadata;
 mod metrics;
 #[cfg(test)]
 mod tests;
-mod version_sync_task;
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -437,10 +436,6 @@ async fn run_api(
     let tx_sender_builder =
         TxSenderBuilder::new(config.into(), connection_pool.clone(), Arc::new(tx_proxy));
 
-    if config.optional.transactions_per_sec_limit.is_some() {
-        tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
-    };
-
     let max_concurrency = config.optional.vm_concurrency_limit;
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
     let mut storage_caches = PostgresStorageCaches::new(
@@ -629,7 +624,8 @@ async fn init_tasks(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone());
+        let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone())
+            .with_l1_data(eth_client.clone(), config.remote.diamond_proxy_addr)?;
         app_health.insert_component(fetcher.health_check())?;
         task_handles.push(tokio::spawn(fetcher.run(stop_receiver.clone())));
     }
@@ -696,9 +692,6 @@ async fn shutdown_components(
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
-    /// Revert the pending L1 batch and exit.
-    #[arg(long)]
-    revert_pending_l1_batch: bool,
     /// Enables consensus-based syncing instead of JSON-RPC based one. This is an experimental and incomplete feature;
     /// do not use unless you know what you're doing.
     #[arg(long)]
@@ -912,20 +905,7 @@ async fn run_node(
     );
     let validate_chain_ids_task = tokio::spawn(validate_chain_ids_task.run(stop_receiver.clone()));
 
-    let version_sync_task_pool = connection_pool.clone();
-    let version_sync_task_main_node_client = main_node_client.clone();
-    let mut stop_receiver_for_version_sync = stop_receiver.clone();
-    let version_sync_task = tokio::spawn(async move {
-        version_sync_task::sync_versions(
-            version_sync_task_pool,
-            version_sync_task_main_node_client,
-        )
-        .await?;
-
-        stop_receiver_for_version_sync.changed().await.ok();
-        Ok(())
-    });
-    let mut task_handles = vec![metrics_task, validate_chain_ids_task, version_sync_task];
+    let mut task_handles = vec![metrics_task, validate_chain_ids_task];
     task_handles.extend(prometheus_task);
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
@@ -978,20 +958,6 @@ async fn run_node(
             tracing::info!("Revert successfully completed");
         }
         Err(err) => return Err(err).context("reorg_detector.check_consistency()"),
-    }
-    if opt.revert_pending_l1_batch {
-        tracing::info!("Reverting pending L1 batch");
-        let mut connection = connection_pool.connection().await?;
-        let sealed_l1_batch_number = connection
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await?
-            .context("Cannot revert pending L1 batch since there are no L1 batches in Postgres")?;
-        drop(connection);
-
-        tracing::info!("Reverting to l1 batch number {sealed_l1_batch_number}");
-        reverter.roll_back(sealed_l1_batch_number).await?;
-        tracing::info!("Revert successfully completed");
     }
 
     app_health.insert_component(reorg_detector.health_check().clone())?;
