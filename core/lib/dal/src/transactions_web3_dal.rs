@@ -377,12 +377,13 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok(U256::from(pending_nonce))
     }
 
-    /// Returns the server transactions (not API ones) from a certain L2 block.
-    /// Returns an empty list if the L2 block doesn't exist.
-    pub async fn get_raw_l2_block_transactions(
+    /// Returns the server transactions (not API ones) from a L2 block range.
+    pub async fn get_raw_l2_blocks_transactions(
         &mut self,
-        l2_block: L2BlockNumber,
+        blocks: std::ops::Range<L2BlockNumber>,
     ) -> DalResult<Vec<Transaction>> {
+        // We do an inner join with `miniblocks.number`, because
+        // transaction insertions are not atomic with miniblock insertion.
         let rows = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -392,14 +393,15 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions
                 INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
             WHERE
-                miniblocks.number = $1
+                miniblocks.number BETWEEN $1 AND $2
             ORDER BY
-                index_in_block
+                miniblock_number, index_in_block
             "#,
-            i64::from(l2_block.0)
+            blocks.start.0.into(),
+            blocks.end.0.into()-1,
         )
-        .instrument("get_raw_l2_block_transactions")
-        .with_arg("l2_block", &l2_block)
+        .instrument("get_raw_l2_blocks_transactions")
+        .with_arg("blocks", &blocks)
         .fetch_all(self.storage)
         .await?;
 

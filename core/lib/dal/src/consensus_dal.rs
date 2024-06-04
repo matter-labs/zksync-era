@@ -279,24 +279,25 @@ impl ConsensusDal<'_, '_> {
             .await
     }
 
-    /// Converts the L2 block `block_number` into consensus payload. `Payload` is an
+    /// Fetches an L2 block from storage and converts it to `Payload`. `Payload` is an
     /// opaque format for the L2 block that consensus understands and generates a
     /// certificate for it.
-    pub async fn block_payload(
+    pub async fn block_payloads(
         &mut self,
-        block_number: validator::BlockNumber,
-    ) -> DalResult<Option<Payload>> {
-        let instrumentation =
-            Instrumented::new("block_payload").with_arg("block_number", &block_number);
-        let block_number = u32::try_from(block_number.0)
-            .map_err(|err| instrumentation.arg_error("block_number", err))?;
-        let block_number = L2BlockNumber(block_number);
+        numbers: std::ops::Range<validator::BlockNumber>,
+    ) -> DalResult<Vec<Payload>> {
+        let numbers = (|| Ok(std::ops::Range {
+            start: L2BlockNumber(u32::try_from(numbers.start)?),
+            end: L2BlockNumber(u32::try_from(numbers.end)?),
+        ) })().map_err(|err| Instrumented::new("block_payload")
+            .with_arg("numbers", &numbers)
+            .arg_error("numbers", err))?;
 
-        let Some(block) = self
+        let blocks = self
             .storage
             .sync_dal()
-            .sync_block_inner(block_number)
-            .await?
+            .sync_block_inner(numbers)
+            .await?;
         else {
             return Ok(None);
         };
@@ -306,6 +307,7 @@ impl ConsensusDal<'_, '_> {
             .get_raw_l2_block_transactions(block_number)
             .await?;
         Ok(Some(block.into_payload(transactions)))
+
     }
 
     /// Inserts a certificate for the L2 block `cert.header().number`. It verifies that

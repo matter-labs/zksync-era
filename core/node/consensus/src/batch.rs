@@ -49,9 +49,12 @@ struct L1BatchProof {
 }
 
 impl LastBlockProof {
+    /// Address of the SystemContext contract.
     fn addr() -> AccountTreeId {
         AccountTreeId::new(constants::SYSTEM_CONTEXT_ADDRESS)
     }
+
+    /// Storage key of the `SystemContext.current_l2_block_info` field.
     fn current_l2_block_info_key() -> U256 {
         StorageKey::new(
             Self::addr(),
@@ -59,6 +62,8 @@ impl LastBlockProof {
         )
         .hashed_key_u256()
     }
+
+    /// Storage key of the `SystemContext.tx_rolling_hash` field.
     fn tx_rolling_hash_key() -> U256 {
         StorageKey::new(
             Self::addr(),
@@ -66,9 +71,12 @@ impl LastBlockProof {
         )
         .hashed_key_u256()
     }
-    fn l2_block_hash_entry_key(i: U256) -> U256 {
+
+    /// Storage key of the entry of the `SystemContext.l2BlockHash[]` array, corresponding to l2
+    /// block with number i.
+    fn l2_block_hash_entry_key(i: L2BlockNumber) -> U256 {
         let key = U256::from(constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION.as_bytes())
-            + i % U256::from(constants::SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES);
+            + U256::from(i.0) % U256::from(constants::SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES);
         StorageKey::new(Self::addr(), <[u8; 32]>::from(key).into()).hashed_key_u256()
     }
 
@@ -101,11 +109,13 @@ impl LastBlockProof {
         let current_l2_block_info = proofs[0].clone();
         let tx_rolling_hash = proofs[1].clone();
         let (block_number, _) = unpack_block_info(current_l2_block_info.value.as_bytes().into());
-        let prev = block_number
+        let prev: L2BlockNumber = block_number
             .checked_sub(1)
-            .context("block_number underflow")?;
+            .context("L2BlockNumber underflow")?
+            .try_into()
+            .context("L2BlockNumber overflow")?;
         let proofs = tree
-            .get_proofs(n, vec![Self::l2_block_hash_entry_key(prev.into())])
+            .get_proofs(n, vec![Self::l2_block_hash_entry_key(prev)])
             .await
             .context("get_proofs()")?;
         if proofs.len() != 1 {
@@ -139,9 +149,11 @@ impl LastBlockProof {
 
         let (block_number, block_timestamp) =
             unpack_block_info(self.current_l2_block_info.value.as_bytes().into());
-        let prev = block_number
+        let prev: L2BlockNumber = block_number
             .checked_sub(1)
-            .context("block_number underflow")?;
+            .context("L2BlockNumber underflow")?
+            .try_into()
+            .context("L2BlockNumber overflow")?;
 
         // Verify merkle paths.
         self.current_l2_block_info
@@ -149,7 +161,7 @@ impl LastBlockProof {
         self.tx_rolling_hash
             .verify(Self::tx_rolling_hash_key(), self.info.batch_hash)?;
         self.l2_block_hash_entry.verify(
-            Self::l2_block_hash_entry_key(prev.into()),
+            Self::l2_block_hash_entry_key(prev),
             self.info.batch_hash,
         )?;
 
@@ -157,7 +169,7 @@ impl LastBlockProof {
         Ok((
             L2BlockNumber(block_number.try_into().context("block_number overflow")?),
             L2BlockHasher::hash(
-                L2BlockNumber(prev.try_into().context("block_number overflow")?),
+                prev,
                 block_timestamp,
                 self.l2_block_hash_entry.value,
                 self.tx_rolling_hash.value,
@@ -168,14 +180,19 @@ impl LastBlockProof {
 }
 
 impl L1BatchProof {
-    /*async fn make(&self, number: L1BatchNumber, pool: &ConnectionPool<Core>) -> anyhow::Result<Self> {
+    async fn make(
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+        pool: &ConnectionPool,
+        tree: &dyn TreeApiClient,
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             blocks: pool.get_batch_blocks(),
-            this_batch: LastBlockProof::make(number).await?,
-            prev_batch: LastBlockProof::make(number-1).await?,
+            this_batch: LastBlockProof::make(ctx,number,pool,tree).await.with_context(||format!("LastBlockProof::make({number})"))?,
+            prev_batch: LastBlockProof::make(ctx,number-1,pool,tree).await.with_context(||format!("LastBlockProof::make({})",number-1))?,
         })
     }
-    */
+    
 
     /// WARNING: the following are not currently verified:
     /// * l1_gas_price
