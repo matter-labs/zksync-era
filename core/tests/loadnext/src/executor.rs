@@ -92,6 +92,8 @@ impl Executor {
         tracing::info!("Initializing accounts");
         tracing::info!("Running for MASTER {:?}", self.pool.master_wallet.address());
         self.check_onchain_balance().await?;
+
+        //EVM HERE
         //self.mint().await?;
         //self.deposit_to_master().await?;
 
@@ -510,6 +512,31 @@ impl Executor {
         Ok(())
     }
 
+    async fn send_initial_transfers_inner_evm(
+        &self,
+        accounts_to_process: usize,
+    ) -> anyhow::Result<()> {
+        for account in self.pool.accounts.iter().take(accounts_to_process) {
+            let chain_id: u64 = self.config.l2_chain_id;
+            let l2_wallet = LocalWallet::from_str(self.config.master_wallet_pk.as_str())?
+                .with_chain_id(chain_id);
+
+            let l2_provider: Provider<Http> =
+                Provider::try_from(self.config.l2_rpc_address.clone())?;
+
+            let zkwallet = ZKSWallet::new(l2_wallet, None, Some(l2_provider), None)?;
+
+            let l2_transfer_amount = self.eth_transfer_amount(zkwallet.era_balance().await?);
+
+            let transfer_request = TransferRequest::new(l2_transfer_amount)
+                .to(account.wallet.address())
+                .from(zkwallet.l2_address());
+            zkwallet.transfer(&transfer_request, None).await?;
+        }
+
+        Ok(())
+    }
+
     /// Returns the amount sufficient for wallets to perform many operations.
     fn erc20_transfer_amount(&self) -> u128 {
         let accounts_amount = self.config.accounts_amount;
@@ -576,7 +603,11 @@ impl Executor {
             let max_accounts_per_iter = MAX_OUTSTANDING_NONCE;
             let accounts_to_process = std::cmp::min(accounts_left, max_accounts_per_iter);
 
-            if let Err(err) = self.send_initial_transfers_inner(accounts_to_process).await {
+            if let Err(err) = self
+                .send_initial_transfers_inner_evm(accounts_to_process)
+                .await
+            {
+                //EVM HERE
                 tracing::warn!("Iteration of the initial funds distribution failed: {err}");
                 retry_counter += 1;
                 continue;
