@@ -3,6 +3,8 @@ use crate::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        pruning::PruningConfig,
+        snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::ProtectiveReadsWriterConfig,
         CommitmentGeneratorConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
@@ -35,4 +37,6 @@ pub struct GeneralConfig {
     pub observability: Option<ObservabilityConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub commitment_generator: Option<CommitmentGeneratorConfig>,
+    pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
+    pub pruning: Option<PruningConfig>,
 }

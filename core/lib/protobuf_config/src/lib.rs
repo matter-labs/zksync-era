@@ -23,8 +23,11 @@ mod observability;
 mod proof_data_handler;
 pub mod proto;
 mod prover;
+mod pruning;
 mod secrets;
 mod snapshots_creator;
+
+mod snapshot_recovery;
 pub mod testonly;
 #[cfg(test)]
 mod tests;

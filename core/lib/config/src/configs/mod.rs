@@ -18,7 +18,9 @@ pub use self::{
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
+    pruning::PruningConfig,
     secrets::{DatabaseSecrets, L1Secrets, Secrets},
+    snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
     vm_runner::ProtectiveReadsWriterConfig,
@@ -47,7 +49,9 @@ pub mod house_keeper;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
+pub mod pruning;
 pub mod secrets;
+pub mod snapshot_recovery;
 pub mod snapshots_creator;
 pub mod utils;
 pub mod vm_runner;

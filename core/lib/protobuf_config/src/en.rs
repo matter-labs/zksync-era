@@ -1,58 +1,11 @@
-use std::{
-    num::{NonZeroU64, NonZeroUsize},
-    str::FromStr,
-};
+use std::{num::NonZeroUsize, str::FromStr};
 
 use anyhow::Context;
 use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId};
-use zksync_config::configs::en_config::{ENConfig, Pruning, SnapshotRecovery};
+use zksync_config::configs::en_config::ENConfig;
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::{proto::en as proto, read_optional_repr};
-
-impl ProtoRepr for proto::Pruning {
-    type Type = Pruning;
-
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            enabled: self.enabled.unwrap_or_default(),
-            chunk_size: self.chunk_size,
-            removal_delay_sec: self.removal_delay_sec.and_then(NonZeroU64::new),
-            data_retention_sec: self.data_retention_sec,
-        })
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            enabled: Some(this.enabled),
-            chunk_size: this.chunk_size,
-            removal_delay_sec: this.removal_delay_sec.map(|a| a.get()),
-            data_retention_sec: this.data_retention_sec,
-        }
-    }
-}
-
-impl ProtoRepr for proto::SnapshotRecovery {
-    type Type = SnapshotRecovery;
-
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            enabled: self.enabled.unwrap_or_default(),
-            postgres_max_concurrency: self
-                .postgres_max_concurrency
-                .and_then(|a| NonZeroUsize::new(a as usize)),
-            tree_chunk_size: self.tree_chunk_size,
-        })
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            enabled: Some(this.enabled),
-            postgres_max_concurrency: this.postgres_max_concurrency.map(|a| a.get() as u64),
-            tree_chunk_size: this.tree_chunk_size,
-        }
-    }
-}
+use crate::proto::en as proto;
 
 impl ProtoRepr for proto::ExternalNode {
     type Type = ENConfig;
@@ -77,9 +30,6 @@ impl ProtoRepr for proto::ExternalNode {
             main_node_rate_limit_rps: self
                 .main_node_rate_limit_rps
                 .and_then(|a| NonZeroUsize::new(a as usize)),
-            pruning: read_optional_repr(&self.pruning).context("pruning")?,
-            snapshot_recovery: read_optional_repr(&self.snapshot_recovery)
-                .context("snapshot_recovery")?,
         })
     }
 
@@ -95,8 +45,6 @@ impl ProtoRepr for proto::ExternalNode {
                 .into(),
             ),
             main_node_rate_limit_rps: this.main_node_rate_limit_rps.map(|a| a.get() as u32),
-            snapshot_recovery: this.snapshot_recovery.as_ref().map(ProtoRepr::build),
-            pruning: this.pruning.as_ref().map(ProtoRepr::build),
         }
     }
 }

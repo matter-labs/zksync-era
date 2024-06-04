@@ -607,33 +607,33 @@ impl OptionalENConfig {
                 default_l2_block_seal_queue_capacity
             ),
             l1_batch_commit_data_generator_mode: enconfig.l1_batch_commit_data_generator_mode,
-            snapshots_recovery_enabled: enconfig
+            snapshots_recovery_enabled: general_config
                 .snapshot_recovery
                 .as_ref()
                 .map(|a| a.enabled)
                 .unwrap_or_default(),
             snapshots_recovery_postgres_max_concurrency: load_optional_config_or_default!(
-                enconfig.snapshot_recovery,
+                general_config.snapshot_recovery,
                 postgres_max_concurrency,
                 default_snapshots_recovery_postgres_max_concurrency
             ),
-            pruning_enabled: enconfig
+            pruning_enabled: general_config
                 .pruning
                 .as_ref()
                 .map(|a| a.enabled)
                 .unwrap_or_default(),
             pruning_chunk_size: load_optional_config_or_default!(
-                enconfig.pruning,
+                general_config.pruning,
                 chunk_size,
                 default_pruning_chunk_size
             ),
             pruning_removal_delay_sec: load_optional_config_or_default!(
-                enconfig.pruning,
+                general_config.pruning,
                 removal_delay_sec,
                 default_pruning_removal_delay_sec
             ),
             pruning_data_retention_sec: load_optional_config_or_default!(
-                enconfig.pruning,
+                general_config.pruning,
                 data_retention_sec,
                 default_pruning_data_retention_sec
             ),
@@ -1069,10 +1069,7 @@ impl ExperimentalENConfig {
         self.state_keeper_db_block_cache_capacity_mb * BYTES_IN_MEGABYTE
     }
 
-    pub fn from_configs(
-        general_config: &GeneralConfig,
-        external_node_config: &ENConfig,
-    ) -> anyhow::Result<Self> {
+    pub fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
         Ok(Self {
             state_keeper_db_block_cache_capacity_mb: load_config_or_default!(
                 general_config.db_config,
@@ -1085,7 +1082,7 @@ impl ExperimentalENConfig {
                 experimental.state_keeper_db_max_open_files
             ),
             snapshots_recovery_tree_chunk_size: load_optional_config_or_default!(
-                external_node_config.snapshot_recovery,
+                general_config.snapshot_recovery,
                 tree_chunk_size,
                 default_snapshots_recovery_tree_chunk_size
             ),
@@ -1149,8 +1146,7 @@ impl ApiComponentConfig {
             tree_api_remote_url: general_config
                 .api_config
                 .as_ref()
-                .map(|a| a.web3_json_rpc.tree_api_url.clone())
-                .flatten(),
+                .and_then(|a| a.web3_json_rpc.tree_api_url.clone()),
         }
     }
 }
@@ -1247,8 +1243,7 @@ impl ExternalNodeConfig<()> {
                 .max_connections()?,
         };
         let observability = ObservabilityENConfig::from_configs(&general_config)?;
-        let experimental =
-            ExperimentalENConfig::from_configs(&general_config, &external_node_config)?;
+        let experimental = ExperimentalENConfig::from_configs(&general_config)?;
 
         let api_component = ApiComponentConfig::from_configs(&general_config);
         let tree_component = TreeComponentConfig::from_configs(&general_config);

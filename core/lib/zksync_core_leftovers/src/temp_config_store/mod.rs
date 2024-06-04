@@ -11,9 +11,10 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
+        CommitmentGeneratorConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -71,6 +72,9 @@ pub struct TempConfigStore {
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub commitment_generator: Option<CommitmentGeneratorConfig>,
+    pub pruning: Option<PruningConfig>,
+    pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
 }
 
 impl TempConfigStore {
@@ -97,7 +101,9 @@ impl TempConfigStore {
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
-            commitment_generator: None,
+            commitment_generator: self.commitment_generator.clone(),
+            snapshot_recovery: self.snapshot_recovery.clone(),
+            pruning: self.pruning.clone(),
         }
     }
 
