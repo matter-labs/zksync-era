@@ -632,7 +632,7 @@ pub async fn initialize_components(
             sender_config.clone(),
             Aggregator::new(
                 sender_config.clone(),
-                store_factory.create_store().await,
+                store_factory.create_store().await?,
                 operator_blobs_address.is_some(),
                 l1_batch_commit_data_generator_mode,
             ),
@@ -756,7 +756,7 @@ pub async fn initialize_components(
                 .proof_data_handler_config
                 .clone()
                 .context("proof_data_handler_config")?,
-            store_factory.create_store().await,
+            store_factory.create_store().await?,
             connection_pool.clone(),
             genesis_config.l1_batch_commit_data_generator_mode,
             stop_receiver.clone(),
@@ -958,7 +958,7 @@ async fn add_trees_to_task_futures(
 
     let object_store = match db_config.merkle_tree.mode {
         MerkleTreeMode::Lightweight => None,
-        MerkleTreeMode::Full => Some(store_factory.create_store().await),
+        MerkleTreeMode::Full => Some(store_factory.create_store().await?),
     };
 
     run_tree(
@@ -1046,7 +1046,7 @@ async fn add_tee_verifier_input_producer_to_task_futures(
     tracing::info!("initializing TeeVerifierInputProducer");
     let producer = TeeVerifierInputProducer::new(
         connection_pool.clone(),
-        store_factory.create_store().await,
+        store_factory.create_store().await?,
         l2_chain_id,
     )
     .await?;

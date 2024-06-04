@@ -86,16 +86,16 @@ pub(crate) async fn ensure_storage_initialized(
 
             tracing::warn!("Proceeding with snapshot recovery. This is an experimental feature; use at your own risk");
             let recovery_config = SnapshotsRecoveryConfig::new()?;
-            let blob_store = ObjectStoreFactory::new(recovery_config.snapshots_object_store)
+            let object_store = ObjectStoreFactory::new(recovery_config.snapshots_object_store)
                 .create_store()
-                .await;
+                .await?;
 
             let config = SnapshotsApplierConfig::default();
             let snapshots_applier_task = SnapshotsApplierTask::new(
                 config,
                 pool,
                 Box::new(main_node_client.for_component("snapshot_recovery")),
-                blob_store,
+                object_store,
             );
             app_health.insert_component(snapshots_applier_task.health_check())?;
 

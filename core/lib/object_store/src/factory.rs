@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use tokio::sync::OnceCell;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 
@@ -30,24 +31,23 @@ impl ObjectStoreFactory {
 
     /// Creates an [`ObjectStore`] or returns a cached store if one was created previously.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if store initialization fails (e.g., because of incorrect configuration).
-    pub async fn create_store(&self) -> Arc<dyn ObjectStore> {
-        // FIXME: propagate errors
+    /// Returns an error if store initialization fails (e.g., because of incorrect configuration).
+    pub async fn create_store(&self) -> anyhow::Result<Arc<dyn ObjectStore>> {
         self.store
-            .get_or_init(|| async {
+            .get_or_try_init(|| async {
                 Self::create_from_config(&self.config)
                     .await
-                    .unwrap_or_else(|err| {
-                        panic!(
-                            "failed creating object store factory with configuration {:?}: {err}",
+                    .with_context(|| {
+                        format!(
+                            "failed creating object store factory with configuration {:?}",
                             self.config
                         )
                     })
             })
             .await
-            .clone()
+            .cloned()
     }
 
     async fn create_from_config(

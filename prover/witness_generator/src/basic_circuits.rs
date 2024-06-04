@@ -93,9 +93,9 @@ pub struct BasicWitnessGenerator {
 }
 
 impl BasicWitnessGenerator {
-    pub async fn new(
+    pub fn new(
         config: FriWitnessGeneratorConfig,
-        store_factory: &ObjectStoreFactory,
+        object_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool<Core>,
         prover_connection_pool: ConnectionPool<Prover>,
@@ -103,7 +103,7 @@ impl BasicWitnessGenerator {
     ) -> Self {
         Self {
             config: Arc::new(config),
-            object_store: store_factory.create_store().await,
+            object_store,
             public_blob_store,
             connection_pool,
             prover_connection_pool,

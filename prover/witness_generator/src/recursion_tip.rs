@@ -79,15 +79,15 @@ pub struct RecursionTipWitnessGenerator {
 }
 
 impl RecursionTipWitnessGenerator {
-    pub async fn new(
+    pub fn new(
         config: FriWitnessGeneratorConfig,
-        store_factory: &ObjectStoreFactory,
+        object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             config,
-            object_store: store_factory.create_store().await,
+            object_store,
             prover_connection_pool,
             protocol_version,
         }
