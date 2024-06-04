@@ -14,7 +14,7 @@ use crate::{
         sync_state::SyncStateResource,
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -110,8 +110,8 @@ pub struct MainNodeConsensusTask {
 
 #[async_trait::async_trait]
 impl Task for MainNodeConsensusTask {
-    fn name(&self) -> &'static str {
-        "consensus"
+    fn id(&self) -> TaskId {
+        "consensus".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -147,8 +147,8 @@ pub struct FetcherTask {
 
 #[async_trait::async_trait]
 impl Task for FetcherTask {
-    fn name(&self) -> &'static str {
-        "consensus_fetcher"
+    fn id(&self) -> TaskId {
+        "consensus_fetcher".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

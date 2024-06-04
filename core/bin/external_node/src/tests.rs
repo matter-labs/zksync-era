@@ -2,6 +2,7 @@
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
+use zksync_dal::CoreDal;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
@@ -153,7 +154,6 @@ async fn external_node_basics(components_str: &'static str) {
     let components: ComponentsToRun = components_str.parse().unwrap();
     let expected_health_components = expected_health_components(&components);
     let opt = Cli {
-        revert_pending_l1_batch: false,
         enable_consensus: false,
         components,
     };
@@ -262,7 +262,6 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     drop(storage);
 
     let opt = Cli {
-        revert_pending_l1_batch: false,
         enable_consensus: false,
         components: "core".parse().unwrap(),
     };

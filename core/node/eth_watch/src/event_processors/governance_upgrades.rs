@@ -109,13 +109,6 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
                 .context("expected some version to be present in DB")?;
 
             if upgrade.version > latest_semantic_version {
-                if upgrade.version.minor == latest_semantic_version.minor {
-                    // Only verification parameters may change if only patch is bumped.
-                    assert!(upgrade.bootloader_code_hash.is_none());
-                    assert!(upgrade.default_account_code_hash.is_none());
-                    assert!(upgrade.tx.is_none());
-                }
-
                 let latest_version = storage
                     .protocol_versions_dal()
                     .get_protocol_version_with_latest_patch(latest_semantic_version.minor)
@@ -129,6 +122,14 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
                     })?;
 
                 let new_version = latest_version.apply_upgrade(upgrade, scheduler_vk_hash);
+                if new_version.version.minor == latest_semantic_version.minor {
+                    // Only verification parameters may change if only patch is bumped.
+                    assert_eq!(
+                        new_version.base_system_contracts_hashes,
+                        latest_version.base_system_contracts_hashes
+                    );
+                    assert!(new_version.tx.is_none());
+                }
                 storage
                     .protocol_versions_dal()
                     .save_protocol_version_with_tx(&new_version)
