@@ -269,38 +269,6 @@ async fn snapshot_applier_recovers_after_stopping() {
 }
 
 #[tokio::test]
-async fn applier_errors_if_snapshot_l1_batch_differs_from_previous_one() {
-    let pool = ConnectionPool::<Core>::test_pool().await;
-    let expected_status = mock_recovery_status();
-    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
-    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
-    let (stopping_object_store, mut stop_receiver) =
-        HangingObjectStore::new(object_store.clone(), 1);
-
-    let mut config = SnapshotsApplierConfig::for_tests();
-    config.max_concurrency = NonZeroUsize::new(1).unwrap();
-    let task = SnapshotsApplierTask::new(
-        config.clone(),
-        pool.clone(),
-        Box::new(client.clone()),
-        Arc::new(stopping_object_store),
-    );
-    let task_handle = tokio::spawn(task.run());
-
-    stop_receiver.wait_for(|&count| count > 1).await.unwrap();
-    assert!(!task_handle.is_finished());
-    task_handle.abort();
-
-    let mut task = SnapshotsApplierTask::new(config, pool, Box::new(client), object_store);
-    task.set_snapshot_l1_batch(expected_status.l1_batch_number + 1);
-    let err = task.run().await.unwrap_err();
-    assert!(
-        format!("{err:#}").contains("is already started for L1 batch"),
-        "{err:#}"
-    );
-}
-
-#[tokio::test]
 async fn health_status_immediately_after_task_start() {
     #[derive(Debug, Clone)]
     struct HangingMainNodeClient(Arc<Barrier>);

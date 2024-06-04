@@ -261,8 +261,7 @@ impl SnapshotsApplierTask {
         }
     }
 
-    /// Specifies the L1 batch to recover from. This setting is ignored if recovery is complete, but is checked
-    /// if recovery is in progress (so if a node started recovering from another snapshot, it will error).
+    /// Specifies the L1 batch to recover from. This setting is ignored if recovery is complete or resumed.
     pub fn set_snapshot_l1_batch(&mut self, number: L1BatchNumber) {
         self.snapshot_l1_batch = Some(number);
     }
@@ -359,18 +358,6 @@ impl SnapshotRecoveryStrategy {
             let sealed_l2_block_number = storage.blocks_dal().get_sealed_l2_block_number().await?;
             if sealed_l2_block_number.is_some() {
                 return Ok((Self::Completed, applied_snapshot_status));
-            }
-
-            // Check whether the snapshot L1 batch number is the expected one. Note that we intentionally skip this check
-            // if snapshot recovery is completed.
-            if let Some(expected_l1_batch) = snapshot_l1_batch {
-                if applied_snapshot_status.l1_batch_number != expected_l1_batch {
-                    let err = anyhow::anyhow!(
-                        "snapshot recovery is requested for L1 batch #{expected_l1_batch}, but it is already started for L1 batch #{}",
-                        applied_snapshot_status.l1_batch_number
-                    );
-                    return Err(SnapshotsApplierError::Fatal(err));
-                }
             }
 
             let latency = latency.observe();
