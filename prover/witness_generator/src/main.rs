@@ -9,13 +9,16 @@ use prover_dal::{ConnectionPool, Prover, ProverDal};
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{FriWitnessGeneratorConfig, ObservabilityConfig, PostgresConfig, PrometheusConfig},
+    configs::{
+        DatabaseSecrets, FriWitnessGeneratorConfig, ObservabilityConfig, PostgresConfig,
+        PrometheusConfig,
+    },
     ObjectStoreConfig,
 };
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{basic_fri_types::AggregationRound, ProtocolVersionId};
+use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
@@ -38,6 +41,7 @@ mod utils;
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
 use zksync_dal::Core;
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -107,20 +111,22 @@ async fn main() -> anyhow::Result<()> {
         FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env()")?;
     let prometheus_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
     let connection_pool = ConnectionPool::<Core>::builder(
-        postgres_config.master_url()?,
+        database_secrets.master_url()?,
         postgres_config.max_connections()?,
     )
     .build()
     .await
     .context("failed to build a connection_pool")?;
-    let prover_connection_pool = ConnectionPool::<Prover>::singleton(postgres_config.prover_url()?)
-        .build()
-        .await
-        .context("failed to build a prover_connection_pool")?;
+    let prover_connection_pool =
+        ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
+            .build()
+            .await
+            .context("failed to build a prover_connection_pool")?;
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let protocol_version = ProtocolVersionId::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
     let vk_commitments_in_db = match prover_connection_pool
         .connection()
         .await

@@ -1,12 +1,13 @@
-use std::{convert::TryInto, sync::Arc};
-
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface};
 use zksync_l1_contract_interface::{
-    i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+    i_executor::{
+        commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+        methods::CommitBatches,
+    },
     multicall3::{Multicall3Call, Multicall3Result},
     Tokenizable, Tokenize,
 };
@@ -17,7 +18,7 @@ use zksync_types::{
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
-    protocol_version::{L1VerifierConfig, VerifierParams},
+    protocol_version::{L1VerifierConfig, VerifierParams, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataDA,
     web3::{contract::Error as Web3ContractError, BlockNumber},
     Address, L2ChainId, ProtocolVersionId, H256, U256,
@@ -25,11 +26,10 @@ use zksync_types::{
 
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     metrics::{PubdataKind, METRICS},
     utils::agg_l1_batch_base_cost,
     zksync_functions::ZkSyncFunctions,
-    Aggregator, ETHSenderError,
+    Aggregator, EthSenderError,
 };
 
 /// Data queried from L1 using multicall contract.
@@ -62,7 +62,6 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
-    l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 struct TxData {
@@ -82,7 +81,6 @@ impl EthTxAggregator {
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
-        l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
@@ -112,7 +110,6 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
-            l1_commit_data_generator,
         }
     }
 
@@ -137,7 +134,7 @@ impl EthTxAggregator {
         Ok(())
     }
 
-    pub(super) async fn get_multicall_data(&mut self) -> Result<MulticallData, ETHSenderError> {
+    pub(super) async fn get_multicall_data(&mut self) -> Result<MulticallData, EthSenderError> {
         let calldata = self.generate_calldata_for_multicall();
         let args = CallFunctionArgs::new(&self.functions.aggregate3.name, calldata).for_contract(
             self.l1_multicall3_address,
@@ -224,14 +221,11 @@ impl EthTxAggregator {
     pub(super) fn parse_multicall_data(
         &self,
         token: Token,
-    ) -> Result<MulticallData, ETHSenderError> {
+    ) -> Result<MulticallData, EthSenderError> {
         let parse_error = |tokens: &[Token]| {
-            Err(ETHSenderError::ParseError(
-                Web3ContractError::InvalidOutputType(format!(
-                    "Failed to parse multicall token: {:?}",
-                    tokens
-                )),
-            ))
+            Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!("Failed to parse multicall token: {:?}", tokens),
+            )))
         };
 
         if let Token::Array(call_results) = token {
@@ -245,24 +239,24 @@ impl EthTxAggregator {
                 Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
 
             if multicall3_bootloader.len() != 32 {
-                return Err(ETHSenderError::ParseError(
-                    Web3ContractError::InvalidOutputType(format!(
+                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                    format!(
                         "multicall3 bootloader hash data is not of the len of 32: {:?}",
                         multicall3_bootloader
-                    )),
-                ));
+                    ),
+                )));
             }
             let bootloader = H256::from_slice(&multicall3_bootloader);
 
             let multicall3_default_aa =
                 Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
             if multicall3_default_aa.len() != 32 {
-                return Err(ETHSenderError::ParseError(
-                    Web3ContractError::InvalidOutputType(format!(
+                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                    format!(
                         "multicall3 default aa hash data is not of the len of 32: {:?}",
                         multicall3_default_aa
-                    )),
-                ));
+                    ),
+                )));
             }
             let default_aa = H256::from_slice(&multicall3_default_aa);
             let base_system_contracts_hashes = BaseSystemContractsHashes {
@@ -273,12 +267,12 @@ impl EthTxAggregator {
             let multicall3_verifier_params =
                 Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
             if multicall3_verifier_params.len() != 96 {
-                return Err(ETHSenderError::ParseError(
-                    Web3ContractError::InvalidOutputType(format!(
+                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                    format!(
                         "multicall3 verifier params data is not of the len of 96: {:?}",
                         multicall3_default_aa
-                    )),
-                ));
+                    ),
+                )));
             }
             let recursion_node_level_vk_hash = H256::from_slice(&multicall3_verifier_params[..32]);
             let recursion_leaf_level_vk_hash =
@@ -294,28 +288,34 @@ impl EthTxAggregator {
             let multicall3_verifier_address =
                 Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
             if multicall3_verifier_address.len() != 32 {
-                return Err(ETHSenderError::ParseError(
-                    Web3ContractError::InvalidOutputType(format!(
+                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                    format!(
                         "multicall3 verifier address data is not of the len of 32: {:?}",
                         multicall3_verifier_address
-                    )),
-                ));
+                    ),
+                )));
             }
             let verifier_address = Address::from_slice(&multicall3_verifier_address[12..]);
 
             let multicall3_protocol_version =
                 Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
             if multicall3_protocol_version.len() != 32 {
-                return Err(ETHSenderError::ParseError(
-                    Web3ContractError::InvalidOutputType(format!(
+                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                    format!(
                         "multicall3 protocol version data is not of the len of 32: {:?}",
                         multicall3_protocol_version
-                    )),
-                ));
+                    ),
+                )));
             }
-            let protocol_version_id = U256::from_big_endian(&multicall3_protocol_version)
-                .try_into()
-                .unwrap();
+
+            let protocol_version = U256::from_big_endian(&multicall3_protocol_version);
+            // In case the protocol version is smaller than `PACKED_SEMVER_MINOR_MASK`, it will mean that it is
+            // equal to the `protocol_version_id` value, since it the interface from before the semver was supported.
+            let protocol_version_id = if protocol_version < U256::from(PACKED_SEMVER_MINOR_MASK) {
+                ProtocolVersionId::try_from(protocol_version.as_u32() as u16).unwrap()
+            } else {
+                ProtocolVersionId::try_from_packed_semver(protocol_version).unwrap()
+            };
 
             return Ok(MulticallData {
                 base_system_contracts_hashes,
@@ -331,7 +331,7 @@ impl EthTxAggregator {
     async fn get_recursion_scheduler_level_vk_hash(
         &mut self,
         verifier_address: Address,
-    ) -> Result<H256, ETHSenderError> {
+    ) -> Result<H256, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
         let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, ())
             .for_contract(verifier_address, &self.functions.verifier_contract)
@@ -344,7 +344,7 @@ impl EthTxAggregator {
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,
-    ) -> Result<(), ETHSenderError> {
+    ) -> Result<(), EthSenderError> {
         let MulticallData {
             base_system_contracts_hashes,
             verifier_params,
@@ -380,14 +380,14 @@ impl EthTxAggregator {
             let tx = self
                 .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge)
                 .await?;
-            Self::report_eth_tx_saving(storage, agg_op, &tx).await;
+            Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
         }
         Ok(())
     }
 
     async fn report_eth_tx_saving(
         storage: &mut Connection<'_, Core>,
-        aggregated_op: AggregatedOperation,
+        aggregated_op: &AggregatedOperation,
         tx: &EthTx,
     ) {
         let l1_batch_number_range = aggregated_op.l1_batch_range();
@@ -397,7 +397,7 @@ impl EthTxAggregator {
             aggregated_op.get_action_caption()
         );
 
-        if let AggregatedOperation::Commit(_, l1_batches, _) = &aggregated_op {
+        if let AggregatedOperation::Commit(_, l1_batches, _) = aggregated_op {
             for batch in l1_batches {
                 METRICS.pubdata_size[&PubdataKind::StateDiffs]
                     .observe(batch.metadata.state_diffs_compressed.len());
@@ -432,13 +432,16 @@ impl EthTxAggregator {
 
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 
-        let (calldata, sidecar) = match op.clone() {
+        let (calldata, sidecar) = match op {
             AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
-                let commit_data_base = self.l1_commit_data_generator.l1_commit_batches(
-                    &last_committed_l1_batch,
-                    &l1_batches,
-                    &pubdata_da,
-                );
+                let commit_batches = CommitBatches {
+                    last_committed_l1_batch,
+                    l1_batches,
+                    pubdata_da: *pubdata_da,
+                    mode: self.aggregator.mode(),
+                };
+                let commit_data_base = commit_batches.into_tokens();
+
                 let (encoding_fn, commit_data) = if contracts_are_pre_shared_bridge {
                     (&self.functions.pre_shared_bridge_commit, commit_data_base)
                 } else {
@@ -540,7 +543,7 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
         contracts_are_pre_shared_bridge: bool,
-    ) -> Result<EthTx, ETHSenderError> {
+    ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
         // We may be using a custom sender for commit transactions, so use this
@@ -589,7 +592,7 @@ impl EthTxAggregator {
         &self,
         storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
-    ) -> Result<u64, ETHSenderError> {
+    ) -> Result<u64, EthSenderError> {
         let db_nonce = storage
             .eth_sender_dal()
             .get_next_nonce(from_addr)

@@ -25,8 +25,7 @@ const IGNORED_DIRS = [
     'artifacts-zk',
     'cache-zk',
     // Ignore directories with OZ and forge submodules.
-    'contracts/l1-contracts/lib',
-    'contracts/l1-contracts-foundry/lib'
+    'contracts/l1-contracts/lib'
 ];
 const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js', '.prettierrc.js'];
 
@@ -172,3 +171,8 @@ export const announced = async (fn: string, promise: Promise<void> | void) => {
     const timestampLine = timestamp(`(${time}ms)`);
     console.log(`${successLine} ${timestampLine}`);
 };
+
+export function unpackStringSemVer(semver: string): [number, number, number] {
+    const [major, minor, patch] = semver.split('.');
+    return [parseInt(major), parseInt(minor), parseInt(patch)];
+}

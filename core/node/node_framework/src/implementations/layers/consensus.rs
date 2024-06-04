@@ -1,12 +1,9 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_core::{
-    consensus::{self, MainNodeConfig},
-    sync_layer::{ActionQueueSender, SyncState},
-};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_types::L2ChainId;
+use zksync_node_consensus as consensus;
+use zksync_node_sync::{ActionQueueSender, SyncState};
 use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::{
@@ -17,7 +14,7 @@ use crate::{
         sync_state::SyncStateResource,
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -32,7 +29,6 @@ pub struct ConsensusLayer {
     pub mode: Mode,
     pub config: Option<ConsensusConfig>,
     pub secrets: Option<ConsensusSecrets>,
-    pub chain_id: L2ChainId,
 }
 
 #[async_trait::async_trait]
@@ -56,12 +52,9 @@ impl WiringLayer for ConsensusLayer {
                 let secrets = self.secrets.ok_or_else(|| {
                     WiringError::Configuration("Missing private consensus config".to_string())
                 })?;
-
-                let main_node_config =
-                    consensus::config::main_node(&config, &secrets, self.chain_id)?;
-
                 let task = MainNodeConsensusTask {
-                    config: main_node_config,
+                    config,
+                    secrets,
                     pool,
                 };
                 context.add_task(Box::new(task));
@@ -110,14 +103,15 @@ impl WiringLayer for ConsensusLayer {
 
 #[derive(Debug)]
 pub struct MainNodeConsensusTask {
-    config: MainNodeConfig,
+    config: ConsensusConfig,
+    secrets: ConsensusSecrets,
     pool: ConnectionPool<Core>,
 }
 
 #[async_trait::async_trait]
 impl Task for MainNodeConsensusTask {
-    fn name(&self) -> &'static str {
-        "consensus"
+    fn id(&self) -> TaskId {
+        "consensus".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -129,7 +123,12 @@ impl Task for MainNodeConsensusTask {
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async move {
-            s.spawn_bg(consensus::era::run_main_node(ctx, self.config, self.pool));
+            s.spawn_bg(consensus::era::run_main_node(
+                ctx,
+                self.config,
+                self.secrets,
+                self.pool,
+            ));
             let _ = stop_receiver.0.wait_for(|stop| *stop).await?;
             Ok(())
         })
@@ -148,8 +147,8 @@ pub struct FetcherTask {
 
 #[async_trait::async_trait]
 impl Task for FetcherTask {
-    fn name(&self) -> &'static str {
-        "consensus_fetcher"
+    fn id(&self) -> TaskId {
+        "consensus_fetcher".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -161,7 +160,7 @@ impl Task for FetcherTask {
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async {
-            s.spawn_bg(zksync_core::consensus::era::run_fetcher(
+            s.spawn_bg(consensus::era::run_en(
                 &root_ctx,
                 self.config,
                 self.pool,

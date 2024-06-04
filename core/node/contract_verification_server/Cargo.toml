@@ -1,0 +1,24 @@
+[package]
+name = "zksync_contract_verification_server"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_config.workspace = true
+zksync_dal.workspace = true
+zksync_types.workspace = true
+vise.workspace = true
+
+anyhow.workspace = true
+axum.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tower-http.workspace = true
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true

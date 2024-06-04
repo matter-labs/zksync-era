@@ -15,9 +15,12 @@ import { TestMaster } from '../src/index';
 
 import * as zksync from 'zksync-ethers';
 import { BigNumber, ethers } from 'ethers';
-import { Token } from '../src/types';
+import { DataAvailabityMode, Token } from '../src/types';
+import { keccak256 } from 'ethers/lib/utils';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 
 const UINT32_MAX = BigNumber.from(2).pow(32).sub(1);
+const MAX_GAS_PER_PUBDATA = 50_000;
 
 const logs = fs.createWriteStream('fees.log', { flags: 'a' });
 
@@ -134,7 +137,7 @@ testFees('Test fees', () => {
     });
 
     test('Test gas consumption under large L1 gas price', async () => {
-        if (process.env.CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE === 'Validium') {
+        if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Validium) {
             // We skip this test for Validium mode, since L1 gas price has little impact on the gasLimit in this mode.
             return;
         }
@@ -144,7 +147,7 @@ testFees('Test fees', () => {
 
         // In this test we will set gas per pubdata byte to its maximum value, while publishing a large L1->L2 message.
 
-        const minimalL2GasPrice = ethers.BigNumber.from(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);
+        const minimalL2GasPrice = BigNumber.from(testMaster.environment().minimalL2GasPrice);
 
         // We want the total gas limit to be over u32::MAX, so we need the gas per pubdata to be 50k.
         //
@@ -163,10 +166,19 @@ testFees('Test fees', () => {
 
         // Firstly, let's test a successful transaction.
         const largeData = ethers.utils.randomBytes(90_000);
-        const tx = await l1Messenger.sendToL1(largeData);
+        const tx = await l1Messenger.sendToL1(largeData, { type: 0 });
         expect(tx.gasLimit.gt(UINT32_MAX)).toBeTruthy();
         const receipt = await tx.wait();
         expect(receipt.gasUsed.gt(UINT32_MAX)).toBeTruthy();
+
+        // Let's also check that the same transaction would work as eth_call
+        const systemContextArtifact = getTestContract('ISystemContext');
+        const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
+        const systemContextGasPerPubdataByte = await systemContext.gasPerPubdataByte();
+        expect(systemContextGasPerPubdataByte.toNumber()).toEqual(MAX_GAS_PER_PUBDATA);
+
+        const dataHash = await l1Messenger.callStatic.sendToL1(largeData, { type: 0 });
+        expect(dataHash).toEqual(keccak256(largeData));
 
         // Secondly, let's test an unsuccessful transaction with large refund.
 
@@ -174,7 +186,8 @@ testFees('Test fees', () => {
         const largerData = ethers.utils.randomBytes(91_000);
         const gasToPass = receipt.gasUsed;
         const unsuccessfulTx = await l1Messenger.sendToL1(largerData, {
-            gasLimit: gasToPass
+            gasLimit: gasToPass,
+            type: 0
         });
 
         try {

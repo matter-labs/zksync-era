@@ -78,13 +78,10 @@ enum SnapshotsApplierError {
 
 impl SnapshotsApplierError {
     fn object_store(err: ObjectStoreError, context: String) -> Self {
-        match err {
-            ObjectStoreError::KeyNotFound(_) | ObjectStoreError::Serialization(_) => {
-                Self::Fatal(anyhow::Error::from(err).context(context))
-            }
-            ObjectStoreError::Other(_) => {
-                Self::Retryable(anyhow::Error::from(err).context(context))
-            }
+        if err.is_transient() {
+            Self::Retryable(anyhow::Error::from(err).context(context))
+        } else {
+            Self::Fatal(anyhow::Error::from(err).context(context))
         }
     }
 }
@@ -588,18 +585,22 @@ impl<'a> SnapshotsApplier<'a> {
             factory_deps.factory_deps.len()
         );
 
-        let all_deps_hashmap: HashMap<H256, Vec<u8>> = factory_deps
-            .factory_deps
-            .into_iter()
-            .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0))
-            .collect();
-        storage
-            .factory_deps_dal()
-            .insert_factory_deps(
-                self.applied_snapshot_status.l2_block_number,
-                &all_deps_hashmap,
-            )
-            .await?;
+        // we cannot insert all factory deps because of field size limit triggered by UNNEST
+        // in underlying query, see `https://www.postgresql.org/docs/current/limits.html`
+        // there were around 100 thousand contracts on mainnet, where this issue first manifested
+        for chunk in factory_deps.factory_deps.chunks(1000) {
+            let chunk_deps_hashmap: HashMap<H256, Vec<u8>> = chunk
+                .iter()
+                .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0.clone()))
+                .collect();
+            storage
+                .factory_deps_dal()
+                .insert_factory_deps(
+                    self.applied_snapshot_status.l2_block_number,
+                    &chunk_deps_hashmap,
+                )
+                .await?;
+        }
 
         let latency = latency.observe();
         tracing::info!("Applied factory dependencies in {latency:?}");

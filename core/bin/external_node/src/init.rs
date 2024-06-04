@@ -3,13 +3,13 @@
 use std::time::Instant;
 
 use anyhow::Context as _;
-use zksync_basic_types::{L1BatchNumber, L2ChainId};
-use zksync_core::sync_layer::genesis::perform_genesis_if_needed;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::AppHealthCheck;
+use zksync_node_sync::genesis::perform_genesis_if_needed;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_snapshots_applier::{SnapshotsApplierConfig, SnapshotsApplierTask};
+use zksync_types::{L1BatchNumber, L2ChainId};
 use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::config::SnapshotsRecoveryConfig;
