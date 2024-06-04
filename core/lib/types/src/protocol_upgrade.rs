@@ -102,11 +102,7 @@ fn get_transaction_param_type() -> ParamType {
 }
 
 impl ProtocolUpgrade {
-    fn try_from_decoded_tokens(
-        tokens: Vec<ethabi::Token>,
-        transaction_hash: H256,
-        transaction_block_number: u64,
-    ) -> Result<Self, crate::ethabi::Error> {
+    fn try_from_decoded_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, crate::ethabi::Error> {
         let init_calldata = tokens[2].clone().into_bytes().unwrap();
 
         let transaction_param_type: ParamType = get_transaction_param_type();
@@ -144,12 +140,7 @@ impl ProtocolUpgrade {
 
         let factory_deps = decoded.remove(0).into_array().unwrap();
 
-        let tx = ProtocolUpgradeTx::decode_tx(
-            transaction,
-            transaction_hash,
-            transaction_block_number,
-            factory_deps,
-        );
+        let tx = ProtocolUpgradeTx::decode_tx(transaction, factory_deps);
         let bootloader_code_hash = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
         let default_account_code_hash =
             H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
@@ -205,18 +196,10 @@ pub fn decode_set_chain_id_event(
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
         .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
 
-    let eth_hash = event
-        .transaction_hash
-        .expect("Event transaction hash is missing");
-    let eth_block = event
-        .block_number
-        .expect("Event block number is missing")
-        .as_u64();
-
     let factory_deps: Vec<Token> = Vec::new();
 
-    let upgrade_tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps)
-        .expect("Upgrade tx is missing");
+    let upgrade_tx =
+        ProtocolUpgradeTx::decode_tx(transaction, factory_deps).expect("Upgrade tx is missing");
 
     Ok((protocol_version, upgrade_tx))
 }
@@ -224,8 +207,6 @@ pub fn decode_set_chain_id_event(
 impl ProtocolUpgradeTx {
     pub fn decode_tx(
         mut transaction: Vec<Token>,
-        eth_hash: H256,
-        eth_block: u64,
         factory_deps: Vec<Token>,
     ) -> Option<ProtocolUpgradeTx> {
         let canonical_tx_hash = H256(keccak256(&encode(&[Token::Tuple(transaction.clone())])));
@@ -308,8 +289,7 @@ impl ProtocolUpgradeTx {
             gas_limit,
             max_fee_per_gas,
             gas_per_pubdata_limit,
-            eth_hash,
-            eth_block,
+            eth_block: 0,
         };
 
         let factory_deps = factory_deps
@@ -336,12 +316,7 @@ impl TryFrom<Call> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;
 
     fn try_from(call: Call) -> Result<Self, Self::Error> {
-        let Call {
-            data,
-            eth_hash,
-            eth_block,
-            ..
-        } = call;
+        let Call { data, .. } = call;
 
         if data.len() < 4 {
             return Err(crate::ethabi::Error::InvalidData);
@@ -376,7 +351,7 @@ impl TryFrom<Call> for ProtocolUpgrade {
                 return Err(crate::ethabi::Error::InvalidData);
             };
 
-        ProtocolUpgrade::try_from_decoded_tokens(diamond_cut_tokens, eth_hash, eth_block)
+        ProtocolUpgrade::try_from_decoded_tokens(diamond_cut_tokens)
     }
 }
 
@@ -492,8 +467,27 @@ impl ProtocolVersion {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+// TODO(PLA-962): remove once all nodes start treating the deprecated fields as optional.
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ProtocolUpgradeTxCommonDataSerde {
+    pub sender: Address,
+    pub upgrade_id: ProtocolVersionId,
+    pub max_fee_per_gas: U256,
+    pub gas_limit: U256,
+    pub gas_per_pubdata_limit: U256,
+    pub canonical_tx_hash: H256,
+    pub to_mint: U256,
+    pub refund_recipient: Address,
+
+    /// DEPRECATED.
+    #[serde(default)]
+    pub eth_hash: H256,
+    #[serde(default)]
+    pub eth_block: u64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct ProtocolUpgradeTxCommonData {
     /// Sender of the transaction.
     pub sender: Address,
@@ -505,8 +499,6 @@ pub struct ProtocolUpgradeTxCommonData {
     pub gas_limit: U256,
     /// The maximum number of gas per 1 byte of pubdata.
     pub gas_per_pubdata_limit: U256,
-    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
-    pub eth_hash: H256,
     /// Block in which Ethereum transaction was included.
     pub eth_block: u64,
     /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
@@ -524,6 +516,45 @@ impl ProtocolUpgradeTxCommonData {
 
     pub fn tx_format(&self) -> TransactionType {
         TransactionType::ProtocolUpgradeTransaction
+    }
+}
+
+impl serde::Serialize for ProtocolUpgradeTxCommonData {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        ProtocolUpgradeTxCommonDataSerde {
+            sender: self.sender,
+            upgrade_id: self.upgrade_id,
+            max_fee_per_gas: self.max_fee_per_gas,
+            gas_limit: self.gas_limit,
+            gas_per_pubdata_limit: self.gas_per_pubdata_limit,
+            canonical_tx_hash: self.canonical_tx_hash,
+            to_mint: self.to_mint,
+            refund_recipient: self.refund_recipient,
+
+            /// DEPRECATED.
+            eth_hash: H256::default(),
+            eth_block: self.eth_block,
+        }
+        .serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ProtocolUpgradeTxCommonData {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let x = ProtocolUpgradeTxCommonDataSerde::deserialize(d)?;
+        Ok(Self {
+            sender: x.sender,
+            upgrade_id: x.upgrade_id,
+            max_fee_per_gas: x.max_fee_per_gas,
+            gas_limit: x.gas_limit,
+            gas_per_pubdata_limit: x.gas_per_pubdata_limit,
+            canonical_tx_hash: x.canonical_tx_hash,
+            to_mint: x.to_mint,
+            refund_recipient: x.refund_recipient,
+
+            // DEPRECATED.
+            eth_block: x.eth_block,
+        })
     }
 }
 
