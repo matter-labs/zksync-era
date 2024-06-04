@@ -12,8 +12,8 @@ async fn main() {
             tracing::error!("{err:?}");
             std::process::exit(1);
         })
-
         .unwrap();
+
     match cli::start().await {
         Ok(_) => {}
         Err(err) => {
