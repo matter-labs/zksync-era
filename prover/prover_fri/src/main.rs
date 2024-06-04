@@ -250,7 +250,7 @@ async fn get_prover_tasks(
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let prover = gpu_prover::Prover::new(
-        store_factory.create_store().await,
+        store_factory.create_store().await?,
         public_blob_store,
         prover_config.clone(),
         pool.clone(),

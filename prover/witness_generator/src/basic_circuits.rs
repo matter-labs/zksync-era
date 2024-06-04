@@ -20,7 +20,7 @@ use tracing::Instrument;
 use zkevm_test_harness::geometry_config::get_geometry_config;
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{Core, CoreDal};
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{

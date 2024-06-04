@@ -38,7 +38,7 @@ use zkevm_test_harness::{
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     get_current_pod_name,
     keys::{ClosedFormInputKey, FriCircuitKey},
