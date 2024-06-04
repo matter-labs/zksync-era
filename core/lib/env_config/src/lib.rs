@@ -25,6 +25,7 @@ mod da_dispatcher;
 mod genesis;
 #[cfg(test)]
 mod test_utils;
+mod vm_runner;
 mod wallets;
 
 pub trait FromEnv: Sized {

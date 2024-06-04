@@ -39,6 +39,7 @@ use zksync_node_framework::{
             StateKeeperLayer,
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
+        vm_runner::protective_reads::ProtectiveReadsWriterLayer,
         web3_api::{
             caches::MempoolCacheLayer,
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
@@ -413,6 +414,18 @@ impl MainNodeBuilder {
             state_keeper_config,
             da_config,
         ));
+
+        Ok(self)
+    }
+
+    fn add_vm_runner_protective_reads_layer(mut self) -> anyhow::Result<Self> {
+        let protective_reads_writer_config =
+            try_load_config!(self.configs.protective_reads_writer_config);
+        self.node.add_layer(ProtectiveReadsWriterLayer::new(
+            protective_reads_writer_config,
+            self.genesis_config.l2_chain_id,
+        ));
+
         Ok(self)
     }
 
@@ -499,6 +512,9 @@ impl MainNodeBuilder {
                 }
                 Component::DADispatcher => {
                     self = self.add_no_da_client_layer()?.add_da_dispatcher_layer()?;
+                }
+                Component::VmRunnerProtectiveReads => {
+                    self = self.add_vm_runner_protective_reads_layer()?;
                 }
             }
         }

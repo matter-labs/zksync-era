@@ -8655,7 +8655,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.6.0"
+version = "24.7.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -9009,6 +9009,7 @@ dependencies = [
  "zksync_tee_verifier_input_producer",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_runner",
  "zksync_web3_decl",
 ]
 

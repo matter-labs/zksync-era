@@ -160,6 +160,8 @@ pub enum Component {
     CommitmentGenerator,
     /// Component sending a pubdata to the DA layers.
     DADispatcher,
+    /// VM runner-based component that saves protective reads to Postgres.
+    VmRunnerProtectiveReads,
 }
 
 #[derive(Debug)]
@@ -197,6 +199,9 @@ impl FromStr for Components {
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
             "da_dispatcher" => Ok(Components(vec![Component::DADispatcher])),
+            "vm_runner_protective_reads" => {
+                Ok(Components(vec![Component::VmRunnerProtectiveReads]))
+            }
             other => Err(format!("{} is not a valid component name", other)),
         }
     }

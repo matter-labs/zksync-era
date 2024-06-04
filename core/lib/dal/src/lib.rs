@@ -24,7 +24,7 @@ use crate::{
     sync_dal::SyncDal, system_dal::SystemDal,
     tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
 pub mod blocks_dal;
@@ -57,6 +57,7 @@ pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
+pub mod vm_runner_dal;
 
 #[cfg(test)]
 mod tests;
@@ -123,6 +124,8 @@ where
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a>;
 
     fn data_availability_dal(&mut self) -> DataAvailabilityDal<'_, 'a>;
+
+    fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -236,5 +239,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn data_availability_dal(&mut self) -> DataAvailabilityDal<'_, 'a> {
         DataAvailabilityDal { storage: self }
+    }
+
+    fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a> {
+        VmRunnerDal { storage: self }
     }
 }
