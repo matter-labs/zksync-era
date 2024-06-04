@@ -3,7 +3,10 @@ use std::{any, fmt, future::Future, time::Duration};
 use async_trait::async_trait;
 use rand::Rng;
 
-use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
+use crate::{
+    metrics::OBJECT_STORE_METRICS,
+    raw::{Bucket, ObjectStore, ObjectStoreError},
+};
 
 /// Information about request added to logs.
 #[derive(Debug, Clone, Copy)]
@@ -15,7 +18,7 @@ enum Request<'a> {
 }
 
 impl Request<'_> {
-    #[tracing::instrument(skip(f, max_retries))]
+    #[tracing::instrument(skip(f))] // output request and store as a part of structured logs
     async fn retry<T, Fut, F>(
         self,
         store: &impl fmt::Debug,
@@ -78,14 +81,19 @@ impl<S: ObjectStore> StoreWithRetries<S> {
     }
 }
 
+// Object store metrics are placed here because `ObjectStoreFactory` (which in practice produces "production" object stores)
+// wraps stores in `StoreWithRetries`. If this is changed, metrics will need to be refactored correspondingly.
 #[async_trait]
 impl<S: ObjectStore> ObjectStore for StoreWithRetries<S> {
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
-        Request::Get(bucket, key)
+        let latency = OBJECT_STORE_METRICS.start_fetch(bucket);
+        let result = Request::Get(bucket, key)
             .retry(&self.inner, self.max_retries, || {
                 self.inner.get_raw(bucket, key)
             })
-            .await
+            .await;
+        latency.observe();
+        result
     }
 
     async fn put_raw(
@@ -94,11 +102,14 @@ impl<S: ObjectStore> ObjectStore for StoreWithRetries<S> {
         key: &str,
         value: Vec<u8>,
     ) -> Result<(), ObjectStoreError> {
-        Request::Put(bucket, key)
+        let latency = OBJECT_STORE_METRICS.start_store(bucket);
+        let result = Request::Put(bucket, key)
             .retry(&self.inner, self.max_retries, || {
                 self.inner.put_raw(bucket, key, value.clone())
             })
-            .await
+            .await;
+        latency.observe();
+        result
     }
 
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {

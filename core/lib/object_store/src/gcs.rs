@@ -18,10 +18,7 @@ use google_cloud_storage::{
 };
 use http::StatusCode;
 
-use crate::{
-    metrics::GCS_METRICS,
-    raw::{Bucket, ObjectStore, ObjectStoreError},
-};
+use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
 
 /// [`ObjectStore`] implementation based on GCS.
 pub struct GoogleCloudStore {
@@ -123,7 +120,6 @@ impl From<HttpError> for ObjectStoreError {
 #[async_trait]
 impl ObjectStore for GoogleCloudStore {
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
-        let fetch_latency = GCS_METRICS.start_fetch(bucket);
         let filename = Self::filename(bucket.as_str(), key);
         tracing::trace!(
             "Fetching data from GCS for key {filename} from bucket {}",
@@ -135,14 +131,10 @@ impl ObjectStore for GoogleCloudStore {
             object: filename,
             ..GetObjectRequest::default()
         };
-        let range = Range::default();
-        let blob_result = self.client.download_object(&request, &range).await;
-
-        let elapsed = fetch_latency.observe();
-        tracing::trace!(
-            "Fetched data from GCS for key {key} from bucket {bucket} and it took: {elapsed:?}"
-        );
-        blob_result.map_err(Into::into)
+        self.client
+            .download_object(&request, &Range::default())
+            .await
+            .map_err(Into::into)
     }
 
     async fn put_raw(
@@ -151,7 +143,6 @@ impl ObjectStore for GoogleCloudStore {
         key: &str,
         value: Vec<u8>,
     ) -> Result<(), ObjectStoreError> {
-        let store_latency = GCS_METRICS.start_store(bucket); // FIXME: metrics no longer have same semantics
         let filename = Self::filename(bucket.as_str(), key);
         tracing::trace!(
             "Storing data to GCS for key {filename} from bucket {}",
@@ -163,16 +154,9 @@ impl ObjectStore for GoogleCloudStore {
             bucket: self.bucket_prefix.clone(),
             ..Default::default()
         };
-        let object_result = self
-            .client
+        self.client
             .upload_object(&request, value.clone(), &upload_type)
-            .await;
-
-        let elapsed = store_latency.observe();
-        tracing::trace!(
-            "Stored data to GCS for key {key} from bucket {bucket} and it took: {elapsed:?}"
-        );
-        object_result?;
+            .await?;
         Ok(())
     }
 
