@@ -299,6 +299,11 @@ impl TryFrom<Log> for L1Tx {
             &event.data.0,
         )?;
 
+        let eth_block = event
+            .block_number
+            .expect("Event block number is missing")
+            .as_u64();
+
         let serial_id = PriorityOpId(
             dec_ev
                 .remove(0)
@@ -397,7 +402,9 @@ impl TryFrom<Log> for L1Tx {
             gas_per_pubdata_limit,
             op_processing_type: OpProcessingType::Common,
             priority_queue_type: PriorityQueueType::Deque,
-            eth_block: 0,
+            // DEPRECATED.
+            // TODO(gprusak): start setting it to 0 for all new transactions.
+            eth_block,
         };
 
         let execute = Execute {
