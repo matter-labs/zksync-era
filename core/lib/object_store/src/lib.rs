@@ -23,6 +23,7 @@
     clippy::doc_markdown
 )]
 
+mod factory;
 mod file;
 mod gcs;
 mod metrics;
@@ -39,6 +40,10 @@ pub mod _reexports {
 }
 
 pub use self::{
+    factory::ObjectStoreFactory,
+    file::FileBackedObjectStore,
+    gcs::{GoogleCloudStore, GoogleCloudStoreAuthMode},
+    mock::MockObjectStore,
     objects::StoredObject,
-    raw::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory},
+    raw::{Bucket, ObjectStore, ObjectStoreError},
 };

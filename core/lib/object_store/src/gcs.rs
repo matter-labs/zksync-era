@@ -55,32 +55,44 @@ where
     }
 }
 
-pub(crate) struct GoogleCloudStorage {
+/// [`ObjectStore`] implementation based on GCS.
+pub struct GoogleCloudStore {
     bucket_prefix: String,
     max_retries: u16,
     client: Client,
 }
 
-impl fmt::Debug for GoogleCloudStorage {
+impl fmt::Debug for GoogleCloudStore {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("GoogleCloudStorage")
+            .debug_struct("GoogleCloudStore")
             .field("bucket_prefix", &self.bucket_prefix)
             .field("max_retries", &self.max_retries)
+            // Skip `client` as its representation may contain sensitive info
             .finish_non_exhaustive()
     }
 }
 
+/// Authentication mode for [`GoogleCloudStore`].
 #[derive(Debug, Clone)]
-pub(crate) enum GoogleCloudStorageAuthMode {
+#[non_exhaustive]
+pub enum GoogleCloudStoreAuthMode {
+    /// Authentication via a credentials file at the specified path.
     AuthenticatedWithCredentialFile(String),
+    /// Ambient authentication (works if )
     Authenticated,
+    /// Anonymous access (only works for public GCS buckets for read operations).
     Anonymous,
 }
 
-impl GoogleCloudStorage {
+impl GoogleCloudStore {
+    /// Creates a new cloud store.
+    ///
+    /// # Errors
+    ///
+    /// Propagates GCS initialization errors.
     pub async fn new(
-        auth_mode: GoogleCloudStorageAuthMode,
+        auth_mode: GoogleCloudStoreAuthMode,
         bucket_prefix: String,
         max_retries: u16,
     ) -> Result<Self, ObjectStoreError> {
@@ -99,15 +111,15 @@ impl GoogleCloudStorage {
     }
 
     async fn get_client_config(
-        auth_mode: GoogleCloudStorageAuthMode,
+        auth_mode: GoogleCloudStoreAuthMode,
     ) -> Result<ClientConfig, AuthError> {
         match auth_mode {
-            GoogleCloudStorageAuthMode::AuthenticatedWithCredentialFile(path) => {
+            GoogleCloudStoreAuthMode::AuthenticatedWithCredentialFile(path) => {
                 let cred_file = CredentialsFile::new_from_file(path).await?;
                 ClientConfig::default().with_credentials(cred_file).await
             }
-            GoogleCloudStorageAuthMode::Authenticated => ClientConfig::default().with_auth().await,
-            GoogleCloudStorageAuthMode::Anonymous => Ok(ClientConfig::default().anonymous()),
+            GoogleCloudStoreAuthMode::Authenticated => ClientConfig::default().with_auth().await,
+            GoogleCloudStoreAuthMode::Anonymous => Ok(ClientConfig::default().anonymous()),
         }
     }
 
@@ -182,7 +194,7 @@ impl From<HttpError> for ObjectStoreError {
 }
 
 #[async_trait]
-impl ObjectStore for GoogleCloudStorage {
+impl ObjectStore for GoogleCloudStore {
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
         let fetch_latency = GCS_METRICS.start_fetch(bucket);
         let filename = Self::filename(bucket.as_str(), key);

@@ -8,7 +8,7 @@ use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_dal::Connection;
 use zksync_merkle_tree::TreeInstruction;
-use zksync_object_store::{Bucket, ObjectStoreFactory};
+use zksync_object_store::{Bucket, MockObjectStore};
 use zksync_state::ReadStorage;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
@@ -262,7 +262,7 @@ async fn reverting_snapshot(remove_objects: bool) {
     let mut storage = pool.connection().await.unwrap();
     setup_storage(&mut storage, &storage_logs).await;
 
-    let object_store = ObjectStoreFactory::mock().create_store().await;
+    let object_store = MockObjectStore::arc();
     create_mock_snapshot(&mut storage, &object_store, L1BatchNumber(7), 0..5).await;
     // Sanity check: snapshot should be visible.
     let all_snapshots = storage
@@ -320,7 +320,7 @@ async fn reverting_snapshot_ignores_not_found_object_store_errors() {
     let mut storage = pool.connection().await.unwrap();
     setup_storage(&mut storage, &storage_logs).await;
 
-    let object_store = ObjectStoreFactory::mock().create_store().await;
+    let object_store = MockObjectStore::arc();
     create_mock_snapshot(&mut storage, &object_store, L1BatchNumber(7), 0..5).await;
 
     // Manually remove some data from the store.
@@ -436,7 +436,7 @@ async fn reverter_handles_incomplete_snapshot() {
     let mut storage = pool.connection().await.unwrap();
     setup_storage(&mut storage, &storage_logs).await;
 
-    let object_store = ObjectStoreFactory::mock().create_store().await;
+    let object_store = MockObjectStore::arc();
     let chunk_ids = [0, 1, 4].into_iter();
     create_mock_snapshot(
         &mut storage,
