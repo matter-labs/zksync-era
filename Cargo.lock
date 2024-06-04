@@ -7928,7 +7928,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#28fe577bbb2b95c18d3959ba3dd37ca8ce5bd865"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#b7a86c739e8a8f88e788e90893c6e7496f6d7dfc"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
@@ -8024,6 +8024,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
+ "futures 0.3.28",
  "serde",
  "tempfile",
  "test-casing",
@@ -8605,7 +8607,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.6.0"
+version = "24.7.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8957,6 +8959,7 @@ dependencies = [
  "zksync_tee_verifier_input_producer",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_runner",
  "zksync_web3_decl",
 ]
 
@@ -9032,6 +9035,7 @@ name = "zksync_object_store"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "bincode",
  "flate2",
@@ -9039,6 +9043,7 @@ dependencies = [
  "google-cloud-storage",
  "http",
  "prost 0.12.1",
+ "rand 0.8.5",
  "serde_json",
  "tempfile",
  "tokio",
