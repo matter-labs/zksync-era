@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
-use zksync_types::{prover_dal::JobCountStatistics, ProtocolVersionId};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::JobCountStatistics};
 
 use crate::{
     periodic_job::PeriodicJob,
@@ -28,7 +28,7 @@ impl FriProofCompressorQueueReporter {
 
     async fn get_job_statistics(
         pool: &ConnectionPool<Prover>,
-    ) -> HashMap<ProtocolVersionId, JobCountStatistics> {
+    ) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
         pool.connection()
             .await
             .unwrap()
