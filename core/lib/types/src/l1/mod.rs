@@ -225,7 +225,8 @@ impl From<L1Tx> for abi::NewPriorityRequest {
                     .collect(),
                 paymaster_input: vec![],
                 reserved_dynamic: vec![],
-            },
+            }
+            .into(),
             factory_deps,
         }
     }

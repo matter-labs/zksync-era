@@ -284,7 +284,8 @@ impl TryFrom<Transaction> for abi::Transaction {
                         .collect(),
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
-                },
+                }
+                .into(),
                 factory_deps,
                 eth_hash: data.eth_hash,
                 eth_block: data.eth_block,
@@ -316,7 +317,8 @@ impl TryFrom<Transaction> for abi::Transaction {
                         .collect(),
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
-                },
+                }
+                .into(),
                 factory_deps,
                 eth_hash: data.eth_hash,
                 eth_block: data.eth_block,
@@ -352,12 +354,6 @@ impl TryFrom<abi::Transaction> for Transaction {
                 assert!(tx.reserved_dynamic.is_empty());
                 let hash = tx.hash();
                 Transaction {
-                    execute: Execute {
-                        contract_address: u256_to_account_address(&tx.to),
-                        calldata: tx.data,
-                        factory_deps: Some(factory_deps),
-                        value: tx.value,
-                    },
                     common_data: match tx.tx_type {
                         t if t == PRIORITY_OPERATION_L2_TX_TYPE.into() => {
                             ExecuteTransactionCommon::L1(L1TxCommonData {
@@ -397,6 +393,12 @@ impl TryFrom<abi::Transaction> for Transaction {
                             })
                         }
                         unknown_type => anyhow::bail!("unknown tx type {unknown_type}"),
+                    },
+                    execute: Execute {
+                        contract_address: u256_to_account_address(&tx.to),
+                        calldata: tx.data,
+                        factory_deps: Some(factory_deps),
+                        value: tx.value,
                     },
                     raw_bytes: None,
                     received_timestamp_ms,

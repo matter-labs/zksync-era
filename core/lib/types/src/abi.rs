@@ -125,7 +125,7 @@ pub struct NewPriorityRequest {
     pub tx_id: U256,
     pub tx_hash: [u8; 32],
     pub expiration_timestamp: u64,
-    pub transaction: L2CanonicalTransaction,
+    pub transaction: Box<L2CanonicalTransaction>,
     pub factory_deps: Vec<Vec<u8>>,
 }
 
@@ -164,7 +164,7 @@ impl NewPriorityRequest {
             tx_id: next().into_uint().unwrap(),
             tx_hash: next().into_fixed_bytes().unwrap().try_into().unwrap(),
             expiration_timestamp: next().into_uint().unwrap().try_into().unwrap(),
-            transaction: L2CanonicalTransaction::decode(next()).unwrap(),
+            transaction: L2CanonicalTransaction::decode(next()).unwrap().into(),
             factory_deps: next()
                 .into_array()
                 .unwrap()
@@ -185,7 +185,7 @@ pub struct VerifierParams {
 
 /// `l1-contracts/contracts/upgrades/BazeZkSyncUpgrade.sol:ProposedUpgrade`.
 pub struct ProposedUpgrade {
-    pub l2_protocol_upgrade_tx: L2CanonicalTransaction,
+    pub l2_protocol_upgrade_tx: Box<L2CanonicalTransaction>,
     pub factory_deps: Vec<Vec<u8>>,
     pub bootloader_hash: [u8; 32],
     pub default_account_hash: [u8; 32],
@@ -279,7 +279,8 @@ impl ProposedUpgrade {
         let mut next = || t.next().unwrap();
         Ok(Self {
             l2_protocol_upgrade_tx: L2CanonicalTransaction::decode(next())
-                .context("l2_protocol_upgrade_tx")?,
+                .context("l2_protocol_upgrade_tx")?
+                .into(),
             factory_deps: next()
                 .into_array()
                 .context("factory_deps")?
@@ -312,7 +313,7 @@ impl ProposedUpgrade {
 pub enum Transaction {
     L1 {
         /// Hashed data.
-        tx: L2CanonicalTransaction,
+        tx: Box<L2CanonicalTransaction>,
         /// txn contains a commitment to factory_deps.
         factory_deps: Vec<Vec<u8>>,
         /// Auxiliary data, not hashed.

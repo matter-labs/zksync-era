@@ -153,7 +153,7 @@ pub fn decode_set_chain_id_event(
     Ok((
         protocol_version,
         Transaction::try_from(abi::Transaction::L1 {
-            tx,
+            tx: tx.into(),
             eth_hash: event
                 .transaction_hash
                 .expect("Event transaction hash is missing"),

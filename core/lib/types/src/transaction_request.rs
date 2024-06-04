@@ -688,16 +688,13 @@ impl TransactionRequest {
         &self,
         default_signed_message: &H256,
     ) -> Result<Option<H256>, SerializationTransactionError> {
-        Ok(if self.is_eip712_tx() {
-            Some(concat_and_hash(
+        if self.is_eip712_tx() {
+            return Ok(Some(concat_and_hash(
                 *default_signed_message,
                 H256(keccak256(&self.get_signature()?)),
-            ))
-        } else if let Some(bytes) = &self.raw {
-            Some(H256(keccak256(&bytes.0)))
-        } else {
-            None
-        })
+            )));
+        }
+        Ok(self.raw.as_ref().map(|bytes| H256(keccak256(&bytes.0))))
     }
 
     fn get_tx_hash_with_signed_message(
