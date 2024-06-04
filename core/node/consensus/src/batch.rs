@@ -17,14 +17,14 @@ use zksync_types::{
 use crate::ConnectionPool;
 
 /// Commitment to the last block of a batch.
-struct LastBlockCommit {
+pub(crate) struct LastBlockCommit {
     /// Hash of `StoredBatchInfoCompact`.
-    info: H256,
+    pub(crate) info: H256,
 }
 
 /// Proof of the last block of the batch.
 /// Contains the hash of the last block.
-struct LastBlockProof {
+pub(crate) struct LastBlockProof {
     info: i_executor::structures::StoredBatchInfoCompact,
     protocol_version: ProtocolVersionId,
 
@@ -34,18 +34,18 @@ struct LastBlockProof {
 }
 
 /// Commitment to an L1 batch.
-pub struct L1BatchCommit {
-    number: L1BatchNumber,
-    this_batch: LastBlockCommit,
-    prev_batch: LastBlockCommit,
+pub(crate) struct L1BatchCommit {
+    pub(crate) number: L1BatchNumber,
+    pub(crate) this_batch: LastBlockCommit,
+    pub(crate) prev_batch: LastBlockCommit,
 }
 
 /// Proof of an L1 batch.
 /// Contains the blocks of this batch.
 pub struct L1BatchProof {
-    blocks: Vec<Payload>,
-    this_batch: LastBlockProof,
-    prev_batch: LastBlockProof,
+    pub(crate) blocks: Vec<Payload>,
+    pub(crate) this_batch: LastBlockProof,
+    pub(crate) prev_batch: LastBlockProof,
 }
 
 impl LastBlockProof {
@@ -140,7 +140,7 @@ impl LastBlockProof {
 
     /// Verifies the proof against the commit and returns the hash
     /// of the last L2 block.
-    fn verify(&self, comm: &LastBlockCommit) -> anyhow::Result<(L2BlockNumber, H256)> {
+    pub(crate) fn verify(&self, comm: &LastBlockCommit) -> anyhow::Result<(L2BlockNumber, H256)> {
         // Verify info.
         anyhow::ensure!(comm.info == self.info.hash());
 
@@ -168,11 +168,12 @@ impl LastBlockProof {
         self.l2_block_hash_entry
             .verify(Self::l2_block_hash_entry_key(prev), self.info.batch_hash)?;
 
+        let block_number = L2BlockNumber(block_number.try_into().context("block_number overflow")?);
         // Derive hash of the last block
         Ok((
-            L2BlockNumber(block_number.try_into().context("block_number overflow")?),
+            block_number,
             L2BlockHasher::hash(
-                prev,
+                block_number,
                 block_timestamp,
                 self.l2_block_hash_entry.value,
                 self.tx_rolling_hash.value,
@@ -226,7 +227,7 @@ impl L1BatchProof {
     /// * fair_pubdata_price
     /// * virtual_blocks
     /// * operator_address
-    fn verify(&self, comm: &L1BatchCommit) -> anyhow::Result<()> {
+    pub(crate) fn verify(&self, comm: &L1BatchCommit) -> anyhow::Result<()> {
         let (last_number, last_hash) = self.this_batch.verify(&comm.this_batch)?;
         let (mut prev_number, mut prev_hash) = self.prev_batch.verify(&comm.prev_batch)?;
         anyhow::ensure!(
@@ -244,6 +245,7 @@ impl L1BatchProof {
             anyhow::ensure!(b.last_in_batch == (i + 1 == self.blocks.len()));
             prev_number += 1;
             let mut hasher = L2BlockHasher::new(prev_number, b.timestamp, prev_hash);
+            tracing::info!("transactions.len() = {}",b.transactions.len());
             for t in &b.transactions {
                 // Reconstruct transaction by converting it back and forth to `abi::Transaction`.
                 // This allows us to verify that the transaction actually matches the transaction
@@ -254,8 +256,12 @@ impl L1BatchProof {
                 hasher.push_tx_hash(t.hash());
             }
             prev_hash = hasher.finalize(self.this_batch.protocol_version);
+            tracing::info!("expected hash = {}",b.hash);
+            tracing::info!("computed_hash = {}",prev_hash);
         }
+        tracing::info!("last_hash = {}",last_hash);
         anyhow::ensure!(prev_hash == last_hash);
+        
         Ok(())
     }
 }

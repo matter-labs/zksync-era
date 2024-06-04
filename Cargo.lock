@@ -8874,6 +8874,7 @@ dependencies = [
  "test-casing",
  "tokio",
  "tracing",
+ "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_bft",

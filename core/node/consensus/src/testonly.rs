@@ -1,7 +1,6 @@
 //! Utilities for testing the consensus module.
-
 use std::sync::Arc;
-
+use crate::batch::{LastBlockCommit, L1BatchCommit,L1BatchProof};
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
@@ -13,11 +12,12 @@ use zksync_config::{
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
 };
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
-use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
+use zksync_metadata_calculator::{LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::spawn_http_server};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
@@ -26,7 +26,9 @@ use zksync_node_sync::{
     testonly::MockMainNodeClient,
     ExternalIO, MainNodeClient, SyncState,
 };
-use zksync_node_test_utils::{create_l1_batch_metadata, create_l2_transaction};
+use zksync_node_test_utils::{
+    l1_batch_metadata_to_commitment_artifacts,
+    create_l1_batch_metadata, create_l2_transaction};
 /// Implements EthInterface
 /// It is enough to use MockEthereum.with_call_handler()
 //use zksync_eth_client::clients::MockEthereum;
@@ -76,6 +78,7 @@ pub(super) struct StateKeeper {
     sync_state: SyncState,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
     pool: ConnectionPool,
+    tree_reader: LazyAsyncTreeReader,
 }
 
 pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config::ConsensusSecrets) {
@@ -122,7 +125,10 @@ pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
     sync_state: SyncState,
     pool: ConnectionPool,
+ 
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
+    rocksdb_dir: tempfile::TempDir,
+    metadata_calculator: MetadataCalculator, 
 }
 
 impl StateKeeper {
@@ -144,6 +150,28 @@ impl StateKeeper {
         let (actions_sender, actions_queue) = ActionQueue::new();
         let addr = sync::watch::channel(None).0;
         let sync_state = SyncState::default();
+        
+        let rocksdb_dir = tempfile::tempdir().context("tempdir()")?;
+        let merkle_tree_config = MerkleTreeConfig {
+            path: rocksdb_dir
+                .path()
+                .join("merkle_tree")
+                .to_string_lossy()
+                .into(),
+            mode: MerkleTreeMode::Lightweight,
+            ..Default::default()
+        };
+        let operation_manager_config = OperationsManagerConfig {
+            delay_interval: 100, //100ms
+        };
+        let config = MetadataCalculatorConfig::for_main_node(
+            &merkle_tree_config,
+            &operation_manager_config,
+        );
+        let metadata_calculator = MetadataCalculator::new(config, None, pool.0.clone())
+            .await
+            .context("MetadataCalculator::new()")?;
+        let tree_reader = metadata_calculator.tree_reader();
         Ok((
             Self {
                 last_batch: cursor.l1_batch,
@@ -156,12 +184,15 @@ impl StateKeeper {
                 sync_state: sync_state.clone(),
                 addr: addr.subscribe(),
                 pool: pool.clone(),
+                tree_reader,
             },
             StateKeeperRunner {
                 actions_queue,
                 sync_state,
                 pool: pool.clone(),
                 addr,
+                rocksdb_dir,
+                metadata_calculator,
             },
         ))
     }
@@ -245,6 +276,22 @@ impl StateKeeper {
         self.last_batch - (!self.batch_sealed) as u32
     }
 
+    pub async fn load_batch_commit(&self, ctx: &ctx::Ctx, number: L1BatchNumber) -> ctx::Result<L1BatchCommit> {
+        // TODO: we should mock the eth_sender as well.
+        let mut conn = self.pool.connection(ctx).await?;
+        let this = conn.batch(ctx,number).await?.context("missing batch")?;
+        let prev = conn.batch(ctx,number-1).await?.context("missing batch")?;
+        Ok(L1BatchCommit {
+            number,
+            this_batch: LastBlockCommit { info: StoredBatchInfo(&this).into_compact().hash() },
+            prev_batch: LastBlockCommit { info: StoredBatchInfo(&prev).into_compact().hash() },
+        })
+    }
+
+    pub async fn load_batch_proof(&self, ctx: &ctx::Ctx, n: L1BatchNumber) -> ctx::Result<L1BatchProof> {
+        L1BatchProof::load(ctx,n,&self.pool,&self.tree_reader).await
+    }
+
     /// Connects to the json RPC endpoint exposed by the state keeper.
     pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<Box<DynClient<L2>>> {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
@@ -302,7 +349,20 @@ impl StateKeeper {
     }
 }
 
-async fn calculate_mock_metadata(ctx: &ctx::Ctx, pool: &ConnectionPool) -> ctx::Result<()> {
+async fn mock_commitment_generator_step(ctx: &ctx::Ctx, pool: &ConnectionPool) -> ctx::Result<()> {
+    let mut conn = pool.connection(ctx).await.wrap("connection()")?;
+    let Some(first) = ctx.wait(conn.0.blocks_dal().get_next_l1_batch_ready_for_commitment_generation()).await?.map_err(|e|e.generalize())? else { return Ok(()) };
+    let last = ctx.wait(conn.0.blocks_dal().get_last_l1_batch_ready_for_commitment_generation()).await?.map_err(|e|e.generalize())?.context("batch disappeared")?;
+    // Create artificial `L1BatchCommitmentArtifacts`.
+    for i in (first.0..=last.0).map(L1BatchNumber) {
+        let metadata = create_l1_batch_metadata(i.0);
+        let artifacts = l1_batch_metadata_to_commitment_artifacts(&metadata);
+        ctx.wait(conn.0.blocks_dal().save_l1_batch_commitment_artifacts(i, &artifacts)).await??;
+    }
+    Ok(())
+}
+
+async fn mock_metadata_calculator_step(ctx: &ctx::Ctx, pool: &ConnectionPool) -> ctx::Result<()> {
     let mut conn = pool.connection(ctx).await.wrap("connection()")?;
     let Some(last) = ctx
         .wait(conn.0.blocks_dal().get_sealed_l1_batch_number())
@@ -342,7 +402,8 @@ async fn calculate_mock_metadata(ctx: &ctx::Ctx, pool: &ConnectionPool) -> ctx::
 }
 
 impl StateKeeperRunner {
-    // Executes the state keeper task with real metadata calculator task.
+    // Executes the state keeper task with real metadata calculator task (and fake commitment
+    // generator).
     pub async fn run_real(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);
@@ -363,39 +424,18 @@ impl StateKeeperRunner {
                     .await
                     .context("l2_block_sealer.run()")?)
             });
-
-            let rocksdb_dir = tempfile::tempdir().context("tempdir()")?;
-
-            let merkle_tree_config = MerkleTreeConfig {
-                path: rocksdb_dir
-                    .path()
-                    .join("merkle_tree")
-                    .to_string_lossy()
-                    .into(),
-                mode: MerkleTreeMode::Lightweight,
-                ..Default::default()
-            };
-            let operation_manager_config = OperationsManagerConfig {
-                delay_interval: 100, //100ms
-            };
-            let config = MetadataCalculatorConfig::for_main_node(
-                &merkle_tree_config,
-                &operation_manager_config,
-            );
-            let metadata_calculator = MetadataCalculator::new(config, None, self.pool.0.clone())
-                .await
-                .context("MetadataCalculator::new()")?;
+ 
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();
                 async {
-                    metadata_calculator.run(stop_recv).await?;
+                    self.metadata_calculator.run(stop_recv).await?;
                     Ok(())
                 }
             });
 
             let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
                 self.pool.0.clone(),
-                rocksdb_dir.path().join("cache").to_string_lossy().into(),
+                self.rocksdb_dir.path().join("cache").to_string_lossy().into(),
                 RocksdbStorageOptions {
                     block_cache_capacity: (1 << 20), // 1MB
                     max_open_files: None,
@@ -408,6 +448,15 @@ impl StateKeeperRunner {
                     Ok(())
                 }
             });
+             s.spawn_bg::<()>(async {
+                loop {
+                    mock_commitment_generator_step(ctx, &self.pool).await?;
+                    // Sleep real time.
+                    ctx.wait(tokio::time::sleep(tokio::time::Duration::from_millis(100)))
+                        .await?;
+                }
+            });
+
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();
                 async {
@@ -483,7 +532,8 @@ impl StateKeeperRunner {
             });
             s.spawn_bg::<()>(async {
                 loop {
-                    calculate_mock_metadata(ctx, &self.pool).await?;
+                    mock_metadata_calculator_step(ctx, &self.pool).await?;
+                    mock_commitment_generator_step(ctx, &self.pool).await?;
                     // Sleep real time.
                     ctx.wait(tokio::time::sleep(tokio::time::Duration::from_millis(100)))
                         .await?;

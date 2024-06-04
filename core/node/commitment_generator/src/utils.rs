@@ -80,6 +80,7 @@ impl CommitmentComputer for RealCommitmentComputer {
         initial_bootloader_contents: &[(usize, U256)],
         protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<H256> {
+        tracing::info!("TASK2 start");
         let expanded_memory_size = if protocol_version.is_pre_boojum() {
             anyhow::bail!("Unsupported protocol version: {protocol_version:?}");
         } else {
@@ -89,6 +90,7 @@ impl CommitmentComputer for RealCommitmentComputer {
         let full_bootloader_memory =
             expand_memory_contents(initial_bootloader_contents, expanded_memory_size);
 
+        tracing::info!("TASK2 almost there");
         match VmVersion::from(protocol_version) {
             VmVersion::VmBoojumIntegration => Ok(H256(
                 circuit_sequencer_api_1_4_0::commitments::initial_heap_content_commitment_fixed(

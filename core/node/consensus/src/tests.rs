@@ -11,6 +11,7 @@ use zksync_consensus_roles::{
 };
 use zksync_node_test_utils::Snapshot;
 use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_dal::CoreDal;
 
 use super::*;
 
@@ -533,9 +534,18 @@ async fn test_batch_proof() {
             node.seal_batch().await;
             batches.push(node.last_sealed_batch());
         }
-        for n in batches {
-            let batch = pool.wait_for_batch(ctx, n).await?;
-            tracing::info!("batch[{n}] = {batch:?}");
+        for n in &batches[1..] {
+            tracing::info!("waiting for metadata of batch {n}");
+            pool.wait_for_batch(ctx, *n).await?;
+            let r = pool.connection(ctx).await?.0.blocks_dal().get_l2_block_range_of_l1_batch(*n).await;
+            tracing::info!("r = {r:?}");
+            let proof = node.load_batch_proof(ctx,*n).await?;
+            let commit = node.load_batch_commit(ctx,*n).await?;
+            let p = proof.prev_batch.verify(&commit.prev_batch)?;
+            let t = proof.this_batch.verify(&commit.this_batch)?;
+            tracing::info!("p = {p:?}");
+            tracing::info!("t = {t:?}");
+            proof.verify(&commit)?;
         }
         Ok(())
     })

@@ -111,7 +111,7 @@ impl CommitmentGenerator {
                 let events_queue_commitment =
                     computer.events_queue_commitment(&events_queue, protocol_version)?;
                 latency.observe();
-
+                tracing::info!("TASK1");
                 Ok(events_queue_commitment)
             });
 
@@ -119,12 +119,15 @@ impl CommitmentGenerator {
         let bootloader_memory_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
                 let latency = METRICS.bootloader_content_commitment_latency.start();
-                let bootloader_initial_content_commitment = computer
+                let res = computer
                     .bootloader_initial_content_commitment(
                         &initial_bootloader_contents,
                         protocol_version,
-                    )?;
+                    );
+                tracing::info!("TASK2 error?");
+                let bootloader_initial_content_commitment = res?;
                 latency.observe();
+                tracing::info!("TASK2");
 
                 Ok(bootloader_initial_content_commitment)
             });
@@ -165,6 +168,7 @@ impl CommitmentGenerator {
             .get_l1_batch_tree_data(l1_batch_number)
             .await?
             .with_context(|| format!("`tree_data` is missing for L1 batch #{l1_batch_number}"))?;
+        tracing::info!("PT0");
 
         // TODO(PLA-731): ensure that the protocol version is always available.
         let protocol_version = header
@@ -193,6 +197,7 @@ impl CommitmentGenerator {
             .get_l1_batches_and_indices_for_initial_writes(&touched_hashed_keys)
             .await?;
         drop(connection);
+        tracing::info!("PT1");
 
         let mut input = if protocol_version.is_pre_boojum() {
             let mut initial_writes = Vec::new();
@@ -224,9 +229,11 @@ impl CommitmentGenerator {
                 repeated_writes,
             }
         } else {
+            tracing::info!("PT2");
             let aux_commitments = self
                 .calculate_aux_commitments(header.number, protocol_version)
                 .await?;
+            tracing::info!("PT2.1");
 
             let mut state_diffs = Vec::new();
             for (key, value) in touched_slots {
@@ -261,6 +268,7 @@ impl CommitmentGenerator {
                 }
             }
             state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
+            tracing::info!("PT3");
 
             let blob_commitments = if protocol_version.is_post_1_4_2() {
                 let pubdata_input = header.pubdata_input.with_context(|| {
