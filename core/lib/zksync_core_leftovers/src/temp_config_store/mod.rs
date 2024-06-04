@@ -97,6 +97,7 @@ impl TempConfigStore {
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
+            commitment_generator: None,
         }
     }
 

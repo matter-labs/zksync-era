@@ -4,9 +4,9 @@ use crate::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         vm_runner::ProtectiveReadsWriterConfig,
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig,
+        CommitmentGeneratorConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
@@ -34,4 +34,5 @@ pub struct GeneralConfig {
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub commitment_generator: Option<CommitmentGeneratorConfig>,
 }

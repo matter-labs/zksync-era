@@ -1,5 +1,5 @@
 use std::{
-    num::{NonZeroU32, NonZeroU64, NonZeroUsize},
+    num::{NonZeroU64, NonZeroUsize},
     str::FromStr,
 };
 
@@ -74,10 +74,6 @@ impl ProtoRepr for proto::ExternalNode {
             .and_then(|x| Ok(crate::proto::genesis::L1BatchCommitDataGeneratorMode::try_from(*x)?))
             .context("l1_batch_commit_data_generator_mode")?
             .parse(),
-            commitment_generator_max_parallelism: self
-                .commitment_generator_max_parallelism
-                .and_then(NonZeroU32::new),
-            tree_api_remote_url: self.tree_api_remote_url.clone(),
             main_node_rate_limit_rps: self
                 .main_node_rate_limit_rps
                 .and_then(|a| NonZeroUsize::new(a as usize)),
@@ -98,10 +94,6 @@ impl ProtoRepr for proto::ExternalNode {
                 )
                 .into(),
             ),
-            tree_api_remote_url: this.tree_api_remote_url.clone(),
-            commitment_generator_max_parallelism: this
-                .commitment_generator_max_parallelism
-                .map(|a| a.get()),
             main_node_rate_limit_rps: this.main_node_rate_limit_rps.map(|a| a.get() as u32),
             snapshot_recovery: this.snapshot_recovery.as_ref().map(ProtoRepr::build),
             pruning: this.pruning.as_ref().map(ProtoRepr::build),

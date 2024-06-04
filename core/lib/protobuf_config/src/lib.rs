@@ -7,6 +7,7 @@
 mod api;
 mod chain;
 mod circuit_breaker;
+mod commitment_generator;
 mod consensus;
 mod contract_verifier;
 mod contracts;

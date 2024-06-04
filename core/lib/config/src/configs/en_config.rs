@@ -1,4 +1,4 @@
-use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
+use std::num::{NonZeroU64, NonZeroUsize};
 
 use serde::Deserialize;
 use zksync_basic_types::{
@@ -32,9 +32,6 @@ pub struct ENConfig {
     pub main_node_url: SensitiveUrl,
     pub main_node_rate_limit_rps: Option<NonZeroUsize>,
 
-    // En specific components
-    pub commitment_generator_max_parallelism: Option<NonZeroU32>,
-    pub tree_api_remote_url: Option<String>,
     pub snapshot_recovery: Option<SnapshotRecovery>,
     pub pruning: Option<Pruning>,
 }

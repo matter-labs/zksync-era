@@ -36,7 +36,7 @@ impl Default for ExperimentalDBConfig {
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
             reads_persistence_enabled: Self::default_protective_reads_persistence_enabled(),
-            processing_delay_ms: 0,
+            processing_delay_ms: Self::default_merkle_tree_processing_delay_ms(),
             include_indices_and_filters_in_block_cache: false,
         }
     }

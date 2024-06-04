@@ -1089,8 +1089,10 @@ impl ExperimentalENConfig {
                 tree_chunk_size,
                 default_snapshots_recovery_tree_chunk_size
             ),
-            commitment_generator_max_parallelism: external_node_config
-                .commitment_generator_max_parallelism,
+            commitment_generator_max_parallelism: general_config
+                .commitment_generator
+                .as_ref()
+                .map(|a| a.max_parallelism),
         })
     }
 }
@@ -1142,9 +1144,13 @@ pub struct ApiComponentConfig {
 }
 
 impl ApiComponentConfig {
-    fn from_configs(en_config: &ENConfig) -> Self {
+    fn from_configs(general_config: &GeneralConfig) -> Self {
         ApiComponentConfig {
-            tree_api_remote_url: en_config.tree_api_remote_url.clone(),
+            tree_api_remote_url: general_config
+                .api_config
+                .as_ref()
+                .map(|a| a.web3_json_rpc.tree_api_url.clone())
+                .flatten(),
         }
     }
 }
@@ -1244,7 +1250,7 @@ impl ExternalNodeConfig<()> {
         let experimental =
             ExperimentalENConfig::from_configs(&general_config, &external_node_config)?;
 
-        let api_component = ApiComponentConfig::from_configs(&external_node_config);
+        let api_component = ApiComponentConfig::from_configs(&general_config);
         let tree_component = TreeComponentConfig::from_configs(&general_config);
 
         Ok(Self {

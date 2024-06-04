@@ -1,6 +1,7 @@
 // Public re-exports
 pub use self::{
     api::ApiConfig,
+    commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, EcosystemContracts},
     database::{DBConfig, PostgresConfig},
@@ -25,6 +26,7 @@ pub use self::{
 
 pub mod api;
 pub mod chain;
+mod commitment_generator;
 pub mod consensus;
 pub mod contract_verifier;
 pub mod contracts;
