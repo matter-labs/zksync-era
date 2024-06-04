@@ -315,12 +315,7 @@ impl TryFrom<Call> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;
 
     fn try_from(call: Call) -> Result<Self, Self::Error> {
-        let Call {
-            data,
-            eth_hash,
-            eth_block,
-            ..
-        } = call;
+        let Call { data, .. } = call;
 
         if data.len() < 4 {
             return Err(crate::ethabi::Error::InvalidData);

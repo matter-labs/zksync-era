@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     ethabi::{decode, ParamType, Token},
     web3::Log,
-    Address, L1BlockNumber, PriorityOpId, H160, H256, U256,
+    Address, PriorityOpId, H160, H256, U256,
 };
 use zksync_utils::u256_to_account_address;
 
