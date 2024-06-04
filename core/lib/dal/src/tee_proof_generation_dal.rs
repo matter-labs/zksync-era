@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use strum::{Display, EnumString};
 use zksync_db_connection::{connection::Connection, utils::pg_interval_from_duration};
 use zksync_types::L1BatchNumber;
@@ -182,17 +183,19 @@ impl TeeProofGenerationDal<'_, '_> {
         &mut self,
         pubkey: &[u8],
         attestation: &[u8],
+        valid_until: &DateTime<Utc>,
     ) -> Result<(), SqlxError> {
         sqlx::query!(
             r#"
             INSERT INTO
-                tee_attestations (pubkey, attestation)
+                tee_attestations (pubkey, attestation, valid_until)
             VALUES
-                ($1, $2)
+                ($1, $2, $3)
             ON CONFLICT (pubkey) DO NOTHING
             "#,
             pubkey,
-            attestation
+            attestation,
+            valid_until.naive_utc()
         )
         .execute(self.storage.conn())
         .await?

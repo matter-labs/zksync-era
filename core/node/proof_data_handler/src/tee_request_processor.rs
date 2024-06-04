@@ -113,7 +113,7 @@ impl TeeRequestProcessor {
         let mut connection = self.pool.connection().await.unwrap();
         let mut dal = connection.tee_proof_generation_dal();
 
-        dal.save_attestation(&payload.pubkey, &payload.attestation)
+        dal.save_attestation(&payload.pubkey, &payload.attestation, &payload.valid_until)
             .await
             .map_err(RequestProcessorError::Sqlx)?;
 

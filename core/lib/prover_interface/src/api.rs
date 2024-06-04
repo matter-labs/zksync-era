@@ -1,6 +1,7 @@
 //! Prover and server subsystems communicate via the API.
 //! This module defines the types used in the API.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
@@ -62,4 +63,5 @@ pub type SubmitTeeProofRequest = GenericSubmitProofRequest<L1BatchTeeProofForL1>
 pub struct RegisterTeeAttestationRequest {
     pub attestation: Vec<u8>,
     pub pubkey: Vec<u8>,
+    pub valid_until: DateTime<Utc>,
 }

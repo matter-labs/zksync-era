@@ -6,6 +6,7 @@ use axum::{
     response::Response,
     Router,
 };
+use chrono::{Duration, Utc};
 use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use serde_json::json;
 use tower::ServiceExt;
@@ -148,7 +149,7 @@ async fn submit_tee_proof() {
         L1BatchCommitmentMode::Rollup,
     );
 
-    // should fail as we haven't saved the attestation for the pubkey yet
+    // this should fail because we haven't saved the attestation for the pubkey yet
 
     let response = send_submit_tee_proof_request(&app, &uri, &tee_proof_request).await;
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
@@ -156,18 +157,19 @@ async fn submit_tee_proof() {
     // save the attestation for the pubkey
 
     if let SubmitTeeProofRequest::Proof(ref proof) = tee_proof_request {
+        let valid_until = Utc::now() + Duration::days(42);
         let attestation = [15, 16, 17, 18, 19];
         let mut proof_dal = db_conn_pool.connection().await.unwrap();
         proof_dal
             .tee_proof_generation_dal()
-            .save_attestation(&proof.pubkey, &attestation)
+            .save_attestation(&proof.pubkey, &attestation, &valid_until)
             .await
             .expect("Failed to save attestation");
     } else {
         panic!("Expected Proof, got {:?}", tee_proof_request);
     }
 
-    // send the same request again; now it should succeed
+    // resend the same request; this time, it should be successful.
 
     let response = send_submit_tee_proof_request(&app, &uri, &tee_proof_request).await;
     assert_eq!(response.status(), StatusCode::OK);
