@@ -347,7 +347,6 @@ impl Executor {
 
         let l1_transfer_amount =
             self.amount_for_l1_distribution() / self.config.accounts_amount as u128;
-        let l2_transfer_amount = self.erc20_transfer_amount();
 
         let weight_of_l1_txs = self.execution_config.transaction_weights.l1_transactions
             + self.execution_config.transaction_weights.deposit;
@@ -452,7 +451,9 @@ impl Executor {
 
             let zkwallet = ZKSWallet::new(l2_wallet, None, Some(l2_provider), None).unwrap();
 
-            let transfer_request = TransferRequest::new(eth_to_distribute.into())
+            let l2_transfer_amount = self.eth_transfer_amount(zkwallet.era_balance().await?);
+
+            let transfer_request = TransferRequest::new(l2_transfer_amount)
                 .to(account.wallet.address())
                 .from(zkwallet.l2_address());
             zkwallet.transfer(&transfer_request, None).await.unwrap();
@@ -568,6 +569,14 @@ impl Executor {
         let for_fees = u64::MAX; // Leave some spare funds on the master account for fees.
         let funds_to_distribute = account_balance - u128::from(for_fees);
         funds_to_distribute / accounts_amount as u128
+    }
+
+    // Returns the amount sufficient for wallets to perform many operations.
+    fn eth_transfer_amount(&self, balance: U256) -> U256 {
+        let accounts_amount = self.config.accounts_amount;
+        let for_fees = balance / U256::from(1 << 10); // Leave some spare funds on the master account for fees.
+        let funds_to_distribute = balance - for_fees;
+        funds_to_distribute / U256::from(accounts_amount)
     }
 
     /// Initializes the loadtest by doing the following:

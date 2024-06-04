@@ -2,6 +2,7 @@ use std::{convert::TryFrom, default, sync::Arc, time::Instant};
 
 use ethers::prelude::*;
 use num::ToPrimitive;
+use types::BlockNumber as EthBlockNumber;
 use zksync::{
     error::ClientError,
     ethereum::PriorityOpHolder,
@@ -12,6 +13,7 @@ use zksync::{
     EthNamespaceClient,
 };
 use zksync_eth_client::EthInterface;
+use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
@@ -313,35 +315,33 @@ impl AccountLifespan {
         &mut self,
         command: &TxCommand,
     ) -> Result<SubmitResult, ClientError> {
-        let wallet = "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
-            .parse::<LocalWallet>()
-            .unwrap();
-
         let provider = Provider::<Http>::try_from("http://localhost:3050").unwrap();
         let chain_id: u64 = 270;
-        let client = SignerMiddleware::new(provider, wallet.with_chain_id(chain_id));
+        let client = SignerMiddleware::new(
+            provider,
+            self.wallet.evm_wallet.clone().with_chain_id(chain_id),
+        );
 
         let factory = ethers::contract::ContractFactory::new(
             self.wallet.test_contract.contract.clone(),
             Bytes::try_from(self.wallet.test_contract.bytecode.clone()).unwrap(),
-            client.into(),
+            client.clone().into(),
         );
         println!(
             "reads, {}",
             self.contract_execution_params.reads.to_string()
         );
-        let contract = factory
+        let mut deployer = factory
             .deploy(self.contract_execution_params.reads.to_u32().unwrap())
-            .unwrap()
-            .confirmations(0usize)
-            .send()
-            .await
             .unwrap();
-        println!("{}", contract.address());
+        //let tx_count = client.get_transaction_count(wallet.address(), Some(EthBlockNumber::Latest.into())).await.unwrap();
+        //deployer.tx.set_nonce(tx_count + 1);
+        //deployer.tx.set_from(self.wallet.wallet.address());
+        let contract = deployer.confirmations(0usize).send().await.unwrap();
         self.wallet
             .deployed_contract_address
             .set(contract.address())
-            .unwrap();
+            .ok();
 
         Ok(SubmitResult::TxHash(H256::zero()))
 
