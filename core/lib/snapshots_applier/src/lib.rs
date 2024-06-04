@@ -398,32 +398,22 @@ impl SnapshotRecoveryStrategy {
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
         snapshot_l1_batch: Option<L1BatchNumber>,
     ) -> Result<SnapshotRecoveryStatus, SnapshotsApplierError> {
-        let (l1_batch_number, is_latest) = match snapshot_l1_batch {
-            Some(num) => (num, false),
-            None => {
-                let num = main_node_client
-                    .fetch_newest_snapshot_l1_batch_number()
-                    .await?
-                    .context("no snapshots on main node; snapshot recovery is impossible")?;
-                (num, true)
-            }
+        let l1_batch_number = match snapshot_l1_batch {
+            Some(num) => num,
+            None => main_node_client
+                .fetch_newest_snapshot_l1_batch_number()
+                .await?
+                .context("no snapshots on main node; snapshot recovery is impossible")?,
         };
         let snapshot_response = main_node_client.fetch_snapshot(l1_batch_number).await?;
 
         let snapshot = snapshot_response.with_context(|| {
-            if is_latest {
-                format!(
-                    "latest snapshot for L1 batch #{l1_batch_number} disappeared from main node"
-                )
-            } else {
-                format!("snapshot for L1 batch #{l1_batch_number} is not present on main node")
-            }
+            format!("snapshot for L1 batch #{l1_batch_number} is not present on main node")
         })?;
         let l2_block_number = snapshot.l2_block_number;
         tracing::info!(
-            "Found {snapshot_kind} snapshot with data up to L1 batch #{l1_batch_number}, L2 block #{l2_block_number}, \
+            "Found snapshot with data up to L1 batch #{l1_batch_number}, L2 block #{l2_block_number}, \
             version {version}, storage logs are divided into {chunk_count} chunk(s)",
-            snapshot_kind = if is_latest { "latest" } else { "requested" },
             version = snapshot.version,
             chunk_count = snapshot.storage_logs_chunks.len()
         );
