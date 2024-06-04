@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                transactions.*\n            FROM\n                transactions\n                INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number\n            WHERE\n                miniblocks.number BETWEEN $1 AND $2\n            ORDER BY\n                miniblock_number, index_in_block\n            ",
+  "query": "\n            SELECT\n                transactions.*\n            FROM\n                transactions\n                INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number\n            WHERE\n                miniblocks.number BETWEEN $1 AND $2\n            ORDER BY\n                miniblock_number,\n                index_in_block\n            ",
   "describe": {
     "columns": [
       {
@@ -229,5 +229,5 @@
       true
     ]
   },
-  "hash": "df295f828e52c6de454252f4848825f08cb85b5848b79348147c4ed5caa4a161"
+  "hash": "0f1856e55a370280a078d048f09e2d457914c737660b37e9f66b576bbc9a7904"
 }

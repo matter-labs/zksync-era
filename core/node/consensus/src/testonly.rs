@@ -239,6 +239,12 @@ impl StateKeeper {
         validator::BlockNumber(self.last_block.0.into())
     }
 
+    /// Last L1 batch that has been sealed and will have
+    /// metadata computed eventually.
+    pub fn last_sealed_batch(&self) -> L1BatchNumber {
+        self.last_batch - (!self.batch_sealed) as u32
+    }
+
     /// Connects to the json RPC endpoint exposed by the state keeper.
     pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<Box<DynClient<L2>>> {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
@@ -336,6 +342,7 @@ async fn calculate_mock_metadata(ctx: &ctx::Ctx, pool: &ConnectionPool) -> ctx::
 }
 
 impl StateKeeperRunner {
+    // Executes the state keeper task with real metadata calculator task.
     pub async fn run_real(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);

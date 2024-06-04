@@ -528,12 +528,15 @@ async fn test_batch_proof() {
         s.spawn_bg(runner.run_real(ctx));
 
         // Seal a bunch of batches.
+        let mut batches = vec![];
         for _ in 0..5 {
             node.seal_batch().await;
+            batches.push(node.last_sealed_batch());
         }
-        pool.wait_for_payload(ctx, node.last_block()).await?;
-        // TODO: actually wait for batches with metadata.
-
+        for n in batches {
+            let batch = pool.wait_for_batch(ctx, n).await?;
+            tracing::info!("batch[{n}] = {batch:?}");
+        }
         Ok(())
     })
     .await

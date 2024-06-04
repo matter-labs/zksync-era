@@ -190,7 +190,7 @@ impl LastBlockProof {
 
 impl L1BatchProof {
     /// Loads an `L1BatchProof` from storage.
-    pub async fn load(
+    pub(crate) async fn load(
         ctx: &ctx::Ctx,
         number: L1BatchNumber,
         pool: &ConnectionPool,
