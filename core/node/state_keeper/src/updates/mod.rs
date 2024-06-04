@@ -123,7 +123,7 @@ impl UpdatesManager {
         );
     }
 
-    pub(crate) fn finish_batch(&mut self, finished_batch: FinishedL1Batch) {
+    pub fn finish_batch(&mut self, finished_batch: FinishedL1Batch) {
         assert!(
             self.l1_batch.finished.is_none(),
             "Cannot finish already finished batch"
