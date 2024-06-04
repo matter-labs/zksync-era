@@ -16,7 +16,11 @@ use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, StorageLog, H256};
 use zksync_web3_decl::jsonrpsee::core::ClientError;
 
-use super::{metrics::StepOutcomeLabel, *};
+use super::{
+    metrics::StepOutcomeLabel,
+    provider::{TreeDataProviderOutput, TreeDataProviderResult, TreeDataProviderSource},
+    *,
+};
 
 #[derive(Debug, Default)]
 pub(super) struct MockMainNodeClient {
@@ -32,10 +36,7 @@ impl MockMainNodeClient {
 
 #[async_trait]
 impl TreeDataProvider for MockMainNodeClient {
-    async fn batch_details(
-        &mut self,
-        number: L1BatchNumber,
-    ) -> TreeDataFetcherResult<Result<H256, MissingData>> {
+    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
         if self.transient_error.fetch_and(false, Ordering::Relaxed) {
             let err = ClientError::RequestTimeout;
             return Err(EnrichedClientError::new(err, "batch_details").into());
@@ -43,7 +44,10 @@ impl TreeDataProvider for MockMainNodeClient {
         Ok(self
             .batch_details_responses
             .get(&number)
-            .copied()
+            .map(|&root_hash| TreeDataProviderOutput {
+                root_hash,
+                source: TreeDataProviderSource::BatchDetailsRpc,
+            })
             .ok_or(MissingData::Batch))
     }
 }
@@ -106,6 +110,7 @@ impl FetcherHarness {
         let metrics = &*Box::leak(Box::<TreeDataFetcherMetrics>::default());
         let fetcher = TreeDataFetcher {
             data_provider: Box::new(client),
+            diamond_proxy_address: None,
             pool: pool.clone(),
             metrics,
             health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,
@@ -296,16 +301,16 @@ impl SlowMainNode {
 
 #[async_trait]
 impl TreeDataProvider for SlowMainNode {
-    async fn batch_details(
-        &mut self,
-        number: L1BatchNumber,
-    ) -> TreeDataFetcherResult<Result<H256, MissingData>> {
+    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
         if number != L1BatchNumber(1) {
             return Ok(Err(MissingData::Batch));
         }
         let request_count = self.request_count.fetch_add(1, Ordering::Relaxed);
         Ok(if request_count >= self.compute_root_hash_after {
-            Ok(H256::repeat_byte(1))
+            Ok(TreeDataProviderOutput {
+                root_hash: H256::repeat_byte(1),
+                source: TreeDataProviderSource::BatchDetailsRpc,
+            })
         } else {
             Err(MissingData::RootHash)
         })
