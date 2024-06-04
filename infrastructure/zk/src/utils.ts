@@ -25,8 +25,7 @@ const IGNORED_DIRS = [
     'artifacts-zk',
     'cache-zk',
     // Ignore directories with OZ and forge submodules.
-    'contracts/l1-contracts/lib',
-    'contracts/l1-contracts-foundry/lib'
+    'contracts/l1-contracts/lib'
 ];
 const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js', '.prettierrc.js'];
 
@@ -68,7 +67,7 @@ export async function confirmAction() {
     const input = await new Promise((resolve) => {
         rl.question(
             'Dangerous action! (set ZKSYNC_ACTION=dont_ask to always allow)\n' +
-                `Type environment name (${process.env.ZKSYNC_ENV}) to confirm: `,
+            `Type environment name (${process.env.ZKSYNC_ENV}) to confirm: `,
             (input) => {
                 rl.close();
                 resolve(input);
