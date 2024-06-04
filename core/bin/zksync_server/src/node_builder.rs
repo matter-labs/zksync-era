@@ -37,6 +37,7 @@ use zksync_node_framework::{
             StateKeeperLayer,
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
+        vm_runner::protective_reads::ProtectiveReadsWriterLayer,
         web3_api::{
             caches::MempoolCacheLayer,
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
@@ -404,6 +405,17 @@ impl MainNodeBuilder {
         // Ok(self)
     }
 
+    fn add_vm_runner_protective_reads_layer(mut self) -> anyhow::Result<Self> {
+        let protective_reads_writer_config =
+            try_load_config!(self.configs.protective_reads_writer_config);
+        self.node.add_layer(ProtectiveReadsWriterLayer::new(
+            protective_reads_writer_config,
+            self.genesis_config.l2_chain_id,
+        ));
+
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
         self = self
@@ -487,6 +499,9 @@ impl MainNodeBuilder {
                 }
                 Component::BaseTokenPriceFetcher => {
                     self = self.add_base_token_price_fetcher_layer()?;
+                }
+                Component::VmRunnerProtectiveReads => {
+                    self = self.add_vm_runner_protective_reads_layer()?;
                 }
             }
         }

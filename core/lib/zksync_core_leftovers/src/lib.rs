@@ -157,6 +157,8 @@ pub enum Component {
     CommitmentGenerator,
     /// Component for fetching base token prices from external sources.
     BaseTokenPriceFetcher,
+    /// VM runner-based component that saves protective reads to Postgres.
+    VmRunnerProtectiveReads,
 }
 
 #[derive(Debug)]
@@ -194,6 +196,9 @@ impl FromStr for Components {
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
             "base_token_price_fetcher" => Ok(Components(vec![Component::BaseTokenPriceFetcher])),
+            "vm_runner_protective_reads" => {
+                Ok(Components(vec![Component::VmRunnerProtectiveReads]))
+            }
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
