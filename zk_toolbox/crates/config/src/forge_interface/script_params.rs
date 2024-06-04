@@ -29,35 +29,35 @@ impl ForgeScriptParams {
 pub const DEPLOY_ECOSYSTEM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-l1.toml",
     output: "script-out/output-deploy-l1.toml",
-    script_path: "script/DeployL1.s.sol",
+    script_path: "deploy_scripts/DeployL1.s.sol",
 };
 
 pub const INITIALIZE_BRIDGES_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-initialize-shared-bridges.toml",
     output: "script-out/output-initialize-shared-bridges.toml",
-    script_path: "script/InitializeSharedBridgeOnL2.sol",
+    script_path: "deploy_scripts/InitializeSharedBridgeOnL2.sol",
 };
 
 pub const REGISTER_CHAIN_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/register-hyperchain.toml",
     output: "script-out/output-register-hyperchain.toml",
-    script_path: "script/RegisterHyperchain.s.sol",
+    script_path: "deploy_scripts/RegisterHyperchain.s.sol",
 };
 
 pub const DEPLOY_ERC20_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-erc20.toml",
     output: "script-out/output-deploy-erc20.toml",
-    script_path: "script/DeployErc20.s.sol",
+    script_path: "deploy_scripts/DeployErc20.s.sol",
 };
 
 pub const DEPLOY_PAYMASTER_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-paymaster.toml",
     output: "script-out/output-deploy-paymaster.toml",
-    script_path: "script/DeployPaymaster.s.sol",
+    script_path: "deploy_scripts/DeployPaymaster.s.sol",
 };
 
 pub const ACCEPT_GOVERNANCE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-accept-admin.toml",
     output: "script-out/output-accept-admin.toml",
-    script_path: "script/AcceptAdmin.s.sol",
+    script_path: "deploy_scripts/AcceptAdmin.s.sol",
 };
