@@ -58,9 +58,11 @@ where
             Some(nonce) => nonce,
             None => Nonce(self.wallet.get_nonce().await?),
         };
+
         let main_contract_hash = hash_bytecode(&bytecode);
         let execute_calldata =
             Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata);
+
         let mut factory_deps = self.factory_deps.unwrap_or_default();
         factory_deps.push(bytecode.clone());
 

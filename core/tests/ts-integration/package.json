@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "test": "zk f jest --forceExit --testTimeout 6000000 -- evm-contracts.test",
+    "test": "zk f jest --forceExit --testTimeout 60000 -- evm-contracts.test",
     "long-running-test": "zk f jest",
     "fee-test": "RUN_FEE_TEST=1 zk f jest -- fees.test.ts",
     "api-test": "zk f jest -- api/web3.test.ts api/debug.test.ts",
@@ -21,8 +21,6 @@
     "@types/node": "^18.19.15",
     "@types/node-fetch": "^2.5.7",
     "chalk": "^4.0.0",
-    "csv-parser": "^3.0.0",
-    "csv-writer": "^1.6.0",
     "ethereumjs-abi": "^0.6.8",
     "ethers": "~5.7.0",
     "hardhat": "=2.16.0",
@@ -33,9 +31,8 @@
     "ts-jest": "^29.0.1",
     "ts-node": "^10.1.0",
     "typescript": "^4.3.5",
-    "zksync-web3": "^0.15.5"
-  },
-  "dependencies": {
-    "eth-revert-reason": "^1.0.3"
+    "zksync-web3": "^0.15.5",
+    "csv-parser": "^3.0.0",
+    "csv-writer": "^1.6.0"
   }
 }
