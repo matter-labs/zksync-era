@@ -126,7 +126,7 @@ impl AccountLifespan {
             to: Address::zero(),
             amount: U256::zero(),
         };
-        self.execute_command_evm(deploy_command.clone()).await?;
+        self.execute_command_evm(deploy_command.clone()).await?; //EVM HERE
         self.wait_for_all_inflight_tx().await?;
 
         let mut timer = tokio::time::interval(POLLING_INTERVAL);
@@ -316,7 +316,7 @@ impl AccountLifespan {
         let mut attempt = 0;
         loop {
             let start = Instant::now();
-            let result = self.execute_tx_command_evm().await;
+            let result = self.execute_deploy_evm().await;
 
             let submit_result = match result {
                 Ok(result) => result,
@@ -339,17 +339,7 @@ impl AccountLifespan {
             };
 
             match submit_result {
-                SubmitResult::TxHash(tx_hash) => {
-                    if tx_hash != H256::zero() {
-                        self.inflight_txs.push_back(InflightTx {
-                            tx_hash,
-                            start,
-                            attempt,
-                            command: command.clone(),
-                        });
-                    }
-                    self.successfully_sent_txs.write().await.push(tx_hash)
-                }
+                SubmitResult::TxHash(_) => {}
                 SubmitResult::ReportLabel(label) => {
                     // Make a report if there was some problems sending tx
                     self.report(label, start.elapsed(), attempt, command)

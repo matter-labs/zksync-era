@@ -59,9 +59,14 @@ impl AccountLifespan {
         }
     }
 
-    pub(super) async fn execute_tx_command_evm(&mut self) -> Result<SubmitResult, ClientError> {
-        let provider = Provider::<Http>::try_from("http://localhost:3050").unwrap();
-        let chain_id: u64 = 270;
+    pub(super) async fn execute_deploy_evm(&mut self) -> Result<SubmitResult, ClientError> {
+        // Helper function to convert various error types to ClientError
+        fn to_client_error<E: std::fmt::Display>(error: E) -> ClientError {
+            ClientError::EvmDeploy(error.to_string()) // Adjust as needed
+        }
+        let provider = Provider::<Http>::try_from(self.config.l2_rpc_address.clone())
+            .map_err(to_client_error)?;
+        let chain_id: u64 = self.config.l2_chain_id;
         let client = SignerMiddleware::new(
             provider,
             self.wallet.evm_wallet.clone().with_chain_id(chain_id),
@@ -69,14 +74,21 @@ impl AccountLifespan {
 
         let factory = ethers::contract::ContractFactory::new(
             self.wallet.test_contract.contract.clone(),
-            Bytes::try_from(self.wallet.test_contract.bytecode.clone()).unwrap(),
+            Bytes::try_from(self.wallet.test_contract.bytecode.clone()).map_err(to_client_error)?,
             client.clone().into(),
         );
-
-        let deployer = factory
-            .deploy(self.contract_execution_params.reads.to_u32().unwrap())
-            .unwrap();
-        let contract = deployer.confirmations(0usize).send().await.unwrap();
+        let reads = match self.contract_execution_params.reads.to_u32() {
+            Some(reads) => reads,
+            None => {
+                return Err(ClientError::EvmDeploy("Invalid reads value".to_string()));
+            }
+        };
+        let deployer = factory.deploy(reads).unwrap();
+        let contract = deployer
+            .confirmations(0usize)
+            .send()
+            .await
+            .map_err(to_client_error)?;
         self.wallet
             .deployed_contract_address
             .set(contract.address())
