@@ -37,7 +37,22 @@ impl WiringLayer for ProtectiveReadsWriterLayer {
         let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
 
         let (protective_reads_writer, tasks) = ProtectiveReadsWriter::new(
-            master_pool.get_custom(3).await?,
+            // One for `StorageSyncTask` which can hold a long-term connection in case it needs to
+            // catch up cache.
+            //
+            // One for `ConcurrentOutputHandlerFactoryTask`/`VmRunner` as they need occasional access
+            // to DB for querying last processed batch and last ready to be loaded batch.
+            //
+            // `self.protective_reads_writer_config` connections for `ProtectiveReadsOutputHandlerFactory`
+            // as there can be multiple output handlers holding multi-second connections to write
+            // large amount of protective reads.
+            master_pool
+                .get_custom(
+                    self.protective_reads_writer_config
+                        .protective_reads_window_size
+                        + 2,
+                )
+                .await?,
             self.protective_reads_writer_config.protective_reads_db_path,
             self.zksync_network_id,
             self.protective_reads_writer_config
