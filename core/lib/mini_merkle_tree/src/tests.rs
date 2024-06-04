@@ -209,18 +209,24 @@ fn merkle_proofs_are_valid_in_small_tree() {
 fn merkle_proofs_are_valid_for_ranges() {
     let mut leaves: Vec<_> = (1_u8..=50).map(|byte| [byte; 88]).collect();
     let mut tree = MiniMerkleTree::new(leaves.clone().into_iter(), None);
+    let mut start_index = 0;
 
-    for i in 1..=50 {
-        let (merkle_root, start_path, end_path) = tree.merkle_root_and_paths_for_range(i);
-        verify_range_merkle_proof(&leaves[..i], 0, &start_path, &end_path, merkle_root);
-    }
+    for trimmed_count in 1..10 {
+        tree.trim_start(trimmed_count);
+        leaves.drain(..trimmed_count);
+        start_index += trimmed_count;
+        let tree_len = tree.hashes.len();
 
-    tree.trim_start(25);
-    leaves.drain(..25);
-
-    for i in 1..=25 {
-        let (merkle_root, start_path, end_path) = tree.merkle_root_and_paths_for_range(i);
-        verify_range_merkle_proof(&leaves[..i], 25, &start_path, &end_path, merkle_root);
+        for i in 1..=tree_len {
+            let (merkle_root, start_path, end_path) = tree.merkle_root_and_paths_for_range(i);
+            verify_range_merkle_proof(
+                &leaves[..i],
+                start_index,
+                &start_path,
+                &end_path,
+                merkle_root,
+            );
+        }
     }
 }
 
@@ -376,13 +382,18 @@ fn trim_all_and_grow() {
 
 #[test]
 fn trim_all_and_check_root() {
-    let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(4), None);
-    let root = tree.merkle_root();
-    tree.trim_start(4);
-    assert_eq!(tree.merkle_root(), root);
+    for len in 1..=50 {
+        let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(len), None);
+        let root = tree.merkle_root();
+        tree.trim_start(len);
+        assert_eq!(tree.merkle_root(), root);
 
-    let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(4), Some(8));
-    let root = tree.merkle_root();
-    tree.trim_start(4);
-    assert_eq!(tree.merkle_root(), root);
+        let mut tree = MiniMerkleTree::new(
+            iter::repeat([1; 88]).take(len),
+            Some(len.next_power_of_two() * 2),
+        );
+        let root = tree.merkle_root();
+        tree.trim_start(len);
+        assert_eq!(tree.merkle_root(), root);
+    }
 }

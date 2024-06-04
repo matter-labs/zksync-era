@@ -38,7 +38,14 @@ pub struct MiniMerkleTree<const LEAF_SIZE: usize, H = KeccakHasher> {
     hasher: H,
     hashes: VecDeque<H256>,
     binary_tree_size: usize,
+    /// Index of the leftmost untrimmed leaf.
     start_index: usize,
+    /// Left subset of the Merkle path to the first untrimmed leaf (i.e., a leaf with index self.start_index).
+    /// Merkle path starts from the bottom of the tree and goes up.
+    /// Used to fill in data for trimmed tree leaves when computing Merkle paths and the root hash.
+    /// Because only the left subset of the path is used, the cache is not invalidated when new leaves are
+    /// pushed into the tree. If all leaves are trimmed, cache is the left subset of the Merkle path to
+    /// the next leaf to be inserted, which still has index self.start_index.
     cache: Vec<Option<H256>>,
 }
 
@@ -131,8 +138,7 @@ where
     }
 
     /// Returns the root hash of this tree.
-    /// # Panics
-    /// Should never panic, unless there is a bug.
+    #[allow(clippy::missing_panics_doc)] // Should never panic, unless there is a bug.
     pub fn merkle_root(&self) -> H256 {
         if self.hashes.is_empty() {
             let depth = tree_depth_by_size(self.binary_tree_size);
@@ -196,67 +202,74 @@ where
         self.push_hash(leaf_hash);
     }
 
-    /// Caches the rightmost `count` leaves.
+    /// Trims and caches the leftmost `count` leaves.
     /// Does not affect the root hash, but makes it impossible to get the paths to the cached leaves.
     /// # Panics
-    /// Panics if `count` is greater than the number of non-cached leaves in the tree.
+    /// Panics if `count` is greater than the number of untrimmed leaves in the tree.
     pub fn trim_start(&mut self, count: usize) {
-        assert!(self.hashes.len() >= count, "not enough leaves to cache");
+        assert!(self.hashes.len() >= count, "not enough leaves to trim");
         let mut new_cache = vec![];
         // Cache is a left subset of the path to the first untrimmed leaf.
         let root = self.compute_merkle_root_and_path(count, Some(&mut new_cache), Some(Side::Left));
         self.hashes.drain(..count);
         self.start_index += count;
         if self.start_index == self.binary_tree_size {
-            // In order to be able to get the root of a completely trimmed tree,
-            // we need to cache it.
+            // If the tree is completely trimmed *and* will grow on the next push,
+            // we need to cache the root.
             new_cache.push(Some(root));
         }
         self.cache = new_cache;
     }
 
+    /// Computes the Merkle root hash.
+    /// If `path` is `Some`, also computes the Merkle path to the leaf with the specified
+    /// `index` (relative to `self.start_index`).
+    /// If `side` is `Some`, only the corresponding side subset of the path is computed (`Some` for
+    /// elemenets in the `side` subset of the path, `None` for the other elements).
     fn compute_merkle_root_and_path(
         &self,
-        mut end_index: usize,
-        mut end_path: Option<&mut Vec<Option<H256>>>,
+        mut index: usize,
+        mut path: Option<&mut Vec<Option<H256>>>,
         side: Option<Side>,
     ) -> H256 {
         let depth = tree_depth_by_size(self.binary_tree_size);
-        if let Some(right_path) = end_path.as_deref_mut() {
+        if let Some(right_path) = path.as_deref_mut() {
             right_path.reserve(depth);
         }
 
         let mut hashes = self.hashes.clone();
         let mut absolute_start_index = self.start_index;
 
-        if hashes.is_empty() {
-            hashes.push_back(self.hasher.empty_subtree_hash(0));
-        }
-
         for level in 0..depth {
+            // If the first untrimmed leaf is a right sibling,
+            // add it's left sibling to `hashes` from cache for convenient iteration later.
             if absolute_start_index % 2 == 1 {
                 hashes.push_front(self.cache[level].expect("cache is invalid"));
-                end_index += 1;
+                index += 1;
             }
+            // At this point `hashes` always starts from the left sibling node.
+            // If it ends on the left sibling node, add the right sibling node to `hashes`
+            // for convenient iteration later.
             if hashes.len() % 2 == 1 {
                 hashes.push_back(self.hasher.empty_subtree_hash(level));
             }
-            if let Some(path) = end_path.as_deref_mut() {
+            if let Some(path) = path.as_deref_mut() {
                 let hash = match side {
-                    Some(Side::Left) if end_index % 2 == 0 => None,
-                    Some(Side::Right) if end_index % 2 == 1 => None,
-                    _ => hashes.get(end_index ^ 1).copied(),
+                    Some(Side::Left) if index % 2 == 0 => None,
+                    Some(Side::Right) if index % 2 == 1 => None,
+                    _ => hashes.get(index ^ 1).copied(),
                 };
                 path.push(hash);
             }
 
             let level_len = hashes.len() / 2;
+            // Since `hashes` has an even number of elements, we can simply iterate over the pairs.
             for i in 0..level_len {
                 hashes[i] = self.hasher.compress(&hashes[2 * i], &hashes[2 * i + 1]);
             }
 
             hashes.truncate(level_len);
-            end_index /= 2;
+            index /= 2;
             absolute_start_index /= 2;
         }
 
@@ -269,6 +282,8 @@ fn tree_depth_by_size(tree_size: usize) -> usize {
     tree_size.trailing_zeros() as usize
 }
 
+/// Used to represent subsets of a Merkle path.
+/// `Left` are the left sibling nodes, `Right` are the right sibling nodes.
 #[derive(Debug, Clone, Copy)]
 enum Side {
     Left,
