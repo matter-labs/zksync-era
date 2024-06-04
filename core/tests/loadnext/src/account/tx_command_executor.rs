@@ -49,7 +49,7 @@ impl AccountLifespan {
             TxType::Deposit => self.execute_deposit(command).await,
             TxType::DeployContract => self.execute_deploy_contract(command).await,
             TxType::L2Execute => {
-                self.execute_loadnext_contract(command, ExecutionType::L2)
+                self.execute_loadnext_contract_evm(command, ExecutionType::L2)
                     .await
             }
             TxType::L1Execute => {
@@ -494,6 +494,78 @@ impl AccountLifespan {
         }
     }
 
+    async fn execute_loadnext_contract_evm(
+        &mut self,
+        command: &TxCommand,
+        execution_type: ExecutionType,
+    ) -> Result<SubmitResult, ClientError> {
+        const L1_TRANSACTION_GAS_LIMIT: u32 = 5_000_000;
+
+        let Some(&contract_address) = self.wallet.deployed_contract_address.get() else {
+            let label =
+                ReportLabel::skipped("Account haven't successfully deployed a contract yet");
+            return Ok(SubmitResult::ReportLabel(label));
+        };
+
+        match execution_type {
+            ExecutionType::L1 => {
+                let calldata = self.prepare_calldata_for_loadnext_contract();
+                let ethereum = self
+                    .wallet
+                    .wallet
+                    .ethereum(&self.config.l1_rpc_address)
+                    .await?;
+                let response = ethereum
+                    .request_execute(
+                        contract_address,
+                        U256::zero(),
+                        calldata,
+                        L1_TRANSACTION_GAS_LIMIT.into(),
+                        Some(self.wallet.test_contract.factory_deps.clone()),
+                        None,
+                        None,
+                        Default::default(),
+                    )
+                    .await;
+
+                let tx_hash = match response {
+                    Ok(hash) => hash,
+                    Err(ClientError::NetworkError(err)) if err.contains("insufficient funds") => {
+                        let reason =
+                            format!("L1 execution tx failed because of insufficient funds: {err}");
+                        let label = ReportLabel::skipped(reason);
+                        return Ok(SubmitResult::ReportLabel(label));
+                    }
+                    Err(err) => {
+                        let label = ReportLabel::failed(err.to_string());
+                        return Ok(SubmitResult::ReportLabel(label));
+                    }
+                };
+                self.get_priority_op_l2_hash(tx_hash).await
+            }
+
+            ExecutionType::L2 => {
+                let mut started_at = Instant::now();
+                let tx = self
+                    .build_execute_loadnext_contract_evm(command, contract_address)
+                    .await?;
+                tracing::trace!(
+                    "Account {:?}: execute_loadnext_contract: tx built in {:?}",
+                    self.wallet.wallet.address(),
+                    started_at.elapsed()
+                );
+                started_at = Instant::now();
+                let result = self.execute_submit(tx, command.modifier).await;
+                tracing::trace!(
+                    "Account {:?}: execute_loadnext_contract: tx executed in {:?}",
+                    self.wallet.wallet.address(),
+                    started_at.elapsed()
+                );
+                result
+            }
+        }
+    }
+
     fn prepare_calldata_for_loadnext_contract(&self) -> Vec<u8> {
         let contract = &self.wallet.test_contract.contract;
         let function = contract.function("execute").unwrap();
@@ -555,6 +627,55 @@ impl AccountLifespan {
         }
 
         let tx = builder.tx().await.map_err(Self::tx_creation_error)?;
+
+        Ok(self.apply_modifier(tx, command.modifier).await)
+    }
+
+    async fn build_execute_loadnext_contract_evm(
+        &mut self,
+        command: &TxCommand,
+        contract_address: Address,
+    ) -> Result<L2Tx, ClientError> {
+        let wallet = &self.wallet.wallet;
+
+        let calldata = self.prepare_calldata_for_loadnext_contract();
+        let mut builder = wallet
+            .start_execute_contract()
+            .calldata(calldata)
+            .contract_address(contract_address);
+
+        let fee = builder
+            .estimate_fee_evm(Some(get_approval_based_paymaster_input_for_estimation(
+                self.paymaster_address,
+                self.main_l2_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
+            )))
+            .await?;
+        tracing::trace!(
+            "Account {:?}: fee estimated. Max total fee: {}, gas limit: {}gas; Max gas price: {}WEI, \
+             Gas per pubdata: {:?}gas",
+            self.wallet.wallet.address(),
+            format_gwei(fee.max_total_fee()),
+            fee.gas_limit,
+            fee.max_fee_per_gas,
+            fee.gas_per_pubdata_limit
+        );
+        builder = builder.fee(fee.clone());
+
+        let paymaster_params = get_approval_based_paymaster_input(
+            self.paymaster_address,
+            self.main_l2_token,
+            fee.max_total_fee(),
+            Vec::new(),
+        );
+        builder = builder.fee(fee);
+        //builder = builder.paymaster_params(paymaster_params);
+
+        if let Some(nonce) = self.current_nonce {
+            builder = builder.nonce(nonce);
+        }
+
+        let tx = builder.tx_evm().await.map_err(Self::tx_creation_error)?;
 
         Ok(self.apply_modifier(tx, command.modifier).await)
     }
