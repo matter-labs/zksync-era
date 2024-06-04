@@ -56,10 +56,9 @@ export class RetryProvider extends zksync.Provider {
     }
 
     override _wrapTransactionReceipt(receipt: any): zksync.types.TransactionReceipt {
-        this.reporter.debug(receipt);
         const wrapped = super._wrapTransactionReceipt(receipt);
         this.reporter.debug(
-            `Obtained receipt for transaction ${receipt.hash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
+            `Obtained receipt for transaction ${receipt.transactionHash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
         );
         return wrapped;
     }
