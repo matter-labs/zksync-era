@@ -25,13 +25,7 @@ impl ProtocolSemanticVersion {
 
 impl fmt::Display for ProtocolSemanticVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}.{}.{}",
-            Self::MAJOR_VERSION,
-            self.minor as u16,
-            self.patch
-        )
+        write!(f, "{}.{}.{}", Self::MAJOR_VERSION, self.minor, self.patch)
     }
 }
 

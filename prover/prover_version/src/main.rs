@@ -1,5 +1,5 @@
-use zksync_types::ProtocolVersionId;
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 
 fn main() {
-    println!("{}", ProtocolVersionId::current_prover_version());
+    println!("{}", PROVER_PROTOCOL_SEMANTIC_VERSION);
 }

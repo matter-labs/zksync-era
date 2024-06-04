@@ -4,7 +4,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
-    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
+    clients::SigningClient, BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface,
+    Options,
 };
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
@@ -158,7 +159,9 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .call(self.query_client())
             .await
             .map_err(|err| match err {
-                Error::EthereumGateway(err) => ClientError::NetworkError(err.to_string()),
+                ContractCallError::EthereumGateway(err) => {
+                    ClientError::NetworkError(err.to_string())
+                }
                 _ => ClientError::MalformedResponse(err.to_string()),
             })
     }
@@ -193,7 +196,9 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .call(self.query_client())
             .await
             .map_err(|err| match err {
-                Error::EthereumGateway(err) => ClientError::NetworkError(err.to_string()),
+                ContractCallError::EthereumGateway(err) => {
+                    ClientError::NetworkError(err.to_string())
+                }
                 _ => ClientError::MalformedResponse(err.to_string()),
             })
     }
@@ -360,7 +365,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         gas_limit: U256,
         gas_per_pubdata_byte: u32,
         gas_price: Option<U256>,
-    ) -> Result<U256, Error> {
+    ) -> Result<U256, ContractCallError> {
         let gas_price = if let Some(gas_price) = gas_price {
             gas_price
         } else {
