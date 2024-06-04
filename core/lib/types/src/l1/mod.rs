@@ -73,6 +73,7 @@ pub fn is_l1_tx_type(tx_type: u8) -> bool {
     tx_type == PRIORITY_OPERATION_L2_TX_TYPE || tx_type == PROTOCOL_UPGRADE_TX_TYPE
 }
 
+// TODO(PLA-962): remove once all nodes start treating the deprecated fields as optional.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct L1TxCommonDataSerde {
@@ -403,7 +404,7 @@ impl TryFrom<Log> for L1Tx {
             op_processing_type: OpProcessingType::Common,
             priority_queue_type: PriorityQueueType::Deque,
             // DEPRECATED.
-            // TODO(gprusak): start setting it to 0 for all new transactions.
+            // TODO (PLA-962): start setting it to 0 for all new transactions.
             eth_block,
         };
 

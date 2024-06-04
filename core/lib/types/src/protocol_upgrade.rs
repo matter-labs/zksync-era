@@ -467,6 +467,7 @@ impl ProtocolVersion {
     }
 }
 
+// TODO(PLA-962): remove once all nodes start treating the deprecated fields as optional.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProtocolUpgradeTxCommonDataSerde {
