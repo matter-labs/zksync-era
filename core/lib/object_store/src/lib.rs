@@ -30,6 +30,7 @@ mod metrics;
 mod mock;
 mod objects;
 mod raw;
+mod retries;
 
 // Re-export `bincode` crate so that client binaries can conveniently use it.
 pub use bincode;

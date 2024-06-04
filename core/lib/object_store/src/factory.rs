@@ -8,6 +8,7 @@ use crate::{
     file::FileBackedObjectStore,
     gcs::{GoogleCloudStore, GoogleCloudStoreAuthMode},
     raw::{ObjectStore, ObjectStoreError},
+    retries::StoreWithRetries,
 };
 
 /// Factory of [`ObjectStore`]s that caches the store instance once it's created. Used mainly for legacy reasons.
@@ -58,11 +59,12 @@ impl ObjectStoreFactory {
                 tracing::trace!(
                     "Initialized GoogleCloudStorage Object store without credential file"
                 );
-                let store = GoogleCloudStore::new(
-                    GoogleCloudStoreAuthMode::Authenticated,
-                    bucket_base_url.clone(),
-                    config.max_retries,
-                )
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    GoogleCloudStore::new(
+                        GoogleCloudStoreAuthMode::Authenticated,
+                        bucket_base_url.clone(),
+                    )
+                })
                 .await?;
                 Ok(Arc::new(store))
             }
@@ -71,13 +73,14 @@ impl ObjectStoreFactory {
                 gcs_credential_file_path,
             } => {
                 tracing::trace!("Initialized GoogleCloudStorage Object store with credential file");
-                let store = GoogleCloudStore::new(
-                    GoogleCloudStoreAuthMode::AuthenticatedWithCredentialFile(
-                        gcs_credential_file_path.clone(),
-                    ),
-                    bucket_base_url.clone(),
-                    config.max_retries,
-                )
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    GoogleCloudStore::new(
+                        GoogleCloudStoreAuthMode::AuthenticatedWithCredentialFile(
+                            gcs_credential_file_path.clone(),
+                        ),
+                        bucket_base_url.clone(),
+                    )
+                })
                 .await?;
                 Ok(Arc::new(store))
             }
@@ -85,16 +88,20 @@ impl ObjectStoreFactory {
                 file_backed_base_path,
             } => {
                 tracing::trace!("Initialized FileBacked Object store");
-                let store = FileBackedObjectStore::new(file_backed_base_path.clone()).await?;
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    FileBackedObjectStore::new(file_backed_base_path.clone())
+                })
+                .await?;
                 Ok(Arc::new(store))
             }
             ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
                 tracing::trace!("Initialized GoogleCloudStoragePublicReadOnly store");
-                let store = GoogleCloudStore::new(
-                    GoogleCloudStoreAuthMode::Anonymous,
-                    bucket_base_url.clone(),
-                    config.max_retries,
-                )
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    GoogleCloudStore::new(
+                        GoogleCloudStoreAuthMode::Anonymous,
+                        bucket_base_url.clone(),
+                    )
+                })
                 .await?;
                 Ok(Arc::new(store))
             }
