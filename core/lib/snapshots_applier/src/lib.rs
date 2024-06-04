@@ -268,7 +268,7 @@ impl SnapshotsApplierTask {
             let result = SnapshotsApplier::load_snapshot(
                 &self.connection_pool,
                 self.main_node_client.as_ref(),
-                &self.blob_store,
+                self.blob_store.as_ref(),
                 &self.health_updater,
                 self.config.max_concurrency.get(),
             )

@@ -263,7 +263,7 @@ async fn reverting_snapshot(remove_objects: bool) {
     setup_storage(&mut storage, &storage_logs).await;
 
     let object_store = MockObjectStore::arc();
-    create_mock_snapshot(&mut storage, &object_store, L1BatchNumber(7), 0..5).await;
+    create_mock_snapshot(&mut storage, &*object_store, L1BatchNumber(7), 0..5).await;
     // Sanity check: snapshot should be visible.
     let all_snapshots = storage
         .snapshots_dal()
@@ -321,7 +321,7 @@ async fn reverting_snapshot_ignores_not_found_object_store_errors() {
     setup_storage(&mut storage, &storage_logs).await;
 
     let object_store = MockObjectStore::arc();
-    create_mock_snapshot(&mut storage, &object_store, L1BatchNumber(7), 0..5).await;
+    create_mock_snapshot(&mut storage, &*object_store, L1BatchNumber(7), 0..5).await;
 
     // Manually remove some data from the store.
     object_store
@@ -399,7 +399,7 @@ async fn reverting_snapshot_propagates_fatal_errors() {
     setup_storage(&mut storage, &storage_logs).await;
 
     let object_store = Arc::new(ErroneousStore::default());
-    create_mock_snapshot(&mut storage, &object_store, L1BatchNumber(7), 0..5).await;
+    create_mock_snapshot(&mut storage, &*object_store, L1BatchNumber(7), 0..5).await;
 
     let mut block_reverter = BlockReverter::new(NodeRole::External, pool.clone());
     block_reverter.enable_rolling_back_postgres();
@@ -440,7 +440,7 @@ async fn reverter_handles_incomplete_snapshot() {
     let chunk_ids = [0, 1, 4].into_iter();
     create_mock_snapshot(
         &mut storage,
-        &object_store,
+        &*object_store,
         L1BatchNumber(7),
         chunk_ids.clone(),
     )

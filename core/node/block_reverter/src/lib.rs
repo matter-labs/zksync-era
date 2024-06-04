@@ -168,7 +168,7 @@ impl BlockReverter {
             vec![]
         };
 
-        if let Some(object_store) = &self.snapshots_object_store {
+        if let Some(object_store) = self.snapshots_object_store.as_deref() {
             Self::delete_snapshot_files(object_store, &deleted_snapshots).await?;
         } else if !deleted_snapshots.is_empty() {
             tracing::info!(

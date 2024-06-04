@@ -1,4 +1,4 @@
-use std::{error, fmt, sync::Arc};
+use std::{error, fmt};
 
 use async_trait::async_trait;
 
@@ -154,28 +154,4 @@ pub trait ObjectStore: 'static + fmt::Debug + Send + Sync {
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError>;
 
     fn storage_prefix_raw(&self, bucket: Bucket) -> String;
-}
-
-#[async_trait]
-impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
-    async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
-        (**self).get_raw(bucket, key).await
-    }
-
-    async fn put_raw(
-        &self,
-        bucket: Bucket,
-        key: &str,
-        value: Vec<u8>,
-    ) -> Result<(), ObjectStoreError> {
-        (**self).put_raw(bucket, key, value).await
-    }
-
-    async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
-        (**self).remove_raw(bucket, key).await
-    }
-
-    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
-        (**self).storage_prefix_raw(bucket)
-    }
 }
