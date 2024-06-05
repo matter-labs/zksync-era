@@ -54,7 +54,7 @@ impl L2CanonicalTransaction {
     }
 
     /// Decodes L1->L2 transaction from a RLP token.
-    /// Retuns an error if token doesn't match the `schema()`.
+    /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
         anyhow::ensure!(tokens.len() == 16);
@@ -153,7 +153,7 @@ impl NewPriorityRequest {
     }
 
     /// Decodes `NewPriorityRequest` from RLP encoding.
-    /// Retuns an error if token doesn't match the `schema()`.
+    /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(data: &[u8]) -> Result<Self, ethabi::Error> {
         let tokens = ethabi::decode(
             &[
@@ -288,7 +288,7 @@ impl ProposedUpgrade {
     }
 
     /// Decodes `ProposedUpgrade` from a RLP token.
-    /// Retuns an error if token doesn't match the `schema()`.
+    /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
         anyhow::ensure!(tokens.len() == 10);
@@ -327,14 +327,14 @@ impl ProposedUpgrade {
 }
 
 /// Minimal representation of arbitrary zksync transaction.
-/// Suitable for verifying hashes/reencoding.
+/// Suitable for verifying hashes/re-encoding.
 #[derive(Debug)]
 pub enum Transaction {
     /// L1->L2 transaction (both protocol upgrade and Priority transaction).
     L1 {
         /// Hashed data.
         tx: Box<L2CanonicalTransaction>,
-        /// txn contains a commitment to factory_deps.
+        /// `tx` contains a commitment to `factory_deps`.
         factory_deps: Vec<Vec<u8>>,
         /// Auxiliary data, not hashed.
         eth_block: u64,
@@ -345,7 +345,7 @@ pub enum Transaction {
 }
 
 impl Transaction {
-    /// Canonical hash of the transaciton.
+    /// Canonical hash of the transaction.
     /// Returns an error if data is inconsistent.
     /// Note that currently not all of the transaction
     /// content is included in the hash.

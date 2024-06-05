@@ -10,7 +10,7 @@ use zksync_utils::{
 
 use super::Transaction;
 use crate::{
-    abi,
+    abi, ethabi,
     helpers::unix_timestamp_ms,
     l1::error::L1TxParseError,
     l2::TransactionType,
@@ -304,32 +304,28 @@ impl From<L1Tx> for abi::NewPriorityRequest {
 }
 
 impl TryFrom<abi::NewPriorityRequest> for L1Tx {
-    type Error = L1TxParseError;
+    type Error = anyhow::Error;
 
     /// Note that this method doesn't set `eth_block` and `received_timestamp_ms`
     /// because `req` doesn't contain those. They can be set after this conversion.
-    fn try_from(req: abi::NewPriorityRequest) -> Result<Self, Self::Error> {
-        assert_eq!(
-            req.transaction.tx_type,
-            PRIORITY_OPERATION_L2_TX_TYPE.into()
-        );
-        assert_eq!(req.transaction.nonce, req.tx_id); // serial id from decoded from transaction bytes should be equal to one from event
-        assert_eq!(req.transaction.max_priority_fee_per_gas, U256::zero());
-        assert_eq!(req.transaction.paymaster, U256::zero());
-        assert_eq!(req.transaction.hash(), H256::from_slice(&req.tx_hash));
+    fn try_from(req: abi::NewPriorityRequest) -> anyhow::Result<Self> {
+        anyhow::ensure!(req.transaction.tx_type == PRIORITY_OPERATION_L2_TX_TYPE.into());
+        anyhow::ensure!(req.transaction.nonce == req.tx_id); // serial id from decoded from transaction bytes should be equal to one from event
+        anyhow::ensure!(req.transaction.max_priority_fee_per_gas == U256::zero());
+        anyhow::ensure!(req.transaction.paymaster == U256::zero());
+        anyhow::ensure!(req.transaction.hash() == H256::from_slice(&req.tx_hash));
         let factory_deps_hashes: Vec<_> = req
             .factory_deps
             .iter()
             .map(|b| h256_to_u256(hash_bytecode(b)))
             .collect();
-        assert_eq!(req.transaction.factory_deps, factory_deps_hashes);
+        anyhow::ensure!(req.transaction.factory_deps == factory_deps_hashes);
         for item in &req.transaction.reserved[2..] {
-            assert_eq!(item, &U256::zero());
+            anyhow::ensure!(item == &U256::zero());
         }
-        assert!(req.transaction.signature.is_empty());
-        // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
-        assert!(req.transaction.paymaster_input.is_empty());
-        assert!(req.transaction.reserved_dynamic.is_empty());
+        anyhow::ensure!(req.transaction.signature.is_empty());
+        anyhow::ensure!(req.transaction.paymaster_input.is_empty());
+        anyhow::ensure!(req.transaction.reserved_dynamic.is_empty());
 
         let common_data = L1TxCommonData {
             serial_id: PriorityOpId(req.transaction.nonce.try_into().unwrap()),
@@ -368,7 +364,9 @@ impl TryFrom<Log> for L1Tx {
     fn try_from(event: Log) -> Result<Self, Self::Error> {
         let rlp = rlp::Rlp::new(&event.data.0);
         tracing::error!("event.data.0 = {rlp}");
-        let mut tx: L1Tx = abi::NewPriorityRequest::decode(&event.data.0)?.try_into()?;
+        let mut tx: L1Tx = abi::NewPriorityRequest::decode(&event.data.0)?
+            .try_into()
+            .map_err(|err| L1TxParseError::from(ethabi::Error::Other(format!("{err:#}").into())))?;
         // TODO (PLA-962): start setting it to 0 for all new transactions.
         tx.common_data.eth_block = event
             .block_number

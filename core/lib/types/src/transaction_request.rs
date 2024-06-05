@@ -474,16 +474,16 @@ impl TransactionRequest {
         self.transaction_type.is_none() || self.transaction_type == Some(LEGACY_TX_TYPE.into())
     }
 
-    /// Encodes TransactionRequest to RLP.
-    /// It may fail if chain_id is `None` while required.
+    /// Encodes `TransactionRequest` to RLP.
+    /// It may fail if `chain_id` is `None` while required.
     pub fn get_rlp(&self) -> anyhow::Result<Vec<u8>> {
         let mut rlp_stream = RlpStream::new();
         self.rlp(&mut rlp_stream, None)?;
         Ok(rlp_stream.as_raw().into())
     }
 
-    /// Encodes TransactionRequest to RLP.
-    /// It may fail if chain_id is `None` while required.
+    /// Encodes `TransactionRequest` to RLP.
+    /// It may fail if `chain_id` is `None` while required.
     pub fn rlp(
         &self,
         rlp: &mut RlpStream,
@@ -629,7 +629,7 @@ impl TransactionRequest {
                 }
                 let v = rlp.val_at(6)?;
                 Self {
-                    // For legacy transactions chain_id is optional.
+                    // For legacy transactions `chain_id` is optional.
                     chain_id: PackedEthSignature::unpack_v(v)
                         .map_err(|_| SerializationTransactionError::MalformedSignature)?
                         .1,

@@ -242,7 +242,7 @@ impl L2Tx {
         if tx.is_eip712_tx() {
             PackedEthSignature::typed_data_to_signed_bytes(&Eip712Domain::new(chain_id), &tx)
         } else {
-            // It is ok to unwrap, because the chain_id is set.
+            // It is ok to unwrap, because the `chain_id` is set.
             let mut data = tx.get_rlp().unwrap();
             if let Some(tx_type) = tx.transaction_type {
                 data.insert(0, tx_type.as_u32() as u8);
