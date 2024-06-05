@@ -36,16 +36,19 @@ const MAX_TREE_DEPTH: usize = 32;
 #[derive(Debug, Clone)]
 pub struct MiniMerkleTree<const LEAF_SIZE: usize, H = KeccakHasher> {
     hasher: H,
+    /// Stores untrimmed (uncached) leaves of the tree.
     hashes: VecDeque<H256>,
+    /// Size of the tree. Always a power of 2.
+    /// If it is greater than `self.start_index + self.hashes.len()`, the remaining leaves are empty.
     binary_tree_size: usize,
     /// Index of the leftmost untrimmed leaf.
     start_index: usize,
-    /// Left subset of the Merkle path to the first untrimmed leaf (i.e., a leaf with index self.start_index).
+    /// Left subset of the Merkle path to the first untrimmed leaf (i.e., a leaf with index `self.start_index`).
     /// Merkle path starts from the bottom of the tree and goes up.
     /// Used to fill in data for trimmed tree leaves when computing Merkle paths and the root hash.
     /// Because only the left subset of the path is used, the cache is not invalidated when new leaves are
     /// pushed into the tree. If all leaves are trimmed, cache is the left subset of the Merkle path to
-    /// the next leaf to be inserted, which still has index self.start_index.
+    /// the next leaf to be inserted, which still has index `self.start_index`.
     cache: Vec<Option<H256>>,
 }
 
@@ -166,7 +169,7 @@ where
     }
 
     /// Returns the root hash and the Merkle proofs for a range of leafs.
-    /// The range is 0..length, where `0` is the leftmost untrimmed leaf.
+    /// The range is 0..length, where `0` is the leftmost untrimmed leaf (i.e. leaf under `self.start_index`).
     /// # Panics
     /// Panics if `length` is 0 or greater than the number of leaves in the tree.
     pub fn merkle_root_and_paths_for_range(
@@ -224,8 +227,8 @@ where
     /// Computes the Merkle root hash.
     /// If `path` is `Some`, also computes the Merkle path to the leaf with the specified
     /// `index` (relative to `self.start_index`).
-    /// If `side` is `Some`, only the corresponding side subset of the path is computed (`Some` for
-    /// elemenets in the `side` subset of the path, `None` for the other elements).
+    /// If `side` is `Some`, only the corresponding side subset of the path is computed
+    /// (`Some` for elements in the `side` subset of the path, `None` for the other elements).
     fn compute_merkle_root_and_path(
         &self,
         mut index: usize,
@@ -233,8 +236,8 @@ where
         side: Option<Side>,
     ) -> H256 {
         let depth = tree_depth_by_size(self.binary_tree_size);
-        if let Some(right_path) = path.as_deref_mut() {
-            right_path.reserve(depth);
+        if let Some(path) = path.as_deref_mut() {
+            path.reserve(depth);
         }
 
         let mut hashes = self.hashes.clone();
