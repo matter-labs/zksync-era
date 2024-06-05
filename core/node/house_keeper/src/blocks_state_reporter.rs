@@ -28,11 +28,11 @@ impl L1BatchMetricsReporter {
             block_metrics.push((number, BlockStage::Sealed));
         }
 
-        let last_l1_batch_with_metadata = conn
+        let last_l1_batch_with_tree_data = conn
             .blocks_dal()
-            .get_last_l1_batch_number_with_metadata()
+            .get_last_l1_batch_number_with_tree_data()
             .await?;
-        if let Some(number) = last_l1_batch_with_metadata {
+        if let Some(number) = last_l1_batch_with_tree_data {
             block_metrics.push((number, BlockStage::MetadataCalculated));
         }
 

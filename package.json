@@ -14,7 +14,7 @@
       "infrastructure/zk",
       "infrastructure/local-setup-preparation",
       "core/tests/revert-test",
-      "core/tests/snapshot-recovery-test",
+      "core/tests/recovery-test",
       "core/tests/upgrade-test",
       "core/tests/ts-integration",
       "infrastructure/protocol-upgrade"
@@ -30,7 +30,7 @@
     "l2-contracts": "yarn workspace l2-contracts",
     "revert-test": "yarn workspace revert-test",
     "upgrade-test": "yarn workspace upgrade-test",
-    "snapshot-recovery-test": "yarn workspace snapshot-recovery-test",
+    "recovery-test": "yarn workspace recovery-test",
     "ts-integration": "yarn workspace ts-integration",
     "zk": "yarn workspace zk"
   },
@@ -47,6 +47,6 @@
     "prettier-plugin-solidity": "=1.0.0-dev.22",
     "solhint": "^3.3.2",
     "sql-formatter": "^13.1.0",
-    "zksync-ethers": "https://github.com/zksync-sdk/zksync-ethers#sb-old-sdk"
+    "zksync-ethers": "5.8.0-beta.5"
   }
 }

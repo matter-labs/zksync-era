@@ -11,19 +11,19 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProverConfig, ObservabilityConfig, PostgresConfig,
+    fri_prover_group::FriProverGroupConfig, DatabaseSecrets, FriProverConfig, ObservabilityConfig,
 };
 use zksync_env_config::{
     object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
     FromEnv,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
-    ProtocolVersionId,
 };
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -35,8 +35,8 @@ mod socket_listener;
 mod utils;
 
 async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>> {
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::<Prover>::singleton(postgres_config.prover_url()?)
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -131,14 +131,14 @@ async fn main() -> anyhow::Result<()> {
         specialized_group_id,
         circuit_ids_for_round_to_be_proven.clone()
     );
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets")?;
 
     // There are 2 threads using the connection pool:
     // 1. The prover thread, which is used to update the prover job status.
     // 2. The socket listener thread, which is used to update the prover instance status.
     const MAX_POOL_SIZE_FOR_PROVER: u32 = 2;
 
-    let pool = ConnectionPool::builder(postgres_config.prover_url()?, MAX_POOL_SIZE_FOR_PROVER)
+    let pool = ConnectionPool::builder(database_secrets.prover_url()?, MAX_POOL_SIZE_FOR_PROVER)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -195,7 +195,7 @@ async fn get_prover_tasks(
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
-    let protocol_version = ProtocolVersionId::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     tracing::info!(
         "Starting CPU FRI proof generation for with protocol_version: {:?}",
@@ -247,7 +247,7 @@ async fn get_prover_tasks(
         port: prover_config.witness_vector_receiver_port,
     };
 
-    let protocol_version = ProtocolVersionId::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let prover = gpu_prover::Prover::new(
         store_factory.create_store().await,

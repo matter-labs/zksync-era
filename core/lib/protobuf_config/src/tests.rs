@@ -23,7 +23,8 @@ fn test_encoding() {
     test_encode_all_formats::<ReprConv<proto::consensus::WeightedValidator>>(rng);
     test_encode_all_formats::<ReprConv<proto::consensus::GenesisSpec>>(rng);
     test_encode_all_formats::<ReprConv<proto::consensus::Config>>(rng);
-    test_encode_all_formats::<ReprConv<proto::consensus::Secrets>>(rng);
+    test_encode_all_formats::<ReprConv<proto::secrets::ConsensusSecrets>>(rng);
+    test_encode_all_formats::<ReprConv<proto::secrets::Secrets>>(rng);
     test_encode_all_formats::<ReprConv<proto::contract_verifier::ContractVerifier>>(rng);
     test_encode_all_formats::<ReprConv<proto::contracts::Contracts>>(rng);
     test_encode_all_formats::<ReprConv<proto::database::MerkleTree>>(rng);
@@ -63,4 +64,5 @@ fn verify_file_parsing() {
     decode_yaml_repr::<proto::genesis::Genesis>(&base_path.join("genesis.yaml"), true).unwrap();
     decode_yaml_repr::<proto::contracts::Contracts>(&base_path.join("contracts.yaml"), true)
         .unwrap();
+    decode_yaml_repr::<proto::secrets::Secrets>(&base_path.join("secrets.yaml"), true).unwrap();
 }

@@ -1,4 +1,4 @@
-use zksync_core::consistency_checker::ConsistencyChecker;
+use zksync_consistency_checker::ConsistencyChecker;
 use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
         pools::{MasterPool, PoolResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -75,8 +75,8 @@ pub struct ConsistencyCheckerTask {
 
 #[async_trait::async_trait]
 impl Task for ConsistencyCheckerTask {
-    fn name(&self) -> &'static str {
-        "consistency_checker"
+    fn id(&self) -> TaskId {
+        "consistency_checker".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

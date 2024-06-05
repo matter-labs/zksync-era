@@ -4,7 +4,7 @@ use zksync_dal::{ConnectionPool, Core};
 use crate::{
     implementations::resources::pools::{MasterPool, PoolResource, ReplicaPool},
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -46,12 +46,12 @@ pub struct ContractVerificationApiTask {
 
 #[async_trait::async_trait]
 impl Task for ContractVerificationApiTask {
-    fn name(&self) -> &'static str {
-        "contract_verification_api"
+    fn id(&self) -> TaskId {
+        "contract_verification_api".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_core::api_server::contract_verification::start_server(
+        zksync_contract_verification_server::start_server(
             self.master_pool,
             self.replica_pool,
             self.config,

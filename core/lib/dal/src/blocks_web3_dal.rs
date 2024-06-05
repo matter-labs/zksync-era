@@ -165,18 +165,26 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         from_block: L2BlockNumber,
     ) -> DalResult<Vec<BlockHeader>> {
-        let rows = sqlx::query!(
+        let blocks_rows: Vec<_> = sqlx::query!(
             r#"
             SELECT
-                hash,
-                number,
-                timestamp
+                miniblocks.hash AS "block_hash",
+                miniblocks.number AS "block_number",
+                prev_miniblock.hash AS "parent_hash?",
+                miniblocks.timestamp AS "block_timestamp",
+                miniblocks.base_fee_per_gas AS "base_fee_per_gas",
+                miniblocks.gas_limit AS "block_gas_limit?",
+                transactions.gas_limit AS "transaction_gas_limit?",
+                transactions.refunded_gas AS "transaction_refunded_gas?"
             FROM
                 miniblocks
+                LEFT JOIN miniblocks prev_miniblock ON prev_miniblock.number = miniblocks.number - 1
+                LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
             WHERE
-                number > $1
+                miniblocks.number > $1
             ORDER BY
-                number ASC
+                miniblocks.number ASC,
+                transactions.index_in_block ASC
             "#,
             i64::from(from_block.0),
         )
@@ -185,27 +193,50 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        let blocks = rows.into_iter().map(|row| BlockHeader {
-            hash: Some(H256::from_slice(&row.hash)),
-            parent_hash: H256::zero(),
-            uncles_hash: EMPTY_UNCLES_HASH,
-            author: H160::zero(),
-            state_root: H256::zero(),
-            transactions_root: H256::zero(),
-            receipts_root: H256::zero(),
-            number: Some(U64::from(row.number)),
-            gas_used: U256::zero(),
-            gas_limit: U256::zero(),
-            base_fee_per_gas: None,
-            extra_data: Bytes::default(),
-            // TODO: include logs
-            logs_bloom: H2048::default(),
-            timestamp: U256::from(row.timestamp),
-            difficulty: U256::zero(),
-            mix_hash: None,
-            nonce: None,
-        });
-        Ok(blocks.collect())
+        let mut headers_map = std::collections::HashMap::new();
+
+        for row in blocks_rows.iter() {
+            let entry = headers_map
+                .entry(row.block_number)
+                .or_insert_with(|| BlockHeader {
+                    hash: Some(H256::from_slice(&row.block_hash)),
+                    parent_hash: row
+                        .parent_hash
+                        .as_deref()
+                        .map_or_else(H256::zero, H256::from_slice),
+                    uncles_hash: EMPTY_UNCLES_HASH,
+                    author: H160::zero(),
+                    state_root: H256::zero(),
+                    transactions_root: H256::zero(),
+                    receipts_root: H256::zero(),
+                    number: Some(U64::from(row.block_number)),
+                    gas_used: U256::zero(),
+                    gas_limit: (row
+                        .block_gas_limit
+                        .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT))
+                        as u64)
+                        .into(),
+                    base_fee_per_gas: Some(bigdecimal_to_u256(row.base_fee_per_gas.clone())),
+                    extra_data: Bytes::default(),
+                    logs_bloom: H2048::default(),
+                    timestamp: U256::from(row.block_timestamp),
+                    difficulty: U256::zero(),
+                    mix_hash: None,
+                    nonce: None,
+                });
+
+            if let (Some(gas_limit), Some(refunded_gas)) = (
+                row.transaction_gas_limit.clone(),
+                row.transaction_refunded_gas,
+            ) {
+                entry.gas_used += bigdecimal_to_u256(gas_limit) - U256::from(refunded_gas as u64);
+            }
+        }
+
+        let mut headers: Vec<BlockHeader> = headers_map.into_values().collect();
+        headers.sort_by_key(|header| header.number);
+
+        Ok(headers)
     }
 
     pub async fn resolve_block_id(
