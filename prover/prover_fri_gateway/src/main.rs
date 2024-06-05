@@ -117,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 #[derive(Debug, Parser)]
-#[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
+#[command(author = "Matter Labs", version)]
 pub(crate) struct Cli {
     #[arg(long)]
     pub(crate) observability_config_path: Option<std::path::PathBuf>,
