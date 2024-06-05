@@ -55,7 +55,7 @@ use zksync_web3_decl::{
 use crate::{
     config::ExternalNodeConfig,
     helpers::{MainNodeHealthCheck, ValidateChainIdsTask},
-    init::ensure_storage_initialized,
+    init::{ensure_storage_initialized, SnapshotRecoveryConfig},
     metrics::RUST_METRICS,
 };
 
@@ -908,12 +908,19 @@ async fn run_node(
     task_handles.extend(prometheus_task);
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
+    let recovery_config =
+        config
+            .optional
+            .snapshots_recovery_enabled
+            .then_some(SnapshotRecoveryConfig {
+                snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
+            });
     ensure_storage_initialized(
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
         config.required.l2_chain_id,
-        config.optional.snapshots_recovery_enabled,
+        recovery_config,
     )
     .await?;
     let sigint_receiver = env.setup_sigint_handler();

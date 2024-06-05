@@ -64,9 +64,7 @@ impl L1BatchStagesMap {
     }
 
     fn get(&self, number: L1BatchNumber) -> Option<L1BatchStage> {
-        let Some(index) = number.0.checked_sub(self.first_batch_number.0) else {
-            return None;
-        };
+        let index = number.0.checked_sub(self.first_batch_number.0)?;
         self.stages.get(index as usize).copied()
     }
 

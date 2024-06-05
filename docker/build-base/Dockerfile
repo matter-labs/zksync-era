@@ -9,7 +9,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2023-08-21 && \
-    rustup default nightly-2023-08-21
+    rustup install nightly-2024-05-07 && \
+    rustup default nightly-2024-05-07
 
 RUN cargo install sqlx-cli --version 0.7.3
