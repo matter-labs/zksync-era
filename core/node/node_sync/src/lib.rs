@@ -12,7 +12,7 @@ mod tests;
 pub mod tree_data_fetcher;
 
 pub use self::{
-    client::MainNodeClient,
+    client::{MainNodeClient, MainNodeHealthCheck},
     external_io::ExternalIO,
     sync_action::{ActionQueue, ActionQueueSender},
     sync_state::SyncState,

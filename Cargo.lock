@@ -8983,6 +8983,7 @@ dependencies = [
  "chrono",
  "once_cell",
  "serde",
+ "serde_json",
  "test-casing",
  "thiserror",
  "tokio",
