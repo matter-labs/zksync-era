@@ -673,7 +673,7 @@ impl TransactionRequest {
 
         // `tx.raw` is set, so unwrap is safe here.
         let hash = tx
-            .get_tx_hash_with_signed_message_raw(&default_signed_message)?
+            .get_tx_hash_with_signed_message_raw(default_signed_message)?
             .unwrap();
         Ok((tx, hash))
     }
@@ -713,35 +713,26 @@ impl TransactionRequest {
 
     fn get_tx_hash_with_signed_message_raw(
         &self,
-        default_signed_message: &H256,
+        signed_message: H256,
     ) -> Result<Option<H256>, SerializationTransactionError> {
         if self.is_eip712_tx() {
             return Ok(Some(concat_and_hash(
-                *default_signed_message,
+                signed_message,
                 H256(keccak256(&self.get_signature()?)),
             )));
         }
         Ok(self.raw.as_ref().map(|bytes| H256(keccak256(&bytes.0))))
     }
 
-    fn get_tx_hash_with_signed_message(
-        &self,
-        default_signed_message: &H256,
-        chain_id: L2ChainId,
-    ) -> Result<H256, SerializationTransactionError> {
-        if let Some(hash) = self.get_tx_hash_with_signed_message_raw(default_signed_message)? {
-            Ok(hash)
-        } else {
-            let signature = self.get_packed_signature()?;
-            Ok(H256(keccak256(
-                &self.get_signed_bytes(&signature, chain_id),
-            )))
-        }
-    }
-
     pub fn get_tx_hash(&self, chain_id: L2ChainId) -> Result<H256, SerializationTransactionError> {
-        let default_signed_message = self.get_default_signed_message(Some(chain_id.as_u64()))?;
-        self.get_tx_hash_with_signed_message(&default_signed_message, chain_id)
+        let signed_message = self.get_default_signed_message(Some(chain_id.as_u64()))?;
+        if let Some(hash) = self.get_tx_hash_with_signed_message_raw(signed_message)? {
+            return Ok(hash);
+        }
+        let signature = self.get_packed_signature()?;
+        Ok(H256(keccak256(
+            &self.get_signed_bytes(&signature, chain_id),
+        )))
     }
 
     fn recover_default_signer(

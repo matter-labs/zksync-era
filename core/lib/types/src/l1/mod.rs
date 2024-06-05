@@ -306,6 +306,8 @@ impl From<L1Tx> for abi::NewPriorityRequest {
 impl TryFrom<abi::NewPriorityRequest> for L1Tx {
     type Error = L1TxParseError;
 
+    /// Note that this method doesn't set `eth_block` and `received_timestamp_ms`
+    /// because `req` doesn't contain those. They can be set after this conversion.
     fn try_from(req: abi::NewPriorityRequest) -> Result<Self, Self::Error> {
         assert_eq!(
             req.transaction.tx_type,
