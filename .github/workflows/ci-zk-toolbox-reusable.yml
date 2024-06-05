@@ -76,10 +76,6 @@ jobs:
         run: |
           ci_localnet_up
 
-      - name: Setup zk
-        run: |
-          ci_run zk
-
       - name: Initialize ecosystem
         run: |
           ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
