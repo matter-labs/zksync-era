@@ -29,7 +29,6 @@ use zksync_node_framework::{
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         contract_verification_api::ContractVerificationApiLayer,
-        da_client::DataAvailabilityClientLayer,
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
@@ -315,28 +314,6 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
-        let da_config = DADispatcherConfig::from_env()?;
-        let eth_config = EthConfig::from_env()?;
-        let state_keeper_config = StateKeeperConfig::from_env()?;
-        self.node.add_layer(DataAvailabilityClientLayer::new(
-            da_config,
-            eth_config,
-            state_keeper_config,
-        ));
-        Ok(self)
-    }
-
-    fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
-        let state_keeper_config = StateKeeperConfig::from_env()?;
-        let da_config = DADispatcherConfig::from_env()?;
-        self.node.add_layer(DataAvailabilityDispatcherLayer::new(
-            state_keeper_config,
-            da_config,
-        ));
-        Ok(self)
-    }
-
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = HouseKeeperConfig::from_env()?;
         let fri_prover_config = FriProverConfig::from_env()?;
@@ -406,8 +383,6 @@ fn main() -> anyhow::Result<()> {
         .add_eth_watch_layer()?
         .add_pk_signing_client_layer()?
         .add_eth_sender_layer()?
-        .add_da_client_layer()?
-        .add_da_dispatcher_layer()?
         .add_proof_data_handler_layer()?
         .add_healthcheck_layer()?
         .add_tx_sender_layer()?
