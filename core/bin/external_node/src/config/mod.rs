@@ -25,8 +25,8 @@ use zksync_node_api_server::{
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
-    api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address, L1ChainId,
-    L2ChainId, ETHEREUM_ADDRESS,
+    api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address,
+    L1BatchNumber, L1ChainId, L2ChainId, ETHEREUM_ADDRESS,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -222,8 +222,6 @@ pub(crate) struct OptionalENConfig {
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
-    /// Note: Deprecated option, no longer in use. Left to display a warning in case someone used them.
-    pub transactions_per_sec_limit: Option<u32>,
     /// Limit for fee history block range.
     #[serde(default = "OptionalENConfig::default_fee_history_limit")]
     pub fee_history_limit: u64,
@@ -748,6 +746,8 @@ pub(crate) struct ExperimentalENConfig {
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
 
     // Snapshot recovery
+    /// L1 batch number of the snapshot to use during recovery. Specifying this parameter is mostly useful for testing.
+    pub snapshots_recovery_l1_batch: Option<L1BatchNumber>,
     /// Approximate chunk size (measured in the number of entries) to recover in a single iteration.
     /// Reasonable values are order of 100,000 (meaning an iteration takes several seconds).
     ///
@@ -777,6 +777,7 @@ impl ExperimentalENConfig {
             state_keeper_db_block_cache_capacity_mb:
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
+            snapshots_recovery_l1_batch: None,
             snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
             commitment_generator_max_parallelism: None,
         }
@@ -809,21 +810,11 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>>
     ))
 }
 
-/// Configuration for snapshot recovery. Loaded optionally, only if snapshot recovery is enabled.
-#[derive(Debug)]
-pub(crate) struct SnapshotsRecoveryConfig {
-    pub snapshots_object_store: ObjectStoreConfig,
-}
-
-impl SnapshotsRecoveryConfig {
-    pub fn new() -> anyhow::Result<Self> {
-        let snapshots_object_store = envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
-            .from_env::<ObjectStoreConfig>()
-            .context("failed loading snapshot object store config from env variables")?;
-        Ok(Self {
-            snapshots_object_store,
-        })
-    }
+/// Configuration for snapshot recovery. Should be loaded optionally, only if snapshot recovery is enabled.
+pub(crate) fn snapshot_recovery_object_store_config() -> anyhow::Result<ObjectStoreConfig> {
+    envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
+        .from_env::<ObjectStoreConfig>()
+        .context("failed loading snapshot object store config from env variables")
 }
 
 #[derive(Debug, Deserialize)]
