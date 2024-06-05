@@ -27,6 +27,7 @@ pub mod testonly;
 #[cfg(test)]
 mod tests;
 mod utils;
+mod vm_runner;
 mod wallets;
 
 use std::str::FromStr;

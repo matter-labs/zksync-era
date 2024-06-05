@@ -10,6 +10,7 @@ use crate::{
 
 /// Information about request added to logs.
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)] // fields are used via `Debug` impl in logs
 enum Request<'a> {
     New,
     Get(Bucket, &'a str),

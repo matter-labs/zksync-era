@@ -60,6 +60,12 @@ impl From<&str> for TaskId {
     }
 }
 
+impl From<String> for TaskId {
+    fn from(value: String) -> Self {
+        TaskId(value)
+    }
+}
+
 impl Deref for TaskId {
     type Target = str;
 

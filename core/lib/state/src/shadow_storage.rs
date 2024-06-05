@@ -3,6 +3,7 @@ use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 
 use crate::ReadStorage;
 
+#[allow(clippy::struct_field_names)]
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "shadow_storage")]
 struct ShadowStorageMetrics {
