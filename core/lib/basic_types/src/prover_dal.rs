@@ -26,15 +26,21 @@ pub struct FriProverJobMetadata {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct JobCountStatistics {
+pub struct ExtendedJobCountStatistics {
     pub queued: usize,
     pub in_progress: usize,
     pub failed: usize,
     pub successful: usize,
 }
 
-impl Add for JobCountStatistics {
-    type Output = JobCountStatistics;
+#[derive(Debug, Clone, Copy, Default)]
+pub struct JobCountStatistics {
+    pub queued: usize,
+    pub in_progress: usize,
+}
+
+impl Add for ExtendedJobCountStatistics {
+    type Output = ExtendedJobCountStatistics;
 
     fn add(self, rhs: Self) -> Self::Output {
         Self {
@@ -51,6 +57,7 @@ pub struct StuckJobs {
     pub id: u64,
     pub status: String,
     pub attempts: u64,
+    pub circuit_id: Option<u32>,
 }
 
 // TODO (PLA-774): Redundant structure, should be replaced with `std::net::SocketAddr`.
@@ -98,13 +105,13 @@ pub struct JobPosition {
     pub sequence_number: usize,
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct ProverJobStatusFailed {
     pub started_at: DateTime<Utc>,
     pub error: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ProverJobStatusSuccessful {
     pub started_at: DateTime<Utc>,
     pub time_taken: Duration,
@@ -119,7 +126,7 @@ impl Default for ProverJobStatusSuccessful {
     }
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct ProverJobStatusInProgress {
     pub started_at: DateTime<Utc>,
 }
@@ -145,7 +152,7 @@ pub struct WitnessJobStatusFailed {
     pub error: String,
 }
 
-#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr, PartialEq)]
+#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr, PartialEq, Clone)]
 pub enum ProverJobStatus {
     #[strum(serialize = "queued")]
     Queued,
@@ -159,6 +166,8 @@ pub enum ProverJobStatus {
     Skipped,
     #[strum(serialize = "ignored")]
     Ignored,
+    #[strum(serialize = "in_gpu_proof")]
+    InGPUProof,
 }
 
 #[derive(Debug, Clone, strum::Display, strum::EnumString, strum::AsRefStr)]
@@ -235,6 +244,7 @@ impl FromStr for GpuProverInstanceStatus {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ProverJobFriInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
@@ -257,6 +267,7 @@ pub struct ProverJobFriInfo {
     pub picked_by: Option<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub merkle_tree_paths_blob_url: Option<String>,
@@ -273,6 +284,7 @@ pub struct BasicWitnessGeneratorJobInfo {
     pub eip_4844_blobs: Option<Eip4844Blobs>,
 }
 
+#[derive(Debug, Clone)]
 pub struct LeafWitnessGeneratorJobInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
@@ -291,6 +303,7 @@ pub struct LeafWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct NodeWitnessGeneratorJobInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
@@ -309,6 +322,22 @@ pub struct NodeWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct RecursionTipWitnessGeneratorJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub status: WitnessJobStatus,
+    pub attempts: u32,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub number_of_final_node_jobs: Option<i32>,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct SchedulerWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub scheduler_partial_input_blob_url: String,
@@ -323,7 +352,7 @@ pub struct SchedulerWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
-#[derive(Debug, EnumString, Display)]
+#[derive(Debug, EnumString, Display, Clone)]
 pub enum ProofCompressionJobStatus {
     #[strum(serialize = "queued")]
     Queued,
@@ -339,6 +368,7 @@ pub enum ProofCompressionJobStatus {
     Skipped,
 }
 
+#[derive(Debug, Clone)]
 pub struct ProofCompressionJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub attempts: u32,
@@ -351,4 +381,16 @@ pub struct ProofCompressionJobInfo {
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
     pub picked_by: Option<String>,
+}
+
+// This function corrects circuit IDs for the node witness generator.
+//
+// - Circuit IDs in the node witness generator are 2 higher than in other rounds.
+// - The `EIP4844Repack` circuit (ID 255) is an exception and is set to 18.
+pub fn correct_circuit_id(circuit_id: i16, aggregation_round: AggregationRound) -> u32 {
+    match (circuit_id, aggregation_round) {
+        (18, AggregationRound::NodeAggregation) => 255,
+        (circuit_id, AggregationRound::NodeAggregation) => (circuit_id as u32) - 2,
+        _ => circuit_id as u32,
+    }
 }

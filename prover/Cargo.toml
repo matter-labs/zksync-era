@@ -4,7 +4,6 @@ members = [
     "prover_fri_utils",
     "prover_fri_types",
     "prover_dal",
-
     # binaries
     "witness_generator",
     "vk_setup_data_generator_server_fri",
@@ -13,6 +12,7 @@ members = [
     "prover_fri_gateway",
     "proof_fri_compressor",
     "prover_cli",
+    "prover_version",
 ]
 
 resolver = "2"
@@ -37,6 +37,7 @@ clap = "4.4.6"
 colored = "2.0"
 const-decoder = "0.3.0"
 ctrlc = "3.1"
+dialoguer = "0.11"
 futures = "0.3"
 hex = "0.4"
 itertools = "0.10.5"
@@ -88,6 +89,9 @@ zksync_types = { path = "../core/lib/types" }
 zksync_utils = { path = "../core/lib/utils" }
 zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
+
+wrapper_prover = { package = "wrapper-prover", git = "https://github.com/matter-labs/era-heavy-ops-service.git", rev = "3d33e06" }
+
 
 # for `perf` profiling
 [profile.perf]

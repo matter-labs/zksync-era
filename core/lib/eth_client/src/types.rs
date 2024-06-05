@@ -8,6 +8,10 @@ use zksync_types::{
     },
     Address, EIP_4844_TX_TYPE, H256, U256,
 };
+use zksync_web3_decl::{
+    client::{DynClient, L1},
+    error::EnrichedClientError,
+};
 
 use crate::EthInterface;
 
@@ -75,18 +79,21 @@ impl ContractCall<'_> {
         &self.inner.params
     }
 
-    pub async fn call<Res: Detokenize>(&self, client: &dyn EthInterface) -> Result<Res, Error> {
+    pub async fn call<Res: Detokenize>(
+        &self,
+        client: &DynClient<L1>,
+    ) -> Result<Res, ContractCallError> {
         let func = self
             .contract_abi
             .function(&self.inner.name)
-            .map_err(ContractError::Function)?;
-        let encoded_input =
-            func.encode_input(&self.inner.params)
-                .map_err(|source| ContractError::EncodeInput {
-                    signature: func.signature(),
-                    input: self.inner.params.clone(),
-                    source,
-                })?;
+            .map_err(ContractCallError::Function)?;
+        let encoded_input = func.encode_input(&self.inner.params).map_err(|source| {
+            ContractCallError::EncodeInput {
+                signature: func.signature(),
+                input: self.inner.params.clone(),
+                source,
+            }
+        })?;
 
         let request = web3::CallRequest {
             from: self.inner.from,
@@ -106,25 +113,28 @@ impl ContractCall<'_> {
             .call_contract_function(request, self.inner.block)
             .await?;
         let output_tokens = func.decode_output(&encoded_output.0).map_err(|source| {
-            ContractError::DecodeOutput {
+            ContractCallError::DecodeOutput {
                 signature: func.signature(),
                 output: encoded_output,
                 source,
             }
         })?;
-        Ok(Res::from_tokens(output_tokens.clone()).map_err(|source| {
-            ContractError::DetokenizeOutput {
+        Res::from_tokens(output_tokens.clone()).map_err(|source| {
+            ContractCallError::DetokenizeOutput {
                 signature: func.signature(),
                 output: output_tokens,
                 source,
             }
-        })?)
+        })
     }
 }
 
 /// Contract-related subset of Ethereum client errors.
 #[derive(Debug, thiserror::Error)]
-pub enum ContractError {
+pub enum ContractCallError {
+    /// Problem on the Ethereum client side (e.g. bad RPC call, network issues).
+    #[error("Request to ethereum gateway failed: {0}")]
+    EthereumGateway(#[from] EnrichedClientError),
     /// Failed resolving a function specified for the contract call in the contract ABI.
     #[error("failed resolving contract function: {0}")]
     Function(#[source] ethabi::Error),
@@ -154,15 +164,12 @@ pub enum ContractError {
     },
 }
 
-/// Common error type exposed by the crate,
+/// Common error type exposed by the crate.
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum SigningError {
     /// Problem on the Ethereum client side (e.g. bad RPC call, network issues).
     #[error("Request to ethereum gateway failed: {0}")]
-    EthereumGateway(#[from] jsonrpsee::core::ClientError),
-    /// Problem with a contract call.
-    #[error("Call to contract failed: {0}")]
-    Contract(#[from] ContractError),
+    EthereumGateway(#[from] EnrichedClientError),
     /// Problem with transaction signer.
     #[error("Transaction signing failed: {0}")]
     Signer(#[from] zksync_eth_signer::SignerError),
@@ -319,8 +326,7 @@ mod tests {
     use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
     use zksync_types::{
         eth_sender::{EthTxBlobSidecarV1, SidecarBlobV1},
-        web3::{self},
-        K256PrivateKey, EIP_4844_TX_TYPE, H256, U256, U64,
+        web3, K256PrivateKey, EIP_4844_TX_TYPE, H256, U256, U64,
     };
 
     use super::*;

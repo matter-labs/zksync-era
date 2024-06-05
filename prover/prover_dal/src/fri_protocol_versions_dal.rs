@@ -1,7 +1,5 @@
-use std::convert::TryFrom;
-
 use zksync_basic_types::{
-    protocol_version::{L1VerifierConfig, ProtocolVersionId, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
     H256,
 };
 use zksync_db_connection::connection::Connection;
@@ -16,7 +14,7 @@ pub struct FriProtocolVersionsDal<'a, 'c> {
 impl FriProtocolVersionsDal<'_, '_> {
     pub async fn save_prover_protocol_version(
         &mut self,
-        id: ProtocolVersionId,
+        id: ProtocolSemanticVersion,
         l1_verifier_config: L1VerifierConfig,
     ) {
         sqlx::query!(
@@ -28,13 +26,14 @@ impl FriProtocolVersionsDal<'_, '_> {
                     recursion_node_level_vk_hash,
                     recursion_leaf_level_vk_hash,
                     recursion_circuits_set_vks_hash,
-                    created_at
+                    created_at,
+                    protocol_version_patch
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW())
-            ON CONFLICT (id) DO NOTHING
+                ($1, $2, $3, $4, $5, NOW(), $6)
+            ON CONFLICT (id, protocol_version_patch) DO NOTHING
             "#,
-            id as i32,
+            id.minor as i32,
             l1_verifier_config
                 .recursion_scheduler_level_vk_hash
                 .as_bytes(),
@@ -50,53 +49,16 @@ impl FriProtocolVersionsDal<'_, '_> {
                 .params
                 .recursion_circuits_set_vks_hash
                 .as_bytes(),
+            id.patch.0 as i32
         )
         .execute(self.storage.conn())
         .await
         .unwrap();
     }
 
-    pub async fn protocol_versions_for(
-        &mut self,
-        vk_commitments: &L1VerifierConfig,
-    ) -> Vec<ProtocolVersionId> {
-        sqlx::query!(
-            r#"
-            SELECT
-                id
-            FROM
-                prover_fri_protocol_versions
-            WHERE
-                recursion_circuits_set_vks_hash = $1
-                AND recursion_leaf_level_vk_hash = $2
-                AND recursion_node_level_vk_hash = $3
-                AND recursion_scheduler_level_vk_hash = $4
-            "#,
-            vk_commitments
-                .params
-                .recursion_circuits_set_vks_hash
-                .as_bytes(),
-            vk_commitments
-                .params
-                .recursion_leaf_level_vk_hash
-                .as_bytes(),
-            vk_commitments
-                .params
-                .recursion_node_level_vk_hash
-                .as_bytes(),
-            vk_commitments.recursion_scheduler_level_vk_hash.as_bytes(),
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| ProtocolVersionId::try_from(row.id as u16).unwrap())
-        .collect()
-    }
-
     pub async fn vk_commitments_for(
         &mut self,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Option<L1VerifierConfig> {
         sqlx::query!(
             r#"
@@ -109,8 +71,10 @@ impl FriProtocolVersionsDal<'_, '_> {
                 prover_fri_protocol_versions
             WHERE
                 id = $1
+                AND protocol_version_patch = $2
             "#,
-            protocol_version as i32
+            protocol_version.minor as i32,
+            protocol_version.patch.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -141,7 +105,8 @@ impl FriProtocolVersionsDal<'_, '_> {
                 prover_fri_protocol_versions
             ORDER BY
                 id DESC
-            LIMIT 1
+            LIMIT
+                1
             "#,
         )
         .fetch_one(self.storage.conn())
@@ -161,5 +126,15 @@ impl FriProtocolVersionsDal<'_, '_> {
                 &result.recursion_scheduler_level_vk_hash,
             ),
         })
+    }
+
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        sqlx::query!(
+            r#"
+            DELETE FROM prover_fri_protocol_versions
+            "#
+        )
+        .execute(self.storage.conn())
+        .await
     }
 }

@@ -5,13 +5,13 @@ use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 use zksync_block_reverter::{
     eth_client::{
-        clients::{PKSigningClient, QueryClient},
+        clients::{Client, PKSigningClient},
         EthInterface,
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
 use zksync_config::{
-    configs::{chain::NetworkConfig, ObservabilityConfig},
+    configs::{chain::NetworkConfig, DatabaseSecrets, L1Secrets, ObservabilityConfig},
     ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
@@ -69,6 +69,9 @@ enum Command {
         /// Flag that specifies if RocksDB with state keeper cache should be rolled back.
         #[arg(long)]
         rollback_sk_cache: bool,
+        /// Flag that specifies if snapshot files in GCS should be rolled back.
+        #[arg(long, requires = "rollback_postgres")]
+        rollback_snapshots: bool,
         /// Flag that allows to roll back already executed blocks. It's ultra dangerous and required only for fixing external nodes.
         #[arg(long)]
         allow_executed_block_reversion: bool,
@@ -106,7 +109,9 @@ async fn main() -> anyhow::Result<()> {
         .default_priority_fee_per_gas;
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let network = NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let l1_secrets = L1Secrets::from_env().context("L1Secrets::from_env()")?;
+    let postgress_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let era_chain_id = env::var("CONTRACTS_ERA_CHAIN_ID")
         .context("`CONTRACTS_ERA_CHAIN_ID` env variable is not set")?
         .parse()
@@ -116,8 +121,8 @@ async fn main() -> anyhow::Result<()> {
     let config = BlockReverterEthConfig::new(&eth_sender, &contracts, &network, era_chain_id)?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
-        postgres_config.master_url()?,
-        postgres_config.max_connections()?,
+        database_secrets.master_url()?,
+        postgress_config.max_connections()?,
     )
     .build()
     .await
@@ -129,8 +134,9 @@ async fn main() -> anyhow::Result<()> {
             json,
             operator_address,
         } => {
-            let eth_client =
-                QueryClient::new(eth_sender.web3_url.clone()).context("Ethereum client")?;
+            let eth_client = Client::http(l1_secrets.l1_rpc_url.clone())
+                .context("Ethereum client")?
+                .build();
 
             let suggested_values = block_reverter
                 .suggested_values(&eth_client, &config, operator_address)
@@ -146,8 +152,9 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let eth_client =
-                QueryClient::new(eth_sender.web3_url.clone()).context("Ethereum client")?;
+            let eth_client = Client::http(l1_secrets.l1_rpc_url.clone())
+                .context("Ethereum client")?
+                .build();
             #[allow(deprecated)]
             let reverter_private_key = eth_sender
                 .sender
@@ -183,6 +190,7 @@ async fn main() -> anyhow::Result<()> {
             rollback_postgres,
             rollback_tree,
             rollback_sk_cache,
+            rollback_snapshots,
             allow_executed_block_reversion,
         } => {
             if !rollback_tree && rollback_postgres {
@@ -215,13 +223,15 @@ async fn main() -> anyhow::Result<()> {
 
             if rollback_postgres {
                 block_reverter.enable_rolling_back_postgres();
-                let object_store_config = SnapshotsObjectStoreConfig::from_env()
-                    .context("SnapshotsObjectStoreConfig::from_env()")?;
-                block_reverter.enable_rolling_back_snapshot_objects(
-                    ObjectStoreFactory::new(object_store_config.0)
-                        .create_store()
-                        .await,
-                );
+                if rollback_snapshots {
+                    let object_store_config = SnapshotsObjectStoreConfig::from_env()
+                        .context("SnapshotsObjectStoreConfig::from_env()")?;
+                    block_reverter.enable_rolling_back_snapshot_objects(
+                        ObjectStoreFactory::new(object_store_config.0)
+                            .create_store()
+                            .await,
+                    );
+                }
             }
             if rollback_tree {
                 block_reverter.enable_rolling_back_merkle_tree(db_config.merkle_tree.path);

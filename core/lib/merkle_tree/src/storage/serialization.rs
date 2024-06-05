@@ -1,6 +1,6 @@
 //! Serialization of node types in the database.
 
-use std::str;
+use std::{collections::HashMap, str};
 
 use crate::{
     errors::{DeserializeError, DeserializeErrorKind, ErrorContext},
@@ -206,12 +206,14 @@ impl Node {
 impl TreeTags {
     /// Tags are serialized as a length-prefixed list of `(&str, &str)` tuples, where each
     /// `&str` is length-prefixed as well. All lengths are encoded using LEB128.
+    /// Custom tag keys are prefixed with `custom.` to ensure they don't intersect with standard tags.
     fn deserialize(bytes: &mut &[u8]) -> Result<Self, DeserializeError> {
         let tag_count = leb128::read::unsigned(bytes).map_err(DeserializeErrorKind::Leb128)?;
         let mut architecture = None;
         let mut hasher = None;
         let mut depth = None;
         let mut is_recovering = false;
+        let mut custom = HashMap::new();
 
         for _ in 0..tag_count {
             let key = Self::deserialize_str(bytes)?;
@@ -237,7 +239,13 @@ impl TreeTags {
                     })?;
                     is_recovering = parsed;
                 }
-                _ => return Err(DeserializeErrorKind::UnknownTag(key.to_owned()).into()),
+                key => {
+                    if let Some(custom_key) = key.strip_prefix("custom.") {
+                        custom.insert(custom_key.to_owned(), value.to_owned());
+                    } else {
+                        return Err(DeserializeErrorKind::UnknownTag(key.to_owned()).into());
+                    }
+                }
             }
         }
         Ok(Self {
@@ -245,6 +253,7 @@ impl TreeTags {
             hasher: hasher.ok_or(DeserializeErrorKind::MissingTag("hasher"))?,
             depth: depth.ok_or(DeserializeErrorKind::MissingTag("depth"))?,
             is_recovering,
+            custom,
         })
     }
 
@@ -266,8 +275,9 @@ impl TreeTags {
     }
 
     fn serialize(&self, buffer: &mut Vec<u8>) {
-        let entry_count = 3 + u64::from(self.is_recovering);
+        let entry_count = 3 + u64::from(self.is_recovering) + self.custom.len() as u64;
         leb128::write::unsigned(buffer, entry_count).unwrap();
+
         Self::serialize_str(buffer, "architecture");
         Self::serialize_str(buffer, &self.architecture);
         Self::serialize_str(buffer, "depth");
@@ -277,6 +287,11 @@ impl TreeTags {
         if self.is_recovering {
             Self::serialize_str(buffer, "is_recovering");
             Self::serialize_str(buffer, "true");
+        }
+
+        for (custom_key, value) in &self.custom {
+            Self::serialize_str(buffer, &format!("custom.{custom_key}"));
+            Self::serialize_str(buffer, value);
         }
     }
 }
@@ -342,6 +357,40 @@ mod tests {
             *b"\x0Carchitecture\x06AR16MT\x05depth\x03256\x06hasher\x08no_op256\x0Dis_recovering\x04true"
         );
         // ^ length-prefixed tag names and values
+
+        let manifest_copy = Manifest::deserialize(&buffer).unwrap();
+        assert_eq!(manifest_copy, manifest);
+    }
+
+    #[test]
+    fn serializing_manifest_with_custom_tags() {
+        let mut manifest = Manifest::new(42, &());
+        // Test a single custom tag first to not deal with non-determinism when enumerating tags.
+        manifest.tags.as_mut().unwrap().custom =
+            HashMap::from([("test".to_owned(), "1".to_owned())]);
+        let mut buffer = vec![];
+        manifest.serialize(&mut buffer);
+        assert_eq!(buffer[0], 42); // version count
+        assert_eq!(buffer[1], 4); // number of tags (3 standard + 1 custom)
+        assert_eq!(
+            buffer[2..],
+            *b"\x0Carchitecture\x06AR16MT\x05depth\x03256\x06hasher\x08no_op256\x0Bcustom.test\x011"
+        );
+
+        let manifest_copy = Manifest::deserialize(&buffer).unwrap();
+        assert_eq!(manifest_copy, manifest);
+
+        // Test multiple tags.
+        let tags = manifest.tags.as_mut().unwrap();
+        tags.is_recovering = true;
+        tags.custom = HashMap::from([
+            ("test".to_owned(), "1".to_owned()),
+            ("other.long.tag".to_owned(), "123456!!!".to_owned()),
+        ]);
+        let mut buffer = vec![];
+        manifest.serialize(&mut buffer);
+        assert_eq!(buffer[0], 42); // version count
+        assert_eq!(buffer[1], 6); // number of tags (4 standard + 2 custom)
 
         let manifest_copy = Manifest::deserialize(&buffer).unwrap();
         assert_eq!(manifest_copy, manifest);

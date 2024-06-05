@@ -9,7 +9,7 @@ use crate::{
         ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackServiceBuilder,
         ZkStackServiceError,
     },
-    task::Task,
+    task::{Task, TaskId},
 };
 
 // `ZkStack` Service's `new()` method has to have a check for nested runtime.
@@ -127,8 +127,8 @@ struct ErrorTask;
 
 #[async_trait::async_trait]
 impl Task for ErrorTask {
-    fn name(&self) -> &'static str {
-        "error_task"
+    fn id(&self) -> TaskId {
+        "error_task".into()
     }
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
         anyhow::bail!("error task")
@@ -178,8 +178,8 @@ struct SuccessfulTask(Arc<Barrier>, Arc<Mutex<bool>>);
 
 #[async_trait::async_trait]
 impl Task for SuccessfulTask {
-    fn name(&self) -> &'static str {
-        "successful_task"
+    fn id(&self) -> TaskId {
+        "successful_task".into()
     }
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
         self.0.wait().await;
@@ -196,8 +196,8 @@ struct RemainingTask(Arc<Barrier>, Arc<Mutex<bool>>);
 
 #[async_trait::async_trait]
 impl Task for RemainingTask {
-    fn name(&self) -> &'static str {
-        "remaining_task"
+    fn id(&self) -> TaskId {
+        "remaining_task".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

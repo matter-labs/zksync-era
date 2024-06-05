@@ -6,6 +6,8 @@ use std::{convert::TryFrom, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
+use crate::protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch};
+
 const BLOB_CHUNK_SIZE: usize = 31;
 const ELEMENTS_PER_4844_BLOCK: usize = 4096;
 pub const MAX_4844_BLOBS_PER_BLOCK: usize = 16;
@@ -24,10 +26,16 @@ type Eip4844BlobsInner = [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK];
 /// Current invariants:
 ///   - there are between [1, 16] blobs
 ///   - all blobs are of the same size [`EIP_4844_BLOB_SIZE`]
+///   - there may be no blobs in case of Validium
 /// Creating a structure violating these constraints will panic.
 ///
 /// Note: blobs are padded to fit the correct size.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+// TODO: PLA-932
+/// Note 2: this becomes a rather leaky abstraction.
+/// It will be reworked once `BWIP` is introduced.
+/// Provers shouldn't need to decide between loading data from database or making it empty.
+/// Data should just be available
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Eip4844Blobs {
     blobs: Eip4844BlobsInner,
 }
@@ -39,23 +47,27 @@ impl Eip4844Blobs {
 }
 
 impl Eip4844Blobs {
+    pub fn empty() -> Self {
+        Self {
+            blobs: Default::default(),
+        }
+    }
+
     pub fn encode(self) -> Vec<u8> {
         self.blobs().into_iter().flatten().flatten().collect()
     }
 
     pub fn decode(blobs: &[u8]) -> anyhow::Result<Self> {
+        // Validium case
+        if blobs.is_empty() {
+            return Ok(Self::empty());
+        }
         let mut chunks: Vec<Blob> = blobs
             .chunks(EIP_4844_BLOB_SIZE)
             .map(|chunk| chunk.into())
             .collect();
-
-        if let Some(last_chunk) = chunks.last_mut() {
-            last_chunk.resize(EIP_4844_BLOB_SIZE, 0u8);
-        } else {
-            return Err(anyhow::anyhow!(
-                "cannot create Eip4844Blobs, received empty pubdata"
-            ));
-        }
+        // Unwrapping here is safe because of check on first line of the function.
+        chunks.last_mut().unwrap().resize(EIP_4844_BLOB_SIZE, 0u8);
 
         if chunks.len() > MAX_4844_BLOBS_PER_BLOCK {
             return Err(anyhow::anyhow!(
@@ -174,6 +186,23 @@ impl TryFrom<i32> for AggregationRound {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
+pub struct JobIdentifiers {
+    pub circuit_id: u8,
+    pub aggregation_round: u8,
+    pub protocol_version: u16,
+    pub protocol_version_patch: u32,
+}
+
+impl JobIdentifiers {
+    pub fn get_semantic_protocol_version(&self) -> ProtocolSemanticVersion {
+        ProtocolSemanticVersion::new(
+            ProtocolVersionId::try_from(self.protocol_version).unwrap(),
+            VersionPatch(self.protocol_version_patch),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,15 +210,8 @@ mod tests {
     #[test]
     fn test_eip_4844_blobs_empty_pubdata() {
         let payload = vec![];
-        match Eip4844Blobs::decode(&payload) {
-            Ok(_) => panic!("expected error, got Ok"),
-            Err(e) => {
-                assert_eq!(
-                    e.to_string(),
-                    "cannot create Eip4844Blobs, received empty pubdata"
-                );
-            }
-        }
+        let blobs = Eip4844Blobs::decode(&payload).unwrap();
+        assert_eq!(blobs, Eip4844Blobs::empty());
     }
 
     #[test]

@@ -8,7 +8,7 @@ pub struct ExecuteBatches {
     pub l1_batches: Vec<L1BatchWithMetadata>,
 }
 
-impl Tokenize for ExecuteBatches {
+impl Tokenize for &ExecuteBatches {
     fn into_tokens(self) -> Vec<Token> {
         vec![Token::Array(
             self.l1_batches

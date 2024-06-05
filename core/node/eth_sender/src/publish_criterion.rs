@@ -1,20 +1,22 @@
-use std::{fmt, sync::Arc};
+use std::fmt;
 
 use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::{Connection, Core, CoreDal};
+use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, ethabi,
-    pubdata_da::PubdataDA, L1BatchNumber,
+    aggregated_operations::AggregatedActionType,
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
+    ethabi,
+    pubdata_da::PubdataDA,
+    L1BatchNumber,
 };
 
-use super::{
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, metrics::METRICS,
-    utils::agg_l1_batch_base_cost,
-};
+use super::{metrics::METRICS, utils::agg_l1_batch_base_cost};
 
 #[async_trait]
 pub trait L1BatchPublishCriterion: fmt::Debug + Send + Sync {
+    #[allow(dead_code)]
     // Takes `&self` receiver for the trait to be object-safe
     fn name(&self) -> &'static str;
 
@@ -201,7 +203,7 @@ pub struct DataSizeCriterion {
     pub op: AggregatedActionType,
     pub data_limit: usize,
     pub pubdata_da: PubdataDA,
-    pub l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+    pub commitment_mode: L1BatchCommitmentMode,
 }
 
 #[async_trait]
@@ -221,10 +223,9 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
 
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
             // TODO (PLA-771): Make sure that this estimation is correct.
-            let l1_commit_data_size = ethabi::encode(&[self
-                .l1_batch_commit_data_generator
-                .l1_commit_batch(l1_batch, &self.pubdata_da)])
-            .len();
+            let commit_token =
+                CommitBatchInfo::new(self.commitment_mode, l1_batch, self.pubdata_da).into_token();
+            let l1_commit_data_size = ethabi::encode(&[commit_token]).len();
 
             if data_size_left < l1_commit_data_size {
                 if index == 0 {

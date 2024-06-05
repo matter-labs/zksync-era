@@ -27,6 +27,10 @@ cargo install sqlx-cli --version 0.7.3
 sudo systemctl stop postgresql
 # Start docker.
 sudo systemctl start docker
+
+# Foundry
+curl -L https://foundry.paradigm.xyz | bash
+foundryup --branch master
 ```
 
 ## Supported operating systems
@@ -217,7 +221,7 @@ SQLx is a Rust library we use to interact with Postgres, and its CLI is used to 
 features of the library.
 
 ```bash
-cargo install sqlx-cli --version 0.7.3
+cargo install --locked sqlx-cli --version 0.7.3
 ```
 
 ## Solidity compiler `solc`
@@ -256,6 +260,11 @@ enable nix-ld.
 
 Go to the zksync folder and run `nix develop --impure`. After it finishes, you are in a shell that has all the
 dependencies.
+
+## Foundry
+
+[Foundry](https://book.getfoundry.sh/getting-started/installation) can be utilized for deploying smart contracts. For
+commands related to deployment, you can pass flags for Foundry integration.
 
 ## Environment
 

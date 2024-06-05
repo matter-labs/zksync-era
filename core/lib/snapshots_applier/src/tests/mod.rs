@@ -21,6 +21,7 @@ use self::utils::{
     random_storage_logs, MockMainNodeClient, ObjectStoreWithErrors,
 };
 use super::*;
+use crate::tests::utils::HangingObjectStore;
 
 mod utils;
 
@@ -50,7 +51,10 @@ async fn snapshots_creator_can_successfully_recover_db(
             if error_counter.fetch_add(1, Ordering::SeqCst) >= 3 {
                 Ok(()) // "recover" after 3 retries
             } else {
-                Err(ObjectStoreError::Other("transient error".into()))
+                Err(ObjectStoreError::Other {
+                    is_transient: true,
+                    source: "transient error".into(),
+                })
             }
         });
         Arc::new(object_store_with_errors)
@@ -140,6 +144,131 @@ async fn snapshots_creator_can_successfully_recover_db(
 }
 
 #[tokio::test]
+async fn applier_recovers_explicitly_specified_snapshot() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let expected_status = mock_recovery_status();
+    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+
+    let mut task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool.clone(),
+        Box::new(client),
+        object_store,
+    );
+    task.set_snapshot_l1_batch(expected_status.l1_batch_number);
+    let stats = task.run().await.unwrap();
+    assert!(stats.done_work);
+
+    let mut storage = pool.connection().await.unwrap();
+    let all_storage_logs = storage
+        .storage_logs_dal()
+        .dump_all_storage_logs_for_tests()
+        .await;
+    assert_eq!(all_storage_logs.len(), storage_logs.len());
+}
+
+#[tokio::test]
+async fn applier_error_for_missing_explicitly_specified_snapshot() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let expected_status = mock_recovery_status();
+    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+
+    let mut task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool,
+        Box::new(client),
+        object_store,
+    );
+    task.set_snapshot_l1_batch(expected_status.l1_batch_number + 1);
+
+    let err = task.run().await.unwrap_err();
+    assert!(
+        format!("{err:#}").contains("not present on main node"),
+        "{err:#}"
+    );
+}
+
+#[tokio::test]
+async fn snapshot_applier_recovers_after_stopping() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut expected_status = mock_recovery_status();
+    expected_status.storage_logs_chunks_processed = vec![true; 10];
+    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (stopping_object_store, mut stop_receiver) =
+        HangingObjectStore::new(object_store.clone(), 1);
+
+    let mut config = SnapshotsApplierConfig::for_tests();
+    config.max_concurrency = NonZeroUsize::new(1).unwrap();
+    let task = SnapshotsApplierTask::new(
+        config.clone(),
+        pool.clone(),
+        Box::new(client.clone()),
+        Arc::new(stopping_object_store),
+    );
+    let task_handle = tokio::spawn(task.run());
+
+    // Wait until the first storage logs chunk is requested (the object store hangs up at this point)
+    stop_receiver.wait_for(|&count| count > 1).await.unwrap();
+    assert!(!task_handle.is_finished());
+    task_handle.abort();
+
+    // Check that factory deps have been persisted, but no storage logs.
+    let mut storage = pool.connection().await.unwrap();
+    let all_factory_deps = storage
+        .factory_deps_dal()
+        .dump_all_factory_deps_for_tests()
+        .await;
+    assert!(!all_factory_deps.is_empty());
+    let all_storage_logs = storage
+        .storage_logs_dal()
+        .dump_all_storage_logs_for_tests()
+        .await;
+    assert!(all_storage_logs.is_empty(), "{all_storage_logs:?}");
+
+    // Recover 3 storage log chunks and stop again
+    let (stopping_object_store, mut stop_receiver) =
+        HangingObjectStore::new(object_store.clone(), 3);
+
+    let task = SnapshotsApplierTask::new(
+        config.clone(),
+        pool.clone(),
+        Box::new(client.clone()),
+        Arc::new(stopping_object_store),
+    );
+    let task_handle = tokio::spawn(task.run());
+
+    stop_receiver.wait_for(|&count| count > 3).await.unwrap();
+    assert!(!task_handle.is_finished());
+    task_handle.abort();
+
+    let all_storage_logs = storage
+        .storage_logs_dal()
+        .dump_all_storage_logs_for_tests()
+        .await;
+    assert!(all_storage_logs.len() < storage_logs.len());
+
+    // Recover remaining 7 (10 - 3) storage log chunks.
+    let (stopping_object_store, _) = HangingObjectStore::new(object_store.clone(), 7);
+    let mut task = SnapshotsApplierTask::new(
+        config,
+        pool.clone(),
+        Box::new(client),
+        Arc::new(stopping_object_store),
+    );
+    task.set_snapshot_l1_batch(expected_status.l1_batch_number); // check that this works fine
+    task.run().await.unwrap();
+
+    let all_storage_logs = storage
+        .storage_logs_dal()
+        .dump_all_storage_logs_for_tests()
+        .await;
+    assert_eq!(all_storage_logs.len(), storage_logs.len());
+}
+
+#[tokio::test]
 async fn health_status_immediately_after_task_start() {
     #[derive(Debug, Clone)]
     struct HangingMainNodeClient(Arc<Barrier>);
@@ -162,7 +291,17 @@ async fn health_status_immediately_after_task_start() {
             future::pending().await
         }
 
-        async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>> {
+        async fn fetch_newest_snapshot_l1_batch_number(
+            &self,
+        ) -> EnrichedClientResult<Option<L1BatchNumber>> {
+            self.0.wait().await;
+            future::pending().await
+        }
+
+        async fn fetch_snapshot(
+            &self,
+            _l1_batch_number: L1BatchNumber,
+        ) -> EnrichedClientResult<Option<SnapshotHeader>> {
             self.0.wait().await;
             future::pending().await
         }
@@ -315,7 +454,10 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 100);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
     let object_store = ObjectStoreWithErrors::new(object_store, |_| {
-        Err(ObjectStoreError::Other("service not available".into()))
+        Err(ObjectStoreError::Other {
+            is_transient: true,
+            source: "service not available".into(),
+        })
     });
 
     let task = SnapshotsApplierTask::new(
@@ -328,7 +470,7 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
     assert!(err.chain().any(|cause| {
         matches!(
             cause.downcast_ref::<ObjectStoreError>(),
-            Some(ObjectStoreError::Other(_))
+            Some(ObjectStoreError::Other { .. })
         )
     }));
 }
@@ -351,7 +493,8 @@ async fn recovering_tokens() {
         });
     }
     let (object_store, mut client) = prepare_clients(&expected_status, &storage_logs).await;
-    client.tokens_response = tokens.clone();
+
+    client.tokens_response.clone_from(&tokens);
 
     let task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),

@@ -3,7 +3,6 @@ mod aggregator;
 mod error;
 mod eth_tx_aggregator;
 mod eth_tx_manager;
-pub mod l1_batch_commit_data_generator;
 mod metrics;
 mod publish_criterion;
 mod utils;
@@ -13,6 +12,6 @@ mod zksync_functions;
 mod tests;
 
 pub use self::{
-    aggregator::Aggregator, error::ETHSenderError, eth_tx_aggregator::EthTxAggregator,
+    aggregator::Aggregator, error::EthSenderError, eth_tx_aggregator::EthTxAggregator,
     eth_tx_manager::EthTxManager,
 };

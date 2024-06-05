@@ -1,15 +1,14 @@
-use zksync_core::consistency_checker::ConsistencyChecker;
-use zksync_types::Address;
+use zksync_consistency_checker::ConsistencyChecker;
+use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
 use crate::{
     implementations::resources::{
         eth_interface::EthInterfaceResource,
         healthcheck::AppHealthCheckResource,
-        l1_batch_commit_data_generator::L1BatchCommitDataGeneratorResource,
         pools::{MasterPool, PoolResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -17,16 +16,19 @@ use crate::{
 pub struct ConsistencyCheckerLayer {
     diamond_proxy_addr: Address,
     max_batches_to_recheck: u32,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl ConsistencyCheckerLayer {
     pub fn new(
         diamond_proxy_addr: Address,
         max_batches_to_recheck: u32,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> ConsistencyCheckerLayer {
         Self {
             diamond_proxy_addr,
             max_batches_to_recheck,
+            commitment_mode,
         }
     }
 }
@@ -44,16 +46,11 @@ impl WiringLayer for ConsistencyCheckerLayer {
         let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let singleton_pool = pool_resource.get_singleton().await?;
 
-        let l1_batch_commit_data_generator = context
-            .get_resource::<L1BatchCommitDataGeneratorResource>()
-            .await?
-            .0;
-
         let consistency_checker = ConsistencyChecker::new(
             l1_client,
             self.max_batches_to_recheck,
             singleton_pool,
-            l1_batch_commit_data_generator,
+            self.commitment_mode,
         )
         .map_err(WiringError::Internal)?
         .with_diamond_proxy_addr(self.diamond_proxy_addr);
@@ -78,8 +75,8 @@ pub struct ConsistencyCheckerTask {
 
 #[async_trait::async_trait]
 impl Task for ConsistencyCheckerTask {
-    fn name(&self) -> &'static str {
-        "consistency_checker"
+    fn id(&self) -> TaskId {
+        "consistency_checker".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

@@ -143,6 +143,10 @@ RUN wget -c https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 && \
     cd valgrind-3.20.0 && ./configure && make && make install && \
     cd ../ && rm -rf valgrind-3.20.0.tar.bz2 && rm -rf valgrind-3.20.0
 
+# Install foundry
+RUN cargo install --git https://github.com/foundry-rs/foundry \
+    --profile local --locked forge cast
+
 # Setup the environment
 ENV ZKSYNC_HOME=/usr/src/zksync
 ENV PATH="${ZKSYNC_HOME}/bin:${PATH}"

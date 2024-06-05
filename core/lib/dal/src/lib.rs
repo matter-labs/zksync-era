@@ -20,9 +20,10 @@ use crate::{
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
-    sync_dal::SyncDal, system_dal::SystemDal, tokens_dal::TokensDal,
+    sync_dal::SyncDal, system_dal::SystemDal,
+    tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
 pub mod blocks_dal;
@@ -34,6 +35,7 @@ pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
+pub mod helpers;
 pub mod metrics;
 mod models;
 pub mod proof_generation_dal;
@@ -48,10 +50,12 @@ pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
+pub mod tee_verifier_input_producer_dal;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
+pub mod vm_runner_dal;
 
 #[cfg(test)]
 mod tests;
@@ -70,6 +74,8 @@ where
     fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a>;
 
     fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a>;
+
+    fn tee_verifier_input_producer_dal(&mut self) -> TeeVerifierInputProducerDal<'_, 'a>;
 
     fn blocks_dal(&mut self) -> BlocksDal<'_, 'a>;
 
@@ -114,6 +120,8 @@ where
     fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a>;
 
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a>;
+
+    fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -131,6 +139,10 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a> {
         TransactionsWeb3Dal { storage: self }
+    }
+
+    fn tee_verifier_input_producer_dal(&mut self) -> TeeVerifierInputProducerDal<'_, 'a> {
+        TeeVerifierInputProducerDal { storage: self }
     }
 
     fn blocks_dal(&mut self) -> BlocksDal<'_, 'a> {
@@ -219,5 +231,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a> {
         PruningDal { storage: self }
+    }
+
+    fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a> {
+        VmRunnerDal { storage: self }
     }
 }
