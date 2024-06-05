@@ -113,14 +113,19 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 
 # Install gloud for GCR/GAR login
+# Google was super lazy, and their package is around 1 GB.
+# So we trim it a little bit based on info from `https://github.com/GoogleCloudPlatform/gsutil/issues/1732`
 ENV GCLOUD_VERSION=451.0.1
 RUN echo "deb [arch=${ARCH}] http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
     wget -c -O - https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
     apt-get update -y && apt-get install google-cloud-cli=${GCLOUD_VERSION}-0 --no-install-recommends -y && \
     gcloud config set core/disable_usage_reporting true && \
     gcloud config set component_manager/disable_update_check true && \
-    gcloud config set metrics/environment github_docker_image
-
+    gcloud config set metrics/environment github_docker_image && \
+    rm -rf $(find /usr/lib/google-cloud-sdk/ -regex ".*/__pycache__") && \
+    rm -rf /usr/lib/google-cloud-sdk/bin/anthoscli && \
+    rm -rf /usr/lib/google-cloud-sdk/platform/bundledpythonunix && \
+    rm -rf /usr/lib/google-cloud-sdk/data/gcloud.json
 
 COPY --from=rust-builder /usr/local/cargo/bin/sqlx \
     /usr/local/cargo/bin/cargo-sqlx \
@@ -145,7 +150,7 @@ RUN apt-get remove valgrind -y
 # We need valgrind 3.20, which is unavailable in repos or ppa, so we will build it from source
 RUN wget -c https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 && \
     tar -xf valgrind-3.20.0.tar.bz2 && \
-    cd valgrind-3.20.0 && ./configure && make && make install && \
+    cd valgrind-3.20.0 && ./configure && make -j && make install && \
     cd ../ && rm -rf valgrind-3.20.0.tar.bz2 && rm -rf valgrind-3.20.0
 
 
