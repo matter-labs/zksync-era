@@ -3,8 +3,8 @@ use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use crate::messages::{
-    MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS, MSG_INTEGRATION_TESTS_RUN_INFO,
-    MSG_INTEGRATION_TESTS_RUN_SUCCESS,
+    MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS, MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES,
+    MSG_INTEGRATION_TESTS_RUN_INFO, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
 };
 
 const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
@@ -16,6 +16,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
 
     logger::info(MSG_INTEGRATION_TESTS_RUN_INFO);
 
+    build_repository(shell, &ecosystem_config)?;
     build_test_contracts(shell, &ecosystem_config)?;
 
     Cmd::new(
@@ -27,6 +28,16 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
 
     logger::outro(MSG_INTEGRATION_TESTS_RUN_SUCCESS);
 
+    Ok(())
+}
+
+fn build_repository(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
+    let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES);
+
+    Cmd::new(cmd!(shell, "yarn install --frozen-lockfile")).run()?;
+
+    spinner.finish();
     Ok(())
 }
 

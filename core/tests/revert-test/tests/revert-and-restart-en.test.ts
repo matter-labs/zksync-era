@@ -3,7 +3,7 @@
 // NOTE:
 // main_contract.getTotalBatchesCommitted actually checks the number of batches committed.
 // main_contract.getTotalBatchesExecuted actually checks the number of batches executed.
-import * as utils from 'zk/build/utils';
+import * as utils from 'utils';
 import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
 import { BigNumber, ethers } from 'ethers';
