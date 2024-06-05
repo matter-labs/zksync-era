@@ -176,13 +176,11 @@ impl ValidateChainIdsTask {
                 .fuse();
         let main_node_l2_check =
             Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id).fuse();
-        loop {
-            tokio::select! {
-                Err(err) = eth_client_check => return Err(err),
-                Err(err) = main_node_l1_check => return Err(err),
-                Err(err) = main_node_l2_check => return Err(err),
-                _ = stop_receiver.changed() => return Ok(()),
-            }
+        tokio::select! {
+            Err(err) = eth_client_check =>  Err(err),
+            Err(err) = main_node_l1_check =>  Err(err),
+            Err(err) = main_node_l2_check =>  Err(err),
+            _ = stop_receiver.changed() =>  Ok(()),
         }
     }
 }

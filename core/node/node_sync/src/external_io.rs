@@ -337,35 +337,43 @@ impl StateKeeperIO for ExternalIO {
             .await
             .context("failed to fetch protocol version from the main node")?
             .context("protocol version is missing on the main node")?;
+        let minor = protocol_version
+            .minor_version()
+            .context("Missing minor protocol version")?;
+        let bootloader_code_hash = protocol_version
+            .bootloader_code_hash()
+            .context("Missing bootloader code hash")?;
+        let default_account_code_hash = protocol_version
+            .default_account_code_hash()
+            .context("Missing default account code hash")?;
+        let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
         self.pool
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
             .save_protocol_version(
                 ProtocolSemanticVersion {
-                    minor: protocol_version
-                        .version_id
+                    minor: minor
                         .try_into()
                         .context("cannot convert protocol version")?,
                     patch: VersionPatch(0),
                 },
                 protocol_version.timestamp,
-                protocol_version.verification_keys_hashes,
-                protocol_version.base_system_contracts,
-                protocol_version.l2_system_upgrade_tx_hash,
+                Default::default(), // verification keys are unused for EN
+                BaseSystemContractsHashes {
+                    bootloader: bootloader_code_hash,
+                    default_aa: default_account_code_hash,
+                },
+                l2_system_upgrade_tx_hash,
             )
             .await?;
 
-        let BaseSystemContractsHashes {
-            bootloader,
-            default_aa,
-        } = protocol_version.base_system_contracts;
         let bootloader = self
-            .get_base_system_contract(bootloader, cursor.next_l2_block)
+            .get_base_system_contract(bootloader_code_hash, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch bootloader code for {protocol_version:?}"))?;
         let default_aa = self
-            .get_base_system_contract(default_aa, cursor.next_l2_block)
+            .get_base_system_contract(default_account_code_hash, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch default AA code for {protocol_version:?}"))?;
         Ok(BaseSystemContracts {
