@@ -12,7 +12,7 @@ use zksync_config::configs::{
 use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_protobuf_config::proto::config::observability::Observability;
+use zksync_protobuf_config::proto::config::{observability::Observability, prover::ProverGateway};
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -50,8 +50,14 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let config =
-        FriProverGatewayConfig::from_env().context("FriProverGatewayConfig::from_env()")?;
+    let config = match opt.config_path {
+        Some(path) => {
+            let yaml = std::fs::read_to_string(path).context("Failed to read config")?;
+            decode_yaml_repr::<ProverGateway>(&yaml).context("Failed to parse config")?
+        }
+        None => FriProverGatewayConfig::from_env().context("FriProverGatewayConfig::from_env()")?,
+    };
+
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let database_secrets = DatabaseSecrets::from_env().context("PostgresConfig::from_env()")?;
     let pool = ConnectionPool::<Prover>::builder(
@@ -121,4 +127,6 @@ async fn main() -> anyhow::Result<()> {
 pub(crate) struct Cli {
     #[arg(long)]
     pub(crate) observability_config_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    pub(crate) config_path: Option<std::path::PathBuf>,
 }
