@@ -55,6 +55,7 @@ impl WiringLayer for SequencerL1GasLayer {
             self.gas_adjuster_config,
             self.pubdata_sending_mode,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            None, // TODO: Add connection pool
         )
         .await
         .context("GasAdjuster::new()")?;

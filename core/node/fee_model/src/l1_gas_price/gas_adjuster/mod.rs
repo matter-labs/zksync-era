@@ -3,13 +3,16 @@
 use std::{
     collections::VecDeque,
     ops::RangeInclusive,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
-use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
+use zksync_types::{
+    commitment::L1BatchCommitmentMode, Address, L1_GAS_PER_PUBDATA_BYTE, U256, U64,
+};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use self::metrics::METRICS;
@@ -33,6 +36,10 @@ pub struct GasAdjuster {
     pubdata_sending_mode: PubdataSendingMode,
     eth_client: Box<DynClient<L1>>,
     commitment_mode: L1BatchCommitmentMode,
+    // Access to the connection pool is only needed for the base token fee calculation.
+    // If the chain is running in `ETH` mode, the connection pool will be `None`.
+    connection_pool: Option<ConnectionPool<Core>>,
+    base_token_price: Mutex<Option<BigDecimal>>,
 }
 
 impl GasAdjuster {
@@ -41,6 +48,7 @@ impl GasAdjuster {
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         commitment_mode: L1BatchCommitmentMode,
+        connection_pool: Option<ConnectionPool<Core>>,
     ) -> anyhow::Result<Self> {
         let eth_client = eth_client.for_component("gas_adjuster");
 
@@ -61,6 +69,15 @@ impl GasAdjuster {
         let (_, last_block_blob_base_fee) =
             Self::get_base_fees_history(eth_client.as_ref(), current_block..=current_block).await?;
 
+        let base_token_price = match connection_pool.as_ref() {
+            Some(connection_pool) => {
+                let mut connection = connection_pool.connection().await?;
+                let address = Address::default(); // TODO: Use the actual address of the base token.
+                Mutex::new(connection.token_price_dal().fetch_ratio(address).await?)
+            }
+            None => Mutex::new(None),
+        };
+
         Ok(Self {
             base_fee_statistics: GasStatistics::new(
                 config.max_base_fee_samples,
@@ -76,6 +93,8 @@ impl GasAdjuster {
             pubdata_sending_mode,
             eth_client,
             commitment_mode,
+            connection_pool,
+            base_token_price,
         })
     }
 
@@ -123,6 +142,17 @@ impl GasAdjuster {
             }
             self.blob_base_fee_statistics
                 .add_samples(&blob_base_fee_history);
+
+            // Update base token price
+            // if the connection pool is provided, we assume the base token price is to be updated
+            // otherwise (using ETH mode), the connection pool is `None`.
+            if let Some(connection_pool) = self.connection_pool.as_ref() {
+                let mut connection = connection_pool.connection().await?;
+                let address = Address::default(); // TODO: Use the actual address of the base token.
+                let updated_base_token_price =
+                    connection.token_price_dal().fetch_ratio(address).await?;
+                *self.base_token_price.lock().unwrap() = updated_base_token_price;
+            }
         }
         Ok(())
     }
@@ -201,6 +231,14 @@ impl GasAdjuster {
                 self.estimate_effective_gas_price() * self.pubdata_byte_gas()
             }
         }
+    }
+
+    pub(crate) fn base_token_price_ratio(&self) -> BigDecimal {
+        self.base_token_price
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap_or(BigDecimal::from(1))
     }
 
     fn pubdata_byte_gas(&self) -> u64 {

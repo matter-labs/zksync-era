@@ -157,6 +157,7 @@ impl EthSenderTester {
                 },
                 PubdataSendingMode::Calldata,
                 commitment_mode,
+                None,
             )
             .await
             .unwrap(),

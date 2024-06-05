@@ -288,12 +288,18 @@ pub async fn initialize_components(
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
 
+    let gas_adjuster_db_conn = match components.contains(&Component::BaseTokenPriceFetcher) {
+        true => Some(connection_pool.clone()),
+        false => None,
+    };
+
     let mut gas_adjuster = GasAdjusterSingleton::new(
         genesis_config.l1_chain_id,
         l1_secrets.l1_rpc_url.clone(),
         gas_adjuster_config,
         sender.pubdata_sending_mode,
         genesis_config.l1_batch_commit_data_generator_mode,
+        gas_adjuster_db_conn,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);

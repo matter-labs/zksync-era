@@ -66,6 +66,7 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
         },
         PubdataSendingMode::Calldata,
         commitment_mode,
+        None,
     )
     .await
     .unwrap();

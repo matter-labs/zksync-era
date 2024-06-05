@@ -71,6 +71,7 @@ impl Tester {
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
             self.commitment_mode,
+            None,
         )
         .await
         .unwrap()
