@@ -24,7 +24,6 @@ tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-http-body-util = "0.1.0"
 hyper = { version = "0.14", features = ["full"] }
 chrono.workspace = true
 multivm.workspace = true

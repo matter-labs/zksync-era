@@ -362,8 +362,8 @@ dependencies = [
  "bitflags 1.3.2",
  "bytes",
  "futures-util",
- "http 0.2.9",
- "http-body 0.4.5",
+ "http",
+ "http-body",
  "hyper",
  "itoa",
  "matchit",
@@ -392,8 +392,8 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures-util",
- "http 0.2.9",
- "http-body 0.4.5",
+ "http",
+ "http-body",
  "mime",
  "rustversion",
  "tower-layer",
@@ -2396,7 +2396,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "gloo-utils",
- "http 0.2.9",
+ "http",
  "js-sys",
  "pin-project",
  "serde",
@@ -2555,7 +2555,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "futures-util",
- "http 0.2.9",
+ "http",
  "indexmap 2.1.0",
  "slab",
  "tokio",
@@ -2725,47 +2725,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "http"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21b9ddb458710bc376481b842f5da65cdf31522de232c1ca8146abce2a358258"
-dependencies = [
- "bytes",
- "fnv",
- "itoa",
-]
-
-[[package]]
 name = "http-body"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5f38f16d184e36f2408a55281cd658ecbd3ca05cce6d6510a176eca393e26d1"
 dependencies = [
  "bytes",
- "http 0.2.9",
- "pin-project-lite",
-]
-
-[[package]]
-name = "http-body"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cac85db508abc24a2e48553ba12a996e87244a0395ce011e62b37158745d643"
-dependencies = [
- "bytes",
- "http 1.1.0",
-]
-
-[[package]]
-name = "http-body-util"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0475f8b2ac86659c21b64320d5d653f9efe42acd2a4e560073ec61a155a34f1d"
-dependencies = [
- "bytes",
- "futures-core",
- "http 1.1.0",
- "http-body 1.0.0",
+ "http",
  "pin-project-lite",
 ]
 
@@ -2798,8 +2764,8 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http 0.2.9",
- "http-body 0.4.5",
+ "http",
+ "http-body",
  "httparse",
  "httpdate",
  "itoa",
@@ -2818,7 +2784,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d78e1e73ec14cf7375674f74d7dde185c8206fd9dea6fb6295e8a98098aaa97"
 dependencies = [
  "futures-util",
- "http 0.2.9",
+ "http",
  "hyper",
  "log",
  "rustls 0.21.11",
@@ -3086,7 +3052,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "gloo-net",
- "http 0.2.9",
+ "http",
  "jsonrpsee-core",
  "pin-project",
  "rustls-native-certs 0.7.0",
@@ -3168,7 +3134,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5cc7c6d1a2c58f6135810284a390d9f823d0f508db74cd914d8237802de80f98"
 dependencies = [
  "futures-util",
- "http 0.2.9",
+ "http",
  "hyper",
  "jsonrpsee-core",
  "jsonrpsee-types",
@@ -3215,7 +3181,7 @@ version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "073c077471e89c4b511fa88b3df9a0f0abdf4a0a2e6683dd2ab36893af87bb2d"
 dependencies = [
- "http 0.2.9",
+ "http",
  "jsonrpsee-client-transport",
  "jsonrpsee-core",
  "jsonrpsee-types",
@@ -4102,7 +4068,7 @@ checksum = "c7594ec0e11d8e33faf03530a4c49af7064ebba81c1480e01be67d90b356508b"
 dependencies = [
  "async-trait",
  "bytes",
- "http 0.2.9",
+ "http",
  "opentelemetry_api",
  "reqwest",
 ]
@@ -4115,7 +4081,7 @@ checksum = "7e5e5a5c4135864099f3faafbe939eb4d7f9b80ebf68a8448da961b32a7c1275"
 dependencies = [
  "async-trait",
  "futures-core",
- "http 0.2.9",
+ "http",
  "opentelemetry-http",
  "opentelemetry-proto",
  "opentelemetry-semantic-conventions",
@@ -5127,8 +5093,8 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http 0.2.9",
- "http-body 0.4.5",
+ "http",
+ "http-body",
  "hyper",
  "hyper-tls",
  "ipnet",
@@ -6083,7 +6049,7 @@ dependencies = [
  "base64 0.13.1",
  "bytes",
  "futures 0.3.28",
- "http 0.2.9",
+ "http",
  "httparse",
  "log",
  "rand 0.8.5",
@@ -6877,8 +6843,8 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http 0.2.9",
- "http-body 0.4.5",
+ "http",
+ "http-body",
  "hyper",
  "hyper-timeout",
  "percent-encoding",
@@ -6925,8 +6891,8 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "http 0.2.9",
- "http-body 0.4.5",
+ "http",
+ "http-body",
  "http-range-header",
  "httpdate",
  "iri-string",
@@ -8826,7 +8792,7 @@ dependencies = [
  "futures 0.3.28",
  "governor",
  "hex",
- "http 0.2.9",
+ "http",
  "itertools 0.10.5",
  "lru",
  "multivm",
@@ -9067,7 +9033,7 @@ dependencies = [
  "flate2",
  "google-cloud-auth",
  "google-cloud-storage",
- "http 0.2.9",
+ "http",
  "prost 0.12.1",
  "rand 0.8.5",
  "serde_json",
@@ -9087,7 +9053,6 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
- "http-body-util",
  "hyper",
  "multivm",
  "serde_json",
