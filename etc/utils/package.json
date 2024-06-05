@@ -1,8 +1,9 @@
 {
     "name": "utils",
     "version": "0.1.0",
-    "main": "src/index.ts",
     "license": "MIT",
+    "main": "build/index.js",
+    "types": "build/index.d.ts",
     "scripts": {
         "build": "tsc"
     },

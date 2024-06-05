@@ -36,6 +36,7 @@ fn build_repository(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow
     let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES);
 
     Cmd::new(cmd!(shell, "yarn install --frozen-lockfile")).run()?;
+    Cmd::new(cmd!(shell, "yarn utils build")).run()?;
 
     spinner.finish();
     Ok(())
