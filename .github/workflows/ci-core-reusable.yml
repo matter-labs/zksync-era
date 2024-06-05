@@ -104,7 +104,7 @@ jobs:
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
+          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 
       - name: Deploy legacy era contracts
@@ -134,7 +134,7 @@ jobs:
         base_token: ["Eth", "Custom"]
         deployment_mode: ["Rollup", "Validium"]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
 
     runs-on: [matterlabs-ci-runner]
     steps:
@@ -302,7 +302,7 @@ jobs:
     runs-on: [matterlabs-ci-runner]
 
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
       EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
 
     steps:

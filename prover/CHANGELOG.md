@@ -1,5 +1,19 @@
 # Changelog
 
+## [14.5.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.4.0...prover-v14.5.0) (2024-06-04)
+
+
+### Features
+
+* update VKs and bump cargo.lock ([#2112](https://github.com/matter-labs/zksync-era/issues/2112)) ([6510317](https://github.com/matter-labs/zksync-era/commit/65103173085a0b500a626cb8179fad77ee97fadd))
+* use semver for metrics, move constants to prover workspace ([#2098](https://github.com/matter-labs/zksync-era/issues/2098)) ([7a50a9f](https://github.com/matter-labs/zksync-era/commit/7a50a9f79e516ec150d1f30b9f1c781a5523375b))
+
+
+### Bug Fixes
+
+* **block-reverter:** Fix reverting snapshot files ([#2064](https://github.com/matter-labs/zksync-era/issues/2064)) ([17a7e78](https://github.com/matter-labs/zksync-era/commit/17a7e782d9e35eaf38acf920c2326d4037c7781e))
+* **house-keeper:** Fix queue size queries ([#2106](https://github.com/matter-labs/zksync-era/issues/2106)) ([183502a](https://github.com/matter-labs/zksync-era/commit/183502a17eb47a747f50b6a9d38ab78de984f80e))
+
 ## [14.4.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.3.0...prover-v14.4.0) (2024-05-30)
 
 

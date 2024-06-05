@@ -31,7 +31,7 @@ pub(crate) const LOCAL_DB_PATH: &str = "db/";
 pub(crate) const ECOSYSTEM_PATH: &str = "etc/ecosystem";
 
 /// Path to l1 contracts foundry folder inside zksync-era
-pub(crate) const L1_CONTRACTS_FOUNDRY: &str = "contracts/l1-contracts-foundry";
+pub(crate) const L1_CONTRACTS_FOUNDRY: &str = "contracts/l1-contracts";
 
 pub(crate) const ERA_CHAIN_ID: ChainId = ChainId(270);
 
