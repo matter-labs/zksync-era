@@ -119,6 +119,7 @@ mod tests {
             PROVER_OBJECT_STORE_MODE="GCSWithCredentialFile"
             PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
             PROVER_OBJECT_STORE_MAX_RETRIES="5"
+            PROVER_OBJECT_STORE_CACHE_PATH="/var/cache"
         "#;
         lock.set_env(config);
         let actual = ProverObjectStoreConfig::from_env().unwrap().0;
