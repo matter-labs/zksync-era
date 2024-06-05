@@ -850,7 +850,7 @@ describe('web3 API compatibility tests', () => {
         expect(latestProtocolVersion).toMatchObject(expectedProtocolVersion);
 
         const exactProtocolVersion = await alice.provider.send('zks_getProtocolVersion', [
-            latestProtocolVersion.version_id
+            latestProtocolVersion.minorVersion
         ]);
         expect(exactProtocolVersion).toMatchObject(expectedProtocolVersion);
     });

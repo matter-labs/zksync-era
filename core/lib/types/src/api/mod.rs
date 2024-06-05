@@ -640,6 +640,8 @@ impl From<Call> for DebugCall {
     }
 }
 
+// TODO (PLA-965): remove deprecated fields from the struct. It is currently in a "migration" phase
+// to keep compatibility between old and new versions.
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct ProtocolVersion {
     /// Minor version of the protocol
@@ -663,8 +665,56 @@ pub struct ProtocolVersion {
     #[serde(rename = "defaultAccountCodeHash")]
     pub default_account_code_hash: Option<H256>,
     /// L2 Upgrade transaction hash
-    #[serde(rename = "l2SystemUpgradeTxHash")]
+    #[deprecated]
     pub l2_system_upgrade_tx_hash: Option<H256>,
+    /// L2 Upgrade transaction hash
+    #[serde(rename = "l2SystemUpgradeTxHash")]
+    pub l2_system_upgrade_tx_hash_new: Option<H256>,
+}
+
+#[allow(deprecated)]
+impl ProtocolVersion {
+    pub fn new(
+        minor_version: u16,
+        timestamp: u64,
+        bootloader_code_hash: H256,
+        default_account_code_hash: H256,
+        l2_system_upgrade_tx_hash: Option<H256>,
+    ) -> Self {
+        Self {
+            version_id: Some(minor_version),
+            minor_version: Some(minor_version),
+            timestamp,
+            verification_keys_hashes: Some(Default::default()),
+            base_system_contracts: Some(BaseSystemContractsHashes {
+                bootloader: bootloader_code_hash,
+                default_aa: default_account_code_hash,
+            }),
+            bootloader_code_hash: Some(bootloader_code_hash),
+            default_account_code_hash: Some(default_account_code_hash),
+            l2_system_upgrade_tx_hash,
+            l2_system_upgrade_tx_hash_new: l2_system_upgrade_tx_hash,
+        }
+    }
+
+    pub fn bootloader_code_hash(&self) -> Option<H256> {
+        self.bootloader_code_hash
+            .or_else(|| self.base_system_contracts.map(|hashes| hashes.bootloader))
+    }
+
+    pub fn default_account_code_hash(&self) -> Option<H256> {
+        self.default_account_code_hash
+            .or_else(|| self.base_system_contracts.map(|hashes| hashes.default_aa))
+    }
+
+    pub fn minor_version(&self) -> Option<u16> {
+        self.minor_version.or(self.version_id)
+    }
+
+    pub fn l2_system_upgrade_tx_hash(&self) -> Option<H256> {
+        self.l2_system_upgrade_tx_hash_new
+            .or(self.l2_system_upgrade_tx_hash)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -769,6 +819,7 @@ pub struct ApiStorageLog {
 mod tests {
     use super::*;
 
+    // TODO (PLA-965): remove test after removing deprecating fields.
     #[allow(deprecated)]
     #[test]
     fn check_protocol_version_type_compatibility() {
@@ -781,6 +832,7 @@ mod tests {
             bootloader_code_hash: Some(Default::default()),
             default_account_code_hash: Some(Default::default()),
             l2_system_upgrade_tx_hash: Default::default(),
+            l2_system_upgrade_tx_hash_new: Default::default(),
         };
 
         #[derive(Deserialize)]

@@ -337,30 +337,16 @@ impl StateKeeperIO for ExternalIO {
             .await
             .context("failed to fetch protocol version from the main node")?
             .context("protocol version is missing on the main node")?;
-        #[allow(deprecated)]
-        let (minor, bootloader_code_hash, default_account_code_hash) = {
-            let minor = protocol_version
-                .minor_version
-                .or(protocol_version.version_id)
-                .context("Missing minor protocol version")?;
-            let bootloader_code_hash = protocol_version
-                .bootloader_code_hash
-                .or_else(|| {
-                    protocol_version
-                        .base_system_contracts
-                        .map(|hashes| hashes.bootloader)
-                })
-                .context("Missing bootloader code hash")?;
-            let default_account_code_hash = protocol_version
-                .default_account_code_hash
-                .or_else(|| {
-                    protocol_version
-                        .base_system_contracts
-                        .map(|hashes| hashes.default_aa)
-                })
-                .context("Missing default account code hash")?;
-            (minor, bootloader_code_hash, default_account_code_hash)
-        };
+        let minor = protocol_version
+            .minor_version()
+            .context("Missing minor protocol version")?;
+        let bootloader_code_hash = protocol_version
+            .bootloader_code_hash()
+            .context("Missing bootloader code hash")?;
+        let default_account_code_hash = protocol_version
+            .default_account_code_hash()
+            .context("Missing default account code hash")?;
+        let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
         self.pool
             .connection_tagged("sync_layer")
             .await?
@@ -378,7 +364,7 @@ impl StateKeeperIO for ExternalIO {
                     bootloader: bootloader_code_hash,
                     default_aa: default_account_code_hash,
                 },
-                protocol_version.l2_system_upgrade_tx_hash,
+                l2_system_upgrade_tx_hash,
             )
             .await?;
 

@@ -71,22 +71,12 @@ impl From<StorageApiProtocolVersion> for api::ProtocolVersion {
             .upgrade_tx_hash
             .as_ref()
             .map(|hash| H256::from_slice(hash));
-        api::ProtocolVersion {
-            version_id: Some(storage_protocol_version.minor as u16),
-            minor_version: Some(storage_protocol_version.minor as u16),
-            timestamp: storage_protocol_version.timestamp as u64,
-            verification_keys_hashes: Some(Default::default()),
-            base_system_contracts: Some(BaseSystemContractsHashes {
-                bootloader: H256::from_slice(&storage_protocol_version.bootloader_code_hash),
-                default_aa: H256::from_slice(&storage_protocol_version.default_account_code_hash),
-            }),
-            bootloader_code_hash: Some(H256::from_slice(
-                &storage_protocol_version.bootloader_code_hash,
-            )),
-            default_account_code_hash: Some(H256::from_slice(
-                &storage_protocol_version.default_account_code_hash,
-            )),
+        api::ProtocolVersion::new(
+            storage_protocol_version.minor as u16,
+            storage_protocol_version.timestamp as u64,
+            H256::from_slice(&storage_protocol_version.bootloader_code_hash),
+            H256::from_slice(&storage_protocol_version.default_account_code_hash),
             l2_system_upgrade_tx_hash,
-        }
+        )
     }
 }
