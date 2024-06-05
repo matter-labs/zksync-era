@@ -654,7 +654,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .get_pubdata_information()
                     .state_diffs
                     .iter()
-                    .filter(|record| record.is_write_initial())
+                    .filter(|diff| diff.address != L1_MESSENGER_ADDRESS)
                     .cloned()
                     .collect(),
             ),
