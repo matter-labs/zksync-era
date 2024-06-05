@@ -13,8 +13,8 @@ use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto::config::{
-    database::Postgres, observability::Observability, prover::ProverGateway,
-    secrets::DatabaseSecrets as DatabaseSecretsProto,
+    database::Postgres, object_store::ObjectStore, observability::Observability,
+    prover::ProverGateway, secrets::DatabaseSecrets as DatabaseSecretsProto,
 };
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -86,8 +86,19 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection pool")?;
-    let object_store_config =
-        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let object_store_config = match opt.object_store_config_path {
+        Some(path) => {
+            let yaml =
+                std::fs::read_to_string(path).context("Failed to read object store config")?;
+            ProverObjectStoreConfig(
+                decode_yaml_repr::<ObjectStore>(&yaml)
+                    .context("Failed to parse object store config")?,
+            )
+        }
+        None => {
+            ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?
+        }
+    };
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
 
     let proof_submitter = PeriodicApiStruct {
@@ -152,4 +163,6 @@ pub(crate) struct Cli {
     pub(crate) postgres_config_path: Option<std::path::PathBuf>,
     #[arg(long)]
     pub(crate) database_secrets_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    pub(crate) object_store_config_path: Option<std::path::PathBuf>,
 }
