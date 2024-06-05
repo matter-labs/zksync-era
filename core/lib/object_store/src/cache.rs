@@ -82,3 +82,66 @@ impl<S: ObjectStore> ObjectStore for CachingObjectStore<S> {
         self.inner.storage_prefix_raw(bucket)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+    use tempfile::TempDir;
+
+    use super::*;
+    use crate::MockObjectStore;
+
+    #[tokio::test]
+    async fn caching_basics() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.into_path().into_os_string().into_string().unwrap();
+
+        let mock_store = MockObjectStore::default();
+        mock_store
+            .put_raw(Bucket::StorageSnapshot, "test", vec![1, 2, 3])
+            .await
+            .unwrap();
+        let caching_store = CachingObjectStore::new(mock_store, path).await.unwrap();
+
+        let object = caching_store
+            .get_raw(Bucket::StorageSnapshot, "test")
+            .await
+            .unwrap();
+        assert_eq!(object, [1, 2, 3]);
+        // Check that the object got cached.
+        let object_in_cache = caching_store
+            .cache_store
+            .get_raw(Bucket::StorageSnapshot, "test")
+            .await
+            .unwrap();
+        assert_eq!(object_in_cache, [1, 2, 3]);
+        let object = caching_store
+            .get_raw(Bucket::StorageSnapshot, "test")
+            .await
+            .unwrap();
+        assert_eq!(object, [1, 2, 3]);
+
+        let err = caching_store
+            .get_raw(Bucket::StorageSnapshot, "missing")
+            .await
+            .unwrap_err();
+        assert_matches!(err, ObjectStoreError::KeyNotFound(_));
+
+        caching_store
+            .put_raw(Bucket::StorageSnapshot, "other", vec![3, 2, 1])
+            .await
+            .unwrap();
+        // Check that the object got cached.
+        let object_in_cache = caching_store
+            .cache_store
+            .get_raw(Bucket::StorageSnapshot, "other")
+            .await
+            .unwrap();
+        assert_eq!(object_in_cache, [3, 2, 1]);
+        let object = caching_store
+            .get_raw(Bucket::StorageSnapshot, "other")
+            .await
+            .unwrap();
+        assert_eq!(object, [3, 2, 1]);
+    }
+}
