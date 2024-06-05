@@ -72,17 +72,16 @@ impl TeeRequestProcessor {
         Path(l1_batch_number): Path<u32>,
         Json(payload): Json<SubmitTeeProofRequest>,
     ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
-        tracing::info!("Received proof for block number: {:?}", l1_batch_number);
-
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let mut connection = self.pool.connection().await.unwrap();
         let mut dal = connection.tee_proof_generation_dal();
 
         match payload {
             SubmitTeeProofRequest::Proof(proof) => {
-                println!(
+                tracing::info!(
                     "Received proof {:?} for block number: {:?}",
-                    proof, l1_batch_number
+                    proof,
+                    l1_batch_number
                 );
                 dal.save_proof_artifacts_metadata(
                     l1_batch_number,
@@ -95,6 +94,10 @@ impl TeeRequestProcessor {
                 .map_err(RequestProcessorError::Sqlx)?;
             }
             SubmitTeeProofRequest::SkippedProofGeneration => {
+                tracing::info!(
+                    "Received request to skip proof generation for block number: {:?}",
+                    l1_batch_number
+                );
                 dal.mark_proof_generation_job_as_skipped(l1_batch_number)
                     .await
                     .map_err(RequestProcessorError::Sqlx)?;
