@@ -42,7 +42,7 @@ impl fmt::Debug for GoogleCloudStore {
 pub enum GoogleCloudStoreAuthMode {
     /// Authentication via a credentials file at the specified path.
     AuthenticatedWithCredentialFile(String),
-    /// Ambient authentication (works if )
+    /// Ambient authentication (works if the binary runs on Google Cloud).
     Authenticated,
     /// Anonymous access (only works for public GCS buckets for read operations).
     Anonymous,
