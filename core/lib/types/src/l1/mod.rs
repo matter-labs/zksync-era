@@ -368,9 +368,7 @@ impl TryFrom<Log> for L1Tx {
     fn try_from(event: Log) -> Result<Self, Self::Error> {
         let rlp = rlp::Rlp::new(&event.data.0);
         tracing::error!("event.data.0 = {rlp}");
-        let mut tx: L1Tx = abi::NewPriorityRequest::decode(&event.data.0)
-            .unwrap()
-            .try_into()?;
+        let mut tx: L1Tx = abi::NewPriorityRequest::decode(&event.data.0)?.try_into()?;
         // TODO (PLA-962): start setting it to 0 for all new transactions.
         tx.common_data.eth_block = event
             .block_number
