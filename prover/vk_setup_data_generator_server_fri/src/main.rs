@@ -60,13 +60,17 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     tracing::info!("Generating verification keys for Base layer.");
 
     generate_base_layer_vks(&mut in_memory_source, Some(jobs), || {
-        pb.lock().unwrap().as_ref().map(|p| p.inc(1));
+        if let Some(p) = pb.lock().unwrap().as_ref() {
+            p.inc(1)
+        }
     })
     .map_err(|err| anyhow::anyhow!("Failed generating base vk's: {err}"))?;
 
     tracing::info!("Generating verification keys for Recursive layer.");
     generate_recursive_layer_vks(&mut in_memory_source, Some(jobs), || {
-        pb.lock().unwrap().as_ref().map(|p| p.inc(1));
+        if let Some(p) = pb.lock().unwrap().as_ref() {
+            p.inc(1)
+        }
     })
     .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
 
@@ -88,7 +92,9 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
         .save_snark_verification_key(vk)
         .context("save_snark_vk")?;
 
-    pb.lock().unwrap().as_ref().map(|p| p.inc(1));
+    if let Some(p) = pb.lock().unwrap().as_ref() {
+        p.inc(1)
+    }
 
     // Let's also update the commitments file.
     keystore.save_commitments(&generate_commitments(keystore)?)
