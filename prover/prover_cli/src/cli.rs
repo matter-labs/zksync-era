@@ -1,7 +1,7 @@
 use clap::{command, Args, Parser, Subcommand};
 use zksync_types::url::SensitiveUrl;
 
-use crate::commands::{self, config, delete, get_file_info, requeue, restart};
+use crate::commands::{self, config, debug_proof, delete, get_file_info, requeue, restart};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -27,6 +27,7 @@ pub struct ProverCLIConfig {
 
 #[derive(Subcommand)]
 enum ProverCommand {
+    DebugProof(debug_proof::Args),
     FileInfo(get_file_info::Args),
     Config(ProverCLIConfig),
     Delete(delete::Args),
@@ -45,6 +46,7 @@ pub async fn start() -> anyhow::Result<()> {
         ProverCommand::Status(cmd) => cmd.run(config).await?,
         ProverCommand::Requeue(args) => requeue::run(args, config).await?,
         ProverCommand::Restart(args) => restart::run(args).await?,
+        ProverCommand::DebugProof(args) => debug_proof::run(args).await?,
     };
 
     Ok(())

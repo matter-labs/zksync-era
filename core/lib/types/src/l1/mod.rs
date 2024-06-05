@@ -147,7 +147,7 @@ impl serde::Serialize for L1TxCommonData {
             to_mint: self.to_mint,
             refund_recipient: self.refund_recipient,
 
-            /// DEPRECATED.
+            // DEPRECATED.
             deadline_block: 0,
             eth_hash: H256::default(),
             eth_block: self.eth_block,

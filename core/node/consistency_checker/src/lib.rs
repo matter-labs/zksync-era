@@ -42,10 +42,12 @@ enum CheckError {
 
 impl CheckError {
     fn is_transient(&self) -> bool {
-        matches!(
-            self,
-            Self::Web3(err) if err.is_transient()
-        )
+        match self {
+            Self::Web3(err) | Self::ContractCall(ContractCallError::EthereumGateway(err)) => {
+                err.is_transient()
+            }
+            _ => false,
+        }
     }
 }
 
@@ -534,7 +536,10 @@ impl ConsistencyChecker {
 
         while let Err(err) = self.sanity_check_diamond_proxy_addr().await {
             if err.is_transient() {
-                tracing::warn!("Transient error checking diamond proxy contract; will retry after a delay: {err}");
+                tracing::warn!(
+                    "Transient error checking diamond proxy contract; will retry after a delay: {:#}",
+                    anyhow::Error::from(err)
+                );
                 if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                     .await
                     .is_ok()
@@ -631,7 +636,10 @@ impl ConsistencyChecker {
                     }
                 }
                 Err(err) if err.is_transient() => {
-                    tracing::warn!("Transient error while verifying L1 batch #{batch_number}; will retry after a delay: {err}");
+                    tracing::warn!(
+                        "Transient error while verifying L1 batch #{batch_number}; will retry after a delay: {:#}",
+                        anyhow::Error::from(err)
+                    );
                     if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                         .await
                         .is_ok()
