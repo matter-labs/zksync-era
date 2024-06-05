@@ -150,7 +150,6 @@ fn test_proof_request_serialization() {
         }
     }"#;
     let decoded_obj: SubmitProofRequest = serde_json::from_str(&encoded_obj).unwrap();
-    println!("{}", encoded_obj);
     let decoded_json: SubmitProofRequest = serde_json::from_str(encoded_json).unwrap();
     match (decoded_obj, decoded_json) {
         (SubmitProofRequest::Proof(decoded_obj), SubmitProofRequest::Proof(decoded_json)) => {
