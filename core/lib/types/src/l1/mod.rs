@@ -362,8 +362,6 @@ impl TryFrom<Log> for L1Tx {
     type Error = L1TxParseError;
 
     fn try_from(event: Log) -> Result<Self, Self::Error> {
-        let rlp = rlp::Rlp::new(&event.data.0);
-        tracing::error!("event.data.0 = {rlp}");
         let mut tx: L1Tx = abi::NewPriorityRequest::decode(&event.data.0)?
             .try_into()
             .map_err(|err| L1TxParseError::from(ethabi::Error::Other(format!("{err:#}").into())))?;
