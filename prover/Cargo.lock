@@ -736,7 +736,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -1578,7 +1578,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.85",
@@ -4969,6 +4969,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "zkevm_test_harness 1.5.0",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
@@ -8322,7 +8323,7 @@ dependencies = [
  "codegen 0.2.0",
  "crossbeam 0.8.4",
  "derivative",
- "env_logger 0.11.3",
+ "env_logger 0.11.2",
  "hex",
  "rand 0.4.6",
  "rayon",
