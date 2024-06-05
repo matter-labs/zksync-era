@@ -245,7 +245,7 @@ impl L1BatchProof {
             anyhow::ensure!(b.last_in_batch == (i + 1 == self.blocks.len()));
             prev_number += 1;
             let mut hasher = L2BlockHasher::new(prev_number, b.timestamp, prev_hash);
-            tracing::info!("transactions.len() = {}",b.transactions.len());
+            tracing::info!("transactions.len() = {}", b.transactions.len());
             for t in &b.transactions {
                 // Reconstruct transaction by converting it back and forth to `abi::Transaction`.
                 // This allows us to verify that the transaction actually matches the transaction
@@ -256,12 +256,12 @@ impl L1BatchProof {
                 hasher.push_tx_hash(t.hash());
             }
             prev_hash = hasher.finalize(self.this_batch.protocol_version);
-            tracing::info!("expected hash = {}",b.hash);
-            tracing::info!("computed_hash = {}",prev_hash);
+            tracing::info!("expected hash = {}", b.hash);
+            tracing::info!("computed_hash = {}", prev_hash);
         }
-        tracing::info!("last_hash = {}",last_hash);
+        tracing::info!("last_hash = {}", last_hash);
         anyhow::ensure!(prev_hash == last_hash);
-        
+
         Ok(())
     }
 }

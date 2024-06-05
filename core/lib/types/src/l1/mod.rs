@@ -72,15 +72,39 @@ pub fn is_l1_tx_type(tx_type: u8) -> bool {
     tx_type == PRIORITY_OPERATION_L2_TX_TYPE || tx_type == PROTOCOL_UPGRADE_TX_TYPE
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+// TODO(PLA-962): remove once all nodes start treating the deprecated fields as optional.
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct L1TxCommonDataSerde {
+    pub sender: Address,
+    pub serial_id: PriorityOpId,
+    pub layer_2_tip_fee: U256,
+    pub full_fee: U256,
+    pub max_fee_per_gas: U256,
+    pub gas_limit: U256,
+    pub gas_per_pubdata_limit: U256,
+    pub op_processing_type: OpProcessingType,
+    pub priority_queue_type: PriorityQueueType,
+    pub canonical_tx_hash: H256,
+    pub to_mint: U256,
+    pub refund_recipient: Address,
+
+    /// DEPRECATED.
+    #[serde(default)]
+    pub deadline_block: u64,
+    #[serde(default)]
+    pub eth_hash: H256,
+    #[serde(default)]
+    pub eth_block: u64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct L1TxCommonData {
     /// Sender of the transaction.
     pub sender: Address,
     /// Unique ID of the priority operation.
     pub serial_id: PriorityOpId,
-    /// Ethereum deadline block until which operation must be processed.
-    pub deadline_block: u64,
+
     /// Additional payment to the operator as an incentive to perform the operation. The contract uses a value of 192 bits.
     pub layer_2_tip_fee: U256,
     /// The total cost the sender paid for the transaction.
@@ -95,16 +119,63 @@ pub struct L1TxCommonData {
     pub op_processing_type: OpProcessingType,
     /// Priority operations queue type.
     pub priority_queue_type: PriorityQueueType,
-    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
-    pub eth_hash: H256,
-    /// Block in which Ethereum transaction was included.
-    pub eth_block: u64,
     /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
     pub canonical_tx_hash: H256,
     /// The amount of ETH that should be minted with this transaction
     pub to_mint: U256,
     /// The recipient of the refund of the transaction
     pub refund_recipient: Address,
+
+    // DEPRECATED.
+    pub eth_block: u64,
+}
+
+impl serde::Serialize for L1TxCommonData {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        L1TxCommonDataSerde {
+            sender: self.sender,
+            serial_id: self.serial_id,
+            layer_2_tip_fee: self.layer_2_tip_fee,
+            full_fee: self.full_fee,
+            max_fee_per_gas: self.max_fee_per_gas,
+            gas_limit: self.gas_limit,
+            gas_per_pubdata_limit: self.gas_per_pubdata_limit,
+            op_processing_type: self.op_processing_type,
+            priority_queue_type: self.priority_queue_type,
+            canonical_tx_hash: self.canonical_tx_hash,
+            to_mint: self.to_mint,
+            refund_recipient: self.refund_recipient,
+
+            /// DEPRECATED.
+            deadline_block: 0,
+            eth_hash: H256::default(),
+            eth_block: self.eth_block,
+        }
+        .serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for L1TxCommonData {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let x = L1TxCommonDataSerde::deserialize(d)?;
+        Ok(Self {
+            sender: x.sender,
+            serial_id: x.serial_id,
+            layer_2_tip_fee: x.layer_2_tip_fee,
+            full_fee: x.full_fee,
+            max_fee_per_gas: x.max_fee_per_gas,
+            gas_limit: x.gas_limit,
+            gas_per_pubdata_limit: x.gas_per_pubdata_limit,
+            op_processing_type: x.op_processing_type,
+            priority_queue_type: x.priority_queue_type,
+            canonical_tx_hash: x.canonical_tx_hash,
+            to_mint: x.to_mint,
+            refund_recipient: x.refund_recipient,
+
+            // DEPRECATED.
+            eth_block: x.eth_block,
+        })
+    }
 }
 
 impl L1TxCommonData {
@@ -199,7 +270,7 @@ impl From<L1Tx> for abi::NewPriorityRequest {
         Self {
             tx_id: t.common_data.serial_id.0.into(),
             tx_hash: t.common_data.canonical_tx_hash.to_fixed_bytes(),
-            expiration_timestamp: t.common_data.deadline_block,
+            expiration_timestamp: 0,
             transaction: abi::L2CanonicalTransaction {
                 tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                 from: address_to_u256(&t.common_data.sender),
@@ -262,7 +333,6 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
             serial_id: PriorityOpId(req.transaction.nonce.try_into().unwrap()),
             canonical_tx_hash: H256::from_slice(&req.tx_hash),
             sender: u256_to_account_address(&req.transaction.from),
-            deadline_block: req.expiration_timestamp,
             layer_2_tip_fee: U256::zero(),
             to_mint: req.transaction.reserved[0],
             refund_recipient: u256_to_account_address(&req.transaction.reserved[1]),
@@ -272,7 +342,7 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
             gas_per_pubdata_limit: req.transaction.gas_per_pubdata_byte_limit,
             op_processing_type: OpProcessingType::Common,
             priority_queue_type: PriorityQueueType::Deque,
-            eth_hash: H256::default(),
+            // DEPRECATED.
             eth_block: 0,
         };
 
@@ -297,9 +367,7 @@ impl TryFrom<Log> for L1Tx {
         let mut tx: L1Tx = abi::NewPriorityRequest::decode(&event.data.0)
             .unwrap()
             .try_into()?;
-        tx.common_data.eth_hash = event
-            .transaction_hash
-            .expect("Event transaction hash is missing");
+        // TODO (PLA-962): start setting it to 0 for all new transactions.
         tx.common_data.eth_block = event
             .block_number
             .expect("Event block number is missing")

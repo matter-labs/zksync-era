@@ -119,11 +119,10 @@ impl CommitmentGenerator {
         let bootloader_memory_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
                 let latency = METRICS.bootloader_content_commitment_latency.start();
-                let res = computer
-                    .bootloader_initial_content_commitment(
-                        &initial_bootloader_contents,
-                        protocol_version,
-                    );
+                let res = computer.bootloader_initial_content_commitment(
+                    &initial_bootloader_contents,
+                    protocol_version,
+                );
                 tracing::info!("TASK2 error?");
                 let bootloader_initial_content_commitment = res?;
                 latency.observe();

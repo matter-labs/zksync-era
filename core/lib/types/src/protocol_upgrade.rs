@@ -100,11 +100,7 @@ impl From<abi::VerifierParams> for VerifierParams {
 
 impl ProtocolUpgrade {
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
-    fn try_from_init_calldata(
-        init_calldata: &[u8],
-        eth_hash: H256,
-        eth_block: u64,
-    ) -> anyhow::Result<Self> {
+    fn try_from_init_calldata(init_calldata: &[u8], eth_block: u64) -> anyhow::Result<Self> {
         let upgrade = ethabi::decode(
             &[abi::ProposedUpgrade::schema()],
             init_calldata.get(4..).context("need >= 4 bytes")?,
@@ -128,7 +124,6 @@ impl ProtocolUpgrade {
                     Transaction::try_from(abi::Transaction::L1 {
                         tx: upgrade.l2_protocol_upgrade_tx,
                         factory_deps: upgrade.factory_deps,
-                        eth_hash,
                         eth_block,
                         received_timestamp_ms: helpers::unix_timestamp_ms(),
                     })
@@ -154,9 +149,6 @@ pub fn decode_set_chain_id_event(
         protocol_version,
         Transaction::try_from(abi::Transaction::L1 {
             tx: tx.into(),
-            eth_hash: event
-                .transaction_hash
-                .expect("Event transaction hash is missing"),
             eth_block: event
                 .block_number
                 .expect("Event block number is missing")
@@ -209,7 +201,6 @@ impl TryFrom<Call> for ProtocolUpgrade {
         ProtocolUpgrade::try_from_init_calldata(
             // Unwrap is safe because we have validated the input against the function signature.
             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
-            call.eth_hash,
             call.eth_block,
         )
         .context("ProtocolUpgrade::try_from_init_calldata()")
@@ -329,8 +320,27 @@ impl ProtocolVersion {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+// TODO(PLA-962): remove once all nodes start treating the deprecated fields as optional.
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ProtocolUpgradeTxCommonDataSerde {
+    pub sender: Address,
+    pub upgrade_id: ProtocolVersionId,
+    pub max_fee_per_gas: U256,
+    pub gas_limit: U256,
+    pub gas_per_pubdata_limit: U256,
+    pub canonical_tx_hash: H256,
+    pub to_mint: U256,
+    pub refund_recipient: Address,
+
+    /// DEPRECATED.
+    #[serde(default)]
+    pub eth_hash: H256,
+    #[serde(default)]
+    pub eth_block: u64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct ProtocolUpgradeTxCommonData {
     /// Sender of the transaction.
     pub sender: Address,
@@ -342,8 +352,6 @@ pub struct ProtocolUpgradeTxCommonData {
     pub gas_limit: U256,
     /// The maximum number of gas per 1 byte of pubdata.
     pub gas_per_pubdata_limit: U256,
-    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
-    pub eth_hash: H256,
     /// Block in which Ethereum transaction was included.
     pub eth_block: u64,
     /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
@@ -361,6 +369,45 @@ impl ProtocolUpgradeTxCommonData {
 
     pub fn tx_format(&self) -> TransactionType {
         TransactionType::ProtocolUpgradeTransaction
+    }
+}
+
+impl serde::Serialize for ProtocolUpgradeTxCommonData {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        ProtocolUpgradeTxCommonDataSerde {
+            sender: self.sender,
+            upgrade_id: self.upgrade_id,
+            max_fee_per_gas: self.max_fee_per_gas,
+            gas_limit: self.gas_limit,
+            gas_per_pubdata_limit: self.gas_per_pubdata_limit,
+            canonical_tx_hash: self.canonical_tx_hash,
+            to_mint: self.to_mint,
+            refund_recipient: self.refund_recipient,
+
+            /// DEPRECATED.
+            eth_hash: H256::default(),
+            eth_block: self.eth_block,
+        }
+        .serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ProtocolUpgradeTxCommonData {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let x = ProtocolUpgradeTxCommonDataSerde::deserialize(d)?;
+        Ok(Self {
+            sender: x.sender,
+            upgrade_id: x.upgrade_id,
+            max_fee_per_gas: x.max_fee_per_gas,
+            gas_limit: x.gas_limit,
+            gas_per_pubdata_limit: x.gas_per_pubdata_limit,
+            canonical_tx_hash: x.canonical_tx_hash,
+            to_mint: x.to_mint,
+            refund_recipient: x.refund_recipient,
+
+            // DEPRECATED.
+            eth_block: x.eth_block,
+        })
     }
 }
 

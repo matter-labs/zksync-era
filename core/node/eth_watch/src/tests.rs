@@ -148,8 +148,6 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
         common_data: L1TxCommonData {
             serial_id: PriorityOpId(serial_id),
             sender: [1u8; 20].into(),
-            deadline_block: 0,
-            eth_hash: [2; 32].into(),
             eth_block,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
@@ -188,7 +186,6 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
         common_data: ProtocolUpgradeTxCommonData {
             upgrade_id: id,
             sender: [1u8; 20].into(),
-            eth_hash: [2; 32].into(),
             eth_block,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
@@ -483,7 +480,6 @@ fn tx_into_log(tx: L1Tx) -> Log {
         tx,
         factory_deps,
         eth_block,
-        eth_hash,
         ..
     } = tx
     else {
@@ -510,7 +506,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(eth_block.into()),
-        transaction_hash: Some(eth_hash),
+        transaction_hash: Some(H256::default()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),
         transaction_log_index: Some(0u64.into()),
@@ -572,7 +568,6 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
         .unwrap_or(abi::Transaction::L1 {
             tx: Default::default(),
             factory_deps: vec![],
-            eth_hash: H256::zero(),
             eth_block: 0,
             received_timestamp_ms: 0,
         })

@@ -1,6 +1,6 @@
 //! Utilities for testing the consensus module.
 use std::sync::Arc;
-use crate::batch::{LastBlockCommit, L1BatchCommit,L1BatchProof};
+
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
@@ -12,12 +12,14 @@ use zksync_config::{
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
 };
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
-use zksync_metadata_calculator::{LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig};
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
+use zksync_metadata_calculator::{
+    LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
+};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::spawn_http_server};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
@@ -27,8 +29,8 @@ use zksync_node_sync::{
     ExternalIO, MainNodeClient, SyncState,
 };
 use zksync_node_test_utils::{
-    l1_batch_metadata_to_commitment_artifacts,
-    create_l1_batch_metadata, create_l2_transaction};
+    create_l1_batch_metadata, create_l2_transaction, l1_batch_metadata_to_commitment_artifacts,
+};
 /// Implements EthInterface
 /// It is enough to use MockEthereum.with_call_handler()
 //use zksync_eth_client::clients::MockEthereum;
@@ -43,7 +45,10 @@ use zksync_state_keeper::{
 use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
-use crate::{en, ConnectionPool};
+use crate::{
+    batch::{L1BatchCommit, L1BatchProof, LastBlockCommit},
+    en, ConnectionPool,
+};
 
 /* replacement of asyncRockdb
 #[derive(Debug, Clone)]
@@ -125,10 +130,10 @@ pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
     sync_state: SyncState,
     pool: ConnectionPool,
- 
+
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
     rocksdb_dir: tempfile::TempDir,
-    metadata_calculator: MetadataCalculator, 
+    metadata_calculator: MetadataCalculator,
 }
 
 impl StateKeeper {
@@ -150,7 +155,7 @@ impl StateKeeper {
         let (actions_sender, actions_queue) = ActionQueue::new();
         let addr = sync::watch::channel(None).0;
         let sync_state = SyncState::default();
-        
+
         let rocksdb_dir = tempfile::tempdir().context("tempdir()")?;
         let merkle_tree_config = MerkleTreeConfig {
             path: rocksdb_dir
@@ -164,10 +169,8 @@ impl StateKeeper {
         let operation_manager_config = OperationsManagerConfig {
             delay_interval: 100, //100ms
         };
-        let config = MetadataCalculatorConfig::for_main_node(
-            &merkle_tree_config,
-            &operation_manager_config,
-        );
+        let config =
+            MetadataCalculatorConfig::for_main_node(&merkle_tree_config, &operation_manager_config);
         let metadata_calculator = MetadataCalculator::new(config, None, pool.0.clone())
             .await
             .context("MetadataCalculator::new()")?;
@@ -276,20 +279,35 @@ impl StateKeeper {
         self.last_batch - (!self.batch_sealed) as u32
     }
 
-    pub async fn load_batch_commit(&self, ctx: &ctx::Ctx, number: L1BatchNumber) -> ctx::Result<L1BatchCommit> {
+    pub async fn load_batch_commit(
+        &self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+    ) -> ctx::Result<L1BatchCommit> {
         // TODO: we should mock the eth_sender as well.
         let mut conn = self.pool.connection(ctx).await?;
-        let this = conn.batch(ctx,number).await?.context("missing batch")?;
-        let prev = conn.batch(ctx,number-1).await?.context("missing batch")?;
+        let this = conn.batch(ctx, number).await?.context("missing batch")?;
+        let prev = conn
+            .batch(ctx, number - 1)
+            .await?
+            .context("missing batch")?;
         Ok(L1BatchCommit {
             number,
-            this_batch: LastBlockCommit { info: StoredBatchInfo(&this).into_compact().hash() },
-            prev_batch: LastBlockCommit { info: StoredBatchInfo(&prev).into_compact().hash() },
+            this_batch: LastBlockCommit {
+                info: StoredBatchInfo(&this).into_compact().hash(),
+            },
+            prev_batch: LastBlockCommit {
+                info: StoredBatchInfo(&prev).into_compact().hash(),
+            },
         })
     }
 
-    pub async fn load_batch_proof(&self, ctx: &ctx::Ctx, n: L1BatchNumber) -> ctx::Result<L1BatchProof> {
-        L1BatchProof::load(ctx,n,&self.pool,&self.tree_reader).await
+    pub async fn load_batch_proof(
+        &self,
+        ctx: &ctx::Ctx,
+        n: L1BatchNumber,
+    ) -> ctx::Result<L1BatchProof> {
+        L1BatchProof::load(ctx, n, &self.pool, &self.tree_reader).await
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
@@ -351,13 +369,36 @@ impl StateKeeper {
 
 async fn mock_commitment_generator_step(ctx: &ctx::Ctx, pool: &ConnectionPool) -> ctx::Result<()> {
     let mut conn = pool.connection(ctx).await.wrap("connection()")?;
-    let Some(first) = ctx.wait(conn.0.blocks_dal().get_next_l1_batch_ready_for_commitment_generation()).await?.map_err(|e|e.generalize())? else { return Ok(()) };
-    let last = ctx.wait(conn.0.blocks_dal().get_last_l1_batch_ready_for_commitment_generation()).await?.map_err(|e|e.generalize())?.context("batch disappeared")?;
+    let Some(first) = ctx
+        .wait(
+            conn.0
+                .blocks_dal()
+                .get_next_l1_batch_ready_for_commitment_generation(),
+        )
+        .await?
+        .map_err(|e| e.generalize())?
+    else {
+        return Ok(());
+    };
+    let last = ctx
+        .wait(
+            conn.0
+                .blocks_dal()
+                .get_last_l1_batch_ready_for_commitment_generation(),
+        )
+        .await?
+        .map_err(|e| e.generalize())?
+        .context("batch disappeared")?;
     // Create artificial `L1BatchCommitmentArtifacts`.
     for i in (first.0..=last.0).map(L1BatchNumber) {
         let metadata = create_l1_batch_metadata(i.0);
         let artifacts = l1_batch_metadata_to_commitment_artifacts(&metadata);
-        ctx.wait(conn.0.blocks_dal().save_l1_batch_commitment_artifacts(i, &artifacts)).await??;
+        ctx.wait(
+            conn.0
+                .blocks_dal()
+                .save_l1_batch_commitment_artifacts(i, &artifacts),
+        )
+        .await??;
     }
     Ok(())
 }
@@ -424,7 +465,7 @@ impl StateKeeperRunner {
                     .await
                     .context("l2_block_sealer.run()")?)
             });
- 
+
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();
                 async {
@@ -435,7 +476,11 @@ impl StateKeeperRunner {
 
             let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
                 self.pool.0.clone(),
-                self.rocksdb_dir.path().join("cache").to_string_lossy().into(),
+                self.rocksdb_dir
+                    .path()
+                    .join("cache")
+                    .to_string_lossy()
+                    .into(),
                 RocksdbStorageOptions {
                     block_cache_capacity: (1 << 20), // 1MB
                     max_open_files: None,
@@ -448,7 +493,7 @@ impl StateKeeperRunner {
                     Ok(())
                 }
             });
-             s.spawn_bg::<()>(async {
+            s.spawn_bg::<()>(async {
                 loop {
                     mock_commitment_generator_step(ctx, &self.pool).await?;
                     // Sleep real time.

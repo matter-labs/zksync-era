@@ -287,7 +287,6 @@ impl TryFrom<Transaction> for abi::Transaction {
                 }
                 .into(),
                 factory_deps,
-                eth_hash: data.eth_hash,
                 eth_block: data.eth_block,
                 received_timestamp_ms: tx.received_timestamp_ms,
             },
@@ -320,7 +319,6 @@ impl TryFrom<Transaction> for abi::Transaction {
                 }
                 .into(),
                 factory_deps,
-                eth_hash: data.eth_hash,
                 eth_block: data.eth_block,
                 received_timestamp_ms: tx.received_timestamp_ms,
             },
@@ -335,7 +333,6 @@ impl TryFrom<abi::Transaction> for Transaction {
             abi::Transaction::L1 {
                 tx,
                 factory_deps,
-                eth_hash,
                 eth_block,
                 received_timestamp_ms,
             } => {
@@ -364,7 +361,6 @@ impl TryFrom<abi::Transaction> for Transaction {
                                 ),
                                 canonical_tx_hash: hash,
                                 sender: u256_to_account_address(&tx.from),
-                                deadline_block: 0,
                                 layer_2_tip_fee: U256::zero(),
                                 to_mint: tx.reserved[0],
                                 refund_recipient: u256_to_account_address(&tx.reserved[1]),
@@ -374,7 +370,6 @@ impl TryFrom<abi::Transaction> for Transaction {
                                 gas_per_pubdata_limit: tx.gas_per_pubdata_byte_limit,
                                 op_processing_type: l1::OpProcessingType::Common,
                                 priority_queue_type: l1::PriorityQueueType::Deque,
-                                eth_hash,
                                 eth_block,
                             })
                         }
@@ -388,7 +383,6 @@ impl TryFrom<abi::Transaction> for Transaction {
                                 gas_limit: tx.gas_limit,
                                 max_fee_per_gas: tx.max_fee_per_gas,
                                 gas_per_pubdata_limit: tx.gas_per_pubdata_byte_limit,
-                                eth_hash,
                                 eth_block,
                             })
                         }

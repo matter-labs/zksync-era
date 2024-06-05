@@ -317,7 +317,6 @@ pub enum Transaction {
         /// txn contains a commitment to factory_deps.
         factory_deps: Vec<Vec<u8>>,
         /// Auxiliary data, not hashed.
-        eth_hash: H256,
         eth_block: u64,
         received_timestamp_ms: u64,
     },
