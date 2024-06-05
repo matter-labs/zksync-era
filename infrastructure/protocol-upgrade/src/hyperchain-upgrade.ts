@@ -10,7 +10,7 @@ import { getFacetsFileName, getCryptoFileName, getPostUpgradeCalldataFileName, g
 import { IZkSyncHyperchainFactory } from 'l1-contracts/typechain/IZkSyncHyperchainFactory';
 import { getWallet } from './transaction';
 
-const privateKey = '';
+let privateKey = '';
 
 async function hyperchainUpgrade1() {
     const cwd = process.cwd();
@@ -117,6 +117,18 @@ async function hyperchainUpgrade3() {
     process.chdir(cwd);
 }
 
+async function whatever() {
+    const cwd = process.cwd();
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
+    const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
+    await spawn(
+        `yarn whatever --print-file-path ${getUpgradePath(
+            environment
+        )} --private-key  ${privateKey} | tee deployWhatever.log`
+    );
+    process.chdir(cwd);
+}
+
 async function preparePostUpgradeCalldata(environment?: string) {
     let calldata = new ethers.utils.AbiCoder().encode(
         ['uint256', 'address', 'address', 'address', 'address', 'address'],
@@ -143,45 +155,49 @@ async function deploySharedBridgeL2Implementation() {
     );
     process.chdir(cwd);
 
-    const deployLog = fs
-        .readFileSync(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/deploySharedBridgeImplementation.log`)
-        .toString();
-    const l2EnvVars = ['CONTRACTS_L2_SHARED_BRIDGE_IMPL_ADDR'];
+    // const deployLog = fs
+    //     .readFileSync(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/deploySharedBridgeImplementation.log`)
+    //     .toString();
+    // const l2EnvVars = ['CONTRACTS_L2_SHARED_BRIDGE_IMPL_ADDR'];
 
-    console.log('Writing to', `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`);
-    updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, deployLog, l2EnvVars);
+    // console.log('Writing to', `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`);
+    // updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, deployLog, l2EnvVars);
 }
 
 async function hyperchainFullUpgrade() {
-    await insertAddresses('mainnet');
-    env.reload('mainnet');
+    const environment = 'mainnet';
+    // await insertAddresses(environment);
+    // env.reload(environment);
 
-    await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment mainnet ');
+    // await spawn(
+    //     `zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment ${environment}`
+    // );
+    // await spawn(
+    //     `zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all  --environment ${environment} --private-key ${privateKey}`
+    // );
+    // await spawn(
+    //     `zk f yarn  workspace protocol-upgrade-tool start l2-transaction complex-upgrader-calldata --use-forced-deployments --use-contract-deployer --environment ${environment}`
+    // );
+    // await spawn(
+    //     `zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment ${environment}`
+    // );
+    // await preparePostUpgradeCalldata(environment);
     await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all  --environment mainnet --private-key ${privateKey}`
-    );
-    await spawn(
-        'zk f yarn  workspace protocol-upgrade-tool start l2-transaction complex-upgrader-calldata --use-forced-deployments --use-contract-deployer --environment mainnet'
-    );
-    await spawn(
-        'zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment mainnet'
-    );
-    await preparePostUpgradeCalldata('mainnet');
-    await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --use-new-governance --upgrade-address ${process.env.CONTRACTS_HYPERCHAIN_UPGRADE_ADDR} --post-upgrade-calldata --environment mainnet`
+        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1717653600 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --use-new-governance --upgrade-address ${process.env.CONTRACTS_HYPERCHAIN_UPGRADE_ADDR} --post-upgrade-calldata --environment ${environment}`
     );
 }
 
 async function hyperchainProverFixUpgrade() {
-    await insertAddresses('testnet-fix');
+    const environment = 'testnet-fix2';
+    await insertAddresses(environment);
     await spawn(
-        'zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment testnet-fix '
+        `zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment ${environment} `
     );
     await spawn(
-        'zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment testnet-fix'
+        `zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment ${environment}`
     );
     await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --chain-id ${process.env.CONTRACTS_ERA_CHAIN_ID} --stm-address ${process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR} --old-protocol-version 24 --old-protocol-version-deadline 0 --new-protocol-version 24 --use-new-governance --environment testnet-fix`
+        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --chain-id ${process.env.CONTRACTS_ERA_CHAIN_ID} --stm-address ${process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR} --old-protocol-version 24 --old-protocol-version-deadline 0 --new-protocol-version 24 --use-new-governance --environment ${environment}`
     );
 }
 
@@ -208,7 +224,9 @@ command
     .option('--add-validators')
     .option('--hyperchain-prover-fix-upgrade')
     .option('--whatever')
+    .option('--private-key <private-key>')
     .action(async (options) => {
+        privateKey = options.privateKey;
         if (options.phase1) {
             await hyperchainUpgrade1();
         } else if (options.insertAddresses) {
@@ -244,5 +262,7 @@ command
             await hyperchainUpgradeValidators();
         } else if (options.hyperchainProverFixUpgrade) {
             await hyperchainProverFixUpgrade();
+        } else if (options.whatever) {
+            await whatever();
         }
     });
