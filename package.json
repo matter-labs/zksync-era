@@ -33,6 +33,7 @@
     "upgrade-test": "yarn workspace upgrade-test",
     "recovery-test": "yarn workspace recovery-test",
     "ts-integration": "yarn workspace ts-integration",
+    "utils": "yarn workspace utils",
     "zk": "yarn workspace zk"
   },
   "devDependencies": {
