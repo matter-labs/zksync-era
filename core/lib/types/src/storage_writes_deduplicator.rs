@@ -97,7 +97,7 @@ impl StorageWritesDeduplicator {
                 .initial_values
                 .entry(key)
                 .or_insert(log.log_query.read_value);
-            let was_key_modified = self.modified_key_values.get(&key).is_some();
+            let was_key_modified = self.modified_key_values.contains_key(&key);
             let modified_value = if log.log_query.rollback {
                 (initial_value != log.log_query.read_value).then_some(log.log_query.read_value)
             } else {
