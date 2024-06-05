@@ -134,24 +134,21 @@ mod tests {
         let mut path_to_input = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
         path_to_input.push("historical_data");
 
-        for entry in std::fs::read_dir(path_to_input.clone()).unwrap() {
-            if let Ok(entry) = entry {
-                if entry.metadata().unwrap().is_dir() {
-                    let basepath =
-                        path_to_input.join(format!("{}", entry.file_name().into_string().unwrap()));
-                    let keystore = Keystore::new_with_optional_setup_path(basepath.clone(), None);
+        for entry in std::fs::read_dir(path_to_input.clone()).unwrap().flatten() {
+            if entry.metadata().unwrap().is_dir() {
+                let basepath =
+                    path_to_input.join(entry.file_name().into_string().unwrap().to_string());
+                let keystore = Keystore::new_with_optional_setup_path(basepath.clone(), None);
 
-                    let expected =
-                        H256::from_str(&keystore.load_commitments().unwrap().snark_wrapper)
-                            .unwrap();
+                let expected =
+                    H256::from_str(&keystore.load_commitments().unwrap().snark_wrapper).unwrap();
 
-                    assert_eq!(
-                        expected,
-                        calculate_snark_vk_hash(&keystore).unwrap(),
-                        "VK computation failed for {:?}",
-                        basepath
-                    );
-                }
+                assert_eq!(
+                    expected,
+                    calculate_snark_vk_hash(&keystore).unwrap(),
+                    "VK computation failed for {:?}",
+                    basepath
+                );
             }
         }
     }
