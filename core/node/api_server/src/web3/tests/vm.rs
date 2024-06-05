@@ -178,14 +178,12 @@ impl SendRawTransactionTest {
             input: vec![1, 2, 3, 4].into(),
             ..api::TransactionRequest::default()
         };
-        let mut rlp = Default::default();
-        tx_request.rlp(&mut rlp, None);
-        let data = rlp.out();
+        let data = tx_request.get_rlp().unwrap();
         let signed_message = PackedEthSignature::message_to_signed_bytes(&data);
         let signature = PackedEthSignature::sign_raw(&private_key, &signed_message).unwrap();
 
         let mut rlp = Default::default();
-        tx_request.rlp(&mut rlp, Some(&signature));
+        tx_request.rlp(&mut rlp, Some(&signature)).unwrap();
         let data = rlp.out();
         let (_, tx_hash) =
             api::TransactionRequest::from_bytes(&data, L2ChainId::default()).unwrap();

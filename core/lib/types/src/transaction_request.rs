@@ -457,27 +457,48 @@ impl TransactionRequest {
         Ok(packed_eth_signature.serialize_packed().to_vec())
     }
 
-    pub fn get_signed_bytes(&self, signature: &PackedEthSignature) -> Vec<u8> {
+    pub fn get_signed_bytes(
+        &self,
+        signature: &PackedEthSignature,
+    ) -> Result<Vec<u8>, SerializationTransactionError> {
         let mut rlp = RlpStream::new();
-        self.rlp(&mut rlp, Some(signature));
+        self.rlp(&mut rlp, Some(signature))?;
         let mut data = rlp.out().to_vec();
         if let Some(tx_type) = self.transaction_type {
             data.insert(0, tx_type.as_u64() as u8);
         }
-        data
+        Ok(data)
     }
 
     pub fn is_legacy_tx(&self) -> bool {
         self.transaction_type.is_none() || self.transaction_type == Some(LEGACY_TX_TYPE.into())
     }
 
-    pub fn rlp(&self, rlp: &mut RlpStream, signature: Option<&PackedEthSignature>) {
+    /// Encodes TransactionRequest to RLP.
+    /// It may fail if chain_id is `None` while required.
+    pub fn get_rlp(&self) -> anyhow::Result<Vec<u8>> {
+        let mut rlp_stream = RlpStream::new();
+        self.rlp(&mut rlp_stream, None)?;
+        Ok(rlp_stream.as_raw().into())
+    }
+
+    /// Encodes TransactionRequest to RLP.
+    /// It may fail if chain_id is `None` while required.
+    pub fn rlp(
+        &self,
+        rlp: &mut RlpStream,
+        signature: Option<&PackedEthSignature>,
+    ) -> Result<(), SerializationTransactionError> {
         rlp.begin_unbounded_list();
 
         match self.transaction_type {
             // EIP-2930 (0x01)
             Some(x) if x == EIP_2930_TX_TYPE.into() => {
-                rlp_opt(rlp, &self.chain_id);
+                rlp.append(
+                    &self
+                        .chain_id
+                        .ok_or(SerializationTransactionError::WrongChainId(None))?,
+                );
                 rlp.append(&self.nonce);
                 rlp.append(&self.gas_price);
                 rlp.append(&self.gas);
@@ -488,7 +509,11 @@ impl TransactionRequest {
             }
             // EIP-1559 (0x02)
             Some(x) if x == EIP_1559_TX_TYPE.into() => {
-                rlp.append(&self.chain_id.unwrap());
+                rlp.append(
+                    &self
+                        .chain_id
+                        .ok_or(SerializationTransactionError::WrongChainId(None))?,
+                );
                 rlp.append(&self.nonce);
                 rlp_opt(rlp, &self.max_priority_fee_per_gas);
                 rlp.append(&self.gas_price);
@@ -548,7 +573,11 @@ impl TransactionRequest {
         }
 
         if self.is_eip712_tx() {
-            rlp.append(&self.chain_id.unwrap());
+            rlp.append(
+                &self
+                    .chain_id
+                    .ok_or(SerializationTransactionError::WrongChainId(None))?,
+            );
             rlp_opt(rlp, &self.from);
             if let Some(meta) = &self.eip712_meta {
                 meta.rlp_append(rlp);
@@ -556,6 +585,7 @@ impl TransactionRequest {
         }
 
         rlp.finalize_unbounded_list();
+        Ok(())
     }
 
     fn decode_standard_fields(rlp: &Rlp, offset: usize) -> Result<Self, DecoderError> {
@@ -704,7 +734,7 @@ impl TransactionRequest {
             ))
         } else {
             let mut rlp_stream = RlpStream::new();
-            self.rlp(&mut rlp_stream, None);
+            self.rlp(&mut rlp_stream, None)?;
             let mut data = rlp_stream.out().to_vec();
             if let Some(tx_type) = self.transaction_type {
                 data.insert(0, tx_type.as_u64() as u8);
@@ -732,7 +762,7 @@ impl TransactionRequest {
             return Ok(hash);
         }
         let signature = self.get_packed_signature()?;
-        Ok(H256(keccak256(&self.get_signed_bytes(&signature))))
+        Ok(H256(keccak256(&self.get_signed_bytes(&signature)?)))
     }
 
     fn recover_default_signer(
@@ -993,13 +1023,13 @@ mod tests {
             ..Default::default()
         };
         let mut rlp = RlpStream::new();
-        tx.rlp(&mut rlp, None);
+        tx.rlp(&mut rlp, None).unwrap();
         let data = rlp.out().to_vec();
         let msg = PackedEthSignature::message_to_signed_bytes(&data);
         let signature = PackedEthSignature::sign_raw(&private_key, &msg).unwrap();
         tx.raw = Some(Bytes(data));
         let mut rlp = RlpStream::new();
-        tx.rlp(&mut rlp, Some(&signature));
+        tx.rlp(&mut rlp, Some(&signature)).unwrap();
         let data = rlp.out().to_vec();
         let (tx2, _) = TransactionRequest::from_bytes(&data, L2ChainId::from(270)).unwrap();
         assert_eq!(tx.gas, tx2.gas);
@@ -1048,7 +1078,7 @@ mod tests {
         let signature = PackedEthSignature::sign_raw(&private_key, &msg).unwrap();
 
         let mut rlp = RlpStream::new();
-        tx.rlp(&mut rlp, Some(&signature));
+        tx.rlp(&mut rlp, Some(&signature)).unwrap();
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_712_TX_TYPE);
         tx.raw = Some(Bytes(data.clone()));
@@ -1090,7 +1120,7 @@ mod tests {
             PackedEthSignature::sign_typed_data(&private_key, &domain, &transaction_request)
                 .unwrap();
 
-        let encoded_tx = transaction_request.get_signed_bytes(&signature);
+        let encoded_tx = transaction_request.get_signed_bytes(&signature).unwrap();
 
         let (decoded_tx, _) =
             TransactionRequest::from_bytes(encoded_tx.as_slice(), L2ChainId::from(270)).unwrap();
@@ -1130,7 +1160,7 @@ mod tests {
             PackedEthSignature::sign_typed_data(&private_key, &domain, &transaction_request)
                 .unwrap();
 
-        let encoded_tx = transaction_request.get_signed_bytes(&signature);
+        let encoded_tx = transaction_request.get_signed_bytes(&signature).unwrap();
 
         let decoded_tx =
             TransactionRequest::from_bytes(encoded_tx.as_slice(), L2ChainId::from(272));
@@ -1161,7 +1191,7 @@ mod tests {
             ..Default::default()
         };
         let mut rlp_stream = RlpStream::new();
-        transaction_request.rlp(&mut rlp_stream, None);
+        transaction_request.rlp(&mut rlp_stream, None).unwrap();
         let mut data = rlp_stream.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
         let msg = PackedEthSignature::message_to_signed_bytes(&data);
@@ -1169,7 +1199,7 @@ mod tests {
         let signature = PackedEthSignature::sign_raw(&private_key, &msg).unwrap();
         transaction_request.raw = Some(Bytes(data));
         let mut rlp = RlpStream::new();
-        transaction_request.rlp(&mut rlp, Some(&signature));
+        transaction_request.rlp(&mut rlp, Some(&signature)).unwrap();
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
 
@@ -1199,7 +1229,7 @@ mod tests {
             ..Default::default()
         };
         let mut rlp_stream = RlpStream::new();
-        transaction_request.rlp(&mut rlp_stream, None);
+        transaction_request.rlp(&mut rlp_stream, None).unwrap();
         let mut data = rlp_stream.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
         let msg = PackedEthSignature::message_to_signed_bytes(&data);
@@ -1207,7 +1237,7 @@ mod tests {
         let signature = PackedEthSignature::sign_raw(&private_key, &msg).unwrap();
         transaction_request.raw = Some(Bytes(data));
         let mut rlp = RlpStream::new();
-        transaction_request.rlp(&mut rlp, Some(&signature));
+        transaction_request.rlp(&mut rlp, Some(&signature)).unwrap();
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
 
@@ -1239,7 +1269,7 @@ mod tests {
             ..Default::default()
         };
         let mut rlp_stream = RlpStream::new();
-        transaction_request.rlp(&mut rlp_stream, None);
+        transaction_request.rlp(&mut rlp_stream, None).unwrap();
         let mut data = rlp_stream.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
         let msg = PackedEthSignature::message_to_signed_bytes(&data);
@@ -1247,7 +1277,7 @@ mod tests {
         let signature = PackedEthSignature::sign_raw(&private_key, &msg).unwrap();
         transaction_request.raw = Some(Bytes(data));
         let mut rlp = RlpStream::new();
-        transaction_request.rlp(&mut rlp, Some(&signature));
+        transaction_request.rlp(&mut rlp, Some(&signature)).unwrap();
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
 
@@ -1276,7 +1306,7 @@ mod tests {
             ..Default::default()
         };
         let mut rlp_stream = RlpStream::new();
-        transaction_request.rlp(&mut rlp_stream, None);
+        transaction_request.rlp(&mut rlp_stream, None).unwrap();
         let mut data = rlp_stream.out().to_vec();
         data.insert(0, EIP_2930_TX_TYPE);
         let msg = PackedEthSignature::message_to_signed_bytes(&data);
@@ -1284,7 +1314,7 @@ mod tests {
         let signature = PackedEthSignature::sign_raw(&private_key, &msg).unwrap();
         transaction_request.raw = Some(Bytes(data));
         let mut rlp = RlpStream::new();
-        transaction_request.rlp(&mut rlp, Some(&signature));
+        transaction_request.rlp(&mut rlp, Some(&signature)).unwrap();
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_2930_TX_TYPE);
 
@@ -1411,7 +1441,7 @@ mod tests {
         let signature = PackedEthSignature::sign_raw(&private_key, &msg).unwrap();
 
         let mut rlp = RlpStream::new();
-        tx.rlp(&mut rlp, Some(&signature));
+        tx.rlp(&mut rlp, Some(&signature)).unwrap();
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_712_TX_TYPE);
         tx.raw = Some(Bytes(data.clone()));

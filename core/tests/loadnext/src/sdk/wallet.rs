@@ -165,7 +165,9 @@ where
             .sign_typed_data(&domain, &transaction_request)
             .await?;
 
-        let encoded_tx = transaction_request.get_signed_bytes(&signature);
+        let encoded_tx = transaction_request
+            .get_signed_bytes(&signature)
+            .map_err(|_| ClientError::Other)?;
         let bytes = Bytes(encoded_tx);
 
         let tx_hash = self.provider.send_raw_transaction(bytes).await?;
