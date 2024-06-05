@@ -203,58 +203,53 @@ async fn main() -> anyhow::Result<()> {
                                 .context("ObjectStoreConfig::from_env()")?,
                         )
                         .create_store()
-                        .await,
+                        .await?,
                     ),
                 };
                 let generator = BasicWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     public_blob_store,
                     connection_pool.clone(),
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::LeafAggregation => {
                 let generator = LeafAggregationWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::NodeAggregation => {
                 let generator = NodeAggregationWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::RecursionTip => {
                 let generator = RecursionTipWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::Scheduler => {
                 let generator = SchedulerWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
         };
