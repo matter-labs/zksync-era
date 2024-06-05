@@ -34,8 +34,8 @@ mod commitment_generator;
 #[cfg(test)]
 mod tests;
 
-/// Generates new verification keys, and stores them in keystore.
-/// Jobs describe how many generators can run in parallel (each one is around 30GB).
+/// Generates new verification keys, and stores them in `keystore`.
+/// Jobs describe how many generators can run in parallel (each one is around 30 GB).
 /// If quiet is true, it doesn't display any progress bar.
 fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result<()> {
     // Start by checking the trusted setup existence.
@@ -148,7 +148,7 @@ enum Command {
     GenerateVerificationKeys {
         #[arg(long)]
         path: Option<String>,
-        /// Number of generators to run in parallel - each one consumes around 30GB of RAM.
+        /// Number of generators to run in parallel - each one consumes around 30 GB of RAM.
         #[arg(short, long, default_value_t = 1)]
         jobs: usize,
         /// If true - disables progress bar.
