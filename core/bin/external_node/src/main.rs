@@ -64,6 +64,7 @@ mod helpers;
 mod init;
 mod metadata;
 mod metrics;
+mod node_builder;
 #[cfg(test)]
 mod tests;
 
