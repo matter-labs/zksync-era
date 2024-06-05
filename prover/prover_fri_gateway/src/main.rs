@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Context as _;
+use clap::Parser;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover};
 use reqwest::Client;
@@ -8,8 +9,10 @@ use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
     DatabaseSecrets, FriProverGatewayConfig, ObservabilityConfig, PostgresConfig,
 };
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_protobuf_config::proto::config::observability::Observability;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -22,8 +25,17 @@ mod proof_submitter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let opt = Cli::parse();
+    let observability_config = match opt.observability_config_path {
+        Some(path) => {
+            let yaml =
+                std::fs::read_to_string(path).context("Failed to read observability config")?;
+            decode_yaml_repr::<Observability>(&yaml)
+                .context("Failed to parse observability config")?
+        }
+        None => ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?,
+    };
+
     let log_format: vlog::LogFormat = observability_config
         .log_format
         .parse()
@@ -102,4 +114,11 @@ async fn main() -> anyhow::Result<()> {
     stop_sender.send(true).ok();
     tasks.complete(Duration::from_secs(5)).await;
     Ok(())
+}
+
+#[derive(Debug, Parser)]
+#[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
+pub(crate) struct Cli {
+    #[arg(long)]
+    pub(crate) observability_config_path: Option<std::path::PathBuf>,
 }

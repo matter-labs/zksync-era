@@ -89,6 +89,8 @@ zksync_types = { path = "../core/lib/types" }
 zksync_utils = { path = "../core/lib/utils" }
 zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
+zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
+zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 
 wrapper_prover = { package = "wrapper-prover", git = "https://github.com/matter-labs/era-heavy-ops-service.git", rev = "3d33e06" }
 
