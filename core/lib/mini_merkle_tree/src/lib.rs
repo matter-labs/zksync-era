@@ -5,9 +5,9 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::must_use_candidate, clippy::similar_names)]
 
-use std::{collections::VecDeque, iter};
+use std::{collections::VecDeque, iter, marker::PhantomData};
 
-use once_cell::sync::Lazy;
+use once_cell::sync::OnceCell;
 
 #[cfg(test)]
 mod tests;
@@ -34,7 +34,7 @@ const MAX_TREE_DEPTH: usize = 32;
 /// leaves). Cache itself only takes up `O(depth)` space. However, caching prevents the retrieval of paths to the
 /// cached leaves.
 #[derive(Debug, Clone)]
-pub struct MiniMerkleTree<const LEAF_SIZE: usize, H = KeccakHasher> {
+pub struct MiniMerkleTree<L, H = KeccakHasher> {
     hasher: H,
     /// Stores untrimmed (uncached) leaves of the tree.
     hashes: VecDeque<H256>,
@@ -50,11 +50,13 @@ pub struct MiniMerkleTree<const LEAF_SIZE: usize, H = KeccakHasher> {
     /// pushed into the tree. If all leaves are trimmed, cache is the left subset of the Merkle path to
     /// the next leaf to be inserted, which still has index `self.start_index`.
     cache: Vec<Option<H256>>,
+    /// Leaf type marker
+    _leaf: PhantomData<L>,
 }
 
-impl<const LEAF_SIZE: usize> MiniMerkleTree<LEAF_SIZE>
+impl<L: AsRef<[u8]>> MiniMerkleTree<L>
 where
-    KeccakHasher: HashEmptySubtree<LEAF_SIZE>,
+    KeccakHasher: HashEmptySubtree<L>,
 {
     /// Creates a new Merkle tree from the supplied leaves. If `min_tree_size` is supplied and is larger
     /// than the number of the supplied leaves, the leaves are padded to `min_tree_size` with `[0_u8; LEAF_SIZE]` entries.
@@ -63,17 +65,14 @@ where
     /// # Panics
     ///
     /// Panics in the same situations as [`Self::with_hasher()`].
-    pub fn new(
-        leaves: impl Iterator<Item = [u8; LEAF_SIZE]>,
-        min_tree_size: Option<usize>,
-    ) -> Self {
+    pub fn new(leaves: impl Iterator<Item = L>, min_tree_size: Option<usize>) -> Self {
         Self::with_hasher(KeccakHasher, leaves, min_tree_size)
     }
 }
 
-impl<const LEAF_SIZE: usize, H> MiniMerkleTree<LEAF_SIZE, H>
+impl<L: AsRef<[u8]>, H> MiniMerkleTree<L, H>
 where
-    H: HashEmptySubtree<LEAF_SIZE>,
+    H: HashEmptySubtree<L>,
 {
     /// Creates a new Merkle tree from the supplied leaves. If `min_tree_size` is supplied and is larger than the
     /// number of the supplied leaves, the leaves are padded to `min_tree_size` with `[0_u8; LEAF_SIZE]` entries,
@@ -87,10 +86,12 @@ where
     /// - The number of leaves is greater than `2^32`.
     pub fn with_hasher(
         hasher: H,
-        leaves: impl Iterator<Item = [u8; LEAF_SIZE]>,
+        leaves: impl Iterator<Item = L>,
         min_tree_size: Option<usize>,
     ) -> Self {
-        let hashes: Vec<_> = leaves.map(|bytes| hasher.hash_bytes(&bytes)).collect();
+        let hashes: Vec<_> = leaves
+            .map(|bytes| hasher.hash_bytes(bytes.as_ref()))
+            .collect();
         Self::from_hashes(hasher, hashes.into_iter(), min_tree_size)
     }
 
@@ -132,6 +133,7 @@ where
             binary_tree_size,
             start_index: 0,
             cache: vec![None; depth],
+            _leaf: PhantomData,
         }
     }
 
@@ -200,8 +202,8 @@ where
     /// Adds a new leaf to the tree (replaces leftmost empty leaf).
     /// If the tree is full, its size is doubled.
     /// Note: empty leaves != zero leaves.
-    pub fn push(&mut self, leaf: [u8; LEAF_SIZE]) {
-        let leaf_hash = self.hasher.hash_bytes(&leaf);
+    pub fn push(&mut self, leaf: L) {
+        let leaf_hash = self.hasher.hash_bytes(leaf.as_ref());
         self.push_hash(leaf_hash);
     }
 
@@ -294,23 +296,25 @@ enum Side {
 }
 
 /// Hashing of empty binary Merkle trees.
-pub trait HashEmptySubtree<const LEAF_SIZE: usize>:
-    'static + Send + Sync + Hasher<Hash = H256>
-{
-    /// Returns the hash of an empty subtree with the given depth. Implementations
-    /// are encouraged to cache the returned values.
-    fn empty_subtree_hash(&self, depth: usize) -> H256;
+pub trait HashEmptySubtree<L>: 'static + Send + Sync + Hasher<Hash = H256> {
+    /// Returns the hash of an empty subtree with the given depth.
+    /// Implementations are encouraged to cache the returned values.
+    fn empty_subtree_hash(&self, depth: usize) -> H256 {
+        static EMPTY_TREE_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
+        EMPTY_TREE_HASHES.get_or_init(|| compute_empty_tree_hashes(self.empty_hash()))[depth]
+    }
+
+    /// Returns an empty hash
+    fn empty_hash(&self) -> H256;
 }
 
-impl HashEmptySubtree<88> for KeccakHasher {
-    fn empty_subtree_hash(&self, depth: usize) -> H256 {
-        static EMPTY_TREE_HASHES: Lazy<Vec<H256>> = Lazy::new(compute_empty_tree_hashes::<88>);
-        EMPTY_TREE_HASHES[depth]
+impl HashEmptySubtree<[u8; 88]> for KeccakHasher {
+    fn empty_hash(&self) -> H256 {
+        self.hash_bytes(&[0_u8; 88])
     }
 }
 
-fn compute_empty_tree_hashes<const LEAF_SIZE: usize>() -> Vec<H256> {
-    let empty_leaf_hash = KeccakHasher.hash_bytes(&[0_u8; LEAF_SIZE]);
+fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
     iter::successors(Some(empty_leaf_hash), |hash| {
         Some(KeccakHasher.compress(hash, hash))
     })
