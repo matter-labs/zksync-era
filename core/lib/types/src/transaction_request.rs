@@ -584,27 +584,21 @@ impl TransactionRequest {
         Some(EIP_712_TX_TYPE.into()) == self.transaction_type
     }
 
-    pub fn from_bytes(
+    pub fn from_bytes_unverified(
         bytes: &[u8],
-        chain_id: L2ChainId,
     ) -> Result<(Self, H256), SerializationTransactionError> {
         let rlp;
         let mut tx = match bytes.first() {
             Some(x) if *x >= 0x80 => {
                 rlp = Rlp::new(bytes);
                 if rlp.item_count()? != 9 {
-                    return Err(SerializationTransactionError::DecodeRlpError(
-                        DecoderError::RlpIncorrectListLen,
-                    ));
+                    return Err(DecoderError::RlpIncorrectListLen.into());
                 }
                 let v = rlp.val_at(6)?;
-                let (_, tx_chain_id) = PackedEthSignature::unpack_v(v)
-                    .map_err(|_| SerializationTransactionError::MalformedSignature)?;
-                if tx_chain_id.is_some() && tx_chain_id != Some(chain_id.as_u64()) {
-                    return Err(SerializationTransactionError::WrongChainId(tx_chain_id));
-                }
                 Self {
-                    chain_id: tx_chain_id,
+                    chain_id: PackedEthSignature::unpack_v(v)
+                        .map_err(|_| SerializationTransactionError::MalformedSignature)?
+                        .1,
                     v: Some(rlp.val_at(6)?),
                     r: Some(rlp.val_at(7)?),
                     s: Some(rlp.val_at(8)?),
@@ -614,22 +608,15 @@ impl TransactionRequest {
             Some(&EIP_1559_TX_TYPE) => {
                 rlp = Rlp::new(&bytes[1..]);
                 if rlp.item_count()? != 12 {
-                    return Err(SerializationTransactionError::DecodeRlpError(
-                        DecoderError::RlpIncorrectListLen,
-                    ));
+                    return Err(DecoderError::RlpIncorrectListLen.into());
                 }
                 if let Ok(access_list_rlp) = rlp.at(8) {
                     if access_list_rlp.item_count()? > 0 {
                         return Err(SerializationTransactionError::AccessListsNotSupported);
                     }
                 }
-
-                let tx_chain_id = rlp.val_at(0).ok();
-                if tx_chain_id != Some(chain_id.as_u64()) {
-                    return Err(SerializationTransactionError::WrongChainId(tx_chain_id));
-                }
                 Self {
-                    chain_id: tx_chain_id,
+                    chain_id: rlp.val_at(0).ok(),
                     v: Some(rlp.val_at(9)?),
                     r: Some(rlp.val_at(10)?),
                     s: Some(rlp.val_at(11)?),
@@ -641,15 +628,8 @@ impl TransactionRequest {
             Some(&EIP_712_TX_TYPE) => {
                 rlp = Rlp::new(&bytes[1..]);
                 if rlp.item_count()? != 16 {
-                    return Err(SerializationTransactionError::DecodeRlpError(
-                        DecoderError::RlpIncorrectListLen,
-                    ));
+                    return Err(DecoderError::RlpIncorrectListLen.into());
                 }
-                let tx_chain_id = rlp.val_at(10).ok();
-                if tx_chain_id.is_some() && tx_chain_id != Some(chain_id.as_u64()) {
-                    return Err(SerializationTransactionError::WrongChainId(tx_chain_id));
-                }
-
                 Self {
                     v: Some(rlp.val_at(7)?),
                     r: Some(rlp.val_at(8)?),
@@ -664,7 +644,7 @@ impl TransactionRequest {
                             None
                         },
                     }),
-                    chain_id: tx_chain_id,
+                    chain_id: rlp.val_at(10).ok(),
                     transaction_type: Some(EIP_712_TX_TYPE.into()),
                     from: Some(rlp.val_at(11)?),
                     ..Self::decode_eip1559_fields(&rlp, 0)?
@@ -691,8 +671,21 @@ impl TransactionRequest {
             None => tx.recover_default_signer(default_signed_message).ok(),
         };
 
-        let hash = tx.get_tx_hash_with_signed_message(&default_signed_message, chain_id)?;
+        // `tx.raw` is set, so unwrap is safe here.
+        let hash = tx
+            .get_tx_hash_with_signed_message_raw(&default_signed_message)?
+            .unwrap();
+        Ok((tx, hash))
+    }
 
+    pub fn from_bytes(
+        bytes: &[u8],
+        chain_id: L2ChainId,
+    ) -> Result<(Self, H256), SerializationTransactionError> {
+        let (tx, hash) = Self::from_bytes_unverified(bytes)?;
+        if tx.chain_id.is_some() && tx.chain_id != Some(chain_id.as_u64()) {
+            return Err(SerializationTransactionError::WrongChainId(tx.chain_id));
+        }
         Ok((tx, hash))
     }
 
@@ -718,24 +711,32 @@ impl TransactionRequest {
         }
     }
 
+    fn get_tx_hash_with_signed_message_raw(
+        &self,
+        default_signed_message: &H256,
+    ) -> Result<Option<H256>, SerializationTransactionError> {
+        if self.is_eip712_tx() {
+            return Ok(Some(concat_and_hash(
+                *default_signed_message,
+                H256(keccak256(&self.get_signature()?)),
+            )));
+        }
+        Ok(self.raw.as_ref().map(|bytes| H256(keccak256(&bytes.0))))
+    }
+
     fn get_tx_hash_with_signed_message(
         &self,
         default_signed_message: &H256,
         chain_id: L2ChainId,
     ) -> Result<H256, SerializationTransactionError> {
-        let hash = if self.is_eip712_tx() {
-            concat_and_hash(
-                *default_signed_message,
-                H256(keccak256(&self.get_signature()?)),
-            )
-        } else if let Some(bytes) = &self.raw {
-            H256(keccak256(&bytes.0))
+        if let Some(hash) = self.get_tx_hash_with_signed_message_raw(default_signed_message)? {
+            Ok(hash)
         } else {
             let signature = self.get_packed_signature()?;
-            H256(keccak256(&self.get_signed_bytes(&signature, chain_id)))
-        };
-
-        Ok(hash)
+            Ok(H256(keccak256(
+                &self.get_signed_bytes(&signature, chain_id),
+            )))
+        }
     }
 
     pub fn get_tx_hash(&self, chain_id: L2ChainId) -> Result<H256, SerializationTransactionError> {
@@ -801,9 +802,8 @@ impl TransactionRequest {
 }
 
 impl L2Tx {
-    pub fn from_request(
+    pub(crate) fn from_request_unverified(
         value: TransactionRequest,
-        max_tx_size: usize,
     ) -> Result<Self, SerializationTransactionError> {
         let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
@@ -844,6 +844,14 @@ impl L2Tx {
         if let Some(raw_bytes) = value.raw {
             tx.set_raw_bytes(raw_bytes);
         }
+        Ok(tx)
+    }
+
+    pub fn from_request(
+        value: TransactionRequest,
+        max_tx_size: usize,
+    ) -> Result<Self, SerializationTransactionError> {
+        let tx = Self::from_request_unverified(value)?;
         tx.check_encoded_size(max_tx_size)?;
         Ok(tx)
     }
