@@ -870,7 +870,7 @@ impl From<L2Tx> for CallRequest {
             custom_signature: Some(tx.common_data.signature.clone()),
             paymaster_params: Some(tx.common_data.paymaster_params.clone()),
         };
-        meta.factory_deps = tx.execute.factory_deps.clone();
+        meta.factory_deps.clone_from(&tx.execute.factory_deps);
         let mut request = CallRequestBuilder::default()
             .from(tx.initiator_account())
             .gas(tx.common_data.fee.gas_limit)

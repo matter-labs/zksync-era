@@ -531,7 +531,7 @@ impl serde::Serialize for ProtocolUpgradeTxCommonData {
             to_mint: self.to_mint,
             refund_recipient: self.refund_recipient,
 
-            /// DEPRECATED.
+            // DEPRECATED.
             eth_hash: H256::default(),
             eth_block: self.eth_block,
         }

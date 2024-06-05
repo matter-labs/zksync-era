@@ -260,7 +260,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
         .get_transaction_receipts(&[tx_hash])
         .await
         .unwrap()
-        .get(0)
+        .first()
         .cloned()
         .expect("Transaction not persisted");
     assert_eq!(
