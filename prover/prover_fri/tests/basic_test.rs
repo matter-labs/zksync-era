@@ -31,6 +31,7 @@ async fn prover_and_assert_base_layer(
             file_backed_base_path: "./tests/data/".to_owned(),
         },
         max_retries: 5,
+        cache_path: None,
     };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
