@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use vm2::{
-    decode::decode_program, fat_pointer::FatPointer, ExecutionEnd, Program, Settings,
-    VirtualMachine,
+    decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
+    ExecutionEnd, Program, Settings, VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
@@ -19,7 +19,7 @@ use zksync_types::{
         compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS,
+    AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
@@ -172,7 +172,7 @@ impl<S: ReadStorage> Vm<S> {
                     assert!(fp.offset == 0);
 
                     let return_data = self.inner.state.heaps[fp.memory_page]
-                        [fp.start as usize..(fp.start + fp.length) as usize]
+                        .read_range_big_endian(fp.start..fp.start + fp.length)
                         .to_vec();
 
                     last_tx_result = Some(if result.is_zero() {
@@ -298,8 +298,7 @@ impl<S: ReadStorage> Vm<S> {
     /// Typically used to read the bootloader heap. We know that we're in the bootloader
     /// when a hook occurs, as they are only enabled when preprocessing bootloader code.
     pub(crate) fn read_heap_word(&self, word: usize) -> U256 {
-        self.inner.state.heaps[self.inner.state.current_frame.heap][word * 32..(word + 1) * 32]
-            .into()
+        self.inner.state.heaps[self.inner.state.current_frame.heap].read_u256(word as u32 * 32)
     }
 
     pub(crate) fn write_to_bootloader_heap(
@@ -309,11 +308,7 @@ impl<S: ReadStorage> Vm<S> {
         assert!(self.inner.state.previous_frames.is_empty());
         let heap = &mut self.inner.state.heaps[self.inner.state.current_frame.heap];
         for (slot, value) in memory {
-            let end = (slot + 1) * 32;
-            if heap.len() <= end {
-                heap.resize(end, 0);
-            }
-            value.to_big_endian(&mut heap[slot * 32..end]);
+            heap.write_u256(slot as u32 * 32, value);
         }
     }
 
