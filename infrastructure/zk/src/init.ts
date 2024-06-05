@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
-import * as utils from './utils';
-import { announced } from './utils';
+import * as utils from 'utils';
+import { announced } from 'utils';
 
 import { clean } from './clean';
 import * as compiler from './compiler';
@@ -161,7 +161,12 @@ export const initDevCmdAction = async ({
         await makeEraChainIdSameAsCurrent();
     }
     let deploymentMode = validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
-    await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, deploymentMode });
+    await initSetup({
+        skipEnvSetup,
+        skipSubmodulesCheckout,
+        runObservability,
+        deploymentMode
+    });
     if (!skipVerifier) {
         await deployVerifier();
     }
@@ -170,7 +175,12 @@ export const initDevCmdAction = async ({
     }
     await initBridgehubStateTransition();
     await initDatabase();
-    await initHyperchain({ includePaymaster: true, baseTokenName, localLegacyBridgeTesting, deploymentMode });
+    await initHyperchain({
+        includePaymaster: true,
+        baseTokenName,
+        localLegacyBridgeTesting,
+        deploymentMode
+    });
     if (localLegacyBridgeTesting) {
         await makeEraAddressSameAsCurrent();
     }
@@ -214,10 +224,19 @@ export const initHyperCmdAction = async ({
         config.bumpChainId();
     }
     if (!skipSetupCompletely) {
-        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, deploymentMode });
+        await initSetup({
+            skipEnvSetup: false,
+            skipSubmodulesCheckout: false,
+            runObservability,
+            deploymentMode
+        });
     }
     await initDatabase();
-    await initHyperchain({ includePaymaster: true, baseTokenName, deploymentMode });
+    await initHyperchain({
+        includePaymaster: true,
+        baseTokenName,
+        deploymentMode
+    });
 };
 
 // ########################### Command Definitions ###########################

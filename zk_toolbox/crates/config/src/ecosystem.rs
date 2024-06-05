@@ -1,5 +1,6 @@
 use std::{cell::OnceCell, path::PathBuf};
 
+use path_absolutize::Absolutize;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 use types::{ChainId, L1Network, ProverMode, WalletCreation};
@@ -66,7 +67,11 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
         Ok(EcosystemConfig {
             name: config.name.clone(),
             l1_network: config.l1_network,
-            link_to_code: config.link_to_code.clone(),
+            link_to_code: config
+                .link_to_code
+                .absolutize()
+                .expect("Failed to parse zksync-era path")
+                .to_path_buf(),
             chains: config.chains.clone(),
             config: config.config.clone(),
             default_chain: config.default_chain.clone(),
@@ -117,7 +122,11 @@ impl EcosystemConfig {
             configs: config.configs,
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
             l1_network: self.l1_network,
-            link_to_code: self.link_to_code.clone(),
+            link_to_code: self
+                .link_to_code
+                .absolutize()
+                .expect("Failed to parse zksync-era path")
+                .into(),
             base_token: config.base_token,
             rocks_db_path: config.rocks_db_path,
             wallet_creation: config.wallet_creation,
@@ -187,7 +196,11 @@ impl EcosystemConfig {
         EcosystemConfigInternal {
             name: self.name.clone(),
             l1_network: self.l1_network,
-            link_to_code: self.link_to_code.clone(),
+            link_to_code: self
+                .link_to_code
+                .absolutize()
+                .expect("Failed to parse zksync-era path")
+                .into(),
             chains: self.chains.clone(),
             config: self.config.clone(),
             default_chain: self.default_chain.clone(),

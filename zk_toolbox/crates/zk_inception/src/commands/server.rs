@@ -1,11 +1,11 @@
 use anyhow::Context;
-use common::{config::global_config, logger};
+use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
 use config::{ChainConfig, EcosystemConfig};
-use xshell::Shell;
+use xshell::{cmd, Shell};
 
 use crate::{
     commands::args::RunServerArgs,
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_STARTING_SERVER},
+    messages::{MSG_BUILDING_L1_CONTRACTS, MSG_CHAIN_NOT_INITIALIZED, MSG_STARTING_SERVER},
     server::{RunServer, ServerMode},
 };
 
@@ -18,8 +18,18 @@ pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     logger::info(MSG_STARTING_SERVER);
+
+    build_l1_contracts(shell, &ecosystem_config)?;
     run_server(args, &chain_config, shell)?;
 
+    Ok(())
+}
+
+fn build_l1_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(ecosystem_config.path_to_foundry());
+    let spinner = Spinner::new(MSG_BUILDING_L1_CONTRACTS);
+    Cmd::new(cmd!(shell, "yarn build")).run()?;
+    spinner.finish();
     Ok(())
 }
 
