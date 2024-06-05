@@ -2,7 +2,7 @@ use std::{error, fmt::Display};
 
 use serde::Serialize;
 
-/// DAError is the error type returned by the DA clients.
+/// `DAError` is the error type returned by the DA clients.
 #[derive(Debug)]
 pub struct DAError {
     pub error: anyhow::Error,
@@ -32,14 +32,14 @@ pub trait IsTransient {
 
 impl error::Error for DAError {}
 
-/// DispatchResponse is the response received from the DA layer after dispatching a blob.
+/// `DispatchResponse` is the response received from the DA layer after dispatching a blob.
 #[derive(Default)]
 pub struct DispatchResponse {
     /// The blob_id is needed to fetch the inclusion data.
     pub blob_id: String,
 }
 
-/// InclusionData is the data needed to prove that a blob is included in the DA layer.
+/// `InclusionData` is the data needed to prove that a blob is included in the DA layer.
 #[derive(Default, Serialize)]
 pub struct InclusionData {
     /// The inclusion data serialized by the DA client. Serialization is done in a way that allows
