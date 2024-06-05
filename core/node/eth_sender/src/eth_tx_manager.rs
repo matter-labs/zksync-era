@@ -310,22 +310,32 @@ impl EthTxManager {
         tx_history_id: u32,
         raw_tx: RawTransactionBytes,
         current_block: L1BlockNumber,
-    ) -> Result<H256, EthSenderError> {
+    ) -> Result<(), EthSenderError> {
         match self.query_client().send_raw_tx(raw_tx).await {
-            Ok(tx_hash) => {
+            Ok(_) => {
                 storage
                     .eth_sender_dal()
                     .set_sent_at_block(tx_history_id, current_block.0)
                     .await
                     .unwrap();
-                Ok(tx_hash)
+                Ok(())
             }
             Err(error) => {
-                storage
-                    .eth_sender_dal()
-                    .remove_tx_history(tx_history_id)
-                    .await
-                    .unwrap();
+                // In transient errors, server may have received the transaction
+                // we don't want to loose record about it in case that happens
+                if !error.is_transient() {
+                    storage
+                        .eth_sender_dal()
+                        .set_sent_at_block(tx_history_id, current_block.0)
+                        .await
+                        .unwrap();
+                } else {
+                    storage
+                        .eth_sender_dal()
+                        .remove_tx_history(tx_history_id)
+                        .await
+                        .unwrap();
+                }
                 Err(error.into())
             }
         }
