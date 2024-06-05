@@ -35,9 +35,11 @@ use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 use zksync_node_sync::{
     batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-    tree_data_fetcher::TreeDataFetcher, ActionQueue, MainNodeHealthCheck, SyncState,
+    tree_data_fetcher::TreeDataFetcher, validate_chain_ids_task::ValidateChainIdsTask, ActionQueue,
+    MainNodeHealthCheck, SyncState,
 };
 use zksync_reorg_detector::ReorgDetector;
+use zksync_shared_metrics::rustc::RUST_METRICS;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
     seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
@@ -54,13 +56,10 @@ use zksync_web3_decl::{
 
 use crate::{
     config::ExternalNodeConfig,
-    helpers::ValidateChainIdsTask,
     init::{ensure_storage_initialized, SnapshotRecoveryConfig},
-    metrics::RUST_METRICS,
 };
 
 mod config;
-mod helpers;
 mod init;
 mod metadata;
 mod metrics;

@@ -14,7 +14,7 @@ use zksync_web3_decl::{
 
 /// Task that validates chain IDs using main node and Ethereum clients.
 #[derive(Debug)]
-pub(crate) struct ValidateChainIdsTask {
+pub struct ValidateChainIdsTask {
     l1_chain_id: L1ChainId,
     l2_chain_id: L2ChainId,
     eth_client: Box<DynClient<L1>>,
