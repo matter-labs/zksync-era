@@ -596,6 +596,7 @@ impl TransactionRequest {
                 }
                 let v = rlp.val_at(6)?;
                 Self {
+                    // For legacy transactions chain_id is optional.
                     chain_id: PackedEthSignature::unpack_v(v)
                         .map_err(|_| SerializationTransactionError::MalformedSignature)?
                         .1,
@@ -616,7 +617,7 @@ impl TransactionRequest {
                     }
                 }
                 Self {
-                    chain_id: rlp.val_at(0).ok(),
+                    chain_id: Some(rlp.val_at(0)?),
                     v: Some(rlp.val_at(9)?),
                     r: Some(rlp.val_at(10)?),
                     s: Some(rlp.val_at(11)?),
@@ -644,7 +645,7 @@ impl TransactionRequest {
                             None
                         },
                     }),
-                    chain_id: rlp.val_at(10).ok(),
+                    chain_id: Some(rlp.val_at(10)?),
                     transaction_type: Some(EIP_712_TX_TYPE.into()),
                     from: Some(rlp.val_at(11)?),
                     ..Self::decode_eip1559_fields(&rlp, 0)?
