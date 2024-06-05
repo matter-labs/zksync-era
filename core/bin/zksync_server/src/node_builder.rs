@@ -8,7 +8,10 @@ use zksync_config::{
     ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
-use zksync_default_da_clients::no_da::wiring_layer::NoDAClientWiringLayer;
+use zksync_default_da_clients::{
+    gcs::{config::ObjectStoreDAConfig, wiring_layer::ObjectStorageClientWiringLayer},
+    no_da::wiring_layer::NoDAClientWiringLayer,
+};
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::{ApiContracts, TxSenderConfig},
@@ -404,6 +407,15 @@ impl MainNodeBuilder {
 
     fn add_no_da_client_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(NoDAClientWiringLayer::new());
+        Ok(self)
+    }
+
+    #[allow(dead_code)]
+    fn add_object_storage_da_client_layer(mut self) -> anyhow::Result<Self> {
+        let object_store_config = ObjectStoreDAConfig::from_env()?;
+        self.node.add_layer(ObjectStorageClientWiringLayer::new(
+            object_store_config.config,
+        ));
         Ok(self)
     }
 

@@ -2822,16 +2822,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyperchain_da"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da.git?rev=822542abff3e7c9e42c6e65f4ba29f289a979d3d#822542abff3e7c9e42c6e65f4ba29f289a979d3d"
-dependencies = [
- "anyhow",
- "async-trait",
- "serde",
-]
-
-[[package]]
 name = "iana-time-zone"
 version = "0.1.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7949,7 +7939,6 @@ name = "zksync_config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "hyperchain_da",
  "rand 0.8.5",
  "secrecy",
  "serde",
@@ -8124,7 +8113,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "envy",
- "hyperchain_da",
  "serde",
  "zksync_basic_types",
  "zksync_config",

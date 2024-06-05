@@ -20,3 +20,4 @@ zksync_types.workspace = true
 zksync_object_store.workspace = true
 zksync_da_client.workspace = true
 zksync_node_framework.workspace = true
+zksync_env_config.workspace = true

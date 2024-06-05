@@ -17,7 +17,7 @@ mod tests {
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
-    fn expected_celestia_da_layer_config(
+    fn expected_da_layer_config(
         interval: u32,
         rows_limit: u32,
         max_retries: u16,
@@ -39,6 +39,6 @@ mod tests {
         "#;
         lock.set_env(config);
         let actual = DADispatcherConfig::from_env().unwrap();
-        assert_eq!(actual, expected_celestia_da_layer_config(5, 60, 7));
+        assert_eq!(actual, expected_da_layer_config(5, 60, 7));
     }
 }
