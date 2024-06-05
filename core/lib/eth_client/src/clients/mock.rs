@@ -31,9 +31,9 @@ impl From<Vec<u8>> for MockTx {
     fn from(tx: Vec<u8>) -> Self {
         let len = tx.len();
         let recipient = Address::from_slice(&tx[len - 116..len - 96]);
-        let max_fee_per_gas = U256::try_from(&tx[len - 96..len - 64]).unwrap();
-        let max_priority_fee_per_gas = U256::try_from(&tx[len - 64..len - 32]).unwrap();
-        let nonce = U256::try_from(&tx[len - 32..]).unwrap().as_u64();
+        let max_fee_per_gas = U256::from(&tx[len - 96..len - 64]);
+        let max_priority_fee_per_gas = U256::from(&tx[len - 64..len - 32]);
+        let nonce = U256::from(&tx[len - 32..]).as_u64();
         let hash = {
             let mut buffer = [0_u8; 32];
             buffer.copy_from_slice(&tx[..32]);

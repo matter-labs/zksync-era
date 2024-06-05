@@ -241,7 +241,8 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             });
             let compressed_bytecodes: Vec<_> = filtered_deps.collect();
 
-            self.last_tx_compressed_bytecodes = compressed_bytecodes.clone();
+            self.last_tx_compressed_bytecodes
+                .clone_from(&compressed_bytecodes);
             crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
                 &mut self.vm,
                 &tx,

@@ -305,7 +305,7 @@ impl WorkingPatchSet {
             if nibble_count == 0 {
                 // Copy the root node to all parts.
                 for part in &mut parts {
-                    part.changes_by_nibble_count[0] = level.clone();
+                    part.changes_by_nibble_count[0].clone_from(&level);
                 }
             } else {
                 for (nibbles, node) in level {

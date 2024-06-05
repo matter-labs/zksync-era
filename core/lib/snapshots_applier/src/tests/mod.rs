@@ -351,7 +351,8 @@ async fn recovering_tokens() {
         });
     }
     let (object_store, mut client) = prepare_clients(&expected_status, &storage_logs).await;
-    client.tokens_response = tokens.clone();
+
+    client.tokens_response.clone_from(&tokens);
 
     let task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),
