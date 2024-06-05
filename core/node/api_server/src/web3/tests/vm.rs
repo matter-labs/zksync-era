@@ -179,13 +179,13 @@ impl SendRawTransactionTest {
             ..api::TransactionRequest::default()
         };
         let mut rlp = Default::default();
-        tx_request.rlp(&mut rlp, L2ChainId::default().as_u64(), None);
+        tx_request.rlp(&mut rlp, None);
         let data = rlp.out();
         let signed_message = PackedEthSignature::message_to_signed_bytes(&data);
         let signature = PackedEthSignature::sign_raw(&private_key, &signed_message).unwrap();
 
         let mut rlp = Default::default();
-        tx_request.rlp(&mut rlp, L2ChainId::default().as_u64(), Some(&signature));
+        tx_request.rlp(&mut rlp, Some(&signature));
         let data = rlp.out();
         let (_, tx_hash) =
             api::TransactionRequest::from_bytes(&data, L2ChainId::default()).unwrap();

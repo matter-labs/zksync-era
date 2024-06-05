@@ -236,19 +236,19 @@ impl L2Tx {
         self.common_data.set_input(data, hash)
     }
 
-    pub fn get_rlp_bytes(&self, chain_id: L2ChainId) -> Bytes {
+    fn get_rlp_bytes(tx: &TransactionRequest) -> Bytes {
         let mut rlp_stream = RlpStream::new();
-        let tx: TransactionRequest = self.clone().into();
-        tx.rlp(&mut rlp_stream, chain_id.as_u64(), None);
+        tx.rlp(&mut rlp_stream, None);
         Bytes(rlp_stream.as_raw().to_vec())
     }
 
     pub fn get_signed_bytes(&self, chain_id: L2ChainId) -> H256 {
-        let tx: TransactionRequest = self.clone().into();
+        let mut tx: TransactionRequest = self.clone().into();
+        tx.chain_id = Some(chain_id.as_u64());
         if tx.is_eip712_tx() {
             PackedEthSignature::typed_data_to_signed_bytes(&Eip712Domain::new(chain_id), &tx)
         } else {
-            let mut data = self.get_rlp_bytes(chain_id).0;
+            let mut data = Self::get_rlp_bytes(&tx).0;
             if let Some(tx_type) = tx.transaction_type {
                 data.insert(0, tx_type.as_u32() as u8);
             }
