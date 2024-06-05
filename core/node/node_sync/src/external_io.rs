@@ -12,7 +12,7 @@ use zksync_state_keeper::{
         L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
-    seal_criteria::IoSealCriteria,
+    seal_criteria::{IoSealCriteria, UnexecutableReason},
     updates::UpdatesManager,
 };
 use zksync_types::{
@@ -304,10 +304,10 @@ impl StateKeeperIO for ExternalIO {
         anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
     }
 
-    async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()> {
+    async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
         // We are replaying the already executed transactions so no rejections are expected to occur.
         anyhow::bail!(
-            "Requested rejection of transaction {:?} because of the following error: {error}. \
+            "Requested rejection of transaction {:?} because of the following error: {reason}. \
              This is not supported on external node",
             tx.hash()
         );
