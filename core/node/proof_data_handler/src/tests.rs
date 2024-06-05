@@ -97,7 +97,7 @@ async fn request_tee_proof_inputs() {
             Request::builder()
                 .method(Method::POST)
                 .uri("/tee_proof_inputs")
-                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::CONTENT_TYPE, "application/json")
                 .body(req_body)
                 .unwrap(),
         )
@@ -238,7 +238,7 @@ async fn send_submit_tee_proof_request(
             Request::builder()
                 .method(Method::POST)
                 .uri(uri)
-                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::CONTENT_TYPE, "application/json")
                 .body(req_body)
                 .unwrap(),
         )
