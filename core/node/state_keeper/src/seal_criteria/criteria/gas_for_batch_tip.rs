@@ -2,7 +2,7 @@ use multivm::utils::gas_bootloader_batch_tip_overhead;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{
-    ErrorMessage, SealCriterion, SealData, SealResolution, StateKeeperConfig,
+    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
 };
 
 /// Checks whether we should exclude the transaction because we don't have enough gas for batch tip.
@@ -24,7 +24,7 @@ impl SealCriterion for GasForBatchTipCriterion {
 
         if tx_data.gas_remaining < batch_tip_overhead {
             if is_tx_first {
-                ErrorMessage::OutOfGasForBatchTip.into()
+                UnexecutableReason::OutOfGasForBatchTip.into()
             } else {
                 SealResolution::ExcludeAndSeal
             }

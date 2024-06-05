@@ -1,7 +1,9 @@
 use zksync_types::ProtocolVersionId;
 
 use crate::{
-    seal_criteria::{ErrorMessage, SealCriterion, SealData, SealResolution, StateKeeperConfig},
+    seal_criteria::{
+        SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
+    },
     utils::new_block_gas_count,
 };
 
@@ -30,7 +32,7 @@ impl SealCriterion for GasCriterion {
             (config.max_single_tx_gas as f64 * config.close_block_at_gas_percentage).round() as u32;
 
         if (tx_data.gas_count + new_block_gas_count()).any_field_greater_than(tx_bound) {
-            ErrorMessage::TooMuchGas.into()
+            UnexecutableReason::TooMuchGas.into()
         } else if block_data
             .gas_count
             .any_field_greater_than(config.max_single_tx_gas)
@@ -53,7 +55,6 @@ mod tests {
     use zksync_types::block::BlockGasCount;
 
     use super::*;
-    use crate::seal_criteria::ErrorMessage;
 
     #[test]
     fn test_gas_seal_criterion() {
@@ -102,7 +103,10 @@ mod tests {
             },
             ProtocolVersionId::latest(),
         );
-        assert_eq!(huge_transaction_resolution, ErrorMessage::TooMuchGas.into());
+        assert_eq!(
+            huge_transaction_resolution,
+            UnexecutableReason::TooMuchGas.into()
+        );
 
         // Check criterion workflow
         let reject_tx_bound =

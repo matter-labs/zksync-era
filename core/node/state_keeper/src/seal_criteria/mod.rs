@@ -59,7 +59,8 @@ fn halt_as_metric_label(halt: &Halt) -> &'static str {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ErrorMessage {
+pub enum UnexecutableReason {
+    Halt(Halt),
     TxEncodingSize,
     LargeEncodingSize,
     PubdataLimit,
@@ -70,73 +71,42 @@ pub enum ErrorMessage {
     NotEnoughGasProvided,
 }
 
-impl ErrorMessage {
-    pub fn as_static_str(&self) -> &'static str {
-        match &self {
-            ErrorMessage::TxEncodingSize => {
-                "Transaction cannot be included due to large encoding size"
-            }
-            ErrorMessage::LargeEncodingSize => {
-                "Transaction cannot be included due to large encoding size"
-            }
-            ErrorMessage::PubdataLimit => "Transaction cannot be sent to L1 due to pubdata limits",
-            ErrorMessage::ProofWillFail => "ZK proof cannot be generated for a transaction",
-            ErrorMessage::TooMuchGas => "Transaction requires too much gas",
-            ErrorMessage::OutOfGasForBatchTip => "Not enough gas for batch tip",
-            ErrorMessage::BootloaderOutOfGas => "Bootloader ran out of gas",
-            ErrorMessage::NotEnoughGasProvided => "Not enough gas provided",
-        }
-    }
-}
-
-fn error_message_as_metric_label(error_message: &ErrorMessage) -> &'static str {
-    match error_message {
-        ErrorMessage::TxEncodingSize => "TxEncodingSize",
-        ErrorMessage::LargeEncodingSize => "LargeEncodingSize",
-        ErrorMessage::PubdataLimit => "PubdataLimit",
-        ErrorMessage::ProofWillFail => "ProofWillFail",
-        ErrorMessage::TooMuchGas => "TooMuchGas",
-        ErrorMessage::OutOfGasForBatchTip => "OutOfGasForBatchTip",
-        ErrorMessage::BootloaderOutOfGas => "BootloaderOutOfGas",
-        ErrorMessage::NotEnoughGasProvided => "NotEnoughGasProvided",
-    }
-}
-/// Represents the reason variants for why a transaction was considered unexecutable.
-///
-/// This enum can capture either a hardcoded textual message or a more structured
-/// reason encapsulated in a `Halt` type.
-#[derive(Debug, Clone, PartialEq)]
-pub enum UnexecutableReason {
-    Text(ErrorMessage),
-    Halt(Halt),
-}
-
 impl UnexecutableReason {
     pub fn as_metric_label(&self) -> &'static str {
         match self {
-            UnexecutableReason::Text(text) => error_message_as_metric_label(text),
             UnexecutableReason::Halt(halt) => halt_as_metric_label(halt),
+            UnexecutableReason::TxEncodingSize => "TxEncodingSize",
+            UnexecutableReason::LargeEncodingSize => "LargeEncodingSize",
+            UnexecutableReason::PubdataLimit => "PubdataLimit",
+            UnexecutableReason::ProofWillFail => "ProofWillFail",
+            UnexecutableReason::TooMuchGas => "TooMuchGas",
+            UnexecutableReason::OutOfGasForBatchTip => "OutOfGasForBatchTip",
+            UnexecutableReason::BootloaderOutOfGas => "BootloaderOutOfGas",
+            UnexecutableReason::NotEnoughGasProvided => "NotEnoughGasProvided",
         }
     }
 }
 
-impl From<ErrorMessage> for SealResolution {
-    fn from(message: ErrorMessage) -> Self {
-        SealResolution::Unexecutable(UnexecutableReason::Text(message))
-    }
-}
-
-impl From<Halt> for SealResolution {
-    fn from(halt: Halt) -> Self {
-        SealResolution::Unexecutable(UnexecutableReason::Halt(halt))
+impl From<UnexecutableReason> for SealResolution {
+    fn from(reason: UnexecutableReason) -> Self {
+        SealResolution::Unexecutable(reason)
     }
 }
 
 impl fmt::Display for UnexecutableReason {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            UnexecutableReason::Text(text) => write!(f, "{}", text.as_static_str()),
             UnexecutableReason::Halt(halt) => write!(f, "{}", halt),
+            UnexecutableReason::TxEncodingSize => write!(f, "Transaction encoding size is too big"),
+            UnexecutableReason::LargeEncodingSize => {
+                write!(f, "Transaction encoding size is too big")
+            }
+            UnexecutableReason::PubdataLimit => write!(f, "Pubdata limit reached"),
+            UnexecutableReason::ProofWillFail => write!(f, "Proof will fail"),
+            UnexecutableReason::TooMuchGas => write!(f, "Too much gas"),
+            UnexecutableReason::OutOfGasForBatchTip => write!(f, "Out of gas for batch tip"),
+            UnexecutableReason::BootloaderOutOfGas => write!(f, "Bootloader out of gas"),
+            UnexecutableReason::NotEnoughGasProvided => write!(f, "Not enough gas provided"),
         }
     }
 }

@@ -2,7 +2,7 @@ use multivm::utils::get_bootloader_encoding_space;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{
-    ErrorMessage, SealCriterion, SealData, SealResolution, StateKeeperConfig,
+    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
 };
 
 #[derive(Debug)]
@@ -28,7 +28,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
             .round();
 
         if tx_data.cumulative_size > reject_bound as usize {
-            ErrorMessage::LargeEncodingSize.into()
+            UnexecutableReason::LargeEncodingSize.into()
         } else if block_data.cumulative_size > bootloader_tx_encoding_space as usize {
             SealResolution::ExcludeAndSeal
         } else if block_data.cumulative_size > include_and_seal_bound as usize {
@@ -46,7 +46,6 @@ impl SealCriterion for TxEncodingSizeCriterion {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::seal_criteria::ErrorMessage;
 
     #[test]
     fn seal_criterion() {
@@ -85,7 +84,7 @@ mod tests {
         );
         assert_eq!(
             unexecutable_resolution,
-            ErrorMessage::LargeEncodingSize.into()
+            UnexecutableReason::LargeEncodingSize.into()
         );
 
         let exclude_and_seal_resolution = criterion.should_seal(
