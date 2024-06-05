@@ -642,15 +642,28 @@ impl From<Call> for DebugCall {
 
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct ProtocolVersion {
-    /// Protocol version ID
-    pub version_id: u16,
+    /// Minor version of the protocol
+    #[deprecated]
+    pub version_id: Option<u16>,
+    /// Minor version of the protocol
+    #[serde(rename = "minorVersion")]
+    pub minor_version: Option<u16>,
     /// Timestamp at which upgrade should be performed
     pub timestamp: u64,
     /// Verifier configuration
-    pub verification_keys_hashes: L1VerifierConfig,
+    #[deprecated]
+    pub verification_keys_hashes: Option<L1VerifierConfig>,
     /// Hashes of base system contracts (bootloader and default account)
-    pub base_system_contracts: BaseSystemContractsHashes,
+    #[deprecated]
+    pub base_system_contracts: Option<BaseSystemContractsHashes>,
+    /// Bootloader code hash
+    #[serde(rename = "bootloaderCodeHash")]
+    pub bootloader_code_hash: Option<H256>,
+    /// Default account code hash
+    #[serde(rename = "defaultAccountCodeHash")]
+    pub default_account_code_hash: Option<H256>,
     /// L2 Upgrade transaction hash
+    #[serde(rename = "l2SystemUpgradeTxHash")]
     pub l2_system_upgrade_tx_hash: Option<H256>,
 }
 
@@ -750,4 +763,37 @@ pub struct ApiStorageLog {
     pub address: Address,
     pub key: U256,
     pub written_value: U256,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[allow(deprecated)]
+    #[test]
+    fn check_protocol_version_type_compatibility() {
+        let new_version = ProtocolVersion {
+            version_id: Some(24),
+            minor_version: Some(24),
+            timestamp: 0,
+            verification_keys_hashes: Some(Default::default()),
+            base_system_contracts: Some(Default::default()),
+            bootloader_code_hash: Some(Default::default()),
+            default_account_code_hash: Some(Default::default()),
+            l2_system_upgrade_tx_hash: Default::default(),
+        };
+
+        #[derive(Deserialize)]
+        #[allow(dead_code)]
+        struct OldProtocolVersion {
+            pub version_id: u16,
+            pub timestamp: u64,
+            pub verification_keys_hashes: L1VerifierConfig,
+            pub base_system_contracts: BaseSystemContractsHashes,
+            pub l2_system_upgrade_tx_hash: Option<H256>,
+        }
+
+        serde_json::from_str::<OldProtocolVersion>(&serde_json::to_string(&new_version).unwrap())
+            .unwrap();
+    }
 }

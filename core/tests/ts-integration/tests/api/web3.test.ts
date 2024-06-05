@@ -833,7 +833,10 @@ describe('web3 API compatibility tests', () => {
         };
         let expectedProtocolVersion = {
             version_id: expect.any(Number),
+            minorVersion: expect.any(Number),
             base_system_contracts: expectedSysContractsHashes,
+            bootloaderCodeHash: expect.stringMatching(HEX_VALUE_REGEX),
+            defaultAccountCodeHash: expect.stringMatching(HEX_VALUE_REGEX),
             verification_keys_hashes: {
                 params: {
                     recursion_circuits_set_vks_hash: expect.stringMatching(HEX_VALUE_REGEX),
