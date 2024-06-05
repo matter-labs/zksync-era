@@ -288,6 +288,7 @@ pub async fn initialize_components(
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
 
+    // Gas adjuster db connection will be None if the BaseTokenPriceFetcher component is not enabled.
     let gas_adjuster_db_conn = match components.contains(&Component::BaseTokenPriceFetcher) {
         true => Some(connection_pool.clone()),
         false => None,
