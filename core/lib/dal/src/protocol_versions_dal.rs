@@ -254,7 +254,6 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.timestamp,
                 protocol_versions.bootloader_code_hash,
                 protocol_versions.default_account_code_hash,
-                protocol_versions.upgrade_tx_hash,
                 protocol_patches.patch,
                 protocol_patches.recursion_scheduler_level_vk_hash,
                 protocol_patches.recursion_node_level_vk_hash,
