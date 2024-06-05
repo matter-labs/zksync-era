@@ -23,6 +23,7 @@
     clippy::doc_markdown
 )]
 
+mod cache;
 mod factory;
 mod file;
 mod gcs;

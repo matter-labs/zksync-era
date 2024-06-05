@@ -5,6 +5,7 @@ use tokio::sync::OnceCell;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 
 use crate::{
+    cache::CachingObjectStore,
     file::FileBackedObjectStore,
     gcs::{GoogleCloudStore, GoogleCloudStoreAuthMode},
     raw::{ObjectStore, ObjectStoreError},
@@ -66,7 +67,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Ok(Arc::new(store))
+                Self::wrap_cache(store, config.cache_path.as_ref()).await
             }
             ObjectStoreMode::GCSWithCredentialFile {
                 bucket_base_url,
@@ -82,17 +83,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Ok(Arc::new(store))
-            }
-            ObjectStoreMode::FileBacked {
-                file_backed_base_path,
-            } => {
-                tracing::trace!("Initialized FileBacked Object store");
-                let store = StoreWithRetries::try_new(config.max_retries, || {
-                    FileBackedObjectStore::new(file_backed_base_path.clone())
-                })
-                .await?;
-                Ok(Arc::new(store))
+                Self::wrap_cache(store, config.cache_path.as_ref()).await
             }
             ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
                 tracing::trace!("Initialized GoogleCloudStoragePublicReadOnly store");
@@ -103,8 +94,34 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
+                Self::wrap_cache(store, config.cache_path.as_ref()).await
+            }
+
+            ObjectStoreMode::FileBacked {
+                file_backed_base_path,
+            } => {
+                tracing::trace!("Initialized FileBacked Object store");
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    FileBackedObjectStore::new(file_backed_base_path.clone())
+                })
+                .await?;
+
+                if let Some(cache_path) = &config.cache_path {
+                    tracing::warn!("Caching doesn't make sense with file-backed object store; ignoring cache path `{cache_path}`");
+                }
                 Ok(Arc::new(store))
             }
         }
+    }
+
+    async fn wrap_cache(
+        store: impl ObjectStore,
+        cache_path: Option<&String>,
+    ) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
+        Ok(if let Some(cache_path) = cache_path {
+            Arc::new(CachingObjectStore::new(store, cache_path.clone()).await?)
+        } else {
+            Arc::new(store)
+        })
     }
 }
