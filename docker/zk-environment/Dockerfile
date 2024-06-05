@@ -22,7 +22,7 @@ RUN git submodule update --init --recursive
 WORKDIR /solidity/build
 # The default compilation is Release with Debug symbols, which is quite large.
 RUN cmake .. -DCMAKE_BUILD_TYPE="Release"
-RUN make
+RUN make -j
 
 # Rust binaries - with a separate builder.
 FROM rust:slim-bookworm as rust-builder
@@ -32,13 +32,16 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     pkg-config \
     libclang-15-dev \
-    g++
+    g++ \
+    cmake
 
 RUN cargo install --version=0.7.3 sqlx-cli
 RUN cargo install cargo-nextest
 RUN cargo install cargo-spellcheck
 RUN cargo install sccache
 
+RUN cargo install --git https://github.com/foundry-rs/foundry \
+    --profile local --locked forge cast
 
 # Main builder.
 FROM debian:bookworm as rust-lightweight-base
@@ -123,7 +126,9 @@ COPY --from=rust-builder /usr/local/cargo/bin/sqlx \
     /usr/local/cargo/bin/cargo-sqlx \
     /usr/local/cargo/bin/cargo-nextest \
     /usr/local/cargo/bin/cargo-spellcheck \
-    /usr/local/cargo/bin/sccache /usr/local/cargo/bin/
+    /usr/local/cargo/bin/sccache \
+    /usr/local/cargo/bin/forge \
+    /usr/local/cargo/bin/cast /usr/local/cargo/bin/
     
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
@@ -143,9 +148,6 @@ RUN wget -c https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 && \
     cd valgrind-3.20.0 && ./configure && make && make install && \
     cd ../ && rm -rf valgrind-3.20.0.tar.bz2 && rm -rf valgrind-3.20.0
 
-# Install foundry
-RUN cargo install --git https://github.com/foundry-rs/foundry \
-    --profile local --locked forge cast
 
 # Setup the environment
 ENV ZKSYNC_HOME=/usr/src/zksync
