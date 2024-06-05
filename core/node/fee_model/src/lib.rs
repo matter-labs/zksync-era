@@ -1,7 +1,7 @@
-use std::{fmt, sync::Arc};
+use std::{fmt, str::FromStr, sync::Arc};
 
 use anyhow::Context as _;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     fee_model::{
         BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams, FeeParamsV1, FeeParamsV2,
@@ -64,15 +64,31 @@ pub struct MainNodeFeeInputProvider {
 
 impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
     fn get_fee_model_params(&self) -> FeeParams {
+        let base_token_price =
+            U256::from_str(&self.provider.base_token_price_ratio().round(0).to_string()).unwrap();
+        let max_price = U256::from(u64::MAX);
+
+        let l1_gas_price =
+            match U256::from(self.provider.estimate_effective_gas_price()) * base_token_price {
+                price if price > max_price => max_price.as_u64(),
+                price => price.as_u64(),
+            };
+
+        let l1_pubdata_price =
+            match U256::from(self.provider.estimate_effective_pubdata_price()) * base_token_price {
+                price if price > max_price => max_price.as_u64(),
+                price => price.as_u64(),
+            };
+
         match self.config {
             FeeModelConfig::V1(config) => FeeParams::V1(FeeParamsV1 {
                 config,
-                l1_gas_price: self.provider.estimate_effective_gas_price(),
+                l1_gas_price,
             }),
             FeeModelConfig::V2(config) => FeeParams::V2(FeeParamsV2 {
                 config,
-                l1_gas_price: self.provider.estimate_effective_gas_price(),
-                l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
+                l1_gas_price,
+                l1_pubdata_price,
             }),
         }
     }
