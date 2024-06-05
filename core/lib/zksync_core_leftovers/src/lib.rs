@@ -771,7 +771,7 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build da_dispatcher_pool")?;
-        let da_client: Box<dyn DataAvailabilityClient> = Box::new(NoDAClient::new()); // use the `NoDAClient` as a default one
+        let da_client: Box<dyn DataAvailabilityClient> = Box::new(NoDAClient::new()); // use the `NoDAClient` as a default option for Validium
 
         let da_dispatcher =
             DataAvailabilityDispatcher::new(da_dispatcher_pool, da_config, da_client);

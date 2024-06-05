@@ -51,6 +51,11 @@ impl ObjectStoreFactory {
             .cloned()
     }
 
+    /// Creates an [`ObjectStore`] based on the provided `config`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if store initialization fails (e.g., because of incorrect configuration).
     pub async fn create_from_config(
         config: &ObjectStoreConfig,
     ) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
