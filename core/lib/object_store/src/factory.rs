@@ -55,11 +55,9 @@ impl ObjectStoreFactory {
     async fn create_from_config(
         config: &ObjectStoreConfig,
     ) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
+        tracing::trace!("Initializing object store with configuration {config:?}");
         match &config.mode {
             ObjectStoreMode::GCS { bucket_base_url } => {
-                tracing::trace!(
-                    "Initialized GoogleCloudStorage Object store without credential file"
-                );
                 let store = StoreWithRetries::try_new(config.max_retries, || {
                     GoogleCloudStore::new(
                         GoogleCloudStoreAuthMode::Authenticated,
@@ -73,7 +71,6 @@ impl ObjectStoreFactory {
                 bucket_base_url,
                 gcs_credential_file_path,
             } => {
-                tracing::trace!("Initialized GoogleCloudStorage Object store with credential file");
                 let store = StoreWithRetries::try_new(config.max_retries, || {
                     GoogleCloudStore::new(
                         GoogleCloudStoreAuthMode::AuthenticatedWithCredentialFile(
@@ -86,7 +83,6 @@ impl ObjectStoreFactory {
                 Self::wrap_cache(store, config.cache_path.as_ref()).await
             }
             ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
-                tracing::trace!("Initialized GoogleCloudStoragePublicReadOnly store");
                 let store = StoreWithRetries::try_new(config.max_retries, || {
                     GoogleCloudStore::new(
                         GoogleCloudStoreAuthMode::Anonymous,
@@ -100,7 +96,6 @@ impl ObjectStoreFactory {
             ObjectStoreMode::FileBacked {
                 file_backed_base_path,
             } => {
-                tracing::trace!("Initialized FileBacked Object store");
                 let store = StoreWithRetries::try_new(config.max_retries, || {
                     FileBackedObjectStore::new(file_backed_base_path.clone())
                 })

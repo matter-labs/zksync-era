@@ -12,6 +12,7 @@ pub(crate) struct CachingObjectStore<S> {
 
 impl<S: ObjectStore> CachingObjectStore<S> {
     pub async fn new(inner: S, cache_path: String) -> Result<Self, ObjectStoreError> {
+        tracing::info!("Initializing caching for store {inner:?} at `{cache_path}`");
         let cache_store = FileBackedObjectStore::new(cache_path).await?;
         Ok(Self { inner, cache_store })
     }
@@ -22,7 +23,10 @@ impl<S: ObjectStore> ObjectStore for CachingObjectStore<S> {
     #[tracing::instrument(skip(self))]
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
         match self.cache_store.get_raw(bucket, key).await {
-            Ok(object) => return Ok(object),
+            Ok(object) => {
+                tracing::trace!("obtained object from cache");
+                return Ok(object);
+            }
             Err(err) => {
                 if !matches!(err, ObjectStoreError::KeyNotFound(_)) {
                     tracing::warn!(
@@ -31,6 +35,7 @@ impl<S: ObjectStore> ObjectStore for CachingObjectStore<S> {
                     );
                 }
                 let object = self.inner.get_raw(bucket, key).await?;
+                tracing::trace!("obtained object from underlying store");
                 if let Err(err) = self.cache_store.put_raw(bucket, key, object.clone()).await {
                     tracing::warn!("failed caching object: {:#}", anyhow::Error::from(err));
                 } else {

@@ -9,6 +9,9 @@ pub struct ObjectStoreConfig {
     pub max_retries: u16,
     /// Path to local directory that will be used to cache objects locally. If not specified, no caching will be used.
     /// The directory layout is identical to [`ObjectStoreMode::FileBacked`].
+    ///
+    /// **Important.** Cache logic assumes that objects in the underlying store are immutable. If this is not the case,
+    /// the cache may become stale.
     pub cache_path: Option<String>,
 }
 
