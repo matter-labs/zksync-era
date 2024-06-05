@@ -673,7 +673,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
  "convert_case",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.4",
  "crypto-bigint 0.5.5",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
@@ -894,7 +894,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#4c51e81fa4ccf9a73df192bea28bd434874eab50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "circuit_encodings 0.1.50",
  "crossbeam 0.8.4",
@@ -940,7 +940,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#4c51e81fa4ccf9a73df192bea28bd434874eab50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "derivative",
  "serde",
@@ -1002,7 +1002,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#4c51e81fa4ccf9a73df192bea28bd434874eab50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
  "circuit_encodings 0.1.50",
@@ -3187,7 +3187,7 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#4c51e81fa4ccf9a73df192bea28bd434874eab50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "boojum",
  "derivative",
@@ -7863,7 +7863,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#4c51e81fa4ccf9a73df192bea28bd434874eab50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "bincode",
  "circuit_definitions 1.5.0",
