@@ -14,6 +14,7 @@ use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto::config::{
     database::Postgres, observability::Observability, prover::ProverGateway,
+    secrets::DatabaseSecrets as DatabaseSecretsProto,
 };
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -69,7 +70,15 @@ async fn main() -> anyhow::Result<()> {
         }
         None => PostgresConfig::from_env().context("PostgresConfig::from_env()")?,
     };
-    let database_secrets = DatabaseSecrets::from_env().context("PostgresConfig::from_env()")?;
+    let database_secrets = match opt.database_secrets_path {
+        Some(path) => {
+            let yaml =
+                std::fs::read_to_string(path).context("Failed to read database secrets config")?;
+            decode_yaml_repr::<DatabaseSecretsProto>(&yaml)
+                .context("Failed to parse database secrets config")?
+        }
+        None => DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?,
+    };
     let pool = ConnectionPool::<Prover>::builder(
         database_secrets.prover_url()?,
         postgres_config.max_connections()?,
@@ -141,4 +150,6 @@ pub(crate) struct Cli {
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
     pub(crate) postgres_config_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    pub(crate) database_secrets_path: Option<std::path::PathBuf>,
 }
