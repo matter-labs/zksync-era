@@ -447,7 +447,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         inner.state.current_frame.sp = 0;
 
         // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
-        inner.state.heaps[vm2::FIRST_HEAP].resize(get_used_bootloader_memory_bytes(VM_VERSION), 0);
+        inner.state.heaps[vm2::FIRST_HEAP].reserve(get_used_bootloader_memory_bytes(VM_VERSION), 0);
         inner.state.current_frame.heap_size = u32::MAX;
         inner.state.current_frame.aux_heap_size = u32::MAX;
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
