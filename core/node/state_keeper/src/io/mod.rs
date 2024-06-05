@@ -12,7 +12,7 @@ use zksync_types::{
 pub use self::{
     common::IoCursor,
     output_handler::{OutputHandler, StateKeeperOutputHandler},
-    persistence::{L2BlockSealerTask, StateKeeperPersistence},
+    persistence::{L2BlockSealerTask, StateKeeperPersistence, TreeWritesPersistence},
 };
 use super::seal_criteria::IoSealCriteria;
 

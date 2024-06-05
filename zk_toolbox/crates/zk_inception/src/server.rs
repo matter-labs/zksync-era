@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::cmd::Cmd;
+use config::{
+    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, GeneralConfig, GenesisConfig,
+    SecretsConfig, WalletsConfig,
+};
 use xshell::{cmd, Shell};
 
-use crate::{
-    configs::ChainConfig,
-    consts::{CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE, WALLETS_FILE},
-};
+use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
 
 pub struct RunServer {
     components: Option<Vec<String>>,
@@ -26,11 +27,11 @@ pub enum ServerMode {
 
 impl RunServer {
     pub fn new(components: Option<Vec<String>>, chain_config: &ChainConfig) -> Self {
-        let wallets = chain_config.configs.join(WALLETS_FILE);
-        let general_config = chain_config.configs.join(GENERAL_FILE);
-        let genesis = chain_config.configs.join(GENESIS_FILE);
-        let contracts = chain_config.configs.join(CONTRACTS_FILE);
-        let secrets = chain_config.configs.join(SECRETS_FILE);
+        let wallets = WalletsConfig::get_path_with_base_path(&chain_config.configs);
+        let general_config = GeneralConfig::get_path_with_base_path(&chain_config.configs);
+        let genesis = GenesisConfig::get_path_with_base_path(&chain_config.configs);
+        let contracts = ContractsConfig::get_path_with_base_path(&chain_config.configs);
+        let secrets = SecretsConfig::get_path_with_base_path(&chain_config.configs);
 
         Self {
             components,
@@ -79,7 +80,7 @@ impl RunServer {
             cmd = cmd.with_force_run();
         }
 
-        cmd.run().context("Failed to run server")?;
+        cmd.run().context(MSG_FAILED_TO_RUN_SERVER_ERR)?;
         Ok(())
     }
 

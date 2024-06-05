@@ -41,35 +41,6 @@ impl CheckHealth for MainNodeHealthCheck {
     }
 }
 
-/// Ethereum client health check.
-#[derive(Debug)]
-pub(crate) struct EthClientHealthCheck(Box<DynClient<L1>>);
-
-impl From<Box<DynClient<L1>>> for EthClientHealthCheck {
-    fn from(client: Box<DynClient<L1>>) -> Self {
-        Self(client.for_component("ethereum_health_check"))
-    }
-}
-
-#[async_trait]
-impl CheckHealth for EthClientHealthCheck {
-    fn name(&self) -> &'static str {
-        "ethereum_http_rpc"
-    }
-
-    async fn check_health(&self) -> Health {
-        if let Err(err) = self.0.block_number().await {
-            tracing::warn!("Health-check call to Ethereum HTTP RPC failed: {err}");
-            let details = serde_json::json!({
-                "error": err.to_string(),
-            });
-            // Unlike main node client, losing connection to L1 is not fatal for the node
-            return Health::from(HealthStatus::Affected).with_details(details);
-        }
-        HealthStatus::Ready.into()
-    }
-}
-
 /// Task that validates chain IDs using main node and Ethereum clients.
 #[derive(Debug)]
 pub(crate) struct ValidateChainIdsTask {
@@ -205,13 +176,11 @@ impl ValidateChainIdsTask {
                 .fuse();
         let main_node_l2_check =
             Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id).fuse();
-        loop {
-            tokio::select! {
-                Err(err) = eth_client_check => return Err(err),
-                Err(err) = main_node_l1_check => return Err(err),
-                Err(err) = main_node_l2_check => return Err(err),
-                _ = stop_receiver.changed() => return Ok(()),
-            }
+        tokio::select! {
+            Err(err) = eth_client_check =>  Err(err),
+            Err(err) = main_node_l1_check =>  Err(err),
+            Err(err) = main_node_l2_check =>  Err(err),
+            _ = stop_receiver.changed() =>  Ok(()),
         }
     }
 }

@@ -1,10 +1,10 @@
 use common::PromptSelect;
+use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::Shell;
 
 use crate::{
     commands::ecosystem::args::change_default::ChangeDefaultChain,
-    configs::{EcosystemConfig, SaveConfig},
-    consts::CONFIG_NAME,
+    messages::{msg_chain_doesnt_exist_err, MSG_DEFAULT_CHAIN_PROMPT},
 };
 
 pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
@@ -12,18 +12,14 @@ pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
 
     let chains = ecosystem_config.list_of_chains();
     let chain_name = args.name.unwrap_or_else(|| {
-        PromptSelect::new("What chain you want to set as default?", &chains)
+        PromptSelect::new(MSG_DEFAULT_CHAIN_PROMPT, &chains)
             .ask()
             .to_string()
     });
 
     if !chains.contains(&chain_name) {
-        anyhow::bail!(
-            "Chain with name {} doesnt exist, please choose one of {:?}",
-            chain_name,
-            &chains
-        );
+        anyhow::bail!(msg_chain_doesnt_exist_err(&chain_name, &chains));
     }
     ecosystem_config.default_chain = chain_name;
-    ecosystem_config.save(shell, CONFIG_NAME)
+    ecosystem_config.save_with_base_path(shell, ".")
 }

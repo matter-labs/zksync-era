@@ -33,6 +33,7 @@ zksync_commitment_generator.workspace = true
 zksync_house_keeper.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_eth_sender.workspace = true
+zksync_block_reverter.workspace = true
 zksync_state_keeper.workspace = true
 zksync_consistency_checker.workspace = true
 zksync_metadata_calculator.workspace = true
@@ -42,6 +43,8 @@ zksync_node_consensus.workspace = true
 zksync_contract_verification_server.workspace = true
 zksync_tee_verifier_input_producer.workspace = true
 zksync_queued_job_processor.workspace = true
+zksync_reorg_detector.workspace = true
+zksync_vm_runner.workspace = true
 
 tracing.workspace = true
 thiserror.workspace = true

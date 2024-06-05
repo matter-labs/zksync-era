@@ -1,51 +1,32 @@
 //! Fetcher responsible for getting Merkle tree outputs from the main node.
 
-use std::{fmt, time::Duration};
+use std::time::Duration;
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{api, block::L1BatchTreeData, L1BatchNumber};
+use zksync_types::{block::L1BatchTreeData, Address, L1BatchNumber};
 use zksync_web3_decl::{
-    client::{DynClient, L2},
-    error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    namespaces::ZksNamespaceClient,
+    client::{DynClient, L1, L2},
+    error::EnrichedClientError,
 };
 
-use self::metrics::{ProcessingStage, TreeDataFetcherMetrics, METRICS};
+use self::{
+    metrics::{ProcessingStage, TreeDataFetcherMetrics, METRICS},
+    provider::{L1DataProvider, MissingData, TreeDataProvider},
+};
 
 mod metrics;
+mod provider;
 #[cfg(test)]
 mod tests;
 
-#[async_trait]
-trait MainNodeClient: fmt::Debug + Send + Sync + 'static {
-    async fn batch_details(
-        &self,
-        number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<api::L1BatchDetails>>;
-}
-
-#[async_trait]
-impl MainNodeClient for Box<DynClient<L2>> {
-    async fn batch_details(
-        &self,
-        number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<api::L1BatchDetails>> {
-        self.get_l1_batch_details(number)
-            .rpc_context("get_l1_batch_details")
-            .with_arg("number", &number)
-            .await
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
-enum TreeDataFetcherError {
+pub(crate) enum TreeDataFetcherError {
     #[error("error fetching data from main node")]
     Rpc(#[from] EnrichedClientError),
     #[error("internal error")]
@@ -66,6 +47,8 @@ impl TreeDataFetcherError {
         }
     }
 }
+
+type TreeDataFetcherResult<T> = Result<T, TreeDataFetcherError>;
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
@@ -108,7 +91,9 @@ enum StepOutcome {
 /// by Consistency checker.
 #[derive(Debug)]
 pub struct TreeDataFetcher {
-    main_node_client: Box<dyn MainNodeClient>,
+    data_provider: Box<dyn TreeDataProvider>,
+    // Used in the Info metric
+    diamond_proxy_address: Option<Address>,
     pool: ConnectionPool<Core>,
     metrics: &'static TreeDataFetcherMetrics,
     health_updater: HealthUpdater,
@@ -123,7 +108,8 @@ impl TreeDataFetcher {
     /// Creates a new fetcher connected to the main node.
     pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
         Self {
-            main_node_client: Box::new(client.for_component("tree_data_fetcher")),
+            data_provider: Box::new(client.for_component("tree_data_fetcher")),
+            diamond_proxy_address: None,
             pool,
             metrics: &METRICS,
             health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,
@@ -131,6 +117,29 @@ impl TreeDataFetcher {
             #[cfg(test)]
             updates_sender: mpsc::unbounded_channel().0,
         }
+    }
+
+    /// Attempts to fetch root hashes from L1 (namely, `BlockCommit` events emitted by the diamond proxy) if possible.
+    /// The main node will still be used as a fallback in case communicating with L1 fails, or for newer batches,
+    /// which may not be committed on L1.
+    pub fn with_l1_data(
+        mut self,
+        eth_client: Box<DynClient<L1>>,
+        diamond_proxy_address: Address,
+    ) -> anyhow::Result<Self> {
+        anyhow::ensure!(
+            self.diamond_proxy_address.is_none(),
+            "L1 tree data provider is already set up"
+        );
+
+        let l1_provider = L1DataProvider::new(
+            self.pool.clone(),
+            eth_client.for_component("tree_data_fetcher"),
+            diamond_proxy_address,
+        )?;
+        self.data_provider = Box::new(l1_provider.with_fallback(self.data_provider));
+        self.diamond_proxy_address = Some(diamond_proxy_address);
+        Ok(self)
     }
 
     /// Returns a health check for this fetcher.
@@ -169,56 +178,48 @@ impl TreeDataFetcher {
         })
     }
 
-    async fn get_rollup_last_leaf_index(
-        storage: &mut Connection<'_, Core>,
-        mut l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<u64> {
-        // With overwhelming probability, there's at least one initial write in an L1 batch,
-        // so this loop will execute for 1 iteration.
-        loop {
-            let maybe_index = storage
-                .storage_logs_dedup_dal()
-                .max_enumeration_index_for_l1_batch(l1_batch_number)
-                .await?;
-            if let Some(index) = maybe_index {
-                return Ok(index + 1);
-            }
-            tracing::warn!(
-                "No initial writes in L1 batch #{l1_batch_number}; trying the previous batch"
-            );
-            l1_batch_number -= 1;
-        }
-    }
-
-    async fn step(&self) -> Result<StepOutcome, TreeDataFetcherError> {
+    async fn step(&mut self) -> Result<StepOutcome, TreeDataFetcherError> {
         let Some(l1_batch_to_fetch) = self.get_batch_to_fetch().await? else {
             return Ok(StepOutcome::NoProgress);
         };
 
         tracing::debug!("Fetching tree data for L1 batch #{l1_batch_to_fetch} from main node");
         let stage_latency = self.metrics.stage_latency[&ProcessingStage::Fetch].start();
-        let batch_details = self
-            .main_node_client
-            .batch_details(l1_batch_to_fetch)
-            .await?
-            .with_context(|| {
-                format!(
+        let root_hash_result = self.data_provider.batch_details(l1_batch_to_fetch).await?;
+        stage_latency.observe();
+        let root_hash = match root_hash_result {
+            Ok(output) => {
+                tracing::debug!(
+                    "Received root hash for L1 batch #{l1_batch_to_fetch} from {source:?}: {root_hash:?}",
+                    source = output.source,
+                    root_hash = output.root_hash
+                );
+                self.metrics.root_hash_sources[&output.source].inc();
+                output.root_hash
+            }
+            Err(MissingData::Batch) => {
+                let err = anyhow::anyhow!(
                     "L1 batch #{l1_batch_to_fetch} is sealed locally, but is not present on the main node, \
                      which is assumed to store batch info indefinitely"
-                )
-            })?;
-        stage_latency.observe();
-        let Some(root_hash) = batch_details.base.root_hash else {
-            tracing::debug!(
-                "L1 batch #{l1_batch_to_fetch} does not have root hash computed on the main node"
-            );
-            return Ok(StepOutcome::RemoteHashMissing);
+                );
+                return Err(err.into());
+            }
+            Err(MissingData::RootHash) => {
+                tracing::debug!(
+                    "L1 batch #{l1_batch_to_fetch} does not have root hash computed on the main node"
+                );
+                return Ok(StepOutcome::RemoteHashMissing);
+            }
         };
 
         let stage_latency = self.metrics.stage_latency[&ProcessingStage::Persistence].start();
         let mut storage = self.pool.connection_tagged("tree_data_fetcher").await?;
-        let rollup_last_leaf_index =
-            Self::get_rollup_last_leaf_index(&mut storage, l1_batch_to_fetch).await?;
+        let rollup_last_leaf_index = storage
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_by_l1_batch(l1_batch_to_fetch)
+            .await?
+            .unwrap_or(0)
+            + 1;
         let tree_data = L1BatchTreeData {
             hash: root_hash,
             rollup_last_leaf_index,
@@ -241,7 +242,7 @@ impl TreeDataFetcher {
 
     /// Runs this component until a fatal error occurs or a stop signal is received. Transient errors
     /// (e.g., no network connection) are handled gracefully by retrying after a delay.
-    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.metrics.observe_info(&self);
         self.health_updater
             .update(Health::from(HealthStatus::Ready));

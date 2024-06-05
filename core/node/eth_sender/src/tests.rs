@@ -29,7 +29,7 @@ use zksync_types::{
 
 use crate::{
     aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
-    ETHSenderError, EthTxAggregator, EthTxManager,
+    EthSenderError, EthTxAggregator, EthTxManager,
 };
 
 // Alias to conveniently call static methods of `ETHSender`.
@@ -236,21 +236,21 @@ fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
 
 fn default_l1_batch_metadata() -> L1BatchMetadata {
     L1BatchMetadata {
-        root_hash: Default::default(),
+        root_hash: H256::default(),
         rollup_last_leaf_index: 0,
         initial_writes_compressed: Some(vec![]),
         repeated_writes_compressed: Some(vec![]),
-        commitment: Default::default(),
-        l2_l1_merkle_root: Default::default(),
+        commitment: H256::default(),
+        l2_l1_merkle_root: H256::default(),
         block_meta_params: L1BatchMetaParameters {
             zkporter_is_available: false,
-            bootloader_code_hash: Default::default(),
-            default_aa_code_hash: Default::default(),
-            protocol_version: Default::default(),
+            bootloader_code_hash: H256::default(),
+            default_aa_code_hash: H256::default(),
+            protocol_version: Some(ProtocolVersionId::default()),
         },
-        aux_data_hash: Default::default(),
-        meta_parameters_hash: Default::default(),
-        pass_through_data_hash: Default::default(),
+        aux_data_hash: H256::default(),
+        meta_parameters_hash: H256::default(),
+        pass_through_data_hash: H256::default(),
         events_queue_commitment: Some(H256::zero()),
         bootloader_initial_content_commitment: Some(H256::zero()),
         state_diffs_compressed: vec![],
@@ -1104,7 +1104,7 @@ async fn test_parse_multicall_data(commitment_mode: L1BatchCommitmentMode) {
             tester
                 .aggregator
                 .parse_multicall_data(wrong_data_instance.clone()),
-            Err(ETHSenderError::ParseError(Error::InvalidOutputType(_)))
+            Err(EthSenderError::Parse(Error::InvalidOutputType(_)))
         );
     }
 }

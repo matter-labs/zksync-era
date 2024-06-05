@@ -70,6 +70,7 @@ use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
     create_state_keeper, io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
     AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler, StateKeeperPersistence,
+    TreeWritesPersistence,
 };
 use zksync_tee_verifier_input_producer::TeeVerifierInputProducer;
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
@@ -153,6 +154,8 @@ pub enum Component {
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
+    /// VM runner-based component that saves protective reads to Postgres.
+    VmRunnerProtectiveReads,
 }
 
 #[derive(Debug)]
@@ -189,6 +192,9 @@ impl FromStr for Components {
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
+            "vm_runner_protective_reads" => {
+                Ok(Components(vec![Component::VmRunnerProtectiveReads]))
+            }
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -820,7 +826,7 @@ async fn add_state_keeper_to_task_futures(
     };
 
     // L2 Block sealing process is parallelized, so we have to provide enough pooled connections.
-    let l2_block_sealer_pool = ConnectionPool::<Core>::builder(
+    let persistence_pool = ConnectionPool::<Core>::builder(
         database_secrets.master_url()?,
         L2BlockSealProcess::subtasks_len(),
     )
@@ -828,7 +834,7 @@ async fn add_state_keeper_to_task_futures(
     .await
     .context("failed to build l2_block_sealer_pool")?;
     let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
-        l2_block_sealer_pool,
+        persistence_pool.clone(),
         contracts_config
             .l2_shared_bridge_addr
             .context("`l2_shared_bridge_addr` config is missing")?,
@@ -853,6 +859,10 @@ async fn add_state_keeper_to_task_futures(
         db_config.state_keeper_db_path.clone(),
         cache_options,
     );
+
+    let tree_writes_persistence = TreeWritesPersistence::new(persistence_pool);
+    let output_handler =
+        OutputHandler::new(Box::new(persistence)).with_handler(Box::new(tree_writes_persistence));
     let state_keeper = create_state_keeper(
         state_keeper_config,
         state_keeper_wallets,
@@ -862,7 +872,7 @@ async fn add_state_keeper_to_task_futures(
         state_keeper_pool,
         mempool.clone(),
         batch_fee_input_provider.clone(),
-        OutputHandler::new(Box::new(persistence)),
+        output_handler,
         stop_receiver.clone(),
     )
     .await;
@@ -909,7 +919,6 @@ pub async fn start_eth_watch(
 
     let eth_watch = EthWatch::new(
         diamond_proxy_addr,
-        state_transition_manager_addr,
         &governance.0,
         Box::new(eth_client),
         pool,

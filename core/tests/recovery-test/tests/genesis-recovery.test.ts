@@ -12,8 +12,6 @@ import {
     FundedWallet
 } from '../src';
 
-// FIXME: check consistency checker health once it has acceptable speed
-
 /**
  * Tests recovery of an external node from scratch.
  *
@@ -101,8 +99,9 @@ describe('genesis recovery', () => {
 
         let reorgDetectorSucceeded = false;
         let treeFetcherSucceeded = false;
+        let consistencyCheckerSucceeded = false;
 
-        while (!treeFetcherSucceeded || !reorgDetectorSucceeded) {
+        while (!treeFetcherSucceeded || !reorgDetectorSucceeded || !consistencyCheckerSucceeded) {
             await sleep(1000);
             const health = await getExternalNodeHealth();
             if (health === null) {
@@ -126,6 +125,19 @@ describe('genesis recovery', () => {
                     console.log('Received reorg detector health details', details);
                     if (details.last_correct_l1_batch !== undefined) {
                         reorgDetectorSucceeded = details.last_correct_l1_batch >= CATCH_UP_BATCH_COUNT;
+                    }
+                }
+            }
+
+            if (!consistencyCheckerSucceeded) {
+                const status = health.components.consistency_checker?.status;
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                const details = health.components.consistency_checker?.details;
+                if (status === 'ready' && details !== undefined) {
+                    console.log('Received consistency checker health details', details);
+                    if (details.first_checked_batch !== undefined && details.last_checked_batch !== undefined) {
+                        expect(details.first_checked_batch).to.equal(1);
+                        consistencyCheckerSucceeded = details.last_checked_batch >= CATCH_UP_BATCH_COUNT;
                     }
                 }
             }
@@ -181,8 +193,9 @@ describe('genesis recovery', () => {
 
         let reorgDetectorSucceeded = false;
         let treeSucceeded = false;
+        let consistencyCheckerSucceeded = false;
 
-        while (!treeSucceeded || !reorgDetectorSucceeded) {
+        while (!treeSucceeded || !reorgDetectorSucceeded || !consistencyCheckerSucceeded) {
             await sleep(1000);
             const health = await getExternalNodeHealth();
             if (health === null) {
@@ -207,6 +220,18 @@ describe('genesis recovery', () => {
                     console.log('Received reorg detector health details', details);
                     if (details.last_correct_l1_batch !== undefined) {
                         reorgDetectorSucceeded = details.last_correct_l1_batch >= catchUpBatchNumber;
+                    }
+                }
+            }
+
+            if (!consistencyCheckerSucceeded) {
+                const status = health.components.consistency_checker?.status;
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                const details = health.components.consistency_checker?.details;
+                if (status === 'ready' && details !== undefined) {
+                    console.log('Received consistency checker health details', details);
+                    if (details.first_checked_batch !== undefined && details.last_checked_batch !== undefined) {
+                        consistencyCheckerSucceeded = details.last_checked_batch >= catchUpBatchNumber;
                     }
                 }
             }

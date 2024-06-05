@@ -12,6 +12,7 @@ pub mod create_configs;
 mod init;
 
 #[derive(Subcommand, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum EcosystemCommands {
     /// Create a new ecosystem and chain,
     /// setting necessary configurations for later initialization

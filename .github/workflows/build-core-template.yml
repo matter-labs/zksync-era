@@ -113,6 +113,7 @@ jobs:
           mkdir -p ./volumes/postgres
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
+          ci_run pre_download_compilers.sh
           ci_run sccache --start-server
 
       - name: init
@@ -146,7 +147,7 @@ jobs:
           COMPONENT: ${{ matrix.components }}
           PLATFORM: ${{ matrix.platforms }}
         run: |
-          ci_run rustup default nightly-2023-08-21
+          ci_run rustup default nightly-2024-05-07
           platform=$(echo $PLATFORM | tr '/' '-')
           ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats

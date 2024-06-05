@@ -124,7 +124,7 @@ impl MempoolStore {
 
     /// Returns `true` if there is a transaction in the mempool satisfying the filter.
     pub fn has_next(&self, filter: &L2TxFilter) -> bool {
-        self.l1_transactions.get(&self.next_priority_id).is_some()
+        self.l1_transactions.contains_key(&self.next_priority_id)
             || self
                 .l2_priority_queue
                 .iter()

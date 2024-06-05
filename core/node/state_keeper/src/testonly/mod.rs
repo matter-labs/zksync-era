@@ -48,7 +48,7 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
         },
         final_bootloader_memory: Some(vec![]),
         pubdata_input: Some(vec![]),
-        initially_written_slots: Some(vec![]),
+        state_diffs: Some(vec![]),
     }
 }
 
@@ -95,10 +95,11 @@ impl BatchExecutor for MockBatchExecutor {
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
                         resp.send(default_vm_batch_result()).unwrap();
-                        return;
+                        break;
                     }
                 }
             }
+            anyhow::Ok(())
         });
         Some(BatchExecutorHandle::from_raw(handle, send))
     }

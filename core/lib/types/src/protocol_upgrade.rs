@@ -1,9 +1,17 @@
 use std::convert::{TryFrom, TryInto};
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::protocol_version::{L1VerifierConfig, ProtocolVersionId, VerifierParams};
-use zksync_contracts::BaseSystemContractsHashes;
-use zksync_utils::u256_to_account_address;
+use zksync_basic_types::{
+    ethabi,
+    protocol_version::{
+        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
+    },
+};
+use zksync_contracts::{
+    BaseSystemContractsHashes, ADMIN_EXECUTE_UPGRADE_FUNCTION,
+    ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION,
+};
+use zksync_utils::{h256_to_u256, u256_to_account_address};
 
 use crate::{
     ethabi::{decode, encode, ParamType, Token},
@@ -57,7 +65,7 @@ pub struct GovernanceOperation {
 #[derive(Debug, Clone, Default)]
 pub struct ProtocolUpgrade {
     /// New protocol version ID.
-    pub id: ProtocolVersionId,
+    pub version: ProtocolSemanticVersion,
     /// New bootloader code hash.
     pub bootloader_code_hash: Option<H256>,
     /// New default account code hash.
@@ -93,30 +101,9 @@ fn get_transaction_param_type() -> ParamType {
     ])
 }
 
-impl TryFrom<Log> for ProtocolUpgrade {
-    type Error = crate::ethabi::Error;
-
-    fn try_from(event: Log) -> Result<Self, Self::Error> {
-        let facet_cut_param_type = ParamType::Tuple(vec![
-            ParamType::Address,
-            ParamType::Uint(8),
-            ParamType::Bool,
-            ParamType::Array(Box::new(ParamType::FixedBytes(4))),
-        ]);
-        let diamond_cut_data_param_type = ParamType::Tuple(vec![
-            ParamType::Array(Box::new(facet_cut_param_type)),
-            ParamType::Address,
-            ParamType::Bytes,
-        ]);
-        let mut decoded = decode(
-            &[diamond_cut_data_param_type, ParamType::FixedBytes(32)],
-            &event.data.0,
-        )?;
-
-        let init_calldata = match decoded.remove(0) {
-            Token::Tuple(tokens) => tokens[2].clone().into_bytes().unwrap(),
-            _ => unreachable!(),
-        };
+impl ProtocolUpgrade {
+    fn try_from_decoded_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, crate::ethabi::Error> {
+        let init_calldata = tokens[2].clone().into_bytes().unwrap();
 
         let transaction_param_type: ParamType = get_transaction_param_type();
         let verifier_params_type = ParamType::Tuple(vec![
@@ -153,15 +140,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
 
         let factory_deps = decoded.remove(0).into_array().unwrap();
 
-        let eth_hash = event
-            .transaction_hash
-            .expect("Event transaction hash is missing");
-        let eth_block = event
-            .block_number
-            .expect("Event block number is missing")
-            .as_u64();
-
-        let tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps);
+        let tx = ProtocolUpgradeTx::decode_tx(transaction, factory_deps);
         let bootloader_code_hash = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
         let default_account_code_hash =
             H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
@@ -179,13 +158,10 @@ impl TryFrom<Log> for ProtocolUpgrade {
         let _l1_custom_data = decoded.remove(0);
         let _l1_post_upgrade_custom_data = decoded.remove(0);
         let timestamp = decoded.remove(0).into_uint().unwrap();
-        let version_id = decoded.remove(0).into_uint().unwrap();
-        if version_id > u16::MAX.into() {
-            panic!("Version ID is too big, max expected is {}", u16::MAX);
-        }
+        let packed_protocol_semver = decoded.remove(0).into_uint().unwrap();
 
         Ok(Self {
-            id: ProtocolVersionId::try_from(version_id.as_u32() as u16)
+            version: ProtocolSemanticVersion::try_from_packed(packed_protocol_semver)
                 .expect("Version is not supported"),
             bootloader_code_hash: (bootloader_code_hash != H256::zero())
                 .then_some(bootloader_code_hash),
@@ -216,31 +192,21 @@ pub fn decode_set_chain_id_event(
         unreachable!()
     };
 
-    let version_id = event.topics[2].to_low_u64_be();
-
-    let eth_hash = event
-        .transaction_hash
-        .expect("Event transaction hash is missing");
-    let eth_block = event
-        .block_number
-        .expect("Event block number is missing")
-        .as_u64();
+    let full_version_id = h256_to_u256(event.topics[2]);
+    let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
+        .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
 
     let factory_deps: Vec<Token> = Vec::new();
 
-    let upgrade_tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps)
-        .expect("Upgrade tx is missing");
-    let version_id =
-        ProtocolVersionId::try_from(version_id as u16).expect("Version is not supported");
+    let upgrade_tx =
+        ProtocolUpgradeTx::decode_tx(transaction, factory_deps).expect("Upgrade tx is missing");
 
-    Ok((version_id, upgrade_tx))
+    Ok((protocol_version, upgrade_tx))
 }
 
 impl ProtocolUpgradeTx {
     pub fn decode_tx(
         mut transaction: Vec<Token>,
-        eth_hash: H256,
-        eth_block: u64,
         factory_deps: Vec<Token>,
     ) -> Option<ProtocolUpgradeTx> {
         let canonical_tx_hash = H256(keccak256(&encode(&[Token::Tuple(transaction.clone())])));
@@ -323,8 +289,7 @@ impl ProtocolUpgradeTx {
             gas_limit,
             max_fee_per_gas,
             gas_per_pubdata_limit,
-            eth_hash,
-            eth_block,
+            eth_block: 0,
         };
 
         let factory_deps = factory_deps
@@ -351,32 +316,42 @@ impl TryFrom<Call> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;
 
     fn try_from(call: Call) -> Result<Self, Self::Error> {
-        // Reuses `ProtocolUpgrade::try_from`.
-        // `ProtocolUpgrade::try_from` only uses 3 log fields: `data`, `block_number`, `transaction_hash`.
-        // Others can be filled with dummy values.
-        // We build data as `call.data` without first 4 bytes which are for selector
-        // and append it with `bytes32(0)` for compatibility with old event data.
-        let data = call
-            .data
-            .into_iter()
-            .skip(4)
-            .chain(encode(&[Token::FixedBytes(H256::zero().0.to_vec())]))
-            .collect::<Vec<u8>>()
-            .into();
-        let log = Log {
-            address: Default::default(),
-            topics: Default::default(),
-            data,
-            block_hash: Default::default(),
-            block_number: Some(call.eth_block.into()),
-            transaction_hash: Some(call.eth_hash),
-            transaction_index: Default::default(),
-            log_index: Default::default(),
-            transaction_log_index: Default::default(),
-            log_type: Default::default(),
-            removed: Default::default(),
-        };
-        ProtocolUpgrade::try_from(log)
+        let Call { data, .. } = call;
+
+        if data.len() < 4 {
+            return Err(crate::ethabi::Error::InvalidData);
+        }
+
+        let (signature, data) = data.split_at(4);
+
+        let diamond_cut_tokens =
+            if signature.to_vec() == ADMIN_EXECUTE_UPGRADE_FUNCTION.short_signature().to_vec() {
+                ADMIN_EXECUTE_UPGRADE_FUNCTION
+                    .decode_input(data)?
+                    .pop()
+                    .unwrap()
+                    .into_tuple()
+                    .unwrap()
+            } else if signature.to_vec()
+                == ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION
+                    .short_signature()
+                    .to_vec()
+            {
+                let mut data = ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION.decode_input(data)?;
+
+                assert_eq!(
+                    data.len(),
+                    2,
+                    "The second method is expected to accept exactly 2 arguments"
+                );
+
+                // The second item must be a tuple of diamond cut data
+                data.pop().unwrap().into_tuple().unwrap()
+            } else {
+                return Err(crate::ethabi::Error::InvalidData);
+            };
+
+        ProtocolUpgrade::try_from_decoded_tokens(diamond_cut_tokens)
     }
 }
 
@@ -451,7 +426,7 @@ impl TryFrom<Log> for GovernanceOperation {
 #[derive(Debug, Clone, Default)]
 pub struct ProtocolVersion {
     /// Protocol version ID
-    pub id: ProtocolVersionId,
+    pub version: ProtocolSemanticVersion,
     /// Timestamp at which upgrade should be performed
     pub timestamp: u64,
     /// Verifier configuration
@@ -470,7 +445,7 @@ impl ProtocolVersion {
         new_scheduler_vk_hash: Option<H256>,
     ) -> ProtocolVersion {
         ProtocolVersion {
-            id: upgrade.id,
+            version: upgrade.version,
             timestamp: upgrade.timestamp,
             l1_verifier_config: L1VerifierConfig {
                 params: upgrade
@@ -492,8 +467,27 @@ impl ProtocolVersion {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+// TODO(PLA-962): remove once all nodes start treating the deprecated fields as optional.
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ProtocolUpgradeTxCommonDataSerde {
+    pub sender: Address,
+    pub upgrade_id: ProtocolVersionId,
+    pub max_fee_per_gas: U256,
+    pub gas_limit: U256,
+    pub gas_per_pubdata_limit: U256,
+    pub canonical_tx_hash: H256,
+    pub to_mint: U256,
+    pub refund_recipient: Address,
+
+    /// DEPRECATED.
+    #[serde(default)]
+    pub eth_hash: H256,
+    #[serde(default)]
+    pub eth_block: u64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct ProtocolUpgradeTxCommonData {
     /// Sender of the transaction.
     pub sender: Address,
@@ -505,8 +499,6 @@ pub struct ProtocolUpgradeTxCommonData {
     pub gas_limit: U256,
     /// The maximum number of gas per 1 byte of pubdata.
     pub gas_per_pubdata_limit: U256,
-    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
-    pub eth_hash: H256,
     /// Block in which Ethereum transaction was included.
     pub eth_block: u64,
     /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
@@ -524,6 +516,45 @@ impl ProtocolUpgradeTxCommonData {
 
     pub fn tx_format(&self) -> TransactionType {
         TransactionType::ProtocolUpgradeTransaction
+    }
+}
+
+impl serde::Serialize for ProtocolUpgradeTxCommonData {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        ProtocolUpgradeTxCommonDataSerde {
+            sender: self.sender,
+            upgrade_id: self.upgrade_id,
+            max_fee_per_gas: self.max_fee_per_gas,
+            gas_limit: self.gas_limit,
+            gas_per_pubdata_limit: self.gas_per_pubdata_limit,
+            canonical_tx_hash: self.canonical_tx_hash,
+            to_mint: self.to_mint,
+            refund_recipient: self.refund_recipient,
+
+            // DEPRECATED.
+            eth_hash: H256::default(),
+            eth_block: self.eth_block,
+        }
+        .serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ProtocolUpgradeTxCommonData {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let x = ProtocolUpgradeTxCommonDataSerde::deserialize(d)?;
+        Ok(Self {
+            sender: x.sender,
+            upgrade_id: x.upgrade_id,
+            max_fee_per_gas: x.max_fee_per_gas,
+            gas_limit: x.gas_limit,
+            gas_per_pubdata_limit: x.gas_per_pubdata_limit,
+            canonical_tx_hash: x.canonical_tx_hash,
+            to_mint: x.to_mint,
+            refund_recipient: x.refund_recipient,
+
+            // DEPRECATED.
+            eth_block: x.eth_block,
+        })
     }
 }
 

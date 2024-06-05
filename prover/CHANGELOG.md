@@ -1,5 +1,36 @@
 # Changelog
 
+## [14.5.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.4.0...prover-v14.5.0) (2024-06-04)
+
+
+### Features
+
+* update VKs and bump cargo.lock ([#2112](https://github.com/matter-labs/zksync-era/issues/2112)) ([6510317](https://github.com/matter-labs/zksync-era/commit/65103173085a0b500a626cb8179fad77ee97fadd))
+* use semver for metrics, move constants to prover workspace ([#2098](https://github.com/matter-labs/zksync-era/issues/2098)) ([7a50a9f](https://github.com/matter-labs/zksync-era/commit/7a50a9f79e516ec150d1f30b9f1c781a5523375b))
+
+
+### Bug Fixes
+
+* **block-reverter:** Fix reverting snapshot files ([#2064](https://github.com/matter-labs/zksync-era/issues/2064)) ([17a7e78](https://github.com/matter-labs/zksync-era/commit/17a7e782d9e35eaf38acf920c2326d4037c7781e))
+* **house-keeper:** Fix queue size queries ([#2106](https://github.com/matter-labs/zksync-era/issues/2106)) ([183502a](https://github.com/matter-labs/zksync-era/commit/183502a17eb47a747f50b6a9d38ab78de984f80e))
+
+## [14.4.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.3.0...prover-v14.4.0) (2024-05-30)
+
+
+### Features
+
+* Make house keeper emit correct protocol version ([#2062](https://github.com/matter-labs/zksync-era/issues/2062)) ([a58a7e8](https://github.com/matter-labs/zksync-era/commit/a58a7e8ec8599eb957e5693308b789e7ace5c126))
+* **pli:** add support for persistent config ([#1907](https://github.com/matter-labs/zksync-era/issues/1907)) ([9d5631c](https://github.com/matter-labs/zksync-era/commit/9d5631cdd330a288335db11a71ecad89ee32a0f4))
+* Protocol semantic version ([#2059](https://github.com/matter-labs/zksync-era/issues/2059)) ([3984dcf](https://github.com/matter-labs/zksync-era/commit/3984dcfbdd890f0862c9c0f3e7757fb8b0c8184a))
+* **prover:** Add `prover_version` binary. ([#2089](https://github.com/matter-labs/zksync-era/issues/2089)) ([e1822f6](https://github.com/matter-labs/zksync-era/commit/e1822f6ad150a28df75b06b97b9ff01d671b83b6))
+
+
+### Bug Fixes
+
+* fix null protocol version error ([#2094](https://github.com/matter-labs/zksync-era/issues/2094)) ([aab3a7f](https://github.com/matter-labs/zksync-era/commit/aab3a7ff97870aea155fbc542c4c0f55ee816341))
+* fix query for proof compressor metrics ([#2103](https://github.com/matter-labs/zksync-era/issues/2103)) ([d23d24e](https://github.com/matter-labs/zksync-era/commit/d23d24e9e13af052612be81e913da89bc160de4d))
+* **prover_dal:** fix `save_prover_protocol_version` query ([#2096](https://github.com/matter-labs/zksync-era/issues/2096)) ([d8dd1ae](https://github.com/matter-labs/zksync-era/commit/d8dd1aedd7b67b09b6d5c0f29ba90069e0c80b4e))
+
 ## [14.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.2.0...prover-v14.3.0) (2024-05-23)
 
 
