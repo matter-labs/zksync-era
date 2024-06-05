@@ -649,16 +649,13 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .clone()
                     .build_pubdata(false),
             ),
-            initially_written_slots: Some(
+            state_diffs: Some(
                 self.bootloader_state
                     .get_pubdata_information()
                     .state_diffs
                     .iter()
-                    .filter_map(|record| {
-                        record
-                            .is_write_initial()
-                            .then_some(H256(record.derived_key))
-                    })
+                    .filter(|diff| diff.address != L1_MESSENGER_ADDRESS)
+                    .cloned()
                     .collect(),
             ),
         }
