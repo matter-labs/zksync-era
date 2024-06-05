@@ -14,7 +14,7 @@ use zksync_basic_types::U256;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{ConnectionPool, CoreDal};
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::{api::SubmitTeeProofRequest, inputs::PrepareBasicCircuitsJob};
 use zksync_tee_verifier::TeeVerifierInput;
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
@@ -72,7 +72,7 @@ async fn request_tee_proof_inputs() {
 
     // populate mocked object store with a single batch blob
 
-    let blob_store = ObjectStoreFactory::mock().create_store().await;
+    let blob_store = MockObjectStore::arc();
     let object_path = blob_store.put(batch_number, &tvi).await.unwrap();
 
     // get connection to the SQL db and mock the status of the TEE proof generation
@@ -120,7 +120,7 @@ async fn request_tee_proof_inputs() {
 // Test /submit_tee_proof endpoint using a mocked TEE proof and verify response and db state
 #[tokio::test]
 async fn submit_tee_proof() {
-    let blob_store = ObjectStoreFactory::mock().create_store().await;
+    let blob_store = MockObjectStore::arc();
     let db_conn_pool = ConnectionPool::test_pool().await;
     let object_path = "mocked_object_path";
     let batch_number = L1BatchNumber::from(1);
