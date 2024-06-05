@@ -7,6 +7,9 @@ pub struct ObjectStoreConfig {
     pub mode: ObjectStoreMode,
     #[serde(default = "ObjectStoreConfig::default_max_retries")]
     pub max_retries: u16,
+    /// Path to local directory that will be used to cache objects locally. If not specified, no caching will be used.
+    /// The directory layout is identical to [`ObjectStoreMode::FileBacked`].
+    pub cache_path: Option<String>,
 }
 
 impl ObjectStoreConfig {

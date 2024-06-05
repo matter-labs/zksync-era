@@ -44,6 +44,7 @@ impl ProtoRepr for proto::ObjectStore {
             max_retries: required(&self.max_retries)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_retries")?,
+            cache_path: self.cache_path.clone(),
         })
     }
 
@@ -80,6 +81,7 @@ impl ProtoRepr for proto::ObjectStore {
         Self {
             mode: Some(mode),
             max_retries: Some(this.max_retries.into()),
+            cache_path: this.cache_path.clone(),
         }
     }
 }

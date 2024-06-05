@@ -41,6 +41,7 @@ mod tests {
                     gcs_credential_file_path: "/path/to/credentials.json".to_owned(),
                 },
                 max_retries: 5,
+                cache_path: None,
             }),
             availability_check_interval_in_secs: Some(1_800),
         }
@@ -65,7 +66,6 @@ mod tests {
             OBJECT_STORE_MODE="GCSWithCredentialFile"
             OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
             OBJECT_STORE_MAX_RETRIES="5"
-
         "#;
         lock.set_env(config);
 
