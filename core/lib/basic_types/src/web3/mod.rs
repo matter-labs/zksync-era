@@ -138,30 +138,36 @@ impl<'a> Visitor<'a> for BytesVisitor {
 // `Log`: from `web3::types::log`
 
 /// Filter
-#[derive(Default, Debug, PartialEq, Clone, Serialize)]
+#[derive(Default, Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Filter {
     /// From Block
     #[serde(rename = "fromBlock", skip_serializing_if = "Option::is_none")]
-    from_block: Option<BlockNumber>,
+    pub from_block: Option<BlockNumber>,
     /// To Block
     #[serde(rename = "toBlock", skip_serializing_if = "Option::is_none")]
-    to_block: Option<BlockNumber>,
+    pub to_block: Option<BlockNumber>,
     /// Block Hash
     #[serde(rename = "blockHash", skip_serializing_if = "Option::is_none")]
-    block_hash: Option<H256>,
+    pub block_hash: Option<H256>,
     /// Address
     #[serde(skip_serializing_if = "Option::is_none")]
-    address: Option<ValueOrArray<H160>>,
+    pub address: Option<ValueOrArray<H160>>,
     /// Topics
     #[serde(skip_serializing_if = "Option::is_none")]
-    topics: Option<Vec<Option<ValueOrArray<H256>>>>,
+    pub topics: Option<Vec<Option<ValueOrArray<H256>>>>,
     /// Limit
     #[serde(skip_serializing_if = "Option::is_none")]
-    limit: Option<usize>,
+    pub limit: Option<usize>,
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
-struct ValueOrArray<T>(Vec<T>);
+pub struct ValueOrArray<T>(Vec<T>);
+
+impl<T> ValueOrArray<T> {
+    pub fn flatten(self) -> Vec<T> {
+        self.0
+    }
+}
 
 impl<T> Serialize for ValueOrArray<T>
 where
@@ -176,6 +182,25 @@ where
             1 => Serialize::serialize(&self.0[0], serializer),
             _ => Serialize::serialize(&self.0, serializer),
         }
+    }
+}
+
+impl<'de, T> Deserialize<'de> for ValueOrArray<T>
+where
+    T: Deserialize<'de>,
+{
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr<T> {
+            Single(T),
+            Sequence(Vec<T>),
+        }
+
+        Ok(match Repr::<T>::deserialize(deserializer)? {
+            Repr::Single(element) => Self(vec![element]),
+            Repr::Sequence(elements) => Self(elements),
+        })
     }
 }
 
@@ -271,7 +296,7 @@ fn topic_to_option<T>(topic: ethabi::Topic<T>) -> Option<Vec<T>> {
 }
 
 /// A log produced by a transaction.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Log {
     /// H160
     pub address: H160,

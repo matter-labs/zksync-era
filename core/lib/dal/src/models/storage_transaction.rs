@@ -42,7 +42,6 @@ pub struct StorageTransaction {
     pub received_at: NaiveDateTime,
     pub in_mempool: bool,
 
-    pub l1_block_number: Option<i32>,
     pub l1_batch_number: Option<i64>,
     pub l1_batch_tx_index: Option<i32>,
     pub miniblock_number: Option<i64>,
@@ -66,6 +65,9 @@ pub struct StorageTransaction {
 
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+
+    // DEPRECATED.
+    pub l1_block_number: Option<i32>,
 }
 
 impl From<StorageTransaction> for L1TxCommonData {
@@ -137,10 +139,9 @@ impl From<StorageTransaction> for L1TxCommonData {
                 .gas_per_pubdata_limit
                 .map(bigdecimal_to_u256)
                 .unwrap_or_else(|| U256::from(1u32)),
-            deadline_block: 0,
-            eth_hash: Default::default(),
-            eth_block: tx.l1_block_number.unwrap_or_default() as u64,
             canonical_tx_hash,
+            // DEPRECATED.
+            eth_block: tx.l1_block_number.unwrap_or_default() as u64,
         }
     }
 }
@@ -282,7 +283,7 @@ impl From<StorageTransaction> for ProtocolUpgradeTxCommonData {
                 .gas_per_pubdata_limit
                 .map(bigdecimal_to_u256)
                 .expect("gas_per_pubdata_limit field is missing for protocol upgrade tx"),
-            eth_hash: Default::default(),
+            // DEPRECATED.
             eth_block: tx.l1_block_number.unwrap_or_default() as u64,
             canonical_tx_hash,
         }

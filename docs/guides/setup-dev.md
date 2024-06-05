@@ -221,7 +221,7 @@ SQLx is a Rust library we use to interact with Postgres, and its CLI is used to 
 features of the library.
 
 ```bash
-cargo install sqlx-cli --version 0.7.3
+cargo install --locked sqlx-cli --version 0.7.3
 ```
 
 ## Solidity compiler `solc`
