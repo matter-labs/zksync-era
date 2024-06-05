@@ -2505,7 +2505,7 @@ version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?rev=3d33e06#3d33e069d9d263f3a9626d235ac6dc6c49179965"
 dependencies = [
  "bindgen 0.59.2",
- "crossbeam 0.8.4",
+ "crossbeam 0.7.3",
  "derivative",
  "futures 0.3.30",
  "futures-locks",
@@ -2519,10 +2519,10 @@ source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?rev=3d33e
 dependencies = [
  "bit-vec",
  "cfg-if 1.0.0",
- "crossbeam 0.8.4",
+ "crossbeam 0.7.3",
  "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper)",
  "gpu-ffi",
- "itertools 0.12.1",
+ "itertools 0.11.0",
  "num_cpus",
  "rand 0.4.6",
  "serde",
