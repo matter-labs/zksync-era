@@ -147,8 +147,6 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
         common_data: L1TxCommonData {
             serial_id: PriorityOpId(serial_id),
             sender: [1u8; 20].into(),
-            deadline_block: 0,
-            eth_hash: [2; 32].into(),
             eth_block,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),
@@ -176,7 +174,6 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
         common_data: ProtocolUpgradeTxCommonData {
             upgrade_id: id,
             sender: [1u8; 20].into(),
-            eth_hash: [2; 32].into(),
             eth_block,
             gas_limit: Default::default(),
             max_fee_per_gas: Default::default(),

@@ -37,6 +37,8 @@ impl ProtoRepr for proto::GeneralConfig {
             snapshot_creator: read_optional_repr(&self.snapshot_creator)
                 .context("snapshot_creator")?,
             observability: read_optional_repr(&self.observability).context("observability")?,
+            protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer)
+                .context("vm_runner")?,
         })
     }
 
@@ -68,6 +70,10 @@ impl ProtoRepr for proto::GeneralConfig {
             eth: this.eth.as_ref().map(ProtoRepr::build),
             snapshot_creator: this.snapshot_creator.as_ref().map(ProtoRepr::build),
             observability: this.observability.as_ref().map(ProtoRepr::build),
+            protective_reads_writer: this
+                .protective_reads_writer_config
+                .as_ref()
+                .map(ProtoRepr::build),
         }
     }
 }
