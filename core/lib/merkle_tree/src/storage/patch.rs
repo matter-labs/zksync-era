@@ -3,6 +3,7 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
+    sync::Arc,
     time::Instant,
 };
 
@@ -31,9 +32,23 @@ pub(super) struct PartialPatchSet {
 }
 
 impl PartialPatchSet {
+    pub fn empty() -> Self {
+        Self {
+            root: None,
+            nodes: HashMap::new(),
+        }
+    }
+
     pub fn merge(&mut self, other: Self) {
         self.root = other.root;
         self.nodes.extend(other.nodes);
+    }
+
+    pub fn cloned(self: &Arc<Self>) -> Self {
+        Self {
+            root: self.root.clone(),
+            nodes: self.nodes.clone(),
+        }
     }
 }
 
@@ -305,7 +320,7 @@ impl WorkingPatchSet {
             if nibble_count == 0 {
                 // Copy the root node to all parts.
                 for part in &mut parts {
-                    part.changes_by_nibble_count[0] = level.clone();
+                    part.changes_by_nibble_count[0].clone_from(&level);
                 }
             } else {
                 for (nibbles, node) in level {

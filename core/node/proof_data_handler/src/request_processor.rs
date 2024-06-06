@@ -110,7 +110,7 @@ impl RequestProcessor {
             .get_l1_batch_header(l1_batch_number)
             .await
             .unwrap()
-            .expect(&format!("Missing header for {}", l1_batch_number));
+            .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
         let minor_version = header.protocol_version.unwrap();
         let protocol_version = self
@@ -122,9 +122,9 @@ impl RequestProcessor {
             .get_protocol_version_with_latest_patch(minor_version)
             .await
             .unwrap()
-            .expect(&format!(
-                "Missing l1 verifier info for protocol version {minor_version}",
-            ));
+            .unwrap_or_else(|| {
+                panic!("Missing l1 verifier info for protocol version {minor_version}")
+            });
 
         let batch_header = self
             .pool

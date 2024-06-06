@@ -52,10 +52,12 @@ pub fn locate_workspace() -> Option<&'static Path> {
     WORKSPACE
         .get_or_init(|| {
             let result = locate_workspace_inner();
-            if let Err(err) = &result {
+            if result.is_err() {
                 // `get_or_init()` is guaranteed to call the provided closure once per `OnceCell`;
                 // i.e., we won't spam logs here.
-                tracing::warn!("locate_workspace() failed: {err:?}");
+                tracing::info!(
+                    "locate_workspace() failed. You are using an already compiled version"
+                );
             }
             result.ok()
         })

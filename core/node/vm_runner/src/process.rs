@@ -109,10 +109,11 @@ impl VmRunner {
                 .await
                 .context("VM runner failed to handle L2 block")?;
         }
-        batch_executor
+        let finished_batch = batch_executor
             .finish_batch()
             .await
             .context("failed finishing L1 batch in executor")?;
+        updates_manager.finish_batch(finished_batch);
         output_handler
             .handle_l1_batch(Arc::new(updates_manager))
             .await

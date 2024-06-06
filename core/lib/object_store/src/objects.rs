@@ -185,7 +185,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::ObjectStoreFactory;
+    use crate::MockObjectStore;
 
     #[test]
     fn test_storage_logs_filesnames_generate_corretly() {
@@ -217,7 +217,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_logs_can_be_serialized_and_deserialized() {
-        let store = ObjectStoreFactory::mock().create_store().await;
+        let store = MockObjectStore::arc();
         let key = SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(567),
             chunk_id: 5,
@@ -245,7 +245,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_factory_deps_can_be_serialized_and_deserialized() {
-        let store = ObjectStoreFactory::mock().create_store().await;
+        let store = MockObjectStore::arc();
         let key = L1BatchNumber(123);
         let factory_deps = SnapshotFactoryDependencies {
             factory_deps: vec![

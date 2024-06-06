@@ -136,7 +136,7 @@ async fn guessing_l1_commit_block_number() {
     let eth_client = eth_params.client();
 
     for timestamp in [0, 100, 1_000, 5_000, 10_000, 100_000] {
-        let guessed_block_number =
+        let (guessed_block_number, step_count) =
             L1DataProvider::guess_l1_commit_block_number(&eth_client, timestamp)
                 .await
                 .unwrap();
@@ -145,6 +145,8 @@ async fn guessing_l1_commit_block_number() {
             guessed_block_number.abs_diff(timestamp.into()) <= L1DataProvider::L1_BLOCK_ACCURACY,
             "timestamp={timestamp}, guessed={guessed_block_number}"
         );
+        assert!(step_count > 0);
+        assert!(step_count < 100);
     }
 }
 
@@ -167,12 +169,13 @@ async fn test_using_l1_data_provider(l1_batch_timestamps: &[u64]) {
         L1DataProvider::new(pool, Box::new(eth_params.client()), DIAMOND_PROXY_ADDRESS).unwrap();
     for i in 0..l1_batch_timestamps.len() {
         let number = L1BatchNumber(i as u32 + 1);
-        let root_hash = provider
+        let output = provider
             .batch_details(number)
             .await
             .unwrap()
             .expect("no root hash");
-        assert_eq!(root_hash, H256::repeat_byte(number.0 as u8));
+        assert_eq!(output.root_hash, H256::repeat_byte(number.0 as u8));
+        assert_matches!(output.source, TreeDataProviderSource::L1CommitEvent);
 
         let past_l1_batch = provider.past_l1_batch.unwrap();
         assert_eq!(past_l1_batch.number, number);
@@ -217,21 +220,23 @@ async fn combined_data_provider_errors() {
             .with_fallback(Box::new(main_node_client));
 
     // L1 batch #1 should be obtained from L1
-    let root_hash = provider
+    let output = provider
         .batch_details(L1BatchNumber(1))
         .await
         .unwrap()
         .expect("no root hash");
-    assert_eq!(root_hash, H256::repeat_byte(1));
+    assert_eq!(output.root_hash, H256::repeat_byte(1));
+    assert_matches!(output.source, TreeDataProviderSource::L1CommitEvent);
     assert!(provider.l1.is_some());
 
     // L1 batch #2 should be obtained from L2
-    let root_hash = provider
+    let output = provider
         .batch_details(L1BatchNumber(2))
         .await
         .unwrap()
         .expect("no root hash");
-    assert_eq!(root_hash, H256::repeat_byte(2));
+    assert_eq!(output.root_hash, H256::repeat_byte(2));
+    assert_matches!(output.source, TreeDataProviderSource::BatchDetailsRpc);
     assert!(provider.l1.is_none());
 
     // L1 batch #3 is not present anywhere.

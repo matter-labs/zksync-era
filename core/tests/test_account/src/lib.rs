@@ -87,8 +87,9 @@ impl Account {
         .expect("should create a signed execute transaction");
 
         // Set the real transaction hash, which is necessary for transaction execution in VM to function properly.
-        let tx_request = api::TransactionRequest::from(tx.clone());
-        let tx_hash = tx_request.get_tx_hash(L2ChainId::default()).unwrap();
+        let mut tx_request = api::TransactionRequest::from(tx.clone());
+        tx_request.chain_id = Some(L2ChainId::default().as_u64());
+        let tx_hash = tx_request.get_tx_hash().unwrap();
         tx.set_input(H256::random().0.to_vec(), tx_hash);
         tx.into()
     }
@@ -169,12 +170,10 @@ impl Account {
                 serial_id: PriorityOpId(serial_id),
                 max_fee_per_gas,
                 canonical_tx_hash: H256::from_low_u64_be(serial_id),
-                deadline_block: 100000,
                 layer_2_tip_fee: Default::default(),
                 op_processing_type: OpProcessingType::Common,
                 priority_queue_type: PriorityQueueType::Deque,
-                eth_hash: H256::random(),
-                eth_block: 1,
+                eth_block: 0,
                 refund_recipient: self.address,
                 full_fee: Default::default(),
             }),

@@ -29,7 +29,9 @@ use crate::{
     },
     mempool_actor::l2_tx_filter,
     metrics::KEEPER_METRICS,
-    seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer},
+    seal_criteria::{
+        IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer, UnexecutableReason,
+    },
     updates::UpdatesManager,
     MempoolGuard,
 };
@@ -245,7 +247,8 @@ impl StateKeeperIO for MempoolIO {
                         tx.hash(),
                         tx.gas_limit()
                     );
-                    self.reject(&tx, &Halt::TooBigGasLimit.to_string()).await?;
+                    self.reject(&tx, UnexecutableReason::Halt(Halt::TooBigGasLimit))
+                        .await?;
                     continue;
                 }
                 return Ok(Some(tx));
@@ -265,10 +268,14 @@ impl StateKeeperIO for MempoolIO {
         Ok(())
     }
 
-    async fn reject(&mut self, rejected: &Transaction, error: &str) -> anyhow::Result<()> {
+    async fn reject(
+        &mut self,
+        rejected: &Transaction,
+        reason: UnexecutableReason,
+    ) -> anyhow::Result<()> {
         anyhow::ensure!(
             !rejected.is_l1(),
-            "L1 transactions should not be rejected: {error}"
+            "L1 transactions should not be rejected: {reason}"
         );
 
         // Reset the nonces in the mempool, but don't insert the transaction back.
@@ -276,14 +283,16 @@ impl StateKeeperIO for MempoolIO {
 
         // Mark tx as rejected in the storage.
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        KEEPER_METRICS.rejected_transactions.inc();
+
+        KEEPER_METRICS.inc_rejected_txs(reason.as_metric_label());
+
         tracing::warn!(
-            "Transaction {} is rejected with error: {error}",
+            "Transaction {} is rejected with error: {reason}",
             rejected.hash()
         );
         storage
             .transactions_dal()
-            .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {error}"))
+            .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {reason}"))
             .await?;
         Ok(())
     }
