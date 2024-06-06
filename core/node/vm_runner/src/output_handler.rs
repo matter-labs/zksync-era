@@ -2,7 +2,7 @@ use std::{
     fmt::{Debug, Formatter},
     mem,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::Context;
@@ -16,7 +16,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::L1BatchNumber;
 
-use crate::VmRunnerIo;
+use crate::{metrics::METRICS, VmRunnerIo};
 
 type BatchReceiver = oneshot::Receiver<JoinHandle<anyhow::Result<()>>>;
 
@@ -173,7 +173,10 @@ impl StateKeeperOutputHandler for AsyncOutputHandler {
             } => {
                 sender
                     .send(tokio::task::spawn(async move {
-                        handler.handle_l1_batch(updates_manager).await
+                        let started_at = Instant::now();
+                        let result = handler.handle_l1_batch(updates_manager).await;
+                        METRICS.output_handle_time.observe(started_at.elapsed());
+                        result
                     }))
                     .ok();
                 Ok(())
@@ -248,6 +251,9 @@ impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
                     self.io
                         .mark_l1_batch_as_completed(&mut conn, latest_processed_batch)
                         .await?;
+                    METRICS
+                        .last_processed_batch
+                        .set(latest_processed_batch.0 as u64);
                 }
             }
         }

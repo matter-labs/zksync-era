@@ -9441,6 +9441,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "vise",
  "vm_utils",
  "zksync_contracts",
  "zksync_dal",
