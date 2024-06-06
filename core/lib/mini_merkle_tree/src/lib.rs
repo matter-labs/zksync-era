@@ -301,15 +301,15 @@ pub trait HashEmptySubtree<L>: 'static + Send + Sync + Hasher<Hash = H256> {
     /// Implementations are encouraged to cache the returned values.
     fn empty_subtree_hash(&self, depth: usize) -> H256 {
         static EMPTY_TREE_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
-        EMPTY_TREE_HASHES.get_or_init(|| compute_empty_tree_hashes(self.empty_hash()))[depth]
+        EMPTY_TREE_HASHES.get_or_init(|| compute_empty_tree_hashes(self.empty_leaf_hash()))[depth]
     }
 
     /// Returns an empty hash
-    fn empty_hash(&self) -> H256;
+    fn empty_leaf_hash(&self) -> H256;
 }
 
 impl HashEmptySubtree<[u8; 88]> for KeccakHasher {
-    fn empty_hash(&self) -> H256 {
+    fn empty_leaf_hash(&self) -> H256 {
         self.hash_bytes(&[0_u8; 88])
     }
 }
