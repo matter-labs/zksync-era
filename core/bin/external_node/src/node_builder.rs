@@ -4,8 +4,8 @@
 use zksync_config::{configs::DatabaseSecrets, PostgresConfig};
 use zksync_node_framework::{
     implementations::layers::{
-        pools_layer::PoolsLayerBuilder, postgres_metrics::PostgresMetricsLayer,
-        sigint::SigintHandlerLayer,
+        main_node_client::MainNodeClientLayer, pools_layer::PoolsLayerBuilder,
+        postgres_metrics::PostgresMetricsLayer, sigint::SigintHandlerLayer,
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
@@ -69,13 +69,26 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_main_node_client_layer(mut self) -> anyhow::Result<Self> {
+        let layer = MainNodeClientLayer::new(
+            self.config.required.main_node_url.clone(),
+            self.config.optional.main_node_rate_limit_rps,
+            self.config.required.l2_chain_id,
+        );
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     fn add_preconditions(mut self) -> anyhow::Result<Self> {
         todo!()
     }
 
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
-        self = self.add_sigint_handler_layer()?.add_pools_layer()?;
+        self = self
+            .add_sigint_handler_layer()?
+            .add_pools_layer()?
+            .add_main_node_client_layer()?;
 
         // Add preconditions for all the components.
         self = self.add_preconditions()?;
