@@ -211,8 +211,8 @@ impl L2BlockSealSubtask for InsertFactoryDepsSubtask {
                 .factory_deps_dal()
                 .insert_factory_deps(command.l2_block.number, &command.l2_block.new_factory_deps)
                 .await?;
-            progress.observe(command.l2_block.new_factory_deps.len());
         }
+        progress.observe(command.l2_block.new_factory_deps.len());
 
         Ok(())
     }
@@ -250,12 +250,11 @@ impl L2BlockSealSubtask for InsertTokensSubtask {
             extract_added_tokens(command.l2_shared_bridge_addr, &command.l2_block.events);
         progress.observe(added_tokens.len());
 
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
         if !added_tokens.is_empty() {
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
-            let added_tokens_len = added_tokens.len();
             connection.tokens_dal().add_tokens(&added_tokens).await?;
-            progress.observe(added_tokens_len);
         }
+        progress.observe(added_tokens.len());
 
         Ok(())
     }
@@ -342,10 +341,12 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
         progress.observe(user_l2_to_l1_log_count);
 
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2ToL1Logs, is_fictive);
-        connection
-            .events_dal()
-            .save_user_l2_to_l1_logs(command.l2_block.number, &user_l2_to_l1_logs)
-            .await?;
+        if !user_l2_to_l1_logs.is_empty() {
+            connection
+                .events_dal()
+                .save_user_l2_to_l1_logs(command.l2_block.number, &user_l2_to_l1_logs)
+                .await?;
+        }
         progress.observe(user_l2_to_l1_log_count);
         Ok(())
     }
@@ -516,7 +517,7 @@ mod tests {
             .get_transaction_receipts(&[tx_hash])
             .await
             .unwrap()
-            .get(0)
+            .first()
             .cloned();
         assert!(tx_receipt.is_none());
 

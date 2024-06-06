@@ -13,7 +13,7 @@ use zksync_eth_client::{clients::MockEthereum, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::MockObjectStore;
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{
@@ -161,7 +161,6 @@ impl EthSenderTester {
             .await
             .unwrap(),
         );
-        let store_factory = ObjectStoreFactory::mock();
 
         let eth_sender = eth_sender_config.sender.clone().unwrap();
         let aggregator = EthTxAggregator::new(
@@ -174,7 +173,7 @@ impl EthSenderTester {
             // Aggregator - unused
             Aggregator::new(
                 aggregator_config.clone(),
-                store_factory.create_store().await,
+                MockObjectStore::arc(),
                 aggregator_operate_4844_mode,
                 commitment_mode,
             ),

@@ -54,8 +54,8 @@ use zksync_web3_decl::{
 
 use crate::{
     config::ExternalNodeConfig,
-    helpers::{EthClientHealthCheck, MainNodeHealthCheck, ValidateChainIdsTask},
-    init::ensure_storage_initialized,
+    helpers::{MainNodeHealthCheck, ValidateChainIdsTask},
+    init::{ensure_storage_initialized, SnapshotRecoveryConfig},
     metrics::RUST_METRICS,
 };
 
@@ -140,6 +140,9 @@ async fn run_tree(
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
         recovery: MetadataCalculatorRecoveryConfig {
             desired_chunk_size: config.experimental.snapshots_recovery_tree_chunk_size,
+            parallel_persistence_buffer: config
+                .experimental
+                .snapshots_recovery_tree_parallel_persistence_buffer,
         },
     };
 
@@ -854,7 +857,6 @@ async fn run_node(
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
     )))?;
-    app_health.insert_custom_component(Arc::new(EthClientHealthCheck::from(eth_client.clone())))?;
     app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
         connection_pool.clone(),
     )))?;
@@ -909,12 +911,19 @@ async fn run_node(
     task_handles.extend(prometheus_task);
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
+    let recovery_config =
+        config
+            .optional
+            .snapshots_recovery_enabled
+            .then_some(SnapshotRecoveryConfig {
+                snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
+            });
     ensure_storage_initialized(
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
         config.required.l2_chain_id,
-        config.optional.snapshots_recovery_enabled,
+        recovery_config,
     )
     .await?;
     let sigint_receiver = env.setup_sigint_handler();

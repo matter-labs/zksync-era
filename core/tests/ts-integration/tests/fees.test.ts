@@ -9,7 +9,7 @@
  * sure that the test is maintained does not get broken.
  *
  */
-import * as utils from 'zk/build/utils';
+import * as utils from 'utils';
 import * as fs from 'fs';
 import { TestMaster } from '../src/index';
 
@@ -258,10 +258,10 @@ async function updateReport(
     const l2EstimatedPriceAsNumber = +ethers.utils.formatEther(estimatedPrice);
 
     const gasReport = `Gas price ${newL1GasPrice / 1000000000} gwei:
-    L1 cost ${expectedL1Price}, 
+    L1 cost ${expectedL1Price},
     L2 estimated cost: ${l2EstimatedPriceAsNumber}
     Estimated Gain: ${expectedL1Price / l2EstimatedPriceAsNumber}
-    L2 cost: ${l2PriceAsNumber}, 
+    L2 cost: ${l2PriceAsNumber},
     Gain: ${expectedL1Price / l2PriceAsNumber}\n`;
     console.log(gasReport);
 

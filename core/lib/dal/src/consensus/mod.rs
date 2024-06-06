@@ -109,6 +109,17 @@ impl ProtoRepr for proto::Transaction {
         Ok(Self::Type {
             common_data: match common_data {
                 proto::transaction::CommonData::L1(common_data) => {
+                    anyhow::ensure!(
+                        *required(&common_data.deadline_block)
+                            .context("common_data.deadline_block")?
+                            == 0
+                    );
+                    anyhow::ensure!(
+                        required(&common_data.eth_hash)
+                            .and_then(|x| parse_h256(x))
+                            .context("common_data.eth_hash")?
+                            == H256::default()
+                    );
                     ExecuteTransactionCommon::L1(L1TxCommonData {
                         sender: required(&common_data.sender_address)
                             .and_then(|x| parse_h160(x))
@@ -116,8 +127,6 @@ impl ProtoRepr for proto::Transaction {
                         serial_id: required(&common_data.serial_id)
                             .map(|x| PriorityOpId(*x))
                             .context("common_data.serial_id")?,
-                        deadline_block: *required(&common_data.deadline_block)
-                            .context("common_data.deadline_block")?,
                         layer_2_tip_fee: required(&common_data.layer_2_tip_fee)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
@@ -150,6 +159,8 @@ impl ProtoRepr for proto::Transaction {
                                     .map_err(|_| anyhow!("u8::try_from"))
                             })
                             .context("common_data.priority_queue_type")?,
+                        eth_block: *required(&common_data.eth_block)
+                            .context("common_data.eth_block")?,
                         canonical_tx_hash: required(&common_data.canonical_tx_hash)
                             .and_then(|x| parse_h256(x))
                             .context("common_data.canonical_tx_hash")?,
@@ -242,6 +253,8 @@ impl ProtoRepr for proto::Transaction {
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
                             .context("common_data.gas_per_pubdata_limit")?,
+                        eth_block: *required(&common_data.eth_block)
+                            .context("common_data.eth_block")?,
                         canonical_tx_hash: required(&common_data.canonical_tx_hash)
                             .and_then(|x| parse_h256(x))
                             .context("common_data.canonical_tx_hash")?,
@@ -280,7 +293,7 @@ impl ProtoRepr for proto::Transaction {
                 proto::transaction::CommonData::L1(proto::L1TxCommonData {
                     sender_address: Some(data.sender.as_bytes().into()),
                     serial_id: Some(data.serial_id.0),
-                    deadline_block: Some(data.deadline_block),
+                    deadline_block: Some(0),
                     layer_2_tip_fee: Some(u256_to_h256(data.layer_2_tip_fee).as_bytes().into()),
                     full_fee: Some(u256_to_h256(data.full_fee).as_bytes().into()),
                     max_fee_per_gas: Some(u256_to_h256(data.max_fee_per_gas).as_bytes().into()),
@@ -290,6 +303,8 @@ impl ProtoRepr for proto::Transaction {
                     ),
                     op_processing_type: Some(data.op_processing_type as u32),
                     priority_queue_type: Some(data.priority_queue_type as u32),
+                    eth_hash: Some(H256::default().as_bytes().into()),
+                    eth_block: Some(data.eth_block),
                     canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
                     to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
                     refund_recipient_address: Some(data.refund_recipient.as_bytes().into()),
@@ -333,6 +348,8 @@ impl ProtoRepr for proto::Transaction {
                         gas_per_pubdata_limit: Some(
                             u256_to_h256(data.gas_per_pubdata_limit).as_bytes().into(),
                         ),
+                        eth_hash: Some(H256::default().as_bytes().into()),
+                        eth_block: Some(data.eth_block),
                         canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
                         to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
                         refund_recipient_address: Some(data.refund_recipient.as_bytes().into()),
