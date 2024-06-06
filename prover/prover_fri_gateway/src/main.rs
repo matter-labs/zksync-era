@@ -7,7 +7,10 @@ use prover_dal::{ConnectionPool, Prover};
 use reqwest::Client;
 use tokio::sync::{oneshot, watch};
 use zksync_config::{
-    configs::{DatabaseSecrets, FriProverGatewayConfig, ObservabilityConfig, PostgresConfig},
+    configs::{
+        DatabaseSecrets, FriProverConfig, FriProverGatewayConfig, ObservabilityConfig,
+        PostgresConfig,
+    },
     ObjectStoreConfig,
 };
 use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, TempConfigStore};
@@ -153,6 +156,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
+        fri_prover_config: FriProverConfig::from_env().ok(),
         ..Default::default()
     })
 }
