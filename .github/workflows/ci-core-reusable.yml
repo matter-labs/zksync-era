@@ -285,6 +285,10 @@ jobs:
         if: always()
         run: ci_run cat core/tests/upgrade-test/upgrade.log || true
 
+      - name: Show fee-projection.log logs
+        if: always()
+        run: ci_run cat core/tests/ts-integration/fees.log || true
+
       - name: Show sccache logs
         if: always()
         run: |
