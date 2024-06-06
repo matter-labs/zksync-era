@@ -34,11 +34,11 @@ async fn prover_and_assert_base_layer(
     };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
-        .await;
+        .await?;
     let expected_proof = object_store
         .get(expected_proof_id)
         .await
-        .expect("missing expected proof");
+        .context("missing expected proof")?;
 
     let aggregation_round = AggregationRound::BasicCircuits;
     let blob_key = FriCircuitKey {

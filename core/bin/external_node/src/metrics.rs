@@ -4,10 +4,7 @@ use tokio::sync::watch;
 use vise::{EncodeLabelSet, Gauge, Info, Metrics};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 
-use crate::{
-    config::ExternalNodeConfig,
-    metadata::{RustcMetadata, RUSTC_METADATA, SERVER_VERSION},
-};
+use crate::{config::ExternalNodeConfig, metadata::SERVER_VERSION};
 
 /// Immutable EN parameters that affect multiple components.
 #[derive(Debug, Clone, Copy, EncodeLabelSet)]
@@ -74,20 +71,3 @@ impl ExternalNodeMetrics {
 
 #[vise::register]
 pub(crate) static EN_METRICS: vise::Global<ExternalNodeMetrics> = vise::Global::new();
-
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "rust")]
-pub(crate) struct RustMetrics {
-    /// General information about the Rust compiler.
-    info: Info<RustcMetadata>,
-}
-
-impl RustMetrics {
-    pub fn initialize(&self) {
-        tracing::info!("Metadata for rustc that this EN was compiled with: {RUSTC_METADATA:?}");
-        self.info.set(RUSTC_METADATA).ok();
-    }
-}
-
-#[vise::register]
-pub(crate) static RUST_METRICS: vise::Global<RustMetrics> = vise::Global::new();

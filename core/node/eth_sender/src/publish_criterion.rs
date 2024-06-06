@@ -16,6 +16,7 @@ use super::{metrics::METRICS, utils::agg_l1_batch_base_cost};
 
 #[async_trait]
 pub trait L1BatchPublishCriterion: fmt::Debug + Send + Sync {
+    #[allow(dead_code)]
     // Takes `&self` receiver for the trait to be object-safe
     fn name(&self) -> &'static str;
 

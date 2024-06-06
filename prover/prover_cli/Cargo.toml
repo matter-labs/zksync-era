@@ -33,6 +33,8 @@ strum.workspace = true
 colored.workspace = true
 sqlx.workspace = true
 circuit_definitions.workspace = true
+zkevm_test_harness = { workspace = true, optional = true, features = ["verbose_circuits"] }
 
-[dev-dependencies]
-assert_cmd = "2"
+[features]
+# enable verbose circuits, if you want to use debug_circuit command (as it is quite heavy dependency).
+verbose_circuits = ["zkevm_test_harness"]

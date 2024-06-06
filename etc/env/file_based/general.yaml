@@ -323,5 +323,6 @@ observability:
     level: debug
 
 protective_reads_writer:
-  protective_reads_db_path: "./db/main/protective_reads"
-  protective_reads_window_size: 3
+  db_path: "./db/main/protective_reads"
+  window_size: 3
+  first_processed_batch: 0

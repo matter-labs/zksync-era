@@ -75,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
         SnapshotsObjectStoreConfig::from_env().context("SnapshotsObjectStoreConfig::from_env()")?;
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
-        .await;
+        .await?;
 
     let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets")?;
     let creator_config =
