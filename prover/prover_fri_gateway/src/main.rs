@@ -51,7 +51,6 @@ async fn main() -> anyhow::Result<()> {
 
     let observability_config = general_config
         .observability
-        .clone()
         .context("observability config")?;
 
     let log_format: vlog::LogFormat = observability_config
@@ -70,13 +69,9 @@ async fn main() -> anyhow::Result<()> {
 
     let config = general_config
         .prover_gateway
-        .clone()
         .context("prover gateway config")?;
 
-    let postgres_config = general_config
-        .postgres_config
-        .clone()
-        .context("postgres config")?;
+    let postgres_config = general_config.postgres_config.context("postgres config")?;
     let pool = ConnectionPool::<Prover>::builder(
         database_secrets.prover_url()?,
         postgres_config.max_connections()?,
@@ -86,9 +81,10 @@ async fn main() -> anyhow::Result<()> {
     .context("failed to build a connection pool")?;
     let object_store_config = ProverObjectStoreConfig(
         general_config
+            .prover_config
+            .context("prover config")?
             .object_store
-            .clone()
-            .context("object store config")?,
+            .context("object store")?,
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
 
