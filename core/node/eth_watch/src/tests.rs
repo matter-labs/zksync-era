@@ -163,15 +163,8 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
         received_timestamp_ms: 0,
     };
     // Convert to abi::Transaction and back, so that canonical_tx_hash is computed.
-    let tx = abi::Transaction::try_from(Transaction::from(tx)).unwrap();
-    let hash1 = tx.hash().unwrap();
-    let tx = Transaction::try_from(tx).unwrap();
-    let hash2 = abi::Transaction::try_from(tx.clone())
-        .unwrap()
-        .hash()
-        .unwrap();
-    assert_eq!(hash1, hash2);
-    tracing::info!("hash1 = {hash1}");
+    let tx =
+        Transaction::try_from(abi::Transaction::try_from(Transaction::from(tx)).unwrap()).unwrap();
     tx.try_into().unwrap()
 }
 

@@ -177,7 +177,7 @@ impl Client {
 }
 
 fn batch_hash(batch: &L1BatchWithMetadata) -> H256 {
-    let token = StoredBatchInfo(batch).into_token();
+    let token = StoredBatchInfo::from(batch).into_token();
     H256(keccak256(&ethabi::encode(&[token])))
 }
 

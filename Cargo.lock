@@ -713,7 +713,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#cd631c9a1d61ec21d7bd22eb74949d43ecfad0fd"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -730,7 +730,6 @@ dependencies = [
  "lazy_static",
  "num-modular",
  "num_cpus",
- "packed_simd",
  "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git)",
  "rand 0.8.5",
  "rayon",
@@ -1554,7 +1553,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#cd631c9a1d61ec21d7bd22eb74949d43ecfad0fd"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.69",
@@ -1583,9 +1582,9 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
-version = "4.1.1"
+version = "4.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e89b8c6a2e4b1f45971ad09761aafb85514a84744b67a95e32c3cc1352d1f65c"
+checksum = "0a677b8922c94e01bdbb12126b0bc852f00447528dee1782229af9c720c3f348"
 dependencies = [
  "cfg-if 1.0.0",
  "cpufeatures",
@@ -4227,16 +4226,6 @@ dependencies = [
  "elliptic-curve 0.13.7",
  "primeorder",
  "sha2 0.10.8",
-]
-
-[[package]]
-name = "packed_simd"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f9f08af0c877571712e2e3e686ad79efad9657dbf0f7c3c8ba943ff6c38932d"
-dependencies = [
- "cfg-if 1.0.0",
- "num-traits",
 ]
 
 [[package]]
@@ -9024,8 +9013,10 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
+ "futures 0.3.28",
  "once_cell",
  "serde",
+ "serde_json",
  "test-casing",
  "thiserror",
  "tokio",
@@ -9238,6 +9229,8 @@ dependencies = [
 name = "zksync_shared_metrics"
 version = "0.1.0"
 dependencies = [
+ "rustc_version",
+ "tracing",
  "vise",
  "zksync_dal",
  "zksync_types",
@@ -9429,7 +9422,6 @@ dependencies = [
  "strum",
  "thiserror",
  "tokio",
- "tracing",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",

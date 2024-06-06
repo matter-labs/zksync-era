@@ -61,14 +61,11 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
             {
                 // We might not get an upgrade operation here, but something else instead
                 // (e.g. `acceptGovernor` call), so if parsing doesn't work, just skip the call.
-                let upgrade = match ProtocolUpgrade::try_from(call) {
-                    Ok(upgrade) => upgrade,
-                    Err(err) => {
-                        tracing::warn!(
-                            "Failed to parse governance operation call as protocol upgrade, skipping; err = {err:#}"
-                        );
-                        continue;
-                    }
+                let Ok(upgrade) = ProtocolUpgrade::try_from(call) else {
+                    tracing::warn!(
+                        "Failed to parse governance operation call as protocol upgrade, skipping"
+                    );
+                    continue;
                 };
                 // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
                 let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
@@ -76,18 +73,14 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
                 } else {
                     None
                 };
-                tracing::info!("CALL OK");
                 upgrades.push((upgrade, scheduler_vk_hash));
             }
         }
-        tracing::info!("upgrades.len() = {}", upgrades.len());
 
         let new_upgrades: Vec<_> = upgrades
             .into_iter()
             .skip_while(|(v, _)| v.version <= self.last_seen_protocol_version)
             .collect();
-
-        tracing::info!("new_upgrades.len() = {}", new_upgrades.len());
 
         let Some((last_upgrade, _)) = new_upgrades.last() else {
             return Ok(());

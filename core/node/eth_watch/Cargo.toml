@@ -17,10 +17,12 @@ zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
 zksync_eth_client.workspace = true
 zksync_shared_metrics.workspace = true
-zksync_concurrency.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+zksync_concurrency.workspace = true

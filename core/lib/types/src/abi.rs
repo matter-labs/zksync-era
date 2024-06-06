@@ -8,8 +8,8 @@ use crate::{
     web3, Address, H256, U256,
 };
 
-/// `Transaction` from `system-contracts/contracts/libraries/TransactionHelper.sol`.
 /// `L2CanonicalTransaction` from `l1-contracts/contracts/zksync/interfaces/IMailbox.sol`.
+/// Represents L1->L2 transactions: priority transactions and protocol upgrade transactions.
 #[derive(Default, Debug)]
 pub struct L2CanonicalTransaction {
     pub tx_type: U256,
@@ -31,6 +31,7 @@ pub struct L2CanonicalTransaction {
 }
 
 impl L2CanonicalTransaction {
+    /// RLP schema of the L1->L2 transaction.
     pub fn schema() -> ParamType {
         ParamType::Tuple(vec![
             ParamType::Uint(256),                                  // `txType`
@@ -52,6 +53,8 @@ impl L2CanonicalTransaction {
         ])
     }
 
+    /// Decodes L1->L2 transaction from a RLP token.
+    /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
         anyhow::ensure!(tokens.len() == 16);
@@ -94,6 +97,7 @@ impl L2CanonicalTransaction {
         })
     }
 
+    /// Encodes L1->L2 transaction to a RLP token.
     pub fn encode(&self) -> Token {
         Token::Tuple(vec![
             Token::Uint(self.tx_type),
@@ -115,11 +119,13 @@ impl L2CanonicalTransaction {
         ])
     }
 
+    /// Canonical hash of the L1->L2 transaction.
     pub fn hash(&self) -> H256 {
         H256::from_slice(&web3::keccak256(&ethabi::encode(&[self.encode()])))
     }
 }
 
+/// `NewPriorityRequest` from `l1-contracts/contracts/zksync/interfaces/IMailbox.sol`.
 #[derive(Debug)]
 pub struct NewPriorityRequest {
     pub tx_id: U256,
@@ -130,6 +136,7 @@ pub struct NewPriorityRequest {
 }
 
 impl NewPriorityRequest {
+    /// Encodes `NewPriorityRequest` to a sequence of RLP tokens.
     pub fn encode(&self) -> Vec<Token> {
         vec![
             Token::Uint(self.tx_id),
@@ -145,6 +152,8 @@ impl NewPriorityRequest {
         ]
     }
 
+    /// Decodes `NewPriorityRequest` from RLP encoding.
+    /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(data: &[u8]) -> Result<Self, ethabi::Error> {
         let tokens = ethabi::decode(
             &[
@@ -175,7 +184,7 @@ impl NewPriorityRequest {
     }
 }
 
-/// `l1-contracts/contracts/state-transition/chain-interfaces/IVerifier.sol:VerifierParams`.
+/// `VerifierParams` from `l1-contracts/contracts/state-transition/chain-interfaces/IVerifier.sol`.
 #[derive(Default, PartialEq)]
 pub struct VerifierParams {
     pub recursion_node_level_vk_hash: [u8; 32],
@@ -183,7 +192,7 @@ pub struct VerifierParams {
     pub recursion_circuits_set_vks_hash: [u8; 32],
 }
 
-/// `l1-contracts/contracts/upgrades/BazeZkSyncUpgrade.sol:ProposedUpgrade`.
+/// `ProposedUpgrade` from, `l1-contracts/contracts/upgrades/BazeZkSyncUpgrade.sol`.
 pub struct ProposedUpgrade {
     pub l2_protocol_upgrade_tx: Box<L2CanonicalTransaction>,
     pub factory_deps: Vec<Vec<u8>>,
@@ -198,6 +207,7 @@ pub struct ProposedUpgrade {
 }
 
 impl VerifierParams {
+    /// RLP schema of `VerifierParams`.
     pub fn schema() -> ParamType {
         ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
@@ -206,6 +216,7 @@ impl VerifierParams {
         ])
     }
 
+    /// Encodes `VerifierParams` to a RLP token.
     pub fn encode(&self) -> Token {
         Token::Tuple(vec![
             Token::FixedBytes(self.recursion_node_level_vk_hash.into()),
@@ -214,6 +225,8 @@ impl VerifierParams {
         ])
     }
 
+    /// Decodes `VerifierParams` from a RLP token.
+    /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
         anyhow::ensure!(tokens.len() == 3);
@@ -237,6 +250,7 @@ impl VerifierParams {
 }
 
 impl ProposedUpgrade {
+    /// RLP schema of the `ProposedUpgrade`.
     pub fn schema() -> ParamType {
         ParamType::Tuple(vec![
             L2CanonicalTransaction::schema(),          // transaction data
@@ -252,6 +266,7 @@ impl ProposedUpgrade {
         ])
     }
 
+    /// Encodes `ProposedUpgrade` to a RLP token.
     pub fn encode(&self) -> Token {
         Token::Tuple(vec![
             self.l2_protocol_upgrade_tx.encode(),
@@ -272,6 +287,8 @@ impl ProposedUpgrade {
         ])
     }
 
+    /// Decodes `ProposedUpgrade` from a RLP token.
+    /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
         anyhow::ensure!(tokens.len() == 10);
@@ -309,21 +326,29 @@ impl ProposedUpgrade {
     }
 }
 
+/// Minimal representation of arbitrary zksync transaction.
+/// Suitable for verifying hashes/re-encoding.
 #[derive(Debug)]
 pub enum Transaction {
+    /// L1->L2 transaction (both protocol upgrade and Priority transaction).
     L1 {
         /// Hashed data.
         tx: Box<L2CanonicalTransaction>,
-        /// txn contains a commitment to factory_deps.
+        /// `tx` contains a commitment to `factory_deps`.
         factory_deps: Vec<Vec<u8>>,
         /// Auxiliary data, not hashed.
         eth_block: u64,
         received_timestamp_ms: u64,
     },
+    /// RLP encoding of a L2 transaction.
     L2(Vec<u8>),
 }
 
 impl Transaction {
+    /// Canonical hash of the transaction.
+    /// Returns an error if data is inconsistent.
+    /// Note that currently not all of the transaction
+    /// content is included in the hash.
     pub fn hash(&self) -> anyhow::Result<H256> {
         Ok(match self {
             Self::L1 {

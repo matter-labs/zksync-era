@@ -25,7 +25,7 @@ pub(crate) struct LastBlockCommit {
 /// Proof of the last block of the batch.
 /// Contains the hash of the last block.
 pub(crate) struct LastBlockProof {
-    info: i_executor::structures::StoredBatchInfoCompact,
+    info: i_executor::structures::StoredBatchInfo,
     protocol_version: ProtocolVersionId,
 
     current_l2_block_info: TreeEntryWithProof,
@@ -126,7 +126,7 @@ impl LastBlockProof {
         }
         let l2_block_hash_entry = proofs[0].clone();
         Ok(Self {
-            info: i_executor::structures::StoredBatchInfo(&batch).into_compact(),
+            info: i_executor::structures::StoredBatchInfo::from(&batch),
             protocol_version: batch
                 .header
                 .protocol_version

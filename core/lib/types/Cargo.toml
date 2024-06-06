@@ -33,7 +33,6 @@ num_enum.workspace = true
 hex.workspace = true
 prost.workspace = true
 itertools.workspace = true
-tracing.workspace = true
 
 # Crypto stuff
 secp256k1.workspace = true

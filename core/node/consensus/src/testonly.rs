@@ -294,10 +294,10 @@ impl StateKeeper {
         Ok(L1BatchCommit {
             number,
             this_batch: LastBlockCommit {
-                info: StoredBatchInfo(&this).into_compact().hash(),
+                info: StoredBatchInfo::from(&this).hash(),
             },
             prev_batch: LastBlockCommit {
-                info: StoredBatchInfo(&prev).into_compact().hash(),
+                info: StoredBatchInfo::from(&prev).hash(),
             },
         })
     }

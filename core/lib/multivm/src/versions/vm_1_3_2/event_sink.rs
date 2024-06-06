@@ -74,7 +74,8 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
         // since if rollbacks of parents were not appended anywhere we just still keep them
         for el in history {
             // we are time ordered here in terms of rollbacks
-            if tmp.get(&el.timestamp.0).is_some() {
+            #[allow(clippy::map_entry)]
+            if tmp.contains_key(&el.timestamp.0) {
                 assert!(el.rollback);
                 tmp.remove(&el.timestamp.0);
             } else {
