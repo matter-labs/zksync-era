@@ -5,7 +5,7 @@ use zksync_node_api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy:
 use crate::{
     implementations::resources::{
         main_node_client::MainNodeClientResource,
-        pools::{MasterPool, PoolResource},
+        pools::{MasterPool, PoolResource, ReplicaPool},
         web3_api::TxSinkResource,
     },
     service::ServiceContext,
@@ -37,7 +37,12 @@ impl WiringLayer for TxSinkLayer {
             }
             TxSinkLayer::ProxySink => {
                 let MainNodeClientResource(client) = context.get_resource().await?;
-                TxSinkResource(Arc::new(TxProxy::new(client)))
+                let pool = context
+                    .get_resource::<PoolResource<ReplicaPool>>()
+                    .await?
+                    .get()
+                    .await?;
+                TxSinkResource(Arc::new(TxProxy::new(pool, client)))
             }
         };
         context.insert_resource(tx_sink)?;

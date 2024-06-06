@@ -1,27 +1,23 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, HashSet},
     future::Future,
     sync::Arc,
     time::Duration,
 };
 
 use anyhow::Context;
+use chrono::{TimeZone, Utc};
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{
     helpers::wait_for_l1_batch, transactions_dal::L2TxSubmissionResult, ConnectionPool, Core,
-    CoreDal,
+    CoreDal, DalError,
 };
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{
-    api::{BlockId, Transaction, TransactionDetails, TransactionId},
-    fee::TransactionExecutionMetrics,
-    l2::L2Tx,
-    Address, Nonce, H256,
-};
+use zksync_types::{api, fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256, U256};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    namespaces::EthNamespaceClient,
 };
 
 use super::{tx_sink::TxSink, SubmitTxError};
@@ -33,8 +29,59 @@ pub(crate) struct TxCache {
 
 #[derive(Debug, Default)]
 struct TxCacheInner {
+    // FIXME: implement expiration / LRU?
     tx_cache: HashMap<H256, L2Tx>,
+    tx_hashes_by_initiator: HashMap<(Address, Nonce), HashSet<H256>>,
     nonces_by_account: HashMap<Address, BTreeSet<Nonce>>,
+}
+
+impl TxCacheInner {
+    /// Removes transactions from the cache based on nonces for accounts loaded from Postgres.
+    fn collect_garbage(&mut self, nonces_for_accounts: &HashMap<Address, Nonce>) {
+        self.nonces_by_account.retain(|address, account_nonces| {
+            let stored_nonce = nonces_for_accounts
+                .get(address)
+                .copied()
+                .unwrap_or(Nonce(0));
+            // Retain only nonces starting from the stored one, and remove transactions with all past nonces;
+            // this includes both successfully executed and replaced transactions.
+            let retained_nonces = account_nonces.split_off(&stored_nonce);
+            for &nonce in &*account_nonces {
+                if let Some(tx_hashes) = self.tx_hashes_by_initiator.remove(&(*address, nonce)) {
+                    for tx_hash in tx_hashes {
+                        self.tx_cache.remove(&tx_hash);
+                    }
+                }
+            }
+            *account_nonces = retained_nonces;
+            // If we've removed all nonces, drop the account entry so we don't request stored nonces for it later.
+            !account_nonces.is_empty()
+        });
+    }
+
+    /// Same as `collect_garbage()`, but optimized for a single account–nonce entry.
+    fn collect_garbage_for_account(&mut self, initiator_address: Address, stored_nonce: Nonce) {
+        let Some(account_nonces) = self.nonces_by_account.get_mut(&initiator_address) else {
+            return;
+        };
+
+        let retained_nonces = account_nonces.split_off(&stored_nonce);
+        for &nonce in &*account_nonces {
+            if let Some(tx_hashes) = self
+                .tx_hashes_by_initiator
+                .remove(&(initiator_address, nonce))
+            {
+                for tx_hash in tx_hashes {
+                    self.tx_cache.remove(&tx_hash);
+                }
+            }
+        }
+        *account_nonces = retained_nonces;
+
+        if account_nonces.is_empty() {
+            self.nonces_by_account.remove(&initiator_address);
+        }
+    }
 }
 
 impl TxCache {
@@ -45,6 +92,11 @@ impl TxCache {
             .entry(tx.initiator_account())
             .or_default()
             .insert(tx.nonce());
+        inner
+            .tx_hashes_by_initiator
+            .entry((tx.initiator_account(), tx.nonce()))
+            .or_default()
+            .insert(tx.hash());
         inner.tx_cache.insert(tx.hash(), tx);
     }
 
@@ -59,11 +111,6 @@ impl TxCache {
         } else {
             BTreeSet::new()
         }
-    }
-
-    async fn remove_tx(&self, tx_hash: H256) {
-        self.inner.write().await.tx_cache.remove(&tx_hash);
-        // We intentionally don't change `nonces_by_account`; they should only be changed in response to new L2 blocks
     }
 
     async fn run_updates(
@@ -108,18 +155,10 @@ impl TxCache {
                 .await?;
             drop(storage); // Don't hold both `storage` and lock on `inner` at the same time.
 
-            let mut inner = self.inner.write().await;
-            inner.nonces_by_account.retain(|address, account_nonces| {
-                let stored_nonce = nonces_for_accounts
-                    .get(address)
-                    .copied()
-                    .unwrap_or(Nonce(0));
-                // Retain only nonces starting from the stored one.
-                *account_nonces = account_nonces.split_off(&stored_nonce);
-                // If we've removed all nonces, drop the account entry so we don't request stored nonces for it later.
-                !account_nonces.is_empty()
-            });
-            drop(inner);
+            self.inner
+                .write()
+                .await
+                .collect_garbage(&nonces_for_accounts);
 
             tokio::time::sleep(UPDATE_INTERVAL).await;
         }
@@ -131,14 +170,16 @@ impl TxCache {
 #[derive(Debug)]
 pub struct TxProxy {
     tx_cache: TxCache,
+    pool: ConnectionPool<Core>,
     client: Box<DynClient<L2>>,
 }
 
 impl TxProxy {
-    pub fn new(client: Box<DynClient<L2>>) -> Self {
+    pub fn new(pool: ConnectionPool<Core>, client: Box<DynClient<L2>>) -> Self {
         Self {
-            client: client.for_component("tx_proxy"),
             tx_cache: TxCache::default(),
+            pool,
+            client: client.for_component("tx_proxy"),
         }
     }
 
@@ -158,12 +199,35 @@ impl TxProxy {
         self.tx_cache.push(tx).await;
     }
 
-    async fn find_tx(&self, tx_hash: H256) -> Option<L2Tx> {
-        self.tx_cache.get_tx(tx_hash).await
-    }
+    async fn find_tx(&self, tx_hash: H256) -> Result<Option<L2Tx>, Web3Error> {
+        let Some(tx) = self.tx_cache.get_tx(tx_hash).await else {
+            return Ok(None);
+        };
 
-    async fn forget_tx(&self, tx_hash: H256) {
-        self.tx_cache.remove_tx(tx_hash).await;
+        let mut storage = self
+            .pool
+            .connection_tagged("api")
+            .await
+            .map_err(DalError::generalize)?;
+        let initiator_address = tx.initiator_account();
+        let nonce_map = storage
+            .storage_web3_dal()
+            .get_nonces_for_addresses(&[initiator_address])
+            .await
+            .map_err(DalError::generalize)?;
+        if let Some(&stored_nonce) = nonce_map.get(&initiator_address) {
+            // `stored_nonce` is the *next* nonce of the `initiator_address` account, thus, strict inequality check
+            if tx.nonce() < stored_nonce {
+                // Transaction is included in a block or replaced; either way, it should be removed from the cache.
+                self.tx_cache
+                    .inner
+                    .write()
+                    .await
+                    .collect_garbage_for_account(initiator_address, stored_nonce);
+                return Ok(None);
+            }
+        }
+        Ok(Some(tx))
     }
 
     async fn next_nonce_by_initiator_account(
@@ -183,45 +247,6 @@ impl TxProxy {
         }
 
         pending_nonce
-    }
-
-    async fn request_tx(&self, id: TransactionId) -> EnrichedClientResult<Option<Transaction>> {
-        match id {
-            TransactionId::Block(BlockId::Hash(block), index) => {
-                self.client
-                    .get_transaction_by_block_hash_and_index(block, index)
-                    .rpc_context("get_transaction_by_block_hash_and_index")
-                    .with_arg("block", &block)
-                    .with_arg("index", &index)
-                    .await
-            }
-            TransactionId::Block(BlockId::Number(block), index) => {
-                self.client
-                    .get_transaction_by_block_number_and_index(block, index)
-                    .rpc_context("get_transaction_by_block_number_and_index")
-                    .with_arg("block", &block)
-                    .with_arg("index", &index)
-                    .await
-            }
-            TransactionId::Hash(hash) => {
-                self.client
-                    .get_transaction_by_hash(hash)
-                    .rpc_context("get_transaction_by_hash")
-                    .with_arg("hash", &hash)
-                    .await
-            }
-        }
-    }
-
-    async fn request_tx_details(
-        &self,
-        hash: H256,
-    ) -> EnrichedClientResult<Option<TransactionDetails>> {
-        self.client
-            .get_transaction_details(hash)
-            .rpc_context("get_transaction_details")
-            .with_arg("hash", &hash)
-            .await
     }
 
     pub fn run_account_nonce_sweeper(
@@ -246,10 +271,6 @@ impl TxSink for TxProxy {
         // Before it reaches the main node.
         self.save_tx(tx.clone()).await;
         self.submit_tx_impl(tx).await?;
-        // Now, after we are sure that the tx is on the main node, remove it from cache
-        // since we don't want to store txs that might have been replaced or otherwise removed
-        // from the mempool.
-        self.forget_tx(tx.hash()).await;
         APP_METRICS.processed_txs[&TxStage::Proxied].inc();
         Ok(L2TxSubmissionResult::Proxied)
     }
@@ -269,18 +290,43 @@ impl TxSink for TxProxy {
         ))
     }
 
-    async fn lookup_tx(&self, id: TransactionId) -> Result<Option<Transaction>, Web3Error> {
-        if let TransactionId::Hash(hash) = id {
+    async fn lookup_tx(
+        &self,
+        id: api::TransactionId,
+    ) -> Result<Option<api::Transaction>, Web3Error> {
+        if let api::TransactionId::Hash(hash) = id {
             // If the transaction is not in the db, check the cache
-            if let Some(tx) = self.find_tx(hash).await {
+            if let Some(tx) = self.find_tx(hash).await? {
+                // check nonce for initiator
                 return Ok(Some(tx.into()));
             }
         }
-        // If the transaction is not in the cache, query main node
-        Ok(self.request_tx(id).await?)
+        Ok(None)
     }
 
-    async fn lookup_tx_details(&self, hash: H256) -> Result<Option<TransactionDetails>, Web3Error> {
-        Ok(self.request_tx_details(hash).await?)
+    async fn lookup_tx_details(
+        &self,
+        hash: H256,
+    ) -> Result<Option<api::TransactionDetails>, Web3Error> {
+        if let Some(tx) = self.find_tx(hash).await? {
+            let received_at_ms =
+                i64::try_from(tx.received_timestamp_ms).context("received timestamp overflow")?;
+            let received_at = Utc
+                .timestamp_millis_opt(received_at_ms)
+                .single()
+                .context("received timestamp overflow")?;
+            return Ok(Some(api::TransactionDetails {
+                is_l1_originated: false,
+                status: api::TransactionStatus::Pending,
+                fee: U256::zero(), // always zero for pending transactions
+                gas_per_pubdata: tx.common_data.fee.gas_per_pubdata_limit,
+                initiator_address: tx.initiator_account(),
+                received_at,
+                eth_commit_tx_hash: None,
+                eth_prove_tx_hash: None,
+                eth_execute_tx_hash: None,
+            }));
+        }
+        Ok(None)
     }
 }
