@@ -10,7 +10,7 @@ import { getFacetsFileName, getCryptoFileName, getPostUpgradeCalldataFileName, g
 import { IZkSyncHyperchainFactory } from 'l1-contracts/typechain/IZkSyncHyperchainFactory';
 import { getWallet } from './transaction';
 
-let privateKey = '';
+const privateKey = '';
 
 async function hyperchainUpgrade1() {
     const cwd = process.cwd();
@@ -117,78 +117,6 @@ async function hyperchainUpgrade3() {
     process.chdir(cwd);
 }
 
-async function whatever() {
-    const cwd = process.cwd();
-    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
-    const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
-    await spawn(
-        `yarn whatever --print-file-path ${getUpgradePath(
-            environment
-        )} --private-key  ${privateKey} | tee deployWhatever.log`
-    );
-    process.chdir(cwd);
-}
-
-async function whatever2() {
-    // const cwd = process.cwd();
-    // process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
-    // const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
-    // for (let i= 4; i< 34; i++ ) {
-    //     let calldata1 = scheduleMigrationArray[i];
-    //     let calldata2 = executeArray[i];
-    // await spawn(
-    //     `cast send  0x0b622A2061EaccAE1c664eBC3E868b8438e03F61 --from 0x4e4943346848c4867F81dFb37c4cA9C5715A7828 --unlocked ${calldata1}`
-    // );
-    // await spawn(
-    //     `cast send 0x0b622A2061EaccAE1c664eBC3E868b8438e03F61 --from 0x4e4943346848c4867F81dFb37c4cA9C5715A7828 --unlocked ${calldata2}`
-    // );
-    // }
-
-    // await spawn(`cast abi-encode ${upgradeData}`)
-
-    // process.chdir(cwd);
-
-    const gnosisabi = ['function multiSend(bytes memory transactions) public payable'];
-
-    const gnosisinterface = new ethers.utils.Interface(gnosisabi);
-    const res = gnosisinterface.parseTransaction({
-        // Insert full raw data here
-        data: '0x8d80ff0a00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000812000b622a2061eaccae1c664ebc3e868b8438e03f61000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003c42c43191700000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000007f31345fc6e2cb84ffcfd8c3fc10530c1ef2ee711267934993f1ee696c42ecab0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000032400084c286cf3e17e7b677ea9583e60a0003240000000000000000000000000000000000000000000000000654099584706c0000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000244eb67241900000000000000000000000011f943b2c77b743ab90f4a0ae7d5a4e7fca3e102000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000044aa20000000000000000000000000000000000000000000000000000000000000003200000000000000000000000000000000000000000000000000000000000000220000000000000000000000000343ee72ddd8ccd80cd43d6adbc6c463a2de433a700000000000000000000000000000000000000000000000000000000000001044f1ef286000000000000000000000000470afaacce2acdaefcc662419b74c79d76c914ae00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000084a31ee5b0000000000000000000000000d7f9f54194c633f36ccd5f3da84ad4a1c38cb2cb00000000000000000000000057891966931eb4bb6fb81430e6ce0a03aabde063010001211b0c33353cdf7a320f768e3dc40bce1326d639fcac099bba9ecd8e340000000000000000000000001c732a2061eaccae1c664ebc3e868b8438e050720000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b622a2061eaccae1c664ebc3e868b8438e03f61000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003a474da756b0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000007f31345fc6e2cb84ffcfd8c3fc10530c1ef2ee711267934993f1ee696c42ecab0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000032400084c286cf3e17e7b677ea9583e60a0003240000000000000000000000000000000000000000000000000654099584706c0000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000244eb67241900000000000000000000000011f943b2c77b743ab90f4a0ae7d5a4e7fca3e102000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000044aa20000000000000000000000000000000000000000000000000000000000000003200000000000000000000000000000000000000000000000000000000000000220000000000000000000000000343ee72ddd8ccd80cd43d6adbc6c463a2de433a700000000000000000000000000000000000000000000000000000000000001044f1ef286000000000000000000000000470afaacce2acdaefcc662419b74c79d76c914ae00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000084a31ee5b0000000000000000000000000d7f9f54194c633f36ccd5f3da84ad4a1c38cb2cb00000000000000000000000057891966931eb4bb6fb81430e6ce0a03aabde063010001211b0c33353cdf7a320f768e3dc40bce1326d639fcac099bba9ecd8e340000000000000000000000001c732a2061eaccae1c664ebc3e868b8438e0507200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
-    });
-    const totalData = res.args[0];
-    console.log(totalData.length);
-
-    const ans = [];
-
-    let i = 2;
-    while (i < totalData.length) {
-        const type = totalData.slice(i, i + 2);
-        i += 2;
-        const to = totalData.slice(i, i + 40);
-        // console.log(to);
-        i += 40;
-        const value = totalData.slice(i, i + 64);
-        // console.log(value);
-        i += 64;
-        // console.log('0x' + totalData.slice(i, i + 64));
-        const dlen = ethers.BigNumber.from('0x' + totalData.slice(i, i + 64)).toNumber();
-        i += 64;
-        // console.log(dlen);
-        const data = totalData.slice(i, i + 2 * dlen);
-        // console.log(data);
-        i += dlen * 2;
-
-        ans.push({
-            type,
-            to,
-            value,
-            data
-        });
-    }
-    console.log(ans);
-    return;
-}
-
 async function preparePostUpgradeCalldata(environment?: string) {
     let calldata = new ethers.utils.AbiCoder().encode(
         ['uint256', 'address', 'address', 'address', 'address', 'address'],
@@ -215,49 +143,32 @@ async function deploySharedBridgeL2Implementation() {
     );
     process.chdir(cwd);
 
-    // const deployLog = fs
-    //     .readFileSync(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/deploySharedBridgeImplementation.log`)
-    //     .toString();
-    // const l2EnvVars = ['CONTRACTS_L2_SHARED_BRIDGE_IMPL_ADDR'];
+    const deployLog = fs
+        .readFileSync(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/deploySharedBridgeImplementation.log`)
+        .toString();
+    const l2EnvVars = ['CONTRACTS_L2_SHARED_BRIDGE_IMPL_ADDR'];
 
-    // console.log('Writing to', `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`);
-    // updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, deployLog, l2EnvVars);
+    console.log('Writing to', `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`);
+    updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, deployLog, l2EnvVars);
 }
 
 async function hyperchainFullUpgrade() {
-    const environment = 'mainnet';
-    await insertAddresses(environment);
-    env.reload(environment);
+    await insertAddresses('mainnet');
+    env.reload('mainnet');
 
+    await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment mainnet ');
     await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment ${environment}`
+        `zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all  --environment mainnet --private-key ${privateKey}`
     );
     await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all  --environment ${environment} --private-key ${privateKey}`
+        'zk f yarn  workspace protocol-upgrade-tool start l2-transaction complex-upgrader-calldata --use-forced-deployments --use-contract-deployer --environment mainnet'
     );
     await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start l2-transaction complex-upgrader-calldata --use-forced-deployments --use-contract-deployer --environment ${environment}`
+        'zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment mainnet'
     );
+    await preparePostUpgradeCalldata('mainnet');
     await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment ${environment}`
-    );
-    await preparePostUpgradeCalldata(environment);
-    await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1717653600 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --use-new-governance --upgrade-address ${process.env.CONTRACTS_HYPERCHAIN_UPGRADE_ADDR} --post-upgrade-calldata --environment ${environment}`
-    );
-}
-
-async function hyperchainProverFixUpgrade() {
-    const environment = 'testnet-fix2';
-    await insertAddresses(environment);
-    await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment ${environment} `
-    );
-    await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params --environment ${environment}`
-    );
-    await spawn(
-        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --chain-id ${process.env.CONTRACTS_ERA_CHAIN_ID} --stm-address ${process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR} --old-protocol-version 24 --old-protocol-version-deadline 0 --new-protocol-version 24 --use-new-governance --environment ${environment}`
+        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --use-new-governance --upgrade-address ${process.env.CONTRACTS_HYPERCHAIN_UPGRADE_ADDR} --post-upgrade-calldata --environment mainnet`
     );
 }
 
@@ -282,12 +193,7 @@ command
     .option('--post-propose')
     .option('--execute-upgrade')
     .option('--add-validators')
-    .option('--hyperchain-prover-fix-upgrade')
-    .option('--whatever')
-    .option('--whatever2')
-    .option('--private-key <private-key>')
     .action(async (options) => {
-        privateKey = options.privateKey;
         if (options.phase1) {
             await hyperchainUpgrade1();
         } else if (options.insertAddresses) {
@@ -321,11 +227,5 @@ command
             );
         } else if (options.addValidators) {
             await hyperchainUpgradeValidators();
-        } else if (options.hyperchainProverFixUpgrade) {
-            await hyperchainProverFixUpgrade();
-        } else if (options.whatever) {
-            await whatever();
-        } else if (options.whatever2) {
-            await whatever2();
         }
     });
