@@ -229,7 +229,7 @@ async fn main() -> anyhow::Result<()> {
                     block_reverter.enable_rolling_back_snapshot_objects(
                         ObjectStoreFactory::new(object_store_config.0)
                             .create_store()
-                            .await,
+                            .await?,
                     );
                 }
             }

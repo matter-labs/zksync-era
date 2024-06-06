@@ -35,9 +35,11 @@ use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 use zksync_node_sync::{
     batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-    tree_data_fetcher::TreeDataFetcher, ActionQueue, SyncState,
+    tree_data_fetcher::TreeDataFetcher, validate_chain_ids_task::ValidateChainIdsTask, ActionQueue,
+    MainNodeHealthCheck, SyncState,
 };
 use zksync_reorg_detector::ReorgDetector;
+use zksync_shared_metrics::rustc::RUST_METRICS;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
     seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
@@ -54,13 +56,10 @@ use zksync_web3_decl::{
 
 use crate::{
     config::ExternalNodeConfig,
-    helpers::{MainNodeHealthCheck, ValidateChainIdsTask},
-    init::ensure_storage_initialized,
-    metrics::RUST_METRICS,
+    init::{ensure_storage_initialized, SnapshotRecoveryConfig},
 };
 
 mod config;
-mod helpers;
 mod init;
 mod metadata;
 mod metrics;
@@ -140,6 +139,9 @@ async fn run_tree(
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
         recovery: MetadataCalculatorRecoveryConfig {
             desired_chunk_size: config.experimental.snapshots_recovery_tree_chunk_size,
+            parallel_persistence_buffer: config
+                .experimental
+                .snapshots_recovery_tree_parallel_persistence_buffer,
         },
     };
 
@@ -908,12 +910,19 @@ async fn run_node(
     task_handles.extend(prometheus_task);
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
+    let recovery_config =
+        config
+            .optional
+            .snapshots_recovery_enabled
+            .then_some(SnapshotRecoveryConfig {
+                snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
+            });
     ensure_storage_initialized(
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
         config.required.l2_chain_id,
-        config.optional.snapshots_recovery_enabled,
+        recovery_config,
     )
     .await?;
     let sigint_receiver = env.setup_sigint_handler();

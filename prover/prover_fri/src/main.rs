@@ -114,7 +114,7 @@ async fn main() -> anyhow::Result<()> {
         true => Some(
             ObjectStoreFactory::new(public_object_store_config.0)
                 .create_store()
-                .await,
+                .await?,
         ),
     };
     let specialized_group_id = prover_config.specialized_group_id;
@@ -205,7 +205,7 @@ async fn get_prover_tasks(
     let setup_load_mode =
         load_setup_data_cache(&prover_config).context("load_setup_data_cache()")?;
     let prover = Prover::new(
-        store_factory.create_store().await,
+        store_factory.create_store().await?,
         public_blob_store,
         prover_config,
         pool,
@@ -250,7 +250,7 @@ async fn get_prover_tasks(
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let prover = gpu_prover::Prover::new(
-        store_factory.create_store().await,
+        store_factory.create_store().await?,
         public_blob_store,
         prover_config.clone(),
         pool.clone(),

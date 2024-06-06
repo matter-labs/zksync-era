@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use multivm::interface::VmExecutionResultAndLogs;
+use multivm::interface::{VmExecutionResultAndLogs, VmRevertReason};
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
     Metrics,
@@ -28,6 +28,20 @@ pub enum TxExecutionStage {
 pub enum TxExecutionType {
     L1,
     L2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub enum TxExecutionStatus {
+    Success,
+    Rejected,
+    Reverted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub struct TxExecutionResult {
+    status: TxExecutionStatus,
+    reason: Option<&'static str>,
 }
 
 impl TxExecutionType {
@@ -57,8 +71,8 @@ pub struct StateKeeperMetrics {
     /// Latency of the state keeper getting a transaction from the mempool.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub get_tx_from_mempool: Histogram<Duration>,
-    /// Number of transactions rejected by the state keeper.
-    pub rejected_transactions: Counter,
+    /// Number of transactions completed with a specific result.
+    pub tx_execution_result: Family<TxExecutionResult, Counter>,
     /// Time spent waiting for the hash of a previous L1 batch.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub wait_for_prev_hash_time: Histogram<Duration>,
@@ -75,6 +89,44 @@ pub struct StateKeeperMetrics {
     pub gas_price_too_high: Counter,
     /// Number of times blob base fee was reported as too high.
     pub blob_base_fee_too_high: Counter,
+}
+
+fn vm_revert_reason_as_metric_label(reason: &VmRevertReason) -> &'static str {
+    match reason {
+        VmRevertReason::General { .. } => "General",
+        VmRevertReason::InnerTxError => "InnerTxError",
+        VmRevertReason::VmError => "VmError",
+        VmRevertReason::Unknown { .. } => "Unknown",
+    }
+}
+
+impl StateKeeperMetrics {
+    pub fn inc_rejected_txs(&self, reason: &'static str) {
+        let result = TxExecutionResult {
+            status: TxExecutionStatus::Rejected,
+            reason: Some(reason),
+        };
+
+        self.tx_execution_result[&result].inc();
+    }
+
+    pub fn inc_succeeded_txs(&self) {
+        let result = TxExecutionResult {
+            status: TxExecutionStatus::Success,
+            reason: None,
+        };
+
+        self.tx_execution_result[&result].inc();
+    }
+
+    pub fn inc_reverted_txs(&self, reason: &VmRevertReason) {
+        let result = TxExecutionResult {
+            status: TxExecutionStatus::Reverted,
+            reason: Some(vm_revert_reason_as_metric_label(reason)),
+        };
+
+        self.tx_execution_result[&result].inc();
+    }
 }
 
 #[vise::register]

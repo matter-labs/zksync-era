@@ -184,7 +184,7 @@ impl EthWatch {
             let relevant_topic = processor.relevant_topic();
             let processor_events = events
                 .iter()
-                .filter(|event| event.topics.get(0) == Some(&relevant_topic))
+                .filter(|event| event.topics.first() == Some(&relevant_topic))
                 .cloned()
                 .collect();
             processor

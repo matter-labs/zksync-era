@@ -365,6 +365,7 @@ pub(crate) static PRUNING_TIMINGS: Global<PruningTimings> = Global::new();
 pub(crate) enum RecoveryStage {
     Extend,
     ApplyPatch,
+    ParallelPersistence,
 }
 
 const CHUNK_SIZE_BUCKETS: Buckets = Buckets::values(&[
@@ -391,6 +392,8 @@ pub(crate) struct RecoveryMetrics {
     /// Latency of a specific stage of recovery for a single chunk.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub stage_latency: Family<RecoveryStage, Histogram<Duration>>,
+    /// Number of buffered commands if parallel persistence is used.
+    pub parallel_persistence_buffer_size: Gauge<usize>,
 }
 
 #[vise::register]

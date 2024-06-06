@@ -77,7 +77,9 @@ describe('snapshot recovery', () => {
     let externalNodeEnv: { [key: string]: string } = {
         ...process.env,
         ZKSYNC_ENV: externalNodeEnvProfile,
-        EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
+        EN_SNAPSHOTS_RECOVERY_ENABLED: 'true',
+        // Test parallel persistence for tree recovery, which is (yet) not enabled by default
+        EN_EXPERIMENTAL_SNAPSHOTS_RECOVERY_TREE_PARALLEL_PERSISTENCE_BUFFER: '4'
     };
 
     let snapshotMetadata: GetSnapshotResponse;
