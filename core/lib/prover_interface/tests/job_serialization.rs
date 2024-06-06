@@ -1,7 +1,7 @@
 //! Integration tests for object store serialization of job objects.
 
 use tokio::fs;
-use zksync_object_store::{Bucket, ObjectStoreFactory};
+use zksync_object_store::{Bucket, MockObjectStore};
 use zksync_prover_interface::{
     inputs::{PrepareBasicCircuitsJob, StorageLogMetadata},
     outputs::L1BatchProofForL1,
@@ -17,7 +17,7 @@ async fn prepare_basic_circuits_job_serialization() {
     let snapshot = fs::read("./tests/snapshots/prepare-basic-circuits-job-full.bin")
         .await
         .unwrap();
-    let store = ObjectStoreFactory::mock().create_store().await;
+    let store = MockObjectStore::arc();
     store
         .put_raw(
             Bucket::WitnessInput,

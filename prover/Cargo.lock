@@ -673,7 +673,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
  "convert_case",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.4",
  "crypto-bigint 0.5.5",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
@@ -894,7 +894,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "circuit_encodings 0.1.50",
  "crossbeam 0.8.4",
@@ -902,8 +902,6 @@ dependencies = [
  "seq-macro",
  "serde",
  "snark_wrapper",
- "zk_evm 1.5.0",
- "zkevm_circuits 1.5.0",
 ]
 
 [[package]]
@@ -942,7 +940,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "derivative",
  "serde",
@@ -1004,14 +1002,13 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
  "circuit_encodings 0.1.50",
  "derivative",
  "rayon",
  "serde",
- "zk_evm 1.5.0",
 ]
 
 [[package]]
@@ -2918,6 +2915,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "indicatif"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d207dc617c7a380ab07ff572a6e52fa202a2a8f355860ac9c38e23f8196be1b"
+dependencies = [
+ "console",
+ "lazy_static",
+ "number_prefix",
+ "regex",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3190,13 +3199,16 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "boojum",
  "derivative",
+ "hex",
+ "once_cell",
  "rayon",
  "serde",
  "serde_json",
+ "serde_with",
  "zkevm_circuits 1.5.0",
 ]
 
@@ -3885,6 +3897,12 @@ dependencies = [
  "quote 1.0.35",
  "syn 2.0.48",
 ]
+
+[[package]]
+name = "number_prefix"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "object"
@@ -4633,6 +4651,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "zkevm_test_harness 1.5.0",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
@@ -4870,9 +4889,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.10.3"
+version = "1.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62dbe01f0b06f9d8dc7d49e05a0785f153b00b2c227856282f671e0318c9b15"
+checksum = "c117dbdfde9c8308975b6a18d71f3f385c89461f7b3fb054288ecf2a2058ba4c"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -5611,6 +5630,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "678b5a069e50bf00ecd22d0cd8ddf7c236f68581b03db652061ed5eb13a312ff"
 dependencies = [
  "base64 0.13.1",
+ "hex",
  "serde",
  "serde_with_macros",
 ]
@@ -7067,6 +7087,7 @@ dependencies = [
  "circuit_definitions 1.5.0",
  "clap 4.4.6",
  "hex",
+ "indicatif",
  "itertools 0.10.5",
  "md5",
  "once_cell",
@@ -7654,7 +7675,7 @@ dependencies = [
 [[package]]
 name = "zkevm-assembly"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.5.0#2faea98303377cad71f4c7d8dacb9c6546874602"
+source = "git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.5.0#48303aa435810adb12e277494e5dae3764313330"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -7845,7 +7866,7 @@ dependencies = [
  "codegen",
  "crossbeam 0.8.4",
  "derivative",
- "env_logger 0.9.3",
+ "env_logger 0.11.2",
  "hex",
  "rand 0.4.6",
  "rayon",
@@ -7861,7 +7882,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "bincode",
  "circuit_definitions 1.5.0",
@@ -7876,6 +7897,7 @@ dependencies = [
  "lazy_static",
  "rand 0.4.6",
  "rayon",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -8362,6 +8384,8 @@ dependencies = [
 name = "zksync_shared_metrics"
 version = "0.1.0"
 dependencies = [
+ "rustc_version",
+ "tracing",
  "vise",
  "zksync_dal",
  "zksync_types",

@@ -4,7 +4,7 @@ use std::{collections::HashMap, fmt, future, sync::Arc};
 
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_object_store::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory};
+use zksync_object_store::{Bucket, MockObjectStore, ObjectStore, ObjectStoreError};
 use zksync_types::{
     api,
     block::L2BlockHeader,
@@ -253,8 +253,7 @@ pub(super) async fn prepare_clients(
     status: &SnapshotRecoveryStatus,
     logs: &[SnapshotStorageLog],
 ) -> (Arc<dyn ObjectStore>, MockMainNodeClient) {
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
     let mut client = MockMainNodeClient::default();
     let factory_dep_bytes: Vec<u8> = (0..32).collect();
     let factory_deps = SnapshotFactoryDependencies {

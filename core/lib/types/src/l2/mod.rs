@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use anyhow::Context as _;
 use num_enum::TryFromPrimitive;
-use rlp::{Rlp, RlpStream};
+use rlp::Rlp;
 use serde::{Deserialize, Serialize};
 use zksync_crypto_primitives::K256PrivateKey;
 
@@ -236,19 +236,14 @@ impl L2Tx {
         self.common_data.set_input(data, hash)
     }
 
-    pub fn get_rlp_bytes(&self, chain_id: L2ChainId) -> Bytes {
-        let mut rlp_stream = RlpStream::new();
-        let tx: TransactionRequest = self.clone().into();
-        tx.rlp(&mut rlp_stream, chain_id.as_u64(), None);
-        Bytes(rlp_stream.as_raw().to_vec())
-    }
-
     pub fn get_signed_bytes(&self, chain_id: L2ChainId) -> H256 {
-        let tx: TransactionRequest = self.clone().into();
+        let mut tx: TransactionRequest = self.clone().into();
+        tx.chain_id = Some(chain_id.as_u64());
         if tx.is_eip712_tx() {
             PackedEthSignature::typed_data_to_signed_bytes(&Eip712Domain::new(chain_id), &tx)
         } else {
-            let mut data = self.get_rlp_bytes(chain_id).0;
+            // It is ok to unwrap, because the `chain_id` is set.
+            let mut data = tx.get_rlp().unwrap();
             if let Some(tx_type) = tx.transaction_type {
                 data.insert(0, tx_type.as_u32() as u8);
             }

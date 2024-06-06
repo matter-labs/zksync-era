@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 
 // Note that `rust` is not noted here, as clippy isn't run via `yarn`.
 // `rust` option is still supported though.
