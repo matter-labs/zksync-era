@@ -71,7 +71,7 @@ impl TxCacheInner {
         });
     }
 
-    /// Same as `collect_garbage()`, but optimized for a single account–nonce entry.
+    /// Same as `collect_garbage()`, but optimized for a single `(account, nonce)` entry.
     fn collect_garbage_for_account(&mut self, initiator_address: Address, stored_nonce: Nonce) {
         let Some(account_nonces) = self.nonces_by_account.get_mut(&initiator_address) else {
             return;
