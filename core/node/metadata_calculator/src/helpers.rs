@@ -21,7 +21,7 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
-    recovery::MerkleTreeRecovery,
+    recovery::{MerkleTreeRecovery, PersistenceThreadHandle},
     Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
     TreeEntryWithProof, TreeInstruction,
 };
@@ -33,7 +33,7 @@ use zksync_types::{
 use super::{
     metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
     pruning::PruningHandles,
-    MetadataCalculatorConfig,
+    MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
 
 /// General information about the Merkle tree.
@@ -408,11 +408,28 @@ impl AsyncTreeRecovery {
         db: RocksDBWrapper,
         recovered_version: u64,
         mode: MerkleTreeMode,
+        config: &MetadataCalculatorRecoveryConfig,
     ) -> anyhow::Result<Self> {
-        Ok(Self {
-            inner: Some(MerkleTreeRecovery::new(db, recovered_version)?),
+        Ok(Self::with_handle(db, recovered_version, mode, config)?.0)
+    }
+
+    // Public for testing purposes
+    pub fn with_handle(
+        db: RocksDBWrapper,
+        recovered_version: u64,
+        mode: MerkleTreeMode,
+        config: &MetadataCalculatorRecoveryConfig,
+    ) -> anyhow::Result<(Self, Option<PersistenceThreadHandle>)> {
+        let mut recovery = MerkleTreeRecovery::new(db, recovered_version)?;
+        let handle = config
+            .parallel_persistence_buffer
+            .map(|buffer_capacity| recovery.parallelize_persistence(buffer_capacity.get()))
+            .transpose()?;
+        let this = Self {
+            inner: Some(recovery),
             mode,
-        })
+        };
+        Ok((this, handle))
     }
 
     pub fn recovered_version(&self) -> u64 {
@@ -490,6 +507,14 @@ impl AsyncTreeRecovery {
         Ok(())
     }
 
+    /// Waits until all pending chunks are persisted.
+    pub async fn wait_for_persistence(self) -> anyhow::Result<()> {
+        let tree = self.inner.expect(Self::INCONSISTENT_MSG);
+        tokio::task::spawn_blocking(|| tree.wait_for_persistence())
+            .await
+            .context("panicked while waiting for pending recovery chunks to be persisted")?
+    }
+
     pub async fn finalize(self) -> anyhow::Result<AsyncTree> {
         let tree = self.inner.expect(Self::INCONSISTENT_MSG);
         let db = tokio::task::spawn_blocking(|| tree.finalize())
@@ -514,13 +539,18 @@ pub(super) enum GenericAsyncTree {
 }
 
 impl GenericAsyncTree {
-    pub async fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> anyhow::Result<Self> {
+    pub async fn new(
+        db: RocksDBWrapper,
+        config: &MetadataCalculatorConfig,
+    ) -> anyhow::Result<Self> {
+        let mode = config.mode;
+        let recovery = config.recovery.clone();
         tokio::task::spawn_blocking(move || {
             let Some(manifest) = db.manifest() else {
                 return Ok(Self::Empty { db, mode });
             };
             anyhow::Ok(if let Some(version) = manifest.recovered_version() {
-                Self::Recovering(AsyncTreeRecovery::new(db, version, mode)?)
+                Self::Recovering(AsyncTreeRecovery::new(db, version, mode, &recovery)?)
             } else {
                 Self::Ready(AsyncTree::new(db, mode)?)
             })
