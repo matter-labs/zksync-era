@@ -295,9 +295,7 @@ impl MainNodeBuilder {
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
         let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
-            let result: Result<Vec<_>, _> =
-                namespaces.iter().map(|a| serde_json::from_str(a)).collect();
-            result?
+            serde_json::from_str(&namespaces.join(","))?
         } else {
             Namespace::DEFAULT.to_vec()
         };
