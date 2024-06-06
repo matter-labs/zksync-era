@@ -19,7 +19,6 @@ pub struct BaseTokenPriceFetcherConfig {
     pub poll_interval: u64,
 }
 
-// TODO: TEMPORARY: REMOVE LATER
 impl Default for BaseTokenPriceFetcherConfig {
     fn default() -> Self {
         BaseTokenPriceFetcherConfig {

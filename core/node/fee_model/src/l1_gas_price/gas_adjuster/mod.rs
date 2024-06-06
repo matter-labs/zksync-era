@@ -6,6 +6,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
+use chrono::DateTime;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{eth_sender::PubdataSendingMode, BaseTokenConfig},
@@ -30,6 +31,8 @@ struct BaseTokenPriceElements {
     pub connection_pool: ConnectionPool<Core>,
     pub address: Address,
     pub latest_price: Mutex<Option<BigDecimal>>,
+    pub outdated_token_price_timeout: u64,
+    pub last_updated: Mutex<DateTime<chrono::Utc>>,
 }
 
 /// This component keeps track of the median `base_fee` from the last `max_base_fee_samples` blocks
@@ -80,14 +83,19 @@ impl GasAdjuster {
         let base_token_elements = match connection_pool.as_ref() {
             Some(connection_pool) => {
                 let mut connection = connection_pool.connection().await?;
-                let address = base_token_config.unwrap().base_token_address;
-                let latest_price =
-                    Mutex::new(connection.token_price_dal().fetch_ratio(address).await?);
+                let address = base_token_config.as_ref().unwrap().base_token_address;
+                let latest = connection.token_price_dal().fetch_ratio(address).await?;
+                let latest_price = Mutex::new(latest.0);
+                let last_updated = Mutex::new(latest.1);
+                let outdated_token_price_timeout =
+                    base_token_config.unwrap().outdated_token_price_timeout;
 
                 Some(BaseTokenPriceElements {
                     connection_pool: connection_pool.clone(),
                     address,
                     latest_price,
+                    outdated_token_price_timeout,
+                    last_updated,
                 })
             }
             None => None,
@@ -159,11 +167,24 @@ impl GasAdjuster {
 
             if let Some(base_token_elements) = self.base_token_elements.as_ref() {
                 let mut connection = base_token_elements.connection_pool.connection().await?;
-                let updated_base_token_price = connection
+                let latest = connection
                     .token_price_dal()
                     .fetch_ratio(base_token_elements.address)
                     .await?;
-                *base_token_elements.latest_price.lock().unwrap() = updated_base_token_price;
+
+                let updated_base_token_price = latest.0;
+                if let Some(updated_base_token_price) = updated_base_token_price {
+                    *base_token_elements.last_updated.lock().unwrap() = latest.1;
+                    *base_token_elements.latest_price.lock().unwrap() =
+                        Some(updated_base_token_price);
+                }
+
+                let last_updated = *base_token_elements.last_updated.lock().unwrap();
+                if (last_updated.time() - chrono::Utc::now().time()).num_seconds()
+                    >= base_token_elements.outdated_token_price_timeout as i64
+                {
+                    tracing::warn!("Token price is out of date!");
+                };
             }
         }
         Ok(())

@@ -22,7 +22,7 @@ impl TokenPriceDal<'_, '_> {
     pub async fn fetch_ratio(
         &mut self,
         token_address: Address,
-    ) -> anyhow::Result<Option<BigDecimal>> {
+    ) -> anyhow::Result<(Option<BigDecimal>, DateTime<chrono::Utc>)> {
         let ratio = sqlx::query!(
             r#"
             SELECT
@@ -37,7 +37,10 @@ impl TokenPriceDal<'_, '_> {
         .instrument("fetch_token_price_data")
         .fetch_optional(self.storage)
         .await?;
-        Ok(ratio.map(|r| BigDecimal::from_str(&r.ratio).unwrap()))
+        Ok((
+            ratio.map(|r| BigDecimal::from_str(&r.ratio).unwrap()),
+            chrono::Utc::now(),
+        ))
     }
 
     pub async fn insert_ratio(&mut self, token_price_data: TokenPriceData) -> anyhow::Result<()> {

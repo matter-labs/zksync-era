@@ -1,4 +1,4 @@
 [base_token]
 base_token_address = "0xdF2Ff03eAAfae59fA7fd30D4f91ab045B3d5D95D"
 # Outdated token price timeout is in seconds
-outdated_token_price_timeout = 600
+outdated_token_price_timeout = 300
