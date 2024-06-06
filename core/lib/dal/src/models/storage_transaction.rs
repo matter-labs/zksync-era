@@ -3,18 +3,18 @@ use std::{convert::TryInto, str::FromStr};
 use bigdecimal::Zero;
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
-    api,
-    api::{TransactionDetails, TransactionReceipt, TransactionStatus},
+    api::{self, TransactionDetails, TransactionReceipt, TransactionStatus},
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
-    protocol_version::ProtocolUpgradeTxCommonData,
+    protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
-    vm_trace::Call,
-    web3::types::U64,
-    Address, Bytes, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData,
-    Nonce, PackedEthSignature, PriorityOpId, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
-    EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    vm_trace::{Call, LegacyCall, LegacyMixedCall},
+    web3::Bytes,
+    Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
+    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction, EIP_1559_TX_TYPE,
+    EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE,
+    PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
@@ -42,7 +42,6 @@ pub struct StorageTransaction {
     pub received_at: NaiveDateTime,
     pub in_mempool: bool,
 
-    pub l1_block_number: Option<i32>,
     pub l1_batch_number: Option<i64>,
     pub l1_batch_tx_index: Option<i32>,
     pub miniblock_number: Option<i64>,
@@ -66,6 +65,9 @@ pub struct StorageTransaction {
 
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+
+    // DEPRECATED.
+    pub l1_block_number: Option<i32>,
 }
 
 impl From<StorageTransaction> for L1TxCommonData {
@@ -137,10 +139,9 @@ impl From<StorageTransaction> for L1TxCommonData {
                 .gas_per_pubdata_limit
                 .map(bigdecimal_to_u256)
                 .unwrap_or_else(|| U256::from(1u32)),
-            deadline_block: 0,
-            eth_hash: Default::default(),
-            eth_block: tx.l1_block_number.unwrap_or_default() as u64,
             canonical_tx_hash,
+            // DEPRECATED.
+            eth_block: tx.l1_block_number.unwrap_or_default() as u64,
         }
     }
 }
@@ -282,7 +283,7 @@ impl From<StorageTransaction> for ProtocolUpgradeTxCommonData {
                 .gas_per_pubdata_limit
                 .map(bigdecimal_to_u256)
                 .expect("gas_per_pubdata_limit field is missing for protocol upgrade tx"),
-            eth_hash: Default::default(),
+            // DEPRECATED.
             eth_block: tx.l1_block_number.unwrap_or_default() as u64,
             canonical_tx_hash,
         }
@@ -437,7 +438,7 @@ impl From<StorageTransactionDetails> for TransactionDetails {
                 .gas_limit
                 .expect("gas limit is mandatory for transaction"),
         );
-        let gas_refunded = U256::from(tx_details.refunded_gas as u32);
+        let gas_refunded = U256::from(tx_details.refunded_gas as u64);
         let fee = (gas_limit - gas_refunded) * effective_gas_price;
 
         let gas_per_pubdata =
@@ -543,8 +544,30 @@ pub(crate) struct CallTrace {
     pub call_trace: Vec<u8>,
 }
 
-impl From<CallTrace> for Call {
-    fn from(call_trace: CallTrace) -> Self {
-        bincode::deserialize(&call_trace.call_trace).unwrap()
+impl CallTrace {
+    pub(crate) fn into_call(self, protocol_version: ProtocolVersionId) -> Call {
+        if protocol_version.is_pre_1_5_0() {
+            if let Ok(legacy_call_trace) = bincode::deserialize::<LegacyCall>(&self.call_trace) {
+                legacy_call_trace.into()
+            } else {
+                let legacy_mixed_call_trace =
+                    bincode::deserialize::<LegacyMixedCall>(&self.call_trace)
+                        .expect("Failed to deserialize call trace");
+                legacy_mixed_call_trace.into()
+            }
+        } else {
+            bincode::deserialize(&self.call_trace).unwrap()
+        }
+    }
+
+    pub(crate) fn from_call(call: Call, protocol_version: ProtocolVersionId) -> Self {
+        let call_trace = if protocol_version.is_pre_1_5_0() {
+            bincode::serialize(&LegacyCall::try_from(call).unwrap())
+        } else {
+            bincode::serialize(&call)
+        }
+        .unwrap();
+
+        Self { call_trace }
     }
 }

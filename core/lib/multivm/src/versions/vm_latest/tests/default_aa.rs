@@ -1,4 +1,4 @@
-use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
+use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
 use zksync_types::{
     get_code_key, get_known_code_key, get_nonce_key,
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
@@ -42,6 +42,7 @@ fn test_default_aa_interaction() {
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
     vm.vm.execute(VmExecutionMode::Batch);
+
     vm.vm.get_current_execution_state();
 
     // Both deployment and ordinary nonce should be incremented by one.
@@ -66,7 +67,7 @@ fn test_default_aa_interaction() {
         - U256::from(result.refunds.gas_refunded)
             * U256::from(get_batch_base_fee(&vm.vm.batch_env));
     let operator_balance = get_balance(
-        AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+        AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
         &vm.fee_account,
         vm.vm.state.storage.storage.get_ptr(),
     );

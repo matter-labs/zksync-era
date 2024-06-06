@@ -1,9 +1,16 @@
 //! RocksDB implementation of [`Database`].
 
-use std::path::Path;
+use std::{any::Any, cell::RefCell, path::Path, sync::Arc};
 
+use anyhow::Context as _;
 use rayon::prelude::*;
-use zksync_storage::{db::NamedColumnFamily, rocksdb, rocksdb::DBPinnableSlice, RocksDB};
+use thread_local::ThreadLocal;
+use zksync_storage::{
+    db::{NamedColumnFamily, ProfileGuard, ProfiledOperation},
+    rocksdb,
+    rocksdb::DBPinnableSlice,
+    RocksDB,
+};
 
 use crate::{
     errors::{DeserializeError, ErrorContext},
@@ -12,7 +19,10 @@ use crate::{
         database::{PruneDatabase, PrunePatchSet},
         Database, NodeKeys, PatchSet,
     },
-    types::{InternalNode, LeafNode, Manifest, Nibbles, Node, NodeKey, Root, StaleNodeKey},
+    types::{
+        InternalNode, LeafNode, Manifest, Nibbles, Node, NodeKey, ProfiledTreeOperation, Root,
+        StaleNodeKey,
+    },
 };
 
 /// RocksDB column families used by the tree.
@@ -41,6 +51,8 @@ impl NamedColumnFamily for MerkleTreeColumnFamily {
     }
 }
 
+type LocalProfiledOperation = RefCell<Option<Arc<ProfiledOperation>>>;
+
 /// Main [`Database`] implementation wrapping a [`RocksDB`] reference.
 ///
 /// # Cloning
@@ -56,6 +68,9 @@ impl NamedColumnFamily for MerkleTreeColumnFamily {
 #[derive(Debug, Clone)]
 pub struct RocksDBWrapper {
     db: RocksDB<MerkleTreeColumnFamily>,
+    // We want to scope profiled operations both by the thread and by DB instance, hence the use of `ThreadLocal`
+    // struct (as opposed to `thread_local!` vars).
+    profiled_operation: Arc<ThreadLocal<LocalProfiledOperation>>,
     multi_get_chunk_size: usize,
 }
 
@@ -98,10 +113,19 @@ impl RocksDBWrapper {
     }
 
     fn raw_nodes(&self, keys: &NodeKeys) -> Vec<Option<DBPinnableSlice<'_>>> {
+        // Propagate the currently profiled operation to rayon threads used in the parallel iterator below.
+        let profiled_operation = self
+            .profiled_operation
+            .get()
+            .and_then(|cell| cell.borrow().clone());
+
         // `par_chunks()` below uses `rayon` to speed up multi-get I/O;
         // see `Self::set_multi_get_chunk_size()` docs for an explanation why this makes sense.
         keys.par_chunks(self.multi_get_chunk_size)
             .map(|chunk| {
+                let _guard = profiled_operation
+                    .as_ref()
+                    .and_then(ProfiledOperation::start_profiling);
                 let keys = chunk.iter().map(|(key, _)| key.to_db_key());
                 let results = self.db.multi_get_cf(MerkleTreeColumnFamily::Tree, keys);
                 results
@@ -143,6 +167,7 @@ impl From<RocksDB<MerkleTreeColumnFamily>> for RocksDBWrapper {
     fn from(db: RocksDB<MerkleTreeColumnFamily>) -> Self {
         Self {
             db,
+            profiled_operation: Arc::new(ThreadLocal::new()),
             multi_get_chunk_size: usize::MAX,
         }
     }
@@ -191,7 +216,30 @@ impl Database for RocksDBWrapper {
             .unwrap_or_else(|err| panic!("{err}"))
     }
 
-    fn apply_patch(&mut self, patch: PatchSet) {
+    fn start_profiling(&self, operation: ProfiledTreeOperation) -> Box<dyn Any> {
+        struct Guard {
+            profiled_operation: Arc<ThreadLocal<LocalProfiledOperation>>,
+            _guard: ProfileGuard,
+        }
+
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                *self.profiled_operation.get_or_default().borrow_mut() = None;
+            }
+        }
+
+        let profiled_operation = Arc::new(self.db.new_profiled_operation(operation.as_str()));
+        let guard = profiled_operation.start_profiling().unwrap();
+        // ^ `unwrap()` is safe: the operation has just been created
+        *self.profiled_operation.get_or_default().borrow_mut() = Some(profiled_operation);
+        Box::new(Guard {
+            profiled_operation: self.profiled_operation.clone(),
+            _guard: guard,
+        })
+    }
+
+    #[allow(clippy::missing_errors_doc)] // this is a trait implementation method
+    fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
         let tree_cf = MerkleTreeColumnFamily::Tree;
         let mut write_batch = self.db.new_write_batch();
         let mut node_bytes = Vec::with_capacity(128);
@@ -241,8 +289,9 @@ impl Database for RocksDBWrapper {
 
         self.db
             .write(write_batch)
-            .expect("Failed writing a batch to RocksDB");
+            .context("Failed writing a batch to RocksDB")?;
         metrics.report();
+        Ok(())
     }
 }
 
@@ -268,7 +317,7 @@ impl PruneDatabase for RocksDBWrapper {
         keys.collect()
     }
 
-    fn prune(&mut self, patch: PrunePatchSet) {
+    fn prune(&mut self, patch: PrunePatchSet) -> anyhow::Result<()> {
         let mut write_batch = self.db.new_write_batch();
 
         let tree_cf = MerkleTreeColumnFamily::Tree;
@@ -283,7 +332,7 @@ impl PruneDatabase for RocksDBWrapper {
 
         self.db
             .write(write_batch)
-            .expect("Failed writing a batch to RocksDB");
+            .context("Failed writing a batch to RocksDB")
     }
 }
 
@@ -308,7 +357,7 @@ mod tests {
         let nodes = generate_nodes(0, &[1, 2]);
         expected_keys.extend(nodes.keys().copied());
         let patch = create_patch(0, root, nodes);
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
 
         assert_contains_exactly_keys(&db, &expected_keys);
 
@@ -325,16 +374,16 @@ mod tests {
         expected_keys.insert(NodeKey::empty(1));
         let nodes = generate_nodes(1, &[6]);
         expected_keys.extend(nodes.keys().copied());
-        patch.apply_patch(create_patch(1, root, nodes));
-        db.apply_patch(patch);
+        patch.apply_patch(create_patch(1, root, nodes)).unwrap();
+        db.apply_patch(patch).unwrap();
 
         assert_contains_exactly_keys(&db, &expected_keys);
 
         // Overwrite both versions of the tree again.
         let patch = create_patch(0, Root::Empty, HashMap::new());
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
         let patch = create_patch(1, Root::Empty, HashMap::new());
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
 
         let expected_keys = HashSet::from_iter([NodeKey::empty(0), NodeKey::empty(1)]);
         assert_contains_exactly_keys(&db, &expected_keys);

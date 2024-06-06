@@ -1,16 +1,17 @@
 use std::fmt::Debug;
 
+use serde::{Deserialize, Serialize};
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::{L2ChainId, ProtocolVersionId};
 
 /// Params related to the execution process, not batch it self
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SystemEnv {
     // Always false for VM
     pub zk_porter_available: bool,
     pub version: ProtocolVersionId,
     pub base_system_smart_contracts: BaseSystemContracts,
-    pub gas_limit: u32,
+    pub bootloader_gas_limit: u32,
     pub execution_mode: TxExecutionMode,
     pub default_validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
@@ -25,7 +26,7 @@ impl Debug for SystemEnv {
                 "base_system_smart_contracts",
                 &self.base_system_smart_contracts.hashes(),
             )
-            .field("gas_limit", &self.gas_limit)
+            .field("gas_limit", &self.bootloader_gas_limit)
             .field(
                 "default_validation_computational_gas_limit",
                 &self.default_validation_computational_gas_limit,
@@ -44,7 +45,7 @@ impl Debug for SystemEnv {
 /// With `VerifyExecute` mode, transaction will be executed normally.
 /// With `EstimateFee`, the bootloader will be used that has the same behavior
 /// as the full `VerifyExecute` block, but errors in the account validation will be ignored.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TxExecutionMode {
     VerifyExecute,
     EstimateFee,

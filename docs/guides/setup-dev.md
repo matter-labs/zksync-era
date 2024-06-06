@@ -27,6 +27,10 @@ cargo install sqlx-cli --version 0.7.3
 sudo systemctl stop postgresql
 # Start docker.
 sudo systemctl start docker
+
+# Foundry
+curl -L https://foundry.paradigm.xyz | bash
+foundryup --branch master
 ```
 
 ## Supported operating systems
@@ -217,7 +221,7 @@ SQLx is a Rust library we use to interact with Postgres, and its CLI is used to 
 features of the library.
 
 ```bash
-cargo install sqlx-cli --version 0.7.3
+cargo install --locked sqlx-cli --version 0.7.3
 ```
 
 ## Solidity compiler `solc`
@@ -257,6 +261,11 @@ enable nix-ld.
 Go to the zksync folder and run `nix develop --impure`. After it finishes, you are in a shell that has all the
 dependencies.
 
+## Foundry
+
+[Foundry](https://book.getfoundry.sh/getting-started/installation) can be utilized for deploying smart contracts. For
+commands related to deployment, you can pass flags for Foundry integration.
+
 ## Environment
 
 Edit the lines below and add them to your shell profile file (e.g. `~/.bash_profile`, `~/.zshrc`):
@@ -278,6 +287,13 @@ Optionally, you may want to optimize the build time with the modern linker, [`mo
 This linker will speed up the build times, which can be pretty big for Rust binaries.
 
 Follow the instructions in the repo in order to install it and enable for Rust.
+
+If you installed `mold` to `/usr/local/bin/mold`, then the quickest way to use it without modifying any files is:
+
+```bash
+export RUSTFLAGS='-C link-arg=-fuse-ld=/usr/local/bin/mold'
+export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="clang"
+```
 
 ## Tip: Speeding up building `RocksDB`
 

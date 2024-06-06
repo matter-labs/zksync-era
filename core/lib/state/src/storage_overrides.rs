@@ -137,4 +137,8 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageOverrides<S> {
     fn missed_storage_invocations(&self) -> usize {
         self.storage_view.missed_storage_invocations()
     }
+
+    fn read_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
+        self.storage_view.read_storage_keys()
+    }
 }

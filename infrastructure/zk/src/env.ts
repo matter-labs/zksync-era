@@ -1,19 +1,20 @@
 import { Command } from 'commander';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import * as utils from './utils';
+import * as utils from 'utils';
 import * as config from './config';
 
 export const getAvailableEnvsFromFiles = () => {
     const envs = new Set();
 
-    fs.readdirSync(`etc/env`).forEach((file) => {
+    [...fs.readdirSync('etc/env/target'), ...fs.readdirSync('etc/env/configs')].forEach((file) => {
         if (!file.startsWith('.') && (file.endsWith('.env') || file.endsWith('.toml'))) {
             envs.add(file.replace(/\..*$/, ''));
         }
     });
     return envs;
 };
+
 export function get(print: boolean = false) {
     const current = `etc/env/.current`;
     const inCurrent = fs.existsSync(current) && fs.readFileSync(current).toString().trim();
@@ -45,69 +46,46 @@ export async function gitHooks() {
     }
 }
 
-export function set(env: string, print: boolean = false) {
-    if (!fs.existsSync(`etc/env/${env}.env`) && !fs.existsSync(`etc/env/${env}.toml`)) {
+export function set(environment: string, print: boolean = false) {
+    if (!fs.existsSync(`etc/env/target/${environment}.env`) && !fs.existsSync(`etc/env/configs/${environment}.toml`)) {
         console.error(
-            `Unknown environment: ${env}.\nCreate an environment file etc/env/${env}.env or etc/env/${env}.toml`
+            `Unknown environment: ${environment}.\nCreate an environment file etc/env/target/${environment}.env or etc/env/configs/${environment}.toml`
         );
         process.exit(1);
     }
-    fs.writeFileSync('etc/env/.current', env);
-    process.env.ZKSYNC_ENV = env;
-    const envFile = (process.env.ENV_FILE = `etc/env/${env}.env`);
+    fs.writeFileSync('etc/env/.current', environment);
+    process.env.ZKSYNC_ENV = environment;
+    const envFile = (process.env.ENV_FILE = `etc/env/target/${environment}.env`);
     if (!fs.existsSync(envFile)) {
         // No .env file found - we should compile it!
-        config.compileConfig(env);
+        config.compileConfig(environment);
     }
     reload();
     get(print);
 }
 
-// override env with variables from init log
-function loadInit(zksyncEnv: string) {
-    if (fs.existsSync('etc/env/.init.env')) {
-        const initEnv = dotenv.parse(fs.readFileSync('etc/env/.init.env'));
-        for (const envVar in initEnv) {
-            process.env[envVar] = initEnv[envVar];
-            if (zksyncEnv.startsWith('ext-node')) {
-                // We want to name env vars used by external nodes idiomatically, hence the added `EN_` prefix.
-                // The original names are still used in some integration tests, so we expose the original var as well.
-                process.env[`EN_${envVar}`] = initEnv[envVar];
-            }
-        }
-    }
-}
-
-// Unset env variables loaded from `.init.env` file
-export function unloadInit() {
-    if (fs.existsSync('etc/env/.init.env')) {
-        const initEnv = dotenv.parse(fs.readFileSync('etc/env/.init.env'));
-        for (const envVar in initEnv) {
-            delete process.env[envVar];
-        }
-    }
-}
-
 // we have to manually override the environment
 // because dotenv won't override variables that are already set
-export function reload() {
-    const env = dotenv.parse(fs.readFileSync(process.env.ENV_FILE!));
+export function reload(environment?: string) {
+    environment = environment ?? get();
+    config.compileConfig();
+    const envFile = (process.env.ENV_FILE = `etc/env/target/${environment}.env`);
+    const env = dotenv.parse(fs.readFileSync(envFile));
     for (const envVar in env) {
         process.env[envVar] = env[envVar];
     }
-    loadInit(get());
 }
 
 // loads environment variables
 export function load() {
-    const zksyncEnv = get();
-    const envFile = (process.env.ENV_FILE = `etc/env/${zksyncEnv}.env`);
+    fs.mkdirSync('etc/env/target', { recursive: true });
+    const environment = get();
+    const envFile = (process.env.ENV_FILE = `etc/env/target/${environment}.env`);
     if (!fs.existsSync(envFile)) {
         // No .env file found - we should compile it!
         config.compileConfig();
     }
     dotenv.config({ path: envFile });
-    loadInit(zksyncEnv);
 
     // This suppresses the warning that looks like: "Warning: Accessing non-existent property 'INVALID_ALT_NUMBER'...".
     // This warning is spawned from the `antlr4`, which is a dep of old `solidity-parser` library.
@@ -116,8 +94,10 @@ export function load() {
 }
 
 // places the environment logged by `zk init` variables into the .init.env file
-export function modify(variable: string, assignedVariable: string) {
-    const initEnv = 'etc/env/.init.env';
+export function modify(variable: string, value: string, initEnv: string, withReload = true) {
+    const assignedVariable = value.startsWith(`${variable}=`) ? value : `${variable}=${value}`;
+    fs.mkdirSync('etc/env/l2-inits', { recursive: true });
+    fs.mkdirSync('etc/env/l1-inits', { recursive: true });
     if (!fs.existsSync(initEnv)) {
         fs.writeFileSync(initEnv, assignedVariable);
         return;
@@ -125,13 +105,15 @@ export function modify(variable: string, assignedVariable: string) {
 
     let source = fs.readFileSync(initEnv).toString();
     if (source.includes(variable)) {
-        utils.replaceInFile(initEnv, `${variable}=.*`, assignedVariable.trim());
+        utils.replaceInFile(initEnv, `${variable}.*`, assignedVariable.trim());
     } else {
         source += `\n${assignedVariable}`;
         fs.writeFileSync(initEnv, source);
     }
 
-    reload();
+    if (withReload) {
+        reload();
+    }
 }
 
 export function removeFromInit(variable: string) {
@@ -146,26 +128,22 @@ export function removeFromInit(variable: string) {
 
 // merges .init.env with current env file so all configs are in the same place
 export function mergeInitToEnv() {
-    const env = dotenv.parse(fs.readFileSync(process.env.ENV_FILE!));
-    const initEnv = dotenv.parse(fs.readFileSync('etc/env/.init.env'));
+    const environment = process.env.ZKSYNC_ENV!;
+    const env = dotenv.parse(fs.readFileSync(`etc/env/target/${environment}.env`));
+    const initEnv = dotenv.parse(fs.readFileSync(`etc/env/l2-inits/${environment}.init.env`));
     for (const initVar in initEnv) {
         env[initVar] = initEnv[initVar];
     }
     let output = '';
     for (const envVar in env) {
-        let envVal = env[envVar];
-        // wrap the value into double quotes if it has spaces in it
-        if (envVal.indexOf(' ') >= 0) {
-            envVal = '"' + envVal + '"';
-        }
-        output += `${envVar}=${envVal}\n`;
+        output += `${envVar}=${env[envVar]}\n`;
     }
-    fs.writeFileSync(process.env.ENV_FILE!, output);
+    fs.writeFileSync(`etc/env/target/${environment}.env`, output);
 }
 
 export const command = new Command('env')
     .arguments('[env_name]')
     .description('get or set zksync environment')
-    .action((envName?: string) => {
-        envName ? set(envName, true) : get(true);
+    .action((environment?: string) => {
+        environment ? set(environment, true) : get(true);
     });

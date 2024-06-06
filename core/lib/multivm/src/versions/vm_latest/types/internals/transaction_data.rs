@@ -6,13 +6,13 @@ use zksync_types::{
     l1::is_l1_tx_type,
     l2::{L2Tx, TransactionType},
     transaction_request::{PaymasterParams, TransactionRequest},
-    Bytes, Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256,
-    U256,
+    web3::Bytes,
+    Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256,
 };
 use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
 use crate::vm_latest::{
-    constants::{L1_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, PRIORITY_TX_MAX_GAS_LIMIT},
+    constants::{MAX_GAS_PER_PUBDATA_BYTE, TX_MAX_COMPUTE_GAS_LIMIT},
     utils::overhead::derive_overhead,
 };
 
@@ -215,14 +215,8 @@ impl TransactionData {
     }
 
     pub(crate) fn trusted_ergs_limit(&self) -> U256 {
-        if self.tx_type == L1_TX_TYPE {
-            // In case we get a users' transactions with unexpected gas limit, we do not let it have more than
-            // a certain limit
-            return U256::from(PRIORITY_TX_MAX_GAS_LIMIT).min(self.gas_limit);
-        }
-
-        // TODO (EVM-66): correctly calculate the trusted gas limit for a transaction
-        self.gas_limit
+        // No transaction is allowed to spend more than `TX_MAX_COMPUTE_GAS_LIMIT` gas on compute.
+        U256::from(TX_MAX_COMPUTE_GAS_LIMIT).min(self.gas_limit)
     }
 
     pub(crate) fn tx_hash(&self, chain_id: L2ChainId) -> H256 {
@@ -231,16 +225,17 @@ impl TransactionData {
         }
 
         let l2_tx: L2Tx = self.clone().try_into().unwrap();
-        let transaction_request: TransactionRequest = l2_tx.into();
+        let mut transaction_request: TransactionRequest = l2_tx.into();
+        transaction_request.chain_id = Some(chain_id.as_u64());
 
         // It is assumed that the `TransactionData` always has all the necessary components to recover the hash.
         transaction_request
-            .get_tx_hash(chain_id)
+            .get_tx_hash()
             .expect("Could not recover L2 transaction hash")
     }
 
     fn canonical_l1_tx_hash(&self) -> Result<H256, TxHashCalculationError> {
-        use zksync_types::web3::signing::keccak256;
+        use zksync_types::web3::keccak256;
 
         if !is_l1_tx_type(self.tx_type) {
             return Err(TxHashCalculationError::CannotCalculateL1HashForL2Tx);

@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
-use zksync_core::api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy::TxProxy};
-use zksync_web3_decl::jsonrpsee::http_client::{transport::HttpBackend, HttpClient};
+use zksync_node_api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy::TxProxy};
 
 use crate::{
-    implementations::resources::{pools::MasterPoolResource, web3_api::TxSinkResource},
+    implementations::resources::{
+        main_node_client::MainNodeClientResource,
+        pools::{MasterPool, PoolResource},
+        web3_api::TxSinkResource,
+    },
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -13,7 +16,7 @@ use crate::{
 #[non_exhaustive]
 pub enum TxSinkLayer {
     MasterPoolSink,
-    ProxySink { main_node_url: String },
+    ProxySink,
 }
 
 #[async_trait::async_trait]
@@ -26,16 +29,14 @@ impl WiringLayer for TxSinkLayer {
         let tx_sink = match self.as_ref() {
             TxSinkLayer::MasterPoolSink => {
                 let pool = context
-                    .get_resource::<MasterPoolResource>()
+                    .get_resource::<PoolResource<MasterPool>>()
                     .await?
                     .get()
                     .await?;
                 TxSinkResource(Arc::new(MasterPoolSink::new(pool)))
             }
-            TxSinkLayer::ProxySink { main_node_url } => {
-                let client = HttpClient::<HttpBackend>::builder()
-                    .build(main_node_url)
-                    .map_err(|err| WiringError::Internal(err.into()))?;
+            TxSinkLayer::ProxySink => {
+                let MainNodeClientResource(client) = context.get_resource().await?;
                 TxSinkResource(Arc::new(TxProxy::new(client)))
             }
         };

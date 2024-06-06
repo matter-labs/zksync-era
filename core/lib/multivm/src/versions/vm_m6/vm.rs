@@ -53,7 +53,7 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
             block_properties,
             system_env.execution_mode.glue_into(),
             &system_env.base_system_smart_contracts.clone().glue_into(),
-            system_env.gas_limit,
+            system_env.bootloader_gas_limit,
         );
         Self {
             vm: inner_vm,
@@ -191,12 +191,6 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         CurrentExecutionState {
             events,
-            storage_log_queries: self
-                .vm
-                .get_final_log_queries()
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
             deduplicated_storage_log_queries: deduplicated_logs
                 .into_iter()
                 .map(GlueInto::glue_into)
@@ -209,6 +203,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             deduplicated_events_logs: vec![],
             storage_refunds: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
+            pubdata_costs: vec![],
         }
     }
 
@@ -246,7 +241,8 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             });
             let compressed_bytecodes: Vec<_> = filtered_deps.collect();
 
-            self.last_tx_compressed_bytecodes = compressed_bytecodes.clone();
+            self.last_tx_compressed_bytecodes
+                .clone_from(&compressed_bytecodes);
             crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
                 &mut self.vm,
                 &tx,

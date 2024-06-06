@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use prover_dal::ProverDal;
 use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
 };
@@ -12,17 +13,17 @@ impl PeriodicApiStruct {
             .put(data.l1_batch_number, &data.data)
             .await
             .expect("Failed to save proof generation data to GCS");
-        let mut connection = self.pool.access_storage().await.unwrap();
+        let mut connection = self.pool.connection().await.unwrap();
         connection
             .fri_protocol_versions_dal()
-            .save_prover_protocol_version(data.fri_protocol_version_id, data.l1_verifier_config)
+            .save_prover_protocol_version(data.protocol_version, data.l1_verifier_config)
             .await;
         connection
             .fri_witness_generator_dal()
             .save_witness_inputs(
                 data.l1_batch_number,
                 &blob_url,
-                data.fri_protocol_version_id,
+                data.protocol_version,
                 data.eip_4844_blobs,
             )
             .await;
@@ -50,12 +51,12 @@ impl PeriodicApi<ProofGenerationDataRequest> for PeriodicApiStruct {
 
     async fn handle_response(&self, _: (), response: Self::Response) {
         match response {
-            ProofGenerationDataResponse::Success(None) => {
-                tracing::info!("There are currently no pending batches to be proven");
-            }
             ProofGenerationDataResponse::Success(Some(data)) => {
                 tracing::info!("Received proof gen data for: {:?}", data.l1_batch_number);
-                self.save_proof_gen_data(data).await;
+                self.save_proof_gen_data(*data).await;
+            }
+            ProofGenerationDataResponse::Success(None) => {
+                tracing::info!("There are currently no pending batches to be proven");
             }
             ProofGenerationDataResponse::Error(err) => {
                 tracing::error!("Failed to get proof gen data: {:?}", err);

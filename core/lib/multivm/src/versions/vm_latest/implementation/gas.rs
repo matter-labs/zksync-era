@@ -1,32 +1,13 @@
 use zksync_state::WriteStorage;
 
-use crate::{
-    interface::VmInterface,
-    vm_latest::{tracers::DefaultExecutionTracer, vm::Vm},
-    HistoryMode,
-};
+use crate::{interface::VmInterface, vm_latest::vm::Vm, HistoryMode};
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
-    pub(crate) fn calculate_computational_gas_used(
-        &self,
-        tracer: &DefaultExecutionTracer<S, H::Vm1_4_2>,
-        gas_remaining_before: u32,
-        spent_pubdata_counter_before: u32,
-    ) -> u32 {
-        let total_gas_used = gas_remaining_before
+    pub(crate) fn calculate_computational_gas_used(&self, gas_remaining_before: u32) -> u32 {
+        // Starting from VM version 1.5.0 pubdata was implicitly charged from users' gasLimit instead of
+        // explicitly reduced from the `gas` in the VM state
+        gas_remaining_before
             .checked_sub(self.gas_remaining())
-            .expect("underflow");
-        let gas_used_on_pubdata =
-            tracer.gas_spent_on_pubdata(&self.state.local_state) - spent_pubdata_counter_before;
-        total_gas_used
-            .checked_sub(gas_used_on_pubdata)
-            .unwrap_or_else(|| {
-                tracing::error!(
-                    "Gas used on pubdata is greater than total gas used. On pubdata: {}, total: {}",
-                    gas_used_on_pubdata,
-                    total_gas_used
-                );
-                0
-            })
+            .expect("underflow")
     }
 }

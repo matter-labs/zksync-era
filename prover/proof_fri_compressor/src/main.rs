@@ -1,15 +1,18 @@
+#![feature(generic_const_exprs)]
+
 use std::{env, time::Duration};
 
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::{ConnectionPool, Prover};
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
-use zksync_config::configs::{FriProofCompressorConfig, ObservabilityConfig, PostgresConfig};
-use zksync_dal::ConnectionPool;
+use zksync_config::configs::{DatabaseSecrets, FriProofCompressorConfig, ObservabilityConfig};
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 use crate::{
     compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,
@@ -46,12 +49,21 @@ async fn main() -> anyhow::Result<()> {
             .expect("Invalid Sentry URL")
             .with_sentry_environment(observability_config.sentry_environment);
     }
+    if let Some(opentelemetry) = observability_config.opentelemetry {
+        builder = builder
+            .with_opentelemetry(
+                &opentelemetry.level,
+                opentelemetry.endpoint,
+                "zksync-prover-fri-compressor".into(),
+            )
+            .expect("Invalid OpenTelemetry config");
+    }
     let _guard = builder.build();
 
     let opt = Opt::from_args();
     let config = FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+    let database_secrets = DatabaseSecrets::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -59,13 +71,17 @@ async fn main() -> anyhow::Result<()> {
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
-        .await;
+        .await?;
+
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
+
     let proof_compressor = ProofCompressor::new(
         blob_store,
         pool,
         config.compression_mode,
         config.verify_wrapper_proof,
         config.max_attempts,
+        protocol_version,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -96,14 +112,14 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(proof_compressor.run(stop_receiver, opt.number_of_iterations)),
     ];
 
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = true;
+    let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
     tokio::select! {
-        _ = wait_for_tasks(tasks, None, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
             tracing::info!("Stop signal received, shutting down");
         }
     };
-    stop_sender.send(true).ok();
+    stop_sender.send_replace(true);
+    tasks.complete(Duration::from_secs(5)).await;
     Ok(())
 }

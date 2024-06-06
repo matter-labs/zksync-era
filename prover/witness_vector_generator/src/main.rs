@@ -1,20 +1,22 @@
 #![feature(generic_const_exprs)]
 
+use std::time::Duration;
+
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::ConnectionPool;
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProverConfig, FriWitnessVectorGeneratorConfig,
-    ObservabilityConfig, PostgresConfig,
+    fri_prover_group::FriProverGroupConfig, DatabaseSecrets, FriProverConfig,
+    FriWitnessVectorGeneratorConfig, ObservabilityConfig,
 };
-use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
-use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 use crate::generator::WitnessVectorGenerator;
 
@@ -48,6 +50,15 @@ async fn main() -> anyhow::Result<()> {
             .expect("Invalid Sentry URL")
             .with_sentry_environment(observability_config.sentry_environment);
     }
+    if let Some(opentelemetry) = observability_config.opentelemetry {
+        builder = builder
+            .with_opentelemetry(
+                &opentelemetry.level,
+                opentelemetry.endpoint,
+                "zksync-witness-vector-generator".into(),
+            )
+            .expect("Invalid OpenTelemetry config");
+    }
     let _guard = builder.build();
 
     let opt = Opt::from_args();
@@ -56,16 +67,16 @@ async fn main() -> anyhow::Result<()> {
     let specialized_group_id = config.specialized_group_id;
     let exporter_config = PrometheusExporterConfig::pull(config.prometheus_listener_port);
 
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let pool = ConnectionPool::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
     let object_store_config =
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
-    let blob_store = ObjectStoreFactory::new(object_store_config.0)
+    let object_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
-        .await;
+        .await?;
     let circuit_ids_for_round_to_be_proven = FriProverGroupConfig::from_env()
         .context("FriProverGroupConfig::from_env()")?
         .get_circuit_ids_for_group_id(specialized_group_id)
@@ -75,14 +86,16 @@ async fn main() -> anyhow::Result<()> {
     let fri_prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
     let zone_url = &fri_prover_config.zone_read_url;
     let zone = get_zone(zone_url).await.context("get_zone()")?;
-    let vk_commitments = get_cached_commitments();
+
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
+
     let witness_vector_generator = WitnessVectorGenerator::new(
-        blob_store,
+        object_store,
         pool,
         circuit_ids_for_round_to_be_proven.clone(),
         zone.clone(),
         config,
-        vk_commitments,
+        protocol_version,
         fri_prover_config.max_attempts,
     );
 
@@ -97,21 +110,21 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler");
 
-    tracing::info!("Starting witness vector generation for group: {} with circuits: {:?} in zone: {} with vk_commitments: {:?}", specialized_group_id, circuit_ids_for_round_to_be_proven, zone, vk_commitments);
+    tracing::info!("Starting witness vector generation for group: {} with circuits: {:?} in zone: {} with protocol_version: {:?}", specialized_group_id, circuit_ids_for_round_to_be_proven, zone, protocol_version);
 
     let tasks = vec![
         tokio::spawn(exporter_config.run(stop_receiver.clone())),
         tokio::spawn(witness_vector_generator.run(stop_receiver, opt.number_of_iterations)),
     ];
 
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
+    let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
-        _ = wait_for_tasks(tasks, None, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
             tracing::info!("Stop signal received, shutting down");
         }
     };
     stop_sender.send(true).ok();
+    tasks.complete(Duration::from_secs(5)).await;
     Ok(())
 }

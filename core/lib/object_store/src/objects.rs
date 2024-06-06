@@ -10,7 +10,6 @@ use zksync_types::{
     snapshots::{
         SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
-    storage::witness_block_state::WitnessBlockState,
     L1BatchNumber,
 };
 
@@ -118,17 +117,6 @@ impl StoredObject for SnapshotStorageLogsChunk {
     }
 }
 
-impl StoredObject for WitnessBlockState {
-    const BUCKET: Bucket = Bucket::WitnessInput;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("witness_block_state_for_l1_batch_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
 impl dyn ObjectStore + '_ {
     /// Fetches the value for the given key if it exists.
     ///
@@ -139,6 +127,20 @@ impl dyn ObjectStore + '_ {
     pub async fn get<V: StoredObject>(&self, key: V::Key<'_>) -> Result<V, ObjectStoreError> {
         let key = V::encode_key(key);
         let bytes = self.get_raw(V::BUCKET, &key).await?;
+        V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
+    }
+
+    /// Fetches the value for the given encoded key if it exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an object with the `encoded_key` does not exist, cannot be accessed,
+    /// or cannot be deserialized.
+    pub async fn get_by_encoded_key<V: StoredObject>(
+        &self,
+        encoded_key: String,
+    ) -> Result<V, ObjectStoreError> {
+        let bytes = self.get_raw(V::BUCKET, &encoded_key).await?;
         V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
     }
 
@@ -159,6 +161,16 @@ impl dyn ObjectStore + '_ {
         Ok(key)
     }
 
+    /// Removes a value associated with the key.
+    ///
+    /// # Errors
+    ///
+    /// Returns I/O errors specific to the storage.
+    pub async fn remove<V: StoredObject>(&self, key: V::Key<'_>) -> Result<(), ObjectStoreError> {
+        let key = V::encode_key(key);
+        self.remove_raw(V::BUCKET, &key).await
+    }
+
     pub fn get_storage_prefix<V: StoredObject>(&self) -> String {
         self.storage_prefix_raw(V::BUCKET)
     }
@@ -168,11 +180,12 @@ impl dyn ObjectStore + '_ {
 mod tests {
     use zksync_types::{
         snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
-        AccountTreeId, Bytes, StorageKey, H160, H256,
+        web3::Bytes,
+        AccountTreeId, StorageKey, H160, H256,
     };
 
     use super::*;
-    use crate::ObjectStoreFactory;
+    use crate::MockObjectStore;
 
     #[test]
     fn test_storage_logs_filesnames_generate_corretly() {
@@ -204,7 +217,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_logs_can_be_serialized_and_deserialized() {
-        let store = ObjectStoreFactory::mock().create_store().await;
+        let store = MockObjectStore::arc();
         let key = SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(567),
             chunk_id: 5,
@@ -232,7 +245,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_factory_deps_can_be_serialized_and_deserialized() {
-        let store = ObjectStoreFactory::mock().create_store().await;
+        let store = MockObjectStore::arc();
         let key = L1BatchNumber(123);
         let factory_deps = SnapshotFactoryDependencies {
             factory_deps: vec![

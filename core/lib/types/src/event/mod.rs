@@ -10,12 +10,14 @@ use zksync_utils::{
 };
 
 use crate::{
+    api::Log,
     ethabi,
     l2_to_l1_log::L2ToL1Log,
     tokens::{TokenInfo, TokenMetadata},
+    web3::{Bytes, Index},
     zk_evm_types::{LogQuery, Timestamp},
     Address, L1BatchNumber, CONTRACT_DEPLOYER_ADDRESS, H256, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, U256,
+    L1_MESSENGER_ADDRESS, U256, U64,
 };
 
 #[cfg(test)]
@@ -38,6 +40,25 @@ impl VmEvent {
                 address: self.address,
                 topic: (idx as u32, topic),
             })
+    }
+}
+
+impl From<&VmEvent> for Log {
+    fn from(vm_event: &VmEvent) -> Self {
+        Log {
+            address: vm_event.address,
+            topics: vm_event.indexed_topics.clone(),
+            data: Bytes::from(vm_event.value.clone()),
+            block_hash: None,
+            block_number: None,
+            l1_batch_number: Some(U64::from(vm_event.location.0 .0)),
+            transaction_hash: None,
+            transaction_index: Some(Index::from(vm_event.location.1)),
+            log_index: None,
+            transaction_log_index: None,
+            log_type: None,
+            removed: Some(false),
+        }
     }
 }
 
@@ -155,7 +176,7 @@ static PUBLISHED_BYTECODE_SIGNATURE: Lazy<H256> = Lazy::new(|| {
 
 // moved from Runtime Context
 pub fn extract_added_tokens(
-    l2_erc20_bridge_addr: Address,
+    l2_shared_bridge_addr: Address,
     all_generated_events: &[VmEvent],
 ) -> Vec<TokenInfo> {
     let deployed_tokens = all_generated_events
@@ -165,7 +186,7 @@ pub fn extract_added_tokens(
             event.address == CONTRACT_DEPLOYER_ADDRESS
                 && event.indexed_topics.len() == 4
                 && event.indexed_topics[0] == *DEPLOY_EVENT_SIGNATURE
-                && h256_to_account_address(&event.indexed_topics[1]) == l2_erc20_bridge_addr
+                && h256_to_account_address(&event.indexed_topics[1]) == l2_shared_bridge_addr
         })
         .map(|event| h256_to_account_address(&event.indexed_topics[3]));
 

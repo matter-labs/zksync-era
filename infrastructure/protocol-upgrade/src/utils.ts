@@ -31,6 +31,10 @@ export function getL2TransactionsFileName(environment): string {
     return getUpgradePath(environment) + '/transactions.json';
 }
 
+export function getPostUpgradeCalldataFileName(environment): string {
+    return getUpgradePath(environment) + '/postUpgradeCalldata.json';
+}
+
 export function getNameOfTheLastUpgrade(): string {
     return fs.readdirSync(DEFAULT_UPGRADE_PATH).sort().reverse()[0];
 }
@@ -46,7 +50,7 @@ export function getCommonUpgradePath(): string {
 
 export function getUpgradePath(environment: string): string {
     const upgradeEnvironment = environment ?? 'localhost';
-    const path = `${getCommonUpgradePath()}/${upgradeEnvironment}`;
+    const path = `${getCommonUpgradePath()}${upgradeEnvironment}`;
     if (!fs.existsSync(path)) {
         fs.mkdirSync(path, { recursive: true });
     }
@@ -57,4 +61,21 @@ export interface VerifierParams {
     recursionNodeLevelVkHash: BytesLike;
     recursionLeafLevelVkHash: BytesLike;
     recursionCircuitsSetVksHash: BytesLike;
+}
+
+// Bit shift by 32 does not work in JS, so we have to multiply by 2^32
+export const SEMVER_MINOR_VERSION_MULTIPLIER = 4294967296;
+
+// The major version is always 0 for now
+export function packSemver(major: number, minor: number, patch: number) {
+    if (major !== 0) {
+        throw new Error('Major version must be 0');
+    }
+
+    return minor * SEMVER_MINOR_VERSION_MULTIPLIER + patch;
+}
+
+export function unpackStringSemVer(semver: string): [number, number, number] {
+    const [major, minor, patch] = semver.split('.');
+    return [parseInt(major), parseInt(minor), parseInt(patch)];
 }

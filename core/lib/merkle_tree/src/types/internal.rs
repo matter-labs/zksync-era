@@ -2,7 +2,7 @@
 //! some of these types are declared as public and can be even exported using the `unstable` module.
 //! Still, logically these types are private, so adding them to new public APIs etc. is a logical error.
 
-use std::{fmt, num::NonZeroU64};
+use std::{collections::HashMap, fmt, num::NonZeroU64};
 
 use crate::{
     hasher::{HashTree, InternalNodeCache},
@@ -25,6 +25,8 @@ pub(crate) struct TreeTags {
     pub depth: usize,
     pub hasher: String,
     pub is_recovering: bool,
+    /// Custom / user-defined tags.
+    pub custom: HashMap<String, String>,
 }
 
 impl TreeTags {
@@ -36,25 +38,28 @@ impl TreeTags {
             hasher: hasher.name().to_owned(),
             depth: TREE_DEPTH,
             is_recovering: false,
+            custom: HashMap::new(),
         }
     }
 
-    pub fn assert_consistency(&self, hasher: &dyn HashTree, expecting_recovery: bool) {
-        assert_eq!(
-            self.architecture,
-            Self::ARCHITECTURE,
+    pub fn ensure_consistency(
+        &self,
+        hasher: &dyn HashTree,
+        expecting_recovery: bool,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.architecture == Self::ARCHITECTURE,
             "Unsupported tree architecture `{}`, expected `{}`",
             self.architecture,
             Self::ARCHITECTURE
         );
-        assert_eq!(
-            self.depth, TREE_DEPTH,
+        anyhow::ensure!(
+            self.depth == TREE_DEPTH,
             "Unexpected tree depth: expected {TREE_DEPTH}, got {}",
             self.depth
         );
-        assert_eq!(
-            hasher.name(),
-            self.hasher,
+        anyhow::ensure!(
+            hasher.name() == self.hasher,
             "Mismatch between the provided tree hasher `{}` and the hasher `{}` used \
              in the database",
             hasher.name(),
@@ -62,16 +67,17 @@ impl TreeTags {
         );
 
         if expecting_recovery {
-            assert!(
+            anyhow::ensure!(
                 self.is_recovering,
                 "Tree is expected to be in the process of recovery, but it is not"
             );
         } else {
-            assert!(
+            anyhow::ensure!(
                 !self.is_recovering,
                 "Tree is being recovered; cannot access it until recovery finishes"
             );
         }
+        Ok(())
     }
 }
 
@@ -558,6 +564,28 @@ impl StaleNodeKey {
         bytes.extend_from_slice(&self.replaced_in_version.to_be_bytes());
         bytes.extend_from_slice(&self.key.to_db_key());
         bytes
+    }
+}
+
+/// Profiled Merkle tree operation used in `Database::start_profiling()`.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub enum ProfiledTreeOperation {
+    /// Loading ancestors for nodes inserted or updated in the tree.
+    LoadAncestors,
+    /// Getting entries from the tree without Merkle proofs.
+    GetEntries,
+    /// Getting entries from the tree with Merkle proofs.
+    GetEntriesWithProofs,
+}
+
+impl ProfiledTreeOperation {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::LoadAncestors => "load_ancestors",
+            Self::GetEntries => "get_entries",
+            Self::GetEntriesWithProofs => "get_entries_with_proofs",
+        }
     }
 }
 

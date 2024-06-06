@@ -1,31 +1,39 @@
-use std::sync::Arc;
-
-use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
+use anyhow::Context as _;
+use zksync_config::{
+    configs::{wallets, ContractsConfig},
+    EthConfig,
+};
 use zksync_eth_client::clients::PKSigningClient;
+use zksync_types::L1ChainId;
 
 use crate::{
-    implementations::resources::eth_interface::BoundEthInterfaceResource,
+    implementations::resources::eth_interface::{
+        BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource, EthInterfaceResource,
+    },
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
 
 #[derive(Debug)]
 pub struct PKSigningEthClientLayer {
-    eth_sender_config: ETHSenderConfig,
+    eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    eth_client_config: ETHClientConfig,
+    l1_chain_id: L1ChainId,
+    wallets: wallets::EthSender,
 }
 
 impl PKSigningEthClientLayer {
     pub fn new(
-        eth_sender_config: ETHSenderConfig,
+        eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        eth_client_config: ETHClientConfig,
+        l1_chain_id: L1ChainId,
+        wallets: wallets::EthSender,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
-            eth_client_config,
+            l1_chain_id,
+            wallets,
         }
     }
 }
@@ -37,18 +45,37 @@ impl WiringLayer for PKSigningEthClientLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        if self.eth_sender_config.sender.private_key().is_none() {
-            return Err(WiringError::Configuration(
-                "Private key is missing in ETHSenderConfig".to_string(),
-            ));
+        let private_key = self.wallets.operator.private_key();
+        let gas_adjuster_config = self
+            .eth_sender_config
+            .gas_adjuster
+            .as_ref()
+            .context("gas_adjuster config is missing")?;
+        let EthInterfaceResource(query_client) = context.get_resource().await?;
+
+        let signing_client = PKSigningClient::new_raw(
+            private_key.clone(),
+            self.contracts_config.diamond_proxy_addr,
+            gas_adjuster_config.default_priority_fee_per_gas,
+            self.l1_chain_id,
+            query_client.clone(),
+        );
+        context.insert_resource(BoundEthInterfaceResource(Box::new(signing_client)))?;
+
+        if let Some(blob_operator) = &self.wallets.blob_operator {
+            let private_key = blob_operator.private_key();
+            let signing_client_for_blobs = PKSigningClient::new_raw(
+                private_key.clone(),
+                self.contracts_config.diamond_proxy_addr,
+                gas_adjuster_config.default_priority_fee_per_gas,
+                self.l1_chain_id,
+                query_client,
+            );
+            context.insert_resource(BoundEthInterfaceForBlobsResource(Box::new(
+                signing_client_for_blobs,
+            )))?;
         }
 
-        let signing_client = PKSigningClient::from_config(
-            &self.eth_sender_config,
-            &self.contracts_config,
-            &self.eth_client_config,
-        );
-        context.insert_resource(BoundEthInterfaceResource(Arc::new(signing_client)))?;
         Ok(())
     }
 }

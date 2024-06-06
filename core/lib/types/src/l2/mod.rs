@@ -2,8 +2,9 @@ use std::convert::TryFrom;
 
 use anyhow::Context as _;
 use num_enum::TryFromPrimitive;
-use rlp::{Rlp, RlpStream};
+use rlp::Rlp;
 use serde::{Deserialize, Serialize};
+use zksync_crypto_primitives::K256PrivateKey;
 
 use self::error::SignError;
 use crate::{
@@ -12,12 +13,12 @@ use crate::{
     fee::{encoding_len, Fee},
     helpers::unix_timestamp_ms,
     transaction_request::PaymasterParams,
-    tx::{primitives::PackedEthSignature, Execute},
-    web3::types::U64,
-    Address, Bytes, EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData,
-    L2ChainId, Nonce, StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
+    tx::Execute,
+    web3::Bytes,
+    Address, EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData, L2ChainId,
+    Nonce, PackedEthSignature, StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
     EIP_712_TX_TYPE, H256, LEGACY_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
-    U256,
+    U256, U64,
 };
 
 pub mod error;
@@ -190,11 +191,11 @@ impl L2Tx {
         fee: Fee,
         value: U256,
         chain_id: L2ChainId,
-        private_key: &H256,
+        private_key: &K256PrivateKey,
         factory_deps: Option<Vec<Vec<u8>>>,
         paymaster_params: PaymasterParams,
     ) -> Result<Self, SignError> {
-        let initiator_address = PackedEthSignature::address_from_private_key(private_key).unwrap();
+        let initiator_address = private_key.address();
         let mut res = Self::new(
             contract_address,
             calldata,
@@ -235,19 +236,14 @@ impl L2Tx {
         self.common_data.set_input(data, hash)
     }
 
-    pub fn get_rlp_bytes(&self, chain_id: L2ChainId) -> Bytes {
-        let mut rlp_stream = RlpStream::new();
-        let tx: TransactionRequest = self.clone().into();
-        tx.rlp(&mut rlp_stream, chain_id.as_u64(), None);
-        Bytes(rlp_stream.as_raw().to_vec())
-    }
-
     pub fn get_signed_bytes(&self, chain_id: L2ChainId) -> H256 {
-        let tx: TransactionRequest = self.clone().into();
+        let mut tx: TransactionRequest = self.clone().into();
+        tx.chain_id = Some(chain_id.as_u64());
         if tx.is_eip712_tx() {
             PackedEthSignature::typed_data_to_signed_bytes(&Eip712Domain::new(chain_id), &tx)
         } else {
-            let mut data = self.get_rlp_bytes(chain_id).0;
+            // It is ok to unwrap, because the `chain_id` is set.
+            let mut data = tx.get_rlp().unwrap();
             if let Some(tx_type) = tx.transaction_type {
                 data.insert(0, tx_type.as_u32() as u8);
             }

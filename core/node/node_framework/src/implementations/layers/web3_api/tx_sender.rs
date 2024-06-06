@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use zksync_core::api_server::{
+use zksync_node_api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
     tx_sender::{ApiContracts, TxSenderBuilder, TxSenderConfig},
 };
@@ -9,12 +9,12 @@ use zksync_state::PostgresStorageCaches;
 use crate::{
     implementations::resources::{
         fee_input::FeeInputResource,
-        pools::ReplicaPoolResource,
+        pools::{PoolResource, ReplicaPool},
         state_keeper::ConditionalSealerResource,
         web3_api::{TxSenderResource, TxSinkResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -58,11 +58,11 @@ impl WiringLayer for TxSenderLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get required resources.
         let tx_sink = context.get_resource::<TxSinkResource>().await?.0;
-        let pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
+        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = pool_resource.get().await?;
         let sealer = match context.get_resource::<ConditionalSealerResource>().await {
             Ok(sealer) => Some(sealer.0),
-            Err(WiringError::ResourceLacking(_)) => None,
+            Err(WiringError::ResourceLacking { .. }) => None,
             Err(other) => return Err(other),
         };
         let fee_input = context.get_resource::<FeeInputResource>().await?.0;
@@ -77,13 +77,10 @@ impl WiringLayer for TxSenderLayer {
             PostgresStorageCaches::new(factory_deps_capacity, initial_writes_capacity);
 
         if values_capacity > 0 {
-            let values_cache_task = storage_caches.configure_storage_values_cache(
-                values_capacity,
-                replica_pool.clone(),
-                context.runtime_handle().clone(),
-            );
+            let values_cache_task = storage_caches
+                .configure_storage_values_cache(values_capacity, replica_pool.clone());
             context.add_task(Box::new(PostgresStorageCachesTask {
-                task: Box::new(values_cache_task),
+                task: values_cache_task,
             }));
         }
 
@@ -114,7 +111,7 @@ impl WiringLayer for TxSenderLayer {
 }
 
 struct PostgresStorageCachesTask {
-    task: Box<dyn FnOnce() -> anyhow::Result<()> + Send>,
+    task: zksync_state::PostgresStorageCachesTask,
 }
 
 impl fmt::Debug for PostgresStorageCachesTask {
@@ -126,12 +123,12 @@ impl fmt::Debug for PostgresStorageCachesTask {
 
 #[async_trait::async_trait]
 impl Task for PostgresStorageCachesTask {
-    fn name(&self) -> &'static str {
-        "postgres_storage_caches"
+    fn id(&self) -> TaskId {
+        "postgres_storage_caches".into()
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        tokio::task::spawn_blocking(self.task).await?
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.task.run(stop_receiver.0).await
     }
 }
 
@@ -141,8 +138,8 @@ struct VmConcurrencyBarrierTask {
 
 #[async_trait::async_trait]
 impl Task for VmConcurrencyBarrierTask {
-    fn name(&self) -> &'static str {
-        "vm_concurrency_barrier_task"
+    fn id(&self) -> TaskId {
+        "vm_concurrency_barrier_task".into()
     }
 
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

@@ -6,8 +6,8 @@ use zksync_types::{
     l1::is_l1_tx_type,
     l2::{L2Tx, TransactionType},
     transaction_request::{PaymasterParams, TransactionRequest},
-    Bytes, Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256,
-    U256,
+    web3::Bytes,
+    Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256,
 };
 use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
@@ -245,16 +245,17 @@ impl TransactionData {
         }
 
         let l2_tx: L2Tx = self.clone().try_into().unwrap();
-        let transaction_request: TransactionRequest = l2_tx.into();
+        let mut transaction_request: TransactionRequest = l2_tx.into();
+        transaction_request.chain_id = Some(chain_id.as_u64());
 
         // It is assumed that the `TransactionData` always has all the necessary components to recover the hash.
         transaction_request
-            .get_tx_hash(chain_id)
+            .get_tx_hash()
             .expect("Could not recover L2 transaction hash")
     }
 
     fn canonical_l1_tx_hash(&self) -> Result<H256, TxHashCalculationError> {
-        use zksync_types::web3::signing::keccak256;
+        use zksync_types::web3::keccak256;
 
         if !is_l1_tx_type(self.tx_type) {
             return Err(TxHashCalculationError::CannotCalculateL1HashForL2Tx);

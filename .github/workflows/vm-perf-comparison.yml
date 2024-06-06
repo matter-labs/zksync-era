@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: checkout base branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -38,6 +38,7 @@ jobs:
 
       - name: init
         run: |
+          run_retried docker compose pull zk
           docker compose up -d zk
 
       - name: run benchmarks on base branch
@@ -46,7 +47,7 @@ jobs:
           ci_run zk
           ci_run zk compiler system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
-          ci_run cd core/tests/vm_benchmark && cargo run --release --bin instruction-counts | tee base-opcodes || touch base-opcodes
+          ci_run cargo run --package vm-benchmark --release --bin instruction-counts | tee base-opcodes || touch base-opcodes
           ci_run yarn workspace system-contracts clean
 
       - name: checkout PR
@@ -58,7 +59,7 @@ jobs:
           ci_run zk
           ci_run zk compiler system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee pr-iai
-          ci_run cd core/tests/vm_benchmark && cargo run --release --bin instruction-counts | tee pr-opcodes || touch pr-opcodes
+          ci_run cargo run --package vm-benchmark --release --bin instruction-counts | tee pr-opcodes || touch pr-opcodes
 
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "speedup<<$EOF" >> $GITHUB_OUTPUT

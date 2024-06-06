@@ -1,19 +1,27 @@
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::api::ProtocolVersion;
 
-use crate::{models::storage_protocol_version::StorageProtocolVersion, StorageProcessor};
+use crate::{models::storage_protocol_version::StorageApiProtocolVersion, Core, CoreDal};
 
 #[derive(Debug)]
 pub struct ProtocolVersionsWeb3Dal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut Connection<'c, Core>,
 }
 
 impl ProtocolVersionsWeb3Dal<'_, '_> {
-    pub async fn get_protocol_version_by_id(&mut self, version_id: u16) -> Option<ProtocolVersion> {
-        let storage_protocol_version: Option<StorageProtocolVersion> = sqlx::query_as!(
-            StorageProtocolVersion,
+    pub async fn get_protocol_version_by_id(
+        &mut self,
+        version_id: u16,
+    ) -> DalResult<Option<ProtocolVersion>> {
+        let storage_protocol_version = sqlx::query_as!(
+            StorageApiProtocolVersion,
             r#"
             SELECT
-                *
+                id AS "minor!",
+                timestamp,
+                bootloader_code_hash,
+                default_account_code_hash,
+                upgrade_tx_hash
             FROM
                 protocol_versions
             WHERE
@@ -21,31 +29,23 @@ impl ProtocolVersionsWeb3Dal<'_, '_> {
             "#,
             i32::from(version_id)
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("get_protocol_version_by_id")
+        .with_arg("version_id", &version_id)
+        .fetch_optional(self.storage)
+        .await?;
 
-        storage_protocol_version.map(ProtocolVersion::from)
+        Ok(storage_protocol_version.map(ProtocolVersion::from))
     }
 
-    pub async fn get_latest_protocol_version(&mut self) -> ProtocolVersion {
-        let storage_protocol_version: StorageProtocolVersion = sqlx::query_as!(
-            StorageProtocolVersion,
-            r#"
-            SELECT
-                *
-            FROM
-                protocol_versions
-            ORDER BY
-                id DESC
-            LIMIT
-                1
-            "#,
-        )
-        .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
-
-        ProtocolVersion::from(storage_protocol_version)
+    pub async fn get_latest_protocol_version(&mut self) -> DalResult<ProtocolVersion> {
+        let latest_version = self
+            .storage
+            .protocol_versions_dal()
+            .latest_semantic_version()
+            .await?
+            .unwrap();
+        self.get_protocol_version_by_id(latest_version.minor as u16)
+            .await
+            .map(|v| v.unwrap())
     }
 }

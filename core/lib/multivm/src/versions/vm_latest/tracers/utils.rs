@@ -1,4 +1,4 @@
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     aux_structures::MemoryPage,
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
@@ -6,21 +6,22 @@ use zk_evm_1_4_1::{
     },
 };
 use zksync_system_constants::{
-    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
+    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
 };
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;
 
 use crate::vm_latest::{
     constants::{
-        BOOTLOADER_HEAP_PAGE, VM_HOOK_PARAMS_COUNT, VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
+        get_vm_hook_params_start_position, get_vm_hook_position, BOOTLOADER_HEAP_PAGE,
+        VM_HOOK_PARAMS_COUNT,
     },
     old_vm::{
         history_recorder::HistoryMode,
         memory::SimpleMemory,
         utils::{aux_heap_page_from_base, heap_page_from_base},
     },
+    vm::MultiVMSubversion,
 };
 
 #[derive(Clone, Debug, Copy)]
@@ -46,6 +47,7 @@ impl VmHook {
     pub(crate) fn from_opcode_memory(
         state: &VmLocalStateData<'_>,
         data: &BeforeExecutionData,
+        subversion: MultiVMSubversion,
     ) -> Self {
         let opcode_variant = data.opcode.variant;
         let heap_page =
@@ -60,7 +62,7 @@ impl VmHook {
         // Only `UMA` opcodes in the bootloader serve for vm hooks
         if !matches!(opcode_variant.opcode, Opcode::UMA(UMAOpcode::HeapWrite))
             || heap_page != BOOTLOADER_HEAP_PAGE
-            || fat_ptr.offset != VM_HOOK_POSITION * 32
+            || fat_ptr.offset != get_vm_hook_position(subversion) * 32
         {
             return Self::NoHook;
         }
@@ -87,8 +89,9 @@ impl VmHook {
 pub(crate) fn get_debug_log<H: HistoryMode>(
     state: &VmLocalStateData<'_>,
     memory: &SimpleMemory<H>,
+    subversion: MultiVMSubversion,
 ) -> String {
-    let vm_hook_params: Vec<_> = get_vm_hook_params(memory)
+    let vm_hook_params: Vec<_> = get_vm_hook_params(memory, subversion)
         .into_iter()
         .map(u256_to_h256)
         .collect();
@@ -99,7 +102,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
     let data = U256::from_big_endian(&data);
 
     // For long data, it is better to use hex-encoding for greater readability
-    let data_str = if data > U256::from(u64::max_value()) {
+    let data_str = if data > U256::from(u64::MAX) {
         let mut bytes = [0u8; 32];
         data.to_big_endian(&mut bytes);
         format!("0x{}", hex::encode(bytes))
@@ -138,10 +141,15 @@ pub(crate) fn read_pointer<H: HistoryMode>(
 
 /// Outputs the returndata for the latest call.
 /// This is usually used to output the revert reason.
-pub(crate) fn get_debug_returndata<H: HistoryMode>(memory: &SimpleMemory<H>) -> String {
-    let vm_hook_params: Vec<_> = get_vm_hook_params(memory);
-    let returndata_ptr = FatPointer::from_u256(vm_hook_params[0]);
-    let returndata = read_pointer(memory, returndata_ptr);
+pub(crate) fn get_debug_returndata<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
+    latest_returndata_ptr: Option<FatPointer>,
+) -> String {
+    let returndata = if let Some(ptr) = latest_returndata_ptr {
+        read_pointer(memory, ptr)
+    } else {
+        vec![]
+    };
 
     format!("0x{}", hex::encode(returndata))
 }
@@ -151,10 +159,12 @@ pub(crate) fn print_debug_if_needed<H: HistoryMode>(
     hook: &VmHook,
     state: &VmLocalStateData<'_>,
     memory: &SimpleMemory<H>,
+    latest_returndata_ptr: Option<FatPointer>,
+    subversion: MultiVMSubversion,
 ) {
     let log = match hook {
-        VmHook::DebugLog => get_debug_log(state, memory),
-        VmHook::DebugReturnData => get_debug_returndata(memory),
+        VmHook::DebugLog => get_debug_log(state, memory, subversion),
+        VmHook::DebugReturnData => get_debug_returndata(memory, latest_returndata_ptr),
         _ => return,
     };
 
@@ -188,26 +198,6 @@ pub(crate) fn computational_gas_price(
     base_price + precompile_price
 }
 
-pub(crate) fn gas_spent_on_bytecodes_and_long_messages_this_opcode(
-    state: &VmLocalStateData<'_>,
-    data: &BeforeExecutionData,
-) -> u32 {
-    if data.opcode.variant.opcode == Opcode::Log(LogOpcode::PrecompileCall) {
-        let current_stack = state.vm_local_state.callstack.get_current_stack();
-        // Trace for precompile calls from `KNOWN_CODES_STORAGE_ADDRESS` and `L1_MESSENGER_ADDRESS` that burn some gas.
-        // Note, that if there is less gas left than requested to burn it will be burnt anyway.
-        if current_stack.this_address == KNOWN_CODES_STORAGE_ADDRESS
-            || current_stack.this_address == L1_MESSENGER_ADDRESS
-        {
-            std::cmp::min(data.src1_value.value.as_u32(), current_stack.ergs_remaining)
-        } else {
-            0
-        }
-    } else {
-        0
-    }
-}
-
 pub(crate) fn get_calldata_page_via_abi(far_call_abi: &FarCallABI, base_page: MemoryPage) -> u32 {
     match far_call_abi.forwarding_mode {
         FarCallForwardPageType::ForwardFatPointer => {
@@ -217,9 +207,13 @@ pub(crate) fn get_calldata_page_via_abi(far_call_abi: &FarCallABI, base_page: Me
         FarCallForwardPageType::UseHeap => heap_page_from_base(base_page).0,
     }
 }
-pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Vec<U256> {
+pub(crate) fn get_vm_hook_params<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
+    subversion: MultiVMSubversion,
+) -> Vec<U256> {
+    let start_position = get_vm_hook_params_start_position(subversion);
     memory.dump_page_content_as_u256_words(
         BOOTLOADER_HEAP_PAGE,
-        VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT,
+        start_position..start_position + VM_HOOK_PARAMS_COUNT,
     )
 }

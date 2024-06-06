@@ -6,10 +6,12 @@ use std::{
 
 use futures::{channel::mpsc, SinkExt};
 use tokio::sync::RwLock;
-use zksync::{error::ClientError, operations::SyncTransactionHandle, HttpClient};
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
-use zksync_web3_decl::jsonrpsee::core::ClientError as CoreError;
+use zksync_web3_decl::{
+    client::{Client, L2},
+    jsonrpsee::core::ClientError as CoreError,
+};
 
 use crate::{
     account::tx_command_executor::SubmitResult,
@@ -18,6 +20,7 @@ use crate::{
     config::{LoadtestConfig, RequestLimiters},
     constants::{MAX_L1_TRANSACTIONS, POLLING_INTERVAL},
     report::{Report, ReportBuilder, ReportLabel},
+    sdk::{error::ClientError, operations::SyncTransactionHandle},
     utils::format_gwei,
 };
 
@@ -359,7 +362,7 @@ impl AccountLifespan {
     async fn submit(
         &mut self,
         modifier: IncorrectnessModifier,
-        send_result: Result<SyncTransactionHandle<'_, HttpClient>, ClientError>,
+        send_result: Result<SyncTransactionHandle<'_, Client<L2>>, ClientError>,
     ) -> Result<SubmitResult, ClientError> {
         let expected_outcome = modifier.expected_outcome();
 

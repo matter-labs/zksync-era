@@ -1,6 +1,5 @@
 [_metadata]
 base = [
-    'base/alerts.toml',
     'base/api.toml',
     'base/chain.toml',
     'base/contract_verifier.toml',
@@ -14,7 +13,6 @@ base = [
     'base/nfs.toml',
     'base/rust.toml',
     'base/private.toml',
-    'base/witness_generator.toml',
     'base/house_keeper.toml',
     'base/fri_prover.toml',
     'base/fri_witness_generator.toml',

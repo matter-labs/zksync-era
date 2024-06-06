@@ -1,86 +1,153 @@
-use std::sync::Arc;
-
-use zksync_config::configs::{
-    chain::NetworkConfig, eth_sender::ETHSenderConfig, ContractsConfig, ETHClientConfig,
-};
-use zksync_core::eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
-use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
+use anyhow::Context;
+use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
+use zksync_config::configs::{eth_sender::EthConfig, ContractsConfig};
+use zksync_eth_client::BoundEthInterface;
+use zksync_eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
-        eth_interface::BoundEthInterfaceResource, l1_tx_params::L1TxParamsResource,
-        object_store::ObjectStoreResource, pools::MasterPoolResource,
+        circuit_breakers::CircuitBreakersResource,
+        eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
+        l1_tx_params::L1TxParamsResource,
+        object_store::ObjectStoreResource,
+        pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
 #[derive(Debug)]
-pub struct EthSenderLayer {
-    eth_sender_config: ETHSenderConfig,
-    contracts_config: ContractsConfig,
-    eth_client_config: ETHClientConfig,
-    network_config: NetworkConfig,
+pub struct EthTxManagerLayer {
+    eth_sender_config: EthConfig,
 }
 
-impl EthSenderLayer {
+impl EthTxManagerLayer {
+    pub fn new(eth_sender_config: EthConfig) -> Self {
+        Self { eth_sender_config }
+    }
+}
+
+#[async_trait::async_trait]
+impl WiringLayer for EthTxManagerLayer {
+    fn layer_name(&self) -> &'static str {
+        "eth_tx_manager_layer"
+    }
+
+    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+        // Get resources.
+        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let master_pool = master_pool_resource.get().await.unwrap();
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_pool = replica_pool_resource.get().await.unwrap();
+
+        let eth_client = context.get_resource::<BoundEthInterfaceResource>().await?.0;
+        let eth_client_blobs = match context
+            .get_resource::<BoundEthInterfaceForBlobsResource>()
+            .await
+        {
+            Ok(BoundEthInterfaceForBlobsResource(client)) => Some(client),
+            Err(WiringError::ResourceLacking { .. }) => None,
+            Err(err) => return Err(err),
+        };
+
+        let config = self.eth_sender_config.sender.context("sender")?;
+
+        let gas_adjuster = context.get_resource::<L1TxParamsResource>().await?.0;
+
+        let eth_tx_manager_actor = EthTxManager::new(
+            master_pool,
+            config,
+            gas_adjuster,
+            eth_client,
+            eth_client_blobs,
+        );
+
+        context.add_task(Box::new(EthTxManagerTask {
+            eth_tx_manager_actor,
+        }));
+
+        // Insert circuit breaker.
+        let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
+        breakers
+            .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
+            .await;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct EthTxAggregatorLayer {
+    eth_sender_config: EthConfig,
+    contracts_config: ContractsConfig,
+    zksync_network_id: L2ChainId,
+    l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+}
+
+impl EthTxAggregatorLayer {
     pub fn new(
-        eth_sender_config: ETHSenderConfig,
+        eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        eth_client_config: ETHClientConfig,
-        network_config: NetworkConfig,
+        zksync_network_id: L2ChainId,
+        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
-            eth_client_config,
-            network_config,
+            zksync_network_id,
+            l1_batch_commit_data_generator_mode,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for EthSenderLayer {
+impl WiringLayer for EthTxAggregatorLayer {
     fn layer_name(&self) -> &'static str {
-        "eth_sender_layer"
+        "eth_tx_aggregator_layer"
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        // Get resources
-        let pool_resource = context.get_resource::<MasterPoolResource>().await?;
-        let pool = pool_resource.get().await.unwrap();
+        // Get resources.
+        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let master_pool = master_pool_resource.get().await.unwrap();
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_pool = replica_pool_resource.get().await.unwrap();
 
         let eth_client = context.get_resource::<BoundEthInterfaceResource>().await?.0;
-
+        let eth_client_blobs = match context
+            .get_resource::<BoundEthInterfaceForBlobsResource>()
+            .await
+        {
+            Ok(BoundEthInterfaceForBlobsResource(client)) => Some(client),
+            Err(WiringError::ResourceLacking { .. }) => None,
+            Err(err) => return Err(err),
+        };
         let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
 
-        // Create and add tasks
-        let eth_client_blobs = PKSigningClient::from_config_blobs(
-            &self.eth_sender_config,
-            &self.contracts_config,
-            &self.eth_client_config,
-        );
-        let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());
+        // Create and add tasks.
+        let eth_client_blobs_addr = eth_client_blobs
+            .as_deref()
+            .map(BoundEthInterface::sender_account);
 
+        let config = self.eth_sender_config.sender.context("sender")?;
         let aggregator = Aggregator::new(
-            self.eth_sender_config.sender.clone(),
+            config.clone(),
             object_store,
             eth_client_blobs_addr.is_some(),
-            self.eth_sender_config.sender.pubdata_sending_mode.into(),
+            self.l1_batch_commit_data_generator_mode,
         );
 
-        let config = self.eth_sender_config.sender;
-
         let eth_tx_aggregator_actor = EthTxAggregator::new(
-            pool.clone(),
+            master_pool.clone(),
             config.clone(),
             aggregator,
             eth_client.clone(),
             self.contracts_config.validator_timelock_addr,
             self.contracts_config.l1_multicall3_addr,
             self.contracts_config.diamond_proxy_addr,
-            self.network_config.zksync_network_id,
+            self.zksync_network_id,
             eth_client_blobs_addr,
         )
         .await;
@@ -89,19 +156,11 @@ impl WiringLayer for EthSenderLayer {
             eth_tx_aggregator_actor,
         }));
 
-        let gas_adjuster = context.get_resource::<L1TxParamsResource>().await?.0;
-
-        let eth_tx_manager_actor = EthTxManager::new(
-            pool,
-            config,
-            gas_adjuster,
-            eth_client,
-            eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
-        );
-
-        context.add_task(Box::new(EthTxManagerTask {
-            eth_tx_manager_actor,
-        }));
+        // Insert circuit breaker.
+        let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
+        breakers
+            .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
+            .await;
 
         Ok(())
     }
@@ -114,8 +173,8 @@ struct EthTxAggregatorTask {
 
 #[async_trait::async_trait]
 impl Task for EthTxAggregatorTask {
-    fn name(&self) -> &'static str {
-        "eth_tx_aggregator"
+    fn id(&self) -> TaskId {
+        "eth_tx_aggregator".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -130,8 +189,8 @@ struct EthTxManagerTask {
 
 #[async_trait::async_trait]
 impl Task for EthTxManagerTask {
-    fn name(&self) -> &'static str {
-        "eth_tx_manager"
+    fn id(&self) -> TaskId {
+        "eth_tx_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

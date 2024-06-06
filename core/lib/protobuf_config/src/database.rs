@@ -66,12 +66,20 @@ impl ProtoRepr for proto::MerkleTree {
 
 impl ProtoRepr for proto::Db {
     type Type = configs::database::DBConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             state_keeper_db_path: required(&self.state_keeper_db_path)
                 .context("state_keeper_db_path")?
                 .clone(),
             merkle_tree: read_required_repr(&self.merkle_tree).context("merkle_tree")?,
+            experimental: self
+                .experimental
+                .as_ref()
+                .map(ProtoRepr::read)
+                .transpose()
+                .context("experimental")?
+                .unwrap_or_default(),
         })
     }
 
@@ -79,6 +87,7 @@ impl ProtoRepr for proto::Db {
         Self {
             state_keeper_db_path: Some(this.state_keeper_db_path.clone()),
             merkle_tree: Some(ProtoRepr::build(&this.merkle_tree)),
+            experimental: Some(ProtoRepr::build(&this.experimental)),
         }
     }
 }
@@ -87,28 +96,36 @@ impl ProtoRepr for proto::Postgres {
     type Type = configs::database::PostgresConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
+        let (test_server_url, test_prover_url) = self
+            .test
+            .as_ref()
+            .map(|x| (x.server_url.clone(), x.prover_url.clone()))
+            .unwrap_or_default();
+
         Ok(Self::Type {
-            master_url: self.master_url.clone(),
-            replica_url: self.replica_url.clone(),
-            prover_url: self.prover_url.clone(),
             max_connections: self.max_connections,
+            max_connections_master: self.max_connections_master,
             acquire_timeout_sec: self.acquire_timeout_sec,
             statement_timeout_sec: self.statement_timeout_sec,
             long_connection_threshold_ms: self.long_connection_threshold_ms,
             slow_query_threshold_ms: self.slow_query_threshold_ms,
+            test_server_url,
+            test_prover_url,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            master_url: this.master_url.clone(),
-            replica_url: this.replica_url.clone(),
-            prover_url: this.prover_url.clone(),
             max_connections: this.max_connections,
+            max_connections_master: this.max_connections_master,
             acquire_timeout_sec: this.acquire_timeout_sec,
             statement_timeout_sec: this.statement_timeout_sec,
             long_connection_threshold_ms: this.long_connection_threshold_ms,
             slow_query_threshold_ms: this.slow_query_threshold_ms,
+            test: Some(proto::TestDatabase {
+                server_url: this.test_server_url.clone(),
+                prover_url: this.test_prover_url.clone(),
+            }),
         }
     }
 }

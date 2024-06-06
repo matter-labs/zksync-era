@@ -1,6 +1,6 @@
 //! Tests for `PostgresStorage`.
 
-use std::{collections::HashMap, mem};
+use std::{collections::HashMap, mem, time::Duration};
 
 use rand::{
     rngs::StdRng,
@@ -11,21 +11,21 @@ use zksync_dal::ConnectionPool;
 use zksync_types::StorageLog;
 
 use super::*;
-use crate::test_utils::{create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres};
+use crate::test_utils::{create_l1_batch, create_l2_block, gen_storage_logs, prepare_postgres};
 
 fn test_postgres_storage_basics(
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Core>,
     rt_handle: Handle,
     cache_initial_writes: bool,
 ) {
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle.block_on(pool.connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
-    let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), true);
+    let mut storage = PostgresStorage::new(rt_handle, connection, L2BlockNumber(0), true);
     if cache_initial_writes {
         let caches = PostgresStorageCaches::new(1_024, 1_024);
         storage = storage.with_caches(caches);
     }
-    assert_eq!(storage.l1_batch_number_for_miniblock, L1BatchNumber(0));
+    assert_eq!(storage.l1_batch_number_for_l2_block, L1BatchNumber(0));
 
     let existing_logs = gen_storage_logs(0..20);
     for log in &existing_logs {
@@ -42,14 +42,14 @@ fn test_postgres_storage_basics(
         assert!(caches.initial_writes.estimated_len() > 0);
     }
 
-    // Add a new miniblock to the storage
-    storage.rt_handle.block_on(create_miniblock(
+    // Add a new L2 block to the storage
+    storage.rt_handle.block_on(create_l2_block(
         &mut storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         non_existing_logs.clone(),
     ));
 
-    // Check that the miniblock is not seen by `PostgresStorage` (it's not a part of an L1 batch)
+    // Check that the L2 block is not seen by `PostgresStorage` (it's not a part of an L1 batch)
     for log in &non_existing_logs {
         assert!(storage.is_write_initial(&log.key));
     }
@@ -58,34 +58,34 @@ fn test_postgres_storage_basics(
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         true,
     );
     storage.caches = caches;
 
-    assert_eq!(storage.l1_batch_number_for_miniblock, L1BatchNumber(1));
+    assert_eq!(storage.l1_batch_number_for_l2_block, L1BatchNumber(1));
     for log in &non_existing_logs {
         assert!(storage.is_write_initial(&log.key));
     }
 
-    // Create an L1 batch for miniblock #1
+    // Create an L1 batch for L2 block #1
     storage.rt_handle.block_on(create_l1_batch(
         &mut storage.connection,
         L1BatchNumber(1),
         &non_existing_logs,
     ));
 
-    // Miniblock #1 should not be seen by the "old" storage
+    // L2 block #1 should not be seen by the "old" storage
     let caches = mem::take(&mut storage.caches);
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(0),
+        L2BlockNumber(0),
         true,
     );
     storage.caches = caches;
 
-    assert_eq!(storage.l1_batch_number_for_miniblock, L1BatchNumber(0));
+    assert_eq!(storage.l1_batch_number_for_l2_block, L1BatchNumber(0));
     for log in &non_existing_logs {
         assert!(storage.is_write_initial(&log.key));
     }
@@ -95,12 +95,12 @@ fn test_postgres_storage_basics(
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         true,
     );
     storage.caches = caches;
 
-    assert_eq!(storage.l1_batch_number_for_miniblock, L1BatchNumber(1));
+    assert_eq!(storage.l1_batch_number_for_l2_block, L1BatchNumber(1));
     for log in &non_existing_logs {
         assert!(!storage.is_write_initial(&log.key));
     }
@@ -110,12 +110,12 @@ fn test_postgres_storage_basics(
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         false,
     );
     storage.caches = caches;
 
-    assert_eq!(storage.l1_batch_number_for_miniblock, L1BatchNumber(1));
+    assert_eq!(storage.l1_batch_number_for_l2_block, L1BatchNumber(1));
     for log in &non_existing_logs {
         assert!(storage.is_write_initial(&log.key));
     }
@@ -126,7 +126,7 @@ fn test_postgres_storage_basics(
 
 #[tokio::test]
 async fn postgres_storage_basics() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     tokio::task::spawn_blocking(move || {
         test_postgres_storage_basics(&pool, Handle::current(), false);
     })
@@ -136,7 +136,7 @@ async fn postgres_storage_basics() {
 
 #[tokio::test]
 async fn postgres_storage_with_initial_writes_cache() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     tokio::task::spawn_blocking(move || {
         test_postgres_storage_basics(&pool, Handle::current(), true);
     })
@@ -144,28 +144,28 @@ async fn postgres_storage_with_initial_writes_cache() {
     .unwrap();
 }
 
-fn test_postgres_storage_after_sealing_miniblock(
-    pool: &ConnectionPool,
+fn test_postgres_storage_after_sealing_l2_block(
+    pool: &ConnectionPool<Core>,
     rt_handle: Handle,
     consider_new_l1_batch: bool,
 ) {
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle.block_on(pool.connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
     let new_logs = gen_storage_logs(20..30);
 
-    rt_handle.block_on(create_miniblock(
+    rt_handle.block_on(create_l2_block(
         &mut connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         new_logs.clone(),
     ));
 
     let mut storage = PostgresStorage::new(
         rt_handle,
         connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         consider_new_l1_batch,
     );
-    assert_eq!(storage.l1_batch_number_for_miniblock, L1BatchNumber(1));
+    assert_eq!(storage.l1_batch_number_for_l2_block, L1BatchNumber(1));
 
     storage.rt_handle.block_on(create_l1_batch(
         &mut storage.connection,
@@ -181,34 +181,34 @@ fn test_postgres_storage_after_sealing_miniblock(
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         consider_new_l1_batch,
     );
-    assert_eq!(storage.l1_batch_number_for_miniblock, L1BatchNumber(1));
+    assert_eq!(storage.l1_batch_number_for_l2_block, L1BatchNumber(1));
     for log in &new_logs {
         assert_eq!(storage.is_write_initial(&log.key), !consider_new_l1_batch);
     }
 }
 
 #[tokio::test]
-async fn postgres_storage_after_sealing_miniblock() {
-    let pool = ConnectionPool::test_pool().await;
+async fn postgres_storage_after_sealing_l2_block() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
     tokio::task::spawn_blocking(move || {
         println!("Considering new L1 batch");
-        test_postgres_storage_after_sealing_miniblock(&pool, Handle::current(), true);
+        test_postgres_storage_after_sealing_l2_block(&pool, Handle::current(), true);
         println!("Not considering new L1 batch");
-        test_postgres_storage_after_sealing_miniblock(&pool, Handle::current(), false);
+        test_postgres_storage_after_sealing_l2_block(&pool, Handle::current(), false);
     })
     .await
     .unwrap();
 }
 
-fn test_factory_deps_cache(pool: &ConnectionPool, rt_handle: Handle) {
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
+    let mut connection = rt_handle.block_on(pool.connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
     let caches = PostgresStorageCaches::new(128 * 1_024 * 1_024, 1_024);
-    let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(1), true)
+    let mut storage = PostgresStorage::new(rt_handle, connection, L2BlockNumber(1), true)
         .with_caches(caches.clone());
 
     let zero_addr = H256::zero();
@@ -227,7 +227,19 @@ fn test_factory_deps_cache(pool: &ConnectionPool, rt_handle: Handle) {
             storage
                 .connection
                 .factory_deps_dal()
-                .insert_factory_deps(MiniblockNumber(0), &contracts),
+                .insert_factory_deps(L2BlockNumber(0), &contracts),
+        )
+        .unwrap();
+
+    let mut contracts = HashMap::new();
+    contracts.insert(H256::from_low_u64_be(1), vec![1, 2, 3, 4]);
+    storage
+        .rt_handle
+        .block_on(
+            storage
+                .connection
+                .factory_deps_dal()
+                .insert_factory_deps(L2BlockNumber(1), &contracts),
         )
         .unwrap();
 
@@ -235,7 +247,7 @@ fn test_factory_deps_cache(pool: &ConnectionPool, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         true,
     )
     .with_caches(caches.clone());
@@ -243,22 +255,55 @@ fn test_factory_deps_cache(pool: &ConnectionPool, rt_handle: Handle) {
     // Fill the cache
     let dep = storage.load_factory_dep(zero_addr);
     assert_eq!(dep, Some(vec![1, 2, 3]));
-    assert_eq!(caches.factory_deps.get(&zero_addr), Some(vec![1, 2, 3]));
+    assert_eq!(
+        caches.factory_deps.get(&zero_addr),
+        Some(TimestampedFactoryDep {
+            bytecode: vec![1, 2, 3],
+            inserted_at: L2BlockNumber(0)
+        })
+    );
+
+    let dep = storage.load_factory_dep(H256::from_low_u64_be(1));
+    assert_eq!(dep, Some(vec![1, 2, 3, 4]));
+    assert_eq!(
+        caches.factory_deps.get(&H256::from_low_u64_be(1)),
+        Some(TimestampedFactoryDep {
+            bytecode: vec![1, 2, 3, 4],
+            inserted_at: L2BlockNumber(1)
+        })
+    );
+
+    // Create storage with `L2BlockNumber(0)`.
+    let mut storage = PostgresStorage::new(
+        storage.rt_handle,
+        storage.connection,
+        L2BlockNumber(0),
+        true,
+    )
+    .with_caches(caches.clone());
+
+    // First bytecode was published at L2 block 0, so it should be visible.
+    let dep = storage.load_factory_dep(zero_addr);
+    assert_eq!(dep, Some(vec![1, 2, 3]));
+
+    // Second bytecode was published at L2 block 1, so it shouldn't be visible.
+    let dep = storage.load_factory_dep(H256::from_low_u64_be(1));
+    assert!(dep.is_none());
 }
 
 #[tokio::test]
 async fn using_factory_deps_cache() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let handle = Handle::current();
     tokio::task::spawn_blocking(move || test_factory_deps_cache(&pool, handle))
         .await
         .unwrap();
 }
 
-fn test_initial_writes_cache(pool: &ConnectionPool, rt_handle: Handle) {
-    let connection = rt_handle.block_on(pool.access_storage()).unwrap();
+fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
+    let connection = rt_handle.block_on(pool.connection()).unwrap();
     let caches = PostgresStorageCaches::new(1_024, 4 * 1_024 * 1_024);
-    let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), false)
+    let mut storage = PostgresStorage::new(rt_handle, connection, L2BlockNumber(0), false)
         .with_caches(caches.clone());
     assert_eq!(storage.pending_l1_batch_number, L1BatchNumber(0));
 
@@ -283,9 +328,9 @@ fn test_initial_writes_cache(pool: &ConnectionPool, rt_handle: Handle) {
     assert!(storage.is_write_initial(&logs[0].key));
     assert!(storage.is_write_initial(&non_existing_key));
 
-    storage.rt_handle.block_on(create_miniblock(
+    storage.rt_handle.block_on(create_l2_block(
         &mut storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         logs.clone(),
     ));
     storage.rt_handle.block_on(create_l1_batch(
@@ -297,7 +342,7 @@ fn test_initial_writes_cache(pool: &ConnectionPool, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         false,
     )
     .with_caches(caches.clone());
@@ -322,7 +367,7 @@ fn test_initial_writes_cache(pool: &ConnectionPool, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         true,
     )
     .with_caches(caches.clone());
@@ -342,7 +387,7 @@ fn test_initial_writes_cache(pool: &ConnectionPool, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(2),
+        L2BlockNumber(2),
         false,
     )
     .with_caches(caches);
@@ -354,7 +399,7 @@ fn test_initial_writes_cache(pool: &ConnectionPool, rt_handle: Handle) {
 
 #[tokio::test]
 async fn using_initial_writes_cache() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let handle = Handle::current();
     tokio::task::spawn_blocking(move || test_initial_writes_cache(&pool, handle))
         .await
@@ -364,39 +409,55 @@ async fn using_initial_writes_cache() {
 #[derive(Debug)]
 struct ValueCacheAssertions<'a> {
     cache: &'a ValuesCache,
-    miniblock_number: MiniblockNumber,
+    l2_block_number: L2BlockNumber,
 }
 
 impl ValueCacheAssertions<'_> {
     fn assert_entries(&self, expected_entries: &[(StorageKey, Option<StorageValue>)]) {
         for (key, expected_value) in expected_entries {
-            assert_eq!(self.cache.get(self.miniblock_number, key), *expected_value);
+            assert_eq!(self.cache.get(self.l2_block_number, key), *expected_value);
         }
     }
 }
 
 impl ValuesCache {
-    fn assertions(&self, miniblock_number: MiniblockNumber) -> ValueCacheAssertions<'_> {
+    fn assertions(&self, l2_block_number: L2BlockNumber) -> ValueCacheAssertions<'_> {
         ValueCacheAssertions {
             cache: self,
-            miniblock_number,
+            l2_block_number,
         }
     }
 }
 
-fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
-    let mut caches = PostgresStorageCaches::new(1_024, 1_024);
-    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone(), rt_handle.clone());
-    // We cannot use an update task since it requires having concurrent DB connections
-    // that don't work in tests. We'll update values cache manually instead.
-    let values_cache = caches.values.as_ref().unwrap().cache.clone();
-    let old_miniblock_assertions = values_cache.assertions(MiniblockNumber(0));
-    let new_miniblock_assertions = values_cache.assertions(MiniblockNumber(1));
+async fn wait_for_cache_update(values_cache: &ValuesCache, target_l2_block: L2BlockNumber) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let valid_for = values_cache.0.read().unwrap().valid_for;
+            assert!(valid_for <= target_l2_block, "{valid_for:?}");
+            if valid_for == target_l2_block {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("timed out waiting for cache update");
+}
 
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
+    let mut caches = PostgresStorageCaches::new(1_024, 1_024);
+    let task = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let update_task_handle = tokio::task::spawn(task.run(stop_receiver));
+
+    let values_cache = caches.values.as_ref().unwrap().cache.clone();
+    let old_l2_block_assertions = values_cache.assertions(L2BlockNumber(0));
+    let new_l2_block_assertions = values_cache.assertions(L2BlockNumber(1));
+
+    let mut connection = rt_handle.block_on(pool.connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
-    let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), false)
+    let mut storage = PostgresStorage::new(rt_handle, connection, L2BlockNumber(0), false)
         .with_caches(caches.clone());
 
     let initial_logs = gen_storage_logs(0..20);
@@ -411,7 +472,7 @@ fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
     assert_eq!(value, StorageValue::zero());
 
     // Check that the read values are now cached.
-    old_miniblock_assertions.assert_entries(&[
+    old_l2_block_assertions.assert_entries(&[
         (existing_key, Some(initial_value)),
         (unmodified_key, Some(unmodified_value)),
         (non_existing_key, Some(H256::zero())),
@@ -421,16 +482,16 @@ fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
         StorageLog::new_write_log(existing_key, H256::repeat_byte(1)),
         StorageLog::new_write_log(non_existing_key, H256::repeat_byte(2)),
     ];
-    storage.rt_handle.block_on(create_miniblock(
+    storage.rt_handle.block_on(create_l2_block(
         &mut storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         logs,
     ));
 
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         true,
     )
     .with_caches(caches.clone());
@@ -440,26 +501,21 @@ fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
     assert_eq!(storage.read_value(&non_existing_key), H256::repeat_byte(2));
     assert_eq!(storage.read_value(&unmodified_key), unmodified_value);
 
-    new_miniblock_assertions.assert_entries(&[
+    new_l2_block_assertions.assert_entries(&[
         (existing_key, None),
         (unmodified_key, None),
         (non_existing_key, None),
     ]);
-    // ^ We don't know at this point whether any keys are updated or not for miniblock #1
-    old_miniblock_assertions.assert_entries(&[
+    // ^ We don't know at this point whether any keys are updated or not for L2 block #1
+    old_l2_block_assertions.assert_entries(&[
         (existing_key, Some(initial_value)),
         (non_existing_key, Some(H256::zero())),
     ]);
 
-    values_cache
-        .update(
-            MiniblockNumber(0),
-            MiniblockNumber(1),
-            &storage.rt_handle,
-            &mut storage.connection,
-        )
-        .unwrap();
-    assert_eq!(values_cache.0.read().unwrap().valid_for, MiniblockNumber(1));
+    caches.schedule_values_update(L2BlockNumber(1));
+    storage
+        .rt_handle
+        .block_on(wait_for_cache_update(&values_cache, L2BlockNumber(1)));
 
     assert_eq!(storage.read_value(&existing_key), H256::repeat_byte(1));
     assert_eq!(storage.read_value(&non_existing_key), H256::repeat_byte(2));
@@ -467,13 +523,13 @@ fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
 
     let assert_final_cache = || {
         // Check that the values are now cached.
-        new_miniblock_assertions.assert_entries(&[
+        new_l2_block_assertions.assert_entries(&[
             (existing_key, Some(H256::repeat_byte(1))),
             (non_existing_key, Some(H256::repeat_byte(2))),
             (unmodified_key, Some(unmodified_value)),
         ]);
-        // Check that the value for `unmodified_key` (and only for it) is used for `MiniblockNumber(0)`.
-        old_miniblock_assertions.assert_entries(&[
+        // Check that the value for `unmodified_key` (and only for it) is used for `L2BlockNumber(0)`.
+        old_l2_block_assertions.assert_entries(&[
             (existing_key, None),
             (non_existing_key, None),
             (unmodified_key, Some(unmodified_value)),
@@ -484,10 +540,10 @@ fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(0),
+        L2BlockNumber(0),
         true,
     )
-    .with_caches(caches);
+    .with_caches(caches.clone());
 
     assert_eq!(storage.read_value(&existing_key), initial_value);
     assert_eq!(storage.read_value(&non_existing_key), StorageValue::zero());
@@ -495,11 +551,20 @@ fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
 
     // None of the cache entries should be modified.
     assert_final_cache();
+
+    stop_sender.send_replace(true);
+    storage
+        .rt_handle
+        .block_on(update_task_handle)
+        .expect("update task panicked")
+        .unwrap();
+    // Check that `schedule_values_update()` doesn't panic after the update task is finished.
+    caches.schedule_values_update(L2BlockNumber(2));
 }
 
 #[tokio::test]
 async fn using_values_cache() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let handle = Handle::current();
     tokio::task::spawn_blocking(move || test_values_cache(&pool, handle))
         .await
@@ -508,12 +573,16 @@ async fn using_values_cache() {
 
 /// (Sort of) fuzzes [`ValuesCache`] by comparing outputs of [`PostgresStorage`] with and without caching
 /// on randomly generated `read_value()` queries.
-fn mini_fuzz_values_cache_inner(rng: &mut impl Rng, pool: &ConnectionPool, mut rt_handle: Handle) {
+fn mini_fuzz_values_cache_inner(
+    rng: &mut impl Rng,
+    pool: &ConnectionPool<Core>,
+    mut rt_handle: Handle,
+) {
     let mut caches = PostgresStorageCaches::new(1_024, 1_024);
-    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone(), rt_handle.clone());
+    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
     let values_cache = caches.values.as_ref().unwrap().cache.clone();
 
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle.block_on(pool.connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
     let queried_keys: Vec<_> = gen_storage_logs(0..100)
@@ -522,27 +591,25 @@ fn mini_fuzz_values_cache_inner(rng: &mut impl Rng, pool: &ConnectionPool, mut r
         .collect();
 
     for latest_block_number in 0..=10 {
-        let mut all_block_numbers: Vec<_> =
-            (0..=latest_block_number).map(MiniblockNumber).collect();
+        let mut all_block_numbers: Vec<_> = (0..=latest_block_number).map(L2BlockNumber).collect();
         all_block_numbers.shuffle(rng);
 
         let mut cache_updated = latest_block_number == 0;
 
         // Check outputs for all possible `block_number` arguments in the random order.
         for block_number in all_block_numbers {
-            // Emulate updating cache with a delay after a new miniblock is sealed. `PostgresStorage`
+            // Emulate updating cache with a delay after a new L2 block is sealed. `PostgresStorage`
             // must work both with and without the update.
             if !cache_updated && rng.gen_range(0..3) == 0 {
                 let cache_valid_for = values_cache.valid_for();
-                assert!(cache_valid_for < MiniblockNumber(latest_block_number));
+                assert!(cache_valid_for < L2BlockNumber(latest_block_number));
 
-                values_cache
-                    .update(
+                rt_handle
+                    .block_on(values_cache.update(
                         cache_valid_for,
-                        MiniblockNumber(latest_block_number),
-                        &rt_handle,
+                        L2BlockNumber(latest_block_number),
                         &mut connection,
-                    )
+                    ))
                     .unwrap();
                 cache_updated = true;
             }
@@ -575,7 +642,7 @@ fn mini_fuzz_values_cache_inner(rng: &mut impl Rng, pool: &ConnectionPool, mut r
             );
         }
 
-        let next_block_number = MiniblockNumber(latest_block_number) + 1;
+        let next_block_number = L2BlockNumber(latest_block_number) + 1;
         // Choose logs so that there's a chance that some of them are new and some overwrite previous values.
         let logs = queried_keys
             .iter()
@@ -586,14 +653,14 @@ fn mini_fuzz_values_cache_inner(rng: &mut impl Rng, pool: &ConnectionPool, mut r
                 StorageLog::new_write_log(key, new_value)
             })
             .collect();
-        rt_handle.block_on(create_miniblock(&mut connection, next_block_number, logs));
+        rt_handle.block_on(create_l2_block(&mut connection, next_block_number, logs));
     }
 }
 
 #[tokio::test]
 async fn mini_fuzz_values_cache() {
     const RNG_SEED: u64 = 123;
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
 
     let handle = Handle::current();
     let mut rng = StdRng::seed_from_u64(RNG_SEED);

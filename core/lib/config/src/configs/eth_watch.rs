@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-/// Configuration for the Ethereum sender crate.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ETHWatchConfig {
+/// Configuration for the Ethereum watch crate.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct EthWatchConfig {
     /// Amount of confirmations for the priority operation to be processed.
     /// If not specified operation will be processed once its block is finalized.
     pub confirmations_for_eth_event: Option<u64>,
@@ -13,7 +13,7 @@ pub struct ETHWatchConfig {
     pub eth_node_poll_interval: u64,
 }
 
-impl ETHWatchConfig {
+impl EthWatchConfig {
     /// Converts `self.eth_node_poll_interval` into `Duration`.
     pub fn poll_interval(&self) -> Duration {
         Duration::from_millis(self.eth_node_poll_interval)

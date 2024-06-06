@@ -2,11 +2,11 @@ use std::{cell::RefCell, rc::Rc};
 
 use multivm::{
     interface::{
-        dyn_tracers::vm_1_4_1::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
+        dyn_tracers::vm_1_5_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
         SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     vm_latest::{
-        constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
+        constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
         ZkSyncVmState,
     },
@@ -19,10 +19,10 @@ use zksync_contracts::{
 };
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{
-    block::MiniblockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, L1BatchNumber,
-    L1TxCommonData, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey, Transaction,
-    BOOTLOADER_ADDRESS, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
+    block::L2BlockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
+    utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,
+    L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, StorageKey,
+    Transaction, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
     SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
@@ -81,7 +81,11 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
 // 100 gwei is base fee large enough for almost any L1 gas price
 const BIG_BASE_FEE: u64 = 100_000_000_000;
 
-pub(super) fn get_l2_tx(contract_address: Address, signer: &H256, pubdata_price: u32) -> L2Tx {
+pub(super) fn get_l2_tx(
+    contract_address: Address,
+    signer: &K256PrivateKey,
+    pubdata_price: u32,
+) -> L2Tx {
     L2Tx::new_signed(
         contract_address,
         vec![],
@@ -106,7 +110,7 @@ pub(super) fn get_l2_txs(number_of_txs: usize) -> (Vec<Transaction>, Vec<Transac
     let mut txs_without_pubdata_price = vec![];
 
     for _ in 0..number_of_txs {
-        let signer = H256::random();
+        let signer = K256PrivateKey::random();
         let contract_address = Address::random();
 
         txs_without_pubdata_price.push(get_l2_tx(contract_address, &signer, 0).into());
@@ -183,7 +187,7 @@ fn default_l1_batch() -> L1BatchEnv {
         first_l2_block: L2BlockEnv {
             number: 1,
             timestamp: 100,
-            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             max_virtual_blocks_to_create: 100,
         },
     }
@@ -222,13 +226,13 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
         version: ProtocolVersionId::latest(),
         base_system_smart_contracts,
-        gas_limit: BLOCK_GAS_LIMIT,
+        bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
-        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::default(),
     };
 
-    let eth_token_sys_contract = load_sys_contract("L2EthToken");
+    let eth_token_sys_contract = load_sys_contract("L2BaseToken");
     let transfer_from_to = &eth_token_sys_contract
         .functions
         .get("transferFromTo")
@@ -305,9 +309,9 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
         version: ProtocolVersionId::latest(),
         base_system_smart_contracts: GAS_TEST_SYSTEM_CONTRACTS.clone(),
-        gas_limit: BLOCK_GAS_LIMIT,
+        bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
-        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::default(),
     };
 
@@ -333,8 +337,9 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     let metrics = result.get_execution_metrics(None);
 
     VmSpentResourcesResult {
-        gas_consumed: result.statistics.gas_used,
-        total_gas_paid: total_gas_paid_upfront.as_u32() - total_gas_refunded,
+        // It is assumed that the entire `gas_used` was spent on computation and so it safe to convert to u32
+        gas_consumed: result.statistics.gas_used as u32,
+        total_gas_paid: (total_gas_paid_upfront.as_u64() - total_gas_refunded) as u32,
         pubdata_published: metrics.size() as u32,
         total_pubdata_paid: 0,
     }

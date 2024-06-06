@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    env,
     path::Path,
     time::{Duration, Instant},
 };
@@ -12,7 +11,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use tokio::time;
 use zksync_config::ContractVerifierConfig;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
@@ -22,15 +21,21 @@ use zksync_types::{
     },
     Address,
 };
+use zksync_utils::workspace_dir_or_current_dir;
 
 use crate::{
     error::ContractVerifierError,
+    metrics::API_CONTRACT_VERIFIER_METRICS,
     zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolc, ZkSolcInput, ZkSolcOutput},
     zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
 
 lazy_static! {
     static ref DEPLOYER_CONTRACT: Contract = zksync_contracts::deployer_contract();
+}
+
+fn home_path() -> &'static Path {
+    workspace_dir_or_current_dir()
 }
 
 #[derive(Debug)]
@@ -42,11 +47,11 @@ enum ConstructorArgs {
 #[derive(Debug)]
 pub struct ContractVerifier {
     config: ContractVerifierConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
 }
 
 impl ContractVerifier {
-    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool) -> Self {
+    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             config,
             connection_pool,
@@ -54,7 +59,7 @@ impl ContractVerifier {
     }
 
     async fn verify(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         mut request: VerificationRequest,
         config: ContractVerifierConfig,
     ) -> Result<VerificationInfo, ContractVerifierError> {
@@ -119,8 +124,7 @@ impl ContractVerifier {
             };
         let input = Self::build_zksolc_input(request.clone(), file_name.clone())?;
 
-        let zksync_home = env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let zksolc_path = Path::new(&zksync_home)
+        let zksolc_path = Path::new(&home_path())
             .join("etc")
             .join("zksolc-bin")
             .join(request.req.compiler_versions.zk_compiler_version())
@@ -132,7 +136,7 @@ impl ContractVerifier {
             ));
         }
 
-        let solc_path = Path::new(&zksync_home)
+        let solc_path = Path::new(&home_path())
             .join("etc")
             .join("solc-bin")
             .join(request.req.compiler_versions.compiler_version())
@@ -218,8 +222,7 @@ impl ContractVerifier {
             };
         let input = Self::build_zkvyper_input(request.clone())?;
 
-        let zksync_home = env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let zkvyper_path = Path::new(&zksync_home)
+        let zkvyper_path = Path::new(&home_path())
             .join("etc")
             .join("zkvyper-bin")
             .join(request.req.compiler_versions.zk_compiler_version())
@@ -231,7 +234,7 @@ impl ContractVerifier {
             ));
         }
 
-        let vyper_path = Path::new(&zksync_home)
+        let vyper_path = Path::new(&home_path())
             .join("etc")
             .join("vyper-bin")
             .join(request.req.compiler_versions.compiler_version())
@@ -332,9 +335,10 @@ impl ContractVerifier {
                 compiler_input.settings.output_selection = Some(default_output_selection);
                 Ok(ZkSolcInput::StandardJson(compiler_input))
             }
-            SourceCodeData::YulSingleFile(source_code) => {
-                Ok(ZkSolcInput::YulSingleFile(source_code))
-            }
+            SourceCodeData::YulSingleFile(source_code) => Ok(ZkSolcInput::YulSingleFile {
+                source_code,
+                is_system: request.req.is_system,
+            }),
             _ => panic!("Unexpected SourceCode variant"),
         }
     }
@@ -429,7 +433,7 @@ impl ContractVerifier {
     }
 
     async fn process_result(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         request_id: usize,
         verification_result: Result<VerificationInfo, ContractVerifierError>,
     ) {
@@ -471,7 +475,7 @@ impl JobProcessor for ContractVerifier {
     const BACKOFF_MULTIPLIER: u64 = 1;
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.connection_pool.access_storage().await.unwrap();
+        let mut connection = self.connection_pool.connection().await.unwrap();
 
         // Time overhead for all operations except for compilation.
         const TIME_OVERHEAD: Duration = Duration::from_secs(10);
@@ -489,7 +493,7 @@ impl JobProcessor for ContractVerifier {
     }
 
     async fn save_failure(&self, job_id: usize, _started_at: Instant, error: String) {
-        let mut connection = self.connection_pool.access_storage().await.unwrap();
+        let mut connection = self.connection_pool.connection().await.unwrap();
 
         connection
             .contract_verification_dal()
@@ -506,6 +510,7 @@ impl JobProcessor for ContractVerifier {
     #[allow(clippy::async_yields_async)]
     async fn process_job(
         &self,
+        _job_id: &Self::JobId,
         job: VerificationRequest,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
@@ -515,16 +520,15 @@ impl JobProcessor for ContractVerifier {
 
             let config: ContractVerifierConfig =
                 ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
-            let mut connection = connection_pool.access_storage().await.unwrap();
+            let mut connection = connection_pool.connection().await.unwrap();
 
             let job_id = job.id;
             let verification_result = Self::verify(&mut connection, job, config).await;
             Self::process_result(&mut connection, job_id, verification_result).await;
 
-            metrics::histogram!(
-                "api.contract_verifier.request_processing_time",
-                started_at.elapsed()
-            );
+            API_CONTRACT_VERIFIER_METRICS
+                .request_processing_time
+                .observe(started_at.elapsed());
             Ok(())
         })
     }

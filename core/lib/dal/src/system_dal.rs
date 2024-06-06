@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
-use sqlx::Row;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::Core;
 
 #[derive(Debug)]
 pub(crate) struct TableSize {
@@ -12,33 +12,39 @@ pub(crate) struct TableSize {
     pub total_size: u64,
 }
 
+#[derive(Debug)]
 pub struct SystemDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl SystemDal<'_, '_> {
-    pub async fn get_replication_lag_sec(&mut self) -> u32 {
+    pub async fn get_replication_lag(&mut self) -> DalResult<Duration> {
         // NOTE: lag (seconds) has a special meaning here
         // (it is not the same that `replay_lag/write_lag/flush_lag` from `pg_stat_replication` view)
         // and it is only useful when synced column is false,
         // because lag means how many seconds elapsed since the last action was committed.
-        let pg_row = sqlx::query(
-            "SELECT \
-                 pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() AS synced, \
-                 EXTRACT(SECONDS FROM now() - pg_last_xact_replay_timestamp())::int AS lag",
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                PG_LAST_WAL_RECEIVE_LSN() = PG_LAST_WAL_REPLAY_LSN() AS synced,
+                EXTRACT(
+                    SECONDS
+                    FROM
+                        NOW() - PG_LAST_XACT_REPLAY_TIMESTAMP()
+                )::INT AS LAG
+            "#
         )
-        .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("get_replication_lag")
+        .fetch_one(self.storage)
+        .await?;
 
-        match pg_row.get("synced") {
-            Some(false) => pg_row.try_get::<i64, &str>("lag").unwrap_or_default() as u32,
-            // We are synced, no lag
-            _ => 0,
-        }
+        Ok(match row.synced {
+            Some(false) => Duration::from_secs(row.lag.unwrap_or(0) as u64),
+            _ => Duration::ZERO, // We are synced, no lag
+        })
     }
 
-    pub(crate) async fn get_table_sizes(&mut self) -> sqlx::Result<HashMap<String, TableSize>> {
+    pub(crate) async fn get_table_sizes(&mut self) -> DalResult<HashMap<String, TableSize>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -55,6 +61,7 @@ impl SystemDal<'_, '_> {
         )
         .instrument("get_table_sizes")
         .report_latency()
+        .expect_slow_query()
         .fetch_all(self.storage)
         .await?;
 

@@ -42,7 +42,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                     cycles_used: value.block_tip_result.cycles_used,
                     total_log_queries: value.block_tip_result.logs.total_log_queries_count,
                     computational_gas_used: value.full_result.gas_used,
-                    gas_used: value.full_result.gas_used,
+                    gas_used: value.full_result.gas_used as u64,
                     gas_remaining: value.full_result.gas_remaining,
                     pubdata_published: 0,
                     circuit_statistic: Default::default(),
@@ -51,10 +51,6 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: storage_log_queries
-                    .into_iter()
-                    .map(GlueInto::glue_into)
-                    .collect(),
                 deduplicated_storage_log_queries: deduplicated_storage_log_queries
                     .into_iter()
                     .map(GlueInto::glue_into)
@@ -71,9 +67,11 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                 cycles_used: value.full_result.cycles_used,
                 deduplicated_events_logs: vec![],
                 storage_refunds: Vec::new(),
+                pubdata_costs: Vec::new(),
             },
             final_bootloader_memory: None,
             pubdata_input: None,
+            state_diffs: None,
         }
     }
 }
@@ -104,7 +102,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                     cycles_used: value.block_tip_result.cycles_used,
                     total_log_queries: value.block_tip_result.logs.total_log_queries_count,
                     computational_gas_used: value.full_result.computational_gas_used,
-                    gas_used: value.full_result.gas_used,
+                    gas_used: value.full_result.gas_used as u64,
                     gas_remaining: value.full_result.gas_remaining,
                     pubdata_published: 0,
                     circuit_statistic: Default::default(),
@@ -113,10 +111,6 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: storage_log_queries
-                    .into_iter()
-                    .map(GlueInto::glue_into)
-                    .collect(),
                 deduplicated_storage_log_queries: deduplicated_storage_log_queries
                     .into_iter()
                     .map(GlueInto::glue_into)
@@ -133,9 +127,11 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                 cycles_used: value.full_result.cycles_used,
                 deduplicated_events_logs: vec![],
                 storage_refunds: Vec::new(),
+                pubdata_costs: Vec::new(),
             },
             final_bootloader_memory: None,
             pubdata_input: None,
+            state_diffs: None,
         }
     }
 }
@@ -164,7 +160,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                     cycles_used: value.block_tip_result.cycles_used,
                     total_log_queries: value.block_tip_result.logs.total_log_queries_count,
                     computational_gas_used: value.full_result.computational_gas_used,
-                    gas_used: value.full_result.gas_used,
+                    gas_used: value.full_result.gas_used as u64,
                     gas_remaining: value.full_result.gas_remaining,
                     pubdata_published: 0,
                     circuit_statistic: Default::default(),
@@ -173,10 +169,6 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: storage_log_queries
-                    .into_iter()
-                    .map(GlueInto::glue_into)
-                    .collect(),
                 deduplicated_storage_log_queries: deduplicated_storage_log_queries
                     .into_iter()
                     .map(GlueInto::glue_into)
@@ -193,9 +185,11 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                 cycles_used: value.full_result.cycles_used,
                 deduplicated_events_logs: vec![],
                 storage_refunds: Vec::new(),
+                pubdata_costs: Vec::new(),
             },
             final_bootloader_memory: None,
             pubdata_input: None,
+            state_diffs: None,
         }
     }
 }
@@ -238,7 +232,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
                 cycles_used: value.full_result.cycles_used,
                 total_log_queries: value.full_result.total_log_queries,
                 computational_gas_used: value.full_result.computational_gas_used,
-                gas_used: value.full_result.gas_used,
+                gas_used: value.full_result.gas_used as u64,
                 gas_remaining: value.full_result.gas_remaining,
                 pubdata_published: 0,
                 circuit_statistic: Default::default(),
@@ -270,7 +264,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult>
                 cycles_used: value.full_result.cycles_used,
                 total_log_queries: value.full_result.total_log_queries,
                 computational_gas_used: 0,
-                gas_used: value.full_result.gas_used,
+                gas_used: value.full_result.gas_used as u64,
                 gas_remaining: value.full_result.gas_remaining,
                 pubdata_published: 0,
                 circuit_statistic: Default::default(),
@@ -318,7 +312,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
                 cycles_used: value.full_result.cycles_used,
                 total_log_queries: value.full_result.total_log_queries,
                 computational_gas_used: value.full_result.computational_gas_used,
-                gas_used: value.full_result.gas_used,
+                gas_used: value.full_result.gas_used as u64,
                 gas_remaining: value.full_result.gas_remaining,
                 pubdata_published: 0,
                 circuit_statistic: Default::default(),

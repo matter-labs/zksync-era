@@ -1,6 +1,7 @@
 import { Command } from 'commander';
-import * as utils from '../utils';
+import * as utils from 'utils';
 import * as config from '../config';
+import deepExtend from 'deep-extend';
 
 export async function all() {
     await server();
@@ -25,7 +26,9 @@ export async function server(options: string[] = []) {
         process.env.ZKSYNC_WEB3_WS_API_URL = `ws://127.0.0.1:${process.env.EN_WS_PORT}`;
         process.env.ETH_CLIENT_WEB3_URL = process.env.EN_ETH_CLIENT_URL;
 
-        const configs = config.collectVariables(config.loadConfig('dev'));
+        // We need base configs for integration tests
+        const baseConfigs = config.loadConfig('dev');
+        const configs = config.collectVariables(deepExtend(baseConfigs, config.loadConfig(process.env.ZKSYNC_ENV)));
 
         process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT = configs.get('CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT');
         process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT = configs.get(

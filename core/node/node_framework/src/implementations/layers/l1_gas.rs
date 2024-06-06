@@ -3,9 +3,9 @@ use std::sync::Arc;
 use anyhow::Context;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
-    GasAdjusterConfig,
+    GasAdjusterConfig, GenesisConfig,
 };
-use zksync_core::{fee_model::MainNodeFeeInputProvider, l1_gas_price::GasAdjuster};
+use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
 use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{
@@ -14,27 +14,30 @@ use crate::{
         l1_tx_params::L1TxParamsResource,
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
 #[derive(Debug)]
 pub struct SequencerL1GasLayer {
     gas_adjuster_config: GasAdjusterConfig,
-    state_keeper_config: StateKeeperConfig,
+    genesis_config: GenesisConfig,
     pubdata_sending_mode: PubdataSendingMode,
+    state_keeper_config: StateKeeperConfig,
 }
 
 impl SequencerL1GasLayer {
     pub fn new(
         gas_adjuster_config: GasAdjusterConfig,
+        genesis_config: GenesisConfig,
         state_keeper_config: StateKeeperConfig,
         pubdata_sending_mode: PubdataSendingMode,
     ) -> Self {
         Self {
             gas_adjuster_config,
-            state_keeper_config,
+            genesis_config,
             pubdata_sending_mode,
+            state_keeper_config,
         }
     }
 }
@@ -47,10 +50,14 @@ impl WiringLayer for SequencerL1GasLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let client = context.get_resource::<EthInterfaceResource>().await?.0;
-        let adjuster =
-            GasAdjuster::new(client, self.gas_adjuster_config, self.pubdata_sending_mode)
-                .await
-                .context("GasAdjuster::new()")?;
+        let adjuster = GasAdjuster::new(
+            client,
+            self.gas_adjuster_config,
+            self.pubdata_sending_mode,
+            self.genesis_config.l1_batch_commit_data_generator_mode,
+        )
+        .await
+        .context("GasAdjuster::new()")?;
         let gas_adjuster = Arc::new(adjuster);
 
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
@@ -73,8 +80,8 @@ struct GasAdjusterTask {
 
 #[async_trait::async_trait]
 impl Task for GasAdjusterTask {
-    fn name(&self) -> &'static str {
-        "gas_adjuster"
+    fn id(&self) -> TaskId {
+        "gas_adjuster".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

@@ -10,7 +10,7 @@
 node_modules
 *.log
 target
-a.out 
+a.out
 .gitconfig
 cobertura.xml
 tags
@@ -30,14 +30,43 @@ Cargo.lock
 !/Cargo.lock
 !/infrastructure/zksync-crypto/Cargo.lock
 !/prover/Cargo.lock
+!/zk_toolbox/Cargo.lock
 
-/etc/env/*
+/etc/env/target/*
+/etc/env/.current
+/etc/env/configs/*
+!/etc/env/configs/dev.toml
+!/etc/env/configs/dev_validium.toml
+!/etc/env/configs/dev_validium_docker.toml
+!/etc/env/configs/ext-node.toml
+!/etc/env/configs/ext-node-validium.toml
+!/etc/env/configs/ext-node-docker.toml
+!/etc/env/configs/ext-node-validium-docker.toml
+!/etc/env/configs/stage.toml
+!/etc/env/configs/stage-proofs.toml
+!/etc/env/configs/testnet.toml
+!/etc/env/configs/mainnet.toml
+/etc/env/l1-inits
+!/etc/env/l1-inits/stage.env
+!/etc/env/l1-inits/stage_proofs.env
+!/etc/env/l1-inits/testnet.env
+!/etc/env/l1-inits/mainnet.env
+/etc/env/l2-inits
+!/etc/env/l2-inits/stage.init.env
+!/etc/env/l2-inits/stage_proofs.init.env
+!/etc/env/l2-inits/testnet.init.env
+!/etc/env/l2-inits/mainnet.init.env
 !/etc/env/base
+!/etc/env/file_based
 !/etc/env/dev.toml
+!/etc/env/dev_validium.toml
+!/etc/env/dev_validium_docker.toml
 !/etc/env/docker.toml
 !/etc/env/ext-node.toml
 !/etc/env/ext-node-docker.toml
+!/etc/env/ext-node-validium.toml
 !/etc/env/*.yaml
+!/etc/env/ext-node-validium-docker.toml
 /etc/tokens/localhost.json
 /etc/zksolc-bin/*
 /etc/zkvyper-bin/*
@@ -77,3 +106,10 @@ verified_sources
 hyperchain-*.yml
 /etc/hyperchains/prover-keys
 /etc/hyperchains/artifacts
+
+# Prover keys that should not be commited
+prover/vk_setup_data_generator_server_fri/data/setup_*
+
+# Zk Toolbox
+chains/era/configs/*
+configs/*

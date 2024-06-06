@@ -1,4 +1,4 @@
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
@@ -11,7 +11,7 @@ use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h25
 
 use crate::{
     interface::{
-        traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
+        traits::tracers::dyn_tracers::vm_1_5_0::DynTracer,
         types::tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         Halt,
     },
@@ -20,9 +20,7 @@ use crate::{
         ValidationRoundResult, ValidationTracer,
     },
     vm_latest::{
-        tracers::utils::{
-            computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
-        },
+        tracers::utils::{computational_gas_price, get_calldata_page_via_abi, VmHook},
         BootloaderState, SimpleMemory, VmTracer, ZkSyncVmState,
     },
     HistoryMode,
@@ -33,7 +31,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory<H::Vm1_4_2>,
+        memory: &SimpleMemory<H::Vm1_5_0>,
         storage: StoragePtr<S>,
     ) -> ValidationRoundResult {
         if self.computational_gas_used > self.computational_gas_limit {
@@ -127,14 +125,14 @@ impl<H: HistoryMode> ValidationTracer<H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_4_2>>
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_5_0>>
     for ValidationTracer<H>
 {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory<H::Vm1_4_2>,
+        memory: &SimpleMemory<H::Vm1_5_0>,
         storage: StoragePtr<S>,
     ) {
         // For now, we support only validations for users.
@@ -148,9 +146,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_4_2>>
             self.process_validation_round_result(validation_round_result);
         }
 
-        let hook = VmHook::from_opcode_memory(&state, &data);
-        print_debug_if_needed(&hook, &state, memory);
-
+        let hook = VmHook::from_opcode_memory(&state, &data, self.vm_version.try_into().unwrap());
         let current_mode = self.validation_mode;
         match (current_mode, hook) {
             (ValidationTracerMode::NoValidation, VmHook::AccountValidationEntered) => {
@@ -182,10 +178,10 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_4_2>>
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::Vm1_4_2> for ValidationTracer<H> {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::Vm1_5_0> for ValidationTracer<H> {
     fn finish_cycle(
         &mut self,
-        _state: &mut ZkSyncVmState<S, H::Vm1_4_2>,
+        _state: &mut ZkSyncVmState<S, H::Vm1_5_0>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
         if self.should_stop_execution {

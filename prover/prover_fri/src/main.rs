@@ -1,30 +1,33 @@
 #![feature(generic_const_exprs)]
-use std::{future::Future, sync::Arc};
+
+use std::{future::Future, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use local_ip_address::local_ip;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::{
-    sync::{oneshot, watch::Receiver},
+    sync::{oneshot, watch::Receiver, Notify},
     task::JoinHandle,
 };
 use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProverConfig, ObservabilityConfig, PostgresConfig,
-};
-use zksync_dal::{
-    fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
-    ConnectionPool,
+    fri_prover_group::FriProverGroupConfig, DatabaseSecrets, FriProverConfig, ObservabilityConfig,
 };
 use zksync_env_config::{
     object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
     FromEnv,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::basic_fri_types::CircuitIdRoundTuple;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple,
+    prover_dal::{GpuProverInstanceStatus, SocketAddress},
+};
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
+mod gpu_prover_availability_checker;
 mod gpu_prover_job_processor;
 mod metrics;
 mod prover_job_processor;
@@ -32,8 +35,8 @@ mod socket_listener;
 mod utils;
 
 async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>> {
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -44,7 +47,7 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
     let zone = get_zone(zone_url).await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
-        pool.access_storage()
+        pool.connection()
             .await
             .unwrap()
             .fri_gpu_prover_queue_dal()
@@ -68,6 +71,16 @@ async fn main() -> anyhow::Result<()> {
             .with_sentry_url(sentry_url)
             .expect("Invalid Sentry URL")
             .with_sentry_environment(observability_config.sentry_environment);
+    }
+
+    if let Some(opentelemetry) = observability_config.opentelemetry {
+        builder = builder
+            .with_opentelemetry(
+                &opentelemetry.level,
+                opentelemetry.endpoint,
+                "zksync-prover-fri".into(),
+            )
+            .expect("Invalid OpenTelemetry config");
     }
     let _guard = builder.build();
 
@@ -101,7 +114,7 @@ async fn main() -> anyhow::Result<()> {
         true => Some(
             ObjectStoreFactory::new(public_object_store_config.0)
                 .create_store()
-                .await,
+                .await?,
         ),
     };
     let specialized_group_id = prover_config.specialized_group_id;
@@ -118,18 +131,21 @@ async fn main() -> anyhow::Result<()> {
         specialized_group_id,
         circuit_ids_for_round_to_be_proven.clone()
     );
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets")?;
 
     // There are 2 threads using the connection pool:
     // 1. The prover thread, which is used to update the prover job status.
     // 2. The socket listener thread, which is used to update the prover instance status.
     const MAX_POOL_SIZE_FOR_PROVER: u32 = 2;
 
-    let pool = ConnectionPool::builder(postgres_config.prover_url()?, MAX_POOL_SIZE_FOR_PROVER)
+    let pool = ConnectionPool::builder(database_secrets.prover_url()?, MAX_POOL_SIZE_FOR_PROVER)
         .build()
         .await
         .context("failed to build a connection pool")?;
     let port = prover_config.witness_vector_receiver_port;
+
+    let notify = Arc::new(Notify::new());
+
     let prover_tasks = get_prover_tasks(
         prover_config,
         stop_receiver.clone(),
@@ -137,76 +153,79 @@ async fn main() -> anyhow::Result<()> {
         public_blob_store,
         pool,
         circuit_ids_for_round_to_be_proven,
+        notify,
     )
     .await
     .context("get_prover_tasks()")?;
 
     let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver))];
+
     tasks.extend(prover_tasks);
 
-    let particular_crypto_alerts = None;
-    let graceful_shutdown = match cfg!(feature = "gpu") {
-        true => Some(
-            graceful_shutdown(port)
-                .await
-                .context("failed to prepare graceful shutdown future")?,
-        ),
-        false => None,
-    };
-    let tasks_allowed_to_finish = false;
+    let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
-        _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {
+            if cfg!(feature = "gpu") {
+                graceful_shutdown(port)
+                    .await
+                    .context("failed to prepare graceful shutdown future")?
+                    .await;
+            }
+        },
         _ = stop_signal_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
     }
 
     stop_sender.send(true).ok();
+    tasks.complete(Duration::from_secs(5)).await;
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(not(feature = "gpu"))]
 async fn get_prover_tasks(
     prover_config: FriProverConfig,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    _init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
-    use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
-
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
-    let vk_commitments = get_cached_commitments();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     tracing::info!(
-        "Starting CPU FRI proof generation for with vk_commitments: {:?}",
-        vk_commitments
+        "Starting CPU FRI proof generation for with protocol_version: {:?}",
+        protocol_version
     );
 
     let setup_load_mode =
         load_setup_data_cache(&prover_config).context("load_setup_data_cache()")?;
     let prover = Prover::new(
-        store_factory.create_store().await,
+        store_factory.create_store().await?,
         public_blob_store,
         prover_config,
         pool,
         setup_load_mode,
         circuit_ids_for_round_to_be_proven,
-        vk_commitments,
+        protocol_version,
     );
     Ok(vec![tokio::spawn(prover.run(stop_receiver, None))])
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(feature = "gpu")]
 async fn get_prover_tasks(
     prover_config: FriProverConfig,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use gpu_prover_job_processor::gpu_prover;
     use socket_listener::gpu_socket_listener;
@@ -227,8 +246,11 @@ async fn get_prover_tasks(
         host: local_ip,
         port: prover_config.witness_vector_receiver_port,
     };
+
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
+
     let prover = gpu_prover::Prover::new(
-        store_factory.create_store().await,
+        store_factory.create_store().await?,
         public_blob_store,
         prover_config.clone(),
         pool.clone(),
@@ -237,6 +259,7 @@ async fn get_prover_tasks(
         consumer,
         address.clone(),
         zone.clone(),
+        protocol_version,
     );
     let producer = shared_witness_vector_queue.clone();
 
@@ -246,14 +269,36 @@ async fn get_prover_tasks(
         zone.clone()
     );
     let socket_listener = gpu_socket_listener::SocketListener::new(
-        address,
+        address.clone(),
         producer,
         pool.clone(),
         prover_config.specialized_group_id,
-        zone,
+        zone.clone(),
+        protocol_version,
     );
-    Ok(vec![
-        tokio::spawn(socket_listener.listen_incoming_connections(stop_receiver.clone())),
-        tokio::spawn(prover.run(stop_receiver, None)),
-    ])
+
+    let mut tasks = vec![
+        tokio::spawn(
+            socket_listener
+                .listen_incoming_connections(stop_receiver.clone(), init_notifier.clone()),
+        ),
+        tokio::spawn(prover.run(stop_receiver.clone(), None)),
+    ];
+
+    // TODO(PLA-874): remove the check after making the availability checker required
+    if let Some(check_interval) = prover_config.availability_check_interval_in_secs {
+        let availability_checker =
+            gpu_prover_availability_checker::availability_checker::AvailabilityChecker::new(
+                address,
+                zone,
+                check_interval,
+                pool,
+            );
+
+        tasks.push(tokio::spawn(
+            availability_checker.run(stop_receiver.clone(), init_notifier),
+        ));
+    }
+
+    Ok(tasks)
 }

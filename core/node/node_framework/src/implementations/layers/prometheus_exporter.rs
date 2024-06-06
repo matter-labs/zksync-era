@@ -4,7 +4,7 @@ use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -34,7 +34,9 @@ impl WiringLayer for PrometheusExporterLayer {
             ReactiveHealthCheck::new("prometheus_exporter");
 
         let AppHealthCheckResource(app_health) = node.get_resource_or_default().await;
-        app_health.insert_component(prometheus_health_check);
+        app_health
+            .insert_component(prometheus_health_check)
+            .map_err(WiringError::internal)?;
 
         let task = Box::new(PrometheusExporterTask {
             config: self.0,
@@ -48,8 +50,8 @@ impl WiringLayer for PrometheusExporterLayer {
 
 #[async_trait::async_trait]
 impl Task for PrometheusExporterTask {
-    fn name(&self) -> &'static str {
-        "prometheus_exporter"
+    fn id(&self) -> TaskId {
+        "prometheus_exporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

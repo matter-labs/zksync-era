@@ -11,10 +11,11 @@
       "contracts/system-contracts",
       "etc/contracts-test-data",
       "etc/ERC20",
+      "etc/utils",
       "infrastructure/zk",
       "infrastructure/local-setup-preparation",
       "core/tests/revert-test",
-      "core/tests/snapshot-recovery-test",
+      "core/tests/recovery-test",
       "core/tests/upgrade-test",
       "core/tests/ts-integration",
       "infrastructure/protocol-upgrade"
@@ -30,8 +31,9 @@
     "l2-contracts": "yarn workspace l2-contracts",
     "revert-test": "yarn workspace revert-test",
     "upgrade-test": "yarn workspace upgrade-test",
-    "snapshot-recovery-test": "yarn workspace snapshot-recovery-test",
+    "recovery-test": "yarn workspace recovery-test",
     "ts-integration": "yarn workspace ts-integration",
+    "utils": "yarn workspace utils",
     "zk": "yarn workspace zk"
   },
   "devDependencies": {
@@ -46,6 +48,7 @@
     "prettier": "^2.3.2",
     "prettier-plugin-solidity": "=1.0.0-dev.22",
     "solhint": "^3.3.2",
-    "sql-formatter": "^13.1.0"
+    "sql-formatter": "^13.1.0",
+    "zksync-ethers": "5.8.0-beta.5"
   }
 }

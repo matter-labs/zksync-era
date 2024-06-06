@@ -108,10 +108,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         CurrentExecutionState {
             events,
-            storage_log_queries: storage_log_queries
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
             deduplicated_storage_log_queries: deduped_storage_log_queries
                 .into_iter()
                 .map(GlueInto::glue_into)
@@ -126,6 +122,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .map(GlueInto::glue_into)
                 .collect(),
             storage_refunds: Vec::new(),
+            pubdata_costs: Vec::new(),
         }
     }
 

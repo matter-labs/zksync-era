@@ -2,15 +2,16 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
-use zksync_types::{MiniblockNumber, H256, U256};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
+use zksync_types::{L2BlockNumber, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
-use crate::StorageProcessor;
+use crate::Core;
 
 /// DAL methods related to factory dependencies.
 #[derive(Debug)]
 pub struct FactoryDepsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl FactoryDepsDal<'_, '_> {
@@ -18,9 +19,9 @@ impl FactoryDepsDal<'_, '_> {
     /// `(bytecode_hash, bytecode)` entries.
     pub async fn insert_factory_deps(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         factory_deps: &HashMap<H256, Vec<u8>>,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         let (bytecode_hashes, bytecodes): (Vec<_>, Vec<_>) = factory_deps
             .iter()
             .map(|(hash, bytecode)| (hash.as_bytes(), bytecode.as_slice()))
@@ -45,14 +46,18 @@ impl FactoryDepsDal<'_, '_> {
             &bytecodes as &[&[u8]],
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
+        .instrument("insert_factory_deps")
+        .with_arg("block_number", &block_number)
+        .with_arg("factory_deps.len", &factory_deps.len())
+        .execute(self.storage)
         .await?;
 
         Ok(())
     }
 
     /// Returns bytecode for a factory dependency with the specified bytecode `hash`.
-    pub async fn get_factory_dep(&mut self, hash: H256) -> sqlx::Result<Option<Vec<u8>>> {
+    /// Returns bytecodes only from sealed miniblocks.
+    pub async fn get_sealed_factory_dep(&mut self, hash: H256) -> DalResult<Option<Vec<u8>>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -61,10 +66,26 @@ impl FactoryDepsDal<'_, '_> {
                 factory_deps
             WHERE
                 bytecode_hash = $1
+                AND miniblock_number <= COALESCE(
+                    (
+                        SELECT
+                            MAX(number)
+                        FROM
+                            miniblocks
+                    ),
+                    (
+                        SELECT
+                            miniblock_number
+                        FROM
+                            snapshot_recovery
+                    )
+                )
             "#,
             hash.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_sealed_factory_dep")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
         .await?
         .map(|row| row.bytecode))
     }
@@ -75,7 +96,7 @@ impl FactoryDepsDal<'_, '_> {
         default_aa_hash: H256,
     ) -> anyhow::Result<BaseSystemContracts> {
         let bootloader_bytecode = self
-            .get_factory_dep(bootloader_hash)
+            .get_sealed_factory_dep(bootloader_hash)
             .await
             .context("failed loading bootloader code")?
             .with_context(|| format!("bootloader code with hash {bootloader_hash:?} should be present in the database"))?;
@@ -85,7 +106,7 @@ impl FactoryDepsDal<'_, '_> {
         };
 
         let default_aa_bytecode = self
-            .get_factory_dep(default_aa_hash)
+            .get_sealed_factory_dep(default_aa_hash)
             .await
             .context("failed loading default account code")?
             .with_context(|| format!("default account code with hash {default_aa_hash:?} should be present in the database"))?;
@@ -136,8 +157,8 @@ impl FactoryDepsDal<'_, '_> {
     /// than `block_number`.
     pub async fn get_factory_deps_for_revert(
         &mut self,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<Vec<H256>> {
+        block_number: L2BlockNumber,
+    ) -> DalResult<Vec<H256>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -149,7 +170,9 @@ impl FactoryDepsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_factory_deps_for_revert")
+        .with_arg("block_number", &block_number)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| H256::from_slice(&row.bytecode_hash))
@@ -157,10 +180,7 @@ impl FactoryDepsDal<'_, '_> {
     }
 
     /// Removes all factory deps with a miniblock number strictly greater than the specified `block_number`.
-    pub async fn rollback_factory_deps(
-        &mut self,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<()> {
+    pub async fn roll_back_factory_deps(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM factory_deps
@@ -169,8 +189,29 @@ impl FactoryDepsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
+        .instrument("roll_back_factory_deps")
+        .with_arg("block_number", &block_number)
+        .execute(self.storage)
         .await?;
         Ok(())
+    }
+
+    /// Retrieves all factory deps entries for testing purposes.
+    pub async fn dump_all_factory_deps_for_tests(&mut self) -> HashMap<H256, Vec<u8>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                bytecode,
+                bytecode_hash
+            FROM
+                factory_deps
+            "#
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
+        .collect()
     }
 }

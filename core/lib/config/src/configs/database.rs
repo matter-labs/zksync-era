@@ -3,6 +3,8 @@ use std::time::Duration;
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 
+use crate::configs::ExperimentalDBConfig;
+
 /// Mode of operation for the Merkle tree.
 ///
 /// The mode does not influence how tree data is stored; i.e., a mode can be switched on the fly.
@@ -110,8 +112,11 @@ pub struct DBConfig {
     /// Merkle tree configuration.
     #[serde(skip)]
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
-    // doesn't work with 'envy`.
+    // doesn't work with `envy`.
     pub merkle_tree: MerkleTreeConfig,
+    /// Experimental parts of the config.
+    #[serde(skip)] // same reasoning as for `merkle_tree`
+    pub experimental: ExperimentalDBConfig,
 }
 
 impl DBConfig {
@@ -125,14 +130,10 @@ impl DBConfig {
 /// and any component may have overrides.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PostgresConfig {
-    /// URL for the main (sequencer) database.
-    pub master_url: Option<String>,
-    /// URL for the replica database.
-    pub replica_url: Option<String>,
-    /// URL for the prover database.
-    pub prover_url: Option<String>,
     /// Maximum size of the connection pool.
     pub max_connections: Option<u32>,
+    /// Maximum size of the connection pool to master DB.
+    pub max_connections_master: Option<u32>,
 
     /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (currently 3)
     /// before acquire methods will return an error.
@@ -144,33 +145,18 @@ pub struct PostgresConfig {
     pub long_connection_threshold_ms: Option<u64>,
     /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
     pub slow_query_threshold_ms: Option<u64>,
+    pub test_server_url: Option<String>,
+    pub test_prover_url: Option<String>,
 }
 
 impl PostgresConfig {
-    /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
-    pub fn master_url(&self) -> anyhow::Result<&str> {
-        self.master_url
-            .as_deref()
-            .context("Master DB URL is absent")
-    }
-
-    /// Returns a copy of the replica database URL as a `Result` to simplify error propagation.
-    pub fn replica_url(&self) -> anyhow::Result<&str> {
-        self.replica_url
-            .as_deref()
-            .context("Replica DB URL is absent")
-    }
-
-    /// Returns a copy of the prover database URL as a `Result` to simplify error propagation.
-    pub fn prover_url(&self) -> anyhow::Result<&str> {
-        self.prover_url
-            .as_deref()
-            .context("Prover DB URL is absent")
-    }
-
     /// Returns the maximum size of the connection pool as a `Result` to simplify error propagation.
     pub fn max_connections(&self) -> anyhow::Result<u32> {
         self.max_connections.context("Max connections is absent")
+    }
+
+    pub fn max_connections_master(&self) -> Option<u32> {
+        self.max_connections_master
     }
 
     /// Returns the Postgres statement timeout.

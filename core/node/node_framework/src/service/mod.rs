@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context;
 use futures::{future::BoxFuture, FutureExt};
@@ -6,7 +6,7 @@ use tokio::{runtime::Runtime, sync::watch};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
 use self::runnables::Runnables;
-pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
+pub use self::{context::ServiceContext, error::ZkStackServiceError, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, StoredResource},
     service::runnables::TaskReprs,
@@ -14,6 +14,7 @@ use crate::{
 };
 
 mod context;
+mod error;
 mod runnables;
 mod stop_receiver;
 #[cfg(test)]
@@ -22,8 +23,61 @@ mod tests;
 // A reasonable amount of time for any task to finish the shutdown process
 const TASK_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// A builder for [`ZkStackService`].
+#[derive(Default, Debug)]
+pub struct ZkStackServiceBuilder {
+    /// List of wiring layers.
+    layers: Vec<Box<dyn WiringLayer>>,
+}
+
+impl ZkStackServiceBuilder {
+    pub fn new() -> Self {
+        Self { layers: Vec::new() }
+    }
+
+    /// Adds a wiring layer.
+    /// During the [`run`](ZkStackService::run) call the service will invoke
+    /// `wire` method of every layer in the order they were added.
+    ///
+    /// This method may be invoked multiple times with the same layer type, but the
+    /// layer will only be stored once (meaning that 2nd attempt to add the same layer will be ignored).
+    /// This may be useful if the same layer is a prerequisite for multiple other layers: it is safe
+    /// to add it multiple times, and it will only be wired once.
+    pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
+        if !self
+            .layers
+            .iter()
+            .any(|existing_layer| existing_layer.layer_name() == layer.layer_name())
+        {
+            self.layers.push(Box::new(layer));
+        }
+        self
+    }
+
+    pub fn build(&mut self) -> Result<ZkStackService, ZkStackServiceError> {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return Err(ZkStackServiceError::RuntimeDetected);
+        }
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let (stop_sender, _stop_receiver) = watch::channel(false);
+
+        Ok(ZkStackService {
+            layers: std::mem::take(&mut self.layers),
+            resources: Default::default(),
+            runnables: Default::default(),
+            stop_sender,
+            runtime,
+        })
+    }
+}
+
 /// "Manager" class for a set of tasks. Collects all the resources and tasks,
 /// then runs tasks until completion.
+#[derive(Debug)]
 pub struct ZkStackService {
     /// Cache of resources that have been requested at least by one task.
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
@@ -38,44 +92,9 @@ pub struct ZkStackService {
     runtime: Runtime,
 }
 
-impl fmt::Debug for ZkStackService {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ZkStackService").finish_non_exhaustive()
-    }
-}
-
 impl ZkStackService {
-    pub fn new() -> anyhow::Result<Self> {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            anyhow::bail!(
-                "Detected a Tokio Runtime. ZkStackService manages its own runtime and does not support nested runtimes"
-            );
-        }
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-
-        let (stop_sender, _stop_receiver) = watch::channel(false);
-        Ok(Self {
-            resources: HashMap::default(),
-            layers: Vec::new(),
-            runnables: Runnables::default(),
-            stop_sender,
-            runtime,
-        })
-    }
-
-    /// Adds a wiring layer.
-    /// During the [`run`](ZkStackService::run) call the service will invoke
-    /// `wire` method of every layer in the order they were added.
-    pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
-        self.layers.push(Box::new(layer));
-        self
-    }
-
     /// Runs the system.
-    pub fn run(mut self) -> anyhow::Result<()> {
+    pub fn run(mut self) -> Result<(), ZkStackServiceError> {
         // Initialize tasks.
         let wiring_layers = std::mem::take(&mut self.layers);
 
@@ -98,14 +117,14 @@ impl ZkStackService {
 
         // Report all the errors we've met during the init.
         if !errors.is_empty() {
-            for (layer, error) in errors {
+            for (layer, error) in &errors {
                 tracing::error!("Wiring layer {layer} can't be initialized: {error}");
             }
-            anyhow::bail!("One or more wiring layers failed to initialize");
+            return Err(ZkStackServiceError::Wiring(errors));
         }
 
         if self.runnables.is_empty() {
-            anyhow::bail!("No tasks have been added to the service");
+            return Err(ZkStackServiceError::NoTasks);
         }
 
         let only_oneshot_tasks = self.runnables.is_oneshot_only();
@@ -127,6 +146,7 @@ impl ZkStackService {
         for resource in self.resources.values_mut() {
             resource.stored_resource_wired();
         }
+        drop(self.resources); // Decrement reference counters for resources.
         tracing::info!("Wiring complete");
 
         // Create a system task that is cancellation-aware and will only exit on either oneshot task failure or
@@ -177,7 +197,9 @@ impl ZkStackService {
             tracing::info!("Remaining tasks finished without reaching timeouts");
         }
 
-        result
+        tracing::info!("Exiting the service");
+        result?;
+        Ok(())
     }
 }
 

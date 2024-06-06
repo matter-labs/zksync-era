@@ -1,33 +1,19 @@
 [package]
 name = "zksync_eth_signer"
 version = "0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-zksync_types = { path = "../types" }
-
-serde = "1.0.90"
-serde_derive = "1.0.90"
-serde_json = "1.0.0"
-hex = "0.4.2"
-secp256k1 = "0.27.0"
-
-rlp = "0.5"
-
-reqwest = { version = "0.11", features = ["json", "blocking"] }
-thiserror = "1.0"
-
-jsonrpc-core = "18.0.0"
-async-trait = "0.1"
+zksync_types.workspace = true
+rlp.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
 
 [dev-dependencies]
-actix-rt = "2"
-tokio = { version = "1", features = ["full"] }
-actix-web = "4.0.0-beta.8"
-futures = "0.3"
+tokio = { workspace = true, features = ["full"] }

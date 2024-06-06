@@ -27,22 +27,22 @@ pub(super) struct Runnables {
 
 impl fmt::Debug for Runnables {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Macro that iterates over a `Vec`, invokes `.name()` method and collects the results into a Vec<String>.
-        // Returns a reference to created vec to satisfy the `.field` method signature.
-        macro_rules! names {
+        // Macro that iterates over a `Vec`, invokes `.id()` method and collects the results into a `Vec<String>`.
+        // Returns a reference to created `Vec` to satisfy the `.field` method signature.
+        macro_rules! ids {
             ($vec:expr) => {
-                &$vec.iter().map(|x| x.name()).collect::<Vec<_>>()
+                &$vec.iter().map(|x| x.id()).collect::<Vec<_>>()
             };
         }
 
         f.debug_struct("Runnables")
-            .field("preconditions", names!(self.preconditions))
-            .field("tasks", names!(self.tasks))
-            .field("oneshot_tasks", names!(self.oneshot_tasks))
-            .field("unconstrained_tasks", names!(self.unconstrained_tasks))
+            .field("preconditions", ids!(self.preconditions))
+            .field("tasks", ids!(self.tasks))
+            .field("oneshot_tasks", ids!(self.oneshot_tasks))
+            .field("unconstrained_tasks", ids!(self.unconstrained_tasks))
             .field(
                 "unconstrained_oneshot_tasks",
-                names!(self.unconstrained_oneshot_tasks),
+                ids!(self.unconstrained_oneshot_tasks),
             )
             .finish()
     }
@@ -127,7 +127,7 @@ impl Runnables {
         stop_receiver: StopReceiver,
     ) {
         for task in std::mem::take(&mut self.unconstrained_tasks) {
-            let name = task.name();
+            let name = task.id();
             let stop_receiver = stop_receiver.clone();
             let task_future = Box::pin(async move {
                 task.run_unconstrained(stop_receiver)
@@ -145,7 +145,7 @@ impl Runnables {
         stop_receiver: StopReceiver,
     ) {
         for task in std::mem::take(&mut self.tasks) {
-            let name = task.name();
+            let name = task.id();
             let stop_receiver = stop_receiver.clone();
             let task_barrier = task_barrier.clone();
             let task_future = Box::pin(async move {
@@ -164,7 +164,7 @@ impl Runnables {
         stop_receiver: StopReceiver,
     ) {
         for precondition in std::mem::take(&mut self.preconditions) {
-            let name = precondition.name();
+            let name = precondition.id();
             let stop_receiver = stop_receiver.clone();
             let task_barrier = task_barrier.clone();
             let task_future = Box::pin(async move {
@@ -184,7 +184,7 @@ impl Runnables {
         stop_receiver: StopReceiver,
     ) {
         for oneshot_task in std::mem::take(&mut self.oneshot_tasks) {
-            let name = oneshot_task.name();
+            let name = oneshot_task.id();
             let stop_receiver = stop_receiver.clone();
             let task_barrier = task_barrier.clone();
             let task_future = Box::pin(async move {
@@ -203,7 +203,7 @@ impl Runnables {
         stop_receiver: StopReceiver,
     ) {
         for unconstrained_oneshot_task in std::mem::take(&mut self.unconstrained_oneshot_tasks) {
-            let name = unconstrained_oneshot_task.name();
+            let name = unconstrained_oneshot_task.id();
             let stop_receiver = stop_receiver.clone();
             let task_future = Box::pin(async move {
                 unconstrained_oneshot_task

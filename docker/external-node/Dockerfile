@@ -4,7 +4,6 @@ FROM matterlabs/zksync-build-base:latest as builder
 
 WORKDIR /usr/src/zksync
 COPY . .
-
 RUN cargo build --release
 
 FROM debian:bookworm-slim

@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use strum::Display;
 use zksync_basic_types::{
-    web3::types::{Bytes, H160, H256, H64, U256, U64},
-    L1BatchNumber,
+    web3::{AccessList, Bytes, Index},
+    L1BatchNumber, H160, H2048, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 
@@ -13,8 +13,7 @@ pub use crate::transaction_request::{
 use crate::{
     protocol_version::L1VerifierConfig,
     vm_trace::{Call, CallType},
-    web3::types::{AccessList, Index, H2048},
-    Address, MiniblockNumber, ProtocolVersionId,
+    Address, L2BlockNumber, ProtocolVersionId,
 };
 
 pub mod en;
@@ -194,8 +193,10 @@ pub struct L2ToL1LogProof {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BridgeAddresses {
-    pub l1_erc20_default_bridge: Address,
-    pub l2_erc20_default_bridge: Address,
+    pub l1_shared_default_bridge: Option<Address>,
+    pub l2_shared_default_bridge: Option<Address>,
+    pub l1_erc20_default_bridge: Option<Address>,
+    pub l2_erc20_default_bridge: Option<Address>,
     pub l1_weth_bridge: Option<Address>,
     pub l2_weth_bridge: Option<Address>,
 }
@@ -211,7 +212,7 @@ pub struct TransactionReceipt {
     /// Hash of the block this transaction was included within.
     #[serde(rename = "blockHash")]
     pub block_hash: H256,
-    /// Number of the miniblock this transaction was included within.
+    /// Number of the L2 block this transaction was included within.
     #[serde(rename = "blockNumber")]
     pub block_number: U64,
     /// Index of transaction in l1 batch
@@ -307,7 +308,7 @@ pub struct Block<TX> {
     pub logs_bloom: H2048,
     /// Timestamp
     pub timestamp: U256,
-    /// Timestamp of the l1 batch this miniblock was included within
+    /// Timestamp of the l1 batch this L2 block was included within
     #[serde(rename = "l1BatchTimestamp")]
     pub l1_batch_timestamp: Option<U256>,
     /// Difficulty
@@ -580,8 +581,8 @@ pub struct TransactionDetails {
 
 #[derive(Debug, Clone)]
 pub struct GetLogsFilter {
-    pub from_block: MiniblockNumber,
-    pub to_block: MiniblockNumber,
+    pub from_block: L2BlockNumber,
+    pub to_block: L2BlockNumber,
     pub addresses: Vec<Address>,
     pub topics: Vec<(u32, Vec<H256>)>,
 }
@@ -640,18 +641,81 @@ impl From<Call> for DebugCall {
     }
 }
 
+// TODO (PLA-965): remove deprecated fields from the struct. It is currently in a "migration" phase
+// to keep compatibility between old and new versions.
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct ProtocolVersion {
-    /// Protocol version ID
-    pub version_id: u16,
+    /// Minor version of the protocol
+    #[deprecated]
+    pub version_id: Option<u16>,
+    /// Minor version of the protocol
+    #[serde(rename = "minorVersion")]
+    pub minor_version: Option<u16>,
     /// Timestamp at which upgrade should be performed
     pub timestamp: u64,
     /// Verifier configuration
-    pub verification_keys_hashes: L1VerifierConfig,
+    #[deprecated]
+    pub verification_keys_hashes: Option<L1VerifierConfig>,
     /// Hashes of base system contracts (bootloader and default account)
-    pub base_system_contracts: BaseSystemContractsHashes,
+    #[deprecated]
+    pub base_system_contracts: Option<BaseSystemContractsHashes>,
+    /// Bootloader code hash
+    #[serde(rename = "bootloaderCodeHash")]
+    pub bootloader_code_hash: Option<H256>,
+    /// Default account code hash
+    #[serde(rename = "defaultAccountCodeHash")]
+    pub default_account_code_hash: Option<H256>,
     /// L2 Upgrade transaction hash
+    #[deprecated]
     pub l2_system_upgrade_tx_hash: Option<H256>,
+    /// L2 Upgrade transaction hash
+    #[serde(rename = "l2SystemUpgradeTxHash")]
+    pub l2_system_upgrade_tx_hash_new: Option<H256>,
+}
+
+#[allow(deprecated)]
+impl ProtocolVersion {
+    pub fn new(
+        minor_version: u16,
+        timestamp: u64,
+        bootloader_code_hash: H256,
+        default_account_code_hash: H256,
+        l2_system_upgrade_tx_hash: Option<H256>,
+    ) -> Self {
+        Self {
+            version_id: Some(minor_version),
+            minor_version: Some(minor_version),
+            timestamp,
+            verification_keys_hashes: Some(Default::default()),
+            base_system_contracts: Some(BaseSystemContractsHashes {
+                bootloader: bootloader_code_hash,
+                default_aa: default_account_code_hash,
+            }),
+            bootloader_code_hash: Some(bootloader_code_hash),
+            default_account_code_hash: Some(default_account_code_hash),
+            l2_system_upgrade_tx_hash,
+            l2_system_upgrade_tx_hash_new: l2_system_upgrade_tx_hash,
+        }
+    }
+
+    pub fn bootloader_code_hash(&self) -> Option<H256> {
+        self.bootloader_code_hash
+            .or_else(|| self.base_system_contracts.map(|hashes| hashes.bootloader))
+    }
+
+    pub fn default_account_code_hash(&self) -> Option<H256> {
+        self.default_account_code_hash
+            .or_else(|| self.base_system_contracts.map(|hashes| hashes.default_aa))
+    }
+
+    pub fn minor_version(&self) -> Option<u16> {
+        self.minor_version.or(self.version_id)
+    }
+
+    pub fn l2_system_upgrade_tx_hash(&self) -> Option<H256> {
+        self.l2_system_upgrade_tx_hash_new
+            .or(self.l2_system_upgrade_tx_hash)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -687,6 +751,7 @@ pub struct BlockDetailsBase {
     pub timestamp: u64,
     pub l1_tx_count: usize,
     pub l2_tx_count: usize,
+    /// Hash for an L2 block, or the root hash (aka state hash) for an L1 batch.
     pub root_hash: Option<H256>,
     pub status: BlockStatus,
     pub commit_tx_hash: Option<H256>,
@@ -703,7 +768,7 @@ pub struct BlockDetailsBase {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockDetails {
-    pub number: MiniblockNumber,
+    pub number: L2BlockNumber,
     pub l1_batch_number: L1BatchNumber,
     #[serde(flatten)]
     pub base: BlockDetailsBase,
@@ -733,4 +798,55 @@ pub struct StorageProof {
 pub struct Proof {
     pub address: Address,
     pub storage_proof: Vec<StorageProof>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionDetailedResult {
+    pub transaction_hash: H256,
+    pub storage_logs: Vec<ApiStorageLog>,
+    pub events: Vec<Log>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiStorageLog {
+    pub address: Address,
+    pub key: U256,
+    pub written_value: U256,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // TODO (PLA-965): remove test after removing deprecating fields.
+    #[allow(deprecated)]
+    #[test]
+    fn check_protocol_version_type_compatibility() {
+        let new_version = ProtocolVersion {
+            version_id: Some(24),
+            minor_version: Some(24),
+            timestamp: 0,
+            verification_keys_hashes: Some(Default::default()),
+            base_system_contracts: Some(Default::default()),
+            bootloader_code_hash: Some(Default::default()),
+            default_account_code_hash: Some(Default::default()),
+            l2_system_upgrade_tx_hash: Default::default(),
+            l2_system_upgrade_tx_hash_new: Default::default(),
+        };
+
+        #[derive(Deserialize)]
+        #[allow(dead_code)]
+        struct OldProtocolVersion {
+            pub version_id: u16,
+            pub timestamp: u64,
+            pub verification_keys_hashes: L1VerifierConfig,
+            pub base_system_contracts: BaseSystemContractsHashes,
+            pub l2_system_upgrade_tx_hash: Option<H256>,
+        }
+
+        serde_json::from_str::<OldProtocolVersion>(&serde_json::to_string(&new_version).unwrap())
+            .unwrap();
+    }
 }

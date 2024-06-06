@@ -1,10 +1,8 @@
 use std::convert::TryInto;
 
 use rand::{rngs::SmallRng, seq::SliceRandom, thread_rng, RngCore, SeedableRng};
-use zksync::web3::signing::keccak256;
-use zksync_types::H256;
 
-use crate::all::AllWeighted;
+use crate::{all::AllWeighted, sdk::web3::keccak256};
 
 // SmallRng seed type is [u8; 32].
 const SEED_SIZE: usize = 32;
@@ -41,18 +39,13 @@ impl LoadtestRng {
         hex::encode(self.seed)
     }
 
-    pub fn derive(&self, eth_pk: H256) -> Self {
+    pub fn derive(&self, private_key_bytes: [u8; 32]) -> Self {
         // We chain the current seed bytes and the Ethereum private key together,
         // and then calculate the hash of this data.
         // This way we obtain a derived seed, unique for each wallet, which will result in
-        // an unique set of operations for each account.
-        let input_bytes: Vec<u8> = self
-            .seed
-            .iter()
-            .flat_map(|val| val.to_be_bytes().to_vec())
-            .chain(eth_pk.as_bytes().iter().copied())
-            .collect();
-        let data_hash = keccak256(input_bytes.as_ref());
+        // a unique set of operations for each account.
+        let input_bytes: Vec<u8> = self.seed.into_iter().chain(private_key_bytes).collect();
+        let data_hash = keccak256(&input_bytes);
         let new_seed = data_hash[..SEED_SIZE].try_into().unwrap();
 
         let rng = SmallRng::from_seed(new_seed);

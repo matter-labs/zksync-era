@@ -1,14 +1,14 @@
 use std::{
     fs::{self, File},
     io::Read,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use anyhow::Context as _;
 use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
-        aux_layer::{EIP4844VerificationKey, ZkSyncSnarkWrapperVK},
+        aux_layer::ZkSyncSnarkWrapperVK,
         base_layer::ZkSyncBaseLayerVerificationKey,
         recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey},
     },
@@ -23,7 +23,7 @@ use zksync_types::basic_fri_types::AggregationRound;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
-use crate::{GoldilocksProverSetupData, VkCommitments};
+use crate::{utils::core_workspace_dir_or_current_dir, GoldilocksProverSetupData, VkCommitments};
 
 pub enum ProverServiceDataType {
     VerificationKey,
@@ -38,23 +38,30 @@ pub enum ProverServiceDataType {
 /// - large setup keys, used during proving.
 pub struct Keystore {
     /// Directory to store all the small keys.
-    basedir: String,
+    basedir: PathBuf,
     /// Directory to store large setup keys.
     setup_data_path: Option<String>,
 }
 
-fn get_base_path_from_env() -> String {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| "/".into());
-    format!(
-        "{}/prover/vk_setup_data_generator_server_fri/data",
-        zksync_home
-    )
+fn get_base_path() -> PathBuf {
+    let path = core_workspace_dir_or_current_dir();
+
+    let new_path = path.join("prover/vk_setup_data_generator_server_fri/data");
+    if new_path.exists() {
+        return new_path;
+    }
+
+    let mut components = path.components();
+    components.next_back().unwrap();
+    components
+        .as_path()
+        .join("prover/vk_setup_data_generator_server_fri/data")
 }
 
 impl Default for Keystore {
     fn default() -> Self {
         Self {
-            basedir: get_base_path_from_env(),
+            basedir: get_base_path(),
             setup_data_path: Some(
                 FriProverConfig::from_env()
                     .expect("FriProverConfig::from_env()")
@@ -67,20 +74,20 @@ impl Default for Keystore {
 impl Keystore {
     /// Base-dir is the location of smaller keys (like verification keys and finalization hints).
     /// Setup data path is used for the large setup keys.
-    pub fn new(basedir: String, setup_data_path: String) -> Self {
+    pub fn new(basedir: PathBuf, setup_data_path: String) -> Self {
         Keystore {
             basedir,
             setup_data_path: Some(setup_data_path),
         }
     }
-    pub fn new_with_optional_setup_path(basedir: String, setup_data_path: Option<String>) -> Self {
+    pub fn new_with_optional_setup_path(basedir: PathBuf, setup_data_path: Option<String>) -> Self {
         Keystore {
             basedir,
             setup_data_path,
         }
     }
 
-    pub fn get_base_path(&self) -> &str {
+    pub fn get_base_path(&self) -> &PathBuf {
         &self.basedir
     }
 
@@ -88,43 +95,49 @@ impl Keystore {
         &self,
         key: ProverServiceDataKey,
         service_data_type: ProverServiceDataType,
-    ) -> String {
+    ) -> PathBuf {
         let name = key.name();
         match service_data_type {
             ProverServiceDataType::VerificationKey => {
-                format!("{}/verification_{}_key.json", self.basedir, name)
+                self.basedir.join(format!("verification_{}_key.json", name))
             }
-            ProverServiceDataType::SetupData => {
-                format!(
-                    "{}/setup_{}_data.bin",
-                    self.setup_data_path
-                        .as_ref()
-                        .expect("Setup data path not set"),
-                    name
-                )
-            }
-            ProverServiceDataType::FinalizationHints => {
-                format!("{}/finalization_hints_{}.bin", self.basedir, name)
-            }
-            ProverServiceDataType::SnarkVerificationKey => {
-                format!("{}/snark_verification_{}_key.json", self.basedir, name)
-            }
+            ProverServiceDataType::SetupData => PathBuf::from(format!(
+                "{}/setup_{}_data.bin",
+                self.setup_data_path
+                    .as_ref()
+                    .expect("Setup data path not set"),
+                name
+            )),
+            ProverServiceDataType::FinalizationHints => self
+                .basedir
+                .join(format!("finalization_hints_{}.bin", name)),
+            ProverServiceDataType::SnarkVerificationKey => self
+                .basedir
+                .join(format!("snark_verification_{}_key.json", name)),
         }
     }
 
-    fn load_json_from_file<T: for<'a> Deserialize<'a>>(filepath: String) -> anyhow::Result<T> {
+    fn load_json_from_file<T: for<'a> Deserialize<'a>>(
+        filepath: impl AsRef<Path> + std::fmt::Debug,
+    ) -> anyhow::Result<T> {
         let text = std::fs::read_to_string(&filepath)
-            .with_context(|| format!("Failed reading verification key from path: {filepath}"))?;
-        serde_json::from_str::<T>(&text)
-            .with_context(|| format!("Failed deserializing verification key from path: {filepath}"))
+            .with_context(|| format!("Failed reading verification key from path: {filepath:?}"))?;
+        serde_json::from_str::<T>(&text).with_context(|| {
+            format!("Failed deserializing verification key from path: {filepath:?}")
+        })
     }
-    fn save_json_pretty<T: Serialize>(filepath: String, data: &T) -> anyhow::Result<()> {
+    fn save_json_pretty<T: Serialize>(
+        filepath: impl AsRef<Path> + std::fmt::Debug,
+        data: &T,
+    ) -> anyhow::Result<()> {
         std::fs::write(&filepath, serde_json::to_string_pretty(data).unwrap())
-            .with_context(|| format!("writing to '{filepath}' failed"))
+            .with_context(|| format!("writing to '{filepath:?}' failed"))
     }
 
-    fn load_bincode_from_file<T: for<'a> Deserialize<'a>>(filepath: String) -> anyhow::Result<T> {
-        let mut file = File::open(filepath.clone())
+    fn load_bincode_from_file<T: for<'a> Deserialize<'a>>(
+        filepath: impl AsRef<Path> + std::fmt::Debug,
+    ) -> anyhow::Result<T> {
+        let mut file = File::open(&filepath)
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).with_context(|| {
@@ -158,13 +171,6 @@ impl Keystore {
         ))
     }
 
-    pub fn load_4844_verification_key(&self) -> anyhow::Result<EIP4844VerificationKey> {
-        Self::load_json_from_file(self.get_file_path(
-            ProverServiceDataKey::eip4844(),
-            ProverServiceDataType::VerificationKey,
-        ))
-    }
-
     pub fn save_base_layer_verification_key(
         &self,
         vk: ZkSyncBaseLayerVerificationKey,
@@ -173,7 +179,7 @@ impl Keystore {
             ProverServiceDataKey::new(vk.numeric_circuit_type(), AggregationRound::BasicCircuits),
             ProverServiceDataType::VerificationKey,
         );
-        tracing::info!("saving basic verification key to: {}", filepath);
+        tracing::info!("saving basic verification key to: {:?}", filepath);
         Self::save_json_pretty(filepath, &vk)
     }
 
@@ -185,16 +191,7 @@ impl Keystore {
             ProverServiceDataKey::new_recursive(vk.numeric_circuit_type()),
             ProverServiceDataType::VerificationKey,
         );
-        tracing::info!("saving recursive layer verification key to: {}", filepath);
-        Self::save_json_pretty(filepath, &vk)
-    }
-
-    pub fn save_4844_verification_key(&self, vk: EIP4844VerificationKey) -> anyhow::Result<()> {
-        let filepath = self.get_file_path(
-            ProverServiceDataKey::eip4844(),
-            ProverServiceDataType::VerificationKey,
-        );
-        tracing::info!("saving 4844 verification key to: {}", filepath);
+        tracing::info!("saving recursive layer verification key to: {:?}", filepath);
         Self::save_json_pretty(filepath, &vk)
     }
 
@@ -209,7 +206,7 @@ impl Keystore {
     ) -> anyhow::Result<()> {
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::FinalizationHints);
 
-        tracing::info!("saving finalization hints for {:?} to: {}", key, filepath);
+        tracing::info!("saving finalization hints for {:?} to: {:?}", key, filepath);
         let serialized =
             bincode::serialize(&hint).context("Failed to serialize finalization hints")?;
         fs::write(filepath, serialized).context("Failed to write finalization hints to file")
@@ -243,8 +240,9 @@ impl Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::SnarkVerificationKey,
         );
-        std::fs::read_to_string(&filepath)
-            .with_context(|| format!("Failed reading Snark verification key from path: {filepath}"))
+        std::fs::read_to_string(&filepath).with_context(|| {
+            format!("Failed reading Snark verification key from path: {filepath:?}")
+        })
     }
 
     pub fn save_snark_verification_key(&self, vk: ZkSyncSnarkWrapperVK) -> anyhow::Result<()> {
@@ -252,7 +250,7 @@ impl Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::SnarkVerificationKey,
         );
-        tracing::info!("saving snark verification key to: {}", filepath);
+        tracing::info!("saving snark verification key to: {:?}", filepath);
         Self::save_json_pretty(filepath, &vk.into_inner())
     }
 
@@ -272,7 +270,7 @@ impl Keystore {
         file.read_to_end(&mut buffer).with_context(|| {
             format!("Failed reading setup-data to buffer from path: {filepath:?}")
         })?;
-        tracing::info!("loading {:?} setup data from path: {}", key, filepath);
+        tracing::info!("loading {:?} setup data from path: {:?}", key, filepath);
         bincode::deserialize::<GoldilocksProverSetupData>(&buffer).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
         })
@@ -291,7 +289,7 @@ impl Keystore {
         file.read_to_end(&mut buffer).with_context(|| {
             format!("Failed reading setup-data to buffer from path: {filepath:?}")
         })?;
-        tracing::info!("loading {:?} setup data from path: {}", key, filepath);
+        tracing::info!("loading {:?} setup data from path: {:?}", key, filepath);
         bincode::deserialize::<GoldilocksGpuProverSetupData>(&buffer).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
         })
@@ -307,7 +305,7 @@ impl Keystore {
         serialized_setup_data: &Vec<u8>,
     ) -> anyhow::Result<()> {
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
-        tracing::info!("saving {:?} setup data to: {}", key, filepath);
+        tracing::info!("saving {:?} setup data to: {:?}", key, filepath);
         std::fs::write(filepath.clone(), serialized_setup_data)
             .with_context(|| format!("Failed saving setup-data at path: {filepath:?}"))
     }
@@ -316,38 +314,35 @@ impl Keystore {
     /// Keys are loaded from the default 'base path' files.
     pub fn load_keys_to_data_source(&self) -> anyhow::Result<InMemoryDataSource> {
         let mut data_source = InMemoryDataSource::new();
-        for base_circuit_type in
-            (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
-        {
+        for base_circuit_type in BaseLayerCircuitType::as_iter_u8() {
             data_source
                 .set_base_layer_vk(self.load_base_layer_verification_key(base_circuit_type)?)
                 .unwrap();
         }
 
-        for circuit_type in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
-            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8
-        {
+        for circuit_type in ZkSyncRecursionLayerStorageType::as_iter_u8() {
             data_source
                 .set_recursion_layer_vk(self.load_recursive_layer_verification_key(circuit_type)?)
                 .unwrap();
         }
+        data_source
+            .set_recursion_tip_vk(self.load_recursive_layer_verification_key(
+                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+            )?)
+            .unwrap();
+
         data_source
             .set_recursion_layer_node_vk(self.load_recursive_layer_verification_key(
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
             )?)
             .unwrap();
 
-        data_source
-            .set_eip4844_vk(self.load_4844_verification_key()?)
-            .unwrap();
         Ok(data_source)
     }
 
     pub fn save_keys_from_data_source(&self, source: &dyn SetupDataSource) -> anyhow::Result<()> {
         // Base circuits
-        for base_circuit_type in
-            (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
-        {
+        for base_circuit_type in BaseLayerCircuitType::as_iter_u8() {
             let vk = source.get_base_layer_vk(base_circuit_type).map_err(|err| {
                 anyhow::anyhow!("No vk exist for circuit type: {base_circuit_type}: {err}")
             })?;
@@ -367,9 +362,7 @@ impl Keystore {
                 .context("save_finalization_hints()")?;
         }
         // Leaf circuits
-        for leaf_circuit_type in (ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-            ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8)
-        {
+        for leaf_circuit_type in ZkSyncRecursionLayerStorageType::leafs_as_iter_u8() {
             let vk = source
                 .get_recursion_layer_vk(leaf_circuit_type)
                 .map_err(|err| {
@@ -412,6 +405,26 @@ impl Keystore {
         )
         .context("save_finalization_hints()")?;
 
+        // Recursion tip
+        self.save_recursive_layer_verification_key(source.get_recursion_tip_vk().map_err(
+            |err| anyhow::anyhow!("No vk exist for recursion tip layer circuit: {err}"),
+        )?)
+        .context("save_recursion_tip_vk")?;
+
+        let recursion_tip_hint = source
+            .get_recursion_tip_finalization_hint()
+            .map_err(|err| {
+                anyhow::anyhow!("No finalization hint exist for recursion tip layer circuit: {err}")
+            })?
+            .into_inner();
+        self.save_finalization_hints(
+            ProverServiceDataKey::new_recursive(
+                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+            ),
+            &recursion_tip_hint,
+        )
+        .context("save_finalization_hints()")?;
+
         // Scheduler
         self.save_recursive_layer_verification_key(
             source
@@ -437,31 +450,13 @@ impl Keystore {
         )
         .context("save_finalization_hints()")?;
 
-        // 4844
-        self.save_4844_verification_key(
-            source
-                .get_eip4844_vk()
-                .map_err(|err| anyhow::anyhow!("No vk exist for 4844 circuit: {err}"))?,
-        )
-        .context("save_4844_verification_key()")?;
-
-        let eip4844_hint = source.get_eip4844_finalization_hint().map_err(|err| {
-            anyhow::anyhow!("No finalization hint exist for scheduler layer circuit: {err}")
-        })?;
-
-        self.save_finalization_hints(ProverServiceDataKey::eip4844(), &eip4844_hint)
-            .context("save_eip4844_hint()")?;
-
         Ok(())
     }
 
     pub fn load_commitments(&self) -> anyhow::Result<VkCommitments> {
-        Self::load_json_from_file(format!("{}/commitments.json", self.get_base_path()))
+        Self::load_json_from_file(self.get_base_path().join("commitments.json"))
     }
     pub fn save_commitments(&self, commitments: &VkCommitments) -> anyhow::Result<()> {
-        Self::save_json_pretty(
-            format!("{}/commitments.json", self.get_base_path()),
-            &commitments,
-        )
+        Self::save_json_pretty(self.get_base_path().join("commitments.json"), &commitments)
     }
 }

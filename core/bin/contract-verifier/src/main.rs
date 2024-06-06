@@ -1,32 +1,34 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, time::Duration};
 
 use anyhow::Context as _;
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use prometheus_exporter::PrometheusExporterConfig;
+use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{ObservabilityConfig, PrometheusConfig},
-    ApiConfig, ContractVerifierConfig, PostgresConfig,
+    ApiConfig, ContractVerifierConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::{wait_for_tasks::ManagedTasks, workspace_dir_or_current_dir};
 
 use crate::verifier::ContractVerifier;
 
 pub mod error;
+mod metrics;
 pub mod verifier;
 pub mod zksolc_utils;
 pub mod zkvyper_utils;
 
-async fn update_compiler_versions(connection_pool: &ConnectionPool) {
-    let mut storage = connection_pool.access_storage().await.unwrap();
+async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
+    let mut storage = connection_pool.connection().await.unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+    let zksync_home = workspace_dir_or_current_dir();
 
-    let zksolc_path = format!("{}/etc/zksolc-bin/", zksync_home);
+    let zksolc_path = zksync_home.join("etc/zksolc-bin/");
     let zksolc_versions: Vec<String> = std::fs::read_dir(zksolc_path)
         .unwrap()
         .filter_map(|file| {
@@ -47,7 +49,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .await
         .unwrap();
 
-    let solc_path = format!("{}/etc/solc-bin/", zksync_home);
+    let solc_path = zksync_home.join("etc/solc-bin/");
     let solc_versions: Vec<String> = std::fs::read_dir(solc_path)
         .unwrap()
         .filter_map(|file| {
@@ -68,7 +70,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .await
         .unwrap();
 
-    let zkvyper_path = format!("{}/etc/zkvyper-bin/", zksync_home);
+    let zkvyper_path = zksync_home.join("etc/zkvyper-bin/");
     let zkvyper_versions: Vec<String> = std::fs::read_dir(zkvyper_path)
         .unwrap()
         .filter_map(|file| {
@@ -89,7 +91,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .await
         .unwrap();
 
-    let vyper_path = format!("{}/etc/vyper-bin/", zksync_home);
+    let vyper_path = zksync_home.join("etc/vyper-bin/");
     let vyper_versions: Vec<String> = std::fs::read_dir(vyper_path)
         .unwrap()
         .filter_map(|file| {
@@ -114,7 +116,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
     transaction.commit().await.unwrap();
 }
 
-use structopt::StructOpt;
+use zksync_config::configs::DatabaseSecrets;
 
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
@@ -133,9 +135,9 @@ async fn main() -> anyhow::Result<()> {
         listener_port: verifier_config.prometheus_port,
         ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
-    let pool = ConnectionPool::singleton(
-        postgres_config
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets")?;
+    let pool = ConnectionPool::<Core>::singleton(
+        database_secrets
             .master_url()
             .context("Master DB URL is absent")?,
     )
@@ -189,18 +191,16 @@ async fn main() -> anyhow::Result<()> {
         ),
     ];
 
-    let particular_crypto_alerts = None;
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
+    let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
-        _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+        () = tasks.wait_single() => {},
         _ = stop_signal_receiver.next() => {
             tracing::info!("Stop signal received, shutting down");
         },
     };
-    let _ = stop_sender.send(true);
+    stop_sender.send_replace(true);
 
     // Sleep for some time to let verifier gracefully stop.
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    tasks.complete(Duration::from_secs(5)).await;
     Ok(())
 }
