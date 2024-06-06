@@ -21,5 +21,5 @@ zksync_da_client.workspace = true
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 tracing.workspace = true
-chrono = "0.4.31"
-rand = "0.8.5"
+chrono.workspace = true
+rand.workspace = true

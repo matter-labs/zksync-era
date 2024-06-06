@@ -17,8 +17,5 @@ sender_pubdata_sending_mode="Custom"
 [eth_sender.gas_adjuster]
 max_blob_base_fee=0
 
-[da_dispatcher]
-da_mode="NoDA"
-
 [_metadata]
 base=['dev.toml']
