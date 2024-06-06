@@ -1,11 +1,15 @@
 //! This module provides a "builder" for the external node,
 //! as well as an interface to run the node with the specified components.
 
-use zksync_config::{configs::DatabaseSecrets, PostgresConfig};
+use zksync_config::{
+    configs::{api::HealthCheckConfig, DatabaseSecrets},
+    PostgresConfig,
+};
 use zksync_node_framework::{
     implementations::layers::{
-        main_node_client::MainNodeClientLayer, pools_layer::PoolsLayerBuilder,
-        postgres_metrics::PostgresMetricsLayer, sigint::SigintHandlerLayer,
+        healtcheck_server::HealthCheckLayer, main_node_client::MainNodeClientLayer,
+        pools_layer::PoolsLayerBuilder, postgres_metrics::PostgresMetricsLayer,
+        sigint::SigintHandlerLayer,
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
@@ -79,6 +83,24 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
+        let healthcheck_config = HealthCheckConfig {
+            port: self.config.required.healthcheck_port,
+            slow_time_limit_ms: self
+                .config
+                .optional
+                .healthcheck_slow_time_limit()
+                .map(|d| d.as_millis() as u64),
+            hard_time_limit_ms: self
+                .config
+                .optional
+                .healthcheck_hard_time_limit()
+                .map(|d| d.as_millis() as u64),
+        };
+        self.node.add_layer(HealthCheckLayer(healthcheck_config));
+        Ok(self)
+    }
+
     fn add_preconditions(mut self) -> anyhow::Result<Self> {
         todo!()
     }
@@ -87,6 +109,7 @@ impl ExternalNodeBuilder {
         // Add "base" layers
         self = self
             .add_sigint_handler_layer()?
+            .add_healthcheck_layer()?
             .add_pools_layer()?
             .add_main_node_client_layer()?;
 
