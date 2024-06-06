@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+
 use zksync_da_client::DataAvailabilityClient;
 use zksync_node_framework::{
     implementations::resources::da_client::DAClientResource,

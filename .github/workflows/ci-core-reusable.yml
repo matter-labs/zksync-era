@@ -242,7 +242,7 @@ jobs:
             ci_run yarn recovery-test genesis-recovery-test
 
       - name: Fee projection tests
-        run: ci_run zk test i fees
+        run: DEPLOYMENT_MODE=${{ matrix.deployment_mode }} ci_run zk test i fees
 
       - name: Run revert test
         run: |
