@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use zksync_da_client::DataAvailabilityClient;
 use zksync_node_framework::{
     implementations::resources::da_client::DAClientResource,
@@ -7,12 +8,12 @@ use zksync_node_framework::{
 
 use crate::no_da::client::NoDAClient;
 
-#[derive(Debug)]
-pub struct NoDAClientWiringLayer {}
+#[derive(Debug, Default)]
+pub struct NoDAClientWiringLayer;
 
 impl NoDAClientWiringLayer {
     pub fn new() -> Self {
-        Self {}
+        Self
     }
 }
 
