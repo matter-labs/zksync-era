@@ -326,12 +326,6 @@ impl EthTxManager {
                 if !error.is_transient() {
                     storage
                         .eth_sender_dal()
-                        .set_sent_at_block(tx_history_id, current_block.0)
-                        .await
-                        .unwrap();
-                } else {
-                    storage
-                        .eth_sender_dal()
                         .remove_tx_history(tx_history_id)
                         .await
                         .unwrap();
