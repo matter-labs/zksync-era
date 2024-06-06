@@ -3,6 +3,7 @@ use clap::Subcommand;
 use crate::cli::ProverCLIConfig;
 
 pub(crate) mod batch;
+pub(crate) mod l1;
 pub mod utils;
 
 #[derive(Subcommand)]
