@@ -8863,7 +8863,6 @@ dependencies = [
  "test-casing",
  "tokio",
  "tracing",
- "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_bft",
@@ -8887,6 +8886,7 @@ dependencies = [
  "zksync_state",
  "zksync_state_keeper",
  "zksync_system_constants",
+ "zksync_test_account",
  "zksync_types",
  "zksync_web3_decl",
 ]

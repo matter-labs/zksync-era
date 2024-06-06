@@ -20,7 +20,7 @@ use crate::{
 
 #[cfg(test)]
 mod tests;
-
+pub mod testonly;
 pub mod main_executor;
 
 /// Representation of a transaction executed in the virtual machine.

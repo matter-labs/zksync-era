@@ -18,13 +18,13 @@ use crate::ConnectionPool;
 
 /// Commitment to the last block of a batch.
 pub(crate) struct LastBlockCommit {
-    /// Hash of `StoredBatchInfoCompact`.
+    /// Hash of the `StoredBatchInfo`.
     pub(crate) info: H256,
 }
 
-/// Proof of the last block of the batch.
-/// Contains the hash of the last block.
-pub(crate) struct LastBlockProof {
+/// Witness proving what is the last block of a batch.
+/// Contains the hash and the number of the last block.
+pub(crate) struct LastBlockWitness {
     info: i_executor::structures::StoredBatchInfo,
     protocol_version: ProtocolVersionId,
 
@@ -40,15 +40,15 @@ pub(crate) struct L1BatchCommit {
     pub(crate) prev_batch: LastBlockCommit,
 }
 
-/// Proof of an L1 batch.
-/// Contains the blocks of this batch.
-pub struct L1BatchProof {
+/// L1Batch with witness that can be
+/// verified against `L1BatchCommit1`.
+pub struct L1BatchWithWitness {
     pub(crate) blocks: Vec<Payload>,
-    pub(crate) this_batch: LastBlockProof,
-    pub(crate) prev_batch: LastBlockProof,
+    pub(crate) this_batch: LastBlockWitness,
+    pub(crate) prev_batch: LastBlockWitness,
 }
 
-impl LastBlockProof {
+impl LastBlockWitness {
     /// Address of the SystemContext contract.
     fn addr() -> AccountTreeId {
         AccountTreeId::new(constants::SYSTEM_CONTEXT_ADDRESS)
@@ -80,7 +80,7 @@ impl LastBlockProof {
         StorageKey::new(Self::addr(), <[u8; 32]>::from(key).into()).hashed_key_u256()
     }
 
-    /// Loads a LastBlockProof from storage.
+    /// Loads a LastBlockWitness from storage.
     async fn load(
         ctx: &ctx::Ctx,
         n: L1BatchNumber,
@@ -189,20 +189,20 @@ impl LastBlockProof {
     }
 }
 
-impl L1BatchProof {
-    /// Loads an `L1BatchProof` from storage.
+impl L1BatchWithWitness {
+    /// Loads an `L1BatchWithWitness` from storage.
     pub(crate) async fn load(
         ctx: &ctx::Ctx,
         number: L1BatchNumber,
         pool: &ConnectionPool,
         tree: &dyn TreeApiClient,
     ) -> ctx::Result<Self> {
-        let prev_batch = LastBlockProof::load(ctx, number - 1, pool, tree)
+        let prev_batch = LastBlockWitness::load(ctx, number - 1, pool, tree)
             .await
-            .with_wrap(|| format!("LastBlockProof::make({})", number - 1))?;
-        let this_batch = LastBlockProof::load(ctx, number, pool, tree)
+            .with_wrap(|| format!("LastBlockWitness::make({})", number - 1))?;
+        let this_batch = LastBlockWitness::load(ctx, number, pool, tree)
             .await
-            .with_wrap(|| format!("LastBlockProof::make({number})"))?;
+            .with_wrap(|| format!("LastBlockWitness::make({number})"))?;
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
         let this = Self {
             blocks: conn

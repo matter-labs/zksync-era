@@ -9,6 +9,7 @@ use zksync_consensus_roles::{
     validator,
     validator::testonly::{Setup, SetupSpec},
 };
+use zksync_test_account::Account;
 use zksync_dal::CoreDal;
 use zksync_node_test_utils::Snapshot;
 use zksync_types::{L1BatchNumber, L2BlockNumber};
@@ -517,11 +518,46 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
     .unwrap();
 }
 
+fn fee(gas_limit: u32) -> Fee {
+    Fee {
+        gas_limit: U256::from(gas_limit),
+        max_fee_per_gas: SYSTEM_CONTEXT_MINIMAL_BASE_FEE.into(),
+        max_priority_fee_per_gas: U256::zero(),
+        gas_per_pubdata_limit: U256::from(DEFAULT_GAS_PER_PUBDATA),
+    }
+}
+
+fn l2_tx(&mut self) -> Transaction {
+    let fee = fee(1_000_000);
+    self.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Address::random(),
+            calldata: vec![],
+            value: Default::default(),
+            factory_deps: None,
+        },
+        Some(fee),
+    )
+}
+
+
+fn l1_tx(&mut self, serial_id: PriorityOpId) -> Transaction {
+    self.get_l1_tx(
+        Execute {
+            contract_address: Address::random(),
+            value: Default::default(),
+            calldata: vec![],
+            factory_deps: None,
+        },
+        serial_id.0,
+    )
+}
+
 #[tokio::test]
 async fn test_batch_proof() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
-    //let rng = &mut ctx.rng();
+    let mut alice = Account::random();
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::from_genesis().await;

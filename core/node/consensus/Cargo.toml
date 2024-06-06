@@ -43,7 +43,7 @@ tracing.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
 zksync_node_api_server.workspace = true
-zksync_commitment_generator.workspace = true
+zksync_test_account.workspace = true
 
 tokio.workspace = true
 test-casing.workspace = true

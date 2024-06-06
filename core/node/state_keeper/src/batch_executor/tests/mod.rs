@@ -3,8 +3,8 @@ use test_casing::{test_casing, Product};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_test_account::Account;
 use zksync_types::{get_nonce_key, utils::storage_key_for_eth_balance, PriorityOpId};
-
-use self::tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester};
+use crate::batch_executor::testonly::AccountLoadNextExecutable;
+use self::tester::{StorageSnapshot, TestConfig, Tester};
 use super::TxExecutionResult;
 
 mod read_storage_factory;
