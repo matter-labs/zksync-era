@@ -7,6 +7,7 @@ use axum::{
     Router,
 };
 use chrono::{Duration, Utc};
+use hyper::body::HttpBody;
 use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use serde_json::json;
 use tower::ServiceExt;
