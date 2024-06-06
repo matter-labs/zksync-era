@@ -13,6 +13,7 @@ members = [
     "proof_fri_compressor",
     "prover_cli",
     "prover_version",
+    "config",
 ]
 
 resolver = "2"
@@ -70,6 +71,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3" }
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
 vk_setup_data_generator_server_fri = { path = "vk_setup_data_generator_server_fri" }
+zksync_prover_config = { path = "config" }
 vlog = { path = "../core/lib/vlog" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
 zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }

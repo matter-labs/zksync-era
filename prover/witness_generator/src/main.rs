@@ -16,6 +16,7 @@ use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, TempConfigStore
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto::secrets::Secrets;
+use zksync_prover_config::load_env_config;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -316,13 +317,4 @@ async fn main() -> anyhow::Result<()> {
     tasks.complete(Duration::from_secs(5)).await;
     tracing::info!("Finished witness generation");
     Ok(())
-}
-
-fn load_env_config() -> anyhow::Result<TempConfigStore> {
-    Ok(TempConfigStore {
-        postgres_config: PostgresConfig::from_env().ok(),
-        fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
-        prometheus_config: PrometheusConfig::from_env().ok(),
-        ..Default::default()
-    })
 }

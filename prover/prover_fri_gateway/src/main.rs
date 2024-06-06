@@ -14,6 +14,7 @@ use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, TempConfigStore
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto::config::secrets::Secrets;
+use zksync_prover_config::load_env_config;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -145,14 +146,4 @@ pub(crate) struct Cli {
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
     pub(crate) secrets_path: Option<std::path::PathBuf>,
-}
-
-fn load_env_config() -> anyhow::Result<TempConfigStore> {
-    Ok(TempConfigStore {
-        postgres_config: PostgresConfig::from_env().ok(),
-        fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
-        object_store_config: ObjectStoreConfig::from_env().ok(),
-        observability: ObservabilityConfig::from_env().ok(),
-        ..Default::default()
-    })
 }
