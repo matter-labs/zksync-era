@@ -129,7 +129,8 @@ testFees('Test fees', () => {
                     }
                 ],
                 gasPrice,
-                reports
+                reports,
+                testMaster.environment().l1BatchCommitDataGeneratorMode
             );
         }
 
@@ -158,6 +159,7 @@ testFees('Test fees', () => {
 
         await setInternalL1GasPrice(
             alice._providerL2(),
+            testMaster.environment().l1BatchCommitDataGeneratorMode,
             requiredPubdataPrice.toString(),
             requiredPubdataPrice.toString()
         );
@@ -201,7 +203,13 @@ testFees('Test fees', () => {
 
     afterAll(async () => {
         // Returning the pubdata price to the default one
-        await setInternalL1GasPrice(alice._providerL2(), undefined, undefined, true);
+        await setInternalL1GasPrice(
+            alice._providerL2(),
+            testMaster.environment().l1BatchCommitDataGeneratorMode,
+            undefined,
+            undefined,
+            true
+        );
 
         await testMaster.deinitialize();
     });
@@ -212,10 +220,16 @@ async function appendResults(
     originalL1Receipts: ethers.providers.TransactionReceipt[],
     transactionRequests: ethers.providers.TransactionRequest[],
     newL1GasPrice: number,
-    reports: string[]
+    reports: string[],
+    deploymentMode: DataAvailabityMode
 ): Promise<string[]> {
     // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
-    await setInternalL1GasPrice(sender._providerL2(), newL1GasPrice.toString(), newL1GasPrice.toString());
+    await setInternalL1GasPrice(
+        sender._providerL2(),
+        deploymentMode,
+        newL1GasPrice.toString(),
+        newL1GasPrice.toString()
+    );
 
     if (originalL1Receipts.length !== reports.length && originalL1Receipts.length !== transactionRequests.length) {
         throw new Error('The array of receipts and reports have different length');
@@ -288,6 +302,7 @@ async function killServerAndWaitForShutdown(provider: zksync.Provider) {
 
 async function setInternalL1GasPrice(
     provider: zksync.Provider,
+    deploymentMode: DataAvailabityMode,
     newL1GasPrice?: string,
     newPubdataPrice?: string,
     disconnect?: boolean
@@ -299,7 +314,7 @@ async function setInternalL1GasPrice(
 
     // Run server in background.
     let command = 'zk server --components api,tree,eth,state_keeper';
-    if (process.env.DEPLOYMENT_MODE == 'Validium') {
+    if (process.env.DEPLOYMENT_MODE == DataAvailabityMode.Validium) {
         command += `,da_dispatcher`;
     }
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
