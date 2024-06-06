@@ -8,6 +8,7 @@ import * as db from '../database';
 export { integration };
 
 export async function prover(options: string[]) {
+    await db.resetTest({ core: false, prover: true });
     process.chdir(process.env.ZKSYNC_HOME! + '/prover');
 
     let cmd = `cargo test --release --locked ${options.join(' ')}`;
