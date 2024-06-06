@@ -1,83 +1,21 @@
 use assert_cmd::Command;
-use prover_cli::TaskStatus;
+use prover_cli::commands::status::utils::Status;
 use prover_dal::{
     fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
-    protocol_version::L1VerifierConfig,
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     prover_dal::{ProofCompressionJobStatus, ProverJobStatus},
-    L1BatchNumber, ProtocolVersionId,
+    L1BatchNumber,
 };
 
 const NON_EXISTING_BATCH_STATUS_STDOUT: &str = "== Batch 10000 Status ==
-
-= Proving Stages =
--- Aggregation Round 0 --
-Basic Witness Generator: Jobs not found 🚫
-
--- Aggregation Round 1 --
-Leaf Witness Generator: Jobs not found 🚫
-
--- Aggregation Round 2 --
-Node Witness Generator: Jobs not found 🚫
-
--- Aggregation Round 4 --
-Recursion Tip: Jobs not found 🚫
-
--- Aggregation Round 4 --
-Scheduler: Jobs not found 🚫
-
--- Compressor --
-Jobs not found 🚫
-
-
+> No batch found. 🚫
 ";
 
 const MULTIPLE_NON_EXISTING_BATCHES_STATUS_STDOUT: &str = "== Batch 10000 Status ==
-
-= Proving Stages =
--- Aggregation Round 0 --
-Basic Witness Generator: Jobs not found 🚫
-
--- Aggregation Round 1 --
-Leaf Witness Generator: Jobs not found 🚫
-
--- Aggregation Round 2 --
-Node Witness Generator: Jobs not found 🚫
-
--- Aggregation Round 4 --
-Recursion Tip: Jobs not found 🚫
-
--- Aggregation Round 4 --
-Scheduler: Jobs not found 🚫
-
--- Compressor --
-Jobs not found 🚫
-
-
-== Batch 10001 Status ==
-
-= Proving Stages =
--- Aggregation Round 0 --
-Basic Witness Generator: Jobs not found 🚫
-
--- Aggregation Round 1 --
-Leaf Witness Generator: Jobs not found 🚫
-
--- Aggregation Round 2 --
-Node Witness Generator: Jobs not found 🚫
-
--- Aggregation Round 4 --
-Recursion Tip: Jobs not found 🚫
-
--- Aggregation Round 4 --
-Scheduler: Jobs not found 🚫
-
--- Compressor --
-Jobs not found 🚫
-
-
+> No batch found. 🚫
 ";
 
 #[test]
@@ -191,7 +129,7 @@ async fn insert_prover_job(
             aggregation_round,
             "",
             false,
-            ProtocolVersionId::default(),
+            ProtocolSemanticVersion::default(),
         )
         .await;
     sqlx::query(&format!(
@@ -213,7 +151,7 @@ async fn insert_bwg_job(
         .save_witness_inputs(
             batch_number,
             "",
-            ProtocolVersionId::default(),
+            ProtocolSemanticVersion::default(),
             Eip4844Blobs::decode(&[0; 144]).unwrap(),
         )
         .await;
@@ -248,7 +186,7 @@ async fn insert_lwg_job(
         0,
         "",
         0,
-        ProtocolVersionId::default() as u8,
+        ProtocolSemanticVersion::default(),
     ))
     .execute(connection.conn())
     .await
@@ -477,17 +415,17 @@ async fn create_scenario(
 
 #[allow(clippy::too_many_arguments)]
 fn scenario_expected_stdout(
-    bwg_status: TaskStatus,
-    agg_0_prover_jobs_status: Option<TaskStatus>,
-    lwg_status: TaskStatus,
-    agg_1_prover_jobs_status: Option<TaskStatus>,
-    nwg_status: TaskStatus,
-    agg_2_prover_jobs_status: Option<TaskStatus>,
-    rt_status: TaskStatus,
-    agg_3_prover_jobs_status: Option<TaskStatus>,
-    scheduler_status: TaskStatus,
-    agg_4_prover_jobs_status: Option<TaskStatus>,
-    compressor_status: TaskStatus,
+    bwg_status: Status,
+    agg_0_prover_jobs_status: Option<Status>,
+    lwg_status: Status,
+    agg_1_prover_jobs_status: Option<Status>,
+    nwg_status: Status,
+    agg_2_prover_jobs_status: Option<Status>,
+    rt_status: Status,
+    agg_3_prover_jobs_status: Option<Status>,
+    scheduler_status: Status,
+    agg_4_prover_jobs_status: Option<Status>,
+    compressor_status: Status,
     batch_number: L1BatchNumber,
 ) -> String {
     let agg_0_prover_jobs_status = match agg_0_prover_jobs_status {
@@ -557,7 +495,10 @@ async fn testito() {
 
     connection
         .fri_protocol_versions_dal()
-        .save_prover_protocol_version(ProtocolVersionId::default(), L1VerifierConfig::default())
+        .save_prover_protocol_version(
+            ProtocolSemanticVersion::default(),
+            L1VerifierConfig::default(),
+        )
         .await;
 
     let batch_0 = L1BatchNumber(0);
@@ -581,17 +522,17 @@ async fn testito() {
 
     status_batch_0_expects(
         scenario_expected_stdout(
-            TaskStatus::Queued,
+            Status::Queued,
             None,
-            TaskStatus::JobsNotFound,
+            Status::JobsNotFound,
             None,
-            TaskStatus::JobsNotFound,
+            Status::JobsNotFound,
             None,
-            TaskStatus::JobsNotFound,
+            Status::JobsNotFound,
             None,
-            TaskStatus::JobsNotFound,
+            Status::JobsNotFound,
             None,
-            TaskStatus::JobsNotFound,
+            Status::JobsNotFound,
             batch_0,
         ),
         connection_pool.database_url().expose_str(),
@@ -616,17 +557,17 @@ async fn testito() {
 
     status_batch_0_expects(
         scenario_expected_stdout(
-            TaskStatus::InProgress,
-            Some(TaskStatus::Queued),
-            TaskStatus::JobsNotFound,
+            Status::InProgress,
+            Some(Status::Queued),
+            Status::JobsNotFound,
             None,
-            TaskStatus::JobsNotFound,
+            Status::JobsNotFound,
             None,
-            TaskStatus::JobsNotFound,
+            Status::JobsNotFound,
             None,
-            TaskStatus::JobsNotFound,
+            Status::JobsNotFound,
             None,
-            TaskStatus::JobsNotFound,
+            Status::JobsNotFound,
             batch_0,
         ),
         connection_pool.database_url().expose_str(),
