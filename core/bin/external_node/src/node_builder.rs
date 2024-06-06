@@ -9,7 +9,7 @@ use zksync_node_framework::{
     implementations::layers::{
         healtcheck_server::HealthCheckLayer, main_node_client::MainNodeClientLayer,
         pools_layer::PoolsLayerBuilder, postgres_metrics::PostgresMetricsLayer,
-        sigint::SigintHandlerLayer,
+        prometheus_exporter::PrometheusExporterLayer, sigint::SigintHandlerLayer,
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
@@ -101,6 +101,15 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_prometheus_exporter_layer(mut self) -> anyhow::Result<Self> {
+        if let Some(prom_config) = self.config.observability.prometheus() {
+            self.node.add_layer(PrometheusExporterLayer(prom_config));
+        } else {
+            tracing::info!("No configuration for prometheus exporter, skipping");
+        }
+        Ok(self)
+    }
+
     fn add_preconditions(mut self) -> anyhow::Result<Self> {
         todo!()
     }
@@ -110,6 +119,7 @@ impl ExternalNodeBuilder {
         self = self
             .add_sigint_handler_layer()?
             .add_healthcheck_layer()?
+            .add_prometheus_exporter_layer()?
             .add_pools_layer()?
             .add_main_node_client_layer()?;
 
