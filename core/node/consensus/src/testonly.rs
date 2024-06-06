@@ -12,6 +12,8 @@ use zksync_config::{
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
 };
+use zksync_state_keeper::testonly::{l1_transaction,l2_transaction,fund};
+use zksync_test_account::Account;
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::validator;
@@ -29,7 +31,7 @@ use zksync_node_sync::{
     ExternalIO, MainNodeClient, SyncState,
 };
 use zksync_node_test_utils::{
-    create_l1_batch_metadata, create_l2_transaction, l1_batch_metadata_to_commitment_artifacts,
+    create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
 };
 /// Implements EthInterface
 /// It is enough to use MockEthereum.with_call_handler()
@@ -42,11 +44,13 @@ use zksync_state_keeper::{
     AsyncRocksdbCache, MainBatchExecutor, OutputHandler, StateKeeperPersistence,
     TreeWritesPersistence, ZkSyncStateKeeper,
 };
-use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
+use zksync_types::{
+    fee_model::{BatchFeeInput,L1PeggedBatchFeeModelInput},
+    Address, PriorityOpId, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::{
-    batch::{L1BatchCommit, L1BatchProof, LastBlockCommit},
+    batch::{L1BatchCommit, L1BatchWithWitness, LastBlockCommit},
     en, ConnectionPool,
 };
 
@@ -75,6 +79,8 @@ pub(super) struct StateKeeper {
     // timestamp of the last block.
     last_timestamp: u64,
     batch_sealed: bool,
+    // test L2 account
+    account: Account,
 
     fee_per_gas: u64,
     gas_per_pubdata: u64,
@@ -134,6 +140,7 @@ pub(super) struct StateKeeperRunner {
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
     rocksdb_dir: tempfile::TempDir,
     metadata_calculator: MetadataCalculator,
+    account: Account,
 }
 
 impl StateKeeper {
@@ -175,6 +182,7 @@ impl StateKeeper {
             .await
             .context("MetadataCalculator::new()")?;
         let tree_reader = metadata_calculator.tree_reader();
+        let account = Account::random();
         Ok((
             Self {
                 last_batch: cursor.l1_batch,
@@ -188,6 +196,7 @@ impl StateKeeper {
                 addr: addr.subscribe(),
                 pool: pool.clone(),
                 tree_reader,
+                account: account.clone(),
             },
             StateKeeperRunner {
                 actions_queue,
@@ -196,6 +205,7 @@ impl StateKeeper {
                 addr,
                 rocksdb_dir,
                 metadata_calculator,
+                account,
             },
         ))
     }
@@ -211,7 +221,10 @@ impl StateKeeper {
                     protocol_version: ProtocolVersionId::latest(),
                     validation_computational_gas_limit: u32::MAX,
                     operator_address: GenesisParams::mock().config().fee_account,
-                    fee_input: Default::default(),
+                    fee_input: BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
+                        fair_l2_gas_price: 10,
+                        l1_gas_price: 100,
+                    }),
                     first_l2_block: L2BlockParams {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
@@ -238,7 +251,8 @@ impl StateKeeper {
         assert!(transactions > 0);
         let mut actions = vec![self.open_block()];
         for _ in 0..transactions {
-            let tx = create_l2_transaction(self.fee_per_gas, self.gas_per_pubdata);
+            // TODO: also include L1 transactions.
+            let tx = l1_transaction(&mut self.account, PriorityOpId(1));
             actions.push(FetchedTransaction::new(tx.into()).into());
         }
         actions.push(SyncAction::SealL2Block);
@@ -306,8 +320,8 @@ impl StateKeeper {
         &self,
         ctx: &ctx::Ctx,
         n: L1BatchNumber,
-    ) -> ctx::Result<L1BatchProof> {
-        L1BatchProof::load(ctx, n, &self.pool, &self.tree_reader).await
+    ) -> ctx::Result<L1BatchWithWitness> {
+        L1BatchWithWitness::load(ctx, n, &self.pool, &self.tree_reader).await
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
@@ -447,6 +461,9 @@ impl StateKeeperRunner {
     // generator).
     pub async fn run_real(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
+            // Fund the test account.
+            //fund(&self.pool.0, &[self.account.address]).await;
+
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) =
                 StateKeeperPersistence::new(self.pool.0.clone(), Address::repeat_byte(11), 5);

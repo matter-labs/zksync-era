@@ -11,7 +11,6 @@ use zksync_consensus_roles::{
 };
 use zksync_dal::CoreDal;
 use zksync_node_test_utils::Snapshot;
-use zksync_test_account::Account;
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::*;
@@ -518,45 +517,11 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
     .unwrap();
 }
 
-fn fee(gas_limit: u32) -> Fee {
-    Fee {
-        gas_limit: U256::from(gas_limit),
-        max_fee_per_gas: SYSTEM_CONTEXT_MINIMAL_BASE_FEE.into(),
-        max_priority_fee_per_gas: U256::zero(),
-        gas_per_pubdata_limit: U256::from(DEFAULT_GAS_PER_PUBDATA),
-    }
-}
-
-fn l2_tx(&mut self) -> Transaction {
-    let fee = fee(1_000_000);
-    self.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Address::random(),
-            calldata: vec![],
-            value: Default::default(),
-            factory_deps: None,
-        },
-        Some(fee),
-    )
-}
-
-fn l1_tx(&mut self, serial_id: PriorityOpId) -> Transaction {
-    self.get_l1_tx(
-        Execute {
-            contract_address: Address::random(),
-            value: Default::default(),
-            calldata: vec![],
-            factory_deps: None,
-        },
-        serial_id.0,
-    )
-}
-
 #[tokio::test]
 async fn test_batch_proof() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
-    let mut alice = Account::random();
+    let rng = &mut ctx.rng();
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::from_genesis().await;
@@ -564,24 +529,24 @@ async fn test_batch_proof() {
         s.spawn_bg(runner.run_real(ctx));
 
         // Seal a bunch of batches.
-        let mut batches = vec![];
-        for _ in 0..5 {
-            node.seal_batch().await;
-            batches.push(node.last_sealed_batch());
-        }
-        for n in &batches[1..] {
+        //node.push_random_blocks(rng, 10).await;
+        node.push_block(1).await;
+        node.seal_batch().await;
+        pool.wait_for_batch(ctx,node.last_sealed_batch()).await?;
+        for n in 2..=node.last_sealed_batch().0 {
+            let n = L1BatchNumber(n); 
             tracing::info!("waiting for metadata of batch {n}");
-            pool.wait_for_batch(ctx, *n).await?;
+            pool.wait_for_batch(ctx, n).await?;
             let r = pool
                 .connection(ctx)
                 .await?
                 .0
                 .blocks_dal()
-                .get_l2_block_range_of_l1_batch(*n)
+                .get_l2_block_range_of_l1_batch(n)
                 .await;
             tracing::info!("r = {r:?}");
-            let proof = node.load_batch_proof(ctx, *n).await?;
-            let commit = node.load_batch_commit(ctx, *n).await?;
+            let proof = node.load_batch_proof(ctx, n).await?;
+            let commit = node.load_batch_commit(ctx, n).await?;
             let p = proof.prev_batch.verify(&commit.prev_batch)?;
             let t = proof.this_batch.verify(&commit.this_batch)?;
             tracing::info!("p = {p:?}");
