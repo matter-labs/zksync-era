@@ -11,7 +11,7 @@ export async function prover(options: string[]) {
     await db.resetTest({ core: false, prover: true });
     process.chdir(process.env.ZKSYNC_HOME! + '/prover');
 
-    let cmd = `cargo test --release --locked ${options.join(' ')}`;
+    let cmd = `cargo test --release --locked -- --test-threads=1 ${options.join(' ')}`;
     console.log(`running prover unit tests with '${cmd}'`);
     await utils.spawn(cmd);
 }
