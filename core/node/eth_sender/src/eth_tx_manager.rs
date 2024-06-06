@@ -24,6 +24,7 @@ use zksync_types::{
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, EthSenderError};
+use crate::metrics::TransactionType;
 
 #[derive(Debug)]
 struct EthFees {
@@ -285,20 +286,13 @@ impl EthTxManager {
         }
 
         if let Some(blob_base_fee_per_gas) = blob_base_fee_per_gas {
-            METRICS
-                .blob_tx_used_blob_fee_per_gas
-                .observe(blob_base_fee_per_gas);
-            METRICS
-                .blob_tx_used_base_fee_per_gas
-                .observe(base_fee_per_gas);
-            METRICS
-                .blob_tx_used_priority_fee_per_gas
+            METRICS.used_blob_fee_per_gas[&TransactionType::Regular].observe(blob_base_fee_per_gas);
+            METRICS.used_base_fee_per_gas[&TransactionType::Regular].observe(base_fee_per_gas);
+            METRICS.used_priority_fee_per_gas[&TransactionType::Regular]
                 .observe(priority_fee_per_gas);
         } else {
-            METRICS.used_base_fee_per_gas.observe(base_fee_per_gas);
-            METRICS
-                .used_priority_fee_per_gas
-                .observe(priority_fee_per_gas);
+            METRICS.used_base_fee_per_gas[&TransactionType::Blob].observe(base_fee_per_gas);
+            METRICS.used_priority_fee_per_gas[&TransactionType::Blob].observe(priority_fee_per_gas);
         }
 
         let blob_gas_price = if has_blob_sidecar {
