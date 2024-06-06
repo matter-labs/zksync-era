@@ -113,6 +113,26 @@ impl TxCache {
         }
     }
 
+    async fn step(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+        let addresses: Vec<_> = {
+            // Split into 2 statements for readability.
+            let inner = self.inner.read().await;
+            inner.nonces_by_account.keys().copied().collect()
+        };
+        let mut storage = pool.connection_tagged("api").await?;
+        let nonces_for_accounts = storage
+            .storage_web3_dal()
+            .get_nonces_for_addresses(&addresses)
+            .await?;
+        drop(storage); // Don't hold both `storage` and lock on `inner` at the same time.
+
+        self.inner
+            .write()
+            .await
+            .collect_garbage(&nonces_for_accounts);
+        Ok(())
+    }
+
     async fn run_updates(
         self,
         pool: ConnectionPool<Core>,
@@ -138,30 +158,11 @@ impl TxCache {
             return Ok(());
         }
 
-        loop {
-            if *stop_receiver.borrow() {
-                return Ok(());
-            }
-
-            let addresses: Vec<_> = {
-                // Split into 2 statements for readability.
-                let inner = self.inner.read().await;
-                inner.nonces_by_account.keys().copied().collect()
-            };
-            let mut storage = pool.connection_tagged("api").await?;
-            let nonces_for_accounts = storage
-                .storage_web3_dal()
-                .get_nonces_for_addresses(&addresses)
-                .await?;
-            drop(storage); // Don't hold both `storage` and lock on `inner` at the same time.
-
-            self.inner
-                .write()
-                .await
-                .collect_garbage(&nonces_for_accounts);
-
+        while !*stop_receiver.borrow() {
+            self.step(&pool).await?;
             tokio::time::sleep(UPDATE_INTERVAL).await;
         }
+        Ok(())
     }
 }
 
@@ -328,5 +329,272 @@ impl TxSink for TxProxy {
             }));
         }
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use test_casing::test_casing;
+    use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+    use zksync_node_test_utils::{create_l2_block, create_l2_transaction};
+    use zksync_types::{get_nonce_key, web3::Bytes, L2BlockNumber, StorageLog};
+    use zksync_web3_decl::client::MockClient;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn tx_cache_basics() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
+        insert_genesis_batch(&mut storage, &params).await.unwrap();
+
+        let tx = create_l2_transaction(10, 100);
+        let send_tx_called = Arc::new(AtomicBool::new(false));
+        let main_node_client = MockClient::builder(L2::default())
+            .method("eth_sendRawTransaction", {
+                let send_tx_called = send_tx_called.clone();
+                let tx = tx.clone();
+                move |bytes: Bytes| {
+                    assert_eq!(bytes.0, tx.common_data.input_data().unwrap());
+                    send_tx_called.store(true, Ordering::Relaxed);
+                    Ok(tx.hash())
+                }
+            })
+            .build();
+
+        let proxy = TxProxy::new(pool.clone(), Box::new(main_node_client));
+        proxy
+            .submit_tx(&tx, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
+        assert!(send_tx_called.load(Ordering::Relaxed));
+
+        // Check that the transaction is present in the cache
+        assert_eq!(proxy.tx_cache.get_tx(tx.hash()).await.unwrap(), tx);
+        let found_tx = proxy
+            .lookup_tx(api::TransactionId::Hash(tx.hash()))
+            .await
+            .unwrap()
+            .expect("no transaction");
+        assert_eq!(found_tx.hash, tx.hash());
+
+        let pending_nonce = proxy
+            .lookup_pending_nonce(tx.initiator_account(), 0)
+            .await
+            .unwrap()
+            .expect("no nonce");
+        assert_eq!(pending_nonce, tx.nonce());
+
+        let tx_details = proxy
+            .lookup_tx_details(tx.hash())
+            .await
+            .unwrap()
+            .expect("no transaction");
+        assert_eq!(tx_details.initiator_address, tx.initiator_account());
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum CacheUpdateMethod {
+        BackgroundTask,
+        Query,
+        QueryDetails,
+    }
+
+    impl CacheUpdateMethod {
+        const ALL: [Self; 3] = [Self::BackgroundTask, Self::Query, Self::QueryDetails];
+
+        async fn apply(self, proxy: &TxProxy, tx_hash: H256) {
+            match self {
+                CacheUpdateMethod::BackgroundTask => {
+                    proxy.tx_cache.step(&proxy.pool).await.unwrap();
+                }
+                CacheUpdateMethod::Query => {
+                    let looked_up_tx = proxy
+                        .lookup_tx(api::TransactionId::Hash(tx_hash))
+                        .await
+                        .unwrap();
+                    assert!(looked_up_tx.is_none());
+                }
+                CacheUpdateMethod::QueryDetails => {
+                    let looked_up_tx = proxy.lookup_tx_details(tx_hash).await.unwrap();
+                    assert!(looked_up_tx.is_none());
+                }
+            }
+        }
+    }
+
+    #[test_casing(3, CacheUpdateMethod::ALL)]
+    #[tokio::test]
+    async fn removing_sealed_transaction_from_cache(cache_update_method: CacheUpdateMethod) {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
+        insert_genesis_batch(&mut storage, &params).await.unwrap();
+
+        let tx = create_l2_transaction(10, 100);
+        let main_node_client = MockClient::builder(L2::default())
+            .method("eth_sendRawTransaction", |_bytes: Bytes| Ok(H256::zero()))
+            .build();
+
+        // Add transaction to the cache
+        let proxy = TxProxy::new(pool.clone(), Box::new(main_node_client));
+        proxy
+            .submit_tx(&tx, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
+        assert_eq!(proxy.tx_cache.get_tx(tx.hash()).await.unwrap(), tx);
+        {
+            let cache_inner = proxy.tx_cache.inner.read().await;
+            assert!(cache_inner.tx_cache.contains_key(&tx.hash()));
+            assert!(cache_inner
+                .nonces_by_account
+                .contains_key(&tx.initiator_account()));
+            assert!(cache_inner
+                .tx_hashes_by_initiator
+                .contains_key(&(tx.initiator_account(), Nonce(0))));
+        }
+
+        // Emulate the transaction getting sealed.
+        storage
+            .blocks_dal()
+            .insert_l2_block(&create_l2_block(1))
+            .await
+            .unwrap();
+        let nonce_key = get_nonce_key(&tx.initiator_account());
+        let nonce_log = StorageLog::new_write_log(nonce_key, H256::from_low_u64_be(1));
+        storage
+            .storage_logs_dal()
+            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), vec![nonce_log])])
+            .await
+            .unwrap();
+
+        cache_update_method.apply(&proxy, tx.hash()).await;
+
+        // Transaction should be removed from the cache
+        assert!(proxy.tx_cache.get_tx(tx.hash()).await.is_none());
+        {
+            let cache_inner = proxy.tx_cache.inner.read().await;
+            assert!(!cache_inner.tx_cache.contains_key(&tx.hash()));
+            assert!(!cache_inner
+                .nonces_by_account
+                .contains_key(&tx.initiator_account()));
+            assert!(!cache_inner
+                .tx_hashes_by_initiator
+                .contains_key(&(tx.initiator_account(), Nonce(0))));
+        }
+
+        let looked_up_tx = proxy
+            .lookup_tx(api::TransactionId::Hash(tx.hash()))
+            .await
+            .unwrap();
+        assert!(looked_up_tx.is_none());
+        let looked_up_tx = proxy.lookup_tx_details(tx.hash()).await.unwrap();
+        assert!(looked_up_tx.is_none());
+    }
+
+    #[test_casing(3, CacheUpdateMethod::ALL)]
+    #[tokio::test]
+    async fn removing_replaced_transaction_from_cache(cache_update_method: CacheUpdateMethod) {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
+        insert_genesis_batch(&mut storage, &params).await.unwrap();
+
+        let tx = create_l2_transaction(10, 100);
+        let mut replacing_tx = create_l2_transaction(10, 100);
+        assert_eq!(tx.nonce(), replacing_tx.nonce());
+        replacing_tx.common_data.initiator_address = tx.initiator_account();
+        let mut future_tx = create_l2_transaction(10, 100);
+        future_tx.common_data.initiator_address = tx.initiator_account();
+        future_tx.common_data.nonce = Nonce(1);
+
+        let main_node_client = MockClient::builder(L2::default())
+            .method("eth_sendRawTransaction", |_bytes: Bytes| Ok(H256::zero()))
+            .build();
+        let proxy = TxProxy::new(pool.clone(), Box::new(main_node_client));
+        proxy
+            .submit_tx(&tx, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
+        proxy
+            .submit_tx(&replacing_tx, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
+        proxy
+            .submit_tx(&future_tx, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
+        {
+            let cache_inner = proxy.tx_cache.inner.read().await;
+            assert_eq!(cache_inner.nonces_by_account.len(), 1);
+            let account_nonces = &cache_inner.nonces_by_account[&tx.initiator_account()];
+            assert_eq!(*account_nonces, BTreeSet::from([Nonce(0), Nonce(1)]));
+            assert_eq!(cache_inner.tx_hashes_by_initiator.len(), 2);
+            assert_eq!(
+                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(0))],
+                HashSet::from([tx.hash(), replacing_tx.hash()])
+            );
+            assert_eq!(
+                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1))],
+                HashSet::from([future_tx.hash()])
+            );
+        }
+
+        // Emulate the replacing transaction getting sealed.
+        storage
+            .blocks_dal()
+            .insert_l2_block(&create_l2_block(1))
+            .await
+            .unwrap();
+        let nonce_key = get_nonce_key(&tx.initiator_account());
+        let nonce_log = StorageLog::new_write_log(nonce_key, H256::from_low_u64_be(1));
+        storage
+            .storage_logs_dal()
+            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), vec![nonce_log])])
+            .await
+            .unwrap();
+
+        cache_update_method.apply(&proxy, replacing_tx.hash()).await;
+
+        // Original and replacing transactions should be removed from the cache, and the future transaction should be retained.
+        {
+            let cache_inner = proxy.tx_cache.inner.read().await;
+            assert!(!cache_inner.tx_cache.contains_key(&tx.hash()));
+            assert!(!cache_inner.tx_cache.contains_key(&replacing_tx.hash()));
+            assert_eq!(
+                cache_inner.nonces_by_account[&tx.initiator_account()],
+                BTreeSet::from([Nonce(1)])
+            );
+            assert!(!cache_inner
+                .tx_hashes_by_initiator
+                .contains_key(&(tx.initiator_account(), Nonce(0))));
+            assert_eq!(
+                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1))],
+                HashSet::from([future_tx.hash()])
+            );
+        }
+
+        for missing_hash in [tx.hash(), replacing_tx.hash()] {
+            let looked_up_tx = proxy
+                .lookup_tx(api::TransactionId::Hash(missing_hash))
+                .await
+                .unwrap();
+            assert!(looked_up_tx.is_none());
+            let looked_up_tx = proxy.lookup_tx_details(missing_hash).await.unwrap();
+            assert!(looked_up_tx.is_none());
+        }
+        proxy
+            .lookup_tx(api::TransactionId::Hash(future_tx.hash()))
+            .await
+            .unwrap()
+            .expect("no transaction");
+        proxy
+            .lookup_tx_details(future_tx.hash())
+            .await
+            .unwrap()
+            .expect("no transaction");
     }
 }
