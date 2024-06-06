@@ -26,9 +26,13 @@ impl ProtectiveReadsWriter {
         pool: ConnectionPool<Core>,
         rocksdb_path: String,
         chain_id: L2ChainId,
+        first_processed_batch: L1BatchNumber,
         window_size: u32,
     ) -> anyhow::Result<(Self, ProtectiveReadsWriterTasks)> {
-        let io = ProtectiveReadsIo { window_size };
+        let io = ProtectiveReadsIo {
+            first_processed_batch,
+            window_size,
+        };
         let (loader, loader_task) =
             VmRunnerStorage::new(pool.clone(), rocksdb_path, io.clone(), chain_id).await?;
         let output_handler_factory = ProtectiveReadsOutputHandlerFactory { pool: pool.clone() };
@@ -74,6 +78,7 @@ pub struct ProtectiveReadsWriterTasks {
 
 #[derive(Debug, Clone)]
 pub struct ProtectiveReadsIo {
+    first_processed_batch: L1BatchNumber,
     window_size: u32,
 }
 
@@ -89,7 +94,7 @@ impl VmRunnerIo for ProtectiveReadsIo {
     ) -> anyhow::Result<L1BatchNumber> {
         Ok(conn
             .vm_runner_dal()
-            .get_protective_reads_latest_processed_batch()
+            .get_protective_reads_latest_processed_batch(self.first_processed_batch)
             .await?)
     }
 

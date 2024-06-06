@@ -43,20 +43,16 @@ impl WiringLayer for ProtectiveReadsWriterLayer {
             // One for `ConcurrentOutputHandlerFactoryTask`/`VmRunner` as they need occasional access
             // to DB for querying last processed batch and last ready to be loaded batch.
             //
-            // `self.protective_reads_writer_config` connections for `ProtectiveReadsOutputHandlerFactory`
+            // `window_size` connections for `ProtectiveReadsOutputHandlerFactory`
             // as there can be multiple output handlers holding multi-second connections to write
             // large amount of protective reads.
             master_pool
-                .get_custom(
-                    self.protective_reads_writer_config
-                        .protective_reads_window_size
-                        + 2,
-                )
+                .get_custom(self.protective_reads_writer_config.window_size + 2)
                 .await?,
-            self.protective_reads_writer_config.protective_reads_db_path,
+            self.protective_reads_writer_config.db_path,
             self.zksync_network_id,
-            self.protective_reads_writer_config
-                .protective_reads_window_size,
+            self.protective_reads_writer_config.first_processed_batch,
+            self.protective_reads_writer_config.window_size,
         )
         .await?;
 
