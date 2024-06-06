@@ -54,14 +54,14 @@ async fn main() -> anyhow::Result<()> {
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
 
     let proof_submitter = PeriodicApiStruct {
-        blob_store: store_factory.create_store().await,
+        blob_store: store_factory.create_store().await?,
         pool: pool.clone(),
         api_url: format!("{}{SUBMIT_PROOF_PATH}", config.api_url),
         poll_duration: config.api_poll_duration(),
         client: Client::new(),
     };
     let proof_gen_data_fetcher = PeriodicApiStruct {
-        blob_store: store_factory.create_store().await,
+        blob_store: store_factory.create_store().await?,
         pool,
         api_url: format!("{}{PROOF_GENERATION_DATA_PATH}", config.api_url),
         poll_duration: config.api_poll_duration(),

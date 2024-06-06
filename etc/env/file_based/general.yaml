@@ -321,3 +321,8 @@ observability:
   opentelemetry:
     endpoint: unset
     level: debug
+
+protective_reads_writer:
+  db_path: "./db/main/protective_reads"
+  window_size: 3
+  first_processed_batch: 0

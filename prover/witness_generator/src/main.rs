@@ -41,7 +41,7 @@ mod utils;
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
 use zksync_dal::Core;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -126,7 +126,7 @@ async fn main() -> anyhow::Result<()> {
             .context("failed to build a prover_connection_pool")?;
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let protocol_version = ProtocolSemanticVersion::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
     let vk_commitments_in_db = match prover_connection_pool
         .connection()
         .await
@@ -203,58 +203,53 @@ async fn main() -> anyhow::Result<()> {
                                 .context("ObjectStoreConfig::from_env()")?,
                         )
                         .create_store()
-                        .await,
+                        .await?,
                     ),
                 };
                 let generator = BasicWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     public_blob_store,
                     connection_pool.clone(),
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::LeafAggregation => {
                 let generator = LeafAggregationWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::NodeAggregation => {
                 let generator = NodeAggregationWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::RecursionTip => {
                 let generator = RecursionTipWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::Scheduler => {
                 let generator = SchedulerWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
         };

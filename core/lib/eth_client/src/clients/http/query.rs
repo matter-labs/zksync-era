@@ -3,11 +3,11 @@ use std::fmt;
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
 use zksync_types::{web3, Address, L1ChainId, H256, U256, U64};
-use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError};
+use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult};
 
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
 use crate::{
-    types::{Error, ExecutedTxStatus, FailureInfo},
+    types::{ExecutedTxStatus, FailureInfo},
     EthInterface, RawTransactionBytes,
 };
 
@@ -16,15 +16,14 @@ impl<T> EthInterface for T
 where
     T: L1EthNamespaceClient + fmt::Debug + Send + Sync,
 {
-    async fn fetch_chain_id(&self) -> Result<L1ChainId, Error> {
+    async fn fetch_chain_id(&self) -> EnrichedClientResult<L1ChainId> {
         COUNTERS.call[&(Method::ChainId, self.component())].inc();
         let latency = LATENCIES.direct[&Method::ChainId].start();
         let raw_chain_id = self.chain_id().rpc_context("chain_id").await?;
         latency.observe();
         let chain_id = u64::try_from(raw_chain_id).map_err(|err| {
             let err = ClientError::Custom(format!("invalid chainId: {err}"));
-            let err = EnrichedClientError::new(err, "chain_id").with_arg("chain_id", &raw_chain_id);
-            Error::EthereumGateway(err)
+            EnrichedClientError::new(err, "chain_id").with_arg("chain_id", &raw_chain_id)
         })?;
         Ok(L1ChainId(chain_id))
     }
@@ -33,7 +32,7 @@ where
         &self,
         account: Address,
         block: web3::BlockNumber,
-    ) -> Result<U256, Error> {
+    ) -> EnrichedClientResult<U256> {
         COUNTERS.call[&(Method::NonceAtForAccount, self.component())].inc();
         let latency = LATENCIES.direct[&Method::NonceAtForAccount].start();
         let nonce = self
@@ -46,7 +45,7 @@ where
         Ok(nonce)
     }
 
-    async fn block_number(&self) -> Result<U64, Error> {
+    async fn block_number(&self) -> EnrichedClientResult<U64> {
         COUNTERS.call[&(Method::BlockNumber, self.component())].inc();
         let latency = LATENCIES.direct[&Method::BlockNumber].start();
         let block_number = self
@@ -57,7 +56,7 @@ where
         Ok(block_number)
     }
 
-    async fn get_gas_price(&self) -> Result<U256, Error> {
+    async fn get_gas_price(&self) -> EnrichedClientResult<U256> {
         COUNTERS.call[&(Method::GetGasPrice, self.component())].inc();
         let latency = LATENCIES.direct[&Method::GetGasPrice].start();
         let network_gas_price = self.gas_price().rpc_context("gas_price").await?;
@@ -65,7 +64,7 @@ where
         Ok(network_gas_price)
     }
 
-    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
+    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> EnrichedClientResult<H256> {
         let latency = LATENCIES.direct[&Method::SendRawTx].start();
         let tx = self
             .send_raw_transaction(web3::Bytes(tx.0))
@@ -79,7 +78,7 @@ where
         &self,
         upto_block: usize,
         block_count: usize,
-    ) -> Result<Vec<u64>, Error> {
+    ) -> EnrichedClientResult<Vec<u64>> {
         const MAX_REQUEST_CHUNK: usize = 1024;
 
         COUNTERS.call[&(Method::BaseFeeHistory, self.component())].inc();
@@ -111,7 +110,7 @@ where
         Ok(history.into_iter().map(|fee| fee.as_u64()).collect())
     }
 
-    async fn get_pending_block_base_fee_per_gas(&self) -> Result<U256, Error> {
+    async fn get_pending_block_base_fee_per_gas(&self) -> EnrichedClientResult<U256> {
         COUNTERS.call[&(Method::PendingBlockBaseFee, self.component())].inc();
         let latency = LATENCIES.direct[&Method::PendingBlockBaseFee].start();
 
@@ -140,7 +139,7 @@ where
         Ok(block.base_fee_per_gas.unwrap())
     }
 
-    async fn get_tx_status(&self, hash: H256) -> Result<Option<ExecutedTxStatus>, Error> {
+    async fn get_tx_status(&self, hash: H256) -> EnrichedClientResult<Option<ExecutedTxStatus>> {
         COUNTERS.call[&(Method::GetTxStatus, self.component())].inc();
         let latency = LATENCIES.direct[&Method::GetTxStatus].start();
 
@@ -162,7 +161,7 @@ where
         Ok(res)
     }
 
-    async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error> {
+    async fn failure_reason(&self, tx_hash: H256) -> EnrichedClientResult<Option<FailureInfo>> {
         let latency = LATENCIES.direct[&Method::FailureReason].start();
         let transaction = self
             .get_transaction_by_hash(tx_hash)
@@ -218,7 +217,7 @@ where
                                 gas_limit,
                             }))
                         } else {
-                            Err(err.into())
+                            Err(err)
                         }
                     }
                     Ok(_) => Ok(None),
@@ -231,7 +230,7 @@ where
         }
     }
 
-    async fn get_tx(&self, hash: H256) -> Result<Option<web3::Transaction>, Error> {
+    async fn get_tx(&self, hash: H256) -> EnrichedClientResult<Option<web3::Transaction>> {
         COUNTERS.call[&(Method::GetTx, self.component())].inc();
         let tx = self
             .get_transaction_by_hash(hash)
@@ -245,7 +244,7 @@ where
         &self,
         request: web3::CallRequest,
         block: Option<web3::BlockId>,
-    ) -> Result<web3::Bytes, Error> {
+    ) -> EnrichedClientResult<web3::Bytes> {
         let latency = LATENCIES.direct[&Method::CallContractFunction].start();
         let block = block.unwrap_or_else(|| web3::BlockNumber::Latest.into());
         let output_bytes = self
@@ -258,7 +257,10 @@ where
         Ok(output_bytes)
     }
 
-    async fn tx_receipt(&self, tx_hash: H256) -> Result<Option<web3::TransactionReceipt>, Error> {
+    async fn tx_receipt(
+        &self,
+        tx_hash: H256,
+    ) -> EnrichedClientResult<Option<web3::TransactionReceipt>> {
         COUNTERS.call[&(Method::TxReceipt, self.component())].inc();
         let latency = LATENCIES.direct[&Method::TxReceipt].start();
         let receipt = self
@@ -270,7 +272,7 @@ where
         Ok(receipt)
     }
 
-    async fn eth_balance(&self, address: Address) -> Result<U256, Error> {
+    async fn eth_balance(&self, address: Address) -> EnrichedClientResult<U256> {
         COUNTERS.call[&(Method::EthBalance, self.component())].inc();
         let latency = LATENCIES.direct[&Method::EthBalance].start();
         let balance = self
@@ -282,19 +284,22 @@ where
         Ok(balance)
     }
 
-    async fn logs(&self, filter: web3::Filter) -> Result<Vec<web3::Log>, Error> {
+    async fn logs(&self, filter: &web3::Filter) -> EnrichedClientResult<Vec<web3::Log>> {
         COUNTERS.call[&(Method::Logs, self.component())].inc();
         let latency = LATENCIES.direct[&Method::Logs].start();
         let logs = self
             .get_logs(filter.clone())
             .rpc_context("get_logs")
-            .with_arg("filter", &filter)
+            .with_arg("filter", filter)
             .await?;
         latency.observe();
         Ok(logs)
     }
 
-    async fn block(&self, block_id: web3::BlockId) -> Result<Option<web3::Block<H256>>, Error> {
+    async fn block(
+        &self,
+        block_id: web3::BlockId,
+    ) -> EnrichedClientResult<Option<web3::Block<H256>>> {
         COUNTERS.call[&(Method::Block, self.component())].inc();
         let latency = LATENCIES.direct[&Method::Block].start();
         let block = match block_id {

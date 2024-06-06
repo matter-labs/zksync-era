@@ -9,15 +9,18 @@
  * sure that the test is maintained does not get broken.
  *
  */
-import * as utils from 'zk/build/utils';
+import * as utils from 'utils';
 import * as fs from 'fs';
 import { TestMaster } from '../src/index';
 
 import * as zksync from 'zksync-ethers';
 import { BigNumber, ethers } from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
+import { keccak256 } from 'ethers/lib/utils';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 
 const UINT32_MAX = BigNumber.from(2).pow(32).sub(1);
+const MAX_GAS_PER_PUBDATA = 50_000;
 
 const logs = fs.createWriteStream('fees.log', { flags: 'a' });
 
@@ -168,6 +171,15 @@ testFees('Test fees', () => {
         const receipt = await tx.wait();
         expect(receipt.gasUsed.gt(UINT32_MAX)).toBeTruthy();
 
+        // Let's also check that the same transaction would work as eth_call
+        const systemContextArtifact = getTestContract('ISystemContext');
+        const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
+        const systemContextGasPerPubdataByte = await systemContext.gasPerPubdataByte();
+        expect(systemContextGasPerPubdataByte.toNumber()).toEqual(MAX_GAS_PER_PUBDATA);
+
+        const dataHash = await l1Messenger.callStatic.sendToL1(largeData, { type: 0 });
+        expect(dataHash).toEqual(keccak256(largeData));
+
         // Secondly, let's test an unsuccessful transaction with large refund.
 
         // The size of the data has increased, so the previous gas limit is not enough.
@@ -246,10 +258,10 @@ async function updateReport(
     const l2EstimatedPriceAsNumber = +ethers.utils.formatEther(estimatedPrice);
 
     const gasReport = `Gas price ${newL1GasPrice / 1000000000} gwei:
-    L1 cost ${expectedL1Price}, 
+    L1 cost ${expectedL1Price},
     L2 estimated cost: ${l2EstimatedPriceAsNumber}
     Estimated Gain: ${expectedL1Price / l2EstimatedPriceAsNumber}
-    L2 cost: ${l2PriceAsNumber}, 
+    L2 cost: ${l2PriceAsNumber},
     Gain: ${expectedL1Price / l2PriceAsNumber}\n`;
     console.log(gasReport);
 

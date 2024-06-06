@@ -1,5 +1,5 @@
 import { BigNumberish } from '@ethersproject/bignumber';
-import { Bytes, BytesLike, ethers } from 'ethers';
+import { BytesLike, ethers } from 'ethers';
 import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-contracts/typechain';
 import {
     DefaultUpgradeFactory as DefaultUpgradeFactoryL1,
@@ -26,7 +26,7 @@ import {
 } from './utils';
 import fs from 'fs';
 import { Command } from 'commander';
-import { web3Url } from 'zk/build/utils';
+import { web3Url } from 'utils';
 import * as path from 'path';
 
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);

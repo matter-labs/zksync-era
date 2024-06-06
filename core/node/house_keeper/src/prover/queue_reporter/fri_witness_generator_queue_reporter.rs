@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::JobCountStatistics, ProtocolVersionId,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
+    prover_dal::JobCountStatistics,
 };
 
 use crate::{periodic_job::PeriodicJob, prover::metrics::SERVER_METRICS};
@@ -27,7 +28,7 @@ impl FriWitnessGeneratorQueueReporter {
 
     async fn get_job_statistics(
         &self,
-    ) -> HashMap<(AggregationRound, ProtocolVersionId), JobCountStatistics> {
+    ) -> HashMap<(AggregationRound, ProtocolSemanticVersion), JobCountStatistics> {
         let mut conn = self.pool.connection().await.unwrap();
         let mut result = HashMap::new();
         result.extend(
@@ -62,7 +63,7 @@ impl FriWitnessGeneratorQueueReporter {
 
 fn emit_metrics_for_round(
     round: AggregationRound,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
     stats: &JobCountStatistics,
 ) {
     if stats.queued > 0 || stats.in_progress > 0 {
@@ -95,7 +96,7 @@ impl PeriodicJob for FriWitnessGeneratorQueueReporter {
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stats_for_all_rounds = self.get_job_statistics().await;
-        let mut aggregated = HashMap::<ProtocolVersionId, JobCountStatistics>::new();
+        let mut aggregated = HashMap::<ProtocolSemanticVersion, JobCountStatistics>::new();
         for ((round, protocol_version), stats) in stats_for_all_rounds {
             emit_metrics_for_round(round, protocol_version, &stats);
 

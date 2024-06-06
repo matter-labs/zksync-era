@@ -692,7 +692,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#cd631c9a1d61ec21d7bd22eb74949d43ecfad0fd"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -709,7 +709,6 @@ dependencies = [
  "lazy_static",
  "num-modular",
  "num_cpus",
- "packed_simd",
  "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git)",
  "rand 0.8.5",
  "rayon",
@@ -1533,7 +1532,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#cd631c9a1d61ec21d7bd22eb74949d43ecfad0fd"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.69",
@@ -1562,9 +1561,9 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
-version = "4.1.1"
+version = "4.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e89b8c6a2e4b1f45971ad09761aafb85514a84744b67a95e32c3cc1352d1f65c"
+checksum = "0a677b8922c94e01bdbb12126b0bc852f00447528dee1782229af9c720c3f348"
 dependencies = [
  "cfg-if 1.0.0",
  "cpufeatures",
@@ -4206,16 +4205,6 @@ dependencies = [
  "elliptic-curve 0.13.7",
  "primeorder",
  "sha2 0.10.8",
-]
-
-[[package]]
-name = "packed_simd"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f9f08af0c877571712e2e3e686ad79efad9657dbf0f7c3c8ba943ff6c38932d"
-dependencies = [
- "cfg-if 1.0.0",
- "num-traits",
 ]
 
 [[package]]
@@ -7928,7 +7917,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#28fe577bbb2b95c18d3959ba3dd37ca8ce5bd865"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#b7a86c739e8a8f88e788e90893c6e7496f6d7dfc"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
@@ -8024,6 +8013,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
+ "futures 0.3.28",
  "serde",
  "tempfile",
  "test-casing",
@@ -8595,6 +8586,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_concurrency",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -8605,7 +8597,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.5.1"
+version = "24.7.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8925,6 +8917,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
+ "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",
@@ -8949,12 +8942,14 @@ dependencies = [
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
  "zksync_queued_job_processor",
+ "zksync_reorg_detector",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
  "zksync_tee_verifier_input_producer",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_runner",
  "zksync_web3_decl",
 ]
 
@@ -8987,6 +8982,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
+ "once_cell",
  "serde",
  "test-casing",
  "thiserror",
@@ -9029,6 +9025,7 @@ name = "zksync_object_store"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "bincode",
  "flate2",
@@ -9036,6 +9033,7 @@ dependencies = [
  "google-cloud-storage",
  "http",
  "prost 0.12.1",
+ "rand 0.8.5",
  "serde_json",
  "tempfile",
  "tokio",

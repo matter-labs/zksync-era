@@ -441,8 +441,35 @@ pub fn get_max_batch_gas_limit(version: VmVersion) -> u64 {
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::BLOCK_GAS_LIMIT as u64,
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::BLOCK_GAS_LIMIT as u64,
-        VmVersion::Vm1_5_0SmallBootloaderMemory => crate::vm_latest::constants::BATCH_GAS_LIMIT,
-        VmVersion::Vm1_5_0IncreasedBootloaderMemory => crate::vm_latest::constants::BATCH_GAS_LIMIT,
+        VmVersion::Vm1_5_0SmallBootloaderMemory | VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
+            crate::vm_latest::constants::BATCH_GAS_LIMIT
+        }
+    }
+}
+
+pub fn get_eth_call_gas_limit(version: VmVersion) -> u64 {
+    match version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::utils::ETH_CALL_GAS_LIMIT as u64
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::utils::ETH_CALL_GAS_LIMIT as u64
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::utils::ETH_CALL_GAS_LIMIT as u64,
+        VmVersion::VmVirtualBlocks => {
+            crate::vm_virtual_blocks::constants::ETH_CALL_GAS_LIMIT as u64
+        }
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::constants::ETH_CALL_GAS_LIMIT as u64
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::ETH_CALL_GAS_LIMIT as u64
+        }
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::ETH_CALL_GAS_LIMIT as u64,
+        VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::ETH_CALL_GAS_LIMIT as u64,
+        VmVersion::Vm1_5_0SmallBootloaderMemory | VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
+            crate::vm_latest::constants::ETH_CALL_GAS_LIMIT
+        }
     }
 }
 

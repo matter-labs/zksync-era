@@ -10,7 +10,7 @@ use zksync_web3_decl::client::{DynClient, L1};
 
 use super::{Method, LATENCIES};
 use crate::{
-    types::{encode_blob_tx_with_sidecar, Error, SignedCallResult},
+    types::{encode_blob_tx_with_sidecar, ContractCallError, SignedCallResult, SigningError},
     BoundEthInterface, CallFunctionArgs, EthInterface, Options, RawTransactionBytes,
 };
 
@@ -114,7 +114,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
-    ) -> Result<SignedCallResult, Error> {
+    ) -> Result<SignedCallResult, SigningError> {
         let latency = LATENCIES.direct[&Method::SignPreparedTx].start();
         // Fetch current max priority fee per gas
         let max_priority_fee_per_gas = match options.max_priority_fee_per_gas {
@@ -124,10 +124,10 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
 
         if options.transaction_type == Some(EIP_4844_TX_TYPE.into()) {
             if options.max_fee_per_blob_gas.is_none() {
-                return Err(Error::Eip4844MissingMaxFeePerBlobGas);
+                return Err(SigningError::Eip4844MissingMaxFeePerBlobGas);
             }
             if options.blob_versioned_hashes.is_none() {
-                return Err(Error::Eip4844MissingBlobVersionedHashes);
+                return Err(SigningError::Eip4844MissingBlobVersionedHashes);
             }
         }
 
@@ -140,7 +140,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         };
 
         if max_fee_per_gas < max_priority_fee_per_gas {
-            return Err(Error::WrongFeeProvided(
+            return Err(SigningError::WrongFeeProvided(
                 max_fee_per_gas,
                 max_priority_fee_per_gas,
             ));
@@ -197,7 +197,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         token_address: Address,
         address: Address,
         erc20_abi: &ethabi::Contract,
-    ) -> Result<U256, Error> {
+    ) -> Result<U256, ContractCallError> {
         let latency = LATENCIES.direct[&Method::Allowance].start();
         let allowance: U256 =
             CallFunctionArgs::new("allowance", (self.inner.sender_account, address))
