@@ -18,6 +18,7 @@ use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHeader, StorageOracleInfo},
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
+    l2_to_l1_log::{self, L2ToL1Log, UserL2ToL1Log},
     writes::TreeWrite,
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
@@ -27,6 +28,7 @@ use crate::{
     models::{
         parse_protocol_version,
         storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader},
+        storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
     },
     Core, CoreDal,
@@ -249,7 +251,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         eth_tx_id: u32,
     ) -> DalResult<Vec<L1BatchHeader>> {
-        let l1_batches = sqlx::query_as!(
+        let storage_l1_batches = sqlx::query_as!(
             StorageL1BatchHeader,
             r#"
             SELECT
@@ -257,7 +259,6 @@ impl BlocksDal<'_, '_> {
                 l1_tx_count,
                 l2_tx_count,
                 timestamp,
-                l2_to_l1_logs,
                 l2_to_l1_messages,
                 bloom,
                 priority_ops_onchain_data,
@@ -281,7 +282,51 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        Ok(l1_batches.into_iter().map(Into::into).collect())
+        let mut l1_batches = vec![];
+
+        for batch in storage_l1_batches {
+            let l2_to_l1_logs = self.get_l2_to_l1_logs_by_number(batch.number).await?;
+            l1_batches.push(batch.into_l1_batch_header_with_logs(l2_to_l1_logs));
+        }
+
+        Ok(l1_batches)
+    }
+
+    async fn get_l2_to_l1_logs_by_number(&mut self, number: i64) -> DalResult<Vec<UserL2ToL1Log>> {
+        let logs = sqlx::query_as!(
+            StorageL2ToL1Log,
+            r#"
+            SELECT
+                miniblock_number,
+                log_index_in_miniblock,
+                log_index_in_tx,
+                tx_hash,
+                NULL::bytea AS "block_hash",
+                NULL::BIGINT AS "l1_batch_number?",
+                shard_id,
+                is_service,
+                tx_index_in_miniblock,
+                tx_index_in_l1_batch,
+                sender,
+                key,
+                value
+            FROM
+                l2_to_l1_logs
+                JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
+            WHERE
+                l1_batch_number = $1
+            "#,
+            number
+        )
+        .instrument("get_l2_to_l1_logs_by_number")
+        .with_arg("number", &number)
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .map(|log| UserL2ToL1Log(log.into()))
+        .collect();
+
+        Ok(logs)
     }
 
     async fn get_storage_l1_batch(
@@ -300,7 +345,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
                 compressed_initial_writes,
@@ -337,7 +381,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<L1BatchHeader>> {
-        Ok(sqlx::query_as!(
+        let storage_l1_batch_header = sqlx::query_as!(
             StorageL1BatchHeader,
             r#"
             SELECT
@@ -345,7 +389,6 @@ impl BlocksDal<'_, '_> {
                 l1_tx_count,
                 l2_tx_count,
                 timestamp,
-                l2_to_l1_logs,
                 l2_to_l1_messages,
                 bloom,
                 priority_ops_onchain_data,
@@ -365,8 +408,18 @@ impl BlocksDal<'_, '_> {
         .instrument("get_l1_batch_header")
         .with_arg("number", &number)
         .fetch_optional(self.storage)
-        .await?
-        .map(Into::into))
+        .await?;
+
+        if let Some(storage_l1_batch_header) = storage_l1_batch_header {
+            let l2_to_l1_logs = self
+                .get_l2_to_l1_logs_by_number(storage_l1_batch_header.number)
+                .await?;
+            Ok(Some(
+                storage_l1_batch_header.into_l1_batch_header_with_logs(l2_to_l1_logs),
+            ))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Returns initial bootloader heap content for the specified L1 batch.
@@ -555,11 +608,6 @@ impl BlocksDal<'_, '_> {
             .iter()
             .map(|data| data.clone().into())
             .collect();
-        let l2_to_l1_logs: Vec<_> = header
-            .l2_to_l1_logs
-            .iter()
-            .map(|log| log.0.to_bytes().to_vec())
-            .collect();
         let system_logs = header
             .system_logs
             .iter()
@@ -581,7 +629,6 @@ impl BlocksDal<'_, '_> {
                     l1_tx_count,
                     l2_tx_count,
                     timestamp,
-                    l2_to_l1_logs,
                     l2_to_l1_messages,
                     bloom,
                     priority_ops_onchain_data,
@@ -623,7 +670,6 @@ impl BlocksDal<'_, '_> {
                     $18,
                     $19,
                     $20,
-                    $21,
                     NOW(),
                     NOW()
                 )
@@ -632,7 +678,6 @@ impl BlocksDal<'_, '_> {
             i32::from(header.l1_tx_count),
             i32::from(header.l2_tx_count),
             header.timestamp as i64,
-            &l2_to_l1_logs,
             &header.l2_to_l1_messages,
             header.bloom.as_bytes(),
             &priority_onchain_data,
@@ -1001,7 +1046,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
                 compressed_initial_writes,
@@ -1182,7 +1226,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
                 compressed_initial_writes,
@@ -1263,7 +1306,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
                 compressed_initial_writes,
@@ -1337,7 +1379,6 @@ impl BlocksDal<'_, '_> {
                         priority_ops_onchain_data,
                         hash,
                         commitment,
-                        l2_to_l1_logs,
                         l2_to_l1_messages,
                         used_contract_hashes,
                         compressed_initial_writes,
@@ -1463,7 +1504,6 @@ impl BlocksDal<'_, '_> {
                     priority_ops_onchain_data,
                     hash,
                     commitment,
-                    l2_to_l1_logs,
                     l2_to_l1_messages,
                     used_contract_hashes,
                     compressed_initial_writes,
@@ -1528,7 +1568,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
                 compressed_initial_writes,
@@ -1603,7 +1642,6 @@ impl BlocksDal<'_, '_> {
                 priority_ops_onchain_data,
                 hash,
                 commitment,
-                l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
                 compressed_initial_writes,
@@ -1732,8 +1770,12 @@ impl BlocksDal<'_, '_> {
         let Some(l1_batch) = self.get_storage_l1_batch(number).await? else {
             return Ok(None);
         };
+
+        let l2_to_l1_logs = self.get_l2_to_l1_logs_by_number(*number as i64).await?;
         Ok(Some(L1BatchWithOptionalMetadata {
-            header: l1_batch.clone().into(),
+            header: l1_batch
+                .clone()
+                .into_l1_batch_header_with_logs(l2_to_l1_logs),
             metadata: l1_batch.try_into(),
         }))
     }
@@ -1774,7 +1816,13 @@ impl BlocksDal<'_, '_> {
         let unsorted_factory_deps = self
             .get_l1_batch_factory_deps(L1BatchNumber(storage_batch.number as u32))
             .await?;
-        let header: L1BatchHeader = storage_batch.clone().into();
+
+        let l2_to_l1_logs = self
+            .get_l2_to_l1_logs_by_number(storage_batch.number)
+            .await?;
+        let header: L1BatchHeader = storage_batch
+            .clone()
+            .into_l1_batch_header_with_logs(l2_to_l1_logs);
         let Ok(metadata) = storage_batch.try_into() else {
             return Ok(None);
         };
