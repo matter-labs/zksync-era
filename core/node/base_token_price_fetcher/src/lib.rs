@@ -15,7 +15,7 @@ pub enum TokenPriceInfoSource {
 #[derive(Debug)]
 pub struct BaseTokenPriceFetcherConfig {
     pub token_price_info_source: TokenPriceInfoSource,
-    pub token_price_api_token: String,
+    pub token_price_api_token: Address,
     pub poll_interval: u64,
 }
 
@@ -24,7 +24,7 @@ impl Default for BaseTokenPriceFetcherConfig {
     fn default() -> Self {
         BaseTokenPriceFetcherConfig {
             token_price_info_source: TokenPriceInfoSource::Custom,
-            token_price_api_token: "0x0d8775f648430679a709e98d2b0cb6250d2887ef".to_string(),
+            token_price_api_token: Address::default(),
             poll_interval: 600,
         }
     }
@@ -57,9 +57,6 @@ impl BaseTokenPriceFetcher {
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut connection = self.connection_pool.connection().await.unwrap();
-        let address = Address::from_str(&self.config.token_price_api_token)
-            .context("Invalid token price API token")?;
-
         loop {
             if *stop_receiver.borrow() {
                 tracing::debug!("Stopping mempool cache updates");
@@ -67,7 +64,7 @@ impl BaseTokenPriceFetcher {
             }
 
             let token_price_data = TokenPriceData {
-                address,
+                address: self.config.token_price_api_token,
                 rate: self.get_price().await?,
             };
 

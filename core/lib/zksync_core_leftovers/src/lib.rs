@@ -335,8 +335,7 @@ pub async fn initialize_components(
 
         let mut base_token_price_fetcher_config = BaseTokenPriceFetcherConfig::default();
         if let Some(configs) = configs.base_token_config.clone() {
-            base_token_price_fetcher_config.token_price_api_token =
-                configs.base_token_address.to_string();
+            base_token_price_fetcher_config.token_price_api_token = configs.base_token_address;
         }
         let base_token_price_fetcher =
             BaseTokenPriceFetcher::new(base_token_price_fetcher_config, connection_pool.clone());
