@@ -9,9 +9,9 @@ use zksync_consensus_roles::{
     validator,
     validator::testonly::{Setup, SetupSpec},
 };
-use zksync_test_account::Account;
 use zksync_dal::CoreDal;
 use zksync_node_test_utils::Snapshot;
+use zksync_test_account::Account;
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::*;
@@ -539,7 +539,6 @@ fn l2_tx(&mut self) -> Transaction {
         Some(fee),
     )
 }
-
 
 fn l1_tx(&mut self, serial_id: PriorityOpId) -> Transaction {
     self.get_l1_tx(
