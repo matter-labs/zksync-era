@@ -8,12 +8,10 @@ use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_config::{configs::DatabaseSecrets, ObjectStoreConfig};
-use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
+use zksync_config::ObjectStoreConfig;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_protobuf_config::proto::secrets::Secrets;
-use zksync_prover_config::load_general_config;
+use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -75,16 +73,7 @@ async fn main() -> anyhow::Result<()> {
 
     let general_config = load_general_config(opt.config_path).context("general config")?;
 
-    let database_secrets = match opt.secrets_path {
-        Some(path) => {
-            let yaml = std::fs::read_to_string(path).context("Failed to read secrets")?;
-            let secrets = decode_yaml_repr::<Secrets>(&yaml).context("Failed to parse secrets")?;
-            secrets
-                .database
-                .context("failed to parse database secrets")?
-        }
-        None => DatabaseSecrets::from_env().context("database secrets")?,
-    };
+    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
 
     let observability_config = general_config
         .observability

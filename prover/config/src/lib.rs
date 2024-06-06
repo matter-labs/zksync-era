@@ -8,7 +8,7 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
+        DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
     },
@@ -17,6 +17,7 @@ use zksync_config::{
 };
 use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, TempConfigStore};
 use zksync_env_config::FromEnv;
+use zksync_protobuf_config::proto::secrets::Secrets;
 
 fn load_env_config() -> anyhow::Result<TempConfigStore> {
     Ok(TempConfigStore {
@@ -60,5 +61,18 @@ pub fn load_general_config(path: Option<std::path::PathBuf>) -> anyhow::Result<G
         None => Ok(load_env_config()
             .context("general config from env")?
             .general()),
+    }
+}
+
+pub fn load_database_secrets(path: Option<std::path::PathBuf>) -> anyhow::Result<DatabaseSecrets> {
+    match path {
+        Some(path) => {
+            let yaml = std::fs::read_to_string(path).context("Failed to read secrets")?;
+            let secrets = decode_yaml_repr::<Secrets>(&yaml).context("Failed to parse secrets")?;
+            Ok(secrets
+                .database
+                .context("failed to parse database secrets")?)
+        }
+        None => DatabaseSecrets::from_env(),
     }
 }
