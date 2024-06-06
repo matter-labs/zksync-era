@@ -39,6 +39,7 @@ impl ProtoRepr for proto::GeneralConfig {
             observability: read_optional_repr(&self.observability).context("observability")?,
             protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer)
                 .context("vm_runner")?,
+            object_store: read_optional_repr(&self.object_store).context("object_store")?,
         })
     }
 
@@ -74,6 +75,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .protective_reads_writer_config
                 .as_ref()
                 .map(ProtoRepr::build),
+            object_store: this.object_store.as_ref().map(ProtoRepr::build),
         }
     }
 }
