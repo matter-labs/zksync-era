@@ -376,7 +376,7 @@
     "maxFeePerGas": 0,
     "maxPriorityFeePerGas": 0,
     "paymaster": 0,
-    "nonce": "24",
+    "nonce": 24,
     "value": 0,
     "reserved": [
       0,
