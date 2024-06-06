@@ -3,7 +3,10 @@
 
 use zksync_config::{configs::DatabaseSecrets, PostgresConfig};
 use zksync_node_framework::{
-    implementations::layers::{pools_layer::PoolsLayerBuilder, sigint::SigintHandlerLayer},
+    implementations::layers::{
+        pools_layer::PoolsLayerBuilder, postgres_metrics::PostgresMetricsLayer,
+        sigint::SigintHandlerLayer,
+    },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 
@@ -61,6 +64,11 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PostgresMetricsLayer);
+        Ok(self)
+    }
+
     fn add_preconditions(mut self) -> anyhow::Result<Self> {
         todo!()
     }
@@ -93,7 +101,14 @@ impl ExternalNodeBuilder {
                     // Do nothing, will be handled by the `Tree` component.
                 }
                 Component::TreeFetcher => todo!(),
-                Component::Core => todo!(),
+                Component::Core => {
+                    // Core is a singleton & mandatory component,
+                    // so until we have a dedicated component for "auxiliary" tasks,
+                    // it's responsible for things like metrics.
+                    self = self.add_postgres_metrics_layer()?;
+
+                    todo!()
+                }
             }
         }
 

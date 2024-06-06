@@ -28,6 +28,7 @@ use zksync_node_framework::{
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
+        postgres_metrics::PostgresMetricsLayer,
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
@@ -108,6 +109,11 @@ impl MainNodeBuilder {
         let prom_config = try_load_config!(self.configs.prometheus_config);
         let prom_config = PrometheusExporterConfig::pull(prom_config.listener_port);
         self.node.add_layer(PrometheusExporterLayer(prom_config));
+        Ok(self)
+    }
+
+    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PostgresMetricsLayer);
         Ok(self)
     }
 
@@ -481,7 +487,9 @@ impl MainNodeBuilder {
                     self = self.add_tee_verifier_input_producer_layer()?;
                 }
                 Component::Housekeeper => {
-                    self = self.add_house_keeper_layer()?;
+                    self = self
+                        .add_house_keeper_layer()?
+                        .add_postgres_metrics_layer()?;
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;
