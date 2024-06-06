@@ -16,7 +16,31 @@ const NON_EXISTING_BATCH_STATUS_STDOUT: &str = "== Batch 10000 Status ==
 
 const MULTIPLE_NON_EXISTING_BATCHES_STATUS_STDOUT: &str = "== Batch 10000 Status ==
 > No batch found. 🚫
+== Batch 10001 Status ==
+> No batch found. 🚫
 ";
+
+#[tokio::test]
+#[doc = "prover_cli config"]
+async fn pli_config_succeeds() {
+    let connection_pool = ConnectionPool::<Prover>::test_pool().await;
+    let mut connection = connection_pool.connection().await.unwrap();
+
+    connection
+        .fri_protocol_versions_dal()
+        .save_prover_protocol_version(
+            ProtocolSemanticVersion::default(),
+            L1VerifierConfig::default(),
+        )
+        .await;
+
+    Command::cargo_bin("prover_cli")
+        .unwrap()
+        .arg("config")
+        .arg(connection_pool.database_url().expose_str())
+        .assert()
+        .success();
+}
 
 #[test]
 #[doc = "prover_cli status"]
@@ -104,7 +128,7 @@ fn pli_status_of_multiple_non_existing_batch_succeeds() {
 fn status_batch_0_expects(expected_output: String, db_url: &str) {
     Command::cargo_bin("prover_cli")
         .unwrap()
-        .env("DATABASE_PROVER_URL", db_url)
+        .env("PLI__DB_URL", db_url)
         .arg("status")
         .arg("batch")
         .args(["-n", "0"])
@@ -452,7 +476,6 @@ fn scenario_expected_stdout(
     format!(
         "== Batch {} Status ==
 
-= Proving Stages =
 -- Aggregation Round 0 --
 Basic Witness Generator: {}{}
 
@@ -462,16 +485,14 @@ Leaf Witness Generator: {}{}
 -- Aggregation Round 2 --
 Node Witness Generator: {}{}
 
--- Aggregation Round 4 --
+-- Aggregation Round 3 --
 Recursion Tip: {}{}
 
 -- Aggregation Round 4 --
 Scheduler: {}{}
 
--- Compressor --
-{}
-
-
+-- Proof Compression --
+Compressor: {}
 ",
         batch_number.0,
         bwg_status,
@@ -500,6 +521,13 @@ async fn testito() {
             L1VerifierConfig::default(),
         )
         .await;
+
+    Command::cargo_bin("prover_cli")
+        .unwrap()
+        .arg("config")
+        .arg(connection_pool.database_url().expose_str())
+        .assert()
+        .success();
 
     let batch_0 = L1BatchNumber(0);
 
