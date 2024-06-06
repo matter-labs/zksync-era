@@ -125,7 +125,7 @@ impl TeeRequestProcessor {
             .map_err(|_| RequestProcessorError::Sqlx(SqlxError::PoolClosed))?;
         let mut dal = connection.tee_proof_generation_dal();
 
-        dal.save_attestation(&payload.pubkey, &payload.attestation, &payload.valid_until)
+        dal.save_attestation(&payload.pubkey, &payload.attestation)
             .await
             .map_err(RequestProcessorError::Sqlx)?;
 

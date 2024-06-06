@@ -1,8 +1,7 @@
 CREATE TABLE IF NOT EXISTS tee_attestations
 (
     pubkey                  BYTEA PRIMARY KEY,
-    attestation             BYTEA,
-    valid_until             TIMESTAMP NOT NULL
+    attestation             BYTEA
 );
 
 CREATE TABLE IF NOT EXISTS tee_proof_generation_details

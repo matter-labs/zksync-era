@@ -6,7 +6,6 @@ use axum::{
     response::Response,
     Router,
 };
-use chrono::{Duration, Utc};
 use hyper::body::HttpBody;
 use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use serde_json::json;
@@ -158,12 +157,11 @@ async fn submit_tee_proof() {
     // save the attestation for the pubkey
 
     if let SubmitTeeProofRequest::Proof(ref proof) = tee_proof_request {
-        let valid_until = Utc::now() + Duration::days(42);
         let attestation = [15, 16, 17, 18, 19];
         let mut proof_dal = db_conn_pool.connection().await.unwrap();
         proof_dal
             .tee_proof_generation_dal()
-            .save_attestation(&proof.pubkey, &attestation, &valid_until)
+            .save_attestation(&proof.pubkey, &attestation)
             .await
             .expect("Failed to save attestation");
     } else {
