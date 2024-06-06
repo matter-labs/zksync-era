@@ -280,7 +280,7 @@ impl TxSink for TxProxy {
         // But before we do that, save the tx to cache in case someone will request it
         // Before it reaches the main node.
         self.save_tx(tx.clone()).await;
-        self.submit_tx_impl(tx).await?;
+        self.submit_tx_impl(tx).await?; // FIXME: shouldn't tx be removed from cache on error?
         APP_METRICS.processed_txs[&TxStage::Proxied].inc();
         Ok(L2TxSubmissionResult::Proxied)
     }

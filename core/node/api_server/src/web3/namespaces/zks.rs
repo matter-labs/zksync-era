@@ -29,7 +29,10 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState};
+use crate::{
+    utils::open_readonly_transaction,
+    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
+};
 
 #[derive(Debug)]
 pub(crate) struct ZksNamespace {
@@ -399,11 +402,8 @@ impl ZksNamespace {
         hash: H256,
     ) -> Result<Option<TransactionDetails>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        // Open a transaction to have a consistent view of Postgres
-        let mut storage = storage
-            .start_transaction()
-            .await
-            .map_err(DalError::generalize)?;
+        // Open a readonly transaction to have a consistent view of Postgres
+        let mut storage = open_readonly_transaction(&mut storage).await?;
         let mut tx_details = storage
             .transactions_web3_dal()
             .get_transaction_details(hash)
