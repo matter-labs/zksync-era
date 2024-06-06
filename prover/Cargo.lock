@@ -9617,10 +9617,15 @@ dependencies = [
  "zk_evm 1.4.1",
  "zkevm_test_harness 1.5.0",
  "zksync_config",
+ "zksync_core_leftovers",
  "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
+<<<<<<< HEAD
  "zksync_prover_config",
+=======
+ "zksync_protobuf_config",
+>>>>>>> 500d462bb547d23ebd4eb2b9ab11d9bc0f4948ad
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
  "zksync_prover_interface",
