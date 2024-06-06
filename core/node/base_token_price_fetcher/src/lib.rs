@@ -14,12 +14,12 @@ pub enum TokenPriceInfoSource {
 
 #[derive(Debug)]
 pub struct BaseTokenPriceFetcherConfig {
-    token_price_info_source: TokenPriceInfoSource,
-    token_price_api_token: String,
-    poll_interval: u64,
+    pub token_price_info_source: TokenPriceInfoSource,
+    pub token_price_api_token: String,
+    pub poll_interval: u64,
 }
 
-// TEMPORARY: REMOVE LATER
+// TODO: TEMPORARY: REMOVE LATER
 impl Default for BaseTokenPriceFetcherConfig {
     fn default() -> Self {
         BaseTokenPriceFetcherConfig {

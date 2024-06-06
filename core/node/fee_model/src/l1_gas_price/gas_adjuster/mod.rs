@@ -22,6 +22,13 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
+#[derive(Debug)]
+struct BaseTokenPriceElements {
+    pub connection_pool: ConnectionPool<Core>,
+    pub address: Address,
+    pub latest_price: Mutex<Option<BigDecimal>>,
+}
+
 /// This component keeps track of the median `base_fee` from the last `max_base_fee_samples` blocks
 /// and of the median `blob_base_fee` from the last `max_blob_base_fee_sample` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
@@ -39,7 +46,7 @@ pub struct GasAdjuster {
     // Access to the connection pool is only needed for the base token fee calculation.
     // If the chain is running in `ETH` mode, the connection pool will be `None`.
     connection_pool: Option<ConnectionPool<Core>>,
-    base_token_price: Mutex<Option<BigDecimal>>,
+    base_token_elements: Option<BaseTokenPriceElements>,
 }
 
 impl GasAdjuster {
@@ -78,6 +85,22 @@ impl GasAdjuster {
             None => Mutex::new(None),
         };
 
+        let base_token_elements = match connection_pool.as_ref() {
+            Some(connection_pool) => {
+                let mut connection = connection_pool.connection().await?;
+                let address = Address::default(); // TODO: Use the actual address of the base token.
+                let latest_price =
+                    Mutex::new(connection.token_price_dal().fetch_ratio(address).await?);
+
+                Some(BaseTokenPriceElements {
+                    connection_pool: connection_pool.clone(),
+                    address,
+                    latest_price,
+                })
+            }
+            None => None,
+        };
+
         Ok(Self {
             base_fee_statistics: GasStatistics::new(
                 config.max_base_fee_samples,
@@ -94,7 +117,7 @@ impl GasAdjuster {
             eth_client,
             commitment_mode,
             connection_pool,
-            base_token_price,
+            base_token_elements,
         })
     }
 
@@ -143,15 +166,13 @@ impl GasAdjuster {
             self.blob_base_fee_statistics
                 .add_samples(&blob_base_fee_history);
 
-            // Update base token price
-            // if the connection pool is provided, we assume the base token price is to be updated
-            // otherwise (using ETH mode), the connection pool is `None`.
-            if let Some(connection_pool) = self.connection_pool.as_ref() {
-                let mut connection = connection_pool.connection().await?;
-                let address = Address::default(); // TODO: Use the actual address of the base token.
-                let updated_base_token_price =
-                    connection.token_price_dal().fetch_ratio(address).await?;
-                *self.base_token_price.lock().unwrap() = updated_base_token_price;
+            if let Some(base_token_elements) = self.base_token_elements.as_ref() {
+                let mut connection = base_token_elements.connection_pool.connection().await?;
+                let updated_base_token_price = connection
+                    .token_price_dal()
+                    .fetch_ratio(base_token_elements.address)
+                    .await?;
+                *base_token_elements.latest_price.lock().unwrap() = updated_base_token_price;
             }
         }
         Ok(())
@@ -234,11 +255,16 @@ impl GasAdjuster {
     }
 
     pub(crate) fn base_token_price_ratio(&self) -> BigDecimal {
-        self.base_token_price
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or(BigDecimal::from(1))
+        if let Some(base_token_elements) = self.base_token_elements.as_ref() {
+            base_token_elements
+                .latest_price
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or(BigDecimal::from(1))
+        } else {
+            BigDecimal::from(1)
+        }
     }
 
     fn pubdata_byte_gas(&self) -> u64 {

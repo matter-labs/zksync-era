@@ -332,8 +332,13 @@ pub async fn initialize_components(
         let started_at = Instant::now();
         tracing::info!("Initializing base token price fetcher");
 
-        let config = BaseTokenPriceFetcherConfig::default();
-        let base_token_price_fetcher = BaseTokenPriceFetcher::new(config, connection_pool.clone());
+        let mut base_token_price_fetcher_config = BaseTokenPriceFetcherConfig::default();
+        if let Some(configs) = configs.base_token_config.clone() {
+            base_token_price_fetcher_config.token_price_api_token =
+                configs.base_token_address.to_string();
+        }
+        let base_token_price_fetcher =
+            BaseTokenPriceFetcher::new(base_token_price_fetcher_config, connection_pool.clone());
         task_futures.push(tokio::spawn(
             base_token_price_fetcher.run(stop_receiver.clone()),
         ));
