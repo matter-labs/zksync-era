@@ -17,8 +17,11 @@ pub(crate) struct ExternalNodeBuilder {
 }
 
 impl ExternalNodeBuilder {
-    pub fn new(node: ZkStackServiceBuilder, config: ExternalNodeConfig) -> Self {
-        Self { node, config }
+    pub fn new(config: ExternalNodeConfig) -> Self {
+        Self {
+            node: ZkStackServiceBuilder::new(),
+            config,
+        }
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {

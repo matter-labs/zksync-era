@@ -3,6 +3,7 @@ use std::{collections::HashSet, net::Ipv4Addr, str::FromStr, sync::Arc, time::Du
 use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
+use node_builder::ExternalNodeBuilder;
 use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
@@ -703,6 +704,10 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(long, default_value = "all")]
     components: ComponentsToRun,
+
+    /// Run the node using the node framework.
+    #[arg(long)]
+    use_node_framework: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
@@ -791,6 +796,21 @@ async fn main() -> anyhow::Result<()> {
     }
     if let Some(threshold) = config.optional.long_connection_threshold() {
         ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
+    }
+
+    // If the node framework is used, run the node.
+    if opt.use_node_framework {
+        // We run the node from a different thread, since the current thread is in tokio context.
+        std::thread::spawn(move || -> anyhow::Result<()> {
+            let node =
+                ExternalNodeBuilder::new(config).build(opt.components.0.into_iter().collect())?;
+            node.run()?;
+            Ok(())
+        })
+        .join()
+        .expect("Failed to run the node")?;
+
+        return Ok(());
     }
 
     RUST_METRICS.initialize();
