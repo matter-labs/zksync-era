@@ -28,14 +28,13 @@ mod proof_submitter;
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
-    let temp_config_store = load_env_config()?;
     let general_config = match opt.config_path {
         Some(path) => {
             let yaml = std::fs::read_to_string(path).context("Failed to read general config")?;
             decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
                 .context("Failed to parse general config")?
         }
-        None => temp_config_store.general(),
+        None => load_env_config()?.general(),
     };
 
     let database_secrets = match opt.secrets_path {
