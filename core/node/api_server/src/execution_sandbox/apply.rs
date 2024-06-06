@@ -21,8 +21,9 @@ use multivm::{
 };
 use tokio::runtime::Handle;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_state::StorageOverrides;
-use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
+use zksync_state::{
+    PostgresStorage, ReadStorage, StorageOverrides, StoragePtr, StorageView, WriteStorage,
+};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,

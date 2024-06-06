@@ -1,9 +1,9 @@
 use std::{collections::HashMap, ops::Deref};
 
-use crate::Address;
 use serde::{Deserialize, Deserializer, Serialize};
-use zksync_basic_types::web3::Bytes;
-use zksync_basic_types::{H256, U256};
+use zksync_basic_types::{web3::Bytes, H256, U256};
+
+use crate::Address;
 
 /// Collection of overridden accounts, useful for `eth_estimateGas`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
