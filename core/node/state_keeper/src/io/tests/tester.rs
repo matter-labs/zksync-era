@@ -72,6 +72,7 @@ impl Tester {
             PubdataSendingMode::Calldata,
             self.commitment_mode,
             None,
+            None,
         )
         .await
         .unwrap()

@@ -301,6 +301,7 @@ pub async fn initialize_components(
         sender.pubdata_sending_mode,
         genesis_config.l1_batch_commit_data_generator_mode,
         gas_adjuster_db_conn,
+        configs.base_token_config.clone(),
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);

@@ -7,7 +7,10 @@ use std::{
 };
 
 use tokio::sync::watch;
-use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+use zksync_config::{
+    configs::{eth_sender::PubdataSendingMode, BaseTokenConfig},
+    GasAdjusterConfig,
+};
 use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_types::{
@@ -53,6 +56,7 @@ impl GasAdjuster {
         pubdata_sending_mode: PubdataSendingMode,
         commitment_mode: L1BatchCommitmentMode,
         connection_pool: Option<ConnectionPool<Core>>,
+        base_token_config: Option<BaseTokenConfig>,
     ) -> anyhow::Result<Self> {
         let eth_client = eth_client.for_component("gas_adjuster");
 
@@ -73,19 +77,10 @@ impl GasAdjuster {
         let (_, last_block_blob_base_fee) =
             Self::get_base_fees_history(eth_client.as_ref(), current_block..=current_block).await?;
 
-        let base_token_price = match connection_pool.as_ref() {
-            Some(connection_pool) => {
-                let mut connection = connection_pool.connection().await?;
-                let address = Address::default(); // TODO: Use the actual address of the base token.
-                Mutex::new(connection.token_price_dal().fetch_ratio(address).await?)
-            }
-            None => Mutex::new(None),
-        };
-
         let base_token_elements = match connection_pool.as_ref() {
             Some(connection_pool) => {
                 let mut connection = connection_pool.connection().await?;
-                let address = Address::default(); // TODO: Use the actual address of the base token.
+                let address = base_token_config.unwrap().base_token_address;
                 let latest_price =
                     Mutex::new(connection.token_price_dal().fetch_ratio(address).await?);
 
