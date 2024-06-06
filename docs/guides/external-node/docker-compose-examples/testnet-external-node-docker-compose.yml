@@ -1,4 +1,4 @@
-version: '3.2'
+version: "3.2"
 services:
   prometheus:
     image: prom/prometheus:v2.35.0
@@ -20,11 +20,11 @@ services:
       - "127.0.0.1:3000:3000"
   postgres:
     image: "postgres:14"
-    command: > 
-      postgres 
-      -c max_connections=200 
-      -c log_error_verbosity=terse 
-      -c shared_buffers=2GB 
+    command: >
+      postgres
+      -c max_connections=200
+      -c log_error_verbosity=terse
+      -c shared_buffers=2GB
       -c effective_cache_size=4GB
       -c maintenance_work_mem=1GB
       -c checkpoint_completion_target=0.9
@@ -41,12 +41,16 @@ services:
     healthcheck:
       interval: 1s
       timeout: 3s
-      test: psql -U postgres -c "select exists (select * from pg_stat_activity where datname = '{{ database_name }}' and application_name = 'pg_restore')" | grep -e ".f$"
+      test:
+        [
+          "CMD-SHELL",
+          'psql -U postgres -c "select exists (select * from pg_stat_activity where datname = ''{{ database_name }}'' and application_name = ''pg_restore'')" | grep -e ".f$$"',
+        ]
     environment:
       - POSTGRES_PASSWORD=notsecurepassword
       - PGPORT=5430
   external-node:
-    image: "matterlabs/external-node:2.0-v24.2.0"
+    image: "matterlabs/external-node:2.0-v24.6.0"
     depends_on:
       postgres:
         condition: service_healthy

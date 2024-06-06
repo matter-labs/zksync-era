@@ -74,9 +74,9 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to build a connection pool")?;
     let object_store_config =
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
-    let blob_store = ObjectStoreFactory::new(object_store_config.0)
+    let object_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
-        .await;
+        .await?;
     let circuit_ids_for_round_to_be_proven = FriProverGroupConfig::from_env()
         .context("FriProverGroupConfig::from_env()")?
         .get_circuit_ids_for_group_id(specialized_group_id)
@@ -90,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let witness_vector_generator = WitnessVectorGenerator::new(
-        blob_store,
+        object_store,
         pool,
         circuit_ids_for_round_to_be_proven.clone(),
         zone.clone(),

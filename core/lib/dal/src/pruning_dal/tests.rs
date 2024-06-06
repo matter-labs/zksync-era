@@ -44,7 +44,7 @@ async fn insert_l2_to_l1_logs(conn: &mut Connection<'_, Core>, l2_block_number: 
         tx_index_in_l2_block: 0,
         tx_initiator_address: Address::default(),
     };
-    let first_logs = vec![mock_l2_to_l1_log(), mock_l2_to_l1_log()];
+    let first_logs = [mock_l2_to_l1_log(), mock_l2_to_l1_log()];
     let second_location = IncludedTxLocation {
         tx_hash: H256([2; 32]),
         tx_index_in_l2_block: 1,
@@ -71,7 +71,7 @@ async fn insert_events(conn: &mut Connection<'_, Core>, l2_block_number: L2Block
         tx_index_in_l2_block: 0,
         tx_initiator_address: Address::default(),
     };
-    let first_events = vec![mock_vm_event(0), mock_vm_event(1)];
+    let first_events = [mock_vm_event(0), mock_vm_event(1)];
     let second_location = IncludedTxLocation {
         tx_hash: H256([2; 32]),
         tx_index_in_l2_block: 1,

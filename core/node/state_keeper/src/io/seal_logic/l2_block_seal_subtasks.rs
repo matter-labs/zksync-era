@@ -517,7 +517,7 @@ mod tests {
             .get_transaction_receipts(&[tx_hash])
             .await
             .unwrap()
-            .get(0)
+            .first()
             .cloned();
         assert!(tx_receipt.is_none());
 

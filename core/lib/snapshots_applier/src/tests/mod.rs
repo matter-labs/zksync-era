@@ -9,7 +9,7 @@ use assert_matches::assert_matches;
 use test_casing::test_casing;
 use tokio::sync::Barrier;
 use zksync_health_check::CheckHealth;
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::MockObjectStore;
 use zksync_types::{
     api::{BlockDetails, L1BatchDetails},
     block::L1BatchHeader,
@@ -315,8 +315,7 @@ async fn health_status_immediately_after_task_start() {
         }
     }
 
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
     let client = HangingMainNodeClient(Arc::new(Barrier::new(2)));
     let task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),
@@ -370,8 +369,7 @@ async fn applier_errors_after_genesis() {
         .unwrap();
     drop(storage);
 
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
     let client = MockMainNodeClient::default();
 
     let task = SnapshotsApplierTask::new(
@@ -386,8 +384,7 @@ async fn applier_errors_after_genesis() {
 #[tokio::test]
 async fn applier_errors_without_snapshots() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
     let client = MockMainNodeClient::default();
 
     let task = SnapshotsApplierTask::new(
@@ -402,8 +399,7 @@ async fn applier_errors_without_snapshots() {
 #[tokio::test]
 async fn applier_errors_with_unrecognized_snapshot_version() {
     let pool = ConnectionPool::test_pool().await;
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
     let expected_status = mock_recovery_status();
     let client = MockMainNodeClient {
         fetch_newest_snapshot_response: Some(SnapshotHeader {
@@ -493,7 +489,8 @@ async fn recovering_tokens() {
         });
     }
     let (object_store, mut client) = prepare_clients(&expected_status, &storage_logs).await;
-    client.tokens_response = tokens.clone();
+
+    client.tokens_response.clone_from(&tokens);
 
     let task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),

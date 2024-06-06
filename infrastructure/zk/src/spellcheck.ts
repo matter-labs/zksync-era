@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 
 export async function runSpellCheck(pattern: string, useCargo: boolean, useCSpell: boolean) {
     // Default commands for cSpell and cargo spellcheck
