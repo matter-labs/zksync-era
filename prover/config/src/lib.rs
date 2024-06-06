@@ -1,3 +1,4 @@
+use anyhow::Context;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -8,16 +9,16 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
+        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
-use zksync_core_leftovers::temp_config_store::TempConfigStore;
+use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, TempConfigStore};
 use zksync_env_config::FromEnv;
 
-pub fn load_env_config() -> anyhow::Result<TempConfigStore> {
+fn load_env_config() -> anyhow::Result<TempConfigStore> {
     Ok(TempConfigStore {
         postgres_config: PostgresConfig::from_env().ok(),
         health_check_config: HealthCheckConfig::from_env().ok(),
@@ -48,4 +49,16 @@ pub fn load_env_config() -> anyhow::Result<TempConfigStore> {
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
     })
+}
+
+pub fn load_general_config(path: Option<std::path::PathBuf>) -> anyhow::Result<GeneralConfig> {
+    match path {
+        Some(path) => {
+            let yaml = std::fs::read_to_string(path).context("Failed to read general config")?;
+            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+        }
+        None => Ok(load_env_config()
+            .context("general config from env")?
+            .general()),
+    }
 }

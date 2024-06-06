@@ -8,15 +8,12 @@ use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_config::{
-    configs::{DatabaseSecrets, FriWitnessGeneratorConfig, PostgresConfig, PrometheusConfig},
-    ObjectStoreConfig,
-};
-use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, TempConfigStore};
+use zksync_config::{configs::DatabaseSecrets, ObjectStoreConfig};
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto::secrets::Secrets;
-use zksync_prover_config::load_env_config;
+use zksync_prover_config::load_general_config;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -76,14 +73,7 @@ struct Opt {
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
 
-    let general_config = match opt.config_path {
-        Some(path) => {
-            let yaml = std::fs::read_to_string(path).context("Failed to read general config")?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
-                .context("Failed to parse general config")?
-        }
-        None => load_env_config()?.general(),
-    };
+    let general_config = load_general_config(opt.config_path).context("general config")?;
 
     let database_secrets = match opt.secrets_path {
         Some(path) => {
