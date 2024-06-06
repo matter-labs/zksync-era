@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 
 const IMAGES = [
     'server-v2',
