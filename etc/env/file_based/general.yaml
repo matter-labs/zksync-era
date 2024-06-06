@@ -131,6 +131,8 @@ eth:
     aggregated_proof_sizes: [ 1,4 ]
     max_aggregated_tx_gas: 4000000
     max_acceptable_priority_fee_in_gwei: 100000000000
+    max_acceptable_priority_base_in_gwei: 1000000000000
+    max_acceptable_priority_blob_in_gwei: 1000000000000
     pubdata_sending_mode: BLOBS
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000

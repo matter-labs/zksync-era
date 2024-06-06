@@ -109,6 +109,14 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
                 .context("pubdata_sending_mode")?
                 .parse(),
+            max_acceptable_base_fee_in_gwei: *required(
+                &self.max_acceptable_base_fee_in_gwei,
+            )
+                .context("max_acceptable_base_fee_in_gwei")?,
+            max_acceptable_blob_fee_in_gwei: *required(
+                &self.max_acceptable_blob_fee_in_gwei,
+            )
+                .context("max_acceptable_blob_fee_in_gwei")?,
         })
     }
 
@@ -139,6 +147,8 @@ impl ProtoRepr for proto::Sender {
             pubdata_sending_mode: Some(
                 proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
             ),
+            max_acceptable_base_fee_in_gwei: Some(this.max_acceptable_base_fee_in_gwei),
+            max_acceptable_blob_fee_in_gwei: Some(this.max_acceptable_blob_fee_in_gwei),
         }
     }
 }

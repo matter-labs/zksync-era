@@ -128,9 +128,17 @@ impl EthTxManager {
     ) -> Result<EthFee, EthSenderError> {
         let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
         let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
-        let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
 
         if tx.blob_sidecar.is_some() {
+            let blob_base_fee_per_gas = self.gas_adjuster.get_blob_base_fee();
+            if blob_base_fee_per_gas > self.config.max_acceptable_blob_fee_in_gwei {
+                panic!(
+                    "Extremely high value of blob_fee_per_gas is suggested: {:?}, while max acceptable is {}",
+                    blob_base_fee_per_gas,
+                    self.config.max_acceptable_blob_fee_in_gwei
+                );
+            }
+
             if time_in_mempool != 0 {
                 // for blob transactions on re-sending need to double all gas prices
                 let previous_sent_tx = storage
@@ -150,18 +158,25 @@ impl EthTxManager {
                     ),
                     blob_base_fee_per_gas: std::cmp::max(
                         previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
-                        blob_base_fee_per_gas,
+                        Some(blob_base_fee_per_gas),
                     ),
                 });
             }
             return Ok(EthFee {
                 base_fee_per_gas,
                 priority_fee_per_gas,
-                blob_base_fee_per_gas,
+                blob_base_fee_per_gas: Some(blob_base_fee_per_gas),
             });
         }
 
         let base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
+        if base_fee_per_gas > self.config.max_acceptable_base_fee_in_gwei {
+            panic!(
+                "Extremely high value of base_fee_per_gas is suggested: {}, while max acceptable is {}",
+                base_fee_per_gas,
+                self.config.max_acceptable_base_fee_in_gwei
+            );
+        }
 
         let priority_fee_per_gas = if time_in_mempool != 0 {
             METRICS.transaction_resent.inc();

@@ -39,6 +39,8 @@ impl EthConfig {
                 timestamp_criteria_max_allowed_lag: 30,
                 l1_batch_min_age_before_execute_seconds: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
+                max_acceptable_base_fee_in_gwei: 1000000000000,
+                max_acceptable_blob_fee_in_gwei: 1000000000000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
@@ -111,11 +113,16 @@ pub struct SenderConfig {
     /// Note that this number must be slightly higher than the one set on the contract,
     /// because the contract uses block.timestamp which lags behind the clock time.
     pub l1_batch_min_age_before_execute_seconds: Option<u64>,
-    // Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
+    // Max acceptable priority fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     pub max_acceptable_priority_fee_in_gwei: u64,
 
     /// The mode in which we send pubdata, either Calldata or Blobs
     pub pubdata_sending_mode: PubdataSendingMode,
+
+    // Max acceptable base fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
+    pub max_acceptable_base_fee_in_gwei: u64,
+    // Max acceptable blob fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
+    pub max_acceptable_blob_fee_in_gwei: u64,
 }
 
 impl SenderConfig {
