@@ -32,18 +32,22 @@ impl ExternalNodeBuilder {
         // Settings unconditionally set to `None` are either not supported by the EN configuration layer
         // or are not used in the context of the external node.
         let config = PostgresConfig {
-            max_connections: self.config.postgres.max_connections,
-            max_connections_master: self.config.postgres.max_connections,
+            max_connections: Some(self.config.postgres.max_connections),
+            max_connections_master: Some(self.config.postgres.max_connections),
             acquire_timeout_sec: None,
             statement_timeout_sec: None,
             long_connection_threshold_ms: None,
-            slow_query_threshold_ms: self.config.optional.slow_query_threshold(),
+            slow_query_threshold_ms: self
+                .config
+                .optional
+                .slow_query_threshold()
+                .map(|d| d.as_millis() as u64),
             test_server_url: None,
             test_prover_url: None,
         };
         let secrets = DatabaseSecrets {
-            server_url: self.config.postgres.database_url(),
-            server_replica_url: self.config.postgres.database_url(),
+            server_url: Some(self.config.postgres.database_url()),
+            server_replica_url: Some(self.config.postgres.database_url()),
             prover_url: None,
         };
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
@@ -73,7 +77,7 @@ impl ExternalNodeBuilder {
             _ => 0,
         });
 
-        for component in components {
+        for component in &components {
             match component {
                 Component::HttpApi => todo!(),
                 Component::WsApi => todo!(),
