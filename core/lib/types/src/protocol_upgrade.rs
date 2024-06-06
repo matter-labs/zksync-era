@@ -100,7 +100,7 @@ impl From<abi::VerifierParams> for VerifierParams {
 
 impl ProtocolUpgrade {
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
-    fn try_from_init_calldata(init_calldata: &[u8], eth_block: u64) -> anyhow::Result<Self> {
+    fn try_from_init_calldata(init_calldata: &[u8]) -> anyhow::Result<Self> {
         let upgrade = ethabi::decode(
             &[abi::ProposedUpgrade::schema()],
             init_calldata.get(4..).context("need >= 4 bytes")?,
@@ -124,7 +124,7 @@ impl ProtocolUpgrade {
                     Transaction::try_from(abi::Transaction::L1 {
                         tx: upgrade.l2_protocol_upgrade_tx,
                         factory_deps: upgrade.factory_deps,
-                        eth_block,
+                        eth_block: 0,
                         received_timestamp_ms: helpers::unix_timestamp_ms(),
                     })
                     .context("Transaction::try_from()")?
@@ -201,7 +201,6 @@ impl TryFrom<Call> for ProtocolUpgrade {
         ProtocolUpgrade::try_from_init_calldata(
             // Unwrap is safe because we have validated the input against the function signature.
             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
-            call.eth_block,
         )
         .context("ProtocolUpgrade::try_from_init_calldata()")
     }

@@ -361,12 +361,6 @@ impl TryFrom<Log> for L1Tx {
         let mut tx: L1Tx = abi::NewPriorityRequest::decode(&event.data.0)?
             .try_into()
             .map_err(|err| L1TxParseError::from(ethabi::Error::Other(format!("{err:#}").into())))?;
-        // TODO (PLA-962): start setting it to 0 for all new transactions.
-        tx.common_data.eth_block = event
-            .block_number
-            .expect("Event block number is missing")
-            .try_into()
-            .unwrap();
         tx.received_timestamp_ms = unix_timestamp_ms();
         Ok(tx)
     }
