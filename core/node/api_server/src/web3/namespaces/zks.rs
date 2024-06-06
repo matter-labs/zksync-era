@@ -399,15 +399,23 @@ impl ZksNamespace {
         hash: H256,
     ) -> Result<Option<TransactionDetails>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
+        // Open a transaction to have a consistent view of Postgres
+        let mut storage = storage
+            .start_transaction()
+            .await
+            .map_err(DalError::generalize)?;
         let mut tx_details = storage
             .transactions_web3_dal()
             .get_transaction_details(hash)
             .await
             .map_err(DalError::generalize)?;
-        drop(storage);
 
         if tx_details.is_none() {
-            tx_details = self.state.tx_sink().lookup_tx_details(hash).await?;
+            tx_details = self
+                .state
+                .tx_sink()
+                .lookup_tx_details(&mut storage, hash)
+                .await?;
         }
         Ok(tx_details)
     }

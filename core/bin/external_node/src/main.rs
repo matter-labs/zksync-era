@@ -419,7 +419,7 @@ async fn run_api(
         );
     }
 
-    let tx_proxy = TxProxy::new(connection_pool.clone(), main_node_client.clone());
+    let tx_proxy = TxProxy::new(main_node_client.clone());
     let proxy_cache_updater_pool = singleton_pool_builder
         .build()
         .await

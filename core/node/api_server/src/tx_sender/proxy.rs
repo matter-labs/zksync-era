@@ -9,8 +9,8 @@ use anyhow::Context;
 use chrono::{TimeZone, Utc};
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{
-    helpers::wait_for_l1_batch, transactions_dal::L2TxSubmissionResult, ConnectionPool, Core,
-    CoreDal, DalError,
+    helpers::wait_for_l1_batch, transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool,
+    Core, CoreDal, DalError,
 };
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{api, fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256, U256};
@@ -22,6 +22,18 @@ use zksync_web3_decl::{
 
 use super::{tx_sink::TxSink, SubmitTxError};
 
+/// In-memory transaction cache for a full node. Works like an ad-hoc mempool replacement, with the important limitation that
+/// it's not synchronized across the network.
+///
+/// # Managing cache growth
+///
+/// To keep cache at reasonable size, the following garbage collection procedures are implemented:
+///
+/// - [`Self::run_updates()`] periodically gets nonces for all distinct accounts for the transactions in cache and removes
+///   all transactions with stale nonces. This includes both transactions included into L2 blocks and replaced transactions.
+/// - The same nonce filtering logic is applied for the transaction initiator address each time a transaction is fetched from cache.
+///   We don't want to return such transactions if they are already included in an L2 block or replaced locally, but `Self::run_updates()`
+///   hasn't run yet.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TxCache {
     inner: Arc<RwLock<TxCacheInner>>,
@@ -171,15 +183,13 @@ impl TxCache {
 #[derive(Debug)]
 pub struct TxProxy {
     tx_cache: TxCache,
-    pool: ConnectionPool<Core>,
     client: Box<DynClient<L2>>,
 }
 
 impl TxProxy {
-    pub fn new(pool: ConnectionPool<Core>, client: Box<DynClient<L2>>) -> Self {
+    pub fn new(client: Box<DynClient<L2>>) -> Self {
         Self {
             tx_cache: TxCache::default(),
-            pool,
             client: client.for_component("tx_proxy"),
         }
     }
@@ -200,16 +210,15 @@ impl TxProxy {
         self.tx_cache.push(tx).await;
     }
 
-    async fn find_tx(&self, tx_hash: H256) -> Result<Option<L2Tx>, Web3Error> {
+    async fn find_tx(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        tx_hash: H256,
+    ) -> Result<Option<L2Tx>, Web3Error> {
         let Some(tx) = self.tx_cache.get_tx(tx_hash).await else {
             return Ok(None);
         };
 
-        let mut storage = self
-            .pool
-            .connection_tagged("api")
-            .await
-            .map_err(DalError::generalize)?;
         let initiator_address = tx.initiator_account();
         let nonce_map = storage
             .storage_web3_dal()
@@ -293,11 +302,12 @@ impl TxSink for TxProxy {
 
     async fn lookup_tx(
         &self,
+        storage: &mut Connection<'_, Core>,
         id: api::TransactionId,
     ) -> Result<Option<api::Transaction>, Web3Error> {
         if let api::TransactionId::Hash(hash) = id {
             // If the transaction is not in the db, check the cache
-            if let Some(tx) = self.find_tx(hash).await? {
+            if let Some(tx) = self.find_tx(storage, hash).await? {
                 // check nonce for initiator
                 return Ok(Some(tx.into()));
             }
@@ -307,9 +317,10 @@ impl TxSink for TxProxy {
 
     async fn lookup_tx_details(
         &self,
+        storage: &mut Connection<'_, Core>,
         hash: H256,
     ) -> Result<Option<api::TransactionDetails>, Web3Error> {
-        if let Some(tx) = self.find_tx(hash).await? {
+        if let Some(tx) = self.find_tx(storage, hash).await? {
             let received_at_ms =
                 i64::try_from(tx.received_timestamp_ms).context("received timestamp overflow")?;
             let received_at = Utc
@@ -365,7 +376,7 @@ mod tests {
             })
             .build();
 
-        let proxy = TxProxy::new(pool.clone(), Box::new(main_node_client));
+        let proxy = TxProxy::new(Box::new(main_node_client));
         proxy
             .submit_tx(&tx, TransactionExecutionMetrics::default())
             .await
@@ -375,7 +386,7 @@ mod tests {
         // Check that the transaction is present in the cache
         assert_eq!(proxy.tx_cache.get_tx(tx.hash()).await.unwrap(), tx);
         let found_tx = proxy
-            .lookup_tx(api::TransactionId::Hash(tx.hash()))
+            .lookup_tx(&mut storage, api::TransactionId::Hash(tx.hash()))
             .await
             .unwrap()
             .expect("no transaction");
@@ -389,7 +400,7 @@ mod tests {
         assert_eq!(pending_nonce, tx.nonce());
 
         let tx_details = proxy
-            .lookup_tx_details(tx.hash())
+            .lookup_tx_details(&mut storage, tx.hash())
             .await
             .unwrap()
             .expect("no transaction");
@@ -406,20 +417,26 @@ mod tests {
     impl CacheUpdateMethod {
         const ALL: [Self; 3] = [Self::BackgroundTask, Self::Query, Self::QueryDetails];
 
-        async fn apply(self, proxy: &TxProxy, tx_hash: H256) {
+        async fn apply(self, pool: &ConnectionPool<Core>, proxy: &TxProxy, tx_hash: H256) {
             match self {
                 CacheUpdateMethod::BackgroundTask => {
-                    proxy.tx_cache.step(&proxy.pool).await.unwrap();
+                    proxy.tx_cache.step(pool).await.unwrap();
                 }
                 CacheUpdateMethod::Query => {
                     let looked_up_tx = proxy
-                        .lookup_tx(api::TransactionId::Hash(tx_hash))
+                        .lookup_tx(
+                            &mut pool.connection().await.unwrap(),
+                            api::TransactionId::Hash(tx_hash),
+                        )
                         .await
                         .unwrap();
                     assert!(looked_up_tx.is_none());
                 }
                 CacheUpdateMethod::QueryDetails => {
-                    let looked_up_tx = proxy.lookup_tx_details(tx_hash).await.unwrap();
+                    let looked_up_tx = proxy
+                        .lookup_tx_details(&mut pool.connection().await.unwrap(), tx_hash)
+                        .await
+                        .unwrap();
                     assert!(looked_up_tx.is_none());
                 }
             }
@@ -440,7 +457,7 @@ mod tests {
             .build();
 
         // Add transaction to the cache
-        let proxy = TxProxy::new(pool.clone(), Box::new(main_node_client));
+        let proxy = TxProxy::new(Box::new(main_node_client));
         proxy
             .submit_tx(&tx, TransactionExecutionMetrics::default())
             .await
@@ -471,7 +488,7 @@ mod tests {
             .await
             .unwrap();
 
-        cache_update_method.apply(&proxy, tx.hash()).await;
+        cache_update_method.apply(&pool, &proxy, tx.hash()).await;
 
         // Transaction should be removed from the cache
         assert!(proxy.tx_cache.get_tx(tx.hash()).await.is_none());
@@ -487,11 +504,14 @@ mod tests {
         }
 
         let looked_up_tx = proxy
-            .lookup_tx(api::TransactionId::Hash(tx.hash()))
+            .lookup_tx(&mut storage, api::TransactionId::Hash(tx.hash()))
             .await
             .unwrap();
         assert!(looked_up_tx.is_none());
-        let looked_up_tx = proxy.lookup_tx_details(tx.hash()).await.unwrap();
+        let looked_up_tx = proxy
+            .lookup_tx_details(&mut storage, tx.hash())
+            .await
+            .unwrap();
         assert!(looked_up_tx.is_none());
     }
 
@@ -514,7 +534,7 @@ mod tests {
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_sendRawTransaction", |_bytes: Bytes| Ok(H256::zero()))
             .build();
-        let proxy = TxProxy::new(pool.clone(), Box::new(main_node_client));
+        let proxy = TxProxy::new(Box::new(main_node_client));
         proxy
             .submit_tx(&tx, TransactionExecutionMetrics::default())
             .await
@@ -557,7 +577,9 @@ mod tests {
             .await
             .unwrap();
 
-        cache_update_method.apply(&proxy, replacing_tx.hash()).await;
+        cache_update_method
+            .apply(&pool, &proxy, replacing_tx.hash())
+            .await;
 
         // Original and replacing transactions should be removed from the cache, and the future transaction should be retained.
         {
@@ -579,20 +601,23 @@ mod tests {
 
         for missing_hash in [tx.hash(), replacing_tx.hash()] {
             let looked_up_tx = proxy
-                .lookup_tx(api::TransactionId::Hash(missing_hash))
+                .lookup_tx(&mut storage, api::TransactionId::Hash(missing_hash))
                 .await
                 .unwrap();
             assert!(looked_up_tx.is_none());
-            let looked_up_tx = proxy.lookup_tx_details(missing_hash).await.unwrap();
+            let looked_up_tx = proxy
+                .lookup_tx_details(&mut storage, missing_hash)
+                .await
+                .unwrap();
             assert!(looked_up_tx.is_none());
         }
         proxy
-            .lookup_tx(api::TransactionId::Hash(future_tx.hash()))
+            .lookup_tx(&mut storage, api::TransactionId::Hash(future_tx.hash()))
             .await
             .unwrap()
             .expect("no transaction");
         proxy
-            .lookup_tx_details(future_tx.hash())
+            .lookup_tx_details(&mut storage, future_tx.hash())
             .await
             .unwrap()
             .expect("no transaction");
