@@ -314,7 +314,7 @@ async function setInternalL1GasPrice(
 
     // Run server in background.
     let command = 'zk server --components api,tree,eth,state_keeper';
-    if (process.env.DEPLOYMENT_MODE == DataAvailabityMode.Validium) {
+    if (deploymentMode == DataAvailabityMode.Validium) {
         command += `,da_dispatcher`;
     }
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
