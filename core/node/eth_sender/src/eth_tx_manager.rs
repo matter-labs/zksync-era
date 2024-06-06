@@ -323,13 +323,7 @@ impl EthTxManager {
             Err(error) => {
                 // In transient errors, server may have received the transaction
                 // we don't want to loose record about it in case that happens
-                if error.is_transient() {
-                    storage
-                        .eth_sender_dal()
-                        .set_sent_at_block(tx_history_id, current_block.0)
-                        .await
-                        .unwrap();
-                } else {
+                if !error.is_transient() {
                     storage
                         .eth_sender_dal()
                         .remove_tx_history(tx_history_id)
