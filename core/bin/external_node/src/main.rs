@@ -140,6 +140,9 @@ async fn run_tree(
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
         recovery: MetadataCalculatorRecoveryConfig {
             desired_chunk_size: config.experimental.snapshots_recovery_tree_chunk_size,
+            parallel_persistence_buffer: config
+                .experimental
+                .snapshots_recovery_tree_parallel_persistence_buffer,
         },
     };
 
