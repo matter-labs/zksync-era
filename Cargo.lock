@@ -8635,6 +8635,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_concurrency",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -9032,8 +9033,10 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
+ "futures 0.3.28",
  "once_cell",
  "serde",
+ "serde_json",
  "test-casing",
  "thiserror",
  "tokio",
@@ -9247,6 +9250,8 @@ dependencies = [
 name = "zksync_shared_metrics"
 version = "0.1.0"
 dependencies = [
+ "rustc_version",
+ "tracing",
  "vise",
  "zksync_dal",
  "zksync_types",

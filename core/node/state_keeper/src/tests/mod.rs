@@ -8,7 +8,7 @@ use std::{
 
 use multivm::{
     interface::{
-        ExecutionResult, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxExecutionMode,
+        ExecutionResult, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxExecutionMode,
         VmExecutionResultAndLogs, VmExecutionStatistics,
     },
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, VmExecutionLogs},
@@ -32,7 +32,7 @@ use crate::{
     keeper::POLL_WAIT_DURATION,
     seal_criteria::{
         criteria::{GasCriterion, SlotsCriterion},
-        SequencerSealer,
+        SequencerSealer, UnexecutableReason,
     },
     testonly::{
         successful_exec,
@@ -328,7 +328,11 @@ async fn rejected_tx() {
     TestScenario::new()
         .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
         .next_tx("Rejected tx", rejected_tx.clone(), rejected_exec())
-        .tx_rejected("Tx got rejected", rejected_tx, None)
+        .tx_rejected(
+            "Tx got rejected",
+            rejected_tx,
+            UnexecutableReason::Halt(Halt::InnerTxError),
+        )
         .next_tx("Successful tx", random_tx(2), successful_exec())
         .l2_block_sealed("L2 block with successful tx")
         .next_tx("Second successful tx", random_tx(3), successful_exec())
