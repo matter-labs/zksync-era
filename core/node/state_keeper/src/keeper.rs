@@ -23,6 +23,7 @@ use super::{
     updates::UpdatesManager,
     utils::gas_count_from_writes,
 };
+use crate::seal_criteria::UnexecutableReason;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -581,7 +582,7 @@ impl ZkSyncStateKeeper {
                         format!("failed rolling back transaction {tx_hash:?} in batch executor")
                     })?;
                     self.io
-                        .reject(&tx, reason)
+                        .reject(&tx, reason.clone())
                         .await
                         .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
                 }
@@ -690,23 +691,29 @@ impl ZkSyncStateKeeper {
             | TxExecutionResult::RejectedByVm {
                 reason: Halt::NotEnoughGasProvided,
             } => {
-                let error_message = match &exec_result {
-                    TxExecutionResult::BootloaderOutOfGasForTx => "bootloader_tx_out_of_gas",
+                let (reason, criterion) = match &exec_result {
+                    TxExecutionResult::BootloaderOutOfGasForTx => (
+                        UnexecutableReason::BootloaderOutOfGas,
+                        "bootloader_tx_out_of_gas",
+                    ),
                     TxExecutionResult::RejectedByVm {
                         reason: Halt::NotEnoughGasProvided,
-                    } => "not_enough_gas_provided_to_start_tx",
+                    } => (
+                        UnexecutableReason::NotEnoughGasProvided,
+                        "not_enough_gas_provided_to_start_tx",
+                    ),
                     _ => unreachable!(),
                 };
                 let resolution = if is_first_tx {
-                    SealResolution::Unexecutable(error_message.to_string())
+                    SealResolution::Unexecutable(reason)
                 } else {
                     SealResolution::ExcludeAndSeal
                 };
-                AGGREGATION_METRICS.inc(error_message, &resolution);
+                AGGREGATION_METRICS.inc(criterion, &resolution);
                 resolution
             }
             TxExecutionResult::RejectedByVm { reason } => {
-                SealResolution::Unexecutable(reason.to_string())
+                UnexecutableReason::Halt(reason.clone()).into()
             }
             TxExecutionResult::Success {
                 tx_result,

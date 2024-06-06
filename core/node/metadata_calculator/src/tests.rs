@@ -15,7 +15,7 @@ use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::{MockObjectStore, ObjectStore};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_storage::RocksDB;
 use zksync_types::{
@@ -384,13 +384,16 @@ pub(crate) async fn setup_calculator(
     db_path: &Path,
     pool: ConnectionPool<Core>,
 ) -> (MetadataCalculator, Arc<dyn ObjectStore>) {
-    let store_factory = ObjectStoreFactory::mock();
-    let store = store_factory.create_store().await;
+    let store = MockObjectStore::arc();
     let (merkle_tree_config, operation_manager) = create_config(db_path, MerkleTreeMode::Full);
-    let calculator =
-        setup_calculator_with_options(&merkle_tree_config, &operation_manager, pool, Some(store))
-            .await;
-    (calculator, store_factory.create_store().await)
+    let calculator = setup_calculator_with_options(
+        &merkle_tree_config,
+        &operation_manager,
+        pool,
+        Some(store.clone()),
+    )
+    .await;
+    (calculator, store)
 }
 
 async fn setup_lightweight_calculator(
