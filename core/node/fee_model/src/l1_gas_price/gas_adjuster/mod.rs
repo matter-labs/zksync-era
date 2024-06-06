@@ -43,9 +43,6 @@ pub struct GasAdjuster {
     pubdata_sending_mode: PubdataSendingMode,
     eth_client: Box<DynClient<L1>>,
     commitment_mode: L1BatchCommitmentMode,
-    // Access to the connection pool is only needed for the base token fee calculation.
-    // If the chain is running in `ETH` mode, the connection pool will be `None`.
-    connection_pool: Option<ConnectionPool<Core>>,
     base_token_elements: Option<BaseTokenPriceElements>,
 }
 
@@ -116,7 +113,6 @@ impl GasAdjuster {
             pubdata_sending_mode,
             eth_client,
             commitment_mode,
-            connection_pool,
             base_token_elements,
         })
     }
