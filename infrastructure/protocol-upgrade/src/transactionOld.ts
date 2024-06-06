@@ -254,7 +254,7 @@ export function buildDefaultUpgradeTx(
     postUpgradeCalldataFlag
 ) {
     const commonData = JSON.parse(fs.readFileSync(getCommonDataFileName(), { encoding: 'utf-8' }));
-    const protocolVersion = commonData.protocolVersion;
+    const protocolVersion = 103079215105;
     console.log(
         `Building default upgrade tx for ${environment} protocol version ${protocolVersion} upgradeTimestamp ${upgradeTimestamp} `
     );
@@ -345,6 +345,7 @@ export function buildDefaultUpgradeTx(
             diamondUpgradeProposalId
         );
     }
+
     const transactions = {
         proposeUpgradeTx,
         l1upgradeCalldata,
