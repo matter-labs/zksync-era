@@ -1088,10 +1088,15 @@ impl ExperimentalENConfig {
                 general_config.db_config,
                 experimental.state_keeper_db_max_open_files
             ),
+            snapshots_recovery_l1_batch: load_config!(general_config.snapshot_recovery, l1_batch),
             snapshots_recovery_tree_chunk_size: load_optional_config_or_default!(
                 general_config.snapshot_recovery,
                 tree_chunk_size,
                 default_snapshots_recovery_tree_chunk_size
+            ),
+            snapshots_recovery_tree_parallel_persistence_buffer: load_config!(
+                general_config.snapshot_recovery,
+                tree_parallel_persistence_buffer
             ),
             commitment_generator_max_parallelism: general_config
                 .commitment_generator
