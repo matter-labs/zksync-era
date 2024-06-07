@@ -737,29 +737,11 @@ impl FriProverDal<'_, '_> {
         .await
     }
 
-    pub async fn delete_prover_jobs_fri_archive_batch_data(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!(
-            r#"
-            DELETE FROM prover_jobs_fri_archive
-            WHERE
-                l1_batch_number = $1;
-            "#,
-            i64::from(l1_batch_number.0)
-        )
-        .execute(self.storage.conn())
-        .await
-    }
-
     pub async fn delete_batch_data(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         self.delete_prover_jobs_fri_batch_data(l1_batch_number)
-            .await?;
-        self.delete_prover_jobs_fri_archive_batch_data(l1_batch_number)
             .await
     }
 
@@ -773,21 +755,8 @@ impl FriProverDal<'_, '_> {
         .await
     }
 
-    pub async fn delete_prover_jobs_fri_archive(
-        &mut self,
-    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!(
-            r#"
-            DELETE FROM prover_jobs_fri_archive
-            "#
-        )
-        .execute(self.storage.conn())
-        .await
-    }
-
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_prover_jobs_fri().await?;
-        self.delete_prover_jobs_fri_archive().await
+        self.delete_prover_jobs_fri().await
     }
 
     pub async fn requeue_stuck_jobs_for_batch(
