@@ -27,6 +27,7 @@ mod factory;
 mod file;
 mod gcs;
 mod metrics;
+mod mirror;
 mod mock;
 mod objects;
 mod raw;
