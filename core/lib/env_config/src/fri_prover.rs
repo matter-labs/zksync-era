@@ -61,10 +61,10 @@ mod tests {
             FRI_PROVER_ZONE_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/zone"
             FRI_PROVER_SHALL_SAVE_TO_PUBLIC_BUCKET=true
             FRI_PROVER_AVAILABILITY_CHECK_INTERVAL_IN_SECS="1800"
-            OBJECT_STORE_BUCKET_BASE_URL="/base/url"
-            OBJECT_STORE_MODE="GCSWithCredentialFile"
-            OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
-            OBJECT_STORE_MAX_RETRIES="5"
+            PROVER_OBJECT_STORE_BUCKET_BASE_URL="/base/url"
+            PROVER_OBJECT_STORE_MODE="GCSWithCredentialFile"
+            PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
+            PROVER_OBJECT_STORE_MAX_RETRIES="5"
 
         "#;
         lock.set_env(config);
