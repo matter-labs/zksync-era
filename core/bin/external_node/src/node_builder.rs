@@ -9,8 +9,8 @@ use zksync_node_framework::{
     implementations::layers::{
         healtcheck_server::HealthCheckLayer, main_node_client::MainNodeClientLayer,
         pools_layer::PoolsLayerBuilder, postgres_metrics::PostgresMetricsLayer,
-        prometheus_exporter::PrometheusExporterLayer, sigint::SigintHandlerLayer,
-        tree_data_fetcher::TreeDataFetcherLayer,
+        prometheus_exporter::PrometheusExporterLayer, query_eth_client::QueryEthClientLayer,
+        sigint::SigintHandlerLayer, tree_data_fetcher::TreeDataFetcherLayer,
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
@@ -111,6 +111,15 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
+        let query_eth_client_layer = QueryEthClientLayer::new(
+            self.config.required.l1_chain_id,
+            self.config.required.eth_client_url.clone(),
+        );
+        self.node.add_layer(query_eth_client_layer);
+        Ok(self)
+    }
+
     fn add_preconditions(mut self) -> anyhow::Result<Self> {
         todo!()
     }
@@ -128,7 +137,8 @@ impl ExternalNodeBuilder {
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_pools_layer()?
-            .add_main_node_client_layer()?;
+            .add_main_node_client_layer()?
+            .add_query_eth_client_layer()?;
 
         // Add preconditions for all the components.
         self = self.add_preconditions()?;
