@@ -121,11 +121,11 @@ impl ObservabilityENConfig {
                 (None, None, LogFormat::default(), None)
             };
         let (prometheus_port, prometheus_pushgateway_url, prometheus_push_interval_ms) =
-            if let Some(api) = general_config.api_config.as_ref() {
+            if let Some(prometheus) = general_config.prometheus_config.as_ref() {
                 (
-                    Some(api.prometheus.listener_port),
-                    Some(api.prometheus.pushgateway_url.clone()),
-                    api.prometheus.push_interval_ms.unwrap_or_default(),
+                    Some(prometheus.listener_port),
+                    Some(prometheus.pushgateway_url.clone()),
+                    prometheus.push_interval_ms.unwrap_or_default(),
                 )
             } else {
                 (None, None, 0)
