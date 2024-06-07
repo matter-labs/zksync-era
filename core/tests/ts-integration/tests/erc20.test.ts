@@ -135,7 +135,7 @@ describe('ERC20 contract checks', () => {
             .transfer({
                 to: bob.address,
                 amount: L2_DEFAULT_ETH_PER_ACCOUNT / 8n,
-                token: zksync.utils.ETH_ADDRESS
+                token: zksync.utils.ETH_ADDRESS_IN_CONTRACTS
             })
             .then((tx) => tx.wait());
 

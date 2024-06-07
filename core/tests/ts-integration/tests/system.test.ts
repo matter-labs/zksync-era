@@ -220,7 +220,11 @@ describe('System behavior checks', () => {
         await alice.transfer({ amount, to: bob.address, token: l2Token }).then((tx) => tx.wait());
         testMaster.reporter.debug('Sent L2 token to Bob');
         await alice
-            .transfer({ amount: L2_DEFAULT_ETH_PER_ACCOUNT / 8n, to: bob.address, token: zksync.utils.ETH_ADDRESS })
+            .transfer({
+                amount: L2_DEFAULT_ETH_PER_ACCOUNT / 8n,
+                to: bob.address,
+                token: zksync.utils.ETH_ADDRESS_IN_CONTRACTS
+            })
             .then((tx) => tx.wait());
         testMaster.reporter.debug('Sent ethereum on L2 to Bob');
 
