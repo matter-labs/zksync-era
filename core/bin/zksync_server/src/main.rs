@@ -17,7 +17,7 @@ use zksync_config::{
         ProtectiveReadsWriterConfig, Secrets,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
-    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    GenesisConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
@@ -304,7 +304,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         eth_sender_config: EthConfig::from_env().ok(),
         eth_watch_config: EthWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
-        object_store_config: ObjectStoreConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),

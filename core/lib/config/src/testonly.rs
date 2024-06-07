@@ -442,7 +442,9 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             zone_read_url: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
             availability_check_interval_in_secs: self.sample(rng),
-            object_store: self.sample(rng),
+            core_object_store: self.sample(rng),
+            prover_object_store: self.sample(rng),
+            public_object_store: self.sample(rng),
         }
     }
 }
