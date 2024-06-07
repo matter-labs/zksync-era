@@ -18,7 +18,7 @@ use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHeader, StorageOracleInfo},
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
-    l2_to_l1_log::{self, L2ToL1Log, UserL2ToL1Log},
+    l2_to_l1_log::UserL2ToL1Log,
     writes::TreeWrite,
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
@@ -27,7 +27,9 @@ pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptional
 use crate::{
     models::{
         parse_protocol_version,
-        storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader},
+        storage_block::{
+            IntoL1BatchHeader, StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader,
+        },
         storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
     },
@@ -282,14 +284,14 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        let mut l1_batches = vec![];
+        let mut l1_batch_headers = vec![];
 
         for batch in storage_l1_batches {
             let l2_to_l1_logs = self.get_l2_to_l1_logs_by_number(batch.number).await?;
-            l1_batches.push(batch.into_l1_batch_header_with_logs(l2_to_l1_logs));
+            l1_batch_headers.push(batch.into_l1_batch_header_with_logs(l2_to_l1_logs));
         }
 
-        Ok(l1_batches)
+        Ok(l1_batch_headers)
     }
 
     async fn get_l2_to_l1_logs_by_number(&mut self, number: i64) -> DalResult<Vec<UserL2ToL1Log>> {
@@ -1271,16 +1273,16 @@ impl BlocksDal<'_, '_> {
         &mut self,
         raw_batches: Vec<StorageL1Batch>,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
-        let mut l1_batches = Vec::with_capacity(raw_batches.len());
+        let mut l1_batches_with_metadata = Vec::with_capacity(raw_batches.len());
         for raw_batch in raw_batches {
             let block = self
                 .map_storage_l1_batch(raw_batch)
                 .await
-                .context("get_l1_batch_with_metadata()")?
+                .context("map_storage_l1_batch()")?
                 .context("Block should be complete")?;
-            l1_batches.push(block);
+            l1_batches_with_metadata.push(block);
         }
-        Ok(l1_batches)
+        Ok(l1_batches_with_metadata)
     }
 
     /// This method returns batches that are committed on L1 and witness jobs for them are skipped.
