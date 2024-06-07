@@ -1,11 +1,16 @@
 use zksync_config::configs::FriProverConfig;
 
-use crate::{envy_load, object_store::ProverObjectStoreConfig, FromEnv};
+use crate::{
+    envy_load,
+    object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
+    FromEnv,
+};
 
 impl FromEnv for FriProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let mut prover: FriProverConfig = envy_load("fri_prover", "FRI_PROVER_")?;
-        prover.object_store = ProverObjectStoreConfig::from_env().map(|a| a.0).ok();
+        prover.prover_object_store = ProverObjectStoreConfig::from_env().map(|a| a.0).ok();
+        prover.public_object_store = PublicObjectStoreConfig::from_env().map(|a| a.0).ok();
         Ok(prover)
     }
 }
@@ -35,10 +40,18 @@ mod tests {
             zone_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/zone"
                 .to_string(),
             shall_save_to_public_bucket: true,
-            object_store: Some(ObjectStoreConfig {
+            prover_object_store: Some(ObjectStoreConfig {
                 mode: ObjectStoreMode::GCSWithCredentialFile {
                     bucket_base_url: "/base/url".to_owned(),
-                    gcs_credential_file_path: "/path/to/credentials.json".to_owned(),
+                    gcs_credential_file_path: "/path/to/credentials1.json".to_owned(),
+                },
+                max_retries: 5,
+                local_mirror_path: None,
+            }),
+            public_object_store: Some(ObjectStoreConfig {
+                mode: ObjectStoreMode::GCSWithCredentialFile {
+                    bucket_base_url: "/base/url".to_owned(),
+                    gcs_credential_file_path: "/path/to/credentials2.json".to_owned(),
                 },
                 max_retries: 5,
                 local_mirror_path: None,
@@ -64,8 +77,12 @@ mod tests {
             FRI_PROVER_AVAILABILITY_CHECK_INTERVAL_IN_SECS="1800"
             PROVER_OBJECT_STORE_BUCKET_BASE_URL="/base/url"
             PROVER_OBJECT_STORE_MODE="GCSWithCredentialFile"
-            PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
+            PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials1.json"
             PROVER_OBJECT_STORE_MAX_RETRIES="5"
+            PUBLIC_OBJECT_STORE_BUCKET_BASE_URL="/base/url"
+            PUBLIC_OBJECT_STORE_MODE="GCSWithCredentialFile"
+            PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials2.json"
+            PUBLIC_OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
 

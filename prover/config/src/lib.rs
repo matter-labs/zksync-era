@@ -10,11 +10,11 @@ use zksync_config::{
         house_keeper::HouseKeeperConfig,
         DADispatcherConfig, DatabaseSecrets, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig,
+        GeneralConfig, ObjectStoreConfig, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
-    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, TempConfigStore};
 use zksync_env_config::FromEnv;
@@ -46,11 +46,11 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         eth_sender_config: EthConfig::from_env().ok(),
         eth_watch_config: EthWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
-        object_store_config: ObjectStoreConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
+        core_object_store: ObjectStoreConfig::from_env().ok(),
     })
 }
 

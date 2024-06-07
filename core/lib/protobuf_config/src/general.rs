@@ -40,7 +40,9 @@ impl ProtoRepr for proto::GeneralConfig {
             da_dispatcher_config: read_optional_repr(&self.da_dispatcher)
                 .context("da_dispatcher")?,
             protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer)
-                .context("vm_runner")?,
+                .context("protective_reads_writer")?,
+            core_object_store: read_optional_repr(&self.core_object_store)
+                .context("core_object_store")?,
         })
     }
 
@@ -77,6 +79,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .protective_reads_writer_config
                 .as_ref()
                 .map(ProtoRepr::build),
+            core_object_store: this.core_object_store.as_ref().map(ProtoRepr::build),
         }
     }
 }

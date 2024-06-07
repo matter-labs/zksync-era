@@ -9,7 +9,8 @@ use crate::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ObjectStoreConfig, PostgresConfig,
+    SnapshotsCreatorConfig,
 };
 
 #[derive(Debug)]
@@ -36,4 +37,5 @@ pub struct GeneralConfig {
     pub observability: Option<ObservabilityConfig>,
     pub da_dispatcher_config: Option<DADispatcherConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub core_object_store: Option<ObjectStoreConfig>,
 }
