@@ -6,6 +6,7 @@ impl FromEnv for FriProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let mut prover: FriProverConfig = envy_load("fri_prover", "FRI_PROVER_")?;
         prover.object_store = ObjectStoreConfig::from_env().ok();
+        prover.public_object_store = ObjectStoreConfig::from_env().ok();
         Ok(prover)
     }
 }
@@ -74,6 +75,10 @@ mod tests {
             OBJECT_STORE_MODE="GCSWithCredentialFile"
             OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
             OBJECT_STORE_MAX_RETRIES="5"
+            PUBLIC_OBJECT_STORE_BUCKET_BASE_URL="/base/url"
+            PUBLIC_OBJECT_STORE_MODE="GCSWithCredentialFile"
+            PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
+            PUBLIC_OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
 
