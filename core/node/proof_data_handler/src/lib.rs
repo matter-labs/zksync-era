@@ -57,10 +57,10 @@ fn create_proof_processing_router(
     let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();
     let register_tee_attestation_processor = get_tee_proof_gen_processor.clone();
     let get_proof_gen_processor =
-        RequestProcessor::new(blob_store, connection_pool, config, commitment_mode);
+        RequestProcessor::new(blob_store, connection_pool, config.clone(), commitment_mode);
     let submit_proof_processor = get_proof_gen_processor.clone();
 
-    Router::new()
+    let router = Router::new()
         .route(
             "/proof_generation_data",
             post(
@@ -82,9 +82,11 @@ fn create_proof_processing_router(
                         .await
                 },
             ),
-        )
-        .route(
-            "/tee_proof_inputs",
+        );
+
+    if config.tee_support {
+        return router.route(
+            "/tee/proof_inputs",
             post(
                 move |payload: Json<TeeProofGenerationDataRequest>| async move {
                     get_tee_proof_gen_processor
@@ -94,7 +96,7 @@ fn create_proof_processing_router(
             ),
         )
         .route(
-            "/submit_tee_proof/:l1_batch_number",
+            "/tee/submit_proofs/:l1_batch_number",
             post(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitTeeProofRequest>| async move {
                     submit_tee_proof_processor
@@ -104,7 +106,7 @@ fn create_proof_processing_router(
             ),
         )
         .route(
-            "/register_tee_attestation",
+            "/tee/register_attestation",
             post(
                 move |payload: Json<RegisterTeeAttestationRequest>| async move {
                     register_tee_attestation_processor
@@ -112,5 +114,8 @@ fn create_proof_processing_router(
                         .await
                 },
             ),
-        )
+        );
+    }
+
+    router
 }

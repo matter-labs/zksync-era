@@ -21,11 +21,11 @@ use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
 
 use crate::create_proof_processing_router;
 
-// Test the /tee_proof_inputs endpoint by:
+// Test the /tee/proof_inputs endpoint by:
 // 1. Mocking an object store with a single batch blob containing TEE verifier input
 // 2. Populating the SQL db with relevant information about the status of the TEE verifier input and
 //    TEE proof generation
-// 3. Sending a request to the /tee_proof_inputs endpoint and asserting that the response
+// 3. Sending a request to the /tee/proof_inputs endpoint and asserting that the response
 //    matches the file from the object store
 #[tokio::test]
 async fn request_tee_proof_inputs() {
@@ -80,7 +80,7 @@ async fn request_tee_proof_inputs() {
     let db_conn_pool = ConnectionPool::test_pool().await;
     mock_tee_batch_status(db_conn_pool.clone(), batch_number, &object_path).await;
 
-    // test the /tee_proof_inputs endpoint; it should return the batch from the object store
+    // test the /tee/proof_inputs endpoint; it should return the batch from the object store
 
     let app = create_proof_processing_router(
         blob_store,
@@ -88,6 +88,7 @@ async fn request_tee_proof_inputs() {
         ProofDataHandlerConfig {
             http_port: 1337,
             proof_generation_timeout_in_secs: 10,
+            tee_support: true,
         },
         L1BatchCommitmentMode::Rollup,
     );
@@ -96,7 +97,7 @@ async fn request_tee_proof_inputs() {
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/tee_proof_inputs")
+                .uri("/tee/proof_inputs")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .body(req_body)
                 .unwrap(),
@@ -117,7 +118,7 @@ async fn request_tee_proof_inputs() {
     assert_eq!(tvi, deserialized);
 }
 
-// Test /submit_tee_proof endpoint using a mocked TEE proof and verify response and db state
+// Test /tee/submit_proofs endpoint using a mocked TEE proof and verify response and db state
 #[tokio::test]
 async fn submit_tee_proof() {
     let blob_store = MockObjectStore::arc();
@@ -127,7 +128,7 @@ async fn submit_tee_proof() {
 
     mock_tee_batch_status(db_conn_pool.clone(), batch_number, object_path).await;
 
-    // send a request to the /submit_tee_proof endpoint, using a mocked TEE proof
+    // send a request to the /tee/submit_proofs endpoint, using a mocked TEE proof
 
     let tee_proof_request_str = r#"{
         "Proof": {
@@ -138,13 +139,14 @@ async fn submit_tee_proof() {
     }"#;
     let tee_proof_request =
         serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_request_str).unwrap();
-    let uri = format!("/submit_tee_proof/{}", batch_number.0);
+    let uri = format!("/tee/submit_proofs/{}", batch_number.0);
     let app = create_proof_processing_router(
         blob_store,
         db_conn_pool.clone(),
         ProofDataHandlerConfig {
             http_port: 1337,
             proof_generation_timeout_in_secs: 10,
+            tee_support: true,
         },
         L1BatchCommitmentMode::Rollup,
     );
