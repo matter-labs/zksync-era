@@ -49,6 +49,9 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
+        commitment_generator: None,
+        pruning: None,
+        snapshot_recovery: None,
     })
 }
 

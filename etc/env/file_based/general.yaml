@@ -330,8 +330,11 @@ protective_reads_writer:
 
 snapshot_recovery:
   enabled: true
-  postgres_max_concurrency: 10
-  tree_chunk_size: 200000
+  postgres:
+    max_concurrency: 10
+  tree:
+    chunk_size: 200000
+    parallel_persistence_buffer: 1
 pruning:
   enabled: true
   chunk_size: 10
