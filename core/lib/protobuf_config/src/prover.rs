@@ -289,11 +289,6 @@ impl proto::SetupLoadMode {
 impl ProtoRepr for proto::Prover {
     type Type = configs::FriProverConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let core_object_store = if let Some(object_store) = &self.object_store {
-            Some(object_store.read()?)
-        } else {
-            None
-        };
         let public_object_store = if let Some(object_store) = &self.public_object_store {
             Some(object_store.read()?)
         } else {
@@ -335,7 +330,6 @@ impl ProtoRepr for proto::Prover {
             availability_check_interval_in_secs: self.availability_check_interval_in_secs,
             shall_save_to_public_bucket: *required(&self.shall_save_to_public_bucket)
                 .context("shall_save_to_public_bucket")?,
-            core_object_store,
             public_object_store,
             prover_object_store,
         })
@@ -354,7 +348,6 @@ impl ProtoRepr for proto::Prover {
             zone_read_url: Some(this.zone_read_url.clone()),
             availability_check_interval_in_secs: this.availability_check_interval_in_secs,
             shall_save_to_public_bucket: Some(this.shall_save_to_public_bucket),
-            object_store: this.core_object_store.as_ref().map(ProtoRepr::build),
             prover_object_store: this.prover_object_store.as_ref().map(ProtoRepr::build),
             public_object_store: this.public_object_store.as_ref().map(ProtoRepr::build),
         }

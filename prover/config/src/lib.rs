@@ -10,7 +10,8 @@ use zksync_config::{
         house_keeper::HouseKeeperConfig,
         DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
+        ObjectStoreConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ProtectiveReadsWriterConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     PostgresConfig, SnapshotsCreatorConfig,
@@ -48,6 +49,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
+        core_object_store: ObjectStoreConfig::from_env().ok(),
     })
 }
 

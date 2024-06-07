@@ -472,9 +472,6 @@ pub async fn initialize_components(
     }
 
     let object_store_config = configs
-        .prover_config
-        .clone()
-        .context("Prover")?
         .core_object_store
         .clone()
         .context("core_object_store_config")?;

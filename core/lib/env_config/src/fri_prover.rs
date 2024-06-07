@@ -1,4 +1,4 @@
-use zksync_config::{configs::FriProverConfig, ObjectStoreConfig};
+use zksync_config::configs::FriProverConfig;
 
 use crate::{
     envy_load,
@@ -11,7 +11,6 @@ impl FromEnv for FriProverConfig {
         let mut prover: FriProverConfig = envy_load("fri_prover", "FRI_PROVER_")?;
         prover.prover_object_store = ProverObjectStoreConfig::from_env().map(|a| a.0).ok();
         prover.public_object_store = PublicObjectStoreConfig::from_env().map(|a| a.0).ok();
-        prover.core_object_store = ObjectStoreConfig::from_env().ok();
         Ok(prover)
     }
 }
@@ -57,14 +56,6 @@ mod tests {
                 max_retries: 5,
                 local_mirror_path: None,
             }),
-            core_object_store: Some(ObjectStoreConfig {
-                mode: ObjectStoreMode::GCSWithCredentialFile {
-                    bucket_base_url: "/base/url".to_owned(),
-                    gcs_credential_file_path: "/path/to/credentials3.json".to_owned(),
-                },
-                max_retries: 5,
-                local_mirror_path: None,
-            }),
             availability_check_interval_in_secs: Some(1_800),
         }
     }
@@ -88,10 +79,6 @@ mod tests {
             PROVER_OBJECT_STORE_MODE="GCSWithCredentialFile"
             PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials1.json"
             PROVER_OBJECT_STORE_MAX_RETRIES="5"
-            OBJECT_STORE_BUCKET_BASE_URL="/base/url"
-            OBJECT_STORE_MODE="GCSWithCredentialFile"
-            OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials3.json"
-            OBJECT_STORE_MAX_RETRIES="5"
             PUBLIC_OBJECT_STORE_BUCKET_BASE_URL="/base/url"
             PUBLIC_OBJECT_STORE_MODE="GCSWithCredentialFile"
             PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials2.json"
