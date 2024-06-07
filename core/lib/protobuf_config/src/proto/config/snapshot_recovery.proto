@@ -2,11 +2,19 @@ syntax = "proto3";
 
 package zksync.config.snapshot_recovery;
 
+message Tree {
+  optional uint64 chunk_size = 1;
+  optional uint64 parallel_persistence_buffer = 2;
+}
+
+message Postgres {
+  optional uint64 max_concurrency = 1;
+}
+
 message SnapshotRecovery {
   optional bool enabled = 1;
-  optional uint64 postgres_max_concurrency = 2;
-  optional uint64 tree_chunk_size = 3;
+  optional Postgres postgres = 2;
+  optional Tree tree = 3;
   optional uint32 l1_batch = 4;
-  optional uint64 tree_parallel_persistence_buffer = 5;
 }
 

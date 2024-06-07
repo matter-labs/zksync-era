@@ -611,7 +611,7 @@ impl OptionalENConfig {
                 .unwrap_or_default(),
             snapshots_recovery_postgres_max_concurrency: load_optional_config_or_default!(
                 general_config.snapshot_recovery,
-                postgres_max_concurrency,
+                postgres.max_concurrency,
                 default_snapshots_recovery_postgres_max_concurrency
             ),
             pruning_enabled: general_config
@@ -1091,12 +1091,12 @@ impl ExperimentalENConfig {
             snapshots_recovery_l1_batch: load_config!(general_config.snapshot_recovery, l1_batch),
             snapshots_recovery_tree_chunk_size: load_optional_config_or_default!(
                 general_config.snapshot_recovery,
-                tree_chunk_size,
+                tree.chunk_size,
                 default_snapshots_recovery_tree_chunk_size
             ),
             snapshots_recovery_tree_parallel_persistence_buffer: load_config!(
                 general_config.snapshot_recovery,
-                tree_parallel_persistence_buffer
+                tree.parallel_persistence_buffer
             ),
             commitment_generator_max_parallelism: general_config
                 .commitment_generator

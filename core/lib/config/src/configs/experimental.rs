@@ -50,9 +50,11 @@ impl ExperimentalDBConfig {
     pub fn state_keeper_db_block_cache_capacity(&self) -> usize {
         self.state_keeper_db_block_cache_capacity_mb * super::BYTES_IN_MEGABYTE
     }
+
     const fn default_protective_reads_persistence_enabled() -> bool {
         true
     }
+
     const fn default_merkle_tree_processing_delay_ms() -> u64 {
         100
     }
