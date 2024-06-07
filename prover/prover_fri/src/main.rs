@@ -12,7 +12,7 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_config::configs::{DatabaseSecrets, FriProverConfig};
-use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
+use zksync_env_config::FromEnv;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
@@ -107,18 +107,15 @@ async fn main() -> anyhow::Result<()> {
     .context("Error setting Ctrl+C handler")?;
 
     let (stop_sender, stop_receiver) = tokio::sync::watch::channel(false);
-    let object_store_config = ProverObjectStoreConfig(
-        prover_config
-            .object_store
-            .clone()
-            .context("object_store config")?,
-    );
-    let object_store_factory = ObjectStoreFactory::new(object_store_config.0);
-    let public_object_store_config = general_config
-        .snapshot_creator
-        .context("snapshot_creator config")?
-        .object_store
-        .context("object store config")?;
+    let prover_object_store_config = prover_config
+        .prover_object_store
+        .clone()
+        .context("prover object store config")?;
+    let object_store_factory = ObjectStoreFactory::new(prover_object_store_config);
+    let public_object_store_config = prover_config
+        .public_object_store
+        .clone()
+        .context("public object store config")?;
     let public_blob_store = match prover_config.shall_save_to_public_bucket {
         false => None,
         true => Some(
