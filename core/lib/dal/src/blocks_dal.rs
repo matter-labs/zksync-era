@@ -284,7 +284,7 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        let mut l1_batch_headers = vec![];
+        let mut l1_batch_headers = Vec::with_capacity(storage_l1_batches.len());
 
         for batch in storage_l1_batches {
             let l2_to_l1_logs = self.get_l2_to_l1_logs_by_number(batch.number).await?;
@@ -295,7 +295,7 @@ impl BlocksDal<'_, '_> {
     }
 
     async fn get_l2_to_l1_logs_by_number(&mut self, number: i64) -> DalResult<Vec<UserL2ToL1Log>> {
-        let logs = sqlx::query_as!(
+        Ok(sqlx::query_as!(
             StorageL2ToL1Log,
             r#"
             SELECT
@@ -326,9 +326,7 @@ impl BlocksDal<'_, '_> {
         .await?
         .into_iter()
         .map(|log| UserL2ToL1Log(log.into()))
-        .collect();
-
-        Ok(logs)
+        .collect())
     }
 
     async fn get_storage_l1_batch(
@@ -416,12 +414,12 @@ impl BlocksDal<'_, '_> {
             let l2_to_l1_logs = self
                 .get_l2_to_l1_logs_by_number(storage_l1_batch_header.number)
                 .await?;
-            Ok(Some(
+            return Ok(Some(
                 storage_l1_batch_header.into_l1_batch_header_with_logs(l2_to_l1_logs),
-            ))
-        } else {
-            Ok(None)
+            ));
         }
+
+        Ok(None)
     }
 
     /// Returns initial bootloader heap content for the specified L1 batch.
@@ -1773,7 +1771,7 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        let l2_to_l1_logs = self.get_l2_to_l1_logs_by_number(*number as i64).await?;
+        let l2_to_l1_logs = self.get_l2_to_l1_logs_by_number(i64::from(*number)).await?;
         Ok(Some(L1BatchWithOptionalMetadata {
             header: l1_batch
                 .clone()
