@@ -30,7 +30,7 @@ async fn test_leaf_witness_gen() {
             file_backed_base_path: "./tests/data/leaf/".to_owned(),
         },
         max_retries: 5,
-        cache_path: None,
+        local_mirror_path: None,
     };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
@@ -72,7 +72,7 @@ async fn test_node_witness_gen() {
             file_backed_base_path: "./tests/data/node/".to_owned(),
         },
         max_retries: 5,
-        cache_path: None,
+        local_mirror_path: None,
     };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()

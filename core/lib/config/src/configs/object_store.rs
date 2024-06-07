@@ -7,12 +7,15 @@ pub struct ObjectStoreConfig {
     pub mode: ObjectStoreMode,
     #[serde(default = "ObjectStoreConfig::default_max_retries")]
     pub max_retries: u16,
-    /// Path to local directory that will be used to cache objects locally. If not specified, no caching will be used.
+    /// Path to local directory that will be used to mirror store objects locally. If not specified, no mirroring will be used.
     /// The directory layout is identical to [`ObjectStoreMode::FileBacked`].
     ///
-    /// **Important.** Cache logic assumes that objects in the underlying store are immutable. If this is not the case,
-    /// the cache may become stale.
-    pub cache_path: Option<String>,
+    /// Mirroring is primarily useful for local development and testing; it might not provide substantial performance benefits
+    /// if the Internet connection used by the app is fast enough.
+    ///
+    /// **Important.** Mirroring logic assumes that objects in the underlying store are immutable. If this is not the case,
+    /// the mirrored objects may become stale.
+    pub local_mirror_path: Option<String>,
 }
 
 impl ObjectStoreConfig {

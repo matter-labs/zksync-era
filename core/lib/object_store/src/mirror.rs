@@ -1,45 +1,48 @@
-//! Caching object store.
+//! Mirroring object store.
 
 use async_trait::async_trait;
 
 use crate::{file::FileBackedObjectStore, raw::ObjectStore, Bucket, ObjectStoreError};
 
 #[derive(Debug)]
-pub(crate) struct CachingObjectStore<S> {
+pub(crate) struct MirroringObjectStore<S> {
     inner: S,
-    cache_store: FileBackedObjectStore,
+    mirror_store: FileBackedObjectStore,
 }
 
-impl<S: ObjectStore> CachingObjectStore<S> {
-    pub async fn new(inner: S, cache_path: String) -> Result<Self, ObjectStoreError> {
-        tracing::info!("Initializing caching for store {inner:?} at `{cache_path}`");
-        let cache_store = FileBackedObjectStore::new(cache_path).await?;
-        Ok(Self { inner, cache_store })
+impl<S: ObjectStore> MirroringObjectStore<S> {
+    pub async fn new(inner: S, mirror_path: String) -> Result<Self, ObjectStoreError> {
+        tracing::info!("Initializing mirroring for store {inner:?} at `{mirror_path}`");
+        let mirror_store = FileBackedObjectStore::new(mirror_path).await?;
+        Ok(Self {
+            inner,
+            mirror_store,
+        })
     }
 }
 
 #[async_trait]
-impl<S: ObjectStore> ObjectStore for CachingObjectStore<S> {
+impl<S: ObjectStore> ObjectStore for MirroringObjectStore<S> {
     #[tracing::instrument(skip(self))]
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
-        match self.cache_store.get_raw(bucket, key).await {
+        match self.mirror_store.get_raw(bucket, key).await {
             Ok(object) => {
-                tracing::trace!("obtained object from cache");
+                tracing::trace!("obtained object from mirror");
                 return Ok(object);
             }
             Err(err) => {
                 if !matches!(err, ObjectStoreError::KeyNotFound(_)) {
                     tracing::warn!(
-                        "unexpected error calling cache store: {:#}",
+                        "unexpected error calling local mirror store: {:#}",
                         anyhow::Error::from(err)
                     );
                 }
                 let object = self.inner.get_raw(bucket, key).await?;
                 tracing::trace!("obtained object from underlying store");
-                if let Err(err) = self.cache_store.put_raw(bucket, key, object.clone()).await {
-                    tracing::warn!("failed caching object: {:#}", anyhow::Error::from(err));
+                if let Err(err) = self.mirror_store.put_raw(bucket, key, object.clone()).await {
+                    tracing::warn!("failed mirroring object: {:#}", anyhow::Error::from(err));
                 } else {
-                    tracing::trace!("cached object");
+                    tracing::trace!("mirrored object");
                 }
                 Ok(object)
             }
@@ -54,11 +57,11 @@ impl<S: ObjectStore> ObjectStore for CachingObjectStore<S> {
         value: Vec<u8>,
     ) -> Result<(), ObjectStoreError> {
         self.inner.put_raw(bucket, key, value.clone()).await?;
-        // Only put the value into cache once it has been put in the underlying store
-        if let Err(err) = self.cache_store.put_raw(bucket, key, value).await {
-            tracing::warn!("failed caching object: {:#}", anyhow::Error::from(err));
+        // Only put the value into the mirror once it has been put in the underlying store
+        if let Err(err) = self.mirror_store.put_raw(bucket, key, value).await {
+            tracing::warn!("failed mirroring object: {:#}", anyhow::Error::from(err));
         } else {
-            tracing::trace!("cached object");
+            tracing::trace!("mirrored object");
         }
         Ok(())
     }
@@ -66,14 +69,14 @@ impl<S: ObjectStore> ObjectStore for CachingObjectStore<S> {
     #[tracing::instrument(skip(self))]
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         self.inner.remove_raw(bucket, key).await?;
-        // Only remove the value from cache once it has been removed in the underlying store
-        if let Err(err) = self.cache_store.remove_raw(bucket, key).await {
+        // Only remove the value from the mirror once it has been removed in the underlying store
+        if let Err(err) = self.mirror_store.remove_raw(bucket, key).await {
             tracing::warn!(
-                "failed removing object from cache: {:#}",
+                "failed removing object from mirror: {:#}",
                 anyhow::Error::from(err)
             );
         } else {
-            tracing::trace!("removed object from cache");
+            tracing::trace!("removed object from mirror");
         }
         Ok(())
     }
@@ -92,7 +95,7 @@ mod tests {
     use crate::MockObjectStore;
 
     #[tokio::test]
-    async fn caching_basics() {
+    async fn mirroring_basics() {
         let dir = TempDir::new().unwrap();
         let path = dir.into_path().into_os_string().into_string().unwrap();
 
@@ -101,44 +104,44 @@ mod tests {
             .put_raw(Bucket::StorageSnapshot, "test", vec![1, 2, 3])
             .await
             .unwrap();
-        let caching_store = CachingObjectStore::new(mock_store, path).await.unwrap();
+        let mirroring_store = MirroringObjectStore::new(mock_store, path).await.unwrap();
 
-        let object = caching_store
+        let object = mirroring_store
             .get_raw(Bucket::StorageSnapshot, "test")
             .await
             .unwrap();
         assert_eq!(object, [1, 2, 3]);
-        // Check that the object got cached.
-        let object_in_cache = caching_store
-            .cache_store
+        // Check that the object got mirrored.
+        let object_in_mirror = mirroring_store
+            .mirror_store
             .get_raw(Bucket::StorageSnapshot, "test")
             .await
             .unwrap();
-        assert_eq!(object_in_cache, [1, 2, 3]);
-        let object = caching_store
+        assert_eq!(object_in_mirror, [1, 2, 3]);
+        let object = mirroring_store
             .get_raw(Bucket::StorageSnapshot, "test")
             .await
             .unwrap();
         assert_eq!(object, [1, 2, 3]);
 
-        let err = caching_store
+        let err = mirroring_store
             .get_raw(Bucket::StorageSnapshot, "missing")
             .await
             .unwrap_err();
         assert_matches!(err, ObjectStoreError::KeyNotFound(_));
 
-        caching_store
+        mirroring_store
             .put_raw(Bucket::StorageSnapshot, "other", vec![3, 2, 1])
             .await
             .unwrap();
-        // Check that the object got cached.
-        let object_in_cache = caching_store
-            .cache_store
+        // Check that the object got mirrored.
+        let object_in_mirror = mirroring_store
+            .mirror_store
             .get_raw(Bucket::StorageSnapshot, "other")
             .await
             .unwrap();
-        assert_eq!(object_in_cache, [3, 2, 1]);
-        let object = caching_store
+        assert_eq!(object_in_mirror, [3, 2, 1]);
+        let object = mirroring_store
             .get_raw(Bucket::StorageSnapshot, "other")
             .await
             .unwrap();

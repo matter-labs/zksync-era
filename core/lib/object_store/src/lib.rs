@@ -23,11 +23,11 @@
     clippy::doc_markdown
 )]
 
-mod cache;
 mod factory;
 mod file;
 mod gcs;
 mod metrics;
+mod mirror;
 mod mock;
 mod objects;
 mod raw;

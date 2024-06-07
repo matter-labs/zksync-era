@@ -5,9 +5,9 @@ use tokio::sync::OnceCell;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 
 use crate::{
-    cache::CachingObjectStore,
     file::FileBackedObjectStore,
     gcs::{GoogleCloudStore, GoogleCloudStoreAuthMode},
+    mirror::MirroringObjectStore,
     raw::{ObjectStore, ObjectStoreError},
     retries::StoreWithRetries,
 };
@@ -65,7 +65,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_cache(store, config.cache_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
             }
             ObjectStoreMode::GCSWithCredentialFile {
                 bucket_base_url,
@@ -80,7 +80,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_cache(store, config.cache_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
             }
             ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
                 let store = StoreWithRetries::try_new(config.max_retries, || {
@@ -90,7 +90,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_cache(store, config.cache_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
             }
 
             ObjectStoreMode::FileBacked {
@@ -101,20 +101,20 @@ impl ObjectStoreFactory {
                 })
                 .await?;
 
-                if let Some(cache_path) = &config.cache_path {
-                    tracing::warn!("Caching doesn't make sense with file-backed object store; ignoring cache path `{cache_path}`");
+                if let Some(mirror_path) = &config.local_mirror_path {
+                    tracing::warn!("Mirroring doesn't make sense with file-backed object store; ignoring mirror path `{mirror_path}`");
                 }
                 Ok(Arc::new(store))
             }
         }
     }
 
-    async fn wrap_cache(
+    async fn wrap_mirroring(
         store: impl ObjectStore,
-        cache_path: Option<&String>,
+        mirror_path: Option<&String>,
     ) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
-        Ok(if let Some(cache_path) = cache_path {
-            Arc::new(CachingObjectStore::new(store, cache_path.clone()).await?)
+        Ok(if let Some(mirror_path) = mirror_path {
+            Arc::new(MirroringObjectStore::new(store, mirror_path.clone()).await?)
         } else {
             Arc::new(store)
         })
