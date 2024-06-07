@@ -19,7 +19,7 @@ import { DataAvailabityMode, Token } from '../src/types';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 
 const UINT32_MAX = 2n ** 32n - 1n;
-const MAX_GAS_PER_PUBDATA = 50_000;
+const MAX_GAS_PER_PUBDATA = 50_000n;
 
 const logs = fs.createWriteStream('fees.log', { flags: 'a' });
 
@@ -182,7 +182,7 @@ testFees('Test fees', () => {
         const systemContextArtifact = getTestContract('ISystemContext');
         const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
         const systemContextGasPerPubdataByte = await systemContext.gasPerPubdataByte();
-        expect(systemContextGasPerPubdataByte.toNumber()).toEqual(MAX_GAS_PER_PUBDATA);
+        expect(systemContextGasPerPubdataByte).toEqual(MAX_GAS_PER_PUBDATA);
 
         const dataHash = await l1Messenger.sendToL1.staticCall(largeData, { type: 0 });
         expect(dataHash).toEqual(ethers.keccak256(largeData));
