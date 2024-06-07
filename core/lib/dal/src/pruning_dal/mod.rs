@@ -318,29 +318,51 @@ impl PruningDal<'_, '_> {
         &mut self,
         l2_blocks_to_prune: ops::RangeInclusive<L2BlockNumber>,
     ) -> DalResult<u64> {
-        let execution_result = sqlx::query!(
-            r#"
-            DELETE FROM storage_logs
-            WHERE
-                storage_logs.miniblock_number < $1
-                AND hashed_key IN (
-                    SELECT
-                        hashed_key
-                    FROM
-                        storage_logs
-                    WHERE
-                        miniblock_number BETWEEN $1 AND $2
-                )
-            "#,
-            i64::from(l2_blocks_to_prune.start().0),
-            i64::from(l2_blocks_to_prune.end().0)
-        )
-        .instrument("hard_prune_batches_range#prune_storage_logs_from_past_l2_blocks")
-        .with_arg("l2_blocks_to_prune", &l2_blocks_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-        Ok(execution_result.rows_affected())
+        /// Number of past logs to delete in a single query run.
+        const BATCHING_LIMIT: i64 = 10_000;
+
+        let mut total_rows_affected = 0;
+        loop {
+            let execution_result = sqlx::query!(
+                r#"
+                DELETE FROM storage_logs
+                WHERE
+                    ctid IN (
+                        SELECT
+                            prev_logs.ctid
+                        FROM
+                            storage_logs AS prev_logs
+                            INNER JOIN LATERAL (
+                                SELECT
+                                    1
+                                FROM
+                                    storage_logs AS current_logs
+                                WHERE
+                                    current_logs.miniblock_number BETWEEN $1 AND $2
+                                    AND current_logs.hashed_key = prev_logs.hashed_key
+                            ) AS current_logs ON TRUE
+                        WHERE
+                            prev_logs.miniblock_number < $1
+                        LIMIT
+                            $3
+                    )
+                "#,
+                i64::from(l2_blocks_to_prune.start().0),
+                i64::from(l2_blocks_to_prune.end().0),
+                BATCHING_LIMIT
+            )
+            .instrument("hard_prune_batches_range#prune_storage_logs_from_past_l2_blocks")
+            .with_arg("l2_blocks_to_prune", &l2_blocks_to_prune)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
+
+            if execution_result.rows_affected() > 0 {
+                total_rows_affected += execution_result.rows_affected();
+            } else {
+                return Ok(total_rows_affected);
+            }
+        }
     }
 
     async fn prune_storage_logs_in_range(
