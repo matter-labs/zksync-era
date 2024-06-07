@@ -1,6 +1,10 @@
 use zksync_config::configs::FriProverConfig;
 
-use crate::{envy_load, object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig}, FromEnv};
+use crate::{
+    envy_load,
+    object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
+    FromEnv,
+};
 
 impl FromEnv for FriProverConfig {
     fn from_env() -> anyhow::Result<Self> {
