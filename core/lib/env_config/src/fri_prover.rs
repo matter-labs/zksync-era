@@ -1,11 +1,11 @@
-use zksync_config::{configs::FriProverConfig, ObjectStoreConfig};
+use zksync_config::configs::FriProverConfig;
 
-use crate::{envy_load, FromEnv};
+use crate::{envy_load, object_store::ProverObjectStoreConfig, FromEnv};
 
 impl FromEnv for FriProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let mut prover: FriProverConfig = envy_load("fri_prover", "FRI_PROVER_")?;
-        prover.object_store = ObjectStoreConfig::from_env().ok();
+        prover.object_store = ProverObjectStoreConfig::from_env().map(|a| a.0).ok();
         Ok(prover)
     }
 }
