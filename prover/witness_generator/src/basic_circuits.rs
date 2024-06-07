@@ -36,7 +36,9 @@ use zksync_prover_fri_types::{
     AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_prover_interface::inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob};
+use zksync_prover_interface::inputs::{
+    BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob, WitnessGeneratorData,
+};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
@@ -450,7 +452,7 @@ async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
     connection_pool: ConnectionPool<Core>,
-    input: BasicCircuitWitnessGeneratorInput,
+    input: WitnessGeneratorData,
     eip_4844_blobs: Eip4844Blobs,
 ) -> (
     Vec<(u8, String)>,
@@ -490,24 +492,9 @@ async fn generate_witness(
         .expect("Failed fetching bootloader bytecode from DB")
         .expect("Bootloader bytecode should exist");
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
-    let account_bytecode_bytes = connection
-        .factory_deps_dal()
-        .get_sealed_factory_dep(header.base_system_contracts_hashes.default_aa)
-        .await
-        .expect("Failed fetching default account bytecode from DB")
-        .expect("Default account bytecode should exist");
-    let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
+
     let bootloader_contents =
         expand_bootloader_contents(&input.initial_heap_content, protocol_version);
-    let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
-
-    let hashes: HashSet<H256> = input
-        .used_bytecodes_hashes
-        .iter()
-        // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
-        .filter(|&&hash| hash != h256_to_u256(header.base_system_contracts_hashes.bootloader))
-        .map(|hash| u256_to_h256(*hash))
-        .collect();
 
     let StorageOracleInfo {
         storage_refunds,
@@ -518,21 +505,6 @@ async fn generate_witness(
         .await
         .unwrap()
         .unwrap();
-
-    let mut used_bytecodes = connection
-        .factory_deps_dal()
-        .get_factory_deps(&hashes)
-        .await;
-    if input.used_bytecodes_hashes.contains(&account_code_hash) {
-        used_bytecodes.insert(account_code_hash, account_bytecode);
-    }
-
-    assert_eq!(
-        hashes.len(),
-        used_bytecodes.len(),
-        "{} factory deps are not found in DB",
-        hashes.len() - used_bytecodes.len()
-    );
 
     // `DbStorageProvider` was designed to be used in API, so it accepts miniblock numbers.
     // Probably, we should make it work with L1 batch numbers too.
@@ -573,8 +545,10 @@ async fn generate_witness(
             VmStorageOracle::new(storage_view.clone());
         let storage_oracle = StorageOracle::new(
             vm_storage_oracle,
-            storage_refunds,
-            pubdata_costs.expect("pubdata costs should be present"),
+            input.storage_refunds,
+            input
+                .pubdata_costs
+                .expect("pubdata costs should be present"),
         );
 
         let path = KZG_TRUSTED_SETUP_FILE
@@ -585,13 +559,13 @@ async fn generate_witness(
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
             Address::zero(),
             BOOTLOADER_ADDRESS,
-            bootloader_code,
+            input.bootloader_code,
             bootloader_contents,
             false,
-            account_code_hash,
+            input.default_account_code_hash,
             // NOTE: this will be evm_simulator_code_hash in future releases
-            account_code_hash,
-            used_bytecodes,
+            input.default_account_code_hash,
+            input.used_bytecodes,
             Vec::default(),
             MAX_CYCLES_FOR_TX as usize,
             geometry_config,

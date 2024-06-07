@@ -18,6 +18,7 @@ zksync_state.workspace = true
 zksync_storage.workspace = true
 zksync_state_keeper.workspace = true
 zksync_utils.workspace = true
+zksync_prover_interface.workspace = true
 vm_utils.workspace = true
 
 tokio = { workspace = true, features = ["time"] }

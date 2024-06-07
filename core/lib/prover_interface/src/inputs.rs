@@ -1,9 +1,9 @@
-use std::{convert::TryInto, fmt::Debug};
+use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
-use zksync_types::{L1BatchNumber, H256, U256};
+use zksync_types::{L1BatchNumber, StorageLog, H256, U256};
 
 const HASH_LEN: usize = H256::len_bytes();
 
@@ -142,6 +142,22 @@ pub struct BasicCircuitWitnessGeneratorInput {
     pub used_bytecodes_hashes: Vec<U256>,
     pub initial_heap_content: Vec<(usize, U256)>,
     pub merkle_paths_input: PrepareBasicCircuitsJob,
+}
+
+pub struct WitnessGeneratorData {
+    pub block_number: L1BatchNumber,
+    pub previous_block_hash: H256,
+    pub previous_block_timestamp: u64,
+    pub block_timestamp: u64,
+    pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
+    pub initial_heap_content: Vec<(usize, U256)>,
+
+    pub storage_logs: Vec<StorageLog>,
+    pub bootloader_code_hash: H256,
+    pub bootloader_code: Vec<[u8; 32]>,
+    pub default_account_code_hash: U256,
+    pub storage_refunds: Vec<u32>,
+    pub pubdata_costs: Option<Vec<i32>>,
 }
 
 #[cfg(test)]
