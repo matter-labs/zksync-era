@@ -60,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
         general_config
             .prover_config
             .context("prover config")?
-            .object_store
+            .prover_object_store
             .context("object store")?,
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);

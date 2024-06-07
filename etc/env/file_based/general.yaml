@@ -156,7 +156,11 @@ snapshot_creator:
 
 
 prover:
-  object_store:
+  prover_object_store:
+    file_backed:
+      file_backed_base_path: artifacts
+    max_retries: 10
+  public_object_store:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
