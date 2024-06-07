@@ -67,7 +67,7 @@ impl DataAvailabilityDal<'_, '_> {
 
             anyhow::ensure!(
                 matched == 1,
-                "DA blob_id verification failed. DA blob_id for L1 batch #{number} does not match the expected value"
+                "DA blob_id verification failed. DA blob_id {blob_id} for L1 batch #{number} does not match the expected value"
             );
         }
         Ok(())

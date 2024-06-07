@@ -157,6 +157,7 @@ impl DataAvailabilityDispatcher {
                 METRICS
                     .last_included_l1_batch
                     .set(blob_info.l1_batch_number.0 as usize);
+
                 tracing::info!(
                     "Received an inclusion data for a batch_number: {}, inclusion_latency_seconds: {}",
                     blob_info.l1_batch_number, inclusion_latency.num_seconds()
