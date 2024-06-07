@@ -6,7 +6,7 @@ pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &st
 
 // Subcommands help
 pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related commands";
-pub(super) const MSG_SUBCOMMAND_INTEGRATION_TESTS_ABOUT: &str = "Run integration tests";
+pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
 
 // Database related messages
 pub(super) const MSG_NO_DATABASES_SELECTED: &str = "No databases selected";
@@ -62,9 +62,12 @@ pub(super) fn msg_database_new_migration_loading(dal: &str) -> String {
 }
 pub(super) const MSG_DATABASE_NEW_MIGRATION_SUCCESS: &str = "Migration created successfully";
 
+// Tests related messages
+pub(super) const MSG_TEST_INTEGRATION_ABOUT: &str = "Run integration tests";
+
 // Integration tests related messages
-pub(super) const MSG_INTEGRATION_TESTS_RUN_INFO: &str = "Running integration tests";
-pub(super) const MSG_INTEGRATION_TESTS_RUN_SUCCESS: &str = "Integration tests ran successfully";
-pub(super) const MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES: &str =
+pub(super) const MSG_TEST_INTEGRATION_RUN_INFO: &str = "Running integration tests";
+pub(super) const MSG_TEST_INTEGRATION_RUN_SUCCESS: &str = "Integration tests ran successfully";
+pub(super) const MSG_TEST_INTEGRATION_BUILDING_DEPENDENCIES: &str =
     "Building repository dependencies...";
-pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test contracts...";
+pub(super) const MSG_TEST_INTEGRATION_BUILDING_CONTRACTS: &str = "Building test contracts...";

@@ -3,8 +3,8 @@ use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use crate::messages::{
-    MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS, MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES,
-    MSG_INTEGRATION_TESTS_RUN_INFO, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
+    MSG_TEST_INTEGRATION_BUILDING_CONTRACTS, MSG_TEST_INTEGRATION_BUILDING_DEPENDENCIES,
+    MSG_TEST_INTEGRATION_RUN_INFO, MSG_TEST_INTEGRATION_RUN_SUCCESS,
 };
 
 const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
@@ -14,7 +14,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     shell.change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
 
-    logger::info(MSG_INTEGRATION_TESTS_RUN_INFO);
+    logger::info(MSG_TEST_INTEGRATION_RUN_INFO);
 
     build_repository(shell, &ecosystem_config)?;
     build_test_contracts(shell, &ecosystem_config)?;
@@ -26,14 +26,14 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     .with_force_run()
     .run()?;
 
-    logger::outro(MSG_INTEGRATION_TESTS_RUN_SUCCESS);
+    logger::outro(MSG_TEST_INTEGRATION_RUN_SUCCESS);
 
     Ok(())
 }
 
 fn build_repository(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
-    let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES);
+    let spinner = Spinner::new(MSG_TEST_INTEGRATION_BUILDING_DEPENDENCIES);
 
     Cmd::new(cmd!(shell, "yarn install --frozen-lockfile")).run()?;
     Cmd::new(cmd!(shell, "yarn utils build")).run()?;
@@ -43,7 +43,7 @@ fn build_repository(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow
 }
 
 fn build_test_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS);
+    let spinner = Spinner::new(MSG_TEST_INTEGRATION_BUILDING_CONTRACTS);
 
     Cmd::new(cmd!(shell, "yarn build")).run()?;
     Cmd::new(cmd!(shell, "yarn build-yul")).run()?;

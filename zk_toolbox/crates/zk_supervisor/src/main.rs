@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use commands::database::DatabaseCommands;
+use commands::{database::DatabaseCommands, test::TestCommands};
 use common::{
     check_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
@@ -7,8 +7,7 @@ use common::{
 };
 use config::EcosystemConfig;
 use messages::{
-    msg_global_chain_does_not_exist, MSG_SUBCOMMAND_DATABASE_ABOUT,
-    MSG_SUBCOMMAND_INTEGRATION_TESTS_ABOUT,
+    msg_global_chain_does_not_exist, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 use xshell::Shell;
 
@@ -29,8 +28,8 @@ struct Supervisor {
 enum SupervisorSubcommands {
     #[command(subcommand, about = MSG_SUBCOMMAND_DATABASE_ABOUT)]
     Database(DatabaseCommands),
-    #[command(about = MSG_SUBCOMMAND_INTEGRATION_TESTS_ABOUT)]
-    IntegrationTests,
+    #[command(subcommand, about = MSG_SUBCOMMAND_TESTS_ABOUT)]
+    Test(TestCommands),
 }
 
 #[derive(Parser, Debug)]
@@ -93,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
 async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
     match args.command {
         SupervisorSubcommands::Database(command) => commands::database::run(shell, command).await?,
-        SupervisorSubcommands::IntegrationTests => commands::integration_tests::run(shell)?,
+        SupervisorSubcommands::Test(command) => commands::test::run(shell, command)?,
     }
     Ok(())
 }
