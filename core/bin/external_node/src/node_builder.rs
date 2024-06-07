@@ -10,6 +10,7 @@ use zksync_node_framework::{
         healtcheck_server::HealthCheckLayer, main_node_client::MainNodeClientLayer,
         pools_layer::PoolsLayerBuilder, postgres_metrics::PostgresMetricsLayer,
         prometheus_exporter::PrometheusExporterLayer, sigint::SigintHandlerLayer,
+        tree_data_fetcher::TreeDataFetcherLayer,
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
@@ -114,6 +115,12 @@ impl ExternalNodeBuilder {
         todo!()
     }
 
+    fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
+        let layer = TreeDataFetcherLayer::new(self.config.remote.diamond_proxy_addr);
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
         self = self
@@ -146,7 +153,9 @@ impl ExternalNodeBuilder {
                     );
                     // Do nothing, will be handled by the `Tree` component.
                 }
-                Component::TreeFetcher => todo!(),
+                Component::TreeFetcher => {
+                    self = self.add_tree_data_fetcher_layer()?;
+                }
                 Component::Core => {
                     // Core is a singleton & mandatory component,
                     // so until we have a dedicated component for "auxiliary" tasks,
