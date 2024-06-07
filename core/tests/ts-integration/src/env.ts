@@ -61,6 +61,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
 
     let generalConfig = loadConfig(pathToHome, chain, 'general.yaml');
     let genesisConfig = loadConfig(pathToHome, chain, 'genesis.yaml');
+    let secretsConfig = loadConfig(pathToHome, chain, 'secrets.yaml');
 
     const network = ecosystem.l1_network;
     let mainWalletPK = getMainWalletPk(pathToHome, network);
@@ -71,7 +72,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
 
-    const l1NodeUrl = ecosystem.l1_rpc_url;
+    const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
 
     const contractVerificationUrl = generalConfig.contract_verifier.url;
@@ -80,9 +81,12 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
     // but if it's not available, we'll use the first token from the list.
-    let token = tokens.tokens['wBTC'];
+    let token = tokens.tokens['WBTC'];
     if (token === undefined) {
         token = Object.values(tokens.tokens)[0];
+        if (token.symbol == 'WETH') {
+            token = Object.values(tokens.tokens)[1];
+        }
     }
     const weth = tokens.tokens['WETH'];
     let baseToken;
