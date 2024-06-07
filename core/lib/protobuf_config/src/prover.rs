@@ -295,6 +295,12 @@ impl ProtoRepr for proto::Prover {
             None
         };
 
+        let public_object_store = if let Some(public_object_store) = &self.public_object_store {
+            Some(public_object_store.read()?)
+        } else {
+            None
+        };
+
         Ok(Self::Type {
             setup_data_path: required(&self.setup_data_path)
                 .context("setup_data_path")?
@@ -326,6 +332,7 @@ impl ProtoRepr for proto::Prover {
             shall_save_to_public_bucket: *required(&self.shall_save_to_public_bucket)
                 .context("shall_save_to_public_bucket")?,
             object_store,
+            public_object_store,
         })
     }
 
@@ -343,6 +350,7 @@ impl ProtoRepr for proto::Prover {
             availability_check_interval_in_secs: this.availability_check_interval_in_secs,
             shall_save_to_public_bucket: Some(this.shall_save_to_public_bucket),
             object_store: this.object_store.as_ref().map(ProtoRepr::build),
+            public_object_store: this.public_object_store.as_ref().map(ProtoRepr::build),
         }
     }
 }

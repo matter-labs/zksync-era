@@ -160,6 +160,10 @@ prover:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
+  public_object_store:
+    file_backed:
+      file_backed_base_path: artifacts
+    max_retries: 10
   setup_data_path: vk_setup_data_generator_server_fri/data
   prometheus_port: 3315
   max_attempts: 10

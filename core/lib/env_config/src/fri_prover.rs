@@ -43,6 +43,14 @@ mod tests {
                 max_retries: 5,
                 local_mirror_path: None,
             }),
+            public_object_store: Some(ObjectStoreConfig {
+                mode: ObjectStoreMode::GCSWithCredentialFile {
+                    bucket_base_url: "/base/url".to_owned(),
+                    gcs_credential_file_path: "/path/to/credentials.json".to_owned(),
+                },
+                max_retries: 5,
+                local_mirror_path: None,
+            }),
             availability_check_interval_in_secs: Some(1_800),
         }
     }

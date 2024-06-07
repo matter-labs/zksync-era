@@ -443,6 +443,7 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             shall_save_to_public_bucket: self.sample(rng),
             availability_check_interval_in_secs: self.sample(rng),
             object_store: self.sample(rng),
+            public_object_store: self.sample(rng),
         }
     }
 }
