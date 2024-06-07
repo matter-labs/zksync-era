@@ -3848,6 +3848,133 @@ fn test_basic_environment3_vectors() {
 }
 
 #[test]
+fn test_basic_extcodecopy() {
+    // Extcodecopy with dest != 0
+    let evm_output = test_evm_vector(
+        vec![
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("3760005260206000F30000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 41
+            hex::decode("60").unwrap(),
+            hex::decode("29").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // create
+            hex::decode("F0").unwrap(),
+            // push0 -- clear the memory
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 32 -- begin extcodecopy
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push1 2
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // dup4
+            hex::decode("83").unwrap(),
+            // extcodecopy
+            hex::decode("3C").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        H256(evm_output.into()),
+        H256(U256::from("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff37").into())
+    );
+
+    // Extcodecopy with addr without code
+    let evm_output = test_evm_vector(
+        vec![
+            // push0 -- clear the memory
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 32 -- begin extcodecopy
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // push0
+            hex::decode("61").unwrap(),
+            hex::decode("0176").unwrap(),
+            // extcodecopy
+            hex::decode("3C").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // push1 1
+            hex::decode("60").unwrap(),
+            hex::decode("01").unwrap(),
+            //push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(H256(evm_output.into()), H256(U256::zero().into()));
+}
+#[test]
 fn test_basic_environment4_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
     // extcodesize
