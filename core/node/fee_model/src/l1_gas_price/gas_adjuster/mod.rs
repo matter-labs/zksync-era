@@ -95,19 +95,35 @@ impl GasAdjuster {
         let last_processed_block = self.base_fee_statistics.last_processed_block();
 
         if current_block > last_processed_block {
+            tracing::info!(
+                "Fetching fee history from blocks {} to {current_block}",
+                last_processed_block + 1
+            );
             let (base_fee_history, blob_base_fee_history) = Self::get_base_fees_history(
                 self.eth_client.as_ref(),
                 (last_processed_block + 1)..=current_block,
             )
             .await?;
 
+            tracing::info!("Attempted to fetch history from {} blocks, got {} regular and {} blob fee history entries",
+                current_block - last_processed_block, base_fee_history.len(), blob_base_fee_history.len()
+            );
+            tracing::info!("New fee history entries: {:?}", base_fee_history);
+            tracing::info!("New blob fee history entries: {:?}", blob_base_fee_history);
+
             // We shouldn't rely on L1 provider to return consistent results, so we check that we have at least one new sample.
             if let Some(current_base_fee_per_gas) = base_fee_history.last() {
                 METRICS
                     .current_base_fee_per_gas
                     .set(*current_base_fee_per_gas);
+                tracing::info!("Current base fee per gas: {current_base_fee_per_gas}")
             }
             self.base_fee_statistics.add_samples(&base_fee_history);
+            tracing::info!(
+                "New median is {}, all samples: {:?}",
+                self.base_fee_statistics.median(),
+                self.base_fee_statistics
+            );
 
             if let Some(current_blob_base_fee) = blob_base_fee_history.last() {
                 // Blob base fee overflows `u64` only in very extreme cases.
