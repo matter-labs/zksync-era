@@ -1,5 +1,32 @@
 # Changelog
 
+## [24.7.0](https://github.com/matter-labs/zksync-era/compare/core-v24.6.0...core-v24.7.0) (2024-06-03)
+
+
+### Features
+
+* **node-framework:** Add reorg detector  ([#1551](https://github.com/matter-labs/zksync-era/issues/1551)) ([7c7d352](https://github.com/matter-labs/zksync-era/commit/7c7d352708aa64b55a9b33e273b1a16d3f1d168b))
+
+
+### Bug Fixes
+
+* **block-reverter:** Fix reverting snapshot files ([#2064](https://github.com/matter-labs/zksync-era/issues/2064)) ([17a7e78](https://github.com/matter-labs/zksync-era/commit/17a7e782d9e35eaf38acf920c2326d4037c7781e))
+* **env:** Do not print stacktrace for locate workspace ([#2111](https://github.com/matter-labs/zksync-era/issues/2111)) ([5f2677f](https://github.com/matter-labs/zksync-era/commit/5f2677f2c966f4dd23538a02ecd7fffe306bec7f))
+* **eth-watch:** make assert less strict ([#2129](https://github.com/matter-labs/zksync-era/issues/2129)) ([e9bab95](https://github.com/matter-labs/zksync-era/commit/e9bab95539af383c161b357a422d5c45f20f27aa))
+
+## [24.6.0](https://github.com/matter-labs/zksync-era/compare/core-v24.5.1...core-v24.6.0) (2024-06-03)
+
+
+### Features
+
+* **en:** Fetch old L1 batch hashes from L1 ([#2000](https://github.com/matter-labs/zksync-era/issues/2000)) ([dc5a918](https://github.com/matter-labs/zksync-era/commit/dc5a9188a44a51810c9b7609a0887090043507f2))
+* use semver for metrics, move constants to prover workspace ([#2098](https://github.com/matter-labs/zksync-era/issues/2098)) ([7a50a9f](https://github.com/matter-labs/zksync-era/commit/7a50a9f79e516ec150d1f30b9f1c781a5523375b))
+
+
+### Bug Fixes
+
+* **api:** correct default fee data in eth call ([#2072](https://github.com/matter-labs/zksync-era/issues/2072)) ([e71f6f9](https://github.com/matter-labs/zksync-era/commit/e71f6f96bda08f8330c643a31df4ef9e82c9afc2))
+
 ## [24.5.1](https://github.com/matter-labs/zksync-era/compare/core-v24.5.0...core-v24.5.1) (2024-05-31)
 
 

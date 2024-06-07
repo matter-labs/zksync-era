@@ -7,7 +7,7 @@ use crate::{
         pools::{MasterPool, PoolResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -55,8 +55,8 @@ struct CommitmentGeneratorTask {
 
 #[async_trait::async_trait]
 impl Task for CommitmentGeneratorTask {
-    fn name(&self) -> &'static str {
-        "commitment_generator"
+    fn id(&self) -> TaskId {
+        "commitment_generator".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

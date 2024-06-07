@@ -14,6 +14,8 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
+use crate::metrics::KEEPER_METRICS;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct L2BlockUpdates {
     pub executed_transactions: Vec<TransactionExecutionResult>,
@@ -104,9 +106,17 @@ impl L2BlockUpdates {
         };
 
         let revert_reason = match &tx_execution_result.result {
-            ExecutionResult::Success { .. } => None,
-            ExecutionResult::Revert { output } => Some(output.to_string()),
-            ExecutionResult::Halt { reason } => Some(reason.to_string()),
+            ExecutionResult::Success { .. } => {
+                KEEPER_METRICS.inc_succeeded_txs();
+                None
+            }
+            ExecutionResult::Revert { output } => {
+                KEEPER_METRICS.inc_reverted_txs(output);
+                Some(output.to_string())
+            }
+            ExecutionResult::Halt { .. } => {
+                unreachable!("Tx that is added to `UpdatesManager` must not have Halted status")
+            }
         };
 
         // Get transaction factory deps

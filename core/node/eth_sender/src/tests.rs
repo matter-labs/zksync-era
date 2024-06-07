@@ -13,7 +13,7 @@ use zksync_eth_client::{clients::MockEthereum, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::MockObjectStore;
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{
@@ -29,7 +29,7 @@ use zksync_types::{
 
 use crate::{
     aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
-    ETHSenderError, EthTxAggregator, EthTxManager,
+    EthSenderError, EthTxAggregator, EthTxManager,
 };
 
 // Alias to conveniently call static methods of `ETHSender`.
@@ -161,7 +161,6 @@ impl EthSenderTester {
             .await
             .unwrap(),
         );
-        let store_factory = ObjectStoreFactory::mock();
 
         let eth_sender = eth_sender_config.sender.clone().unwrap();
         let aggregator = EthTxAggregator::new(
@@ -174,7 +173,7 @@ impl EthSenderTester {
             // Aggregator - unused
             Aggregator::new(
                 aggregator_config.clone(),
-                store_factory.create_store().await,
+                MockObjectStore::arc(),
                 aggregator_operate_4844_mode,
                 commitment_mode,
             ),
@@ -1104,7 +1103,7 @@ async fn test_parse_multicall_data(commitment_mode: L1BatchCommitmentMode) {
             tester
                 .aggregator
                 .parse_multicall_data(wrong_data_instance.clone()),
-            Err(ETHSenderError::ParseError(Error::InvalidOutputType(_)))
+            Err(EthSenderError::Parse(Error::InvalidOutputType(_)))
         );
     }
 }

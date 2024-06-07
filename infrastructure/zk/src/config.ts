@@ -5,7 +5,7 @@ import deepExtend from 'deep-extend';
 import * as env from './env';
 import path from 'path';
 import dotenv from 'dotenv';
-import { unpackStringSemVer } from './utils';
+import { unpackStringSemVer } from 'utils';
 
 function loadConfigFile(configPath: string, stack: string[] = []) {
     if (stack.includes(configPath)) {

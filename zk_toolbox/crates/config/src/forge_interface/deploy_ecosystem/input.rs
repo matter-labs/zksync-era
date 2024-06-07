@@ -1,6 +1,9 @@
 use std::{collections::HashMap, str::FromStr};
 
-use ethers::types::{Address, H256};
+use ethers::{
+    prelude::U256,
+    types::{Address, H256},
+};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use types::ChainId;
@@ -79,6 +82,13 @@ impl Default for Erc20DeploymentConfig {
                     mint: 10000000000,
                 },
                 Erc20DeploymentTokensConfig {
+                    name: String::from("WBTC"),
+                    symbol: String::from("WBTC"),
+                    decimals: 8,
+                    implementation: String::from("TestnetERC20Token.sol"),
+                    mint: 10000000000,
+                },
+                Erc20DeploymentTokensConfig {
                     name: String::from("Wrapped Ether"),
                     symbol: String::from("WETH"),
                     decimals: 18,
@@ -146,7 +156,7 @@ impl DeployL1Config {
                 genesis_batch_commitment: genesis_config.genesis_batch_commitment,
                 genesis_rollup_leaf_index: genesis_config.genesis_rollup_leaf_index,
                 genesis_root: genesis_config.genesis_root,
-                latest_protocol_version: genesis_config.genesis_protocol_version,
+                latest_protocol_version: genesis_config.genesis_protocol_semantic_version.pack(),
                 recursion_circuits_set_vks_hash: H256::zero(),
                 recursion_leaf_level_vk_hash: H256::zero(),
                 recursion_node_level_vk_hash: H256::zero(),
@@ -173,7 +183,7 @@ pub struct ContractsDeployL1Config {
     pub genesis_root: H256,
     pub genesis_rollup_leaf_index: u32,
     pub genesis_batch_commitment: H256,
-    pub latest_protocol_version: u64,
+    pub latest_protocol_version: U256,
     pub recursion_node_level_vk_hash: H256,
     pub recursion_leaf_level_vk_hash: H256,
     pub recursion_circuits_set_vks_hash: H256,

@@ -11,7 +11,8 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { getTestContract } from '../src/helpers';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
+import { DataAvailabityMode } from '../src/types';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -313,6 +314,20 @@ describe('System behavior checks', () => {
                 }
             })
         ).toBeAccepted();
+    });
+
+    test('Gas per pubdata byte getter should work', async () => {
+        const systemContextArtifact = getTestContract('ISystemContext');
+        const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
+        const currentGasPerPubdata = await systemContext.gasPerPubdataByte();
+
+        // The current gas per pubdata depends on a lot of factors, so it wouldn't be sustainable to check the exact value.
+        // We'll just check that it is greater than zero.
+        if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Rollup) {
+            expect(currentGasPerPubdata).toBeGreaterThan(0n);
+        } else {
+            expect(currentGasPerPubdata).toEqual(0n);
+        }
     });
 
     it('should reject transaction with huge gas limit', async () => {

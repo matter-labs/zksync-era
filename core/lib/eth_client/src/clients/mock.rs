@@ -13,7 +13,7 @@ use zksync_types::{
 use zksync_web3_decl::client::{DynClient, MockClient, L1};
 
 use crate::{
-    types::{Error, SignedCallResult},
+    types::{ContractCallError, SignedCallResult, SigningError},
     BoundEthInterface, Options, RawTransactionBytes,
 };
 
@@ -31,9 +31,9 @@ impl From<Vec<u8>> for MockTx {
     fn from(tx: Vec<u8>) -> Self {
         let len = tx.len();
         let recipient = Address::from_slice(&tx[len - 116..len - 96]);
-        let max_fee_per_gas = U256::try_from(&tx[len - 96..len - 64]).unwrap();
-        let max_priority_fee_per_gas = U256::try_from(&tx[len - 64..len - 32]).unwrap();
-        let nonce = U256::try_from(&tx[len - 32..]).unwrap().as_u64();
+        let max_fee_per_gas = U256::from(&tx[len - 96..len - 64]);
+        let max_priority_fee_per_gas = U256::from(&tx[len - 64..len - 32]);
+        let nonce = U256::from(&tx[len - 32..]).as_u64();
         let hash = {
             let mut buffer = [0_u8; 32];
             buffer.copy_from_slice(&tx[..32]);
@@ -474,7 +474,7 @@ impl MockEthereum {
         mut raw_tx: Vec<u8>,
         contract_addr: Address,
         options: Options,
-    ) -> Result<SignedCallResult, Error> {
+    ) -> Result<SignedCallResult, SigningError> {
         let max_fee_per_gas = options.max_fee_per_gas.unwrap_or(self.max_fee_per_gas);
         let max_priority_fee_per_gas = options
             .max_priority_fee_per_gas
@@ -569,7 +569,7 @@ impl BoundEthInterface for MockEthereum {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
-    ) -> Result<SignedCallResult, Error> {
+    ) -> Result<SignedCallResult, SigningError> {
         self.sign_prepared_tx(data, contract_addr, options)
     }
 
@@ -578,7 +578,7 @@ impl BoundEthInterface for MockEthereum {
         _token_address: Address,
         _contract_address: Address,
         _erc20_abi: &ethabi::Contract,
-    ) -> Result<U256, Error> {
+    ) -> Result<U256, ContractCallError> {
         unimplemented!("Not needed right now")
     }
 }

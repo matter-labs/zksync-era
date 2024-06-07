@@ -61,6 +61,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
 
     let generalConfig = loadConfig(pathToHome, chain, 'general.yaml');
     let genesisConfig = loadConfig(pathToHome, chain, 'genesis.yaml');
+    let secretsConfig = loadConfig(pathToHome, chain, 'secrets.yaml');
 
     const network = ecosystem.l1_network;
     let mainWalletPK = getMainWalletPk(pathToHome, network);
@@ -71,7 +72,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
 
-    const l1NodeUrl = ecosystem.l1_rpc_url;
+    const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
 
     const contractVerificationUrl = generalConfig.contract_verifier.url;
@@ -80,9 +81,12 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
     // but if it's not available, we'll use the first token from the list.
-    let token = tokens.tokens['wBTC'];
+    let token = tokens.tokens['WBTC'];
     if (token === undefined) {
         token = Object.values(tokens.tokens)[0];
+        if (token.symbol == 'WETH') {
+            token = Object.values(tokens.tokens)[1];
+        }
     }
     const weth = tokens.tokens['WETH'];
     let baseToken;
@@ -222,8 +226,10 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = BigInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
-    const l1BatchCommitDataGeneratorMode = process.env
-        .CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE! as DataAvailabityMode;
+    // If the `CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE` is not set, the default value is `Rollup`.
+    const l1BatchCommitDataGeneratorMode = (process.env.CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE ||
+        process.env.EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE ||
+        'Rollup') as DataAvailabityMode;
     let minimalL2GasPrice;
     if (process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE !== undefined) {
         minimalL2GasPrice = BigInt(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);

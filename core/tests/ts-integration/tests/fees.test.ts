@@ -9,15 +9,17 @@
  * sure that the test is maintained does not get broken.
  *
  */
-import * as utils from 'zk/build/utils';
+import * as utils from 'utils';
 import * as fs from 'fs';
 import { TestMaster } from '../src';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 
 const UINT32_MAX = 2n ** 32n - 1n;
+const MAX_GAS_PER_PUBDATA = 50_000;
 
 const logs = fs.createWriteStream('fees.log', { flags: 'a' });
 
@@ -176,6 +178,15 @@ testFees('Test fees', () => {
         const receipt = await tx.wait();
         expect(receipt.gasUsed > UINT32_MAX).toBeTruthy();
 
+        // Let's also check that the same transaction would work as eth_call
+        const systemContextArtifact = getTestContract('ISystemContext');
+        const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
+        const systemContextGasPerPubdataByte = await systemContext.gasPerPubdataByte();
+        expect(systemContextGasPerPubdataByte.toNumber()).toEqual(MAX_GAS_PER_PUBDATA);
+
+        const dataHash = await l1Messenger.sendToL1.staticCall(largeData, { type: 0 });
+        expect(dataHash).toEqual(ethers.keccak256(largeData));
+
         // Secondly, let's test an unsuccessful transaction with large refund.
 
         // The size of the data has increased, so the previous gas limit is not enough.
@@ -254,10 +265,10 @@ async function updateReport(
     const l2EstimatedPriceAsNumber = +ethers.formatEther(estimatedPrice);
 
     const gasReport = `Gas price ${newL1GasPrice / 1000000000n} gwei:
-    L1 cost ${expectedL1Price}, 
+    L1 cost ${expectedL1Price},
     L2 estimated cost: ${l2EstimatedPriceAsNumber}
     Estimated Gain: ${expectedL1Price / l2EstimatedPriceAsNumber}
-    L2 cost: ${l2PriceAsNumber}, 
+    L2 cost: ${l2PriceAsNumber},
     Gain: ${expectedL1Price / l2PriceAsNumber}\n`;
     console.log(gasReport);
 

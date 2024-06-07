@@ -97,7 +97,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     };
 
     for chain_name in &list_of_chains {
-        logger::info(msg_initializing_chain(&chain_name));
+        logger::info(msg_initializing_chain(chain_name));
         let chain_config = ecosystem_config
             .load_chain(Some(chain_name.clone()))
             .context(MSG_CHAIN_NOT_INITIALIZED)?;

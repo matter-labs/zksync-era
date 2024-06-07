@@ -43,8 +43,12 @@ pub fn success(msg: impl Display) {
     log::success(msg).unwrap();
 }
 
-pub fn raw(msg: impl Display) {
+pub fn step(msg: impl Display) {
     log::step(msg).unwrap();
+}
+
+pub fn raw(msg: impl Display) {
+    term_write(msg);
 }
 
 pub fn note(msg: impl Display, content: impl Display) {

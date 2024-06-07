@@ -154,6 +154,8 @@ pub enum Component {
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
+    /// VM runner-based component that saves protective reads to Postgres.
+    VmRunnerProtectiveReads,
 }
 
 #[derive(Debug)]
@@ -190,6 +192,9 @@ impl FromStr for Components {
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
+            "vm_runner_protective_reads" => {
+                Ok(Components(vec![Component::VmRunnerProtectiveReads]))
+            }
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -632,7 +637,7 @@ pub async fn initialize_components(
             sender_config.clone(),
             Aggregator::new(
                 sender_config.clone(),
-                store_factory.create_store().await,
+                store_factory.create_store().await?,
                 operator_blobs_address.is_some(),
                 l1_batch_commit_data_generator_mode,
             ),
@@ -756,7 +761,7 @@ pub async fn initialize_components(
                 .proof_data_handler_config
                 .clone()
                 .context("proof_data_handler_config")?,
-            store_factory.create_store().await,
+            store_factory.create_store().await?,
             connection_pool.clone(),
             genesis_config.l1_batch_commit_data_generator_mode,
             stop_receiver.clone(),
@@ -958,7 +963,7 @@ async fn add_trees_to_task_futures(
 
     let object_store = match db_config.merkle_tree.mode {
         MerkleTreeMode::Lightweight => None,
-        MerkleTreeMode::Full => Some(store_factory.create_store().await),
+        MerkleTreeMode::Full => Some(store_factory.create_store().await?),
     };
 
     run_tree(
@@ -1046,7 +1051,7 @@ async fn add_tee_verifier_input_producer_to_task_futures(
     tracing::info!("initializing TeeVerifierInputProducer");
     let producer = TeeVerifierInputProducer::new(
         connection_pool.clone(),
-        store_factory.create_store().await,
+        store_factory.create_store().await?,
         l2_chain_id,
     )
     .await?;

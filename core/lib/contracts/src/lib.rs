@@ -30,7 +30,7 @@ pub enum ContractLanguage {
 /// Meanwhile, hardhat has one more intermediate folder. That's why, we have to represent each contract
 /// by two constants, intermediate folder and actual contract name. For Forge we use only second part
 const HARDHAT_PATH_PREFIX: &str = "contracts/l1-contracts/artifacts/contracts";
-const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts-foundry/out";
+const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
