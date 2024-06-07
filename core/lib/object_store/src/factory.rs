@@ -7,6 +7,7 @@ use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 use crate::{
     file::FileBackedObjectStore,
     gcs::{GoogleCloudStore, GoogleCloudStoreAuthMode},
+    mirror::MirroringObjectStore,
     raw::{ObjectStore, ObjectStoreError},
     retries::StoreWithRetries,
 };
@@ -59,11 +60,9 @@ impl ObjectStoreFactory {
     pub async fn create_from_config(
         config: &ObjectStoreConfig,
     ) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
+        tracing::trace!("Initializing object store with configuration {config:?}");
         match &config.mode {
             ObjectStoreMode::GCS { bucket_base_url } => {
-                tracing::trace!(
-                    "Initialized GoogleCloudStorage Object store without credential file"
-                );
                 let store = StoreWithRetries::try_new(config.max_retries, || {
                     GoogleCloudStore::new(
                         GoogleCloudStoreAuthMode::Authenticated,
@@ -71,13 +70,12 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Ok(Arc::new(store))
+                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
             }
             ObjectStoreMode::GCSWithCredentialFile {
                 bucket_base_url,
                 gcs_credential_file_path,
             } => {
-                tracing::trace!("Initialized GoogleCloudStorage Object store with credential file");
                 let store = StoreWithRetries::try_new(config.max_retries, || {
                     GoogleCloudStore::new(
                         GoogleCloudStoreAuthMode::AuthenticatedWithCredentialFile(
@@ -87,20 +85,9 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Ok(Arc::new(store))
-            }
-            ObjectStoreMode::FileBacked {
-                file_backed_base_path,
-            } => {
-                tracing::trace!("Initialized FileBacked Object store");
-                let store = StoreWithRetries::try_new(config.max_retries, || {
-                    FileBackedObjectStore::new(file_backed_base_path.clone())
-                })
-                .await?;
-                Ok(Arc::new(store))
+                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
             }
             ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
-                tracing::trace!("Initialized GoogleCloudStoragePublicReadOnly store");
                 let store = StoreWithRetries::try_new(config.max_retries, || {
                     GoogleCloudStore::new(
                         GoogleCloudStoreAuthMode::Anonymous,
@@ -108,8 +95,33 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
+                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+            }
+
+            ObjectStoreMode::FileBacked {
+                file_backed_base_path,
+            } => {
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    FileBackedObjectStore::new(file_backed_base_path.clone())
+                })
+                .await?;
+
+                if let Some(mirror_path) = &config.local_mirror_path {
+                    tracing::warn!("Mirroring doesn't make sense with file-backed object store; ignoring mirror path `{mirror_path}`");
+                }
                 Ok(Arc::new(store))
             }
         }
+    }
+
+    async fn wrap_mirroring(
+        store: impl ObjectStore,
+        mirror_path: Option<&String>,
+    ) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
+        Ok(if let Some(mirror_path) = mirror_path {
+            Arc::new(MirroringObjectStore::new(store, mirror_path.clone()).await?)
+        } else {
+            Arc::new(store)
+        })
     }
 }
