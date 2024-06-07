@@ -703,13 +703,17 @@ struct Cli {
     #[arg(long, default_value = "all")]
     components: ComponentsToRun,
     /// Path to the yaml config. If set, it will be used instead of env vars.
-    #[arg(long, requires = "secrets_path")]
+    #[arg(
+        long,
+        requires = "secrets_path",
+        requires = "external_node_config_path"
+    )]
     config_path: Option<std::path::PathBuf>,
     /// Path to the yaml with secrets. If set, it will be used instead of env vars.
-    #[arg(long, requires = "external_node_config_path")]
+    #[arg(long, requires = "config_path", requires = "external_node_config_path")]
     secrets_path: Option<std::path::PathBuf>,
     /// Path to the yaml with genesis. If set, it will be used instead of env vars.
-    #[arg(long, requires = "config_path")]
+    #[arg(long, requires = "config_path", requires = "secrets_path")]
     external_node_config_path: Option<std::path::PathBuf>,
     /// Path to the yaml with consensus.
     consensus_path: Option<std::path::PathBuf>,
