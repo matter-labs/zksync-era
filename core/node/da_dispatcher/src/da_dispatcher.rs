@@ -90,13 +90,7 @@ impl DataAvailabilityDispatcher {
                     dispatch_response.blob_id.as_str(),
                     sent_at,
                 )
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed to save blob_id for batch_number: {}",
-                        batch.l1_batch_number
-                    )
-                })?;
+                .await?;
             drop(conn);
 
             METRICS
@@ -141,13 +135,7 @@ impl DataAvailabilityDispatcher {
                         L1BatchNumber(blob_info.l1_batch_number.0),
                         inclusion_data.data.as_slice(),
                     )
-                    .await
-                    .with_context(|| {
-                        format!(
-                            "failed to save inclusion data for batch_number: {}",
-                            blob_info.l1_batch_number
-                        )
-                    })?;
+                    .await?;
                 drop(conn);
 
                 let inclusion_latency = Utc::now().signed_duration_since(blob_info.sent_at);

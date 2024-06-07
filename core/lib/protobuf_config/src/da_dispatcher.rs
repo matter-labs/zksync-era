@@ -1,6 +1,5 @@
-use anyhow::Context;
 use zksync_config::configs::{self};
-use zksync_protobuf::{required, ProtoRepr};
+use zksync_protobuf::ProtoRepr;
 
 use crate::proto::da_dispatcher as proto;
 

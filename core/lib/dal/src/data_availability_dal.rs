@@ -1,4 +1,8 @@
-use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
+use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
+};
 use zksync_types::{pubdata_da::DataAvailabilityBlob, L1BatchNumber};
 
 use crate::{
@@ -20,7 +24,7 @@ impl DataAvailabilityDal<'_, '_> {
         number: L1BatchNumber,
         blob_id: &str,
         sent_at: chrono::NaiveDateTime,
-    ) -> anyhow::Result<()> {
+    ) -> DalResult<()> {
         let update_result = sqlx::query!(
             r#"
             INSERT INTO
@@ -44,8 +48,12 @@ impl DataAvailabilityDal<'_, '_> {
                 "L1 batch #{number}: DA blob_id wasn't updated as it's already present"
             );
 
+            let instrumentation = Instrumented::new("get_matching_batch_da_blob_id")
+                .with_arg("number", &number)
+                .with_arg("blob_id", &blob_id);
+
             // Batch was already processed. Verify that existing DA blob_id matches
-            let matched: i64 = sqlx::query!(
+            let query = sqlx::query!(
                 r#"
                 SELECT
                     COUNT(*) AS "count!"
@@ -57,18 +65,22 @@ impl DataAvailabilityDal<'_, '_> {
                 "#,
                 i64::from(number.0),
                 blob_id,
-            )
-            .instrument("get_matching_batch_da_blob_id")
-            .with_arg("number", &number)
-            .report_latency()
-            .fetch_one(self.storage)
-            .await?
-            .count;
-
-            anyhow::ensure!(
-                matched == 1,
-                "DA blob_id verification failed. DA blob_id {blob_id} for L1 batch #{number} does not match the expected value"
             );
+
+            let matched: i64 = instrumentation
+                .clone()
+                .with(query)
+                .report_latency()
+                .fetch_one(self.storage)
+                .await?
+                .count;
+
+            if matched != 1 {
+                let err = instrumentation.constraint_error(anyhow::anyhow!(
+                        "DA blob_id verification failed. DA blob_id {blob_id} for L1 batch #{number} does not match the expected value"
+                    ));
+                return Err(err);
+            }
         }
         Ok(())
     }
@@ -80,7 +92,7 @@ impl DataAvailabilityDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
         da_inclusion_data: &[u8],
-    ) -> anyhow::Result<()> {
+    ) -> DalResult<()> {
         let update_result = sqlx::query!(
             r#"
             UPDATE data_availability
@@ -103,8 +115,11 @@ impl DataAvailabilityDal<'_, '_> {
         if update_result.rows_affected() == 0 {
             tracing::debug!("L1 batch #{number}: DA data wasn't updated as it's already present or the row for the batch_number is missing");
 
+            let instrumentation =
+                Instrumented::new("get_matching_batch_da_data").with_arg("number", &number);
+
             // Batch was already processed. Verify that existing DA data matches
-            let matched: i64 = sqlx::query!(
+            let query = sqlx::query!(
                 r#"
                 SELECT
                     COUNT(*) AS "count!"
@@ -116,18 +131,22 @@ impl DataAvailabilityDal<'_, '_> {
                 "#,
                 i64::from(number.0),
                 da_inclusion_data,
-            )
-            .instrument("get_matching_batch_da_data")
-            .with_arg("number", &number)
-            .report_latency()
-            .fetch_one(self.storage)
-            .await?
-            .count;
-
-            anyhow::ensure!(
-                matched == 1,
-                "DA data verification failed. DA data for L1 batch #{number} does not match the one provided before"
             );
+
+            let matched: i64 = instrumentation
+                .clone()
+                .with(query)
+                .report_latency()
+                .fetch_one(self.storage)
+                .await?
+                .count;
+
+            if matched != 1 {
+                let err = instrumentation.constraint_error(anyhow::anyhow!(
+                        "DA data verification failed. DA data for L1 batch #{number} does not match the one provided before"
+                    ));
+                return Err(err);
+            }
         }
         Ok(())
     }
