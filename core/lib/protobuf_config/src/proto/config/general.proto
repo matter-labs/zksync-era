@@ -17,6 +17,7 @@ import "zksync/config/vm_runner.proto";
 import "zksync/config/commitment_generator.proto";
 import "zksync/config/snapshot_recovery.proto";
 import "zksync/config/pruning.proto";
+import "zksync/config/object_store.proto";
 
 message GeneralConfig {
   optional config.database.Postgres postgres = 1;
@@ -40,7 +41,8 @@ message GeneralConfig {
   optional config.snapshot_creator.SnapshotsCreator snapshot_creator = 31;
   optional config.observability.Observability observability = 32;
   optional config.vm_runner.ProtectiveReadsWriter protective_reads_writer = 33;
-  optional config.commitment_generator.CommitmentGenerator commitment_generator = 34;
+  optional config.object_store.ObjectStore core_object_store = 34;
   optional config.snapshot_recovery.SnapshotRecovery snapshot_recovery = 35;
   optional config.pruning.Pruning pruning = 36;
+  optional config.commitment_generator.CommitmentGenerator commitment_generator = 37;
 }

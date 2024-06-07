@@ -149,9 +149,7 @@ impl MainNodeBuilder {
     }
 
     fn add_object_store_layer(mut self) -> anyhow::Result<Self> {
-        let object_store_config = try_load_config!(self.configs.prover_config)
-            .object_store
-            .context("object_store_config")?;
+        let object_store_config = try_load_config!(self.configs.core_object_store);
         self.node
             .add_layer(ObjectStoreLayer::new(object_store_config));
         Ok(self)

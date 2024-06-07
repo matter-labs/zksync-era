@@ -38,7 +38,9 @@ impl ProtoRepr for proto::GeneralConfig {
                 .context("snapshot_creator")?,
             observability: read_optional_repr(&self.observability).context("observability")?,
             protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer)
-                .context("protective_reads_writer_config")?,
+                .context("protective_reads_writer")?,
+            core_object_store: read_optional_repr(&self.core_object_store)
+                .context("core_object_store")?,
             commitment_generator: read_optional_repr(&self.commitment_generator)
                 .context("commitment_generator")?,
             pruning: read_optional_repr(&self.pruning).context("pruning")?,
@@ -82,6 +84,7 @@ impl ProtoRepr for proto::GeneralConfig {
             commitment_generator: this.commitment_generator.as_ref().map(ProtoRepr::build),
             snapshot_recovery: this.snapshot_recovery.as_ref().map(ProtoRepr::build),
             pruning: this.pruning.as_ref().map(ProtoRepr::build),
+            core_object_store: this.core_object_store.as_ref().map(ProtoRepr::build),
         }
     }
 }

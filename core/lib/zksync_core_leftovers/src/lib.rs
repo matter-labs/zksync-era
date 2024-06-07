@@ -472,12 +472,9 @@ pub async fn initialize_components(
     }
 
     let object_store_config = configs
-        .prover_config
+        .core_object_store
         .clone()
-        .context("Prover")?
-        .object_store
-        .clone()
-        .context("object_store_config")?;
+        .context("core_object_store_config")?;
     let store_factory = ObjectStoreFactory::new(object_store_config);
 
     if components.contains(&Component::StateKeeper) {

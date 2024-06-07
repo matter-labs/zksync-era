@@ -90,12 +90,12 @@ jobs:
       - name: download CRS for CPU compressor
         if: matrix.component == 'proof-fri-compressor'
         run: |
-          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+          ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: download CRS for GPU compressor
         if: matrix.component == 'proof-fri-gpu-compressor'
         run: |
-          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
+          ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
 
 
       - name: login to Docker registries
@@ -115,7 +115,7 @@ jobs:
           retry_count=0
 
           while [[ $retry_count -lt $max_retries ]]; do
-            response=$(curl --retry 5 -s -w "%{http_code}" -o temp.json "$api_endpoint")
+            response=$(run_retried curl -s -w "%{http_code}" -o temp.json "$api_endpoint")
             http_code=$(echo "$response" | tail -n1)
 
             if [[ "$http_code" == "200" ]]; then
