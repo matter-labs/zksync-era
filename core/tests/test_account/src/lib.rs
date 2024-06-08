@@ -8,15 +8,10 @@ use zksync_system_constants::{
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_types::{
-    abi,
-    PRIORITY_OPERATION_L2_TX_TYPE,
-    fee::Fee,
-    l2::L2Tx,
-    utils::deployed_address_create,
-    Address, Execute, K256PrivateKey,  L2ChainId, Nonce,
-    Transaction, H256, U256,
+    abi, fee::Fee, l2::L2Tx, utils::deployed_address_create, Address, Execute, K256PrivateKey,
+    L2ChainId, Nonce, Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
-use zksync_utils::{h256_to_u256, address_to_u256, bytecode::hash_bytecode};
+use zksync_utils::{address_to_u256, bytecode::hash_bytecode, h256_to_u256};
 
 pub const L1_TEST_GAS_PER_PUBDATA_BYTE: u32 = 800;
 const BASE_FEE: u64 = 2_000_000_000;
@@ -84,7 +79,8 @@ impl Account {
             factory_deps,
             Default::default(),
         )
-        .expect("should create a signed execute transaction").into()
+        .expect("should create a signed execute transaction")
+        .into()
     }
 
     fn default_fee(&self) -> Fee {
@@ -171,7 +167,8 @@ impl Account {
                     gas_limit * max_fee_per_gas + execute.value,
                     // refund_recipient
                     address_to_u256(&self.address),
-                    0.into(),0.into(),
+                    0.into(),
+                    0.into(),
                 ],
                 data: execute.calldata,
                 signature: vec![],
@@ -181,10 +178,13 @@ impl Account {
                     .collect(),
                 paymaster_input: vec![],
                 reserved_dynamic: vec![],
-            }.into(),
+            }
+            .into(),
             factory_deps,
             eth_block: 0,
-        }.try_into().unwrap()
+        }
+        .try_into()
+        .unwrap()
     }
 
     pub fn get_test_contract_transaction(

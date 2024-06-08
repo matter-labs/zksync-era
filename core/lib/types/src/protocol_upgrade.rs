@@ -15,9 +15,8 @@ use zksync_contracts::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    Address,
-    abi, ethabi::ParamType, web3::Log, Execute, ExecuteTransactionCommon,
-    Transaction, TransactionType, H256, U256,
+    abi, ethabi::ParamType, web3::Log, Address, Execute, ExecuteTransactionCommon, Transaction,
+    TransactionType, H256, U256,
 };
 
 /// Represents a call to be made during governance operation.

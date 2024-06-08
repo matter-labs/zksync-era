@@ -13,8 +13,6 @@ use zksync_config::{
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
 };
-use zksync_state_keeper::testonly::{l1_transaction,l2_transaction,fund};
-use zksync_test_account::Account;
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::validator;
@@ -31,9 +29,7 @@ use zksync_node_sync::{
     testonly::MockMainNodeClient,
     ExternalIO, MainNodeClient, SyncState,
 };
-use zksync_node_test_utils::{
-    create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
-};
+use zksync_node_test_utils::{create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts};
 /// Implements EthInterface
 /// It is enough to use MockEthereum.with_call_handler()
 //use zksync_eth_client::clients::MockEthereum;
@@ -41,15 +37,19 @@ use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::{test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
+    testonly::{
+        fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
+        MockBatchExecutor,
+    },
     AsyncRocksdbCache, MainBatchExecutor, OutputHandler, StateKeeperPersistence,
     TreeWritesPersistence, ZkSyncStateKeeper,
 };
+use zksync_test_account::Account;
 use zksync_types::{
     abi,
-    Transaction,
-    fee_model::{BatchFeeInput,L1PeggedBatchFeeModelInput},
-    Address, PriorityOpId, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
+    fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, Transaction,
+};
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::{

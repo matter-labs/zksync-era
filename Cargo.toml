@@ -10,7 +10,6 @@ members = [
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
     "core/bin/genesis_generator",
-    "core/bin/batch_proof",
     # Node services
     "core/node/node_framework",
     "core/node/proof_data_handler",

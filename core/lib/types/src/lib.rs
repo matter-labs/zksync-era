@@ -399,7 +399,7 @@ impl TryFrom<abi::Transaction> for Transaction {
                 let (req, hash) =
                     transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
                 let mut tx = L2Tx::from_request_unverified(req)?;
-                tx.set_input(raw,hash);
+                tx.set_input(raw, hash);
                 tx.into()
             }
         })

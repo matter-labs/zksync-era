@@ -476,7 +476,7 @@ impl TransactionRequest {
 
     /// Encodes `TransactionRequest` to RLP.
     /// It may fail if `chain_id` is `None` while required.
-    pub fn get_rlp(&self) -> Result<Vec<u8>,SerializationTransactionError> {
+    pub fn get_rlp(&self) -> Result<Vec<u8>, SerializationTransactionError> {
         let mut rlp_stream = RlpStream::new();
         self.rlp(&mut rlp_stream, None)?;
         Ok(rlp_stream.as_raw().into())

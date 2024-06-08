@@ -528,12 +528,12 @@ async fn test_batch_proof() {
         let pool = ConnectionPool::from_genesis().await;
         let (mut node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run_real(ctx));
-       
+
         tracing::info!("analyzing storage");
         {
             let mut conn = pool.connection(ctx).await.unwrap();
             let mut n = validator::BlockNumber(0);
-            while let Some(p) = conn.payload(ctx,n).await? {
+            while let Some(p) = conn.payload(ctx, n).await? {
                 tracing::info!("block[{n}] = {p:?}");
                 n = n + 1;
             }
@@ -542,12 +542,12 @@ async fn test_batch_proof() {
         // Seal a bunch of batches.
         node.push_random_blocks(rng, 10).await;
         node.seal_batch().await;
-        pool.wait_for_batch(ctx,node.last_sealed_batch()).await?;
+        pool.wait_for_batch(ctx, node.last_sealed_batch()).await?;
         // We can verify only 2nd batch onward, because
         // batch witness verifies parent of the last block of the
         // previous batch (and 0th batch contains only 1 block).
         for n in 2..=node.last_sealed_batch().0 {
-            let n = L1BatchNumber(n); 
+            let n = L1BatchNumber(n);
             let r = pool
                 .connection(ctx)
                 .await?

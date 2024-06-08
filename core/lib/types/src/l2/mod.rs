@@ -15,8 +15,8 @@ use crate::{
     transaction_request::PaymasterParams,
     tx::Execute,
     web3::Bytes,
-    Address, EIP712TypedStructure, ExecuteTransactionCommon, InputData, L2ChainId,
-    Nonce, PackedEthSignature, StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
+    Address, EIP712TypedStructure, ExecuteTransactionCommon, InputData, L2ChainId, Nonce,
+    PackedEthSignature, StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
     EIP_712_TX_TYPE, H256, LEGACY_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
     U256, U64,
 };
@@ -209,12 +209,15 @@ impl L2Tx {
         // We do a whole dance to reconstruct missing data: rlp encoding, hash and signature.
         let mut req: TransactionRequest = tx.into();
         req.chain_id = Some(chain_id.as_u64());
-        let data = req.get_default_signed_message().context("get_default_signed_message()")?;
+        let data = req
+            .get_default_signed_message()
+            .context("get_default_signed_message()")?;
         let sig = PackedEthSignature::sign_raw(private_key, &data).context("sign_raw")?;
         let raw = req.get_signed_bytes(&sig).context("get_signed_bytes")?;
-        let (req,hash) = TransactionRequest::from_bytes_unverified(&raw).context("from_bytes_unverified()")?;
+        let (req, hash) =
+            TransactionRequest::from_bytes_unverified(&raw).context("from_bytes_unverified()")?;
         let mut tx = L2Tx::from_request_unverified(req).context("from_request_unverified()")?;
-        tx.set_input(raw,hash);
+        tx.set_input(raw, hash);
         Ok(tx)
     }
 

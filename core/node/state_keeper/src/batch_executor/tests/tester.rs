@@ -386,7 +386,8 @@ impl AccountLoadNextExecutable for Account {
                 factory_deps: None,
             },
             Some(fee),
-        ).into()
+        )
+        .into()
     }
 
     /// Returns a valid `execute` transaction.
@@ -414,7 +415,8 @@ impl AccountLoadNextExecutable for Account {
                 factory_deps: None,
             },
             Some(fee),
-        ).into()
+        )
+        .into()
     }
 }
 

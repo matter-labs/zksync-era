@@ -458,27 +458,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
-name = "batch_proof"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap 4.4.6",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "url",
- "zksync_basic_types",
- "zksync_contracts",
- "zksync_dal",
- "zksync_eth_client",
- "zksync_l1_contract_interface",
- "zksync_system_constants",
- "zksync_types",
- "zksync_web3_decl",
-]
-
-[[package]]
 name = "beef"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
