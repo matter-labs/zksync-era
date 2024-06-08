@@ -4,7 +4,7 @@ This documentation explains the basics of the zkSync Node.
 
 ## Disclaimers
 
-- The zkSync node is in the alpha phase, and should be used with caution.
+- The zkSync node is in the beta phase, and should be used with caution.
 - The zkSync node is a read-only replica of the main node. We are currently working on decentralizing our infrastructure
   by creating a consensus node. The zkSync node is not going to be the consensus node.
 
