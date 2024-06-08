@@ -83,9 +83,9 @@ The transaction can have three different results in state keeper:
 [l1_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l1/mod.rs#L183 'l1 tx'
 [l2_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l2/mod.rs#L140 'l2 tx'
 [submit_tx]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/api_server/tx_sender/mod.rs#L288
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/api_server/tx_sender/mod.rs#L352
   'submit tx'
 [process_l1_batch]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/keeper.rs#L257
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/keeper.rs#L482
   'process l1 batch'
 [life_of_call]: how_call_works.md 'life of call'
