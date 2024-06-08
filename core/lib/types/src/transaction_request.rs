@@ -223,13 +223,11 @@ pub enum SerializationTransactionError {
     GasPerPubDataLimitZero,
 }
 
+#[derive(Clone, Debug, PartialEq, Default)]
 /// Description of a Transaction, pending or in the chain.
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct TransactionRequest {
     /// Nonce
     pub nonce: U256,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from: Option<Address>,
     /// Recipient (None when contract creation)
     pub to: Option<Address>,
@@ -240,32 +238,23 @@ pub struct TransactionRequest {
     /// Gas amount
     pub gas: U256,
     /// EIP-1559 part of gas price that goes to miners
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_priority_fee_per_gas: Option<U256>,
     /// Input data
     pub input: Bytes,
     /// ECDSA recovery id
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub v: Option<U64>,
     /// ECDSA signature r, 32 bytes
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub r: Option<U256>,
     /// ECDSA signature s, 32 bytes
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s: Option<U256>,
     /// Raw transaction data
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub raw: Option<Bytes>,
     /// Transaction type, Some(1) for AccessList transaction, None for Legacy
-    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub transaction_type: Option<U64>,
     /// Access list
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_list: Option<AccessList>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub eip712_meta: Option<Eip712Meta>,
     /// Chain ID
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chain_id: Option<u64>,
 }
 
