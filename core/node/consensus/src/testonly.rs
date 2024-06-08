@@ -84,9 +84,7 @@ pub(super) struct StateKeeper {
     batch_sealed: bool,
     // test L2 account
     account: Account,
-
-    fee_per_gas: u64,
-    gas_per_pubdata: u64,
+    next_priority_op: PriorityOpId,
 
     actions_sender: ActionQueueSender,
     sync_state: SyncState,
@@ -192,8 +190,7 @@ impl StateKeeper {
                 last_block: cursor.next_l2_block - 1,
                 last_timestamp: cursor.prev_l2_block_timestamp,
                 batch_sealed: !pending_batch,
-                fee_per_gas: 10,
-                gas_per_pubdata: 100,
+                next_priority_op: PriorityOpId(1),
                 actions_sender,
                 sync_state: sync_state.clone(),
                 addr: addr.subscribe(),
@@ -250,15 +247,18 @@ impl StateKeeper {
     }
 
     /// Pushes a new L2 block with `transactions` transactions to the `StateKeeper`.
-    pub async fn push_block(&mut self, transactions: usize) {
-        assert!(transactions > 0);
+    pub async fn push_random_block(&mut self, rng: &mut impl Rng) {
         let mut actions = vec![self.open_block()];
-        for _ in 0..transactions {
-            // TODO: also include L1 transactions.
-            let tx = Transaction::from(l2_transaction(&mut self.account, 1_000_000));
-            //let tx = l1_transaction(&mut self.account, PriorityOpId(1));
-            let tx = Transaction::try_from(abi::Transaction::try_from(tx).unwrap()).unwrap();
-            actions.push(FetchedTransaction::new(tx.into()).into());
+        for _ in 0..rng.gen_range(3..8) {
+            let tx = match rng.gen() {
+                true => l2_transaction(&mut self.account, 1_000_000),
+                false => {
+                    let tx = l1_transaction(&mut self.account, self.next_priority_op);
+                    self.next_priority_op += 1;
+                    tx
+                }
+            };
+            actions.push(FetchedTransaction::new(tx).into());
         }
         actions.push(SyncAction::SealL2Block);
         self.actions_sender.push_actions(actions).await;
@@ -281,7 +281,7 @@ impl StateKeeper {
             if rng.gen_range(0..100) < 20 {
                 self.seal_batch().await;
             } else {
-                self.push_block(rng.gen_range(3..8)).await;
+                self.push_random_block(rng).await;
             }
         }
     }
@@ -467,7 +467,7 @@ impl StateKeeperRunner {
     pub async fn run_real(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
             // Fund the test account.
-            //fund(&self.pool.0, &[self.account.address]).await;
+            fund(&self.pool.0, &[self.account.address]).await;
 
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) =

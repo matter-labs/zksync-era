@@ -396,9 +396,11 @@ impl TryFrom<abi::Transaction> for Transaction {
                 }
             }
             abi::Transaction::L2(raw) => {
-                let (req, _) =
+                let (req, hash) =
                     transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
-                L2Tx::from_request_unverified(req)?.into()
+                let mut tx = L2Tx::from_request_unverified(req)?;
+                tx.set_input(raw,hash);
+                tx.into()
             }
         })
     }

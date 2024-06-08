@@ -540,14 +540,14 @@ async fn test_batch_proof() {
         }
 
         // Seal a bunch of batches.
-        //node.push_random_blocks(rng, 10).await;
-        node.push_block(1).await;
+        node.push_random_blocks(rng, 10).await;
         node.seal_batch().await;
         pool.wait_for_batch(ctx,node.last_sealed_batch()).await?;
+        // We can verify only 2nd batch onward, because
+        // batch witness verifies parent of the last block of the
+        // previous batch (and 0th batch contains only 1 block).
         for n in 2..=node.last_sealed_batch().0 {
             let n = L1BatchNumber(n); 
-            tracing::info!("waiting for metadata of batch {n}");
-            pool.wait_for_batch(ctx, n).await?;
             let r = pool
                 .connection(ctx)
                 .await?
@@ -555,13 +555,8 @@ async fn test_batch_proof() {
                 .blocks_dal()
                 .get_l2_block_range_of_l1_batch(n)
                 .await;
-            tracing::info!("r = {r:?}");
             let proof = node.load_batch_proof(ctx, n).await?;
             let commit = node.load_batch_commit(ctx, n).await?;
-            let p = proof.prev_batch.verify(&commit.prev_batch)?;
-            let t = proof.this_batch.verify(&commit.this_batch)?;
-            tracing::info!("p = {p:?}");
-            tracing::info!("t = {t:?}");
             proof.verify(&commit)?;
         }
         Ok(())
