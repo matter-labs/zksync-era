@@ -1,3 +1,4 @@
+#![allow(unused)]
 use anyhow::Context as _;
 use test_casing::test_casing;
 use tracing::Instrument as _;
@@ -527,6 +528,16 @@ async fn test_batch_proof() {
         let pool = ConnectionPool::from_genesis().await;
         let (mut node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run_real(ctx));
+       
+        tracing::info!("analyzing storage");
+        {
+            let mut conn = pool.connection(ctx).await.unwrap();
+            let mut n = validator::BlockNumber(0);
+            while let Some(p) = conn.payload(ctx,n).await? {
+                tracing::info!("block[{n}] = {p:?}");
+                n = n + 1;
+            }
+        }
 
         // Seal a bunch of batches.
         //node.push_random_blocks(rng, 10).await;

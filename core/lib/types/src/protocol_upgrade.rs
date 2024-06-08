@@ -15,7 +15,8 @@ use zksync_contracts::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    abi, ethabi::ParamType, helpers, web3::Log, Address, Execute, ExecuteTransactionCommon,
+    Address,
+    abi, ethabi::ParamType, web3::Log, Execute, ExecuteTransactionCommon,
     Transaction, TransactionType, H256, U256,
 };
 
@@ -125,7 +126,6 @@ impl ProtocolUpgrade {
                         tx: upgrade.l2_protocol_upgrade_tx,
                         factory_deps: upgrade.factory_deps,
                         eth_block,
-                        received_timestamp_ms: helpers::unix_timestamp_ms(),
                     })
                     .context("Transaction::try_from()")?
                     .try_into()
@@ -154,7 +154,6 @@ pub fn decode_set_chain_id_event(
                 .expect("Event block number is missing")
                 .as_u64(),
             factory_deps: vec![],
-            received_timestamp_ms: helpers::unix_timestamp_ms(),
         })
         .unwrap()
         .try_into()

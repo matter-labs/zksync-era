@@ -288,7 +288,6 @@ impl TryFrom<Transaction> for abi::Transaction {
                 .into(),
                 factory_deps,
                 eth_block: data.eth_block,
-                received_timestamp_ms: tx.received_timestamp_ms,
             },
             E::ProtocolUpgrade(data) => Self::L1 {
                 tx: abi::L2CanonicalTransaction {
@@ -320,7 +319,6 @@ impl TryFrom<Transaction> for abi::Transaction {
                 .into(),
                 factory_deps,
                 eth_block: data.eth_block,
-                received_timestamp_ms: tx.received_timestamp_ms,
             },
         })
     }
@@ -334,7 +332,6 @@ impl TryFrom<abi::Transaction> for Transaction {
                 tx,
                 factory_deps,
                 eth_block,
-                received_timestamp_ms,
             } => {
                 let factory_deps_hashes: Vec<_> = factory_deps
                     .iter()
@@ -395,7 +392,7 @@ impl TryFrom<abi::Transaction> for Transaction {
                         value: tx.value,
                     },
                     raw_bytes: None,
-                    received_timestamp_ms,
+                    received_timestamp_ms: helpers::unix_timestamp_ms(),
                 }
             }
             abi::Transaction::L2(raw) => {

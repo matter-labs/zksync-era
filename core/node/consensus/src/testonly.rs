@@ -1,4 +1,5 @@
 //! Utilities for testing the consensus module.
+#![allow(unused)]
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -45,6 +46,8 @@ use zksync_state_keeper::{
     TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{
+    abi,
+    Transaction,
     fee_model::{BatchFeeInput,L1PeggedBatchFeeModelInput},
     Address, PriorityOpId, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId};
 use zksync_web3_decl::client::{Client, DynClient, L2};
@@ -252,7 +255,9 @@ impl StateKeeper {
         let mut actions = vec![self.open_block()];
         for _ in 0..transactions {
             // TODO: also include L1 transactions.
-            let tx = l1_transaction(&mut self.account, PriorityOpId(1));
+            let tx = Transaction::from(l2_transaction(&mut self.account, 1_000_000));
+            //let tx = l1_transaction(&mut self.account, PriorityOpId(1));
+            let tx = Transaction::try_from(abi::Transaction::try_from(tx).unwrap()).unwrap();
             actions.push(FetchedTransaction::new(tx.into()).into());
         }
         actions.push(SyncAction::SealL2Block);

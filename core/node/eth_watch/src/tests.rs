@@ -562,7 +562,6 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
             tx: Default::default(),
             factory_deps: vec![],
             eth_block: 0,
-            received_timestamp_ms: 0,
         })
     else {
         unreachable!()

@@ -476,7 +476,7 @@ impl TransactionRequest {
 
     /// Encodes `TransactionRequest` to RLP.
     /// It may fail if `chain_id` is `None` while required.
-    pub fn get_rlp(&self) -> anyhow::Result<Vec<u8>> {
+    pub fn get_rlp(&self) -> Result<Vec<u8>,SerializationTransactionError> {
         let mut rlp_stream = RlpStream::new();
         self.rlp(&mut rlp_stream, None)?;
         Ok(rlp_stream.as_raw().into())
@@ -700,10 +700,9 @@ impl TransactionRequest {
 
         let default_signed_message = tx.get_default_signed_message()?;
 
-        tx.from = match tx.from {
-            Some(_) => tx.from,
-            None => tx.recover_default_signer(default_signed_message).ok(),
-        };
+        if tx.from.is_none() {
+            tx.from = tx.recover_default_signer(default_signed_message).ok();
+        }
 
         // `tx.raw` is set, so unwrap is safe here.
         let hash = tx
@@ -723,7 +722,7 @@ impl TransactionRequest {
         Ok((tx, hash))
     }
 
-    fn get_default_signed_message(&self) -> Result<H256, SerializationTransactionError> {
+    pub fn get_default_signed_message(&self) -> Result<H256, SerializationTransactionError> {
         if self.is_eip712_tx() {
             let chain_id = self
                 .chain_id
@@ -733,9 +732,7 @@ impl TransactionRequest {
                 self,
             ))
         } else {
-            let mut rlp_stream = RlpStream::new();
-            self.rlp(&mut rlp_stream, None)?;
-            let mut data = rlp_stream.out().to_vec();
+            let mut data = self.get_rlp()?;
             if let Some(tx_type) = self.transaction_type {
                 data.insert(0, tx_type.as_u64() as u8);
             }

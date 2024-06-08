@@ -8,7 +8,6 @@ use zksync_system_constants::{
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_types::{
-    api,
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::L2Tx,
@@ -73,7 +72,7 @@ impl Account {
             value,
             factory_deps,
         } = execute;
-        let mut tx = L2Tx::new_signed(
+        L2Tx::new_signed(
             contract_address,
             calldata,
             nonce,
@@ -84,14 +83,7 @@ impl Account {
             factory_deps,
             Default::default(),
         )
-        .expect("should create a signed execute transaction");
-
-        // Set the real transaction hash, which is necessary for transaction execution in VM to function properly.
-        let mut tx_request = api::TransactionRequest::from(tx.clone());
-        tx_request.chain_id = Some(L2ChainId::default().as_u64());
-        let tx_hash = tx_request.get_tx_hash().unwrap();
-        tx.set_input(H256::random().0.to_vec(), tx_hash);
-        tx.into()
+        .expect("should create a signed execute transaction").into()
     }
 
     fn default_fee(&self) -> Fee {
@@ -143,7 +135,7 @@ impl Account {
         };
 
         let tx = match tx_type {
-            TxType::L2 => self.get_l2_tx_for_execute(execute, None),
+            TxType::L2 => self.get_l2_tx_for_execute(execute, None).into(),
             TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
         };
 
@@ -214,7 +206,7 @@ impl Account {
             factory_deps: None,
         };
         match tx_type {
-            TxType::L2 => self.get_l2_tx_for_execute(execute, None),
+            TxType::L2 => self.get_l2_tx_for_execute(execute, None).into(),
             TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
         }
     }
@@ -234,7 +226,7 @@ impl Account {
         };
 
         match tx_type {
-            TxType::L2 => self.get_l2_tx_for_execute(execute, None),
+            TxType::L2 => self.get_l2_tx_for_execute(execute, None).into(),
             TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
         }
     }

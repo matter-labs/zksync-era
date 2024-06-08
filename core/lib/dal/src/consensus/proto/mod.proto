@@ -18,6 +18,8 @@ message Payload {
 }
 
 message Transaction {
+  reserved 5;
+  reserved "received_timestamp_ms";
   oneof common_data {
     L1TxCommonData l1 = 1;
     L2TxCommonData l2 = 2;

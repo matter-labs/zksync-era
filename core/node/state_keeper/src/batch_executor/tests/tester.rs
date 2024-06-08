@@ -386,13 +386,13 @@ impl AccountLoadNextExecutable for Account {
                 factory_deps: None,
             },
             Some(fee),
-        )
+        ).into()
     }
 
     /// Returns a valid `execute` transaction.
     /// Automatically increments nonce of the account.
     fn execute_with_gas_limit(&mut self, gas_limit: u32) -> Transaction {
-        testonly::l2_transaction(self, gas_limit)
+        testonly::l2_transaction(self, gas_limit).into()
     }
 
     /// Returns a transaction to the loadnext contract with custom gas limit and expected burned gas amount.
@@ -414,7 +414,7 @@ impl AccountLoadNextExecutable for Account {
                 factory_deps: None,
             },
             Some(fee),
-        )
+        ).into()
     }
 }
 
