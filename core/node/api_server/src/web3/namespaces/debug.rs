@@ -63,6 +63,10 @@ impl DebugNamespace {
         options: Option<TracerConfig>,
     ) -> Result<Vec<ResultDebugCall>, Web3Error> {
         self.current_method().set_block_id(block_id);
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // See `EthNamespace::get_block_impl()` for an explanation why this check is needed.
+            return Ok(vec![]);
+        }
 
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)

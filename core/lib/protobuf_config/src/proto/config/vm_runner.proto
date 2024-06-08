@@ -3,6 +3,7 @@ syntax = "proto3";
 package zksync.config.vm_runner;
 
 message ProtectiveReadsWriter {
-  optional string protective_reads_db_path = 1; // required; fs path
-  optional uint64 protective_reads_window_size = 2; // required
+  optional string db_path = 1; // required; fs path
+  optional uint64 window_size = 2; // required
+  optional uint64 first_processed_batch = 3; // required
 }
