@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fmt,
+    fmt, io,
     panic::Location,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -203,18 +203,48 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
         matches!(self.inner, ConnectionInner::Transaction { .. })
     }
 
+    /// Commits a transactional connection (one which was created by calling [`Self::start_transaction()`]).
+    /// If this connection is not transactional, returns an error.
     pub async fn commit(self) -> DalResult<()> {
-        if let ConnectionInner::Transaction {
-            transaction: postgres,
-            tags,
-        } = self.inner
-        {
-            postgres
+        match self.inner {
+            ConnectionInner::Transaction {
+                transaction: postgres,
+                tags,
+            } => postgres
                 .commit()
                 .await
-                .map_err(|err| DalConnectionError::commit_transaction(err, tags.cloned()).into())
-        } else {
-            panic!("Connection::commit can only be invoked after calling Connection::begin_transaction");
+                .map_err(|err| DalConnectionError::commit_transaction(err, tags.cloned()).into()),
+            ConnectionInner::Pooled(conn) => {
+                let err = io::Error::new(
+                    io::ErrorKind::Other,
+                    "`Connection::commit()` can only be invoked after calling `Connection::begin_transaction()`",
+                );
+                Err(DalConnectionError::commit_transaction(sqlx::Error::Io(err), conn.tags).into())
+            }
+        }
+    }
+
+    /// Rolls back a transactional connection (one which was created by calling [`Self::start_transaction()`]).
+    /// If this connection is not transactional, returns an error.
+    pub async fn rollback(self) -> DalResult<()> {
+        match self.inner {
+            ConnectionInner::Transaction {
+                transaction: postgres,
+                tags,
+            } => postgres
+                .rollback()
+                .await
+                .map_err(|err| DalConnectionError::rollback_transaction(err, tags.cloned()).into()),
+            ConnectionInner::Pooled(conn) => {
+                let err = io::Error::new(
+                    io::ErrorKind::Other,
+                    "`Connection::rollback()` can only be invoked after calling `Connection::begin_transaction()`",
+                );
+                Err(
+                    DalConnectionError::rollback_transaction(sqlx::Error::Io(err), conn.tags)
+                        .into(),
+                )
+            }
         }
     }
 

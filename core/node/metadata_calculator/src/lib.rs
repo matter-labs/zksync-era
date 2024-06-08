@@ -2,7 +2,7 @@
 //! stores them in the DB.
 
 use std::{
-    num::NonZeroU32,
+    num::{NonZeroU32, NonZeroUsize},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -37,6 +37,30 @@ mod recovery;
 pub(crate) mod tests;
 mod updater;
 
+#[derive(Debug, Clone)]
+pub struct MetadataCalculatorRecoveryConfig {
+    /// Approximate chunk size (measured in the number of entries) to recover on a single iteration.
+    /// Reasonable values are order of 100,000 (meaning an iteration takes several seconds).
+    ///
+    /// **Important.** This value cannot be changed in the middle of tree recovery (i.e., if a node is stopped in the middle
+    /// of recovery and then restarted with a different config).
+    pub desired_chunk_size: u64,
+    /// Buffer capacity for parallel persistence operations. Should be reasonably small since larger buffer means more RAM usage;
+    /// buffer elements are persisted tree chunks. OTOH, small buffer can lead to persistence parallelization being inefficient.
+    ///
+    /// If set to `None`, parallel persistence will be disabled.
+    pub parallel_persistence_buffer: Option<NonZeroUsize>,
+}
+
+impl Default for MetadataCalculatorRecoveryConfig {
+    fn default() -> Self {
+        Self {
+            desired_chunk_size: 200_000,
+            parallel_persistence_buffer: NonZeroUsize::new(4),
+        }
+    }
+}
+
 /// Configuration of [`MetadataCalculator`].
 #[derive(Debug, Clone)]
 pub struct MetadataCalculatorConfig {
@@ -65,6 +89,8 @@ pub struct MetadataCalculatorConfig {
     pub memtable_capacity: usize,
     /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
     pub stalled_writes_timeout: Duration,
+    /// Configuration specific to the Merkle tree recovery.
+    pub recovery: MetadataCalculatorRecoveryConfig,
 }
 
 impl MetadataCalculatorConfig {
@@ -83,6 +109,8 @@ impl MetadataCalculatorConfig {
             include_indices_and_filters_in_block_cache: false,
             memtable_capacity: merkle_tree_config.memtable_capacity(),
             stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout(),
+            // The main node isn't supposed to be recovered yet, so this value doesn't matter much
+            recovery: MetadataCalculatorRecoveryConfig::default(),
         }
     }
 }
@@ -186,17 +214,18 @@ impl MetadataCalculator {
             started_at.elapsed()
         );
 
-        Ok(GenericAsyncTree::new(db, self.config.mode).await)
+        GenericAsyncTree::new(db, &self.config).await
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let tree = self.create_tree().await?;
         let tree = tree
             .ensure_ready(
+                &self.config.recovery,
                 &self.pool,
                 self.recovery_pool,
-                &stop_receiver,
                 &self.health_updater,
+                &stop_receiver,
             )
             .await?;
         let Some(mut tree) = tree else {

@@ -1,13 +1,13 @@
 //! This crate provides the [object storage abstraction](ObjectStore) that allows to get,
 //! put and remove binary blobs. The following implementations are available:
 //!
-//! - File-based storage saving blobs as separate files in the local filesystem
-//! - GCS-based storage
+//! - [File-backed store](FileBackedObjectStore) saving blobs as separate files in the local filesystem
+//! - [GCS-based store](GoogleCloudStore)
+//! - [Mock in-memory store](MockObjectStore)
 //!
-//! These implementations are not exposed externally. Instead, a store trait object
+//! Normally, these implementations are not used directly. Instead, a store trait object (`Arc<dyn ObjectStore>`)
 //! can be constructed using an [`ObjectStoreFactory`] based on the configuration.
-//! The configuration can be provided explicitly (see [`ObjectStoreFactory::new()`])
-//! or obtained from the environment (see [`ObjectStoreFactory::from_env()`]).
+//! This trait object is what should be used for dependency injection.
 //!
 //! Besides the lower-level storage abstraction, the crate provides high-level
 //! typesafe `<dyn ObjectStore>::get()` and `<dyn ObjectStore>::put()` methods
@@ -23,12 +23,15 @@
     clippy::doc_markdown
 )]
 
+mod factory;
 mod file;
 mod gcs;
 mod metrics;
+mod mirror;
 mod mock;
 mod objects;
 mod raw;
+mod retries;
 
 // Re-export `bincode` crate so that client binaries can conveniently use it.
 pub use bincode;
@@ -39,6 +42,10 @@ pub mod _reexports {
 }
 
 pub use self::{
+    factory::ObjectStoreFactory,
+    file::FileBackedObjectStore,
+    gcs::{GoogleCloudStore, GoogleCloudStoreAuthMode},
+    mock::MockObjectStore,
     objects::StoredObject,
-    raw::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory},
+    raw::{Bucket, ObjectStore, ObjectStoreError},
 };

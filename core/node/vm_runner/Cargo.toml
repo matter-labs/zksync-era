@@ -17,6 +17,7 @@ zksync_contracts.workspace = true
 zksync_state.workspace = true
 zksync_storage.workspace = true
 zksync_state_keeper.workspace = true
+zksync_utils.workspace = true
 vm_utils.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
@@ -29,6 +30,7 @@ dashmap.workspace = true
 [dev-dependencies]
 zksync_node_test_utils.workspace = true
 zksync_node_genesis.workspace = true
+zksync_test_account.workspace = true
 backon.workspace = true
 futures = { workspace = true, features = ["compat"] }
 rand.workspace = true

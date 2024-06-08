@@ -7,34 +7,37 @@ use common::{
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
+use config::{
+    forge_interface::{
+        initialize_bridges::{input::InitializeBridgeInput, output::InitializeBridgeOutput},
+        script_params::INITIALIZE_BRIDGES_SCRIPT_PARAMS,
+    },
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, EcosystemConfig,
+};
 use xshell::{cmd, Shell};
 
 use crate::{
-    configs::{
-        forge_interface::initialize_bridges::{
-            input::InitializeBridgeInput, output::InitializeBridgeOutput,
-        },
-        update_l2_shared_bridge, ChainConfig, EcosystemConfig, ReadConfig, SaveConfig,
-    },
-    consts::INITIALIZE_BRIDGES,
-    forge_utils::fill_forge_private_key,
+    config_manipulations::update_l2_shared_bridge,
+    forge_utils::{check_the_balance, fill_forge_private_key},
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_INITIALIZING_BRIDGES_SPINNER},
 };
 
-pub fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
-        .context("Chain not initialized. Please create a chain first")?;
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let spinner = Spinner::new("Initializing bridges");
-    initialize_bridges(shell, &chain_config, &ecosystem_config, args)?;
+    let spinner = Spinner::new(MSG_INITIALIZING_BRIDGES_SPINNER);
+    initialize_bridges(shell, &chain_config, &ecosystem_config, args).await?;
     spinner.finish();
 
     Ok(())
 }
 
-pub fn initialize_bridges(
+pub async fn initialize_bridges(
     shell: &Shell,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
@@ -43,12 +46,19 @@ pub fn initialize_bridges(
     build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
     let input = InitializeBridgeInput::new(chain_config, ecosystem_config.era_chain_id)?;
     let foundry_contracts_path = chain_config.path_to_foundry();
-    input.save(shell, INITIALIZE_BRIDGES.input(&chain_config.link_to_code))?;
+    let secrets = chain_config.get_secrets_config()?;
+    input.save(
+        shell,
+        INITIALIZE_BRIDGES_SCRIPT_PARAMS.input(&chain_config.link_to_code),
+    )?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
-        .script(&INITIALIZE_BRIDGES.script(), forge_args.clone())
+        .script(
+            &INITIALIZE_BRIDGES_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
         .with_ffi()
-        .with_rpc_url(ecosystem_config.l1_rpc_url.clone())
+        .with_rpc_url(secrets.l1.l1_rpc_url.clone())
         .with_broadcast();
 
     forge = fill_forge_private_key(
@@ -56,10 +66,13 @@ pub fn initialize_bridges(
         ecosystem_config.get_wallets()?.governor_private_key(),
     )?;
 
+    check_the_balance(&forge).await?;
     forge.run(shell)?;
 
-    let output =
-        InitializeBridgeOutput::read(shell, INITIALIZE_BRIDGES.output(&chain_config.link_to_code))?;
+    let output = InitializeBridgeOutput::read(
+        shell,
+        INITIALIZE_BRIDGES_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+    )?;
 
     update_l2_shared_bridge(shell, chain_config, &output)?;
     Ok(())

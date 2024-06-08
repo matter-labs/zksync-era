@@ -52,7 +52,7 @@ impl EthNamespace {
 
     pub async fn call_impl(
         &self,
-        request: CallRequest,
+        mut request: CallRequest,
         block_id: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
@@ -70,8 +70,25 @@ impl EthNamespace {
         );
         drop(connection);
 
+        if request.gas.is_none() {
+            request.gas = Some(
+                self.state
+                    .tx_sender
+                    .get_default_eth_call_gas(block_args)
+                    .await
+                    .map_err(Web3Error::InternalError)?
+                    .into(),
+            )
+        }
+        let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
-        let call_result = self.state.tx_sender.eth_call(block_args, tx).await?;
+
+        // It is assumed that the previous checks has already enforced that the `max_fee_per_gas` is at most u64.
+        let call_result: Vec<u8> = self
+            .state
+            .tx_sender
+            .eth_call(block_args, call_overrides, tx)
+            .await?;
         Ok(call_result.into())
     }
 
@@ -206,8 +223,15 @@ impl EthNamespace {
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // Shortcut here on a somewhat unlikely case of the client requesting a pending block.
+            // Otherwise, since we don't read DB data in a transaction,
+            // we might resolve a block number to a block that will be inserted to the DB immediately after,
+            // and return `Ok(Some(_))`.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -271,8 +295,12 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<U256>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // See `get_block_impl()` for an explanation why this check is needed.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -302,8 +330,12 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<Vec<TransactionReceipt>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // See `get_block_impl()` for an explanation why this check is needed.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -440,6 +472,11 @@ impl EthNamespace {
                 .map_err(DalError::generalize)?,
 
             TransactionId::Block(block_id, idx) => {
+                if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+                    // See `get_block_impl()` for an explanation why this check is needed.
+                    return Ok(None);
+                }
+
                 let Ok(idx) = u32::try_from(idx) else {
                     return Ok(None); // index overflow means no transaction
                 };

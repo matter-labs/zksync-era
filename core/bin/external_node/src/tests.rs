@@ -2,6 +2,7 @@
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
+use zksync_dal::CoreDal;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
@@ -103,6 +104,7 @@ fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
     let mock = MockEthereum::builder().with_call_handler(move |call, _| {
         tracing::info!("L1 call: {call:?}");
         if call.to == Some(diamond_proxy_addr) {
+            let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
             let call_signature = &call.data.as_ref().unwrap().0[..4];
             let contract = zksync_contracts::hyperchain_contract();
             let pricing_mode_sig = contract
@@ -117,9 +119,7 @@ fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
                 sig if sig == pricing_mode_sig => {
                     return ethabi::Token::Uint(0.into()); // "rollup" mode encoding
                 }
-                sig if sig == protocol_version_sig => {
-                    return ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
-                }
+                sig if sig == protocol_version_sig => return ethabi::Token::Uint(packed_semver),
                 _ => { /* unknown call; panic below */ }
             }
         }
@@ -154,7 +154,6 @@ async fn external_node_basics(components_str: &'static str) {
     let components: ComponentsToRun = components_str.parse().unwrap();
     let expected_health_components = expected_health_components(&components);
     let opt = Cli {
-        revert_pending_l1_batch: false,
         enable_consensus: false,
         components,
     };
@@ -263,7 +262,6 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     drop(storage);
 
     let opt = Cli {
-        revert_pending_l1_batch: false,
         enable_consensus: false,
         components: "core".parse().unwrap(),
     };

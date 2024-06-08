@@ -2,7 +2,10 @@ use std::num::NonZeroUsize;
 
 use rand::{distributions::Distribution, Rng};
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple, commitment::L1BatchCommitmentMode, network::Network,
+    basic_fri_types::CircuitIdRoundTuple,
+    commitment::L1BatchCommitmentMode,
+    network::Network,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
@@ -366,7 +369,6 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             timestamp_criteria_max_allowed_lag: self.sample(rng),
             l1_batch_min_age_before_execute_seconds: self.sample(rng),
             max_acceptable_priority_fee_in_gwei: self.sample(rng),
-            proof_loading_mode: self.sample(rng),
             pubdata_sending_mode: PubdataSendingMode::Calldata,
         }
     }
@@ -440,7 +442,8 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             zone_read_url: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
             availability_check_interval_in_secs: self.sample(rng),
-            object_store: self.sample(rng),
+            prover_object_store: self.sample(rng),
+            public_object_store: self.sample(rng),
         }
     }
 }
@@ -613,6 +616,7 @@ impl Distribution<configs::ObjectStoreConfig> for EncodeDist {
         configs::ObjectStoreConfig {
             mode: self.sample(rng),
             max_retries: self.sample(rng),
+            local_mirror_path: self.sample(rng),
         }
     }
 }
@@ -660,7 +664,13 @@ impl Distribution<configs::OpentelemetryConfig> for EncodeDist {
 impl Distribution<configs::GenesisConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GenesisConfig {
         configs::GenesisConfig {
-            protocol_version: self.sample(rng),
+            protocol_version: Some(ProtocolSemanticVersion {
+                minor: ProtocolVersionId::try_from(
+                    rng.gen_range(0..(ProtocolVersionId::latest() as u16)),
+                )
+                .unwrap(),
+                patch: VersionPatch(rng.gen()),
+            }),
             genesis_root_hash: rng.gen(),
             rollup_last_leaf_index: self.sample(rng),
             genesis_commitment: rng.gen(),

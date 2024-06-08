@@ -20,7 +20,7 @@ use tracing::Instrument;
 use zkevm_test_harness::geometry_config::get_geometry_config;
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{Core, CoreDal};
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -42,8 +42,8 @@ use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     block::StorageOracleInfo,
-    protocol_version::ProtocolVersionId,
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256,
+    protocol_version::ProtocolSemanticVersion,
+    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -89,21 +89,21 @@ pub struct BasicWitnessGenerator {
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool<Core>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
 }
 
 impl BasicWitnessGenerator {
-    pub async fn new(
+    pub fn new(
         config: FriWitnessGeneratorConfig,
-        store_factory: &ObjectStoreFactory,
+        object_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool<Core>,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             config: Arc::new(config),
-            object_store: store_factory.create_store().await,
+            object_store,
             public_blob_store,
             connection_pool,
             prover_connection_pool,

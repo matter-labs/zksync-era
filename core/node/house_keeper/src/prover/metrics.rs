@@ -1,6 +1,5 @@
 use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, LabeledFamily, Metrics};
-use zksync_types::ProtocolVersionId;
-
+use zksync_types::protocol_version::ProtocolSemanticVersion;
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "house_keeper")]
 pub(crate) struct HouseKeeperMetrics {
@@ -63,7 +62,7 @@ impl FriProverMetrics {
         circuit_id: u8,
         aggregation_round: u8,
         prover_group_id: u8,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
         amount: u64,
     ) {
         self.prover_jobs[&ProverJobsLabels {

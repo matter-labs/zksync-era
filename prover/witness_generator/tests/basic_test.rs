@@ -30,10 +30,12 @@ async fn test_leaf_witness_gen() {
             file_backed_base_path: "./tests/data/leaf/".to_owned(),
         },
         max_retries: 5,
+        local_mirror_path: None,
     };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
-        .await;
+        .await
+        .unwrap();
 
     let circuit_id = 4;
     let block_number = L1BatchNumber(125010);
@@ -70,10 +72,12 @@ async fn test_node_witness_gen() {
             file_backed_base_path: "./tests/data/node/".to_owned(),
         },
         max_retries: 5,
+        local_mirror_path: None,
     };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
-        .await;
+        .await
+        .unwrap();
 
     let circuit_id = 8;
     let block_number = L1BatchNumber(127856);

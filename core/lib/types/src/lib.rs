@@ -7,6 +7,7 @@
 
 use std::{fmt, fmt::Debug};
 
+use anyhow::Context as _;
 pub use event::{VmEvent, VmEventGroupKey};
 use fee::encoding_len;
 pub use l1::L1TxCommonData;
@@ -17,12 +18,19 @@ pub use storage::*;
 pub use tx::Execute;
 pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm_version::VmVersion, *};
 pub use zksync_crypto_primitives::*;
+use zksync_utils::{
+    address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,
+};
 
-use crate::{l2::TransactionType, protocol_upgrade::ProtocolUpgradeTxCommonData};
+use crate::{
+    l2::{L2Tx, TransactionType},
+    protocol_upgrade::ProtocolUpgradeTxCommonData,
+};
 pub use crate::{Nonce, H256, U256, U64};
 
 pub type SerialId = u64;
 
+pub mod abi;
 pub mod aggregated_operations;
 pub mod blob;
 pub mod block;
@@ -235,5 +243,166 @@ impl fmt::Display for ExecuteTransactionCommon {
                 write!(f, "ProtocolUpgradeTxCommonData: {:?}", data)
             }
         }
+    }
+}
+
+impl TryFrom<Transaction> for abi::Transaction {
+    type Error = anyhow::Error;
+
+    fn try_from(tx: Transaction) -> anyhow::Result<Self> {
+        use ExecuteTransactionCommon as E;
+        let factory_deps = tx.execute.factory_deps.unwrap_or_default();
+        Ok(match tx.common_data {
+            E::L2(data) => Self::L2(
+                data.input
+                    .context("input is required for L2 transactions")?
+                    .data,
+            ),
+            E::L1(data) => Self::L1 {
+                tx: abi::L2CanonicalTransaction {
+                    tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
+                    from: address_to_u256(&data.sender),
+                    to: address_to_u256(&tx.execute.contract_address),
+                    gas_limit: data.gas_limit,
+                    gas_per_pubdata_byte_limit: data.gas_per_pubdata_limit,
+                    max_fee_per_gas: data.max_fee_per_gas,
+                    max_priority_fee_per_gas: 0.into(),
+                    paymaster: 0.into(),
+                    nonce: data.serial_id.0.into(),
+                    value: tx.execute.value,
+                    reserved: [
+                        data.to_mint,
+                        address_to_u256(&data.refund_recipient),
+                        0.into(),
+                        0.into(),
+                    ],
+                    data: tx.execute.calldata,
+                    signature: vec![],
+                    factory_deps: factory_deps
+                        .iter()
+                        .map(|b| h256_to_u256(hash_bytecode(b)))
+                        .collect(),
+                    paymaster_input: vec![],
+                    reserved_dynamic: vec![],
+                }
+                .into(),
+                factory_deps,
+                eth_block: data.eth_block,
+                received_timestamp_ms: tx.received_timestamp_ms,
+            },
+            E::ProtocolUpgrade(data) => Self::L1 {
+                tx: abi::L2CanonicalTransaction {
+                    tx_type: PROTOCOL_UPGRADE_TX_TYPE.into(),
+                    from: address_to_u256(&data.sender),
+                    to: address_to_u256(&tx.execute.contract_address),
+                    gas_limit: data.gas_limit,
+                    gas_per_pubdata_byte_limit: data.gas_per_pubdata_limit,
+                    max_fee_per_gas: data.max_fee_per_gas,
+                    max_priority_fee_per_gas: 0.into(),
+                    paymaster: 0.into(),
+                    nonce: (data.upgrade_id as u16).into(),
+                    value: tx.execute.value,
+                    reserved: [
+                        data.to_mint,
+                        address_to_u256(&data.refund_recipient),
+                        0.into(),
+                        0.into(),
+                    ],
+                    data: tx.execute.calldata,
+                    signature: vec![],
+                    factory_deps: factory_deps
+                        .iter()
+                        .map(|b| h256_to_u256(hash_bytecode(b)))
+                        .collect(),
+                    paymaster_input: vec![],
+                    reserved_dynamic: vec![],
+                }
+                .into(),
+                factory_deps,
+                eth_block: data.eth_block,
+                received_timestamp_ms: tx.received_timestamp_ms,
+            },
+        })
+    }
+}
+
+impl TryFrom<abi::Transaction> for Transaction {
+    type Error = anyhow::Error;
+    fn try_from(tx: abi::Transaction) -> anyhow::Result<Self> {
+        Ok(match tx {
+            abi::Transaction::L1 {
+                tx,
+                factory_deps,
+                eth_block,
+                received_timestamp_ms,
+            } => {
+                let factory_deps_hashes: Vec<_> = factory_deps
+                    .iter()
+                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .collect();
+                anyhow::ensure!(tx.factory_deps == factory_deps_hashes);
+                for item in &tx.reserved[2..] {
+                    anyhow::ensure!(item == &U256::zero());
+                }
+                assert_eq!(tx.max_priority_fee_per_gas, U256::zero());
+                assert_eq!(tx.paymaster, U256::zero());
+                assert!(tx.signature.is_empty());
+                assert!(tx.paymaster_input.is_empty());
+                assert!(tx.reserved_dynamic.is_empty());
+                let hash = tx.hash();
+                Transaction {
+                    common_data: match tx.tx_type {
+                        t if t == PRIORITY_OPERATION_L2_TX_TYPE.into() => {
+                            ExecuteTransactionCommon::L1(L1TxCommonData {
+                                serial_id: PriorityOpId(
+                                    tx.nonce
+                                        .try_into()
+                                        .map_err(|err| anyhow::format_err!("{err}"))?,
+                                ),
+                                canonical_tx_hash: hash,
+                                sender: u256_to_account_address(&tx.from),
+                                layer_2_tip_fee: U256::zero(),
+                                to_mint: tx.reserved[0],
+                                refund_recipient: u256_to_account_address(&tx.reserved[1]),
+                                full_fee: U256::zero(),
+                                gas_limit: tx.gas_limit,
+                                max_fee_per_gas: tx.max_fee_per_gas,
+                                gas_per_pubdata_limit: tx.gas_per_pubdata_byte_limit,
+                                op_processing_type: l1::OpProcessingType::Common,
+                                priority_queue_type: l1::PriorityQueueType::Deque,
+                                eth_block,
+                            })
+                        }
+                        t if t == PROTOCOL_UPGRADE_TX_TYPE.into() => {
+                            ExecuteTransactionCommon::ProtocolUpgrade(ProtocolUpgradeTxCommonData {
+                                upgrade_id: tx.nonce.try_into().unwrap(),
+                                canonical_tx_hash: hash,
+                                sender: u256_to_account_address(&tx.from),
+                                to_mint: tx.reserved[0],
+                                refund_recipient: u256_to_account_address(&tx.reserved[1]),
+                                gas_limit: tx.gas_limit,
+                                max_fee_per_gas: tx.max_fee_per_gas,
+                                gas_per_pubdata_limit: tx.gas_per_pubdata_byte_limit,
+                                eth_block,
+                            })
+                        }
+                        unknown_type => anyhow::bail!("unknown tx type {unknown_type}"),
+                    },
+                    execute: Execute {
+                        contract_address: u256_to_account_address(&tx.to),
+                        calldata: tx.data,
+                        factory_deps: Some(factory_deps),
+                        value: tx.value,
+                    },
+                    raw_bytes: None,
+                    received_timestamp_ms,
+                }
+            }
+            abi::Transaction::L2(raw) => {
+                let (req, _) =
+                    transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
+                L2Tx::from_request_unverified(req)?.into()
+            }
+        })
     }
 }

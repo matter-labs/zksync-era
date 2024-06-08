@@ -778,6 +778,12 @@ pub struct TransientStorageWrapper {
     inner: HashMap<StorageKey, U256>,
 }
 
+impl TransientStorageWrapper {
+    pub fn inner(&self) -> &HashMap<StorageKey, U256> {
+        &self.inner
+    }
+}
+
 impl WithHistory for TransientStorageWrapper {
     type HistoryRecord = StorageHistoryRecord;
     type ReturnValue = U256;
@@ -814,22 +820,8 @@ impl<H: HistoryMode> HistoryRecorder<TransientStorageWrapper, H> {
         self.apply_historic_record(StorageHistoryRecord { key, value }, timestamp)
     }
 
-    /// Performs zeroing out the storage, while maintaining history about it,
-    /// making it reversible.
-    ///
-    /// Note that while the history is preserved, the inner parts are fully cleared out.
-    /// TODO(X): potentially optimize this function by allowing rollbacks only at the bounds of transactions.
-    pub(crate) fn zero_out(&mut self, timestamp: Timestamp) {
-        let keys = self
-            .inner
-            .inner
-            .drain()
-            .map(|(key, _)| key)
-            .collect::<Vec<_>>();
-
-        for key in keys {
-            self.write_to_storage(key, U256::zero(), timestamp);
-        }
+    pub(crate) fn drain_inner(&mut self) -> Vec<(StorageKey, U256)> {
+        self.inner.inner.drain().collect()
     }
 }
 

@@ -10,7 +10,7 @@ use zksync_config::{
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -32,7 +32,7 @@ pub fn decode_yaml_repr<T: ProtoRepr>(yaml: &str) -> anyhow::Result<T::Type> {
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.
 /// All the configs are optional, since for some component combination it is not needed to pass all the configs.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct TempConfigStore {
     pub postgres_config: Option<PostgresConfig>,
     pub health_check_config: Option<HealthCheckConfig>,
@@ -58,9 +58,10 @@ pub struct TempConfigStore {
     pub eth_sender_config: Option<EthConfig>,
     pub eth_watch_config: Option<EthWatchConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
-    pub object_store_config: Option<ObjectStoreConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
+    pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub core_object_store: Option<ObjectStoreConfig>,
 }
 
 impl TempConfigStore {
@@ -86,6 +87,8 @@ impl TempConfigStore {
             eth: self.eth_sender_config.clone(),
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
+            protective_reads_writer_config: self.protective_reads_writer_config.clone(),
+            core_object_store: self.core_object_store.clone(),
         }
     }
 

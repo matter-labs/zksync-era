@@ -130,6 +130,20 @@ impl dyn ObjectStore + '_ {
         V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
     }
 
+    /// Fetches the value for the given encoded key if it exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an object with the `encoded_key` does not exist, cannot be accessed,
+    /// or cannot be deserialized.
+    pub async fn get_by_encoded_key<V: StoredObject>(
+        &self,
+        encoded_key: String,
+    ) -> Result<V, ObjectStoreError> {
+        let bytes = self.get_raw(V::BUCKET, &encoded_key).await?;
+        V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
+    }
+
     /// Stores the value associating it with the key. If the key already exists,
     /// the value is replaced.
     ///
@@ -171,7 +185,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::ObjectStoreFactory;
+    use crate::MockObjectStore;
 
     #[test]
     fn test_storage_logs_filesnames_generate_corretly() {
@@ -203,7 +217,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_logs_can_be_serialized_and_deserialized() {
-        let store = ObjectStoreFactory::mock().create_store().await;
+        let store = MockObjectStore::arc();
         let key = SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(567),
             chunk_id: 5,
@@ -231,7 +245,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_factory_deps_can_be_serialized_and_deserialized() {
-        let store = ObjectStoreFactory::mock().create_store().await;
+        let store = MockObjectStore::arc();
         let key = L1BatchNumber(123);
         let factory_deps = SnapshotFactoryDependencies {
             factory_deps: vec![

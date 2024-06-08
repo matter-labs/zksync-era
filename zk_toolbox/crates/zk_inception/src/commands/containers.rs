@@ -1,23 +1,27 @@
+use std::path::PathBuf;
+
 use anyhow::{anyhow, Context};
 use common::{docker, logger, spinner::Spinner};
-use std::path::PathBuf;
+use config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
 use xshell::Shell;
 
-use crate::{configs::EcosystemConfig, consts::DOCKER_COMPOSE_FILE};
+use crate::messages::{
+    MSG_CONTAINERS_STARTED, MSG_FAILED_TO_FIND_ECOSYSTEM_ERR, MSG_RETRY_START_CONTAINERS_PROMPT,
+    MSG_STARTING_CONTAINERS, MSG_STARTING_DOCKER_CONTAINERS_SPINNER,
+};
 
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem =
-        EcosystemConfig::from_file(shell).context("Failed to find ecosystem folder.")?;
+    let ecosystem = EcosystemConfig::from_file(shell).context(MSG_FAILED_TO_FIND_ECOSYSTEM_ERR)?;
 
     initialize_docker(shell, &ecosystem)?;
 
-    logger::info("Starting containers");
+    logger::info(MSG_STARTING_CONTAINERS);
 
-    let spinner = Spinner::new("Starting containers using docker...");
+    let spinner = Spinner::new(MSG_STARTING_DOCKER_CONTAINERS_SPINNER);
     start_containers(shell)?;
     spinner.finish();
 
-    logger::outro("Containers started successfully");
+    logger::outro(MSG_CONTAINERS_STARTED);
     Ok(())
 }
 
@@ -34,7 +38,16 @@ pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::
 }
 
 pub fn start_containers(shell: &Shell) -> anyhow::Result<()> {
-    docker::up(shell, DOCKER_COMPOSE_FILE).context("Failed to start containers")
+    while let Err(err) = docker::up(shell, DOCKER_COMPOSE_FILE) {
+        logger::error(err.to_string());
+        if !common::PromptConfirm::new(MSG_RETRY_START_CONTAINERS_PROMPT)
+            .default(true)
+            .ask()
+        {
+            return Err(err);
+        }
+    }
+    Ok(())
 }
 
 fn create_docker_folders(shell: &Shell) -> anyhow::Result<()> {
