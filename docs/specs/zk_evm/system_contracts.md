@@ -242,7 +242,7 @@ The implementation of the default account abstraction. This is the code that is 
 are not in kernel space and have no contract deployed on them. This address:
 
 - Contains minimal implementation of our account abstraction protocol. Note that it supports the
-  [built-in paymaster flows](https://v2-docs.zksync.io/dev/developer-guides/aa.html#paymasters).
+  [built-in paymaster flows](https://docs.zksync.io/build/developer-reference/account-abstraction.html#paymasters).
 - When anyone (except bootloader) calls it, it behaves in the same way as a call to an EOA, i.e. it always returns
   `success = 1, returndatasize = 0` for calls from anyone except for the bootloader.
 
