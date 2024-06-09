@@ -46,7 +46,7 @@
 * **node_framework:** Migrate main node to the framework ([#1997](https://github.com/matter-labs/zksync-era/issues/1997)) ([27a26cb](https://github.com/matter-labs/zksync-era/commit/27a26cbb955ee8dd59140386af90816a1a44ab99))
 * **node_framework:** Synchronize pools layer with logic in initialize_components ([#2079](https://github.com/matter-labs/zksync-era/issues/2079)) ([3202461](https://github.com/matter-labs/zksync-era/commit/3202461788052f0bf4a55738b9b59a13b6a83ca6))
 * Protocol semantic version ([#2059](https://github.com/matter-labs/zksync-era/issues/2059)) ([3984dcf](https://github.com/matter-labs/zksync-era/commit/3984dcfbdd890f0862c9c0f3e7757fb8b0c8184a))
-* **prover:** Adnotate prover queue metrics with protocol version ([#1893](https://github.com/matter-labs/zksync-era/issues/1893)) ([d1e1004](https://github.com/matter-labs/zksync-era/commit/d1e1004416b7e9db47e242ff68f01b5520834e94))
+* **prover:** Annotate prover queue metrics with protocol version ([#1893](https://github.com/matter-labs/zksync-era/issues/1893)) ([d1e1004](https://github.com/matter-labs/zksync-era/commit/d1e1004416b7e9db47e242ff68f01b5520834e94))
 * save writes needed for tree in state keeper ([#1965](https://github.com/matter-labs/zksync-era/issues/1965)) ([471af53](https://github.com/matter-labs/zksync-era/commit/471af539db6d965852360f8c0978744061a932eb))
 * **test:** Add filebased config support for integration tests ([#2043](https://github.com/matter-labs/zksync-era/issues/2043)) ([be3ded9](https://github.com/matter-labs/zksync-era/commit/be3ded97ede1caea69b4881b783c7b40861d183d))
 * **vm-runner:** implement VM runner main body ([#1955](https://github.com/matter-labs/zksync-era/issues/1955)) ([bf5b6c2](https://github.com/matter-labs/zksync-era/commit/bf5b6c2e5491b14920fd881388cbfdb6d7b4aa91))
@@ -63,7 +63,7 @@
 * **merkle-tree:** Fix incoherent Merkle tree view ([#2071](https://github.com/matter-labs/zksync-era/issues/2071)) ([2fc9a6c](https://github.com/matter-labs/zksync-era/commit/2fc9a6cdb659bd16694c568d16a5b76af063c730))
 * **metadata-calculator:** protective reads sort ([#2087](https://github.com/matter-labs/zksync-era/issues/2087)) ([160c13c](https://github.com/matter-labs/zksync-era/commit/160c13c576faaeb490309c2f5a10e4de1d90f7cc))
 * **node_framework:** Fix the connection pool size for the catchup task ([#2046](https://github.com/matter-labs/zksync-era/issues/2046)) ([c00a2eb](https://github.com/matter-labs/zksync-era/commit/c00a2eb21fe1670386364c7ced38f562471ed7f5))
-* **node_framework:** Use custom pool for commitiment generator ([#2076](https://github.com/matter-labs/zksync-era/issues/2076)) ([994df8f](https://github.com/matter-labs/zksync-era/commit/994df8f85cd65d032fb5ce991df89fdc319c24e2))
+* **node_framework:** Use custom pool for commitment generator ([#2076](https://github.com/matter-labs/zksync-era/issues/2076)) ([994df8f](https://github.com/matter-labs/zksync-era/commit/994df8f85cd65d032fb5ce991df89fdc319c24e2))
 * **protocol_version:** Add backward compatibility ([#2097](https://github.com/matter-labs/zksync-era/issues/2097)) ([391624b](https://github.com/matter-labs/zksync-era/commit/391624b01b5fb4bdf52b8826205e35839746732f))
 * **pruning:** Fix DB pruner responsiveness during shutdown ([#2058](https://github.com/matter-labs/zksync-era/issues/2058)) ([0a07312](https://github.com/matter-labs/zksync-era/commit/0a07312089833cd5da33009edd13ad253b263677))
 * **zk_toolbox:** Use both folders for loading contracts  ([#2030](https://github.com/matter-labs/zksync-era/issues/2030)) ([97c6d5c](https://github.com/matter-labs/zksync-era/commit/97c6d5c9c2d9dddf0b18391077c8828e5dc7042b))
@@ -79,7 +79,7 @@
 ### Features
 
 * **prover:** add GPU feature for compressor ([#1838](https://github.com/matter-labs/zksync-era/issues/1838)) ([e9a2213](https://github.com/matter-labs/zksync-era/commit/e9a2213985928cd3804a3855ccfde6a7d99da238))
-* **pruning:** remove manual vaccum; add migration configuring autovacuum ([#1983](https://github.com/matter-labs/zksync-era/issues/1983)) ([3d98072](https://github.com/matter-labs/zksync-era/commit/3d98072468b1f7dac653b4ff04bda66e2fc8185e))
+* **pruning:** remove manual vacuum; add migration configuring autovacuum ([#1983](https://github.com/matter-labs/zksync-era/issues/1983)) ([3d98072](https://github.com/matter-labs/zksync-era/commit/3d98072468b1f7dac653b4ff04bda66e2fc8185e))
 * **tests:** Move all env calls to one place in ts-tests ([#1968](https://github.com/matter-labs/zksync-era/issues/1968)) ([3300047](https://github.com/matter-labs/zksync-era/commit/33000475b47831fc3791dac338aae4d0e7db25b0))
 
 
@@ -1547,7 +1547,7 @@
 
 ### Bug Fixes
 
-* **crypto:** update harness to use log_tracing to supress println's from boojum ([#2134](https://github.com/matter-labs/zksync-2-dev/issues/2134)) ([b0655ba](https://github.com/matter-labs/zksync-2-dev/commit/b0655ba4e8bba5264c59cff83008af7390ed963f))
+* **crypto:** update harness to use log_tracing to suppress println's from boojum ([#2134](https://github.com/matter-labs/zksync-2-dev/issues/2134)) ([b0655ba](https://github.com/matter-labs/zksync-2-dev/commit/b0655ba4e8bba5264c59cff83008af7390ed963f))
 
 ## [5.14.0](https://github.com/matter-labs/zksync-2-dev/compare/v5.13.1...v5.14.0) (2023-07-07)
 
@@ -1578,7 +1578,7 @@
 * Add metrics for tracking eth_tx's stage transition duration PLA-146 ([#2084](https://github.com/matter-labs/zksync-2-dev/issues/2084)) ([4c29be3](https://github.com/matter-labs/zksync-2-dev/commit/4c29be30618ded958c961d7473632d1f8f5efa26))
 * **api:** Fix api health check ([#2108](https://github.com/matter-labs/zksync-2-dev/issues/2108)) ([406d6ba](https://github.com/matter-labs/zksync-2-dev/commit/406d6ba4c6c588304d74baacf9b3d66deb82e60a))
 * **api:** Use dedicated tokio runtime for VM in API ([#2111](https://github.com/matter-labs/zksync-2-dev/issues/2111)) ([e088b8b](https://github.com/matter-labs/zksync-2-dev/commit/e088b8b6f6de1da63fe000325bb4a7faddbdf862))
-* **house-keeper:** emit seperate metrics for FRI witness-gen jobs in  house-keeper ([#2112](https://github.com/matter-labs/zksync-2-dev/issues/2112)) ([fd616de](https://github.com/matter-labs/zksync-2-dev/commit/fd616defbb6380a876faeda33a0901dd9e4b9f57))
+* **house-keeper:** emit separate metrics for FRI witness-gen jobs in  house-keeper ([#2112](https://github.com/matter-labs/zksync-2-dev/issues/2112)) ([fd616de](https://github.com/matter-labs/zksync-2-dev/commit/fd616defbb6380a876faeda33a0901dd9e4b9f57))
 * **prover-fri:** save scheduler proofs in public bucket as well ([#2101](https://github.com/matter-labs/zksync-2-dev/issues/2101)) ([8979649](https://github.com/matter-labs/zksync-2-dev/commit/897964911e7ba610722d82ae0182e60973736794))
 * **state-keeper:** Log miniblock sealing ([#2105](https://github.com/matter-labs/zksync-2-dev/issues/2105)) ([fd6e8b4](https://github.com/matter-labs/zksync-2-dev/commit/fd6e8b4b6a03ba0071645233c7a2ad2e7d3e9f5c))
 
@@ -1676,7 +1676,7 @@
 
 * (DONT MERGE!) Integrate WETH bridge into server & SDK ([#1929](https://github.com/matter-labs/zksync-2-dev/issues/1929)) ([b3caf1e](https://github.com/matter-labs/zksync-2-dev/commit/b3caf1e35718c742e8d1d59427855df3b9109300))
 * add tx_index_in_l1_batch field to L2ToL1Log ([#2032](https://github.com/matter-labs/zksync-2-dev/issues/2032)) ([3ce5779](https://github.com/matter-labs/zksync-2-dev/commit/3ce5779f500d5738c92e09eff13d553e20625055))
-* Clasify crypto alerts and monitor them ([#1895](https://github.com/matter-labs/zksync-2-dev/issues/1895)) ([e05fb64](https://github.com/matter-labs/zksync-2-dev/commit/e05fb642c03acd07ad800735648c00eea20d90da))
+* Classify crypto alerts and monitor them ([#1895](https://github.com/matter-labs/zksync-2-dev/issues/1895)) ([e05fb64](https://github.com/matter-labs/zksync-2-dev/commit/e05fb642c03acd07ad800735648c00eea20d90da))
 * **contract-verifier:** vyper contract verification ([#2041](https://github.com/matter-labs/zksync-2-dev/issues/2041)) ([f22d3ec](https://github.com/matter-labs/zksync-2-dev/commit/f22d3ecd272041185958b1d79e13fafafb191cdb))
 * **external node:** Config fixups ([#2037](https://github.com/matter-labs/zksync-2-dev/issues/2037)) ([fe050e4](https://github.com/matter-labs/zksync-2-dev/commit/fe050e415e15fa090a81ffa21c11f8d926c3e964))
 * **house-keeper:** added scheduler dependency tracker and queuer ([#2045](https://github.com/matter-labs/zksync-2-dev/issues/2045)) ([ca23434](https://github.com/matter-labs/zksync-2-dev/commit/ca23434532d97506480b25d22f3a016c42232de1))
@@ -1875,7 +1875,7 @@
 ### Bug Fixes
 
 * Add tree readiness check to healtcheck endpoint ([#1789](https://github.com/matter-labs/zksync-2-dev/issues/1789)) ([3010900](https://github.com/matter-labs/zksync-2-dev/commit/30109004986e8a19603db7f31af7a06bea3344bb))
-* update zkevm-test-harness (exluding transitive dependencies) ([#1827](https://github.com/matter-labs/zksync-2-dev/issues/1827)) ([faa2900](https://github.com/matter-labs/zksync-2-dev/commit/faa29000a841ba2949bb9769dd9b9d0b01493384))
+* update zkevm-test-harness (excluding transitive dependencies) ([#1827](https://github.com/matter-labs/zksync-2-dev/issues/1827)) ([faa2900](https://github.com/matter-labs/zksync-2-dev/commit/faa29000a841ba2949bb9769dd9b9d0b01493384))
 
 ### Performance Improvements
 
@@ -1891,7 +1891,7 @@
 * **external node:** Reorg detector ([#1747](https://github.com/matter-labs/zksync-2-dev/issues/1747)) ([c3f9b71](https://github.com/matter-labs/zksync-2-dev/commit/c3f9b71d0ed85c2a45ca225de1887e10695b01a1))
 * **merkle tree:** Allow using old / new tree based on config ([#1776](https://github.com/matter-labs/zksync-2-dev/issues/1776)) ([78117b8](https://github.com/matter-labs/zksync-2-dev/commit/78117b8b3c1fadcd9ba9d6d4a017fa6d3ba5517d))
 * **merkle tree:** Verify tree consistency ([#1795](https://github.com/matter-labs/zksync-2-dev/issues/1795)) ([d590b3f](https://github.com/matter-labs/zksync-2-dev/commit/d590b3f0965a23eb0011779aab829d86d4fdc1d1))
-* **wintess-generator:** create dedicated witness-generator binary for new prover ([#1781](https://github.com/matter-labs/zksync-2-dev/issues/1781)) ([83d45b8](https://github.com/matter-labs/zksync-2-dev/commit/83d45b8d29618c9f96e34ba139c45f5cd18f6585))
+* **witness-generator:** create dedicated witness-generator binary for new prover ([#1781](https://github.com/matter-labs/zksync-2-dev/issues/1781)) ([83d45b8](https://github.com/matter-labs/zksync-2-dev/commit/83d45b8d29618c9f96e34ba139c45f5cd18f6585))
 
 ### Bug Fixes
 
@@ -1946,7 +1946,7 @@
 
 ### Bug Fixes
 
-* add coeficient to gas limit + method for full fee estimation ([#1622](https://github.com/matter-labs/zksync-2-dev/issues/1622)) ([229cda9](https://github.com/matter-labs/zksync-2-dev/commit/229cda977daa11a98a97515a2f75d709e2e8ed9a))
+* add coefficient to gas limit + method for full fee estimation ([#1622](https://github.com/matter-labs/zksync-2-dev/issues/1622)) ([229cda9](https://github.com/matter-labs/zksync-2-dev/commit/229cda977daa11a98a97515a2f75d709e2e8ed9a))
 * **db:** Add index on events (address, miniblock_number, event_index_in_block) ([#1727](https://github.com/matter-labs/zksync-2-dev/issues/1727)) ([6f15141](https://github.com/matter-labs/zksync-2-dev/commit/6f15141c67e20f764c3f84dc17152df7b2e7887a))
 * **explorer-api:** filter out fictive transactions and fix mint/burn events deduplication ([#1724](https://github.com/matter-labs/zksync-2-dev/issues/1724)) ([cd2376b](https://github.com/matter-labs/zksync-2-dev/commit/cd2376b0c37cde5eb8c0ee7db8ae9981052b88ed))
 * **external node:** Use unique connection pools for critical components ([#1736](https://github.com/matter-labs/zksync-2-dev/issues/1736)) ([9e1b817](https://github.com/matter-labs/zksync-2-dev/commit/9e1b817da59c7201602fc463f3cfa1dc50a3c304))
