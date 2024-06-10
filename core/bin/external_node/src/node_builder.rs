@@ -297,7 +297,8 @@ impl ExternalNodeBuilder {
                     self = self
                         .add_state_keeper_layer()?
                         .add_consensus_layer()?
-                        .add_pruning_layer()?;
+                        .add_pruning_layer()?
+                        .add_consistency_checker_layer()?;
 
                     todo!()
                 }
