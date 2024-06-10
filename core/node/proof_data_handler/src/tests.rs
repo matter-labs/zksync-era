@@ -219,7 +219,7 @@ async fn mock_tee_batch_status(
     // mock SQL table with relevant information about the status of TEE proof generation ('ready_to_be_proven')
 
     proof_dal
-        .insert_tee_proof_generation_details(batch_number)
+        .insert_tee_proof_generation_job(batch_number)
         .await;
 
     // now, there should be one batch in the db awaiting proof

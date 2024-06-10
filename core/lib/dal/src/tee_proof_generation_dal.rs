@@ -113,7 +113,7 @@ impl TeeProofGenerationDal<'_, '_> {
         .ok_or(sqlx::Error::RowNotFound)
     }
 
-    pub async fn insert_tee_proof_generation_details(&mut self, block_number: L1BatchNumber) {
+    pub async fn insert_tee_proof_generation_job(&mut self, block_number: L1BatchNumber) {
         sqlx::query!(
             r#"
             INSERT INTO
