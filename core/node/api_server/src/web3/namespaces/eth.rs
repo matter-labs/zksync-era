@@ -223,8 +223,15 @@ impl EthNamespace {
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // Shortcut here on a somewhat unlikely case of the client requesting a pending block.
+            // Otherwise, since we don't read DB data in a transaction,
+            // we might resolve a block number to a block that will be inserted to the DB immediately after,
+            // and return `Ok(Some(_))`.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -288,8 +295,12 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<U256>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // See `get_block_impl()` for an explanation why this check is needed.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -319,8 +330,12 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<Vec<TransactionReceipt>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // See `get_block_impl()` for an explanation why this check is needed.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -457,6 +472,11 @@ impl EthNamespace {
                 .map_err(DalError::generalize)?,
 
             TransactionId::Block(block_id, idx) => {
+                if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+                    // See `get_block_impl()` for an explanation why this check is needed.
+                    return Ok(None);
+                }
+
                 let Ok(idx) = u32::try_from(idx) else {
                     return Ok(None); // index overflow means no transaction
                 };
