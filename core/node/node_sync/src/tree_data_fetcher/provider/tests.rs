@@ -3,11 +3,14 @@
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::test_casing;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_web3_decl::client::MockClient;
 
 use super::*;
-use crate::tree_data_fetcher::tests::{seal_l1_batch_with_timestamp, MockMainNodeClient};
+use crate::tree_data_fetcher::tests::{
+    get_last_l2_block, seal_l1_batch_with_timestamp, MockMainNodeClient,
+};
 
 const DIAMOND_PROXY_ADDRESS: Address = Address::repeat_byte(0x22);
 
@@ -163,14 +166,13 @@ async fn test_using_l1_data_provider(l1_batch_timestamps: &[u64]) {
         seal_l1_batch_with_timestamp(&mut storage, number, ts).await;
         eth_params.push_commit(ts + 1_000); // have a reasonable small diff between batch generation and commitment
     }
-    drop(storage);
 
     let mut provider =
-        L1DataProvider::new(pool, Box::new(eth_params.client()), DIAMOND_PROXY_ADDRESS).unwrap();
+        L1DataProvider::new(Box::new(eth_params.client()), DIAMOND_PROXY_ADDRESS).unwrap();
     for i in 0..l1_batch_timestamps.len() {
         let number = L1BatchNumber(i as u32 + 1);
         let output = provider
-            .batch_details(number)
+            .batch_details(number, &get_last_l2_block(&mut storage, number).await)
             .await
             .unwrap()
             .expect("no root hash");
@@ -210,18 +212,19 @@ async fn combined_data_provider_errors() {
     seal_l1_batch_with_timestamp(&mut storage, L1BatchNumber(1), 50_000).await;
     eth_params.push_commit(51_000);
     seal_l1_batch_with_timestamp(&mut storage, L1BatchNumber(2), 52_000).await;
-    drop(storage);
 
     let mut main_node_client = MockMainNodeClient::default();
     main_node_client.insert_batch(L1BatchNumber(2), H256::repeat_byte(2));
-    let mut provider =
-        L1DataProvider::new(pool, Box::new(eth_params.client()), DIAMOND_PROXY_ADDRESS)
-            .unwrap()
-            .with_fallback(Box::new(main_node_client));
+    let mut provider = L1DataProvider::new(Box::new(eth_params.client()), DIAMOND_PROXY_ADDRESS)
+        .unwrap()
+        .with_fallback(Box::new(main_node_client));
 
     // L1 batch #1 should be obtained from L1
     let output = provider
-        .batch_details(L1BatchNumber(1))
+        .batch_details(
+            L1BatchNumber(1),
+            &get_last_l2_block(&mut storage, L1BatchNumber(1)).await,
+        )
         .await
         .unwrap()
         .expect("no root hash");
@@ -231,19 +234,14 @@ async fn combined_data_provider_errors() {
 
     // L1 batch #2 should be obtained from L2
     let output = provider
-        .batch_details(L1BatchNumber(2))
+        .batch_details(
+            L1BatchNumber(2),
+            &get_last_l2_block(&mut storage, L1BatchNumber(2)).await,
+        )
         .await
         .unwrap()
         .expect("no root hash");
     assert_eq!(output.root_hash, H256::repeat_byte(2));
     assert_matches!(output.source, TreeDataProviderSource::BatchDetailsRpc);
     assert!(provider.l1.is_none());
-
-    // L1 batch #3 is not present anywhere.
-    let missing = provider
-        .batch_details(L1BatchNumber(3))
-        .await
-        .unwrap()
-        .unwrap_err();
-    assert_matches!(missing, MissingData::Batch);
 }

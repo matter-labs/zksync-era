@@ -7,9 +7,12 @@ use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{block::L1BatchTreeData, Address, L1BatchNumber};
+use zksync_types::{
+    block::{L1BatchTreeData, L2BlockHeader},
+    Address, L1BatchNumber,
+};
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
     error::EnrichedClientError,
@@ -133,7 +136,6 @@ impl TreeDataFetcher {
         );
 
         let l1_provider = L1DataProvider::new(
-            self.pool.clone(),
             eth_client.for_component("tree_data_fetcher"),
             diamond_proxy_address,
         )?;
@@ -147,7 +149,7 @@ impl TreeDataFetcher {
         self.health_updater.subscribe()
     }
 
-    async fn get_batch_to_fetch(&self) -> anyhow::Result<Option<L1BatchNumber>> {
+    async fn get_batch_to_fetch(&self) -> anyhow::Result<Option<(L1BatchNumber, L2BlockHeader)>> {
         let mut storage = self.pool.connection_tagged("tree_data_fetcher").await?;
         // Fetch data in a readonly transaction to have a consistent view of the storage
         let mut storage = storage.start_transaction().await?;
@@ -172,20 +174,41 @@ impl TreeDataFetcher {
             earliest_l1_batch
         };
         Ok(if l1_batch_to_fetch <= last_l1_batch {
-            Some(l1_batch_to_fetch)
+            let last_l2_block = Self::get_last_l2_block(&mut storage, l1_batch_to_fetch).await?;
+            Some((l1_batch_to_fetch, last_l2_block))
         } else {
             None
         })
     }
 
+    async fn get_last_l2_block(
+        storage: &mut Connection<'_, Core>,
+        number: L1BatchNumber,
+    ) -> anyhow::Result<L2BlockHeader> {
+        let (_, last_l2_block_number) = storage
+            .blocks_dal()
+            .get_l2_block_range_of_l1_batch(number)
+            .await?
+            .with_context(|| format!("L1 batch #{number} disappeared from Postgres"))?;
+        storage
+            .blocks_dal()
+            .get_l2_block_header(last_l2_block_number)
+            .await?
+            .with_context(|| format!("L2 block #{last_l2_block_number} (last for L1 batch #{number}) disappeared from Postgres"))
+    }
+
     async fn step(&mut self) -> Result<StepOutcome, TreeDataFetcherError> {
-        let Some(l1_batch_to_fetch) = self.get_batch_to_fetch().await? else {
+        let Some((l1_batch_to_fetch, last_l2_block_header)) = self.get_batch_to_fetch().await?
+        else {
             return Ok(StepOutcome::NoProgress);
         };
 
-        tracing::debug!("Fetching tree data for L1 batch #{l1_batch_to_fetch} from main node");
+        tracing::debug!("Fetching tree data for L1 batch #{l1_batch_to_fetch}");
         let stage_latency = self.metrics.stage_latency[&ProcessingStage::Fetch].start();
-        let root_hash_result = self.data_provider.batch_details(l1_batch_to_fetch).await?;
+        let root_hash_result = self
+            .data_provider
+            .batch_details(l1_batch_to_fetch, &last_l2_block_header)
+            .await?;
         stage_latency.observe();
         let root_hash = match root_hash_result {
             Ok(output) => {
