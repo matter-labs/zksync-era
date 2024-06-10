@@ -35,7 +35,7 @@ use zksync_node_framework::{
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            StateKeeperLayer,
+            output_handler::PersistenceLayer, StateKeeperLayer,
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::protective_reads::ProtectiveReadsWriterLayer,
@@ -183,9 +183,14 @@ impl MainNodeBuilder {
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
+        let persistence_layer = PersistenceLayer::new(
+            self.contracts_config
+                .l2_shared_bridge_addr
+                .context("L2 shared bridge address")?,
+            sk_config.l2_block_seal_queue_capacity,
+        );
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
-            self.contracts_config.clone(),
             sk_config.clone(),
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
@@ -194,6 +199,7 @@ impl MainNodeBuilder {
         let main_node_batch_executor_builder_layer = MainBatchExecutorLayer::new(sk_config);
         let state_keeper_layer = StateKeeperLayer::new(db_config);
         self.node
+            .add_layer(persistence_layer)
             .add_layer(mempool_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);

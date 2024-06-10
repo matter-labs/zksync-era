@@ -9,8 +9,10 @@ use zksync_state_keeper::{
 };
 use zksync_storage::RocksDB;
 
+pub mod external_io;
 pub mod main_batch_executor;
 pub mod mempool_io;
+pub mod output_handler;
 
 use crate::{
     implementations::resources::{

@@ -43,7 +43,7 @@ use zksync_node_framework::{
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            StateKeeperLayer,
+            output_handler::PersistenceLayer, StateKeeperLayer,
         },
         web3_api::{
             caches::MempoolCacheLayer,
@@ -145,10 +145,15 @@ impl MainNodeBuilder {
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
         let wallets = Wallets::from_env()?;
+        let contracts_config = ContractsConfig::from_env()?;
+        let sk_config = StateKeeperConfig::from_env()?;
+        let persisence_layer = PersistenceLayer::new(
+            contracts_config.l2_shared_bridge_addr.unwrap(),
+            sk_config.l2_block_seal_queue_capacity,
+        );
         let mempool_io_layer = MempoolIOLayer::new(
             NetworkConfig::from_env()?.zksync_network_id,
-            ContractsConfig::from_env()?,
-            StateKeeperConfig::from_env()?,
+            sk_config,
             MempoolConfig::from_env()?,
             wallets.state_keeper.context("State keeper wallets")?,
         );
@@ -156,6 +161,7 @@ impl MainNodeBuilder {
             MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?);
         let state_keeper_layer = StateKeeperLayer::new(DBConfig::from_env()?);
         self.node
+            .add_layer(persisence_layer)
             .add_layer(mempool_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);
