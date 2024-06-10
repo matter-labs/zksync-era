@@ -969,5 +969,7 @@ preloaded
 e2e
 upcasting
 foundryup
+uncached
+untrimmed
 UNNEST
 semver
