@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{convert::TryFrom, str::FromStr, sync::Arc};
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
@@ -14,8 +14,14 @@ use zksync_eth_client::{BoundEthInterface, EthInterface, Options};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
-    api::BlockNumber, tokens::ETHEREUM_ADDRESS, Address, Nonce,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    api::BlockNumber, tokens::ETHEREUM_ADDRESS, transaction_request::PaymasterParams, Address,
+    Nonce, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+};
+use zksync_web3_rs::{
+    providers::{Http, Provider},
+    signers::{LocalWallet, Signer},
+    zks_wallet::TransferRequest,
+    ZKSWallet,
 };
 
 use crate::{
@@ -86,10 +92,13 @@ impl Executor {
         tracing::info!("Initializing accounts");
         tracing::info!("Running for MASTER {:?}", self.pool.master_wallet.address());
         self.check_onchain_balance().await?;
-        self.mint().await?;
-        self.deposit_to_master().await?;
 
-        self.deposit_eth_to_paymaster().await?;
+        if !self.config.is_evm() {
+            self.mint().await?;
+            self.deposit_to_master().await?;
+
+            self.deposit_eth_to_paymaster().await?;
+        }
 
         let final_result = self.send_initial_transfers().await?;
         Ok(final_result)
@@ -485,6 +494,31 @@ impl Executor {
         Ok(())
     }
 
+    async fn send_initial_transfers_inner_evm(
+        &self,
+        accounts_to_process: usize,
+    ) -> anyhow::Result<()> {
+        for account in self.pool.accounts.iter().take(accounts_to_process) {
+            let chain_id: u64 = self.config.l2_chain_id;
+            let l2_wallet = LocalWallet::from_str(self.config.master_wallet_pk.as_str())?
+                .with_chain_id(chain_id);
+
+            let l2_provider: Provider<Http> =
+                Provider::try_from(self.config.l2_rpc_address.clone())?;
+
+            let zkwallet = ZKSWallet::new(l2_wallet, None, Some(l2_provider), None)?;
+
+            let l2_transfer_amount = self.eth_transfer_amount(zkwallet.era_balance().await?);
+
+            let transfer_request = TransferRequest::new(l2_transfer_amount)
+                .to(account.wallet.address())
+                .from(zkwallet.l2_address());
+            zkwallet.transfer(&transfer_request, None).await?;
+        }
+
+        Ok(())
+    }
+
     /// Returns the amount sufficient for wallets to perform many operations.
     fn erc20_transfer_amount(&self) -> u128 {
         let accounts_amount = self.config.accounts_amount;
@@ -492,6 +526,14 @@ impl Executor {
         let for_fees = u64::MAX; // Leave some spare funds on the master account for fees.
         let funds_to_distribute = account_balance - u128::from(for_fees);
         funds_to_distribute / accounts_amount as u128
+    }
+
+    // Returns the amount sufficient for wallets to perform many operations.
+    fn eth_transfer_amount(&self, balance: U256) -> U256 {
+        let accounts_amount = self.config.accounts_amount;
+        let for_fees = balance / U256::from(1 << 10); // Leave some spare funds on the master account for fees.
+        let funds_to_distribute = balance - for_fees;
+        funds_to_distribute / U256::from(accounts_amount)
     }
 
     /// Initializes the loadtest by doing the following:
@@ -543,10 +585,21 @@ impl Executor {
             let max_accounts_per_iter = MAX_OUTSTANDING_NONCE;
             let accounts_to_process = std::cmp::min(accounts_left, max_accounts_per_iter);
 
-            if let Err(err) = self.send_initial_transfers_inner(accounts_to_process).await {
-                tracing::warn!("Iteration of the initial funds distribution failed: {err}");
-                retry_counter += 1;
-                continue;
+            if self.config.is_evm() {
+                if let Err(err) = self
+                    .send_initial_transfers_inner_evm(accounts_to_process)
+                    .await
+                {
+                    tracing::warn!("Iteration of the initial funds distribution failed: {err}");
+                    retry_counter += 1;
+                    continue;
+                }
+            } else {
+                if let Err(err) = self.send_initial_transfers_inner(accounts_to_process).await {
+                    tracing::warn!("Iteration of the initial funds distribution failed: {err}");
+                    retry_counter += 1;
+                    continue;
+                }
             }
 
             accounts_processed += accounts_to_process;

@@ -126,7 +126,11 @@ impl AccountLifespan {
             to: Address::zero(),
             amount: U256::zero(),
         };
-        self.execute_command(deploy_command.clone()).await?;
+        if self.config.is_evm() {
+            self.execute_command_evm(deploy_command.clone()).await?;
+        } else {
+            self.execute_command(deploy_command.clone()).await?;
+        }
         self.wait_for_all_inflight_tx().await?;
 
         let mut timer = tokio::time::interval(POLLING_INTERVAL);
@@ -291,6 +295,55 @@ impl AccountLifespan {
                     });
                     self.successfully_sent_txs.write().await.push(tx_hash)
                 }
+                SubmitResult::ReportLabel(label) => {
+                    // Make a report if there was some problems sending tx
+                    self.report(label, start.elapsed(), attempt, command)
+                        .await?;
+                }
+            }
+
+            // We won't continue the loop unless `continue` was manually called.
+            break;
+        }
+        Ok(())
+    }
+
+    /// Executes a command with support of retries:
+    /// If command fails due to the network/API error, it will be retried multiple times
+    /// before considering it completely failed. Such an approach makes us a bit more resilient to
+    /// volatile errors such as random connection drop or insufficient fee error.
+    async fn execute_command_evm(&mut self, command: TxCommand) -> Result<(), Aborted> {
+        // We consider API errors to be somewhat likely, thus we will retry the operation if it fails
+        // due to connection issues.
+        const MAX_RETRIES: usize = 3;
+
+        let mut attempt = 0;
+        loop {
+            let start = Instant::now();
+            let result = self.execute_deploy_evm().await;
+
+            let submit_result = match result {
+                Ok(result) => result,
+                Err(err) if Self::should_retry(&err) => {
+                    if attempt < MAX_RETRIES {
+                        tracing::warn!("Error while sending tx: {err}. Retrying...");
+                        // Retry operation.
+                        attempt += 1;
+                        continue;
+                    }
+
+                    // We reached the maximum amount of retries.
+                    let error = format!("Retries limit reached. Latest error: {err}");
+                    SubmitResult::ReportLabel(ReportLabel::failed(error))
+                }
+                Err(err) => {
+                    // Other kinds of errors should not be handled, we will just report them.
+                    SubmitResult::ReportLabel(ReportLabel::failed(err.to_string()))
+                }
+            };
+
+            match submit_result {
+                SubmitResult::TxHash(_) => {}
                 SubmitResult::ReportLabel(label) => {
                     // Make a report if there was some problems sending tx
                     self.report(label, start.elapsed(), attempt, command)

@@ -1,5 +1,7 @@
-use std::time::Instant;
+use std::{convert::TryFrom, time::Instant};
 
+use ethers::prelude::*;
+use num::ToPrimitive;
 use zksync::{
     error::ClientError,
     ethereum::PriorityOpHolder,
@@ -14,6 +16,7 @@ use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
     l2::L2Tx,
+    transaction_request::PaymasterParams,
     Address, H256, U256,
 };
 
@@ -54,6 +57,44 @@ impl AccountLifespan {
                     .await
             }
         }
+    }
+
+    pub(super) async fn execute_deploy_evm(&mut self) -> Result<SubmitResult, ClientError> {
+        // Helper function to convert various error types to ClientError
+        fn to_client_error<E: std::fmt::Display>(error: E) -> ClientError {
+            ClientError::EvmDeploy(error.to_string()) // Adjust as needed
+        }
+        let provider = Provider::<Http>::try_from(self.config.l2_rpc_address.clone())
+            .map_err(to_client_error)?;
+        let chain_id: u64 = self.config.l2_chain_id;
+        let client = SignerMiddleware::new(
+            provider,
+            self.wallet.evm_wallet.clone().with_chain_id(chain_id),
+        );
+
+        let factory = ethers::contract::ContractFactory::new(
+            self.wallet.test_contract.contract.clone(),
+            Bytes::try_from(self.wallet.test_contract.bytecode.clone()).map_err(to_client_error)?,
+            client.clone().into(),
+        );
+        let reads = match self.contract_execution_params.reads.to_u32() {
+            Some(reads) => reads,
+            None => {
+                return Err(ClientError::EvmDeploy("Invalid reads value".to_string()));
+            }
+        };
+        let deployer = factory.deploy(reads).unwrap();
+        let contract = deployer
+            .confirmations(0usize)
+            .send()
+            .await
+            .map_err(to_client_error)?;
+        self.wallet
+            .deployed_contract_address
+            .set(contract.address())
+            .ok();
+
+        Ok(SubmitResult::TxHash(H256::zero()))
     }
 
     fn tx_creation_error(err: ClientError) -> ClientError {
@@ -354,9 +395,16 @@ impl AccountLifespan {
 
             ExecutionType::L2 => {
                 let mut started_at = Instant::now();
-                let tx = self
-                    .build_execute_loadnext_contract(command, contract_address)
-                    .await?;
+                let tx;
+                if self.config.is_evm() {
+                    tx = self
+                        .build_execute_loadnext_contract_evm(command, contract_address)
+                        .await?;
+                } else {
+                    tx = self
+                        .build_execute_loadnext_contract(command, contract_address)
+                        .await?;
+                }
                 tracing::trace!(
                     "Account {:?}: execute_loadnext_contract: tx built in {:?}",
                     self.wallet.wallet.address(),
@@ -427,6 +475,46 @@ impl AccountLifespan {
             fee.max_total_fee(),
             Vec::new(),
         );
+        builder = builder.fee(fee);
+        builder = builder.paymaster_params(paymaster_params);
+
+        if let Some(nonce) = self.current_nonce {
+            builder = builder.nonce(nonce);
+        }
+
+        let tx = builder.tx().await.map_err(Self::tx_creation_error)?;
+
+        Ok(self.apply_modifier(tx, command.modifier).await)
+    }
+
+    async fn build_execute_loadnext_contract_evm(
+        &mut self,
+        command: &TxCommand,
+        contract_address: Address,
+    ) -> Result<L2Tx, ClientError> {
+        let wallet = &self.wallet.wallet;
+
+        let calldata = self.prepare_calldata_for_loadnext_contract();
+        let mut builder = wallet
+            .start_execute_contract()
+            .calldata(calldata)
+            .contract_address(contract_address);
+
+        let fee = builder
+            .estimate_fee(Some(PaymasterParams::default()))
+            .await?;
+        tracing::trace!(
+            "Account {:?}: fee estimated. Max total fee: {}, gas limit: {}gas; Max gas price: {}WEI, \
+             Gas per pubdata: {:?}gas",
+            self.wallet.wallet.address(),
+            format_gwei(fee.max_total_fee()),
+            fee.gas_limit,
+            fee.max_fee_per_gas,
+            fee.gas_per_pubdata_limit
+        );
+        builder = builder.fee(fee.clone());
+
+        let paymaster_params = PaymasterParams::default();
         builder = builder.fee(fee);
         builder = builder.paymaster_params(paymaster_params);
 

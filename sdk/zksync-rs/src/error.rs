@@ -41,4 +41,7 @@ pub enum ClientError {
 
     #[error("Other")]
     Other,
+
+    #[error("EVM Deploy Error: {0}")]
+    EvmDeploy(String),
 }
