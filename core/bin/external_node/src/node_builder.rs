@@ -10,6 +10,7 @@ use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
         consensus::{ConsensusLayer, Mode},
+        consistency_checker::ConsistencyCheckerLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         main_node_client::MainNodeClientLayer,
@@ -196,19 +197,34 @@ impl ExternalNodeBuilder {
     }
 
     fn add_pruning_layer(mut self) -> anyhow::Result<Self> {
-        let layer = PruningLayer::new(
-            self.config.optional.pruning_removal_delay(),
-            self.config.optional.pruning_chunk_size,
-            self.config.optional.pruning_data_retention(),
+        if self.config.optional.pruning_enabled {
+            let layer = PruningLayer::new(
+                self.config.optional.pruning_removal_delay(),
+                self.config.optional.pruning_chunk_size,
+                self.config.optional.pruning_data_retention(),
+            );
+            self.node.add_layer(layer);
+        } else {
+            tracing::info!("Pruning is disabled");
+        }
+        Ok(self)
+    }
+
+    fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
+        let layer = L1BatchCommitmentModeValidationLayer::new(
+            self.config.remote.diamond_proxy_addr,
+            self.config.optional.l1_batch_commit_data_generator_mode,
         );
         self.node.add_layer(layer);
         Ok(self)
     }
 
-    fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
-        let layer: L1BatchCommitmentModeValidationLayer = L1BatchCommitmentModeValidationLayer::new(
+    fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
+        let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
+        let layer = ConsistencyCheckerLayer::new(
             self.config.remote.diamond_proxy_addr,
-            self.config.remote.l1_batch_commit_data_generator_mode,
+            max_batches_to_recheck,
+            self.config.optional.l1_batch_commit_data_generator_mode,
         );
         self.node.add_layer(layer);
         Ok(self)
