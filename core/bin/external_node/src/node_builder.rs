@@ -9,6 +9,7 @@ use zksync_config::{
 use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
+        commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode},
         consistency_checker::ConsistencyCheckerLayer,
         healtcheck_server::HealthCheckLayer,
@@ -230,6 +231,18 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
+        let layer =
+            CommitmentGeneratorLayer::new(self.config.optional.l1_batch_commit_data_generator_mode)
+                .with_max_parallelism(
+                    self.config
+                        .experimental
+                        .commitment_generator_max_parallelism,
+                );
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     fn add_preconditions(mut self) -> anyhow::Result<Self> {
         todo!()
     }
@@ -298,7 +311,8 @@ impl ExternalNodeBuilder {
                         .add_state_keeper_layer()?
                         .add_consensus_layer()?
                         .add_pruning_layer()?
-                        .add_consistency_checker_layer()?;
+                        .add_consistency_checker_layer()?
+                        .add_commitment_generator_layer()?;
 
                     todo!()
                 }
