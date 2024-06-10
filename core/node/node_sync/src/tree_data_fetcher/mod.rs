@@ -298,8 +298,8 @@ impl TreeDataFetcher {
                 }
                 Ok(StepOutcome::PossibleReorg) => {
                     tracing::info!("Potential chain reorg detected by tree data fetcher; not updating tree data");
-                    // Since we don't 100% trust the reorg logic in the tree data fetcher, we let it continue working,
-                    // so that, if there's a false positive, the whole node isn't brought down.
+                    // Since we don't trust the reorg logic in the tree data fetcher, we let it continue working
+                    // so that, if there's a false positive, the whole node doesn't crash (or is in a crash loop in the worst-case scenario).
                     let health = TreeDataFetcherHealth::Affected {
                         error: "Potential chain reorg".to_string(),
                     };
