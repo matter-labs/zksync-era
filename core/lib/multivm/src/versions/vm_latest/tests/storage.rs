@@ -1,5 +1,6 @@
 use ethabi::Token;
 use zksync_contracts::{load_contract, read_bytecode};
+use zksync_test_account::Account;
 use zksync_types::{fee::Fee, Address, Execute, U256};
 
 use crate::{
@@ -164,7 +165,7 @@ fn test_transient_storage_behavior_panic() {
     let small_fee = Fee {
         // Something very-very small to make the validation fail
         gas_limit: 10_000.into(),
-        ..Default::default()
+        ..Account::default_fee()
     };
 
     test_storage(vec![

@@ -72,7 +72,7 @@ impl Account {
             contract_address,
             calldata,
             nonce,
-            fee.unwrap_or_else(|| self.default_fee()),
+            fee.unwrap_or_else(|| Self::default_fee()),
             value,
             L2ChainId::default(),
             &self.private_key,
@@ -83,7 +83,7 @@ impl Account {
         .into()
     }
 
-    fn default_fee(&self) -> Fee {
+    pub fn default_fee() -> Fee {
         Fee {
             gas_limit: U256::from(2000000000u32),
             max_fee_per_gas: U256::from(BASE_FEE),

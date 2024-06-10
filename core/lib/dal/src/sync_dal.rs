@@ -83,12 +83,14 @@ impl SyncDal<'_, '_> {
             return Ok(None);
         };
         let transactions = if include_transactions {
-            let transactions = self
+            let mut transactions = self
                 .storage
                 .transactions_web3_dal()
                 .get_raw_l2_blocks_transactions(numbers)
                 .await?;
-            transactions.into_values().next()
+            // If there are no transactions in the block,
+            // return `Some(vec![])`.
+            Some(transactions.remove(number).unwrap_or_default())
         } else {
             None
         };
