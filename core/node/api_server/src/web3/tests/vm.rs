@@ -2,6 +2,7 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use api::state_override::{OverrideAccount, StateOverride};
 use itertools::Itertools;
 use multivm::{
     interface::{ExecutionResult, VmRevertReason},
@@ -674,7 +675,7 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
         let pending_block_number = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
-            MiniblockNumber(1)
+            L2BlockNumber(1)
         };
         let gas_limit_threshold = self.gas_limit_threshold.clone();
         tx_executor.set_call_responses(move |tx, block_args| {
@@ -694,7 +695,7 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
         tx_executor
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<DB>) -> anyhow::Result<()> {
         // Transaction with balance override
         let l2_transaction = create_l2_transaction(10, 100);
         let mut call_request = CallRequest::from(l2_transaction);

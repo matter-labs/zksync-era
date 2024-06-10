@@ -195,6 +195,7 @@ async fn test_instantiating_vm(pool: ConnectionPool<Core>, block_args: BlockArgs
             &pool,
             transaction.clone(),
             block_args,
+            None,
             |_, received_tx, _| {
                 assert_eq!(received_tx, transaction);
             },
