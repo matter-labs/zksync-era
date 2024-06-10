@@ -155,7 +155,16 @@ impl ExternalNodeBuilder {
             match component {
                 Component::HttpApi => todo!(),
                 Component::WsApi => todo!(),
-                Component::Tree => todo!(),
+                Component::Tree => {
+                    // Right now, distributed mode for EN is not fully supported, e.g. there are some
+                    // issues with reorg detection and snapshot recovery.
+                    // So we require the core component to be present, e.g. forcing the EN to run in a monolithic mode.
+                    anyhow::ensure!(
+                        components.contains(&Component::Core),
+                        "Tree must run on the same machine as Core"
+                    );
+                    todo!()
+                }
                 Component::TreeApi => {
                     anyhow::ensure!(
                         components.contains(&Component::Tree),
