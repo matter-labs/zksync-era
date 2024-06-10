@@ -90,7 +90,7 @@ impl SyncDal<'_, '_> {
                 .await?;
             // If there are no transactions in the block,
             // return `Some(vec![])`.
-            Some(transactions.remove(number).unwrap_or_default())
+            Some(transactions.remove(&number).unwrap_or_default())
         } else {
             None
         };
