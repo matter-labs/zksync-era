@@ -181,7 +181,8 @@ async fn submit_tee_proof() {
     let oldest_batch_number = proof_db_conn
         .tee_proof_generation_dal()
         .get_oldest_unpicked_batch()
-        .await;
+        .await
+        .unwrap();
 
     assert!(oldest_batch_number.is_none());
 }
@@ -199,7 +200,7 @@ async fn mock_tee_batch_status(
 
     // there should not be any batches awaiting proof in the db yet
 
-    let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await;
+    let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await.unwrap();
     assert!(oldest_batch_number.is_none());
 
     // mock SQL table with relevant information about the status of the TEE verifier input
@@ -220,11 +221,16 @@ async fn mock_tee_batch_status(
 
     proof_dal
         .insert_tee_proof_generation_job(batch_number)
-        .await;
+        .await
+        .expect("Failed to insert tee_proof_generation_job");
 
     // now, there should be one batch in the db awaiting proof
 
-    let oldest_batch_number = proof_dal.get_oldest_unpicked_batch().await.unwrap();
+    let oldest_batch_number = proof_dal
+        .get_oldest_unpicked_batch()
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(oldest_batch_number, batch_number);
 }
 

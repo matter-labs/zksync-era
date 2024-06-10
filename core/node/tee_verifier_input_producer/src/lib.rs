@@ -262,7 +262,7 @@ impl JobProcessor for TeeVerifierInputProducer {
         transaction
             .tee_proof_generation_dal()
             .insert_tee_proof_generation_job(job_id)
-            .await;
+            .await?;
         transaction
             .commit()
             .await

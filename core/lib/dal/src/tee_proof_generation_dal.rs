@@ -1,10 +1,13 @@
 use std::time::Duration;
 
 use strum::{Display, EnumString};
-use zksync_db_connection::{connection::Connection, utils::pg_interval_from_duration};
+use zksync_db_connection::instrument::{InstrumentExt, Instrumented};
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, utils::pg_interval_from_duration,
+};
 use zksync_types::L1BatchNumber;
 
-use crate::{Core, SqlxError};
+use crate::Core;
 
 #[derive(Debug)]
 pub struct TeeProofGenerationDal<'a, 'c> {
@@ -33,7 +36,7 @@ impl TeeProofGenerationDal<'_, '_> {
     pub async fn get_next_block_to_be_proven(
         &mut self,
         processing_timeout: Duration,
-    ) -> Option<L1BatchNumber> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
@@ -75,7 +78,7 @@ impl TeeProofGenerationDal<'_, '_> {
         .unwrap()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
-        result
+        Ok(result)
     }
 
     pub async fn save_proof_artifacts_metadata(
@@ -85,8 +88,8 @@ impl TeeProofGenerationDal<'_, '_> {
         pubkey: &[u8],
         proof: &[u8],
         tee_type: TeeType,
-    ) -> Result<(), SqlxError> {
-        sqlx::query!(
+    ) -> DalResult<()> {
+        let query = sqlx::query!(
             r#"
             UPDATE tee_proof_generation_details
             SET
@@ -104,16 +107,32 @@ impl TeeProofGenerationDal<'_, '_> {
             proof,
             tee_type.to_string(),
             i64::from(block_number.0)
-        )
-        .execute(self.storage.conn())
-        .await?
-        .rows_affected()
-        .eq(&1)
-        .then_some(())
-        .ok_or(sqlx::Error::RowNotFound)
+        );
+        let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
+            .with_arg("signature", &signature)
+            .with_arg("pubkey", &pubkey)
+            .with_arg("proof", &proof)
+            .with_arg("tee_type", &tee_type);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Updating TEE proof for a non-existent batch number is not allowed"
+            ));
+            return Err(err);
+        }
+
+        Ok(())
     }
 
-    pub async fn insert_tee_proof_generation_job(&mut self, block_number: L1BatchNumber) {
+    pub async fn insert_tee_proof_generation_job(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> DalResult<()> {
+        let block_number = i64::from(block_number.0);
         sqlx::query!(
             r#"
             INSERT INTO
@@ -122,18 +141,24 @@ impl TeeProofGenerationDal<'_, '_> {
                 ($1, 'ready_to_be_proven', NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            i64::from(block_number.0),
+            block_number,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("create_tee_proof_generation_details")
+        .with_arg("l1_batch_number", &block_number)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn mark_proof_generation_job_as_skipped(
         &mut self,
         block_number: L1BatchNumber,
-    ) -> Result<(), SqlxError> {
-        sqlx::query!(
+    ) -> DalResult<()> {
+        let status = TeeProofGenerationJobStatus::Skipped.to_string();
+        let l1_batch_number = i64::from(block_number.0);
+        let query = sqlx::query!(
             r#"
             UPDATE tee_proof_generation_details
             SET
@@ -142,18 +167,28 @@ impl TeeProofGenerationDal<'_, '_> {
             WHERE
                 l1_batch_number = $2
             "#,
-            TeeProofGenerationJobStatus::Skipped.to_string(),
-            i64::from(block_number.0)
-        )
-        .execute(self.storage.conn())
-        .await?
-        .rows_affected()
-        .eq(&1)
-        .then_some(())
-        .ok_or(sqlx::Error::RowNotFound)
+            status,
+            l1_batch_number
+        );
+        let instrumentation = Instrumented::new("mark_proof_generation_job_as_skipped")
+            .with_arg("status", &status)
+            .with_arg("l1_batch_number", &l1_batch_number);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Cannot mark TEE proof as skipped for a batch number that does not exist"
+            ));
+            return Err(err);
+        }
+
+        Ok(())
     }
 
-    pub async fn get_oldest_unpicked_batch(&mut self) -> Option<L1BatchNumber> {
+    pub async fn get_oldest_unpicked_batch(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             SELECT
@@ -175,15 +210,11 @@ impl TeeProofGenerationDal<'_, '_> {
         .unwrap()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
-        result
+        Ok(result)
     }
 
-    pub async fn save_attestation(
-        &mut self,
-        pubkey: &[u8],
-        attestation: &[u8],
-    ) -> Result<(), SqlxError> {
-        sqlx::query!(
+    pub async fn save_attestation(&mut self, pubkey: &[u8], attestation: &[u8]) -> DalResult<()> {
+        let query = sqlx::query!(
             r#"
             INSERT INTO
                 tee_attestations (pubkey, attestation)
@@ -193,12 +224,22 @@ impl TeeProofGenerationDal<'_, '_> {
             "#,
             pubkey,
             attestation
-        )
-        .execute(self.storage.conn())
-        .await?
-        .rows_affected()
-        .eq(&1)
-        .then_some(())
-        .ok_or(sqlx::Error::RowNotFound)
+        );
+        let instrumentation = Instrumented::new("mark_proof_generation_job_as_skipped")
+            .with_arg("pubkey", &pubkey)
+            .with_arg("attestation", &attestation);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Unable to insert TEE attestation for a non-existent batch number"
+            ));
+            return Err(err);
+        }
+
+        Ok(())
     }
 }

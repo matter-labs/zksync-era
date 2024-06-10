@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{tee_proof_generation_dal::TeeType, ConnectionPool, Core, CoreDal, SqlxError};
+use zksync_dal::{tee_proof_generation_dal::TeeType, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     GenericProofGenerationDataResponse, RegisterTeeAttestationRequest,
@@ -46,12 +46,13 @@ impl TeeRequestProcessor {
             .pool
             .connection()
             .await
-            .map_err(|_| RequestProcessorError::Sqlx(SqlxError::PoolClosed))?;
+            .map_err(RequestProcessorError::Dal)?;
 
         let l1_batch_number_result = connection
             .tee_proof_generation_dal()
             .get_next_block_to_be_proven(self.config.proof_generation_timeout())
-            .await;
+            .await
+            .map_err(RequestProcessorError::Dal)?;
         let l1_batch_number = match l1_batch_number_result {
             Some(number) => number,
             None => return Ok(Json(TeeProofGenerationDataResponse::Success(None))),
@@ -78,7 +79,7 @@ impl TeeRequestProcessor {
             .pool
             .connection()
             .await
-            .map_err(|_| RequestProcessorError::Sqlx(SqlxError::PoolClosed))?;
+            .map_err(RequestProcessorError::Dal)?;
         let mut dal = connection.tee_proof_generation_dal();
 
         match payload {
@@ -96,7 +97,7 @@ impl TeeRequestProcessor {
                     TeeType::Sgx,
                 )
                 .await
-                .map_err(RequestProcessorError::Sqlx)?;
+                .map_err(RequestProcessorError::Dal)?;
             }
             SubmitTeeProofRequest::SkippedProofGeneration => {
                 tracing::info!(
@@ -105,7 +106,7 @@ impl TeeRequestProcessor {
                 );
                 dal.mark_proof_generation_job_as_skipped(l1_batch_number)
                     .await
-                    .map_err(RequestProcessorError::Sqlx)?;
+                    .map_err(RequestProcessorError::Dal)?;
             }
         }
 
@@ -122,12 +123,12 @@ impl TeeRequestProcessor {
             .pool
             .connection()
             .await
-            .map_err(|_| RequestProcessorError::Sqlx(SqlxError::PoolClosed))?;
+            .map_err(RequestProcessorError::Dal)?;
         let mut dal = connection.tee_proof_generation_dal();
 
         dal.save_attestation(&payload.pubkey, &payload.attestation)
             .await
-            .map_err(RequestProcessorError::Sqlx)?;
+            .map_err(RequestProcessorError::Dal)?;
 
         Ok(Json(RegisterTeeAttestationResponse::Success))
     }

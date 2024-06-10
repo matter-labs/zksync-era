@@ -2,12 +2,12 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use zksync_dal::SqlxError;
+use zksync_dal::DalError;
 use zksync_object_store::ObjectStoreError;
 
 pub(crate) enum RequestProcessorError {
     ObjectStore(ObjectStoreError),
-    Sqlx(SqlxError),
+    Dal(DalError),
 }
 
 impl IntoResponse for RequestProcessorError {
@@ -20,10 +20,10 @@ impl IntoResponse for RequestProcessorError {
                     "Failed fetching/saving from GCS".to_owned(),
                 )
             }
-            RequestProcessorError::Sqlx(err) => {
+            RequestProcessorError::Dal(err) => {
                 tracing::error!("Sqlx error: {:?}", err);
-                match err {
-                    SqlxError::RowNotFound => {
+                match err.inner() {
+                    zksync_dal::SqlxError::RowNotFound => {
                         (StatusCode::NOT_FOUND, "Non existing L1 batch".to_owned())
                     }
                     _ => (
