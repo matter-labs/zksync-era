@@ -123,14 +123,13 @@ describe('Smart contract behavior checks', () => {
         );
     });
 
-    // bh ERROR - missing revert data
     test('Should not allow invalid contract bytecode', async () => {
         // In this test we ensure that bytecode validity is checked by server.
 
         // Helpers to interact with the RPC API directly.
         const send = (tx: any) => alice.provider.send('eth_sendRawTransaction', [zksync.utils.serializeEip712(tx)]);
-        const call = (tx: any) => alice.provider.send('eth_call', [zksync.utils.serializeEip712(tx)]);
-        const estimateGas = (tx: any) => alice.provider.send('eth_estimateGas', [zksync.utils.serializeEip712(tx)]);
+        const call = (tx: any) => alice.provider.send('eth_call', [alice.provider.getRpcTransaction(tx)]);
+        const estimateGas = (tx: any) => alice.provider.send('eth_estimateGas', [alice.provider.getRpcTransaction(tx)]);
         // Prepares an invalid serialized transaction with the bytecode of provided length.
         const invalidTx = (length: number) => invalidBytecodeTestTransaction(alice.provider, [new Uint8Array(length)]);
 
@@ -139,14 +138,15 @@ describe('Smart contract behavior checks', () => {
         await expect(send(txWithUnchunkableBytecode)).toBeRejected(unchunkableError);
 
         /*
+        Ethers v6 error handling is not capable of handling this format of messages.
+        See: https://github.com/ethers-io/ethers.js/blob/main/src.ts/providers/provider-jsonrpc.ts#L976
         {
-          "code": -32602,
-          "message": "Invalid params",
-          "data": "invalid type: string \"0x71f86c808405f5e1008405f5e100830493e0947c9f5782e2b83501a14fbf7330f7d6f023b85d5a808082010e808082010e947c9f5782e2b83501a14fbf7330f7d6f023b85d5a82c350d2910000000000000000000000000000000000910000000000000000000000000000000000c0\", expected struct CallRequest at line 1 column 226"
+          code: 3,
+          message: 'Failed to serialize transaction: factory dependency #0 is invalid: Bytecode length is not divisible by 32'
         }
          */
-        await expect(call(txWithUnchunkableBytecode)).toBeRejected();
-        await expect(estimateGas(txWithUnchunkableBytecode)).toBeRejected();
+        await expect(call(txWithUnchunkableBytecode)).toBeRejected(/*unchunkableError*/);
+        await expect(estimateGas(txWithUnchunkableBytecode)).toBeRejected(/*unchunkableError*/);
 
         const txWithBytecodeWithEvenChunks = await invalidTx(64);
         const evenChunksError = 'Bytecode has even number of 32-byte words';
@@ -154,13 +154,12 @@ describe('Smart contract behavior checks', () => {
 
         /*
         {
-          "code": -32602,
-          "message": "Invalid params",
-          "data": "invalid type: string \"0x71f89d808405f5e1008405f5e100830493e0946b2c09d124637d948ba68fe39a7d36923fea7840808082010e808082010e946b2c09d124637d948ba68fe39a7d36923fea784082c350f842b84000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000910000000000000000000000000000000000c0\", expected struct CallRequest at line 1 column 324"
+          code: 3,
+          message: 'Failed to serialize transaction: factory dependency #0 is invalid: Bytecode has even number of 32-byte words'
         }
          */
-        await expect(call(txWithBytecodeWithEvenChunks)).toBeRejected();
-        await expect(estimateGas(txWithBytecodeWithEvenChunks)).toBeRejected();
+        await expect(call(txWithBytecodeWithEvenChunks)).toBeRejected(/*evenChunksError*/);
+        await expect(estimateGas(txWithBytecodeWithEvenChunks)).toBeRejected(/*evenChunksError*/);
 
         const longBytecodeLen = zksync.utils.MAX_BYTECODE_LEN_BYTES + 32;
         const txWithTooLongBytecode = await invalidTx(longBytecodeLen);
@@ -168,13 +167,12 @@ describe('Smart contract behavior checks', () => {
         await expect(send(txWithTooLongBytecode)).toBeRejected(tooLongBytecodeError);
         /*
         {
-          "code": -32602,
-          "message": "Invalid params",
-          "data": "invalid type: string \"0x71f89d808405f5e100....\", expected struct CallRequest at line 1 column 4194512"
+          code: 3,
+          message: 'Failed to serialize transaction: factory dependency #0 is invalid: Bytecode too long: 2097152 bytes, while max 2097120 allowed'
         }
          */
-        await expect(call(txWithTooLongBytecode)).toBeRejected();
-        await expect(estimateGas(txWithTooLongBytecode)).toBeRejected();
+        await expect(call(txWithTooLongBytecode)).toBeRejected(/*tooLongBytecodeError*/);
+        await expect(estimateGas(txWithTooLongBytecode)).toBeRejected(/*tooLongBytecodeError*/);
     });
 
     test('Should interchangeably use ethers for eth calls', async () => {
