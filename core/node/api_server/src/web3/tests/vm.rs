@@ -695,7 +695,11 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
         tx_executor
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<DB>) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
         // Transaction with balance override
         let l2_transaction = create_l2_transaction(10, 100);
         let mut call_request = CallRequest::from(l2_transaction);
