@@ -23,6 +23,7 @@ use zksync_node_framework::{
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
+        l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
@@ -160,6 +161,15 @@ impl MainNodeBuilder {
             .context("object_store_config")?;
         self.node
             .add_layer(ObjectStoreLayer::new(object_store_config));
+        Ok(self)
+    }
+
+    fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
+        let layer = L1BatchCommitmentModeValidationLayer::new(
+            self.contracts_config.diamond_proxy_addr,
+            self.genesis_config.l1_batch_commit_data_generator_mode,
+        );
+        self.node.add_layer(layer);
         Ok(self)
     }
 
@@ -443,7 +453,8 @@ impl MainNodeBuilder {
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
-            .add_sequencer_l1_gas_layer()?;
+            .add_sequencer_l1_gas_layer()?
+            .add_l1_batch_commitment_mode_validation_layer()?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {

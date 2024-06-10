@@ -11,6 +11,7 @@ use zksync_node_framework::{
     implementations::layers::{
         consensus::{ConsensusLayer, Mode},
         healtcheck_server::HealthCheckLayer,
+        l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         main_node_client::MainNodeClientLayer,
         pools_layer::PoolsLayerBuilder,
         postgres_metrics::PostgresMetricsLayer,
@@ -204,6 +205,15 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
+        let layer: L1BatchCommitmentModeValidationLayer = L1BatchCommitmentModeValidationLayer::new(
+            self.config.remote.diamond_proxy_addr,
+            self.config.remote.l1_batch_commit_data_generator_mode,
+        );
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     fn add_preconditions(mut self) -> anyhow::Result<Self> {
         todo!()
     }
@@ -225,7 +235,9 @@ impl ExternalNodeBuilder {
             .add_query_eth_client_layer()?;
 
         // Add preconditions for all the components.
-        self = self.add_preconditions()?;
+        self = self
+            .add_l1_batch_commitment_mode_validation_layer()?
+            .add_preconditions()?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
