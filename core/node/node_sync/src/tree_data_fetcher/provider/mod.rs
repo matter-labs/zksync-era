@@ -12,7 +12,7 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use super::{metrics::METRICS, TreeDataFetcherError, TreeDataFetcherResult};
+use super::{metrics::METRICS, TreeDataFetcherResult};
 
 #[cfg(test)]
 mod tests;
@@ -25,6 +25,8 @@ pub(super) enum MissingData {
     /// The provider lacks a root hash for a requested L1 batch; the batch itself is present on the provider.
     #[error("no root hash for L1 batch")]
     RootHash,
+    #[error("possible chain reorg detected")]
+    PossibleReorg,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
@@ -83,12 +85,11 @@ impl TreeDataProvider for Box<DynClient<L2>> {
         if remote_l2_block_hash != Some(last_l2_block.hash) {
             let last_l2_block_number = last_l2_block.number;
             let last_l2_block_hash = last_l2_block.hash;
-            // FIXME: what should be returned here?
-            let err = anyhow::anyhow!(
+            tracing::info!(
                 "Fetched hash of the last L2 block #{last_l2_block_number} in L1 batch #{number} ({remote_l2_block_hash:?}) \
                  does not match the local one ({last_l2_block_hash:?}); this can be caused by a chain reorg"
             );
-            return Err(TreeDataFetcherError::Internal(err));
+            return Ok(Err(MissingData::PossibleReorg));
         }
 
         Ok(batch_details
@@ -312,9 +313,9 @@ impl TreeDataProvider for L1DataProvider {
             _ => {
                 tracing::warn!(
                     "Non-unique `BlockCommit` event for L1 batch #{number} queried using {filter:?}, potentially as a result \
-                     of a chain revert: {logs:?}"
+                     of a chain reorg: {logs:?}"
                 );
-                Ok(Err(MissingData::RootHash))
+                Ok(Err(MissingData::PossibleReorg))
             }
         }
     }

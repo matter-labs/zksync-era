@@ -80,6 +80,7 @@ enum StepOutcome {
     UpdatedBatch(L1BatchNumber),
     NoProgress,
     RemoteHashMissing,
+    PossibleReorg,
 }
 
 /// Component fetching tree data (i.e., state root hashes for L1 batches) from external sources, such as
@@ -222,16 +223,22 @@ impl TreeDataFetcher {
             }
             Err(MissingData::Batch) => {
                 let err = anyhow::anyhow!(
-                    "L1 batch #{l1_batch_to_fetch} is sealed locally, but is not present on the main node, \
+                    "L1 batch #{l1_batch_to_fetch} is sealed locally, but is not present externally, \
                      which is assumed to store batch info indefinitely"
                 );
                 return Err(err.into());
             }
             Err(MissingData::RootHash) => {
                 tracing::debug!(
-                    "L1 batch #{l1_batch_to_fetch} does not have root hash computed on the main node"
+                    "L1 batch #{l1_batch_to_fetch} does not have root hash computed externally"
                 );
                 return Ok(StepOutcome::RemoteHashMissing);
+            }
+            Err(MissingData::PossibleReorg) => {
+                tracing::debug!(
+                    "L1 batch #{l1_batch_to_fetch} potentially diverges from the external source"
+                );
+                return Ok(StepOutcome::PossibleReorg);
             }
         };
 
@@ -287,6 +294,16 @@ impl TreeDataFetcher {
                     // Update health status even if no progress was made to timely clear a previously set
                     // "affected" health.
                     self.update_health(last_updated_l1_batch);
+                    true
+                }
+                Ok(StepOutcome::PossibleReorg) => {
+                    tracing::info!("Potential chain reorg detected by tree data fetcher; not updating tree data");
+                    // Since we don't 100% trust the reorg logic in the tree data fetcher, we let it continue working,
+                    // so that, if there's a false positive, the whole node isn't brought down.
+                    let health = TreeDataFetcherHealth::Affected {
+                        error: "Potential chain reorg".to_string(),
+                    };
+                    self.health_updater.update(health.into());
                     true
                 }
                 Err(err) if err.is_transient() => {

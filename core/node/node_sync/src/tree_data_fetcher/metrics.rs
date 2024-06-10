@@ -40,6 +40,7 @@ pub(super) enum StepOutcomeLabel {
     UpdatedBatch,
     NoProgress,
     RemoteHashMissing,
+    PossibleReorg,
     TransientError,
 }
 
@@ -91,6 +92,7 @@ impl TreeDataFetcherMetrics {
             }
             Ok(StepOutcome::NoProgress) => StepOutcomeLabel::NoProgress,
             Ok(StepOutcome::RemoteHashMissing) => StepOutcomeLabel::RemoteHashMissing,
+            Ok(StepOutcome::PossibleReorg) => StepOutcomeLabel::PossibleReorg,
             Err(err) if err.is_transient() => StepOutcomeLabel::TransientError,
             Err(_) => return, // fatal error; the node will exit soon anyway
         };
