@@ -9049,7 +9049,6 @@ dependencies = [
  "tokio",
  "tower",
  "tracing",
- "vm_utils",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
@@ -9058,7 +9057,6 @@ dependencies = [
  "zksync_prover_interface",
  "zksync_tee_verifier",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]

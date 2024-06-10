@@ -980,3 +980,4 @@ map_err
 proof_inputs
 submit_proofs
 ready_to_be_proven
+privkey
