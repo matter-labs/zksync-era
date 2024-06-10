@@ -245,10 +245,10 @@ impl AsyncTree {
     }
 
     pub fn data_for_l1_batch(&self, l1_batch_number: L1BatchNumber) -> Option<L1BatchTreeData> {
-        let (hash, rollup_last_leaf_index) = self.as_ref().root_info(l1_batch_number)?;
+        let (hash, leaf_count) = self.as_ref().root_info(l1_batch_number)?;
         Some(L1BatchTreeData {
             hash,
-            rollup_last_leaf_index,
+            rollup_last_leaf_index: leaf_count + 1,
         })
     }
 
