@@ -1291,7 +1291,7 @@ async fn run_http_api(
         batch_fee_model_input_provider,
         storage_caches,
     )
-    .await;
+    .await?;
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
     if with_debug_namespace {
@@ -1356,7 +1356,7 @@ async fn run_ws_api(
         batch_fee_model_input_provider,
         storage_caches,
     )
-    .await;
+    .await?;
     let updaters_pool = ConnectionPool::<Core>::singleton(database_secrets.replica_url()?)
         .build()
         .await
