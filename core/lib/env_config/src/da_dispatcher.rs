@@ -34,7 +34,7 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_DISPATCHER_POLLING_INTERVAL_MS=5000
-            DA_DISPATCHER_QUERY_ROWS_LIMIT=60
+            DA_DISPATCHER_MAX_ROWS_TO_DISPATCH=60
             DA_DISPATCHER_MAX_RETRIES=7
         "#;
         lock.set_env(config);
