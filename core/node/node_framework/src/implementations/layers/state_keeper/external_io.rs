@@ -1,56 +1,31 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_config::{
-    configs::{
-        chain::{MempoolConfig, StateKeeperConfig},
-        wallets,
-    },
-    ContractsConfig,
-};
-use zksync_state_keeper::{
-    io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, MempoolFetcher, MempoolGuard,
-    MempoolIO, OutputHandler, SequencerSealer, StateKeeperPersistence, TreeWritesPersistence,
-};
+use zksync_node_sync::{ActionQueue, ExternalIO, SyncState};
+use zksync_state_keeper::seal_criteria::NoopSealer;
 use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
-        fee_input::FeeInputResource,
+        action_queue::ActionQueueSenderResource,
+        main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
-        state_keeper::{ConditionalSealerResource, OutputHandlerResource, StateKeeperIOResource},
+        state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
         sync_state::SyncStateResource,
     },
     resource::Unique,
-    service::{ServiceContext, StopReceiver},
-    task::{Task, TaskId},
+    service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
 
 #[derive(Debug)]
 pub struct ExternalIOLayer {
-    zksync_network_id: L2ChainId,
-    contracts_config: ContractsConfig,
-    state_keeper_config: StateKeeperConfig,
-    mempool_config: MempoolConfig,
-    wallets: wallets::StateKeeper,
+    chain_id: L2ChainId,
 }
 
 impl ExternalIOLayer {
-    pub fn new(
-        zksync_network_id: L2ChainId,
-        contracts_config: ContractsConfig,
-        state_keeper_config: StateKeeperConfig,
-        mempool_config: MempoolConfig,
-        wallets: wallets::StateKeeper,
-    ) -> Self {
-        Self {
-            zksync_network_id,
-            contracts_config,
-            state_keeper_config,
-            mempool_config,
-            wallets,
-        }
+    pub fn new(chain_id: L2ChainId) -> Self {
+        Self { chain_id }
     }
 }
 
@@ -63,35 +38,30 @@ impl WiringLayer for ExternalIOLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Fetch required resources.
         let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let MainNodeClientResource(main_node_client) = context.get_resource().await?;
 
-        // Create L2 block sealer task and output handler.
-        // L2 Block sealing process is parallelized, so we have to provide enough pooled connections.
-        let persistence_pool = master_pool
-            .get_custom(L2BlockSealProcess::subtasks_len())
-            .await
-            .context("Get master pool")?;
-        let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
-            persistence_pool.clone(),
-            self.contracts_config.l2_shared_bridge_addr.unwrap(),
-            self.state_keeper_config.l2_block_seal_queue_capacity,
-        );
-        let tree_writes_persistence = TreeWritesPersistence::new(persistence_pool);
-        let mut output_handler = OutputHandler::new(Box::new(persistence))
-            .with_handler(Box::new(tree_writes_persistence));
-        context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
+        // Create `SyncState` resource.
+        let sync_state = SyncState::default();
+        context.insert_resource(SyncStateResource(sync_state))?;
 
-        // Create mempool IO resource.
-        let mempool_db_pool = master_pool
-            .get_singleton()
-            .await
-            .context("Get master pool")?;
-        let io = todo!();
+        // Create `ActionQueueSender` resource.
+        let (action_queue_sender, action_queue) = ActionQueue::new();
+        context.insert_resource(ActionQueueSenderResource(Unique::new(action_queue_sender)))?;
 
-        // context.insert_resource(StateKeeperIOResource(Unique::new(Box::new(io))))?;
+        // Create external IO resource.
+        let io_pool = master_pool.get().await.context("Get master pool")?;
+        let io = ExternalIO::new(
+            io_pool,
+            action_queue,
+            Box::new(main_node_client.for_component("external_io")),
+            self.chain_id,
+        )
+        .await
+        .context("Failed initializing I/O for external node state keeper")?;
+        context.insert_resource(StateKeeperIOResource(Unique::new(Box::new(io))))?;
 
-        // // Create sealer.
-        // let sealer = SequencerSealer::new(self.state_keeper_config);
-        // context.insert_resource(ConditionalSealerResource(Arc::new(sealer)))?;
+        // Create sealer.
+        context.insert_resource(ConditionalSealerResource(Arc::new(NoopSealer)))?;
 
         Ok(())
     }
