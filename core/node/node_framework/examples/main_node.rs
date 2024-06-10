@@ -43,7 +43,7 @@ use zksync_node_framework::{
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            output_handler::PersistenceLayer, StateKeeperLayer,
+            output_handler::OutputHandlerLayer, StateKeeperLayer,
         },
         web3_api::{
             caches::MempoolCacheLayer,
@@ -147,7 +147,7 @@ impl MainNodeBuilder {
         let wallets = Wallets::from_env()?;
         let contracts_config = ContractsConfig::from_env()?;
         let sk_config = StateKeeperConfig::from_env()?;
-        let persisence_layer = PersistenceLayer::new(
+        let persisence_layer = OutputHandlerLayer::new(
             contracts_config.l2_shared_bridge_addr.unwrap(),
             sk_config.l2_block_seal_queue_capacity,
         );

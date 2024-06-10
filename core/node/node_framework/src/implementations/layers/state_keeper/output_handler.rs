@@ -19,24 +19,47 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct PersistenceLayer {
+pub struct OutputHandlerLayer {
     l2_shared_bridge_addr: Address,
     l2_block_seal_queue_capacity: usize,
+    /// Whether transactions should be pre-inserted to DB.
+    /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
+    /// before they are included into L2 blocks.
+    pre_insert_txs: bool,
+    /// Whether protective reads persistence is enabled.
+    /// Must be `true` for any node that maintains a full Merkle Tree (e.g. any instance of main node).
+    /// May be set to `false` for nodes that do not participate in the sequencing process (e.g. external nodes).
+    protective_reads_persistence_enabled: bool,
 }
 
-impl PersistenceLayer {
+impl OutputHandlerLayer {
     pub fn new(l2_shared_bridge_addr: Address, l2_block_seal_queue_capacity: usize) -> Self {
         Self {
             l2_shared_bridge_addr,
             l2_block_seal_queue_capacity,
+            pre_insert_txs: false,
+            protective_reads_persistence_enabled: true,
         }
+    }
+
+    pub fn with_pre_insert_txs(mut self, pre_insert_txs: bool) -> Self {
+        self.pre_insert_txs = pre_insert_txs;
+        self
+    }
+
+    pub fn with_protective_reads_persistence_enabled(
+        mut self,
+        protective_reads_persistence_enabled: bool,
+    ) -> Self {
+        self.protective_reads_persistence_enabled = protective_reads_persistence_enabled;
+        self
     }
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for PersistenceLayer {
+impl WiringLayer for OutputHandlerLayer {
     fn layer_name(&self) -> &'static str {
-        "state_keeper_persistence_layer"
+        "state_keeper_output_handler_layer"
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
@@ -55,11 +78,21 @@ impl WiringLayer for PersistenceLayer {
             .get_custom(L2BlockSealProcess::subtasks_len())
             .await
             .context("Get master pool")?;
-        let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
+        let (mut persistence, l2_block_sealer) = StateKeeperPersistence::new(
             persistence_pool.clone(),
             self.l2_shared_bridge_addr,
             self.l2_block_seal_queue_capacity,
         );
+        if self.pre_insert_txs {
+            persistence = persistence.with_tx_insertion();
+        }
+        if !self.protective_reads_persistence_enabled {
+            // **Important:** Disabling protective reads persistence is only sound if the node will never
+            // run a full Merkle tree.
+            tracing::warn!("Disabling persisting protective reads; this should be safe, but is considered an experimental option at the moment");
+            persistence = persistence.without_protective_reads();
+        }
+
         let tree_writes_persistence = TreeWritesPersistence::new(persistence_pool);
         let mut output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(tree_writes_persistence));

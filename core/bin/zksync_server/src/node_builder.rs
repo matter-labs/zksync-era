@@ -35,7 +35,7 @@ use zksync_node_framework::{
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            output_handler::PersistenceLayer, StateKeeperLayer,
+            output_handler::OutputHandlerLayer, StateKeeperLayer,
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::protective_reads::ProtectiveReadsWriterLayer,
@@ -183,7 +183,7 @@ impl MainNodeBuilder {
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
-        let persistence_layer = PersistenceLayer::new(
+        let persistence_layer = OutputHandlerLayer::new(
             self.contracts_config
                 .l2_shared_bridge_addr
                 .context("L2 shared bridge address")?,
