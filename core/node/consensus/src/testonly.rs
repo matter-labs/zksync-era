@@ -52,23 +52,6 @@ use crate::{
     en, ConnectionPool,
 };
 
-/* replacement of asyncRockdb
-#[derive(Debug, Clone)]
-struct PostgresFactory(ConnectionPool<Core>);
-
-#[async_trait]
-impl ReadStorageFactory for PostgresFactory {
-    async fn access_storage(
-        &self,
-        _stop_receiver: &watch::Receiver<bool>,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        Ok(Some(
-            PgOrRocksdbStorage::access_storage_pg(&self.0, l1_batch_number).await?,
-        ))
-    }
-}*/
-
 /// Fake StateKeeper for tests.
 pub(super) struct StateKeeper {
     // Batch of the `last_block`.

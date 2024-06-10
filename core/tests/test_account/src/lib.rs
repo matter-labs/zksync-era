@@ -132,7 +132,7 @@ impl Account {
         };
 
         let tx = match tx_type {
-            TxType::L2 => self.get_l2_tx_for_execute(execute, None).into(),
+            TxType::L2 => self.get_l2_tx_for_execute(execute, None),
             TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
         };
 
@@ -218,7 +218,7 @@ impl Account {
             factory_deps: None,
         };
         match tx_type {
-            TxType::L2 => self.get_l2_tx_for_execute(execute, None).into(),
+            TxType::L2 => self.get_l2_tx_for_execute(execute, None),
             TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
         }
     }
@@ -238,7 +238,7 @@ impl Account {
         };
 
         match tx_type {
-            TxType::L2 => self.get_l2_tx_for_execute(execute, None).into(),
+            TxType::L2 => self.get_l2_tx_for_execute(execute, None),
             TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
         }
     }
