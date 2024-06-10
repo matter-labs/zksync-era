@@ -1,12 +1,15 @@
 //! This module provides a "builder" for the external node,
 //! as well as an interface to run the node with the specified components.
 
+use anyhow::Context as _;
 use zksync_config::{
     configs::{api::HealthCheckConfig, DatabaseSecrets},
     PostgresConfig,
 };
+use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
+        consensus::{ConsensusLayer, Mode},
         healtcheck_server::HealthCheckLayer,
         main_node_client::MainNodeClientLayer,
         pools_layer::PoolsLayerBuilder,
@@ -14,13 +17,19 @@ use zksync_node_framework::{
         prometheus_exporter::PrometheusExporterLayer,
         query_eth_client::QueryEthClientLayer,
         sigint::SigintHandlerLayer,
-        state_keeper::{external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer},
+        state_keeper::{
+            external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
+            output_handler::OutputHandlerLayer, StateKeeperLayer,
+        },
         tree_data_fetcher::TreeDataFetcherLayer,
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 
-use crate::{config::ExternalNodeConfig, Component};
+use crate::{
+    config::{self, ExternalNodeConfig},
+    Component,
+};
 
 /// Builder for the external node.
 #[derive(Debug)]
@@ -126,31 +135,62 @@ impl ExternalNodeBuilder {
     }
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
+        // While optional bytecode compression may be disabled on the main node, there are batches where
+        // bytecode compression was enabled. To process these batches (and also for the case where
+        // compression will become optional on the sequencer again), EN has to allow txs without bytecode
+        // compression.
+        const OPTIONAL_BYTECODE_COMPRESSION: bool = true;
+
         // let wallets = self.wallets.clone();
         // let sk_config = try_load_config!(self.configs.state_keeper_config);
-        // let persistence_layer = OutputHandlerLayer::new(
-        //     self.config.remote.l2_shared_bridge_addr .expect("L2 shared bridge address is not set"),
-        //     config.optional.l2_block_seal_queue_capacity,
-        // );
-        // let io_layer = ExternalIOLayer::new(
-        //     self.config.required.l2_chain_id
-        // );
-        // let main_node_batch_executor_builder_layer =
-        //     MainBatchExecutorLayer::new(self.config.optional.);
-        // let state_keeper_layer = StateKeeperLayer::new(
-        //     db_config.state_keeper_db_path,
-        //     db_config
-        //         .experimental
-        //         .state_keeper_db_block_cache_capacity(),
-        //     db_config.experimental.state_keeper_db_max_open_files,
-        // );
-        // self.node
-        //     .add_layer(persistence_layer)
-        //     .add_layer(io_layer)
-        //     .add_layer(main_node_batch_executor_builder_layer)
-        //     .add_layer(state_keeper_layer);
-        // Ok(self)
-        todo!()
+        let persistence_layer = OutputHandlerLayer::new(
+            self.config
+                .remote
+                .l2_shared_bridge_addr
+                .expect("L2 shared bridge address is not set"),
+            self.config.optional.l2_block_seal_queue_capacity,
+        )
+        .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.
+        .with_protective_reads_persistence_enabled(
+            self.config.optional.protective_reads_persistence_enabled,
+        );
+
+        let io_layer = ExternalIOLayer::new(self.config.required.l2_chain_id);
+
+        // We only need call traces on the external node if the `debug_` namespace is enabled.
+        let save_call_traces = self
+            .config
+            .optional
+            .api_namespaces()
+            .contains(&Namespace::Debug);
+        let main_node_batch_executor_builder_layer =
+            MainBatchExecutorLayer::new(save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
+        let state_keeper_layer = StateKeeperLayer::new(
+            self.config.required.state_cache_path.clone(),
+            self.config
+                .experimental
+                .state_keeper_db_block_cache_capacity(),
+            self.config.experimental.state_keeper_db_max_open_files,
+        );
+        self.node
+            .add_layer(persistence_layer)
+            .add_layer(io_layer)
+            .add_layer(main_node_batch_executor_builder_layer)
+            .add_layer(state_keeper_layer);
+        Ok(self)
+    }
+
+    fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
+        let config = self.config.consensus.clone();
+        let secrets =
+            config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
+        let layer = ConsensusLayer {
+            mode: Mode::External,
+            config,
+            secrets,
+        };
+        self.node.add_layer(layer);
+        Ok(self)
     }
 
     fn add_preconditions(mut self) -> anyhow::Result<Self> {
@@ -213,6 +253,9 @@ impl ExternalNodeBuilder {
                     // so until we have a dedicated component for "auxiliary" tasks,
                     // it's responsible for things like metrics.
                     self = self.add_postgres_metrics_layer()?;
+
+                    // Main tasks
+                    self = self.add_state_keeper_layer()?.add_consensus_layer()?;
 
                     todo!()
                 }
