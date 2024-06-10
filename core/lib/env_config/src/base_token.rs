@@ -1,6 +1,5 @@
 use std::env;
 
-use zksync_basic_types::Address;
 use zksync_config::configs::base_token::BaseTokenConfig;
 
 use crate::FromEnv;

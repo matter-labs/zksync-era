@@ -1,17 +1,10 @@
 use std::str::FromStr;
 
-use chrono::{DateTime, NaiveDateTime};
-use zksync_db_connection::{
-    connection::Connection,
-    instrument::{CopyStatement, InstrumentExt},
-    write_str, writeln_str,
-};
-use zksync_types::{
-    tokens::{TokenInfo, TokenPriceData},
-    Address, L2BlockNumber,
-};
+use chrono::DateTime;
+use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
+use zksync_types::{tokens::TokenPriceData, Address};
 
-use crate::{BigDecimal, Core, CoreDal};
+use crate::{BigDecimal, Core};
 
 #[derive(Debug)]
 pub struct TokenPriceDal<'a, 'c> {

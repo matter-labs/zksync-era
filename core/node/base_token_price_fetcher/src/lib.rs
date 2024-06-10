@@ -1,6 +1,5 @@
-use std::{str::FromStr, time::Duration};
+use std::time::Duration;
 
-use anyhow::Context;
 use tokio::sync::watch;
 use zksync_basic_types::Address;
 use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
@@ -33,7 +32,7 @@ impl Default for BaseTokenPriceFetcherConfig {
 pub struct BaseTokenPriceFetcher {
     pub config: BaseTokenPriceFetcherConfig,
     connection_pool: ConnectionPool<Core>,
-    http_client: reqwest::Client,
+    _http_client: reqwest::Client,
 }
 
 impl BaseTokenPriceFetcher {
@@ -41,7 +40,7 @@ impl BaseTokenPriceFetcher {
         BaseTokenPriceFetcher {
             config,
             connection_pool,
-            http_client: reqwest::Client::new(),
+            _http_client: reqwest::Client::new(),
         }
     }
 

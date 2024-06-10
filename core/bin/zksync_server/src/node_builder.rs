@@ -3,7 +3,7 @@
 
 use anyhow::Context;
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_base_token_price_fetcher::{BaseTokenPriceFetcher, BaseTokenPriceFetcherConfig};
+use zksync_base_token_price_fetcher::BaseTokenPriceFetcherConfig;
 use zksync_config::{
     configs::{consensus::ConsensusConfig, wallets::Wallets, GeneralConfig, Secrets},
     ContractsConfig, GenesisConfig,

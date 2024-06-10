@@ -12,7 +12,7 @@ impl ProtoRepr for proto::BaseToken {
                 .and_then(|a| parse_h160(a))
                 .context("base_token_address")?,
             outdated_token_price_timeout: required(&self.outdated_token_price_timeout)
-                .and_then(|t| Ok(Some(t.clone())))
+                .and_then(|t| Ok(Some(*t)))
                 .context("outdated_token_price_timeout")?,
         })
     }

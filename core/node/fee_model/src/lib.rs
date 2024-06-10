@@ -1,7 +1,7 @@
 use std::{fmt, str::FromStr, sync::Arc};
 
 use anyhow::Context as _;
-use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     fee_model::{
         BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams, FeeParamsV1, FeeParamsV2,
