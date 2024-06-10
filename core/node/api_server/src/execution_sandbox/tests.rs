@@ -185,11 +185,11 @@ async fn test_instantiating_vm(pool: ConnectionPool<Core>, block_args: BlockArgs
     let (vm_concurrency_limiter, _) = VmConcurrencyLimiter::new(1);
     let vm_permit = vm_concurrency_limiter.acquire().await.unwrap();
     let transaction = create_l2_transaction(10, 100).into();
-
+    let estimate_gas_contracts = ApiContracts::load_from_disk().await.unwrap().estimate_gas;
     tokio::task::spawn_blocking(move || {
         apply_vm_in_sandbox(
             vm_permit,
-            TxSharedArgs::mock(ApiContracts::load_from_disk().estimate_gas),
+            TxSharedArgs::mock(estimate_gas_contracts),
             true,
             &TxExecutionArgs::for_gas_estimate(None, &transaction, 123),
             &pool,

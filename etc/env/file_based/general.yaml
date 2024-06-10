@@ -156,7 +156,11 @@ snapshot_creator:
 
 
 prover:
-  object_store:
+  prover_object_store:
+    file_backed:
+      file_backed_base_path: artifacts
+    max_retries: 10
+  public_object_store:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
@@ -326,3 +330,9 @@ protective_reads_writer:
   db_path: "./db/main/protective_reads"
   window_size: 3
   first_processed_batch: 0
+
+
+core_object_store:
+  file_backed:
+    file_backed_base_path: artifacts
+  max_retries: 10
