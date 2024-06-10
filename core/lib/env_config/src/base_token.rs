@@ -11,7 +11,6 @@ impl FromEnv for BaseTokenConfig {
             .ok()
             .map(|s| s.parse())
             .transpose()?;
-        // let base_token_address = Some(Address::default());
 
         let outdated_token_price_timeout = env::var("BASE_TOKEN_OUTDATED_TOKEN_PRICE_TIMEOUT")
             .ok()
@@ -19,7 +18,7 @@ impl FromEnv for BaseTokenConfig {
             .transpose()?;
         Ok(Self {
             base_token_address: base_token_address.unwrap(),
-            outdated_token_price_timeout: outdated_token_price_timeout.unwrap(),
+            outdated_token_price_timeout,
         })
     }
 }

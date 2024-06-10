@@ -31,7 +31,7 @@ struct BaseTokenPriceElements {
     pub connection_pool: ConnectionPool<Core>,
     pub address: Address,
     pub latest_price: Mutex<Option<BigDecimal>>,
-    pub outdated_token_price_timeout: u64,
+    pub outdated_token_price_timeout: Option<u64>,
     pub last_updated: Mutex<DateTime<chrono::Utc>>,
 }
 
@@ -179,12 +179,12 @@ impl GasAdjuster {
                         Some(updated_base_token_price);
                 }
 
-                let last_updated = *base_token_elements.last_updated.lock().unwrap();
-                if (last_updated.time() - chrono::Utc::now().time()).num_seconds()
-                    >= base_token_elements.outdated_token_price_timeout as i64
-                {
-                    tracing::warn!("Token price is out of date!");
-                };
+                if let Some(timeout) = base_token_elements.outdated_token_price_timeout {
+                    if (latest.1.time() - chrono::Utc::now().time()).num_seconds() >= timeout as i64
+                    {
+                        tracing::warn!("Token price is out of date!");
+                    };
+                }
             }
         }
         Ok(())

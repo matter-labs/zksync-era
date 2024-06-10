@@ -11,7 +11,8 @@ impl ProtoRepr for proto::BaseToken {
             base_token_address: required(&self.base_token_address)
                 .and_then(|a| parse_h160(a))
                 .context("base_token_address")?,
-            outdated_token_price_timeout: *required(&self.outdated_token_price_timeout)
+            outdated_token_price_timeout: required(&self.outdated_token_price_timeout)
+                .and_then(|t| Ok(Some(t.clone())))
                 .context("outdated_token_price_timeout")?,
         })
     }
@@ -19,7 +20,7 @@ impl ProtoRepr for proto::BaseToken {
     fn build(this: &Self::Type) -> Self {
         Self {
             base_token_address: Some(this.base_token_address.to_string()),
-            outdated_token_price_timeout: Some(this.outdated_token_price_timeout),
+            outdated_token_price_timeout: this.outdated_token_price_timeout,
         }
     }
 }
