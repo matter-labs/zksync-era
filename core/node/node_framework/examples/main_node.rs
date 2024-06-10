@@ -159,7 +159,14 @@ impl MainNodeBuilder {
         );
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?.save_call_traces);
-        let state_keeper_layer = StateKeeperLayer::new(DBConfig::from_env()?);
+        let db_config = DBConfig::from_env()?;
+        let state_keeper_layer = StateKeeperLayer::new(
+            db_config.state_keeper_db_path,
+            db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity(),
+            db_config.experimental.state_keeper_db_max_open_files,
+        );
         self.node
             .add_layer(persisence_layer)
             .add_layer(mempool_io_layer)

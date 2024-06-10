@@ -198,7 +198,13 @@ impl MainNodeBuilder {
         let db_config = try_load_config!(self.configs.db_config);
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(sk_config.save_call_traces);
-        let state_keeper_layer = StateKeeperLayer::new(db_config);
+        let state_keeper_layer = StateKeeperLayer::new(
+            db_config.state_keeper_db_path,
+            db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity(),
+            db_config.experimental.state_keeper_db_max_open_files,
+        );
         self.node
             .add_layer(persistence_layer)
             .add_layer(mempool_io_layer)

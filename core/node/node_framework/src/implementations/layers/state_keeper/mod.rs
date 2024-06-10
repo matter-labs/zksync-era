@@ -1,7 +1,8 @@
-use std::sync::Arc;
+use std::{num::NonZero, sync::Arc};
 
 use anyhow::Context;
 use zksync_config::DBConfig;
+use zksync_node_api_server::web3::state;
 use zksync_state::{AsyncCatchupTask, ReadStorageFactory, RocksdbStorageOptions};
 use zksync_state_keeper::{
     seal_criteria::ConditionalSealer, AsyncRocksdbCache, BatchExecutor, OutputHandler,
@@ -34,12 +35,22 @@ use crate::{
 ///
 #[derive(Debug)]
 pub struct StateKeeperLayer {
-    db_config: DBConfig,
+    state_keeper_db_path: String,
+    state_keeper_db_block_cache_capacity: usize,
+    state_keeper_db_max_open_files: Option<NonZero<u32>>,
 }
 
 impl StateKeeperLayer {
-    pub fn new(db_config: DBConfig) -> Self {
-        Self { db_config }
+    pub fn new(
+        state_keeper_db_path: String,
+        state_keeper_db_block_cache_capacity: usize,
+        state_keeper_db_max_open_files: Option<NonZero<u32>>,
+    ) -> Self {
+        Self {
+            state_keeper_db_path,
+            state_keeper_db_block_cache_capacity,
+            state_keeper_db_max_open_files,
+        }
     }
 }
 
@@ -72,15 +83,12 @@ impl WiringLayer for StateKeeperLayer {
         let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
 
         let cache_options = RocksdbStorageOptions {
-            block_cache_capacity: self
-                .db_config
-                .experimental
-                .state_keeper_db_block_cache_capacity(),
-            max_open_files: self.db_config.experimental.state_keeper_db_max_open_files,
+            block_cache_capacity: self.state_keeper_db_block_cache_capacity,
+            max_open_files: self.state_keeper_db_max_open_files,
         };
         let (storage_factory, task) = AsyncRocksdbCache::new(
             master_pool.get_custom(2).await?,
-            self.db_config.state_keeper_db_path,
+            self.state_keeper_db_path,
             cache_options,
         );
         context.add_task(Box::new(RocksdbCatchupTask(task)));
