@@ -15,6 +15,7 @@ use zksync_node_framework::{
         pools_layer::PoolsLayerBuilder,
         postgres_metrics::PostgresMetricsLayer,
         prometheus_exporter::PrometheusExporterLayer,
+        pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
         sigint::SigintHandlerLayer,
         state_keeper::{
@@ -193,6 +194,16 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_pruning_layer(mut self) -> anyhow::Result<Self> {
+        let layer = PruningLayer::new(
+            self.config.optional.pruning_removal_delay(),
+            self.config.optional.pruning_chunk_size,
+            self.config.optional.pruning_data_retention(),
+        );
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     fn add_preconditions(mut self) -> anyhow::Result<Self> {
         todo!()
     }
@@ -255,7 +266,10 @@ impl ExternalNodeBuilder {
                     self = self.add_postgres_metrics_layer()?;
 
                     // Main tasks
-                    self = self.add_state_keeper_layer()?.add_consensus_layer()?;
+                    self = self
+                        .add_state_keeper_layer()?
+                        .add_consensus_layer()?
+                        .add_pruning_layer()?;
 
                     todo!()
                 }
