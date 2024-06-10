@@ -178,6 +178,7 @@ impl<'a> Connection<'a> {
             .context("sqlx")?)
     }
 
+    /// Wrapper for `consensus_dal().get_l1_batch_metadata()`.
     pub async fn batch(
         &mut self,
         ctx: &ctx::Ctx,

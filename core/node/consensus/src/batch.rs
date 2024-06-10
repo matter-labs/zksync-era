@@ -1,8 +1,7 @@
-#![allow(unused)]
+//! L1 Batch representation for sending over p2p network.
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_consensus_roles::validator;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_dal::consensus_dal::Payload;
 use zksync_l1_contract_interface::i_executor;
 use zksync_metadata_calculator::api_server::{TreeApiClient, TreeEntryWithProof};
@@ -10,8 +9,8 @@ use zksync_system_constants as constants;
 use zksync_types::{
     abi,
     block::{unpack_block_info, L2BlockHasher},
-    ethabi, web3, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
-    StorageKey, Transaction, H256, U256,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction, H256,
+    U256,
 };
 
 use crate::ConnectionPool;
@@ -221,12 +220,14 @@ impl L1BatchWithWitness {
         Ok(this)
     }
 
-    /// WARNING: the following are not currently verified:
-    /// * l1_gas_price
-    /// * l2_fair_gas_price
-    /// * fair_pubdata_price
-    /// * virtual_blocks
-    /// * operator_address
+    /// Verifies the L1Batch and witness against the commitment.
+    /// WARNING: the following fields of the payload are not currently verified:
+    /// * `l1_gas_price`
+    /// * `l2_fair_gas_price`
+    /// * `fair_pubdata_price`
+    /// * `virtual_blocks`
+    /// * `operator_address`
+    /// * `protocol_version` (present both in payload and witness, but neither has a commitment)
     pub(crate) fn verify(&self, comm: &L1BatchCommit) -> anyhow::Result<()> {
         let (last_number, last_hash) = self.this_batch.verify(&comm.this_batch)?;
         let (mut prev_number, mut prev_hash) = self.prev_batch.verify(&comm.prev_batch)?;
@@ -245,23 +246,21 @@ impl L1BatchWithWitness {
             anyhow::ensure!(b.last_in_batch == (i + 1 == self.blocks.len()));
             prev_number += 1;
             let mut hasher = L2BlockHasher::new(prev_number, b.timestamp, prev_hash);
-            tracing::info!("transactions.len() = {}", b.transactions.len());
             for t in &b.transactions {
                 // Reconstruct transaction by converting it back and forth to `abi::Transaction`.
                 // This allows us to verify that the transaction actually matches the transaction
                 // hash.
-                // TODO: make consensus payload contain `abi::Transaction` instead.
+                // TODO(gprusak): make consensus payload contain `abi::Transaction` instead.
+                // TODO(gprusak): currently the payload doesn't contain the block number, which is
+                // annoying. Consider adding it to payload.
                 let t2: Transaction = abi::Transaction::try_from(t.clone())?.try_into()?;
                 anyhow::ensure!(t == &t2);
                 hasher.push_tx_hash(t.hash());
             }
             prev_hash = hasher.finalize(self.this_batch.protocol_version);
-            tracing::info!("expected hash = {}", b.hash);
-            tracing::info!("computed_hash = {}", prev_hash);
         }
-        tracing::info!("last_hash = {}", last_hash);
         anyhow::ensure!(prev_hash == last_hash);
-
+        anyhow::ensure!(prev_number == last_number);
         Ok(())
     }
 }

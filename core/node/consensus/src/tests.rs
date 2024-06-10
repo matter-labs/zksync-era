@@ -518,8 +518,10 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
     .unwrap();
 }
 
+/// Tests that generated L1 batch witnesses can be verified successfully.
+/// TODO(gprusak): add tests for verification failures.
 #[tokio::test]
-async fn test_batch_proof() {
+async fn test_batch_witness() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
@@ -548,16 +550,9 @@ async fn test_batch_proof() {
         // previous batch (and 0th batch contains only 1 block).
         for n in 2..=node.last_sealed_batch().0 {
             let n = L1BatchNumber(n);
-            let r = pool
-                .connection(ctx)
-                .await?
-                .0
-                .blocks_dal()
-                .get_l2_block_range_of_l1_batch(n)
-                .await;
-            let proof = node.load_batch_proof(ctx, n).await?;
+            let batch_with_witness = node.load_batch_with_witness(ctx, n).await?;
             let commit = node.load_batch_commit(ctx, n).await?;
-            proof.verify(&commit)?;
+            batch_with_witness.verify(&commit)?;
         }
         Ok(())
     })

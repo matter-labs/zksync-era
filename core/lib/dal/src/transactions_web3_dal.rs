@@ -428,15 +428,13 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok(txs)
     }
 
+    /// Returns the server transactions (not API ones) from an L2 block.
     pub async fn get_raw_l2_block_transactions(
         &mut self,
         block: L2BlockNumber,
     ) -> DalResult<Vec<Transaction>> {
         Ok(self
-            .get_raw_l2_blocks_transactions(std::ops::Range {
-                start: block,
-                end: block + 1,
-            })
+            .get_raw_l2_blocks_transactions(block..block + 1)
             .await?
             .remove(&block)
             .unwrap_or_default())

@@ -1,5 +1,4 @@
 //! Utilities for testing the consensus module.
-#![allow(unused)]
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -30,9 +29,6 @@ use zksync_node_sync::{
     ExternalIO, MainNodeClient, SyncState,
 };
 use zksync_node_test_utils::{create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts};
-/// Implements EthInterface
-/// It is enough to use MockEthereum.with_call_handler()
-//use zksync_eth_client::clients::MockEthereum;
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
@@ -46,9 +42,8 @@ use zksync_state_keeper::{
 };
 use zksync_test_account::Account;
 use zksync_types::{
-    abi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, Transaction,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
@@ -298,6 +293,11 @@ impl StateKeeper {
         self.last_batch - (!self.batch_sealed) as u32
     }
 
+    /// Loads a commitment to L1 batch directly from the database.
+    // TODO(gprusak): ideally, we should rather fake fetching it from ethereum.
+    // We can use `zksync_eth_client::clients::MockEthereum` for that,
+    // which implements `EthInterface`. It should be enough to use
+    // `MockEthereum.with_call_handler()`.
     pub async fn load_batch_commit(
         &self,
         ctx: &ctx::Ctx,
@@ -321,7 +321,8 @@ impl StateKeeper {
         })
     }
 
-    pub async fn load_batch_proof(
+    /// Loads an L1BatchWithWitness.
+    pub async fn load_batch_with_witness(
         &self,
         ctx: &ctx::Ctx,
         n: L1BatchNumber,
@@ -462,11 +463,11 @@ async fn mock_metadata_calculator_step(ctx: &ctx::Ctx, pool: &ConnectionPool) ->
 }
 
 impl StateKeeperRunner {
-    // Executes the state keeper task with real metadata calculator task (and fake commitment
-    // generator).
+    // Executes the state keeper task with real metadata calculator task
+    // and fake commitment generator (because real one is too slow).
     pub async fn run_real(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
-            // Fund the test account.
+            // Fund the test account. Required for L2 transactions to succeed.
             fund(&self.pool.0, &[self.account.address]).await;
 
             let (stop_send, stop_recv) = sync::watch::channel(false);
@@ -496,6 +497,8 @@ impl StateKeeperRunner {
                 }
             });
 
+            // TODO(gprusak): should be replaceable with `PostgresFactory`.
+            // Caching shouldn't be needed for tests.
             let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
                 self.pool.0.clone(),
                 self.rocksdb_dir

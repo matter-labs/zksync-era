@@ -279,16 +279,14 @@ impl ConsensusDal<'_, '_> {
             .await
     }
 
-    /// Fetches an L2 block from storage and converts it to `Payload`. `Payload` is an
-    /// opaque format for the L2 block that consensus understands and generates a
-    /// certificate for it.
+    /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
     pub async fn block_payloads(
         &mut self,
         numbers: std::ops::Range<validator::BlockNumber>,
     ) -> DalResult<Vec<Payload>> {
         let numbers = (|| {
             anyhow::Ok(std::ops::Range {
-                start: L2BlockNumber(numbers.start.0.try_into().context(".start")?),
+                start: L2BlockNumber(numbers.start.0.try_into().context("start")?),
                 end: L2BlockNumber(numbers.end.0.try_into().context("end")?),
             })
         })()
@@ -317,15 +315,15 @@ impl ConsensusDal<'_, '_> {
             .collect())
     }
 
+    /// Fetches an L2 block from storage and converts it to `Payload`. `Payload` is an
+    /// opaque format for the L2 block that consensus understands and generates a
+    /// certificate for it.
     pub async fn block_payload(
         &mut self,
         number: validator::BlockNumber,
     ) -> DalResult<Option<Payload>> {
         Ok(self
-            .block_payloads(std::ops::Range {
-                start: number,
-                end: number + 1,
-            })
+            .block_payloads(number..number + 1)
             .await?
             .into_iter()
             .next())

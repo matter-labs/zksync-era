@@ -73,10 +73,7 @@ impl SyncDal<'_, '_> {
         include_transactions: bool,
     ) -> DalResult<Option<en::SyncBlock>> {
         let _latency = MethodLatency::new("sync_dal_sync_block");
-        let numbers = std::ops::Range {
-            start: number,
-            end: number + 1,
-        };
+        let numbers = number..number + 1;
         let Some(block) = self
             .sync_blocks_inner(numbers.clone())
             .await?

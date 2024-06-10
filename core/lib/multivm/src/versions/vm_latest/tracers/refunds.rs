@@ -151,7 +151,6 @@ impl<S> RefundsTracer<S> {
         tracing::trace!("Gas spent on computation: {}", gas_spent_on_computation);
         tracing::trace!("Gas spent on pubdata: {}", gas_spent_on_pubdata);
         tracing::trace!("Pubdata published: {}", pubdata_published);
-        tracing::trace!("Effective gas price: {}", effective_gas_price);
 
         ceil_div_u256(refund_eth, effective_gas_price.into()).as_u64()
     }
