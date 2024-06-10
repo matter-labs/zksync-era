@@ -7,10 +7,15 @@ use zksync_config::{
 };
 use zksync_node_framework::{
     implementations::layers::{
-        healtcheck_server::HealthCheckLayer, main_node_client::MainNodeClientLayer,
-        pools_layer::PoolsLayerBuilder, postgres_metrics::PostgresMetricsLayer,
-        prometheus_exporter::PrometheusExporterLayer, query_eth_client::QueryEthClientLayer,
-        sigint::SigintHandlerLayer, tree_data_fetcher::TreeDataFetcherLayer,
+        healtcheck_server::HealthCheckLayer,
+        main_node_client::MainNodeClientLayer,
+        pools_layer::PoolsLayerBuilder,
+        postgres_metrics::PostgresMetricsLayer,
+        prometheus_exporter::PrometheusExporterLayer,
+        query_eth_client::QueryEthClientLayer,
+        sigint::SigintHandlerLayer,
+        state_keeper::{external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer},
+        tree_data_fetcher::TreeDataFetcherLayer,
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
@@ -118,6 +123,34 @@ impl ExternalNodeBuilder {
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
+    }
+
+    fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
+        // let wallets = self.wallets.clone();
+        // let sk_config = try_load_config!(self.configs.state_keeper_config);
+        // let persistence_layer = OutputHandlerLayer::new(
+        //     self.config.remote.l2_shared_bridge_addr .expect("L2 shared bridge address is not set"),
+        //     config.optional.l2_block_seal_queue_capacity,
+        // );
+        // let io_layer = ExternalIOLayer::new(
+        //     self.config.required.l2_chain_id
+        // );
+        // let main_node_batch_executor_builder_layer =
+        //     MainBatchExecutorLayer::new(self.config.optional.);
+        // let state_keeper_layer = StateKeeperLayer::new(
+        //     db_config.state_keeper_db_path,
+        //     db_config
+        //         .experimental
+        //         .state_keeper_db_block_cache_capacity(),
+        //     db_config.experimental.state_keeper_db_max_open_files,
+        // );
+        // self.node
+        //     .add_layer(persistence_layer)
+        //     .add_layer(io_layer)
+        //     .add_layer(main_node_batch_executor_builder_layer)
+        //     .add_layer(state_keeper_layer);
+        // Ok(self)
+        todo!()
     }
 
     fn add_preconditions(mut self) -> anyhow::Result<Self> {

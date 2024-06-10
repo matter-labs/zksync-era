@@ -10,11 +10,15 @@ use crate::{
 #[derive(Debug)]
 pub struct MainBatchExecutorLayer {
     save_call_traces: bool,
+    optional_bytecode_compression: bool,
 }
 
 impl MainBatchExecutorLayer {
-    pub fn new(save_call_traces: bool) -> Self {
-        Self { save_call_traces }
+    pub fn new(save_call_traces: bool, optional_bytecode_compression: bool) -> Self {
+        Self {
+            save_call_traces,
+            optional_bytecode_compression,
+        }
     }
 }
 
@@ -25,7 +29,8 @@ impl WiringLayer for MainBatchExecutorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let builder = MainBatchExecutor::new(self.save_call_traces, false);
+        let builder =
+            MainBatchExecutor::new(self.save_call_traces, self.optional_bytecode_compression);
 
         context.insert_resource(BatchExecutorResource(Unique::new(Box::new(builder))))?;
         Ok(())

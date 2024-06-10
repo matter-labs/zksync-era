@@ -181,6 +181,9 @@ impl MainNodeBuilder {
     }
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
+        // Bytecode compression is currently mandatory for the transactions processed by the sequencer.
+        const OPTIONAL_BYTECODE_COMPRESSION: bool = false;
+
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(
@@ -197,7 +200,7 @@ impl MainNodeBuilder {
         );
         let db_config = try_load_config!(self.configs.db_config);
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(sk_config.save_call_traces);
+            MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
         let state_keeper_layer = StateKeeperLayer::new(
             db_config.state_keeper_db_path,
             db_config

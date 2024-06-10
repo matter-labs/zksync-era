@@ -158,7 +158,7 @@ impl MainNodeBuilder {
             wallets.state_keeper.context("State keeper wallets")?,
         );
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?.save_call_traces);
+            MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?.save_call_traces, true);
         let db_config = DBConfig::from_env()?;
         let state_keeper_layer = StateKeeperLayer::new(
             db_config.state_keeper_db_path,
