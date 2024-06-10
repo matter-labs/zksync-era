@@ -1,8 +1,6 @@
 use std::{num::NonZero, sync::Arc};
 
 use anyhow::Context;
-use zksync_config::DBConfig;
-use zksync_node_api_server::web3::state;
 use zksync_state::{AsyncCatchupTask, ReadStorageFactory, RocksdbStorageOptions};
 use zksync_state_keeper::{
     seal_criteria::ConditionalSealer, AsyncRocksdbCache, BatchExecutor, OutputHandler,
