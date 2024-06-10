@@ -158,7 +158,7 @@ impl MainNodeBuilder {
             wallets.state_keeper.context("State keeper wallets")?,
         );
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?);
+            MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?.save_call_traces);
         let state_keeper_layer = StateKeeperLayer::new(DBConfig::from_env()?);
         self.node
             .add_layer(persisence_layer)

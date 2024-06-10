@@ -1,4 +1,3 @@
-use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_state_keeper::MainBatchExecutor;
 
 use crate::{
@@ -10,14 +9,12 @@ use crate::{
 
 #[derive(Debug)]
 pub struct MainBatchExecutorLayer {
-    state_keeper_config: StateKeeperConfig,
+    save_call_traces: bool,
 }
 
 impl MainBatchExecutorLayer {
-    pub fn new(state_keeper_config: StateKeeperConfig) -> Self {
-        Self {
-            state_keeper_config,
-        }
+    pub fn new(save_call_traces: bool) -> Self {
+        Self { save_call_traces }
     }
 }
 
@@ -28,7 +25,7 @@ impl WiringLayer for MainBatchExecutorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let builder = MainBatchExecutor::new(self.state_keeper_config.save_call_traces, false);
+        let builder = MainBatchExecutor::new(self.save_call_traces, false);
 
         context.insert_resource(BatchExecutorResource(Unique::new(Box::new(builder))))?;
         Ok(())

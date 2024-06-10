@@ -196,7 +196,8 @@ impl MainNodeBuilder {
             try_load_config!(wallets.state_keeper),
         );
         let db_config = try_load_config!(self.configs.db_config);
-        let main_node_batch_executor_builder_layer = MainBatchExecutorLayer::new(sk_config);
+        let main_node_batch_executor_builder_layer =
+            MainBatchExecutorLayer::new(sk_config.save_call_traces);
         let state_keeper_layer = StateKeeperLayer::new(db_config);
         self.node
             .add_layer(persistence_layer)
