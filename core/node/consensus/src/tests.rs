@@ -519,7 +519,7 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
 }
 
 /// Tests that generated L1 batch witnesses can be verified successfully.
-/// TODO(gprusak): add tests for verification failures.
+/// TODO: add tests for verification failures.
 #[tokio::test]
 async fn test_batch_witness() {
     zksync_concurrency::testonly::abort_on_panic();

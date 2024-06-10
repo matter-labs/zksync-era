@@ -153,7 +153,7 @@ impl StateKeeper {
             ..Default::default()
         };
         let operation_manager_config = OperationsManagerConfig {
-            delay_interval: 100, //100ms
+            delay_interval: 100, //`100ms`
         };
         let config =
             MetadataCalculatorConfig::for_main_node(&merkle_tree_config, &operation_manager_config);
@@ -277,7 +277,7 @@ impl StateKeeper {
     }
 
     /// Loads a commitment to L1 batch directly from the database.
-    // TODO(gprusak): ideally, we should rather fake fetching it from ethereum.
+    // TODO: ideally, we should rather fake fetching it from Ethereum.
     // We can use `zksync_eth_client::clients::MockEthereum` for that,
     // which implements `EthInterface`. It should be enough to use
     // `MockEthereum.with_call_handler()`.
@@ -286,7 +286,7 @@ impl StateKeeper {
         ctx: &ctx::Ctx,
         number: L1BatchNumber,
     ) -> ctx::Result<L1BatchCommit> {
-        // TODO: we should mock the eth_sender as well.
+        // TODO: we should mock the `eth_sender` as well.
         let mut conn = self.pool.connection(ctx).await?;
         let this = conn.batch(ctx, number).await?.context("missing batch")?;
         let prev = conn
@@ -304,7 +304,7 @@ impl StateKeeper {
         })
     }
 
-    /// Loads an L1BatchWithWitness.
+    /// Loads an `L1BatchWithWitness`.
     pub async fn load_batch_with_witness(
         &self,
         ctx: &ctx::Ctx,
@@ -480,7 +480,7 @@ impl StateKeeperRunner {
                 }
             });
 
-            // TODO(gprusak): should be replaceable with `PostgresFactory`.
+            // TODO: should be replaceable with `PostgresFactory`.
             // Caching shouldn't be needed for tests.
             let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
                 self.pool.0.clone(),
@@ -490,7 +490,7 @@ impl StateKeeperRunner {
                     .to_string_lossy()
                     .into(),
                 RocksdbStorageOptions {
-                    block_cache_capacity: (1 << 20), // 1MB
+                    block_cache_capacity: (1 << 20), // `1MB`
                     max_open_files: None,
                 },
             );

@@ -163,9 +163,9 @@ impl Account {
                 nonce: serial_id.into(),
                 value: execute.value,
                 reserved: [
-                    // to_mint
+                    // `to_mint`
                     gas_limit * max_fee_per_gas + execute.value,
-                    // refund_recipient
+                    // `refund_recipient`
                     address_to_u256(&self.address),
                     0.into(),
                     0.into(),

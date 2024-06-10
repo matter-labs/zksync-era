@@ -79,7 +79,7 @@ impl LastBlockWitness {
         StorageKey::new(Self::addr(), <[u8; 32]>::from(key).into()).hashed_key_u256()
     }
 
-    /// Loads a LastBlockWitness from storage.
+    /// Loads a `LastBlockWitness` from storage.
     async fn load(
         ctx: &ctx::Ctx,
         n: L1BatchNumber,
@@ -250,8 +250,8 @@ impl L1BatchWithWitness {
                 // Reconstruct transaction by converting it back and forth to `abi::Transaction`.
                 // This allows us to verify that the transaction actually matches the transaction
                 // hash.
-                // TODO(gprusak): make consensus payload contain `abi::Transaction` instead.
-                // TODO(gprusak): currently the payload doesn't contain the block number, which is
+                // TODO: make consensus payload contain `abi::Transaction` instead.
+                // TODO: currently the payload doesn't contain the block number, which is
                 // annoying. Consider adding it to payload.
                 let t2: Transaction = abi::Transaction::try_from(t.clone())?.try_into()?;
                 anyhow::ensure!(t == &t2);

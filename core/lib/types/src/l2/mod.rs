@@ -206,7 +206,7 @@ impl L2Tx {
             factory_deps,
             paymaster_params,
         );
-        // We do a whole dance to reconstruct missing data: rlp encoding, hash and signature.
+        // We do a whole dance to reconstruct missing data: RLP encoding, hash and signature.
         let mut req: TransactionRequest = tx.into();
         req.chain_id = Some(chain_id.as_u64());
         let data = req

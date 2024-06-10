@@ -83,7 +83,7 @@ impl TreeEntryWithProof {
     ///
     /// # Errors
     ///
-    /// Returns an error iff proof is invalid.
+    /// Returns an error <=> proof is invalid.
     pub fn verify(
         &self,
         hasher: &dyn HashTree,
