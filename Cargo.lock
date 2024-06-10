@@ -7979,6 +7979,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_base_token_adjuster"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
@@ -8907,6 +8923,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
+ "zksync_base_token_adjuster",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",

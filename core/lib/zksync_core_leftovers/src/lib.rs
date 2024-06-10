@@ -156,6 +156,8 @@ pub enum Component {
     CommitmentGenerator,
     /// VM runner-based component that saves protective reads to Postgres.
     VmRunnerProtectiveReads,
+    /// A component to adjust anything related to a chain's custom base token.
+    BaseTokenAdjuster,
 }
 
 #[derive(Debug)]
@@ -195,6 +197,7 @@ impl FromStr for Components {
             "vm_runner_protective_reads" => {
                 Ok(Components(vec![Component::VmRunnerProtectiveReads]))
             }
+            "base_token_adjuster" => Ok(Components(vec![Component::BaseTokenAdjuster])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }

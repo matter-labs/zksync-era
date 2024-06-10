@@ -15,6 +15,7 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
+        base_token_adjuster::BaseTokenAdjusterLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
@@ -409,6 +410,13 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_base_token_adjuster_layer(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.configs.base_token_adjuster);
+        self.node.add_layer(BaseTokenAdjusterLayer::new(config));
+
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
         self = self
@@ -492,6 +500,9 @@ impl MainNodeBuilder {
                 }
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;
+                }
+                Component::BaseTokenAdjuster => {
+                    self = self.add_base_token_adjuster_layer()?;
                 }
             }
         }

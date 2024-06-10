@@ -24,6 +24,7 @@ pub use self::{
 };
 
 pub mod api;
+pub mod base_token_adjuster;
 pub mod chain;
 pub mod consensus;
 pub mod contract_verifier;
