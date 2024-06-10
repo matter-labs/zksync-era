@@ -109,7 +109,8 @@ pub struct StateKeeperConfig {
     /// This variable should not exceed:
     /// - 128kb for calldata-based rollups
     /// - 120kb * n, where `n` is a number of blobs for blob-based rollups
-    /// - the DA layer blob size limit for the DA layer-based validiums
+    /// - the DA layer's blob size limit for the DA layer-based validiums
+    /// - 100 MB for the object store-based or no-da validiums
     pub max_pubdata_per_batch: u64,
 
     /// The version of the fee model to use.

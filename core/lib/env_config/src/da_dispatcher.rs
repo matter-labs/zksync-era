@@ -24,7 +24,7 @@ mod tests {
     ) -> DADispatcherConfig {
         DADispatcherConfig {
             polling_interval_ms: Some(interval),
-            query_rows_limit: Some(rows_limit),
+            max_rows_to_dispatch: Some(rows_limit),
             max_retries: Some(max_retries),
         }
     }

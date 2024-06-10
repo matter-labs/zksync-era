@@ -6,7 +6,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-use crate::gcs::client::ObjectStoreDAClient;
+use crate::object_store::client::ObjectStoreDAClient;
 
 #[derive(Debug)]
 pub struct ObjectStorageClientWiringLayer {

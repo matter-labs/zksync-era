@@ -1,13 +1,14 @@
-# Data Availability clients
+# Data Availability Client
 
-This crate contains an implementations of the default DataAvailability clients. These are maintained within this repo
-because they are tightly coupled with the codebase, and would cause the circular dependency if they were to be moved to
-the [hyperchain-da](https://github.com/matter-labs/hyperchain-da) repository.
+This crate contains a trait that has to be implemented by all the DA clients.
 
 ## Overview
 
-Currently, the following DataAvailability clients are implemented:
+This trait assumes that every implementation follows these logical assumptions:
 
-- `NoDA client` that does not send or store any pubdata, it is needed to run the zkSync network in the "no-DA" mode
-  utilizing the DA framework.
-- `GCS client` that stores the pubdata in the GCS.
+- The DA client is only serving as a connector between the ZK chain's sequencer and the DA layer.
+- The DA client is not supposed to be a standalone application, but rather a library that is used by the
+  `da_dispatcher`.
+- The logic of the retries is implemented in the `da_dispatcher`, not in the DA clients.
+- The `get_inclusion_data` has to return the data only when the state roots are relayed to the L1 verification contract
+  (if the DA solution has one).

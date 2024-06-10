@@ -39,7 +39,7 @@ pub struct DispatchResponse {
     pub blob_id: String,
 }
 
-/// `InclusionData` is the data needed to prove that a blob is included in the DA layer.
+/// `InclusionData` is the data needed to verify on L1 that a blob is included in the DA layer.
 #[derive(Default, Serialize)]
 pub struct InclusionData {
     /// The inclusion data serialized by the DA client. Serialization is done in a way that allows

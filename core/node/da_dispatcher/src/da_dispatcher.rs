@@ -43,11 +43,11 @@ impl DataAvailabilityDispatcher {
             }
 
             if let Err(err) = self.dispatch(&pool).await {
-                tracing::warn!("dispatch error {err:?}");
+                tracing::error!("dispatch error {err:?}");
             }
 
             if let Err(err) = self.poll_for_inclusion(&pool).await {
-                tracing::warn!("poll_for_inclusion error {err:?}");
+                tracing::error!("poll_for_inclusion error {err:?}");
             }
 
             tokio::time::sleep(self.config.polling_interval()).await;
@@ -60,7 +60,7 @@ impl DataAvailabilityDispatcher {
         let mut conn = pool.connection_tagged("da_dispatcher").await?;
         let batches = conn
             .data_availability_dal()
-            .get_ready_for_da_dispatch_l1_batches(self.config.query_rows_limit() as usize)
+            .get_ready_for_da_dispatch_l1_batches(self.config.max_rows_to_dispatch() as usize)
             .await?;
         drop(conn);
 

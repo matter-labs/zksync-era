@@ -3,15 +3,16 @@ use std::time::Duration;
 use serde::Deserialize;
 
 pub const DEFAULT_POLLING_INTERVAL_MS: u32 = 5000;
-pub const DEFAULT_QUERY_ROWS_LIMIT: u32 = 100;
+pub const DEFAULT_MAX_ROWS_TO_DISPATCH: u32 = 100;
 pub const DEFAULT_MAX_RETRIES: u16 = 5;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct DADispatcherConfig {
+    /// The interval between the `da_dispatcher's` iterations.
     pub polling_interval_ms: Option<u32>,
     /// The maximum number of rows to query from the database in a single query.
-    pub query_rows_limit: Option<u32>,
-    /// The maximum number of retries for the dispatching of a blob.
+    pub max_rows_to_dispatch: Option<u32>,
+    /// The maximum number of retries for the dispatch of a blob.
     pub max_retries: Option<u16>,
 }
 
@@ -19,7 +20,7 @@ impl DADispatcherConfig {
     pub fn for_tests() -> Self {
         Self {
             polling_interval_ms: Some(DEFAULT_POLLING_INTERVAL_MS),
-            query_rows_limit: Some(DEFAULT_QUERY_ROWS_LIMIT),
+            max_rows_to_dispatch: Some(DEFAULT_MAX_ROWS_TO_DISPATCH),
             max_retries: Some(DEFAULT_MAX_RETRIES),
         }
     }
@@ -31,8 +32,9 @@ impl DADispatcherConfig {
         }
     }
 
-    pub fn query_rows_limit(&self) -> u32 {
-        self.query_rows_limit.unwrap_or(DEFAULT_QUERY_ROWS_LIMIT)
+    pub fn max_rows_to_dispatch(&self) -> u32 {
+        self.max_rows_to_dispatch
+            .unwrap_or(DEFAULT_MAX_ROWS_TO_DISPATCH)
     }
 
     pub fn max_retries(&self) -> u16 {

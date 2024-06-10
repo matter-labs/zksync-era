@@ -77,7 +77,7 @@ impl DataAvailabilityDal<'_, '_> {
 
             if matched != 1 {
                 let err = instrumentation.constraint_error(anyhow::anyhow!(
-                        "DA blob_id verification failed. DA blob_id {blob_id} for L1 batch #{number} does not match the expected value"
+                        "Error storing DA blob id. DA blob_id {blob_id} for L1 batch #{number} does not match the expected value"
                     ));
                 return Err(err);
             }
@@ -143,7 +143,7 @@ impl DataAvailabilityDal<'_, '_> {
 
             if matched != 1 {
                 let err = instrumentation.constraint_error(anyhow::anyhow!(
-                        "DA data verification failed. DA data for L1 batch #{number} does not match the one provided before"
+                        "Error storing DA inclusion data. DA data for L1 batch #{number} does not match the one provided before"
                     ));
                 return Err(err);
             }

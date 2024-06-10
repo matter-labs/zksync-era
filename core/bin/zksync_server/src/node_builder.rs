@@ -9,8 +9,8 @@ use zksync_config::{
 };
 use zksync_core_leftovers::Component;
 use zksync_default_da_clients::{
-    gcs::{config::ObjectStoreDAConfig, wiring_layer::ObjectStorageClientWiringLayer},
     no_da::wiring_layer::NoDAClientWiringLayer,
+    object_store::{config::ObjectStoreDAConfig, wiring_layer::ObjectStorageClientWiringLayer},
 };
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
