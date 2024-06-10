@@ -2,6 +2,7 @@ use std::{str::FromStr, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
+use zksync_base_token_price_fetcher::BaseTokenPriceFetcherConfig;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -218,6 +219,7 @@ async fn main() -> anyhow::Result<()> {
     // If the node framework is used, run the node.
     if opt.use_node_framework {
         // We run the node from a different thread, since the current thread is in tokio context.
+        let base_token_price_fetcher_config = Some(BaseTokenPriceFetcherConfig::default()); // TODO: use actual config
         std::thread::spawn(move || -> anyhow::Result<()> {
             let node = MainNodeBuilder::new(
                 configs,
@@ -226,6 +228,7 @@ async fn main() -> anyhow::Result<()> {
                 contracts_config,
                 secrets,
                 consensus,
+                base_token_price_fetcher_config,
             )
             .build(components)?;
             node.run()?;

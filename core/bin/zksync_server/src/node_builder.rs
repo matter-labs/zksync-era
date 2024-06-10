@@ -3,6 +3,7 @@
 
 use anyhow::Context;
 use prometheus_exporter::PrometheusExporterConfig;
+use zksync_base_token_price_fetcher::{BaseTokenPriceFetcher, BaseTokenPriceFetcherConfig};
 use zksync_config::{
     configs::{consensus::ConsensusConfig, wallets::Wallets, GeneralConfig, Secrets},
     ContractsConfig, GenesisConfig,
@@ -15,6 +16,7 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
+        base_token_price_fetcher::BaseTokenPriceFetcherLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
@@ -65,6 +67,7 @@ pub struct MainNodeBuilder {
     contracts_config: ContractsConfig,
     secrets: Secrets,
     consensus_config: Option<ConsensusConfig>,
+    base_token_price_fetcher_config: Option<BaseTokenPriceFetcherConfig>,
 }
 
 impl MainNodeBuilder {
@@ -75,6 +78,7 @@ impl MainNodeBuilder {
         contracts_config: ContractsConfig,
         secrets: Secrets,
         consensus_config: Option<ConsensusConfig>,
+        base_token_price_fetcher_config: Option<BaseTokenPriceFetcherConfig>,
     ) -> Self {
         Self {
             node: ZkStackServiceBuilder::new(),
@@ -84,6 +88,7 @@ impl MainNodeBuilder {
             contracts_config,
             secrets,
             consensus_config,
+            base_token_price_fetcher_config,
         }
     }
 
@@ -401,8 +406,11 @@ impl MainNodeBuilder {
     }
 
     fn add_base_token_price_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        todo!("Add base token price fetcher layer");
-        // Ok(self)
+        let config = try_load_config!(self.base_token_price_fetcher_config);
+        self.node
+            .add_layer(BaseTokenPriceFetcherLayer(config.clone()));
+
+        Ok(self)
     }
 
     fn add_vm_runner_protective_reads_layer(mut self) -> anyhow::Result<Self> {

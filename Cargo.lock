@@ -8931,6 +8931,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
+ "zksync_base_token_price_fetcher",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",

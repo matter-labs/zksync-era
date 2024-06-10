@@ -6,13 +6,13 @@ use zksync_basic_types::Address;
 use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
 use zksync_types::tokens::TokenPriceData;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TokenPriceInfoSource {
     CoinGecko,
     Custom,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BaseTokenPriceFetcherConfig {
     pub token_price_info_source: TokenPriceInfoSource,
     pub token_price_api_token: Address,
