@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-
 use zksync_state_keeper::{
     io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, OutputHandler,
     StateKeeperPersistence, TreeWritesPersistence,
