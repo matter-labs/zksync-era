@@ -198,6 +198,92 @@ impl TreeUpdater {
         Ok(())
     }
 
+    /// Invariant: the tree is not ahead of Postgres.
+    async fn ensure_no_l1_batch_divergence(
+        pool: &ConnectionPool<Core>,
+        tree: &mut AsyncTree,
+    ) -> anyhow::Result<()> {
+        let Some(last_tree_l1_batch) = tree.next_l1_batch_number().checked_sub(1) else {
+            // No L1 batches in the tree means no divergence.
+            return Ok(());
+        };
+        let last_tree_l1_batch = L1BatchNumber(last_tree_l1_batch);
+
+        let mut storage = pool.connection_tagged("metadata_calculator").await?;
+        if Self::l1_batch_matches(&mut storage, tree, last_tree_l1_batch).await? {
+            tracing::debug!(
+                "Last l1 batch in tree #{last_tree_l1_batch} has same data in tree and Postgres"
+            );
+            return Ok(());
+        }
+
+        tracing::debug!("Last l1 batch in tree #{last_tree_l1_batch} has diverging data in tree and Postgres; searching for the last common L1 batch");
+        let min_tree_l1_batch = tree
+            .min_l1_batch_number()
+            .context("tree shouldn't be empty at this point")?;
+        anyhow::ensure!(
+            min_tree_l1_batch <= last_tree_l1_batch,
+            "potential Merkle tree corruption: minimum L1 batch number ({min_tree_l1_batch}) exceeds the last L1 batch ({last_tree_l1_batch})"
+        );
+
+        anyhow::ensure!(
+            Self::l1_batch_matches(&mut storage, tree, min_tree_l1_batch).await?,
+            "Diverging min L1 batch in the tree #{min_tree_l1_batch}; the tree cannot recover from this"
+        );
+
+        let mut left = min_tree_l1_batch.0;
+        let mut right = last_tree_l1_batch.0;
+        while left + 1 < right {
+            let middle = (left + right) / 2;
+            let batch_matches =
+                Self::l1_batch_matches(&mut storage, tree, L1BatchNumber(middle)).await?;
+            if batch_matches {
+                left = middle;
+            } else {
+                right = middle;
+            }
+        }
+        let last_common_l1_batch_number = L1BatchNumber(left);
+        tracing::info!("Found last common L1 batch between tree and Postgres: #{last_common_l1_batch_number}; will revert tree to it");
+
+        tree.roll_back_logs(last_common_l1_batch_number)?;
+        tree.save().await?;
+        Ok(())
+    }
+
+    async fn l1_batch_matches(
+        storage: &mut Connection<'_, Core>,
+        tree: &AsyncTree,
+        l1_batch: L1BatchNumber,
+    ) -> anyhow::Result<bool> {
+        if l1_batch == L1BatchNumber(0) {
+            // Corner case: root hash for L1 batch #0 persisted in Postgres is fictive (set to `H256::zero()`).
+            return Ok(true);
+        }
+
+        let Some(tree_data) = tree.data_for_l1_batch(l1_batch) else {
+            // Corner case: the L1 batch was pruned in the tree.
+            return Ok(true);
+        };
+        let Some(tree_data_from_postgres) = storage
+            .blocks_dal()
+            .get_l1_batch_tree_data(l1_batch)
+            .await?
+        else {
+            // Corner case: the L1 batch was pruned in Postgres (including initial snapshot recovery).
+            return Ok(true);
+        };
+
+        let data_matches = tree_data == tree_data_from_postgres;
+        if !data_matches {
+            tracing::warn!(
+                "Detected diverging tree data for L1 batch #{l1_batch}; data in tree is: {tree_data:?}, \
+                data in Postgres is: {tree_data_from_postgres:?}"
+            );
+        }
+        Ok(data_matches)
+    }
+
     /// The processing loop for this updater.
     pub async fn loop_updating_tree(
         mut self,
@@ -253,22 +339,19 @@ impl TreeUpdater {
             METRICS.backup_lag.set(backup_lag.into());
 
             if next_l1_batch_to_seal > last_l1_batch_with_tree_data + 1 {
-                // Check stop signal before proceeding with a potentially time-consuming operation.
-                if *stop_receiver.borrow_and_update() {
-                    tracing::info!("Stop signal received, metadata_calculator is shutting down");
-                    return Ok(());
-                }
-
                 tracing::warn!(
                     "Next L1 batch of the tree ({next_l1_batch_to_seal}) is greater than last L1 batch with metadata in Postgres \
                      ({last_l1_batch_with_tree_data}); this may be a result of restoring Postgres from a snapshot. \
                      Truncating Merkle tree versions so that this mismatch is fixed..."
                 );
-                tree.revert_logs(last_l1_batch_with_tree_data)?;
+                tree.roll_back_logs(last_l1_batch_with_tree_data)?;
                 tree.save().await?;
-                next_l1_batch_to_seal = tree.next_l1_batch_number();
                 tracing::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");
             }
+
+            // FIXME: move to before the tree is fully initialized
+            Self::ensure_no_l1_batch_divergence(pool, tree).await?;
+            next_l1_batch_to_seal = tree.next_l1_batch_number();
         }
 
         loop {

@@ -27,7 +27,9 @@ use zksync_merkle_tree::{
 };
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
 use zksync_types::{
-    block::L1BatchHeader, writes::TreeWrite, AccountTreeId, L1BatchNumber, StorageKey, H256,
+    block::{L1BatchHeader, L1BatchTreeData},
+    writes::TreeWrite,
+    AccountTreeId, L1BatchNumber, StorageKey, H256,
 };
 
 use super::{
@@ -233,9 +235,21 @@ impl AsyncTree {
         self.as_ref().next_l1_batch_number()
     }
 
+    pub fn min_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        self.as_ref().reader().min_l1_batch_number()
+    }
+
     #[cfg(test)]
     pub fn root_hash(&self) -> H256 {
         self.as_ref().root_hash()
+    }
+
+    pub fn data_for_l1_batch(&self, l1_batch_number: L1BatchNumber) -> Option<L1BatchTreeData> {
+        let (hash, rollup_last_leaf_index) = self.as_ref().root_info(l1_batch_number)?;
+        Some(L1BatchTreeData {
+            hash,
+            rollup_last_leaf_index,
+        })
     }
 
     /// Returned errors are unrecoverable; the tree must not be used after an error is returned.
@@ -279,7 +293,7 @@ impl AsyncTree {
         Ok(())
     }
 
-    pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
+    pub fn roll_back_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
         self.as_mut().roll_back_logs(last_l1_batch_to_keep)
     }
 }
