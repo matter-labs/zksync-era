@@ -52,15 +52,14 @@ fn create_proof_processing_router(
     config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
 ) -> Router {
-    let get_tee_proof_gen_processor =
-        TeeRequestProcessor::new(blob_store.clone(), connection_pool.clone(), config.clone());
-    let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();
-    let register_tee_attestation_processor = get_tee_proof_gen_processor.clone();
-    let get_proof_gen_processor =
-        RequestProcessor::new(blob_store, connection_pool, config.clone(), commitment_mode);
+    let get_proof_gen_processor = RequestProcessor::new(
+        blob_store.clone(),
+        connection_pool.clone(),
+        config.clone(),
+        commitment_mode,
+    );
     let submit_proof_processor = get_proof_gen_processor.clone();
-
-    let router = Router::new()
+    let mut router = Router::new()
         .route(
             "/proof_generation_data",
             post(
@@ -85,7 +84,12 @@ fn create_proof_processing_router(
         );
 
     if config.tee_support {
-        return router.route(
+        let get_tee_proof_gen_processor =
+            TeeRequestProcessor::new(blob_store, connection_pool, config.clone());
+        let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();
+        let register_tee_attestation_processor = get_tee_proof_gen_processor.clone();
+
+        router = router.route(
             "/tee/proof_inputs",
             post(
                 move |payload: Json<TeeProofGenerationDataRequest>| async move {
