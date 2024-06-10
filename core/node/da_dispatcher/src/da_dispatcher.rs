@@ -42,13 +42,18 @@ impl DataAvailabilityDispatcher {
                 break;
             }
 
-            if let Err(err) = self.dispatch(&pool).await {
-                tracing::error!("dispatch error {err:?}");
-            }
-
-            if let Err(err) = self.poll_for_inclusion(&pool).await {
-                tracing::error!("poll_for_inclusion error {err:?}");
-            }
+            tokio::join!(
+                async {
+                    if let Err(err) = self.dispatch(&pool).await {
+                        tracing::error!("dispatch error {err:?}");
+                    }
+                },
+                async {
+                    if let Err(err) = self.poll_for_inclusion(&pool).await {
+                        tracing::error!("poll_for_inclusion error {err:?}");
+                    }
+                }
+            );
 
             tokio::time::sleep(self.config.polling_interval()).await;
         }
