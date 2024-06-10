@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
 
-/// A "final" proof that can be sent to the L1 contract.
+/// A "final" ZK proof that can be sent to the L1 contract.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct L1BatchProofForL1 {
     pub aggregation_result_coords: [[u8; 32]; 4],
@@ -13,10 +13,15 @@ pub struct L1BatchProofForL1 {
     pub protocol_version: ProtocolSemanticVersion,
 }
 
+/// A "final" TEE proof that can be sent to the L1 contract.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct L1BatchTeeProofForL1 {
+    // signature generated within the TEE enclave, using the privkey corresponding to the pubkey
     pub signature: Vec<u8>,
+    // pubkey used for signature verification; each key pair is attested by the TEE attestation
+    // stored in the db
     pub pubkey: Vec<u8>,
+    // data that was signed
     pub proof: Vec<u8>,
 }
 
