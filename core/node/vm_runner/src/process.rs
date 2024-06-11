@@ -134,6 +134,11 @@ impl VmRunner {
             .await?
             + 1;
         loop {
+            if *stop_receiver.borrow() {
+                tracing::info!("VM runner was interrupted");
+                return Ok(());
+            }
+
             // Traverse all handles and filter out tasks that have been finished. Also propagates
             // any panic/error that might have happened during the task's execution.
             let mut retained_handles = Vec::new();
