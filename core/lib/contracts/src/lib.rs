@@ -6,6 +6,7 @@
 
 use std::{
     fs::{self, File},
+    io::BufReader,
     path::{Path, PathBuf},
 };
 
@@ -64,10 +65,10 @@ fn home_path() -> &'static Path {
 fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> serde_json::Value {
     let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
-    serde_json::from_reader(
-        File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e)),
-    )
-    .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
+    let file =
+        File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e));
+    serde_json::from_reader(BufReader::new(file))
+        .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
 }
 
 fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {

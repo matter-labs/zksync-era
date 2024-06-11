@@ -35,9 +35,11 @@ use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 use zksync_node_sync::{
     batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-    tree_data_fetcher::TreeDataFetcher, ActionQueue, SyncState,
+    tree_data_fetcher::TreeDataFetcher, validate_chain_ids_task::ValidateChainIdsTask, ActionQueue,
+    MainNodeHealthCheck, SyncState,
 };
 use zksync_reorg_detector::ReorgDetector;
+use zksync_shared_metrics::rustc::RUST_METRICS;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
     seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
@@ -54,13 +56,10 @@ use zksync_web3_decl::{
 
 use crate::{
     config::ExternalNodeConfig,
-    helpers::{MainNodeHealthCheck, ValidateChainIdsTask},
     init::{ensure_storage_initialized, SnapshotRecoveryConfig},
-    metrics::RUST_METRICS,
 };
 
 mod config;
-mod helpers;
 mod init;
 mod metadata;
 mod metrics;
@@ -140,6 +139,9 @@ async fn run_tree(
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
         recovery: MetadataCalculatorRecoveryConfig {
             desired_chunk_size: config.experimental.snapshots_recovery_tree_chunk_size,
+            parallel_persistence_buffer: config
+                .experimental
+                .snapshots_recovery_tree_parallel_persistence_buffer,
         },
     };
 
@@ -484,10 +486,9 @@ async fn run_api(
         .build(
             fee_params_fetcher,
             Arc::new(vm_concurrency_limiter),
-            ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
+            ApiContracts::load_from_disk().await?, // TODO (BFT-138): Allow to dynamically reload API contracts
             storage_caches,
-        )
-        .await;
+        );
 
     let mempool_cache = MempoolCache::new(config.optional.mempool_cache_size);
     let mempool_cache_update_task = mempool_cache.update_task(

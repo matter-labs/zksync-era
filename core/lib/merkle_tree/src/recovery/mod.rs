@@ -40,17 +40,21 @@ use std::{collections::HashMap, time::Instant};
 use anyhow::Context as _;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
+pub use crate::storage::PersistenceThreadHandle;
 use crate::{
     hasher::{HashTree, HasherWithStats},
     metrics::{RecoveryStage, RECOVERY_METRICS},
-    storage::{PatchSet, PruneDatabase, PrunePatchSet, Storage},
+    storage::{Database, MaybeParallel, PatchSet, PruneDatabase, PrunePatchSet, Storage},
     types::{Key, Manifest, Root, TreeEntry, TreeTags, ValueHash},
 };
+
+#[cfg(test)]
+mod tests;
 
 /// Handle to a Merkle tree during its recovery.
 #[derive(Debug)]
 pub struct MerkleTreeRecovery<DB, H = Blake2Hasher> {
-    pub(crate) db: DB,
+    pub(crate) db: MaybeParallel<DB>,
     hasher: H,
     recovered_version: u64,
 }
@@ -105,7 +109,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         db.apply_patch(PatchSet::from_manifest(manifest))?;
 
         Ok(Self {
-            db,
+            db: MaybeParallel::Sequential(db),
             hasher,
             recovered_version,
         })
@@ -257,7 +261,54 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         self.db.apply_patch(PatchSet::from_manifest(manifest))?;
         tracing::debug!("Updated tree manifest to mark recovery as complete");
 
-        Ok(self.db)
+        self.db.join()
+    }
+}
+
+impl<DB: 'static + Clone + PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
+    /// Offloads database persistence to a background thread, so that it can run at the same time as processing of the following chunks.
+    /// Chunks are still guaranteed to be persisted atomically and in order.
+    ///
+    /// # Arguments
+    ///
+    /// - `buffer_capacity` determines how many chunks can be buffered before persistence blocks (i.e., back-pressure).
+    ///   Also controls memory usage, since each chunk translates into a non-trivial database patch (order of 1 kB / entry;
+    ///   i.e., a chunk with 200,000 entries would translate to a 200 MB patch).
+    ///
+    /// # Return value
+    ///
+    /// On success, returns a handle allowing to control background persistence thread. For now, it can only be used to emulate persistence crashes;
+    /// the handle can be dropped otherwise.
+    ///
+    /// # Safety
+    ///
+    /// If recovery is interrupted (e.g., its process crashes), then some of the latest chunks may not be persisted,
+    /// and will need to be processed again. It is **unsound** to restart recovery while a persistence thread may be active;
+    /// this may lead to a corrupted database state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `buffer_capacity` is 0, or if persistence was already parallelized.
+    pub fn parallelize_persistence(
+        &mut self,
+        buffer_capacity: usize,
+    ) -> anyhow::Result<PersistenceThreadHandle> {
+        anyhow::ensure!(buffer_capacity > 0, "Buffer capacity must be positive");
+        self.db
+            .parallelize(self.recovered_version, buffer_capacity)
+            .context("persistence is already parallelized")
+    }
+
+    /// Waits until all changes in the underlying database are persisted, i.e. all chunks are flushed into it.
+    /// This is only relevant if [persistence was parallelized](Self::parallelize_persistence()) earlier;
+    /// otherwise, this method will return immediately.
+    ///
+    /// # Errors
+    ///
+    /// Propagates database I/O errors, should they occur during persistence.
+    pub fn wait_for_persistence(self) -> anyhow::Result<()> {
+        self.db.join()?;
+        Ok(())
     }
 }
 
@@ -266,64 +317,4 @@ fn entries_key_range(entries: &[TreeEntry]) -> String {
         return "(empty)".to_owned();
     };
     format!("{:0>64x}..={:0>64x}", first.key, last.key)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{hasher::HasherWithStats, types::LeafNode, MerkleTree};
-
-    #[test]
-    fn recovery_for_initialized_tree() {
-        let mut db = PatchSet::default();
-        MerkleTreeRecovery::new(&mut db, 123)
-            .unwrap()
-            .finalize()
-            .unwrap();
-        let err = MerkleTreeRecovery::new(db, 123).unwrap_err().to_string();
-        assert!(
-            err.contains("Tree is expected to be in the process of recovery"),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn recovery_for_different_version() {
-        let mut db = PatchSet::default();
-        MerkleTreeRecovery::new(&mut db, 123).unwrap();
-        let err = MerkleTreeRecovery::new(&mut db, 42)
-            .unwrap_err()
-            .to_string();
-        assert!(
-            err.contains("Requested to recover tree version 42"),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn recovering_empty_tree() {
-        let db = MerkleTreeRecovery::new(PatchSet::default(), 42)
-            .unwrap()
-            .finalize()
-            .unwrap();
-        let tree = MerkleTree::new(db).unwrap();
-        assert_eq!(tree.latest_version(), Some(42));
-        assert_eq!(tree.root(42), Some(Root::Empty));
-    }
-
-    #[test]
-    fn recovering_tree_with_single_node() {
-        let mut recovery = MerkleTreeRecovery::new(PatchSet::default(), 42).unwrap();
-        let recovery_entry = TreeEntry::new(Key::from(123), 1, ValueHash::repeat_byte(1));
-        recovery.extend_linear(vec![recovery_entry]).unwrap();
-        let tree = MerkleTree::new(recovery.finalize().unwrap()).unwrap();
-
-        assert_eq!(tree.latest_version(), Some(42));
-        let mut hasher = HasherWithStats::new(&Blake2Hasher);
-        assert_eq!(
-            tree.latest_root_hash(),
-            LeafNode::new(recovery_entry).hash(&mut hasher, 0)
-        );
-        tree.verify_consistency(42, true).unwrap();
-    }
 }
