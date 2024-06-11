@@ -8657,6 +8657,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_external_price_api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "tracing",
+ "zksync_config",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_health_check"
 version = "0.1.0"
 dependencies = [

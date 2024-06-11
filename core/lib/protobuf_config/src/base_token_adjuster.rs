@@ -8,13 +8,13 @@ impl ProtoRepr for proto::BaseTokenAdjuster {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(configs::base_token_adjuster::BaseTokenAdjusterConfig {
-            polling_interval_ms: self.polling_interval,
+            price_polling_interval_ms: self.price_polling_interval_ms,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            polling_interval: this.polling_interval_ms,
+            price_polling_interval_ms: this.price_polling_interval_ms,
         }
     }
 }

@@ -66,6 +66,7 @@ members = [
     "core/lib/web3_decl",
     "core/lib/snapshots_applier",
     "core/lib/crypto_primitives",
+    "core/lib/external_price_api",
     # Test infrastructure
     "core/tests/test_account",
     "core/tests/loadnext",

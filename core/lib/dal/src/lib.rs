@@ -26,6 +26,7 @@ use crate::{
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
+mod base_token_price_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
 pub mod consensus;

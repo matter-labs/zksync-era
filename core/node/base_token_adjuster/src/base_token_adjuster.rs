@@ -1,4 +1,7 @@
-use std::{future::Future, time::Duration};
+use std::{
+    future::Future,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context;
 use chrono::{NaiveDateTime, Utc};
@@ -10,7 +13,7 @@ use zksync_da_client::{
     types::{DAError, IsTransient},
     DataAvailabilityClient,
 };
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
 use crate::metrics::METRICS;
@@ -19,6 +22,7 @@ use crate::metrics::METRICS;
 pub struct BaseTokenAdjuster {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
+    // PriceAPIClient
 }
 
 impl BaseTokenAdjuster {
@@ -34,24 +38,74 @@ impl BaseTokenAdjuster {
                 break;
             }
 
-            if let Err(err) = self.adjust(&pool).await {
-                tracing::warn!("adjust error {err:?}");
+            let start_time = Instant::now();
+
+            match self.fetch_new_ratio().await {
+                Ok((new_numerator, new_denominator)) => {
+                    let ratio_timestamp = Utc::now().naive_utc();
+
+                    if let Err(err) = self
+                        .persist_ratio(&new_numerator, &new_denominator, ratio_timestamp)
+                        .await
+                    {
+                        tracing::error!("Error persisting ratio: {:?}", err);
+                    }
+
+                    if let Err(err) = self
+                        .maybe_update_l1(&new_numerator, &new_denominator, ratio_timestamp)
+                        .await
+                    {
+                        tracing::error!("Error updating L1 ratio: {:?}", err);
+                    }
+                }
+                Err(err) => tracing::error!("Error fetching new ratio: {:?}", err),
             }
+
+            self.sleep_until_next_fetch(start_time).await;
         }
         Ok(())
     }
 
-    /// adjust me
-    async fn adjust(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
-        let mut conn = pool.connection_tagged("da_dispatcher").await?;
-        let batches = conn
-            .data_availability_dal()
-            .get_ready_for_da_dispatch_l1_batches(self.config.query_rows_limit() as usize)
-            .await?;
-        drop(conn);
+    async fn fetch_new_ratio(&self) -> anyhow::Result<(BigDecimal, BigDecimal)> {
+        let new_numerator = BigDecimal::from(1);
+        let new_denominator = BigDecimal::from(100);
+        Ok((new_numerator, new_denominator))
+    }
 
+    async fn persist_ratio(
+        &self,
+        numerator: &BigDecimal,
+        denominator: &BigDecimal,
+        ratio_timestamp: NaiveDateTime,
+    ) -> anyhow::Result<()> {
+        let mut conn = pool.connection_tagged("base_token_adjuster").await?;
+        // let dal = TokenPriceDal::new(&conn);
+        // dal.insert_ratio(
+        //     //TODO
+        // ).await?;
         Ok(())
     }
-}
 
-// TODO: Interesting to note age of price used by each batch.
+    async fn maybe_update_l1(
+        &self,
+        numerator: &BigDecimal,
+        denominator: &BigDecimal,
+        ratio_timestamp: NaiveDateTime,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    // Sleep for the remaining duration of the polling period
+    async fn sleep_until_next_fetch(&self, start_time: Instant) {
+        let elapsed_time = start_time.elapsed();
+        let sleep_duration = if elapsed_time
+            >= Duration::from_millis(&self.config.price_polling_interval_ms as u64)
+        {
+            Duration::from_secs(0)
+        } else {
+            Duration::from_secs(self.config.external_fetching_poll_period) - elapsed_time
+        };
+
+        tokio::time::sleep(sleep_duration).await;
+    }
+}
