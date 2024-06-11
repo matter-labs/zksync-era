@@ -9,22 +9,22 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
-    clients::{DynClient, L1},
-    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError, EthInterface,
-    ExecutedTxStatus, Options, RawTransactionBytes, SignedCallResult,
+    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError,
+    ExecutedTxStatus, RawTransactionBytes,
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory},
-    web3::{BlockId, BlockNumber},
-    Address, L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, H256, U256,
+    eth_sender::{EthTx, TxHistory},
+    Address, L1BlockNumber, Nonce, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, EthSenderError};
-use crate::metrics::TransactionType;
+use crate::{
+    abstract_l1_interface::{AbstractL1Interface, RealL1Interface},
+    metrics::TransactionType,
+};
 
 #[derive(Debug)]
 struct EthFees {
@@ -34,15 +34,15 @@ struct EthFees {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct OperatorNonce {
+pub(crate) struct OperatorNonce {
     // Nonce on finalized block
-    finalized: Nonce,
+    pub finalized: Nonce,
     // Nonce on latest block
-    latest: Nonce,
+    pub latest: Nonce,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct L1BlockNumbers {
+pub(crate) struct L1BlockNumbers {
     pub safe: L1BlockNumber,
     pub finalized: L1BlockNumber,
     pub latest: L1BlockNumber,
@@ -55,11 +55,7 @@ pub(super) struct L1BlockNumbers {
 /// with higher gas price
 #[derive(Debug)]
 pub struct EthTxManager {
-    /// A gateway through which the operator normally sends all its transactions.
-    ethereum_gateway: Box<dyn BoundEthInterface>,
-    /// If the operator is in 4844 mode this is sent to `Some` and used to send
-    /// commit transactions.
-    ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
+    l1_interface: Box<dyn AbstractL1Interface>,
     config: SenderConfig,
     gas_adjuster: Arc<dyn L1TxParamsProvider>,
     pool: ConnectionPool<Core>,
@@ -73,28 +69,24 @@ impl EthTxManager {
         ethereum_gateway: Box<dyn BoundEthInterface>,
         ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
     ) -> Self {
+        let ethereum_gateway = ethereum_gateway.for_component("eth_tx_manager");
+        let ethereum_gateway_blobs =
+            ethereum_gateway_blobs.map(|eth| eth.for_component("eth_tx_manager"));
         Self {
-            ethereum_gateway: ethereum_gateway.for_component("eth_tx_manager"),
-            ethereum_gateway_blobs: ethereum_gateway_blobs
-                .map(|eth| eth.for_component("eth_tx_manager")),
+            l1_interface: Box::new(RealL1Interface {
+                ethereum_gateway,
+                ethereum_gateway_blobs,
+                wait_confirmations: config.wait_confirmations,
+            }),
             config,
             gas_adjuster,
             pool,
         }
     }
 
-    pub(crate) fn query_client(&self) -> &DynClient<L1> {
-        (*self.ethereum_gateway).as_ref()
-    }
-
-    async fn get_tx_status(
-        &self,
-        tx_hash: H256,
-    ) -> Result<Option<ExecutedTxStatus>, EthSenderError> {
-        self.query_client()
-            .get_tx_status(tx_hash)
-            .await
-            .map_err(Into::into)
+    #[cfg(test)]
+    pub(crate) fn l1_interface(&self) -> &dyn AbstractL1Interface {
+        self.l1_interface.as_ref()
     }
 
     async fn check_all_sending_attempts(
@@ -112,7 +104,7 @@ impl EthTxManager {
             // `status` is a Result here and we don't unwrap it with `?`
             // because if we do and get an `Err`, we won't finish the for loop,
             // which means we might miss the transaction that actually succeeded.
-            match self.get_tx_status(history_item.tx_hash).await {
+            match self.l1_interface.get_tx_status(history_item.tx_hash).await {
                 Ok(Some(s)) => return Some(s),
                 Ok(_) => continue,
                 Err(err) => tracing::warn!(
@@ -306,7 +298,14 @@ impl EthTxManager {
         };
 
         let mut signed_tx = self
-            .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas, blob_gas_price)
+            .l1_interface
+            .sign_tx(
+                tx,
+                base_fee_per_gas,
+                priority_fee_per_gas,
+                blob_gas_price,
+                self.config.max_aggregated_tx_gas.into(),
+            )
             .await;
 
         if let Some(blob_sidecar) = &tx.blob_sidecar {
@@ -353,7 +352,7 @@ impl EthTxManager {
         raw_tx: RawTransactionBytes,
         current_block: L1BlockNumber,
     ) -> Result<(), EthSenderError> {
-        match self.query_client().send_raw_tx(raw_tx).await {
+        match self.l1_interface.send_raw_tx(raw_tx).await {
             Ok(_) => {
                 storage
                     .eth_sender_dal()
@@ -377,87 +376,6 @@ impl EthTxManager {
         }
     }
 
-    async fn get_operator_nonce(
-        &self,
-        block_numbers: L1BlockNumbers,
-    ) -> Result<OperatorNonce, EthSenderError> {
-        let finalized = self
-            .ethereum_gateway
-            .nonce_at(block_numbers.finalized.0.into())
-            .await?
-            .as_u32()
-            .into();
-
-        let latest = self
-            .ethereum_gateway
-            .nonce_at(block_numbers.latest.0.into())
-            .await?
-            .as_u32()
-            .into();
-        Ok(OperatorNonce { finalized, latest })
-    }
-
-    async fn get_blobs_operator_nonce(
-        &self,
-        block_numbers: L1BlockNumbers,
-    ) -> Result<Option<OperatorNonce>, EthSenderError> {
-        match &self.ethereum_gateway_blobs {
-            None => Ok(None),
-            Some(gateway) => {
-                let finalized = gateway
-                    .nonce_at(block_numbers.finalized.0.into())
-                    .await?
-                    .as_u32()
-                    .into();
-
-                let latest = gateway
-                    .nonce_at(block_numbers.latest.0.into())
-                    .await?
-                    .as_u32()
-                    .into();
-                Ok(Some(OperatorNonce { finalized, latest }))
-            }
-        }
-    }
-
-    async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, EthSenderError> {
-        let (finalized, safe) = if let Some(confirmations) = self.config.wait_confirmations {
-            let latest_block_number = self.query_client().block_number().await?.as_u64();
-
-            let finalized = (latest_block_number.saturating_sub(confirmations) as u32).into();
-            (finalized, finalized)
-        } else {
-            let finalized = self
-                .query_client()
-                .block(BlockId::Number(BlockNumber::Finalized))
-                .await?
-                .expect("Finalized block must be present on L1")
-                .number
-                .expect("Finalized block must contain number")
-                .as_u32()
-                .into();
-
-            let safe = self
-                .query_client()
-                .block(BlockId::Number(BlockNumber::Safe))
-                .await?
-                .expect("Safe block must be present on L1")
-                .number
-                .expect("Safe block must contain number")
-                .as_u32()
-                .into();
-            (finalized, safe)
-        };
-
-        let latest = self.query_client().block_number().await?.as_u32().into();
-
-        Ok(L1BlockNumbers {
-            finalized,
-            latest,
-            safe,
-        })
-    }
-
     // Monitors the in-flight transactions, marks mined ones as confirmed,
     // returns the one that has to be resent (if there is one).
     pub(super) async fn monitor_inflight_transactions(
@@ -466,12 +384,15 @@ impl EthTxManager {
         l1_block_numbers: L1BlockNumbers,
     ) -> Result<Option<(EthTx, u32)>, EthSenderError> {
         METRICS.track_block_numbers(&l1_block_numbers);
-        let operator_nonce = self.get_operator_nonce(l1_block_numbers).await?;
-        let blobs_operator_nonce = self.get_blobs_operator_nonce(l1_block_numbers).await?;
-        let blobs_operator_address = self
-            .ethereum_gateway_blobs
-            .as_ref()
-            .map(|s| s.sender_account());
+        let operator_nonce = self
+            .l1_interface
+            .get_operator_nonce(l1_block_numbers)
+            .await?;
+        let blobs_operator_nonce = self
+            .l1_interface
+            .get_blobs_operator_nonce(l1_block_numbers)
+            .await?;
+        let blobs_operator_address = self.l1_interface.get_blobs_operator_account();
 
         if let Some(res) = self
             .monitor_inflight_transactions_inner(storage, l1_block_numbers, operator_nonce, None)
@@ -586,56 +507,6 @@ impl EthTxManager {
         Ok(None)
     }
 
-    async fn sign_tx(
-        &self,
-        tx: &EthTx,
-        base_fee_per_gas: u64,
-        priority_fee_per_gas: u64,
-        blob_gas_price: Option<U256>,
-    ) -> SignedCallResult {
-        // Chose the signing gateway. Use a custom one in case
-        // the operator is in 4844 mode and the operation at hand is Commit.
-        // then the optional gateway is used to send this transaction from a
-        // custom sender account.
-        let signing_gateway = if let Some(blobs_gateway) = self.ethereum_gateway_blobs.as_ref() {
-            if tx.tx_type == AggregatedActionType::Commit {
-                blobs_gateway
-            } else {
-                &self.ethereum_gateway
-            }
-        } else {
-            &self.ethereum_gateway
-        };
-
-        signing_gateway
-            .sign_prepared_tx_for_addr(
-                tx.raw_tx.clone(),
-                tx.contract_address,
-                Options::with(|opt| {
-                    // TODO Calculate gas for every operation SMA-1436
-                    opt.gas = Some(self.config.max_aggregated_tx_gas.into());
-                    opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
-                    opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
-                    opt.nonce = Some(tx.nonce.0.into());
-                    opt.transaction_type = if tx.blob_sidecar.is_some() {
-                        opt.max_fee_per_blob_gas = blob_gas_price;
-                        Some(EIP_4844_TX_TYPE.into())
-                    } else {
-                        Some(EIP_1559_TX_TYPE.into())
-                    };
-                    opt.blob_versioned_hashes = tx.blob_sidecar.as_ref().map(|s| match s {
-                        EthTxBlobSidecar::EthTxBlobSidecarV1(s) => s
-                            .blobs
-                            .iter()
-                            .map(|blob| H256::from_slice(&blob.versioned_hash))
-                            .collect(),
-                    });
-                }),
-            )
-            .await
-            .expect("Failed to sign transaction")
-    }
-
     async fn send_unsent_txs(
         &mut self,
         storage: &mut Connection<'_, Core>,
@@ -645,7 +516,7 @@ impl EthTxManager {
             // Check already sent txs not marked as sent and mark them as sent.
             // The common reason for this behavior is that we sent tx and stop the server
             // before updating the database
-            let tx_status = self.get_tx_status(tx.tx_hash).await;
+            let tx_status = self.l1_interface.get_tx_status(tx.tx_hash).await;
 
             if let Ok(Some(tx_status)) = tx_status {
                 tracing::info!("The tx {:?} has been already sent", tx.tx_hash);
@@ -713,12 +584,9 @@ impl EthTxManager {
             .await
             .unwrap();
         let failure_reason = self
-            .query_client()
+            .l1_interface
             .failure_reason(tx_status.receipt.transaction_hash)
-            .await
-            .expect(
-                "Tx is already failed, it's safe to fail here and apply the status on the next run",
-            );
+            .await;
 
         tracing::error!(
             "Eth tx failed {:?}, {:?}, failure reason {:?}",
@@ -784,6 +652,7 @@ impl EthTxManager {
         let pool = self.pool.clone();
         {
             let l1_block_numbers = self
+                .l1_interface
                 .get_l1_block_numbers()
                 .await
                 .context("get_l1_block_numbers()")?;
@@ -852,7 +721,7 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         previous_block: L1BlockNumber,
     ) -> Result<L1BlockNumber, EthSenderError> {
-        let l1_block_numbers = self.get_l1_block_numbers().await?;
+        let l1_block_numbers = self.l1_interface.get_l1_block_numbers().await?;
 
         self.send_new_eth_txs(storage, l1_block_numbers.latest)
             .await;

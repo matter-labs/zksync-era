@@ -8,6 +8,7 @@ mod publish_criterion;
 mod utils;
 mod zksync_functions;
 
+mod abstract_l1_interface;
 #[cfg(test)]
 mod tests;
 

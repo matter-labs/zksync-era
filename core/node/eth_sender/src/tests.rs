@@ -9,7 +9,7 @@ use zksync_config::{
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockEthereum, EthInterface};
+use zksync_eth_client::clients::MockEthereum;
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
@@ -210,12 +210,11 @@ impl EthSenderTester {
     async fn get_block_numbers(&self) -> L1BlockNumbers {
         let latest = self
             .manager
-            .query_client()
-            .block_number()
+            .l1_interface()
+            .get_l1_block_numbers()
             .await
             .unwrap()
-            .as_u32()
-            .into();
+            .latest;
         let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
         L1BlockNumbers {
             finalized,
@@ -432,7 +431,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
 
     let sent_tx = tester
         .manager
-        .query_client()
+        .l1_interface()
         .get_tx(hash)
         .await
         .unwrap()
@@ -481,7 +480,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
 
     let resent_tx = tester
         .manager
-        .query_client()
+        .l1_interface()
         .get_tx(resent_hash)
         .await
         .unwrap()
