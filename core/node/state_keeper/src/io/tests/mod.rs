@@ -1,16 +1,18 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
     commitment::L1BatchCommitmentMode,
     fee::TransactionExecutionMetrics,
-    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    fee_model::{BatchFeeInput, FeeParams, PubdataIndependentBatchFeeModelInput},
+    tokens::TokenPriceData,
     tx::ExecutionMetrics,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, VmEvent, H256, U256,
@@ -39,7 +41,7 @@ const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
 #[tokio::test]
 async fn test_filter_initialization(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(commitment_mode);
+    let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
     // Genesis is needed for proper mempool initialization.
     tester.genesis(&connection_pool).await;
     let (mempool, _) = tester.create_test_mempool_io(connection_pool).await;
@@ -53,7 +55,7 @@ async fn test_filter_initialization(commitment_mode: L1BatchCommitmentMode) {
 #[tokio::test]
 async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let mut tester = Tester::new(commitment_mode);
+    let mut tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
     tester.genesis(&connection_pool).await;
 
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
@@ -99,7 +101,7 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
 #[tokio::test]
 async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(commitment_mode);
+    let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
     tester.genesis(&connection_pool).await;
 
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
@@ -182,7 +184,7 @@ async fn test_timestamps_are_distinct(
 #[tokio::test]
 async fn l1_batch_timestamp_basics(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(commitment_mode);
+    let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp, false, tester).await;
 }
@@ -191,7 +193,7 @@ async fn l1_batch_timestamp_basics(commitment_mode: L1BatchCommitmentMode) {
 #[tokio::test]
 async fn l1_batch_timestamp_with_clock_skew(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(commitment_mode);
+    let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp + 2, false, tester).await;
 }
@@ -200,7 +202,7 @@ async fn l1_batch_timestamp_with_clock_skew(commitment_mode: L1BatchCommitmentMo
 #[tokio::test]
 async fn l1_batch_timestamp_respects_prev_l2_block(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(commitment_mode);
+    let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp, true, tester).await;
 }
@@ -211,7 +213,7 @@ async fn l1_batch_timestamp_respects_prev_l2_block_with_clock_skew(
     commitment_mode: L1BatchCommitmentMode,
 ) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(commitment_mode);
+    let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp + 2, true, tester).await;
 }
@@ -402,7 +404,7 @@ async fn processing_events_when_sealing_l2_block() {
 #[tokio::test]
 async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
-    let tester = Tester::new(commitment_mode);
+    let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
     let mut storage = connection_pool.connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
@@ -535,7 +537,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
 #[tokio::test]
 async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(commitment_mode);
+    let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
 
     // Genesis is needed for proper mempool initialization.
     tester.genesis(&connection_pool).await;
@@ -550,4 +552,32 @@ async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1Batc
         .unwrap()
         .expect("no new L2 block params");
     assert!(l2_block_params.timestamp > current_timestamp);
+}
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[tokio::test]
+async fn no_name_test(commitment_mode: L1BatchCommitmentMode) {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
+
+    let mut connection = connection_pool.connection().await.unwrap();
+    let mut token_price_dal = connection.token_price_dal();
+    let token_price_data = TokenPriceData {
+        address: Address::default(),
+        rate: BigDecimal::from_str("999999999999999999999999999999").unwrap(),
+    };
+    token_price_dal
+        .insert_ratio(token_price_data)
+        .await
+        .unwrap();
+
+    let main_node_fee_input_provider = tester.create_batch_fee_input_provider().await;
+    let (l1_gas_price, l1_pubdata_price) = match main_node_fee_input_provider.get_fee_model_params()
+    {
+        FeeParams::V1(f) => (f.l1_gas_price, u64::MAX),
+        FeeParams::V2(f) => (f.l1_gas_price, f.l1_pubdata_price),
+    };
+
+    assert_eq!(l1_gas_price, u64::MAX);
+    assert_eq!(l1_pubdata_price, u64::MAX);
 }

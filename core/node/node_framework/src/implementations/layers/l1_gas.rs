@@ -10,8 +10,10 @@ use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource, fee_input::FeeInputResource,
+        eth_interface::EthInterfaceResource,
+        fee_input::FeeInputResource,
         l1_tx_params::L1TxParamsResource,
+        pools::{PoolResource, ReplicaPool},
     },
     service::{ServiceContext, StopReceiver},
     task::{Task, TaskId},
@@ -50,12 +52,18 @@ impl WiringLayer for SequencerL1GasLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let client = context.get_resource::<EthInterfaceResource>().await?.0;
+        let connection_pool = context
+            .get_resource::<PoolResource<ReplicaPool>>()
+            .await?
+            .get()
+            .await?;
+
         let adjuster = GasAdjuster::new(
             client,
             self.gas_adjuster_config,
             self.pubdata_sending_mode,
             self.genesis_config.l1_batch_commit_data_generator_mode,
-            None, // TODO: Add connection pool
+            Some(connection_pool),
             None, // TODO: Add base token config
         )
         .await

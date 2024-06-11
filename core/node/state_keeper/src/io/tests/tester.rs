@@ -5,7 +5,7 @@ use std::{slice, sync::Arc, time::Duration};
 use multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
-    GasAdjusterConfig,
+    BaseTokenConfig, GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -34,15 +34,20 @@ pub struct Tester {
     base_system_contracts: BaseSystemContracts,
     current_timestamp: u64,
     commitment_mode: L1BatchCommitmentMode,
+    connection_pool: Option<ConnectionPool<Core>>,
 }
 
 impl Tester {
-    pub(super) fn new(commitment_mode: L1BatchCommitmentMode) -> Self {
+    pub(super) fn new(
+        commitment_mode: L1BatchCommitmentMode,
+        connection_pool: Option<ConnectionPool<Core>>,
+    ) -> Self {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         Self {
             base_system_contracts,
             current_timestamp: 0,
             commitment_mode,
+            connection_pool,
         }
     }
 
@@ -66,13 +71,14 @@ impl Tester {
             max_blob_base_fee: None,
         };
 
+        let base_token_config = Some(BaseTokenConfig::default());
         GasAdjuster::new(
             Box::new(eth_client.into_client()),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
             self.commitment_mode,
-            None,
-            None,
+            self.connection_pool.clone(),
+            base_token_config,
         )
         .await
         .unwrap()
