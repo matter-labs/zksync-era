@@ -1,8 +1,8 @@
 # System Contracts
 
-Many EVM instructions require special handling by the [System Contracts][docs-system-contracts].
-Among them are: `ORIGIN`, `CALLVALUE`, `BALANCE`, `CREATE`, `SHA3`, and others.
-To see the full detailed list of instructions requiring special handling, see
+Many EVM instructions require special handling by the [System Contracts][docs-system-contracts]. Among them are:
+`ORIGIN`, `CALLVALUE`, `BALANCE`, `CREATE`, `SHA3`, and others. To see the full detailed list of instructions requiring
+special handling, see
 [the EVM instructions reference](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/instructions/evm).
 
 ## Types of System Contracts
@@ -22,11 +22,11 @@ Such storage contracts are accessed with static calls in order to retrieve value
 environmental entities: `CHAINID`, `DIFFICULTY`, `BLOCKHASH`, etc.
 
 One good example of such contract is
-[SystemContext](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/SystemContext.sol)
-that provides the majority of the environmental data.
+[SystemContext](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/SystemContext.sol) that provides
+the majority of the environmental data.
 
-Since EVM is not using external calls for these instructions, we must use [the auxiliary heap](#auxiliary-heap)
-for their calldata.
+Since EVM is not using external calls for these instructions, we must use [the auxiliary heap](#auxiliary-heap) for
+their calldata.
 
 Steps to handle such instructions:
 
@@ -53,8 +53,8 @@ For reference, see
 
 ### Contract Deployer
 
-See [handling CREATE][docs-create] and [dependency code substitution instructions][docs-data]
-on zkSync Era documentation.
+See [handling CREATE][docs-create] and [dependency code substitution instructions][docs-data] on zkSync Era
+documentation.
 
 For reference, see LLVM IR codegen for
 [the deployer call](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/context/function/runtime/deployer_call.rs)
@@ -106,9 +106,9 @@ For reference, see
 
 ## Auxiliary Heap
 
-Both [zksolc][docs-zksolc] and [zkvyper][docs-zkvyper] compilers for EraVM operate on [the IR level][docs-ir],
-so they cannot control the heap memory allocator which remains a responsibility of
-[the high-level source code compilers][docs-high-level-compilers] emitting the IRs.
+Both [zksolc][docs-zksolc] and [zkvyper][docs-zkvyper] compilers for EraVM operate on [the IR level][docs-ir], so they
+cannot control the heap memory allocator which remains a responsibility of [the high-level source code
+compilers][docs-high-level-compilers] emitting the IRs.
 
 However, the are several cases where EraVM needs to allocate memory on the heap and EVM does not. The auxiliary heap is
 used for these cases:
@@ -117,10 +117,13 @@ used for these cases:
 2. Allocating calldata and return data for calling the [System Contracts][docs-system-contracts].
 
 [docs-system-contracts]: https://docs.zksync.io/build/developer-reference/era-contracts/system-contracts
-[docs-immutable]: https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#setimmutable-loadimmutable
+[docs-immutable]:
+  https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#setimmutable-loadimmutable
 [docs-zksolc]: https://docs.zksync.io/zk-stack/components/compiler/toolchain/solidity
 [docs-zkvyper]: https://docs.zksync.io/zk-stack/components/compiler/toolchain/vyper
 [docs-ir]: https://docs.zksync.io/zk-stack/components/compiler/toolchain#ir-compilers
-[docs-high-level-compilers]: https://docs.zksync.io/zk-stack/components/compiler/toolchain#high-level-source-code-compilers
+[docs-high-level-compilers]:
+  https://docs.zksync.io/zk-stack/components/compiler/toolchain#high-level-source-code-compilers
 [docs-create]: https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#create-create2
-[docs-data]: https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#datasize-dataoffset-datacopy
+[docs-data]:
+  https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#datasize-dataoffset-datacopy
