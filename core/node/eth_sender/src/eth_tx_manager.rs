@@ -1,52 +1,23 @@
-use std::{
-    cmp::{max, min},
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
-    encode_blob_tx_with_sidecar, BoundEthInterface, ClientError, EnrichedClientError,
-    ExecutedTxStatus, RawTransactionBytes,
+    encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus, RawTransactionBytes,
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::{
-    eth_sender::{EthTx, TxHistory},
-    Address, L1BlockNumber, Nonce, H256, U256,
-};
+use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{
-    abstract_l1_interface::{AbstractL1Interface, RealL1Interface},
+    abstract_l1_interface::{AbstractL1Interface, L1BlockNumbers, OperatorNonce, RealL1Interface},
+    eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
     metrics::TransactionType,
 };
-
-#[derive(Debug)]
-struct EthFees {
-    base_fee_per_gas: u64,
-    priority_fee_per_gas: u64,
-    blob_base_fee_per_gas: Option<u64>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct OperatorNonce {
-    // Nonce on finalized block
-    pub finalized: Nonce,
-    // Nonce on latest block
-    pub latest: Nonce,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct L1BlockNumbers {
-    pub safe: L1BlockNumber,
-    pub finalized: L1BlockNumber,
-    pub latest: L1BlockNumber,
-}
 
 /// The component is responsible for managing sending eth_txs attempts:
 /// Based on eth_tx queue the component generates new attempt with the minimum possible fee,
@@ -57,7 +28,7 @@ pub(crate) struct L1BlockNumbers {
 pub struct EthTxManager {
     l1_interface: Box<dyn AbstractL1Interface>,
     config: SenderConfig,
-    gas_adjuster: Arc<dyn L1TxParamsProvider>,
+    fees_oracle: Box<dyn EthFeesOracle>,
     pool: ConnectionPool<Core>,
 }
 
@@ -72,6 +43,10 @@ impl EthTxManager {
         let ethereum_gateway = ethereum_gateway.for_component("eth_tx_manager");
         let ethereum_gateway_blobs =
             ethereum_gateway_blobs.map(|eth| eth.for_component("eth_tx_manager"));
+        let fees_oracle = GasAdjusterFeesOracle {
+            gas_adjuster,
+            max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
+        };
         Self {
             l1_interface: Box::new(RealL1Interface {
                 ethereum_gateway,
@@ -79,7 +54,7 @@ impl EthTxManager {
                 wait_confirmations: config.wait_confirmations,
             }),
             config,
-            gas_adjuster,
+            fees_oracle: Box::new(fees_oracle),
             pool,
         }
     }
@@ -117,117 +92,6 @@ impl EthTxManager {
         None
     }
 
-    fn calculate_fees_with_blob_sidecar(
-        &self,
-        previous_sent_tx: &Option<TxHistory>,
-    ) -> Result<EthFees, EthSenderError> {
-        let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
-        let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
-        let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
-
-        if let Some(previous_sent_tx) = previous_sent_tx {
-            // for blob transactions on re-sending need to double all gas prices
-            return Ok(EthFees {
-                base_fee_per_gas: max(previous_sent_tx.base_fee_per_gas * 2, base_fee_per_gas),
-                priority_fee_per_gas: max(
-                    previous_sent_tx.priority_fee_per_gas * 2,
-                    priority_fee_per_gas,
-                ),
-                blob_base_fee_per_gas: max(
-                    previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
-                    blob_base_fee_per_gas,
-                ),
-            });
-        }
-        Ok(EthFees {
-            base_fee_per_gas,
-            priority_fee_per_gas,
-            blob_base_fee_per_gas,
-        })
-    }
-
-    fn calculate_fees_no_blob_sidecar(
-        &self,
-        previous_sent_tx: &Option<TxHistory>,
-        time_in_mempool: u32,
-    ) -> Result<EthFees, EthSenderError> {
-        let base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
-        if let Some(previous_sent_tx) = previous_sent_tx {
-            self.verify_base_fee_not_too_low_on_resend(
-                previous_sent_tx.id,
-                previous_sent_tx.base_fee_per_gas,
-                base_fee_per_gas,
-            )?;
-        }
-
-        let mut priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
-
-        if let Some(previous_sent_tx) = previous_sent_tx {
-            // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
-            priority_fee_per_gas = max(
-                priority_fee_per_gas,
-                (previous_sent_tx.priority_fee_per_gas * 6) / 5 + 1,
-            );
-        }
-
-        // Extra check to prevent sending transaction will extremely high priority fee.
-        if priority_fee_per_gas > self.config.max_acceptable_priority_fee_in_gwei {
-            panic!(
-                "Extremely high value of priority_fee_per_gas is suggested: {}, while max acceptable is {}",
-                priority_fee_per_gas,
-                self.config.max_acceptable_priority_fee_in_gwei
-            );
-        }
-
-        Ok(EthFees {
-            base_fee_per_gas,
-            blob_base_fee_per_gas: None,
-            priority_fee_per_gas,
-        })
-    }
-
-    async fn calculate_fees(
-        &self,
-        previous_sent_tx: &Option<TxHistory>,
-        has_blob_sidecar: bool,
-        time_in_mempool: u32,
-    ) -> Result<EthFees, EthSenderError> {
-        match has_blob_sidecar {
-            true => self.calculate_fees_with_blob_sidecar(previous_sent_tx),
-            false => self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool),
-        }
-    }
-
-    fn verify_base_fee_not_too_low_on_resend(
-        &self,
-        tx_id: u32,
-        previous_base_fee: u64,
-        base_fee_to_use: u64,
-    ) -> Result<(), EthSenderError> {
-        let next_block_minimal_base_fee = self.gas_adjuster.get_next_block_minimal_base_fee();
-        if base_fee_to_use <= min(next_block_minimal_base_fee, previous_base_fee) {
-            // If the base fee is lower than the previous used one
-            // or is lower than the minimal possible value for the next block, sending is skipped.
-            tracing::info!(
-                "Base fee too low for resend detected for tx {}, \
-                 suggested base_fee_per_gas {:?}, \
-                 previous_base_fee {:?}, \
-                 next_block_minimal_base_fee {:?}",
-                tx_id,
-                base_fee_to_use,
-                previous_base_fee,
-                next_block_minimal_base_fee
-            );
-            let err = ClientError::Custom("base_fee_per_gas is too low".into());
-            let err = EnrichedClientError::new(err, "increase_priority_fee")
-                .with_arg("base_fee_to_use", &base_fee_to_use)
-                .with_arg("previous_base_fee", &previous_base_fee)
-                .with_arg("next_block_minimal_base_fee", &next_block_minimal_base_fee);
-            return Err(err.into());
-        }
-        Ok(())
-    }
-
     pub(crate) async fn send_eth_tx(
         &mut self,
         storage: &mut Connection<'_, Core>,
@@ -246,9 +110,11 @@ impl EthTxManager {
             base_fee_per_gas,
             priority_fee_per_gas,
             blob_base_fee_per_gas,
-        } = self
-            .calculate_fees(&previous_sent_tx, has_blob_sidecar, time_in_mempool)
-            .await?;
+        } = self.fees_oracle.calculate_fees(
+            &previous_sent_tx,
+            has_blob_sidecar,
+            time_in_mempool,
+        )?;
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             METRICS.transaction_resent.inc();

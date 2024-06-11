@@ -28,7 +28,7 @@ use zksync_types::{
 };
 
 use crate::{
-    aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
+    abstract_l1_interface::L1BlockNumbers, aggregated_operations::AggregatedOperation, Aggregator,
     EthSenderError, EthTxAggregator, EthTxManager,
 };
 

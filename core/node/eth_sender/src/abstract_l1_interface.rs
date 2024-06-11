@@ -12,13 +12,25 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar},
     web3::{BlockId, BlockNumber},
-    Address, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, H256, U256,
+    Address, L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, H256, U256,
 };
 
-use crate::{
-    eth_tx_manager::{L1BlockNumbers, OperatorNonce},
-    EthSenderError,
-};
+use crate::EthSenderError;
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct OperatorNonce {
+    // Nonce on finalized block
+    pub finalized: Nonce,
+    // Nonce on latest block
+    pub latest: Nonce,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct L1BlockNumbers {
+    pub safe: L1BlockNumber,
+    pub finalized: L1BlockNumber,
+    pub latest: L1BlockNumber,
+}
 
 #[async_trait]
 pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
