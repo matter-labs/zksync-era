@@ -224,7 +224,7 @@ impl MainNodeBuilder {
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
-            ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
+            ApiContracts::load_from_disk_blocking(), // TODO (BFT-138): Allow to dynamically reload API contracts
         ));
         Ok(self)
     }

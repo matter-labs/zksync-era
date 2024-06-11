@@ -488,10 +488,9 @@ async fn run_api(
         .build(
             fee_params_fetcher,
             Arc::new(vm_concurrency_limiter),
-            ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
+            ApiContracts::load_from_disk().await?, // TODO (BFT-138): Allow to dynamically reload API contracts
             storage_caches,
-        )
-        .await;
+        );
 
     let mempool_cache = MempoolCache::new(config.optional.mempool_cache_size);
     let mempool_cache_update_task = mempool_cache.update_task(
