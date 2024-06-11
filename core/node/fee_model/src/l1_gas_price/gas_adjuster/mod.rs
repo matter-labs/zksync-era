@@ -80,10 +80,11 @@ impl GasAdjuster {
         let (_, last_block_blob_base_fee) =
             Self::get_base_fees_history(eth_client.as_ref(), current_block..=current_block).await?;
 
-        let base_token_elements = match connection_pool.as_ref() {
-            Some(connection_pool) => {
+        let base_token_elements = match base_token_config.as_ref() {
+            Some(config) => {
+                let connection_pool = connection_pool.unwrap();
                 let mut connection = connection_pool.connection().await?;
-                let address = base_token_config.as_ref().unwrap().base_token_address;
+                let address = config.base_token_address;
                 let latest = connection.token_price_dal().fetch_ratio(address).await?;
                 let latest_price = Mutex::new(latest.0);
                 let last_updated = Mutex::new(latest.1);
