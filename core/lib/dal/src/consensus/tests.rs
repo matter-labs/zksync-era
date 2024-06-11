@@ -8,6 +8,9 @@ use zksync_types::{web3::Bytes, Execute, ExecuteTransactionCommon, Transaction};
 
 use crate::tests::{mock_l1_execute, mock_l2_transaction, mock_protocol_upgrade_transaction};
 
+// TODO(gprusak): add test for payload encoding and transaction encoding in different versions.
+// use test_account transactions for that.
+
 /// Tests struct <-> proto struct conversions.
 #[test]
 fn test_encoding() {

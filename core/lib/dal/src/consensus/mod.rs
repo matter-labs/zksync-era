@@ -8,6 +8,7 @@ use zksync_consensus_roles::validator;
 use zksync_protobuf::{required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi,
+    ethabi,
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
@@ -36,32 +37,32 @@ pub struct Payload {
     pub last_in_batch: bool,
 }
 
-impl Payload {
+impl ProtoFmt for Payload {
     type Proto = proto::Payload;
 
-    fn read(r: &Self::Proto, version: Option<validator::PayloadVersion>) -> anyhow::Result<Self> {
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        let protocol_version = required(&r.protocol_version)
+            .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
+            .context("protocol_version")?;
         let mut transactions = vec![];
         
-        match version {
-            None | Some(validator::PayloadVersion(0)) => {
-                anyhow::ensure!(r.transactions_v1.empty(),"transactions_v1 should be empty in payload_version 0");
+        match protocol_version {
+            v if v >= ProtocolVersionId::Version25 => {
+                anyhow::ensure!(r.transactions.is_empty(),"transactions should be empty in protocol_version {v}");
+                for (i, tx) in r.transactions_v25.iter().enumerate() {
+                    transactions.push(TransactionV25::read(tx).with_context(|| format!("transactions[{i}]"))?);
+                }
+            }
+            v => {
+                anyhow::ensure!(r.transactions_v25.is_empty(),"transactions_v25 should be empty in protocol_version {v}");
                 for (i, tx) in r.transactions.iter().enumerate() {
                     transactions.push(tx.read().with_context(|| format!("transactions[{i}]"))?)
                 }
             }
-            Some(validator::PayloadVersion(1)) =>
-                anyhow::ensure!(r.transactions_v1.empty(),"transactions should be empty in payload_version 1");
-                for (i, tx) in r.transactions_v1.iter().enumerate() {
-                    transactions.push(TransactionV1::read(tx).with_context(|| format!("transactions[{i}]"))?);
-                }
-            }
-            _ => anyhow::bail!("unsupported payload_version {version}"),
         }
 
         Ok(Self {
-            protocol_version: required(&r.protocol_version)
-                .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
-                .context("protocol_version")?,
+            protocol_version, 
             hash: required(&r.hash)
                 .and_then(|h| parse_h256(h))
                 .context("hash")?,
@@ -82,8 +83,8 @@ impl Payload {
         })
     }
 
-    fn build(&self, version: Option<validator::PayloadVersion>) -> anyhow::Result<Self::Proto> {
-        Self::Proto {
+    fn build(&self) -> Self::Proto {
+        let mut x = Self::Proto {
             protocol_version: Some((self.protocol_version as u16).into()),
             hash: Some(self.hash.as_bytes().into()),
             l1_batch_number: Some(self.l1_batch_number.0),
@@ -94,17 +95,19 @@ impl Payload {
             virtual_blocks: Some(self.virtual_blocks),
             operator_address: Some(self.operator_address.as_bytes().into()),
             // Transactions are stored in execution order, therefore order is deterministic.
-            transactions: match version {
-                None | Some(validator::PayloadVersion(0)) => {
-                    self.transactions.iter().map(proto::Transaction::build).collect()
-                }
-                Some(validator::PayloadVersion(1)) => {
-                    self.transactions.iter().map(TransactionV1::build).collect::<Result<_,_>>().context("transactions")?
-                }
-                _ => anyhow::bail!("unsupported payload_version {version}"),
-            },
+            transactions: vec![],
+            transactions_v25: vec![],
             last_in_batch: Some(self.last_in_batch),
+        };
+        match self.protocol_version {
+            v if v >= ProtocolVersionId::Version25 => {
+                x.transactions_v25 = self.transactions.iter().map(|t|TransactionV25::build(t).unwrap()).collect();
+            }
+            _ => {
+                x.transactions = self.transactions.iter().map(proto::Transaction::build).collect();
+            }
         }
+        x
     }
 }
 
@@ -118,36 +121,40 @@ impl Payload {
     }
 }
 
-struct TransactionV1;
+struct TransactionV25;
 
-impl TransactionV1 {
-    fn read(r: &proto::TransactionV1) -> anyhow::Result<Transaction> {
-        let tx = match r.t {
-            proto::transaction_v2::L1(l1) => abi::Transaction::L1 {
+impl TransactionV25 {
+    fn read(r: &proto::TransactionV25) -> anyhow::Result<Transaction> {
+        use proto::transaction_v25::T;
+        let tx = match required(&r.t)? {
+            T::L1(l1) => abi::Transaction::L1 {
                 tx: required(&l1.rlp).and_then(|x|{
-                    let tokens = ethabi::decode(abi::L2CanonicalTransaction::schema(),x)
-                    anyhow::ensure!(tokens.len()==1);
-                    let tx = abi::L2CanonicalTransaction::decode(tokens.into_iter().next())?;
+                    let tokens = ethabi::decode(&[abi::L2CanonicalTransaction::schema()],x).context("ethabi::decode()")?;
+                    // Unwrap is safe because `ethabi::decode` does the verification.
+                    let tx = abi::L2CanonicalTransaction::decode(tokens.into_iter().next().unwrap()).context("L2CanonicalTransaction::decode()")?;
                     Ok(tx)
-                }).context("rlp")?, 
-                factory_deps: r.factory_deps.clone(),
+                }).context("rlp")?.into(), 
+                factory_deps: l1.factory_deps.clone(),
                 eth_block: 0,
                 received_timestamp_ms: 0,
             },
-            proto::transaction_v2::L2(l2) => abi::Transaction::L2(required(&l2.rlp).context("rlp").into()),
+            T::L2(l2) => abi::Transaction::L2(required(&l2.rlp).context("rlp")?.clone()),
         };
         Transaction::try_from(tx)
     }
 
-    fn build(tx: &Transaction) -> anyhow::Result<proto::TransactionV1> {
+    fn build(tx: &Transaction) -> anyhow::Result<proto::TransactionV25> {
         let tx = abi::Transaction::try_from(tx.clone())?;
-        Ok(match tx {
-            abi::Transaction::L1 { tx, factory_deps, .. } => proto::transaction_v2::L1(proto::L1Transaction {
-                rlp: Some(ethabi::encode(tx.encode())),
-                factory_deps,
-            }),
-            abi::Transaction::L2(tx) => proto::transaction_v2::L2(proto::L2Transaction {
-                rlp: Some(tx),
+        use proto::transaction_v25::T;
+        Ok(proto::TransactionV25 {
+            t: Some(match tx {
+                abi::Transaction::L1 { tx, factory_deps, .. } => T::L1(proto::L1Transaction {
+                    rlp: Some(ethabi::encode(&[tx.encode()])),
+                    factory_deps,
+                }),
+                abi::Transaction::L2(tx) => T::L2(proto::L2Transaction {
+                    rlp: Some(tx),
+                }),
             }),
         })
     }
