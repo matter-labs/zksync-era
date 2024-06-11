@@ -15,6 +15,9 @@ circuit changes), first please make sure that you have a CRS file (used for SNAR
 CRS_FILE=yyy ZKSYNC_HOME=xxx cargo run --release --bin key_generator generate-vk
 ```
 
+You can also generate multiple keys in parallel (to speed things up), with `--jobs` flag, but you need at least 30 GB of
+ram for each job.
+
 ### CRS FILE
 
 The SNARK VK generation requires the `CRS_FILE` environment variable to be present and point to the correct file. The

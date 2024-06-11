@@ -4,6 +4,10 @@ pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &st
     format!("Chain with name {chain} doesnt exist, please choose one of: {available_chains}")
 }
 
+// Subcommands help
+pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related commands";
+pub(super) const MSG_SUBCOMMAND_INTEGRATION_TESTS_ABOUT: &str = "Run integration tests";
+
 // Database related messages
 pub(super) const MSG_NO_DATABASES_SELECTED: &str = "No databases selected";
 pub(super) fn msg_database_info(gerund_verb: &str) -> String {
@@ -57,3 +61,10 @@ pub(super) fn msg_database_new_migration_loading(dal: &str) -> String {
     format!("Creating new database migration for dal {}...", dal)
 }
 pub(super) const MSG_DATABASE_NEW_MIGRATION_SUCCESS: &str = "Migration created successfully";
+
+// Integration tests related messages
+pub(super) const MSG_INTEGRATION_TESTS_RUN_INFO: &str = "Running integration tests";
+pub(super) const MSG_INTEGRATION_TESTS_RUN_SUCCESS: &str = "Integration tests ran successfully";
+pub(super) const MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES: &str =
+    "Building repository dependencies...";
+pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test contracts...";
