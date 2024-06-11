@@ -9036,6 +9036,7 @@ dependencies = [
  "http",
  "prost 0.12.1",
  "rand 0.8.5",
+ "reqwest",
  "serde_json",
  "tempfile",
  "tokio",
