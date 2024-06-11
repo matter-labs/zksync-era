@@ -372,31 +372,33 @@ impl EIP712TypedStructure for TransactionRequest {
 
 impl TransactionRequest {
     pub fn get_custom_signature(&self) -> Option<Vec<u8>> {
-        self.eip712_meta
-            .as_ref()
-            .and_then(|meta| meta.custom_signature.as_ref())
-            .cloned()
+        self.eip712_meta.as_ref()?.custom_signature.clone()
     }
 
     pub fn get_paymaster(&self) -> Option<Address> {
-        self.eip712_meta
-            .clone()
-            .and_then(|meta| meta.paymaster_params)
-            .map(|params| params.paymaster)
+        Some(
+            self.eip712_meta
+                .as_ref()?
+                .paymaster_params
+                .as_ref()?
+                .paymaster,
+        )
     }
 
     pub fn get_paymaster_input(&self) -> Option<Vec<u8>> {
-        self.eip712_meta
-            .clone()
-            .and_then(|meta| meta.paymaster_params)
-            .map(|params| params.paymaster_input)
+        Some(
+            self.eip712_meta
+                .as_ref()?
+                .paymaster_params
+                .as_ref()?
+                .paymaster_input
+                .clone(),
+        )
     }
 
     pub fn get_factory_deps(&self) -> Vec<Vec<u8>> {
-        self.eip712_meta
-            .clone()
-            .and_then(|meta| meta.factory_deps)
-            .unwrap_or_default()
+        let f = || Some(self.eip712_meta.as_ref()?.factory_deps.as_ref()?.clone());
+        f().unwrap_or_default()
     }
 
     // returns packed eth signature if it is present
