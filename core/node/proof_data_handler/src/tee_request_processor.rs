@@ -72,7 +72,7 @@ impl TeeRequestProcessor {
     pub(crate) async fn submit_proof(
         &self,
         Path(l1_batch_number): Path<u32>,
-        Json(payload): Json<SubmitTeeProofRequest>,
+        Json(proof): Json<SubmitTeeProofRequest>,
     ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let mut connection = self
@@ -82,33 +82,20 @@ impl TeeRequestProcessor {
             .map_err(RequestProcessorError::Dal)?;
         let mut dal = connection.tee_proof_generation_dal();
 
-        match payload {
-            SubmitTeeProofRequest::Proof(proof) => {
-                tracing::info!(
-                    "Received proof {:?} for block number: {:?}",
-                    proof,
-                    l1_batch_number
-                );
-                dal.save_proof_artifacts_metadata(
-                    l1_batch_number,
-                    &proof.signature,
-                    &proof.pubkey,
-                    &proof.proof,
-                    TeeType::Sgx,
-                )
-                .await
-                .map_err(RequestProcessorError::Dal)?;
-            }
-            SubmitTeeProofRequest::SkippedProofGeneration => {
-                tracing::info!(
-                    "Received request to skip proof generation for block number: {:?}",
-                    l1_batch_number
-                );
-                dal.mark_proof_generation_job_as_skipped(l1_batch_number)
-                    .await
-                    .map_err(RequestProcessorError::Dal)?;
-            }
-        }
+        tracing::info!(
+            "Received proof {:?} for block number: {:?}",
+            proof,
+            l1_batch_number
+        );
+        dal.save_proof_artifacts_metadata(
+            l1_batch_number,
+            &proof.0.signature,
+            &proof.0.pubkey,
+            &proof.0.proof,
+            TeeType::Sgx,
+        )
+        .await
+        .map_err(RequestProcessorError::Dal)?;
 
         Ok(Json(SubmitProofResponse::Success))
     }

@@ -154,42 +154,6 @@ impl TeeProofGenerationDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn mark_proof_generation_job_as_skipped(
-        &mut self,
-        block_number: L1BatchNumber,
-    ) -> DalResult<()> {
-        let status = TeeProofGenerationJobStatus::Skipped.to_string();
-        let l1_batch_number = i64::from(block_number.0);
-        let query = sqlx::query!(
-            r#"
-            UPDATE tee_proof_generation_details
-            SET
-                status = $1,
-                updated_at = NOW()
-            WHERE
-                l1_batch_number = $2
-            "#,
-            status,
-            l1_batch_number
-        );
-        let instrumentation = Instrumented::new("mark_proof_generation_job_as_skipped")
-            .with_arg("status", &status)
-            .with_arg("l1_batch_number", &l1_batch_number);
-        let result = instrumentation
-            .clone()
-            .with(query)
-            .execute(self.storage)
-            .await?;
-        if result.rows_affected() == 0 {
-            let err = instrumentation.constraint_error(anyhow::anyhow!(
-                "Cannot mark TEE proof as skipped for a batch number that does not exist"
-            ));
-            return Err(err);
-        }
-
-        Ok(())
-    }
-
     pub async fn get_oldest_unpicked_batch(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
@@ -227,7 +191,7 @@ impl TeeProofGenerationDal<'_, '_> {
             pubkey,
             attestation
         );
-        let instrumentation = Instrumented::new("mark_proof_generation_job_as_skipped")
+        let instrumentation = Instrumented::new("save_attestation")
             .with_arg("pubkey", &pubkey)
             .with_arg("attestation", &attestation);
         let result = instrumentation
@@ -237,7 +201,7 @@ impl TeeProofGenerationDal<'_, '_> {
             .await?;
         if result.rows_affected() == 0 {
             let err = instrumentation.constraint_error(anyhow::anyhow!(
-                "Unable to insert TEE attestation for a non-existent batch number"
+                "Unable to insert TEE attestation: given pubkey already has an attestation assigned"
             ));
             return Err(err);
         }

@@ -48,15 +48,15 @@ pub struct ProofGenerationDataRequest {}
 
 pub type TeeProofGenerationDataRequest = ProofGenerationDataRequest;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub enum GenericSubmitProofRequest<T> {
-    Proof(Box<T>),
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SubmitProofRequest {
+    Proof(Box<L1BatchProofForL1>),
     // The proof generation was skipped due to sampling
     SkippedProofGeneration,
 }
 
-pub type SubmitProofRequest = GenericSubmitProofRequest<L1BatchProofForL1>;
-pub type SubmitTeeProofRequest = GenericSubmitProofRequest<L1BatchTeeProofForL1>;
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct SubmitTeeProofRequest(pub Box<L1BatchTeeProofForL1>);
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegisterTeeAttestationRequest {

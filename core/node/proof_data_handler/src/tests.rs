@@ -131,11 +131,9 @@ async fn submit_tee_proof() {
     // send a request to the /tee/submit_proofs endpoint, using a mocked TEE proof
 
     let tee_proof_request_str = r#"{
-        "Proof": {
-            "signature": [ 0, 1, 2, 3, 4 ],
-            "pubkey": [ 5, 6, 7, 8, 9 ],
-            "proof": [ 10, 11, 12, 13, 14 ]
-        }
+        "signature": [ 0, 1, 2, 3, 4 ],
+        "pubkey": [ 5, 6, 7, 8, 9 ],
+        "proof": [ 10, 11, 12, 13, 14 ]
     }"#;
     let tee_proof_request =
         serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_request_str).unwrap();
@@ -158,17 +156,13 @@ async fn submit_tee_proof() {
 
     // save the attestation for the pubkey
 
-    if let SubmitTeeProofRequest::Proof(ref proof) = tee_proof_request {
-        let attestation = [15, 16, 17, 18, 19];
-        let mut proof_dal = db_conn_pool.connection().await.unwrap();
-        proof_dal
-            .tee_proof_generation_dal()
-            .save_attestation(&proof.pubkey, &attestation)
-            .await
-            .expect("Failed to save attestation");
-    } else {
-        panic!("Expected Proof, got {:?}", tee_proof_request);
-    }
+    let attestation = [15, 16, 17, 18, 19];
+    let mut proof_dal = db_conn_pool.connection().await.unwrap();
+    proof_dal
+        .tee_proof_generation_dal()
+        .save_attestation(&tee_proof_request.0.pubkey, &attestation)
+        .await
+        .expect("Failed to save attestation");
 
     // resend the same request; this time, it should be successful.
 
