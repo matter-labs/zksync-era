@@ -159,7 +159,7 @@ impl L2Tx {
         fee: Fee,
         initiator_address: Address,
         value: U256,
-        factory_deps: Option<Vec<Vec<u8>>>,
+        factory_deps: Vec<Vec<u8>>,
         paymaster_params: PaymasterParams,
     ) -> Self {
         Self {
@@ -192,7 +192,7 @@ impl L2Tx {
         value: U256,
         chain_id: L2ChainId,
         private_key: &K256PrivateKey,
-        factory_deps: Option<Vec<Vec<u8>>>,
+        factory_deps: Vec<Vec<u8>>,
         paymaster_params: PaymasterParams,
     ) -> Result<Self, SignError> {
         let initiator_address = private_key.address();
@@ -267,7 +267,7 @@ impl L2Tx {
     pub fn abi_encoding_len(&self) -> usize {
         let data_len = self.execute.calldata.len();
         let signature_len = self.common_data.signature.len();
-        let factory_deps_len = self.execute.factory_deps_length();
+        let factory_deps_len = self.execute.factory_deps.len();
         let paymaster_input_len = self.common_data.paymaster_params.paymaster_input.len();
 
         encoding_len(
@@ -290,9 +290,8 @@ impl L2Tx {
     pub fn factory_deps_len(&self) -> u32 {
         self.execute
             .factory_deps
-            .as_ref()
-            .map(|deps| deps.iter().fold(0u32, |len, item| len + item.len() as u32))
-            .unwrap_or_default()
+            .iter()
+            .fold(0u32, |len, item| len + item.len() as u32)
     }
 }
 
@@ -487,7 +486,7 @@ mod tests {
                 contract_address: Default::default(),
                 calldata: vec![],
                 value: U256::zero(),
-                factory_deps: None,
+                factory_deps: vec![],
             },
             common_data: L2TxCommonData {
                 nonce: Nonce(0),

@@ -192,12 +192,7 @@ impl Transaction {
     // Returns how many slots it takes to encode the transaction
     pub fn encoding_len(&self) -> usize {
         let data_len = self.execute.calldata.len();
-        let factory_deps_len = self
-            .execute
-            .factory_deps
-            .as_ref()
-            .map(|deps| deps.len())
-            .unwrap_or_default();
+        let factory_deps_len = self.execute.factory_deps.len();
         let (signature_len, paymaster_input_len) = match &self.common_data {
             ExecuteTransactionCommon::L1(_) => (0, 0),
             ExecuteTransactionCommon::L2(l2_common_data) => (
@@ -251,7 +246,7 @@ impl TryFrom<Transaction> for abi::Transaction {
 
     fn try_from(tx: Transaction) -> anyhow::Result<Self> {
         use ExecuteTransactionCommon as E;
-        let factory_deps = tx.execute.factory_deps.unwrap_or_default();
+        let factory_deps = tx.execute.factory_deps;
         Ok(match tx.common_data {
             E::L2(data) => Self::L2(
                 data.input
@@ -388,7 +383,7 @@ impl TryFrom<abi::Transaction> for Transaction {
                     execute: Execute {
                         contract_address: u256_to_account_address(&tx.to),
                         calldata: tx.data,
-                        factory_deps: Some(factory_deps),
+                        factory_deps,
                         value: tx.value,
                     },
                     raw_bytes: None,

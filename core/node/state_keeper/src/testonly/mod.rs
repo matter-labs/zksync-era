@@ -168,7 +168,7 @@ pub fn l2_transaction(account: &mut Account, gas_limit: u32) -> Transaction {
             contract_address: Address::random(),
             calldata: vec![],
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         Some(fee(gas_limit)),
     )
@@ -180,7 +180,7 @@ pub fn l1_transaction(account: &mut Account, serial_id: PriorityOpId) -> Transac
             contract_address: Address::random(),
             value: Default::default(),
             calldata: vec![],
-            factory_deps: None,
+            factory_deps: vec![],
         },
         serial_id.0,
     )

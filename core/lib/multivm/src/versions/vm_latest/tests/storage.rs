@@ -51,7 +51,7 @@ fn test_storage(txs: Vec<TestTxInfo>) -> u32 {
                 contract_address: test_contract_address,
                 calldata,
                 value: 0.into(),
-                factory_deps: None,
+                factory_deps: vec![],
             },
             fee_overrides,
         );

@@ -142,7 +142,7 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
         execute: Execute {
             contract_address: Address::repeat_byte(0x11),
             calldata: vec![1, 2, 3],
-            factory_deps: Some(vec![]),
+            factory_deps: vec![],
             value: U256::zero(),
         },
         common_data: L1TxCommonData {
@@ -173,7 +173,7 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
         execute: Execute {
             contract_address: Address::repeat_byte(0x11),
             calldata: vec![1, 2, 3],
-            factory_deps: None,
+            factory_deps: vec![],
             value: U256::zero(),
         },
         common_data: ProtocolUpgradeTxCommonData {

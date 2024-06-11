@@ -82,7 +82,7 @@ message Execute {
   optional bytes contract_address = 1; // required; H160
   optional bytes calldata = 2; // required
   optional bytes value = 3; // required; U256
-  repeated bytes factory_deps = 4; // optional
+  repeated bytes factory_deps = 4;
 }
 
 message InputData {

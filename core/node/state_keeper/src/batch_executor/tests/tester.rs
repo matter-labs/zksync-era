@@ -383,7 +383,7 @@ impl AccountLoadNextExecutable for Account {
                 }
                 .to_bytes(),
                 value: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
             },
             Some(fee),
         )
@@ -411,7 +411,7 @@ impl AccountLoadNextExecutable for Account {
                 contract_address: address,
                 calldata,
                 value: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
             },
             Some(fee),
         )

@@ -38,14 +38,10 @@ pub struct ComparableTransaction {
 
 impl From<Transaction> for ComparableTransaction {
     fn from(tx: Transaction) -> Self {
-        let mut this = Self {
+        Self {
             common_data: tx.common_data,
             execute: tx.execute,
             raw_bytes: tx.raw_bytes,
-        };
-        if this.execute.factory_deps.is_none() {
-            this.execute.factory_deps = Some(vec![]);
         }
-        this
     }
 }

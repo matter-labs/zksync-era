@@ -127,7 +127,7 @@ impl Account {
         let execute = Execute {
             contract_address: CONTRACT_DEPLOYER_ADDRESS,
             calldata,
-            factory_deps: Some(factory_deps),
+            factory_deps,
             value: U256::zero(),
         };
 
@@ -149,7 +149,7 @@ impl Account {
     pub fn get_l1_tx(&self, execute: Execute, serial_id: u64) -> Transaction {
         let max_fee_per_gas = U256::from(0u32);
         let gas_limit = U256::from(20_000_000);
-        let factory_deps = execute.factory_deps.unwrap_or_default();
+        let factory_deps = execute.factory_deps;
         abi::Transaction::L1 {
             tx: abi::L2CanonicalTransaction {
                 tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
@@ -215,7 +215,7 @@ impl Account {
             contract_address: address,
             calldata,
             value: value.unwrap_or_default(),
-            factory_deps: None,
+            factory_deps: vec![],
         };
         match tx_type {
             TxType::L2 => self.get_l2_tx_for_execute(execute, None),
@@ -234,7 +234,7 @@ impl Account {
             contract_address: address,
             calldata,
             value: U256::zero(),
-            factory_deps: None,
+            factory_deps: vec![],
         };
 
         match tx_type {
