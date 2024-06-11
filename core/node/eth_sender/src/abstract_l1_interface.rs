@@ -38,13 +38,16 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
 
     #[cfg(test)]
     async fn get_tx(&self, tx_hash: H256) -> EnrichedClientResult<Option<web3::Transaction>>;
+
     async fn get_tx_status(
         &self,
         tx_hash: H256,
     ) -> Result<Option<ExecutedTxStatus>, EthSenderError>;
 
     async fn send_raw_tx(&self, tx_bytes: RawTransactionBytes) -> EnrichedClientResult<H256>;
+
     fn get_blobs_operator_account(&self) -> Option<Address>;
+
     async fn get_operator_nonce(
         &self,
         block_numbers: L1BlockNumbers,
@@ -67,6 +70,7 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
     async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, EthSenderError>;
 
     fn ethereum_gateway(&self) -> &dyn BoundEthInterface;
+
     fn ethereum_gateway_blobs(&self) -> Option<&dyn BoundEthInterface>;
 }
 
@@ -108,6 +112,7 @@ impl AbstractL1Interface for RealL1Interface {
     async fn send_raw_tx(&self, tx_bytes: RawTransactionBytes) -> EnrichedClientResult<H256> {
         self.query_client().send_raw_tx(tx_bytes).await
     }
+
     fn get_blobs_operator_account(&self) -> Option<Address> {
         self.ethereum_gateway_blobs()
             .as_ref()
