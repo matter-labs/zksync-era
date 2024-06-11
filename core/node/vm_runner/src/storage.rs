@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use anyhow::Context as _;

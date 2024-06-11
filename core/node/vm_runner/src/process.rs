@@ -1,7 +1,4 @@
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context;
 use multivm::interface::L2BlockEnv;
@@ -155,7 +152,7 @@ impl VmRunner {
             task_handles = retained_handles;
             METRICS
                 .in_progress_l1_batches
-                .set(task_handles.len().into());
+                .set(task_handles.len() as u64);
 
             let last_ready_batch = self
                 .io

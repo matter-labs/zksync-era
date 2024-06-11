@@ -2,7 +2,7 @@ use std::{
     fmt::{Debug, Formatter},
     mem,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use anyhow::Context;
@@ -12,7 +12,6 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
-use vise::Histogram;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::L1BatchNumber;
