@@ -336,7 +336,6 @@ impl AsyncTree {
         storage: &mut Connection<'_, Core>,
         l1_batch: L1BatchNumber,
     ) -> anyhow::Result<bool> {
-        dbg!(l1_batch);
         if l1_batch == L1BatchNumber(0) {
             // Corner case: root hash for L1 batch #0 persisted in Postgres is fictive (set to `H256::zero()`).
             return Ok(true);
@@ -355,18 +354,18 @@ impl AsyncTree {
             return Ok(true);
         };
 
-        let data_matches = dbg!(tree_data) == dbg!(tree_data_from_postgres);
-        dbg!(data_matches);
+        let data_matches = tree_data == tree_data_from_postgres;
         if !data_matches {
             tracing::warn!(
                 "Detected diverging tree data for L1 batch #{l1_batch}; data in tree is: {tree_data:?}, \
-                data in Postgres is: {tree_data_from_postgres:?}"
+                 data in Postgres is: {tree_data_from_postgres:?}"
             );
         }
         Ok(data_matches)
     }
 
     /// Ensures that the tree is consistent with Postgres, truncating the tree if necessary.
+    /// This will wait for at least one L1 batch to appear in Postgres if necessary.
     pub(crate) async fn ensure_consistency(
         &mut self,
         delayer: &Delayer,
@@ -382,7 +381,6 @@ impl AsyncTree {
 
         self.ensure_genesis(&mut storage, earliest_l1_batch).await?;
         let next_l1_batch_to_seal = self.next_l1_batch_number();
-        dbg!(next_l1_batch_to_seal);
 
         let current_db_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
         let last_l1_batch_with_tree_data = storage
@@ -395,7 +393,6 @@ impl AsyncTree {
             "Next L1 batch for Merkle tree: {next_l1_batch_to_seal}, current Postgres L1 batch: {current_db_batch:?}, \
              last L1 batch with metadata: {last_l1_batch_with_tree_data:?}"
         );
-        dbg!(last_l1_batch_with_tree_data);
 
         // It may be the case that we don't have any L1 batches with metadata in Postgres, e.g. after
         // recovering from a snapshot. We cannot wait for such a batch to appear (*this* is the component
