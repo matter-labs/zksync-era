@@ -755,9 +755,10 @@ pub async fn initialize_components(
         .pubdata_sending_mode
         == PubdataSendingMode::Custom
     {
-        if !components.contains(&Component::DADispatcher) {
-            panic!("DA dispatcher requires custom pubdata sending mode");
-        }
+        anyhow::ensure!(
+            components.contains(&Component::DADispatcher),
+            "Custom pubdata sending mode requires the DA dispatcher component to be enabled"
+        );
 
         let started_at = Instant::now();
         let da_config = configs

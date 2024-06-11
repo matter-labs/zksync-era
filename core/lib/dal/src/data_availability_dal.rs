@@ -77,8 +77,8 @@ impl DataAvailabilityDal<'_, '_> {
 
             if matched != 1 {
                 let err = instrumentation.constraint_error(anyhow::anyhow!(
-                        "Error storing DA blob id. DA blob_id {blob_id} for L1 batch #{number} does not match the expected value"
-                    ));
+                    "Error storing DA blob id. DA blob_id {blob_id} for L1 batch #{number} does not match the expected value"
+                ));
                 return Err(err);
             }
         }
@@ -197,6 +197,7 @@ impl DataAvailabilityDal<'_, '_> {
                 eth_commit_tx_id IS NULL
                 AND number != 0
                 AND data_availability.blob_id IS NULL
+                AND pubdata_input IS NOT NULL
             ORDER BY
                 number
             LIMIT
@@ -212,6 +213,7 @@ impl DataAvailabilityDal<'_, '_> {
         Ok(rows
             .into_iter()
             .map(|row| L1BatchDA {
+                // `unwrap` is safe here because we have a `WHERE` clause that filters out `NULL` values
                 pubdata: row.pubdata_input.unwrap(),
                 l1_batch_number: L1BatchNumber(row.number as u32),
             })

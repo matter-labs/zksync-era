@@ -3,7 +3,7 @@ use zksync_types::{pubdata_da::DataAvailabilityBlob, L1BatchNumber};
 
 /// Represents a blob in the data availability layer.
 #[derive(Debug, Clone)]
-pub struct StorageDABlob {
+pub(crate) struct StorageDABlob {
     pub l1_batch_number: i64,
     pub blob_id: String,
     pub inclusion_data: Option<Vec<u8>>,

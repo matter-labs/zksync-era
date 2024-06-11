@@ -9,6 +9,12 @@ pub struct DAError {
     pub is_transient: bool,
 }
 
+impl DAError {
+    pub fn is_transient(&self) -> bool {
+        self.is_transient
+    }
+}
+
 impl Display for DAError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -17,17 +23,6 @@ impl Display for DAError {
             self.error, self.is_transient
         )
     }
-}
-
-impl IsTransient for DAError {
-    fn is_transient(&self) -> bool {
-        self.is_transient
-    }
-}
-
-/// Trait that defines whether an error is transient or not, i.e. if it is safe to retry the operation.
-pub trait IsTransient {
-    fn is_transient(&self) -> bool;
 }
 
 impl error::Error for DAError {}

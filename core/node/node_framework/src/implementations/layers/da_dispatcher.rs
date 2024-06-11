@@ -41,7 +41,11 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
         let da_client = context.get_resource::<DAClientResource>().await?.0;
 
         if self.state_keeper_config.max_pubdata_per_batch > da_client.blob_size_limit() as u64 {
-            panic!("State keeper max pubdata per batch is greater than the client blob size limit");
+            return Err(WiringError::Configuration(format!(
+                "Max pubdata per batch is greater than the blob size limit: {} > {}",
+                self.state_keeper_config.max_pubdata_per_batch,
+                da_client.blob_size_limit()
+            )));
         }
 
         context.add_task(Box::new(DataAvailabilityDispatcherTask {

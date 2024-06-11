@@ -57,7 +57,7 @@ impl ObjectStoreFactory {
     /// # Errors
     ///
     /// Returns an error if store initialization fails (e.g., because of incorrect configuration).
-    pub async fn create_from_config(
+    async fn create_from_config(
         config: &ObjectStoreConfig,
     ) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
         tracing::trace!("Initializing object store with configuration {config:?}");

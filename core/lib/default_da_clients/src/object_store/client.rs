@@ -1,8 +1,4 @@
-use std::{
-    fmt,
-    fmt::{Debug, Formatter},
-    sync::Arc,
-};
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use zksync_config::ObjectStoreConfig;
@@ -14,7 +10,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{pubdata_da::StorablePubdata, L1BatchNumber};
 
 /// An implementation of the `DataAvailabilityClient` trait that stores the pubdata in the GCS.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ObjectStoreDAClient {
     object_store: Arc<dyn ObjectStore>,
 }
@@ -22,7 +18,9 @@ pub struct ObjectStoreDAClient {
 impl ObjectStoreDAClient {
     pub async fn new(object_store_conf: ObjectStoreConfig) -> anyhow::Result<Self> {
         Ok(ObjectStoreDAClient {
-            object_store: ObjectStoreFactory::create_from_config(&object_store_conf).await?,
+            object_store: ObjectStoreFactory::new(object_store_conf)
+                .create_store()
+                .await?,
         })
     }
 }
@@ -52,7 +50,7 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
 
     async fn get_inclusion_data(&self, key: String) -> Result<Option<InclusionData>, DAError> {
         let key_u32 = key.parse::<u32>().map_err(|err| DAError {
-            error: anyhow::Error::from(err),
+            error: anyhow::Error::from(err).context("Failed to parse blob key"),
             is_transient: false,
         })?;
 
@@ -82,14 +80,5 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
 
     fn blob_size_limit(&self) -> usize {
         100 * 1024 * 1024 // 100 MB, high enough to not be a problem
-    }
-}
-
-impl Debug for ObjectStoreDAClient {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("ObjectStoreDAClient")
-            .field("object_store", &self.object_store)
-            .finish()
     }
 }

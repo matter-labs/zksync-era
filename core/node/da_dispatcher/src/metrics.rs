@@ -2,11 +2,15 @@ use std::time::Duration;
 
 use vise::{Buckets, Gauge, Histogram, Metrics, Unit};
 
+/// Buckets for `blob_dispatch_latency` (from 0.1 to 120 seconds).
+const DISPATCH_LATENCIES: Buckets =
+    Buckets::values(&[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0]);
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_da_dispatcher")]
 pub(super) struct DataAvailabilityDispatcherMetrics {
     /// Latency of the dispatch of the blob.
-    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    #[metrics(buckets = DISPATCH_LATENCIES, unit = Unit::Seconds)]
     pub blob_dispatch_latency: Histogram<Duration>,
     /// The duration between the moment when the blob is dispatched and the moment when it is included.
     #[metrics(buckets = Buckets::LATENCIES)]

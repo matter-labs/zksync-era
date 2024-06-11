@@ -5,10 +5,7 @@ use chrono::{NaiveDateTime, Utc};
 use rand::Rng;
 use tokio::sync::watch;
 use zksync_config::DADispatcherConfig;
-use zksync_da_client::{
-    types::{DAError, IsTransient},
-    DataAvailabilityClient,
-};
+use zksync_da_client::{types::DAError, DataAvailabilityClient};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
@@ -34,7 +31,7 @@ impl DataAvailabilityDispatcher {
         }
     }
 
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let pool = self.pool.clone();
         loop {
             if *stop_receiver.borrow() {
@@ -55,7 +52,13 @@ impl DataAvailabilityDispatcher {
                 }
             );
 
-            tokio::time::sleep(self.config.polling_interval()).await;
+            if tokio::time::timeout(self.config.polling_interval(), stop_receiver.changed())
+                .await
+                .is_ok()
+            {
+                tracing::info!("Stop signal received, da_dispatcher is shutting down");
+                break;
+            }
         }
         Ok(())
     }
@@ -103,10 +106,9 @@ impl DataAvailabilityDispatcher {
                 .set(batch.l1_batch_number.0 as usize);
             METRICS.blob_size.observe(batch.pubdata.len());
             tracing::info!(
-                "Dispatched a DA for batch_number: {}, pubdata_size: {}, dispatch_latency ms: {}",
+                "Dispatched a DA for batch_number: {}, pubdata_size: {}, dispatch_latency: {dispatch_latency_duration:?}",
                 batch.l1_batch_number,
                 batch.pubdata.len(),
-                dispatch_latency_duration.as_millis()
             );
         }
 
@@ -116,12 +118,13 @@ impl DataAvailabilityDispatcher {
     /// Polls the data availability layer for inclusion data, and saves it in the database.
     async fn poll_for_inclusion(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let mut conn = pool.connection_tagged("da_dispatcher").await?;
-        if let Some(blob_info) = conn
+        let blob_info = conn
             .data_availability_dal()
             .get_first_da_blob_awaiting_inclusion()
-            .await?
-        {
-            drop(conn);
+            .await?;
+        drop(conn);
+
+        if let Some(blob_info) = blob_info {
             let inclusion_data = self
                 .client
                 .get_inclusion_data(blob_info.blob_id.clone())
@@ -144,9 +147,9 @@ impl DataAvailabilityDispatcher {
                 drop(conn);
 
                 let inclusion_latency = Utc::now().signed_duration_since(blob_info.sent_at);
-                METRICS
-                    .inclusion_latency
-                    .observe(inclusion_latency.to_std()?);
+                if let Ok(latency) = inclusion_latency.to_std() {
+                    METRICS.inclusion_latency.observe(latency);
+                }
                 METRICS
                     .last_included_l1_batch
                     .set(blob_info.l1_batch_number.0 as usize);
