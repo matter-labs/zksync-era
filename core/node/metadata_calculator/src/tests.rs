@@ -31,6 +31,7 @@ use super::{
 };
 use crate::helpers::{AsyncTree, Delayer};
 
+const POLL_INTERVAL: Duration = Duration::from_millis(50);
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
 
 async fn run_with_timeout<T, F>(timeout: Duration, action: F) -> T
@@ -49,7 +50,7 @@ pub(super) fn mock_config(db_path: &Path) -> MetadataCalculatorConfig {
         db_path: db_path.to_str().unwrap().to_owned(),
         max_open_files: None,
         mode: MerkleTreeMode::Full,
-        delay_interval: Duration::from_millis(100),
+        delay_interval: POLL_INTERVAL,
         max_l1_batches_per_iter: 10,
         multi_get_chunk_size: 500,
         block_cache_capacity: 0,
@@ -91,13 +92,9 @@ async fn low_level_genesis_creation() {
     let db = RocksDB::new(temp_dir.path()).unwrap();
     let mut tree = AsyncTree::new(db.into(), MerkleTreeMode::Lightweight).unwrap();
     let (_stop_sender, mut stop_receiver) = watch::channel(false);
-    tree.ensure_consistency(
-        &Delayer::new(Duration::from_millis(10)),
-        &pool,
-        &mut stop_receiver,
-    )
-    .await
-    .unwrap();
+    tree.ensure_consistency(&Delayer::new(POLL_INTERVAL), &pool, &mut stop_receiver)
+        .await
+        .unwrap();
 
     assert!(!tree.is_empty());
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
@@ -151,14 +148,77 @@ async fn tree_truncation_on_l1_batch_divergence(
     );
 
     let (_stop_sender, mut stop_receiver) = watch::channel(false);
-    tree.ensure_consistency(
-        &Delayer::new(Duration::from_millis(10)),
-        &pool,
-        &mut stop_receiver,
-    )
-    .await
-    .unwrap();
+    tree.ensure_consistency(&Delayer::new(POLL_INTERVAL), &pool, &mut stop_receiver)
+        .await
+        .unwrap();
     assert_eq!(tree.next_l1_batch_number(), last_common_l1_batch + 1);
+}
+
+#[test_casing(4, [1, 4, 6, 7])]
+#[tokio::test]
+async fn tree_truncation_on_l1_batch_divergence_in_pruned_tree(retained_l1_batch: u32) {
+    const INITIAL_BATCH_COUNT: usize = 10;
+    const LAST_COMMON_L1_BATCH: L1BatchNumber = L1BatchNumber(6);
+
+    let retained_l1_batch = L1BatchNumber(retained_l1_batch);
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    reset_db_state(&pool, INITIAL_BATCH_COUNT).await;
+    run_calculator(calculator).await;
+
+    let mut storage = pool.connection().await.unwrap();
+    remove_l1_batches(&mut storage, LAST_COMMON_L1_BATCH).await;
+    // Extend the state with new L1 batches.
+    let logs = gen_storage_logs(100..200, 5);
+    extend_db_state(&mut storage, logs).await;
+
+    for number in (LAST_COMMON_L1_BATCH.0 + 1)..(LAST_COMMON_L1_BATCH.0 + 6) {
+        let new_tree_data = L1BatchTreeData {
+            hash: H256::from_low_u64_be(number.into()),
+            rollup_last_leaf_index: 200, // doesn't matter
+        };
+        storage
+            .blocks_dal()
+            .save_l1_batch_tree_data(L1BatchNumber(number), &new_tree_data)
+            .await
+            .unwrap();
+    }
+
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let tree = calculator.create_tree().await.unwrap();
+    let GenericAsyncTree::Ready(mut tree) = tree else {
+        panic!("Unexpected tree state: {tree:?}");
+    };
+
+    let reader = tree.reader();
+    let (mut pruner, pruner_handle) = tree.pruner();
+    pruner.set_poll_interval(POLL_INTERVAL);
+    tokio::task::spawn_blocking(|| pruner.run());
+    pruner_handle
+        .set_target_retained_version(retained_l1_batch.0.into())
+        .unwrap();
+    // Wait until the tree is pruned
+    while reader.clone().info().await.min_l1_batch_number < Some(retained_l1_batch) {
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
+
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    let consistency_result = tree
+        .ensure_consistency(&Delayer::new(POLL_INTERVAL), &pool, &mut stop_receiver)
+        .await;
+
+    if retained_l1_batch <= LAST_COMMON_L1_BATCH {
+        consistency_result.unwrap();
+        assert_eq!(tree.next_l1_batch_number(), LAST_COMMON_L1_BATCH + 1);
+    } else {
+        let err = consistency_result.unwrap_err();
+        assert!(
+            format!("{err:#}").contains("diverging min L1 batch"),
+            "{err:#}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -366,7 +426,7 @@ async fn shutting_down_calculator() {
 
     let (stop_sx, stop_rx) = watch::channel(false);
     let calculator_task = tokio::spawn(calculator.run(stop_rx));
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(POLL_INTERVAL).await;
     stop_sx.send_replace(true);
     run_with_timeout(RUN_TIMEOUT, calculator_task)
         .await
@@ -429,7 +489,7 @@ async fn test_postgres_backup_recovery(
         insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
         txn.commit().await.unwrap();
         if sleep_between_batches {
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(POLL_INTERVAL).await;
         }
     }
     drop(storage);
@@ -843,4 +903,30 @@ async fn deduplication_works_as_expected() {
     for key in no_op_hashed_keys.iter().step_by(2) {
         assert_eq!(initial_writes[key].0, L1BatchNumber(4));
     }
+}
+
+#[test_casing(3, [3, 5, 8])]
+#[tokio::test]
+async fn l1_batch_divergence_entire_workflow(last_common_l1_batch: u32) {
+    const INITIAL_BATCH_COUNT: usize = 10;
+
+    assert!((last_common_l1_batch as usize) < INITIAL_BATCH_COUNT);
+    let last_common_l1_batch = L1BatchNumber(last_common_l1_batch);
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    reset_db_state(&pool, INITIAL_BATCH_COUNT).await;
+    run_calculator(calculator).await;
+
+    let mut storage = pool.connection().await.unwrap();
+    remove_l1_batches(&mut storage, last_common_l1_batch).await;
+    // Extend the state with new L1 batches.
+    let logs = gen_storage_logs(100..200, 5);
+    extend_db_state(&mut storage, logs).await;
+    let expected_root_hash = expected_tree_hash(&pool).await;
+
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let final_root_hash = run_calculator(calculator).await;
+    assert_eq!(final_root_hash, expected_root_hash);
 }

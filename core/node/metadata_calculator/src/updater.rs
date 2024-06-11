@@ -307,7 +307,7 @@ impl AsyncTree {
 
         anyhow::ensure!(
             self.l1_batch_matches(&mut storage, min_tree_l1_batch).await?,
-            "Diverging min L1 batch in the tree #{min_tree_l1_batch}; the tree cannot recover from this"
+            "diverging min L1 batch in the tree #{min_tree_l1_batch}; the tree cannot recover from this"
         );
 
         let mut left = min_tree_l1_batch.0;
