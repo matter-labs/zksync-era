@@ -33,6 +33,13 @@ pub(super) enum BlockNumberVariant {
 #[metrics(label = "type")]
 pub(super) struct ActionTypeLabel(AggregatedActionType);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(label = "transaction_type", rename_all = "snake_case")]
+pub(super) enum TransactionType {
+    Blob,
+    Regular,
+}
+
 impl From<AggregatedActionType> for ActionTypeLabel {
     fn from(action_type: AggregatedActionType) -> Self {
         Self(action_type)
@@ -83,9 +90,11 @@ pub(super) struct EthSenderMetrics {
     /// Number of transactions resent by the Ethereum sender.
     pub transaction_resent: Counter,
     #[metrics(buckets = FEE_BUCKETS)]
-    pub used_base_fee_per_gas: Histogram<u64>,
+    pub used_base_fee_per_gas: Family<TransactionType, Histogram<u64>>,
     #[metrics(buckets = FEE_BUCKETS)]
-    pub used_priority_fee_per_gas: Histogram<u64>,
+    pub used_priority_fee_per_gas: Family<TransactionType, Histogram<u64>>,
+    #[metrics(buckets = FEE_BUCKETS)]
+    pub used_blob_fee_per_gas: Family<TransactionType, Histogram<u64>>,
     /// Last L1 block observed by the Ethereum sender.
     pub last_known_l1_block: Family<BlockNumberVariant, Gauge<usize>>,
     /// Number of in-flight txs produced by the Ethereum sender.
