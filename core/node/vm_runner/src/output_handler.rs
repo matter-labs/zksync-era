@@ -12,6 +12,7 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
+use vise::Histogram;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::L1BatchNumber;
@@ -173,9 +174,9 @@ impl StateKeeperOutputHandler for AsyncOutputHandler {
             } => {
                 sender
                     .send(tokio::task::spawn(async move {
-                        let started_at = Instant::now();
+                        let latency = METRICS.output_handle_time.start();
                         let result = handler.handle_l1_batch(updates_manager).await;
-                        METRICS.output_handle_time.observe(started_at.elapsed());
+                        latency.observe();
                         result
                     }))
                     .ok();
@@ -253,7 +254,7 @@ impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
                         .await?;
                     METRICS
                         .last_processed_batch
-                        .set(latest_processed_batch.0 as u64);
+                        .set(latest_processed_batch.0.into());
                 }
             }
         }

@@ -64,7 +64,7 @@ impl VmRunner {
         mut updates_manager: UpdatesManager,
         mut output_handler: Box<dyn StateKeeperOutputHandler>,
     ) -> anyhow::Result<()> {
-        let started_at = Instant::now();
+        let latency = METRICS.run_vm_time.start();
         for (i, l2_block) in l2_blocks.into_iter().enumerate() {
             if i > 0 {
                 // First L2 block in every batch is already preloaded
@@ -118,7 +118,7 @@ impl VmRunner {
             .await
             .context("failed finishing L1 batch in executor")?;
         updates_manager.finish_batch(finished_batch);
-        METRICS.run_vm_time.observe(started_at.elapsed());
+        latency.observe();
         output_handler
             .handle_l1_batch(Arc::new(updates_manager))
             .await
@@ -155,13 +155,13 @@ impl VmRunner {
             task_handles = retained_handles;
             METRICS
                 .in_progress_l1_batches
-                .set(task_handles.len() as u64);
+                .set(task_handles.len().into());
 
             let last_ready_batch = self
                 .io
                 .last_ready_to_be_loaded_batch(&mut self.pool.connection().await?)
                 .await?;
-            METRICS.last_ready_batch.set(last_ready_batch.0 as u64);
+            METRICS.last_ready_batch.set(last_ready_batch.0.into());
             if next_batch > last_ready_batch {
                 // Next batch is not ready to be processed yet
                 tokio::time::sleep(SLEEP_INTERVAL).await;
