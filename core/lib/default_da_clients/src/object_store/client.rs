@@ -50,7 +50,7 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
 
     async fn get_inclusion_data(&self, key: String) -> Result<Option<InclusionData>, DAError> {
         let key_u32 = key.parse::<u32>().map_err(|err| DAError {
-            error: anyhow::Error::from(err).context("Failed to parse blob key"),
+            error: anyhow::Error::from(err).context(format!("Failed to parse blob key: {}", key)),
             is_transient: false,
         })?;
 
