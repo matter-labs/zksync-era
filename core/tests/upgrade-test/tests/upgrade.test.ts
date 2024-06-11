@@ -167,7 +167,7 @@ describe('Upgrade test', function () {
         forceDeployBytecode = COUNTER_BYTECODE;
 
         const forceDeployment: ForceDeployment = {
-            bytecodeHash: zksync.utils.hashBytecode(forceDeployBytecode),
+            bytecodeHash: ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode)),
             newAddress: forceDeployAddress,
             callConstructor: false,
             value: 0n,
@@ -196,7 +196,7 @@ describe('Upgrade test', function () {
                     reserved: [0, 0, 0, 0],
                     data,
                     signature: '0x',
-                    factoryDeps: [zksync.utils.hashBytecode(forceDeployBytecode)],
+                    factoryDeps: [ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode))],
                     paymasterInput: '0x',
                     reservedDynamic: '0x'
                 },
