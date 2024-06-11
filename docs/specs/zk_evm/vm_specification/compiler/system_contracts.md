@@ -3,9 +3,10 @@
 Many EVM instructions require special handling by the
 [System Contracts](https://docs.zksync.io/build/developer-reference/era-contracts/system-contracts).
 Among them are: `ORIGIN`, `CALLVALUE`, `BALANCE`, `CREATE`, `SHA3`, and others.
-To see the full detailed list of instructions requiring special
-handling, see
+To see the full detailed list of instructions requiring special handling, see
 [the EVM instructions reference](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/instructions/evm).
+
+## Types of System Contracts
 
 There are several types of System Contracts from the perspective of how they are handled by the zkSync Era compilers:
 
