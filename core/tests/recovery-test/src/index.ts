@@ -203,8 +203,10 @@ export class FundedWallet {
     static async create(mainNode: zksync.Provider, eth: ethers.Provider): Promise<FundedWallet> {
         const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
         const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
-        const mnemonic = ethTestConfig.test_mnemonic as string;
-        const wallet = zksync.Wallet.fromMnemonic(mnemonic).connect(mainNode).connectToL1(eth);
+        const mnemonic = ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic);
+        const walletHD = ethers.HDNodeWallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0");
+        const wallet = new zksync.Wallet(walletHD.privateKey, mainNode, eth);
+
         return new FundedWallet(wallet);
     }
 
