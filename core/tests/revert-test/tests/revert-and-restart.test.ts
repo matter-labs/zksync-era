@@ -1,9 +1,10 @@
 import * as utils from 'utils';
 import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
-import { BigNumber, Contract, ethers } from 'ethers';
+import * as ethers from 'ethers';
 import { expect } from 'chai';
 import fs from 'fs';
+import { IZkSyncStateTransition } from 'zksync-ethers/build/typechain';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string) {
@@ -51,13 +52,13 @@ function ignoreError(_err: any, context?: string) {
     console.info(message);
 }
 
-const depositAmount = ethers.utils.parseEther('0.001');
+const depositAmount = ethers.parseEther('0.001');
 
 describe('Block reverting test', function () {
     let tester: Tester;
     let alice: zksync.Wallet;
-    let mainContract: Contract;
-    let blocksCommittedBeforeRevert: number;
+    let mainContract: IZkSyncStateTransition;
+    let blocksCommittedBeforeRevert: bigint;
     let logs: fs.WriteStream;
     let operatorAddress = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR;
 
@@ -133,19 +134,19 @@ describe('Block reverting test', function () {
         }
 
         const balance = await alice.getBalance();
-        expect(balance.eq(depositAmount.mul(2)), 'Incorrect balance after deposits').to.be.true;
+        expect(balance === depositAmount * 2n, 'Incorrect balance after deposits').to.be.true;
 
         // Check L1 committed and executed blocks.
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();
         let blocksExecuted = await mainContract.getTotalBatchesExecuted();
         let tryCount = 0;
-        while (blocksCommitted.eq(blocksExecuted) && tryCount < 100) {
+        while (blocksCommitted === blocksExecuted && tryCount < 100) {
             blocksCommitted = await mainContract.getTotalBatchesCommitted();
             blocksExecuted = await mainContract.getTotalBatchesExecuted();
             tryCount += 1;
             await utils.sleep(1);
         }
-        expect(blocksCommitted.gt(blocksExecuted), 'There is no committed but not executed block').to.be.true;
+        expect(blocksCommitted > blocksExecuted, 'There is no committed but not executed block').to.be.true;
         blocksCommittedBeforeRevert = blocksCommitted;
 
         // Stop server.
@@ -178,7 +179,7 @@ describe('Block reverting test', function () {
         );
 
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();
-        expect(blocksCommitted.eq(lastL1BatchNumber), 'Revert on contract was unsuccessful').to.be.true;
+        expect(blocksCommitted === lastL1BatchNumber, 'Revert on contract was unsuccessful').to.be.true;
     });
 
     step('execute transaction after revert', async () => {
@@ -190,7 +191,7 @@ describe('Block reverting test', function () {
         await utils.sleep(10);
 
         const balanceBefore = await alice.getBalance();
-        expect(balanceBefore.eq(depositAmount.mul(2)), 'Incorrect balance after revert').to.be.true;
+        expect(balanceBefore === depositAmount * 2n, 'Incorrect balance after revert').to.be.true;
 
         // Execute a transaction
         const depositHandle = await tester.syncWallet.deposit({
@@ -220,13 +221,12 @@ describe('Block reverting test', function () {
         expect(receipt.status).to.be.eql(1);
 
         const balanceAfter = await alice.getBalance();
-        expect(balanceAfter.eq(BigNumber.from(depositAmount).mul(3)), 'Incorrect balance after another deposit').to.be
-            .true;
+        expect(balanceAfter === depositAmount * 3n, 'Incorrect balance after another deposit').to.be.true;
     });
 
     step('execute transactions after simple restart', async () => {
         // Execute an L2 transaction
-        await checkedRandomTransfer(alice, BigNumber.from(1));
+        await checkedRandomTransfer(alice, 1n);
 
         // Stop server.
         await killServerAndWaitForShutdown(tester);
@@ -236,7 +236,7 @@ describe('Block reverting test', function () {
         await utils.sleep(10);
 
         // Trying to send a transaction from the same address again
-        await checkedRandomTransfer(alice, BigNumber.from(1));
+        await checkedRandomTransfer(alice, 1n);
     });
 
     after('Try killing server', async () => {
@@ -244,9 +244,10 @@ describe('Block reverting test', function () {
     });
 });
 
-async function checkedRandomTransfer(sender: zksync.Wallet, amount: BigNumber) {
+async function checkedRandomTransfer(sender: zksync.Wallet, amount: bigint) {
     const senderBalanceBefore = await sender.getBalance();
-    const receiver = zksync.Wallet.createRandom().connect(sender.provider);
+    const receiverHD = zksync.Wallet.createRandom();
+    const receiver = new zksync.Wallet(receiverHD.privateKey, sender.provider);
     const transferHandle = await sender.sendTransaction({
         to: receiver.address,
         value: amount,
@@ -263,9 +264,8 @@ async function checkedRandomTransfer(sender: zksync.Wallet, amount: BigNumber) {
     const senderBalance = await sender.getBalance();
     const receiverBalance = await receiver.getBalance();
 
-    expect(receiverBalance.eq(amount), 'Failed updated the balance of the receiver').to.be.true;
+    expect(receiverBalance === amount, 'Failed updated the balance of the receiver').to.be.true;
 
-    const spentAmount = txReceipt.gasUsed.mul(transferHandle.gasPrice!).add(amount);
-    expect(senderBalance.add(spentAmount).gte(senderBalanceBefore), 'Failed to update the balance of the sender').to.be
-        .true;
+    const spentAmount = txReceipt.gasUsed * transferHandle.gasPrice! + amount;
+    expect(senderBalance + spentAmount >= senderBalanceBefore, 'Failed to update the balance of the sender').to.be.true;
 }
