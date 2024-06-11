@@ -1,9 +1,11 @@
 use std::time::Duration;
 
 use strum::{Display, EnumString};
-use zksync_db_connection::instrument::{InstrumentExt, Instrumented};
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, utils::pg_interval_from_duration,
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
+    utils::pg_interval_from_duration,
 };
 use zksync_types::L1BatchNumber;
 
