@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                transactions\n            WHERE\n                l1_batch_number = $1\n            ORDER BY\n                miniblock_number,\n                index_in_block\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                transactions\n            WHERE\n                miniblock_number BETWEEN (\n                    SELECT\n                        MIN(number)\n                    FROM\n                        miniblocks\n                    WHERE\n                        miniblocks.l1_batch_number = $1\n                ) AND (\n                    SELECT\n                        MAX(number)\n                    FROM\n                        miniblocks\n                    WHERE\n                        miniblocks.l1_batch_number = $1\n                )\n            ORDER BY\n                miniblock_number,\n                index_in_block\n            ",
   "describe": {
     "columns": [
       {
@@ -228,5 +228,5 @@
       true
     ]
   },
-  "hash": "f63586d59264eab7388ad1de823227ecaa45d76d1ba260074898fe57c059a15a"
+  "hash": "f023e5fa599b279acd6ac02dffb7a33a8fea8ab7fdefb7d9210673245a2a6f6c"
 }
