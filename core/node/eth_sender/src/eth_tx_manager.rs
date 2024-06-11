@@ -540,9 +540,15 @@ impl EthTxManager {
                     .eth_sender_dal()
                     .get_block_number_on_first_sent_attempt(tx.id)
                     .await
-                    .unwrap()
-                    .unwrap_or(l1_block_numbers.latest.0);
-                return Ok(Some((tx, first_sent_at_block)));
+                    .unwrap();
+                // the transaction may still be included in block, we shouldn't resend it yet
+                if first_sent_at_block == Some(l1_block_numbers.latest.0) {
+                    continue;
+                }
+                return Ok(Some((
+                    tx,
+                    first_sent_at_block.unwrap_or(l1_block_numbers.latest.0),
+                )));
             }
 
             // If on finalized block sender's nonce was > tx.nonce,
