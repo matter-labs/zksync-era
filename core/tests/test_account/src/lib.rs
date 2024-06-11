@@ -72,7 +72,7 @@ impl Account {
             contract_address,
             calldata,
             nonce,
-            fee.unwrap_or_else(|| Self::default_fee()),
+            fee.unwrap_or_else(Self::default_fee),
             value,
             L2ChainId::default(),
             &self.private_key,
