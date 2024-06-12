@@ -9180,6 +9180,7 @@ dependencies = [
  "zksync_dal",
  "zksync_object_store",
  "zksync_prover_interface",
+ "zksync_tee_verifier",
  "zksync_types",
 ]
 

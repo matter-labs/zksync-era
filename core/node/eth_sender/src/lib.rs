@@ -8,6 +8,9 @@ mod publish_criterion;
 mod utils;
 mod zksync_functions;
 
+mod abstract_l1_interface;
+
+mod eth_fees_oracle;
 #[cfg(test)]
 mod tests;
 
