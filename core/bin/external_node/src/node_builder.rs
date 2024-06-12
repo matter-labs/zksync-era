@@ -3,9 +3,14 @@
 
 use anyhow::Context as _;
 use zksync_config::{
-    configs::{api::HealthCheckConfig, DatabaseSecrets},
+    configs::{
+        api::{HealthCheckConfig, MerkleTreeApiConfig},
+        database::MerkleTreeMode,
+        DatabaseSecrets,
+    },
     PostgresConfig,
 };
+use zksync_metadata_calculator::{MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig};
 use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
@@ -16,6 +21,7 @@ use zksync_node_framework::{
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         main_node_client::MainNodeClientLayer,
+        metadata_calculator::MetadataCalculatorLayer,
         pools_layer::PoolsLayerBuilder,
         postgres_metrics::PostgresMetricsLayer,
         prometheus_exporter::PrometheusExporterLayer,
@@ -273,6 +279,54 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_metadata_calculator_layer(mut self, with_tree_api: bool) -> anyhow::Result<Self> {
+        let metadata_calculator_config = MetadataCalculatorConfig {
+            db_path: self.config.required.merkle_tree_path.clone(),
+            max_open_files: self.config.optional.merkle_tree_max_open_files,
+            mode: MerkleTreeMode::Lightweight,
+            delay_interval: self.config.optional.merkle_tree_processing_delay(),
+            max_l1_batches_per_iter: self.config.optional.merkle_tree_max_l1_batches_per_iter,
+            multi_get_chunk_size: self.config.optional.merkle_tree_multi_get_chunk_size,
+            block_cache_capacity: self.config.optional.merkle_tree_block_cache_size(),
+            include_indices_and_filters_in_block_cache: self
+                .config
+                .optional
+                .merkle_tree_include_indices_and_filters_in_block_cache,
+            memtable_capacity: self.config.optional.merkle_tree_memtable_capacity(),
+            stalled_writes_timeout: self.config.optional.merkle_tree_stalled_writes_timeout(),
+            recovery: MetadataCalculatorRecoveryConfig {
+                desired_chunk_size: self.config.experimental.snapshots_recovery_tree_chunk_size,
+                parallel_persistence_buffer: self
+                    .config
+                    .experimental
+                    .snapshots_recovery_tree_parallel_persistence_buffer,
+            },
+        };
+
+        // Configure basic tree layer.
+        let mut layer = MetadataCalculatorLayer::new(metadata_calculator_config);
+
+        // Add tree API if needed.
+        if with_tree_api {
+            let merkle_tree_api_config = MerkleTreeApiConfig {
+                port: self
+                    .config
+                    .tree_component
+                    .api_port
+                    .context("should contain tree api port")?,
+            };
+            layer = layer.with_tree_api_config(merkle_tree_api_config);
+        }
+
+        // Add tree pruning if needed.
+        if self.config.optional.pruning_enabled {
+            layer = layer.with_pruning_config(self.config.optional.pruning_removal_delay());
+        }
+
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
         self = self
@@ -316,7 +370,8 @@ impl ExternalNodeBuilder {
                         components.contains(&Component::Core),
                         "Tree must run on the same machine as Core"
                     );
-                    todo!()
+                    let with_tree_api = components.contains(&Component::Tree);
+                    self = self.add_metadata_calculator_layer(with_tree_api)?;
                 }
                 Component::TreeApi => {
                     anyhow::ensure!(
