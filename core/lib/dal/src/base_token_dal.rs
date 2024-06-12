@@ -1,5 +1,5 @@
 use bigdecimal::BigDecimal;
-use zksync_db_connection::{connection::Connection, error::DalResult};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
 use crate::{models::storage_base_token_price::StorageBaseTokenPrice, Core};
 
@@ -11,19 +11,19 @@ pub struct BaseTokenDal<'a, 'c> {
 impl BaseTokenDal<'_, '_> {
     pub async fn insert_token_price(
         &mut self,
-        numerator: BigDecimal,
-        denominator: BigDecimal,
-        ratio_timestamp: chrono::NaiveDateTime,
+        numerator: &BigDecimal,
+        denominator: &BigDecimal,
+        ratio_timestamp: &chrono::NaiveDateTime,
     ) -> DalResult<()> {
-        let insert_result = sqlx::query!(
+        sqlx::query!(
             r#"
             INSERT INTO
                 base_token_prices (numerator, denominator, ratio_timestamp)
             VALUES
                 ($1, $2, $3)
             "#,
-            numerator.to_string(),
-            denominator.to_string(),
+            numerator,
+            denominator,
             ratio_timestamp,
         )
         .instrument("insert_base_token_price")

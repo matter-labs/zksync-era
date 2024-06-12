@@ -3,12 +3,12 @@ use std::time::Duration;
 use serde::Deserialize;
 
 // Fetch new prices every 30 seconds by default.
-pub const DEFAULT_INTERVAL_MS: u32 = 30_000;
+pub const DEFAULT_INTERVAL_MS: u64 = 30_000;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct BaseTokenAdjusterConfig {
     /// How often to poll external APIs for a new ETH<->BaseToken price.
-    pub price_polling_interval_ms: Option<u32>,
+    pub price_polling_interval_ms: Option<u64>,
 }
 
 impl BaseTokenAdjusterConfig {

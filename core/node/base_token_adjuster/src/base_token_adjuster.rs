@@ -1,17 +1,10 @@
-use std::{
-    future::Future,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
-use anyhow::Context;
-use chrono::{DateTime, NaiveDateTime, Utc};
-use rand::Rng;
+use chrono::{DateTime, Utc};
 use tokio::sync::watch;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
-use zksync_dal::{BaseTokenDal, BigDecimal, ConnectionPool, Core, CoreDal};
-use zksync_types::{base_token_price::BaseTokenAPIPrice, L1BatchNumber};
-
-use crate::metrics::METRICS;
+use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
+use zksync_types::base_token_price::BaseTokenAPIPrice;
 
 #[derive(Debug)]
 pub struct BaseTokenAdjuster {
@@ -42,7 +35,11 @@ impl BaseTokenAdjuster {
                     }
 
                     if let Err(err) = self
-                        .maybe_update_l1(&new_numerator, &new_denominator, ratio_timestamp)
+                        .maybe_update_l1(
+                            &new_ratio.numerator,
+                            &new_ratio.denominator,
+                            &new_ratio.ratio_timestamp,
+                        )
                         .await
                     {
                         tracing::error!("Error updating L1 ratio: {:?}", err);
@@ -76,13 +73,22 @@ impl BaseTokenAdjuster {
         let mut conn = pool.connection_tagged("base_token_adjuster").await?;
         conn.base_token_dal()
             .insert_token_price(
-                api_price.numerator,
-                api_price.denominator,
-                api_price.ratio_timestamp.naive_utc(),
+                &api_price.numerator,
+                &api_price.denominator,
+                &api_price.ratio_timestamp.naive_utc(),
             )
             .await?;
         drop(conn);
 
+        Ok(())
+    }
+
+    async fn maybe_update_l1(
+        &self,
+        _numerator: &BigDecimal,
+        _denominator: &BigDecimal,
+        _ratio_timestamp: &DateTime<Utc>,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -91,12 +97,10 @@ impl BaseTokenAdjuster {
     // Sleep for the remaining duration of the polling period
     async fn sleep_until_next_fetch(&self, start_time: Instant) {
         let elapsed_time = start_time.elapsed();
-        let sleep_duration = if elapsed_time
-            >= Duration::from_millis(&self.config.price_polling_interval_ms as u64)
-        {
+        let sleep_duration = if elapsed_time >= self.config.price_polling_interval() {
             Duration::from_secs(0)
         } else {
-            Duration::from_secs(self.config.external_fetching_poll_period) - elapsed_time
+            self.config.price_polling_interval() - elapsed_time
         };
 
         tokio::time::sleep(sleep_duration).await;

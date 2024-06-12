@@ -308,5 +308,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
+        base_token_adjuster_config: None,
     })
 }

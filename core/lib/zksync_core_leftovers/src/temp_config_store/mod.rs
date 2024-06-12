@@ -12,8 +12,8 @@ use zksync_config::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
-    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DBConfig, EthConfig,
+    EthWatchConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_protobuf::{repr::ProtoRepr, ProtoFmt};
 
@@ -62,6 +62,7 @@ pub struct TempConfigStore {
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
+    pub base_token_adjuster_config: Option<BaseTokenAdjusterConfig>,
 }
 
 impl TempConfigStore {
@@ -89,6 +90,7 @@ impl TempConfigStore {
             observability: self.observability.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
             core_object_store: self.core_object_store.clone(),
+            base_token_adjuster: self.base_token_adjuster_config.clone(),
         }
     }
 

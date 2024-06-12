@@ -3,10 +3,7 @@ use zksync_dal::Core;
 use zksync_db_connection::connection_pool::ConnectionPool;
 
 use crate::{
-    implementations::resources::{
-        da_client::DAClientResource,
-        pools::{MasterPool, PoolResource},
-    },
+    implementations::resources::pools::{MasterPool, PoolResource},
     service::{ServiceContext, StopReceiver},
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
