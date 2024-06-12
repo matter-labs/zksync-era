@@ -98,7 +98,7 @@ impl PeriodicJob for FriProverQueueReporter {
         let oldest_unpicked_batch = match db_conn
             .proof_generation_dal()
             .get_oldest_unpicked_batch()
-            .await
+            .await?
         {
             Some(l1_batch_number) => l1_batch_number.0 as u64,
             // if there is no unpicked batch in database, we use sealed batch number as a result
@@ -119,7 +119,7 @@ impl PeriodicJob for FriProverQueueReporter {
         if let Some(l1_batch_number) = db_conn
             .proof_generation_dal()
             .get_oldest_not_generated_batch()
-            .await
+            .await?
         {
             FRI_PROVER_METRICS
                 .oldest_not_generated_batch
