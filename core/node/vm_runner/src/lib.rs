@@ -9,6 +9,7 @@ mod output_handler;
 mod process;
 mod storage;
 
+mod metrics;
 #[cfg(test)]
 mod tests;
 
