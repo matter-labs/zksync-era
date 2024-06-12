@@ -140,9 +140,10 @@ impl EthFeesOracle for GasAdjusterFeesOracle {
         has_blob_sidecar: bool,
         time_in_mempool: u32,
     ) -> Result<EthFees, EthSenderError> {
-        match has_blob_sidecar {
-            true => self.calculate_fees_with_blob_sidecar(previous_sent_tx),
-            false => self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool),
+        if has_blob_sidecar {
+            self.calculate_fees_with_blob_sidecar(previous_sent_tx)
+        } else {
+            self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool)
         }
     }
 }
