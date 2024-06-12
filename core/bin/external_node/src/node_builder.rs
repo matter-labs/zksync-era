@@ -35,6 +35,9 @@ use zksync_node_framework::{
         sync_state_updater::SyncStateUpdaterLayer,
         tree_data_fetcher::TreeDataFetcherLayer,
         validate_chain_ids::ValidateChainIdsLayer,
+        web3_api::{
+            caches::MempoolCacheLayer, tree_api_client::TreeApiClientLayer, tx_sink::TxSinkLayer,
+        },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
@@ -327,6 +330,26 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(TxSinkLayer::ProxySink);
+        todo!()
+    }
+
+    fn add_api_caches_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(MempoolCacheLayer::new(
+            self.config.optional.mempool_cache_size,
+            self.config.optional.mempool_cache_update_interval(),
+        ));
+        Ok(self)
+    }
+
+    fn add_tree_api_client_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(TreeApiClientLayer::http(
+            self.config.api_component.tree_api_remote_url.clone(),
+        ));
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
         self = self
@@ -353,12 +376,20 @@ impl ExternalNodeBuilder {
         for component in &components {
             match component {
                 Component::HttpApi => {
-                    self = self.add_sync_state_updater_layer()?;
+                    self = self
+                        .add_sync_state_updater_layer()?
+                        .add_tx_sender_layer()?
+                        .add_api_caches_layer()?
+                        .add_tree_api_client_layer()?;
 
                     todo!()
                 }
                 Component::WsApi => {
-                    self = self.add_sync_state_updater_layer()?;
+                    self = self
+                        .add_sync_state_updater_layer()?
+                        .add_tx_sender_layer()?
+                        .add_api_caches_layer()?
+                        .add_tree_api_client_layer()?;
 
                     todo!()
                 }
