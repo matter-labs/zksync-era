@@ -24,6 +24,7 @@ pub mod reorg_detector_checker;
 pub mod reorg_detector_runner;
 pub mod sigint;
 pub mod state_keeper;
+pub mod sync_state_updater;
 pub mod tee_verifier_input_producer;
 pub mod tree_data_fetcher;
 pub mod validate_chain_ids;

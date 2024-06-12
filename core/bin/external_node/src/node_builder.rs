@@ -26,6 +26,7 @@ use zksync_node_framework::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
             output_handler::OutputHandlerLayer, StateKeeperLayer,
         },
+        sync_state_updater::SyncStateUpdaterLayer,
         tree_data_fetcher::TreeDataFetcherLayer,
         validate_chain_ids::ValidateChainIdsLayer,
     },
@@ -266,6 +267,12 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_sync_state_updater_layer(mut self) -> anyhow::Result<Self> {
+        // This layer may be used as a fallback for EN API if API server runs without the core component.
+        self.node.add_layer(SyncStateUpdaterLayer);
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
         self = self
@@ -291,8 +298,16 @@ impl ExternalNodeBuilder {
 
         for component in &components {
             match component {
-                Component::HttpApi => todo!(),
-                Component::WsApi => todo!(),
+                Component::HttpApi => {
+                    self = self.add_sync_state_updater_layer()?;
+
+                    todo!()
+                }
+                Component::WsApi => {
+                    self = self.add_sync_state_updater_layer()?;
+
+                    todo!()
+                }
                 Component::Tree => {
                     // Right now, distributed mode for EN is not fully supported, e.g. there are some
                     // issues with reorg detection and snapshot recovery.
