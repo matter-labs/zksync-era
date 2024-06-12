@@ -387,7 +387,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         blocks: std::ops::Range<L2BlockNumber>,
     ) -> DalResult<HashMap<L2BlockNumber, Vec<Transaction>>> {
-        // Check if range is non-empty, because BETWEEN in SQL in unordered.
+        // Check if range is non-empty, because BETWEEN in SQL in `unordered`.
         if blocks.is_empty() {
             return Ok(HashMap::default());
         }
