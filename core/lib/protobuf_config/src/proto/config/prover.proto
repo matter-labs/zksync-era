@@ -99,4 +99,5 @@ message WitnessVectorGenerator {
 message ProofDataHandler {
   optional uint32 http_port = 1; // required; u16
   optional uint32 proof_generation_timeout_in_secs = 2; // required; s
+  optional bool tee_support = 3; // required
 }

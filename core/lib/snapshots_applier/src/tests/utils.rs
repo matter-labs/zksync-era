@@ -332,12 +332,12 @@ impl ObjectStore for HangingObjectStore {
         let mut should_proceed = true;
         self.count_sender.send_modify(|count| {
             *count += 1;
-            if dbg!(*count) > self.stop_after_count {
+            if *count > self.stop_after_count {
                 should_proceed = false;
             }
         });
 
-        if dbg!(should_proceed) {
+        if should_proceed {
             self.inner.get_raw(bucket, key).await
         } else {
             future::pending().await // Hang up the snapshot applier task
