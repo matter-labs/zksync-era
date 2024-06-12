@@ -38,12 +38,14 @@ impl BaseTokenDal<'_, '_> {
         let row = sqlx::query_as!(
             StorageBaseTokenPrice,
             r#"
-                SELECT *
-                FROM
-                    base_token_prices
-                ORDER BY
-                    created_at DESC
-                LIMIT 1
+            SELECT
+                *
+            FROM
+                base_token_prices
+            ORDER BY
+                created_at DESC
+            LIMIT
+                1
             "#,
         )
         .instrument("get_latest_base_token_price")

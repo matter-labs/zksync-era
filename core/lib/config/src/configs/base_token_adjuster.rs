@@ -1,5 +1,6 @@
-use serde::Deserialize;
 use std::time::Duration;
+
+use serde::Deserialize;
 
 // Fetch new prices every 30 seconds by default.
 pub const DEFAULT_INTERVAL_MS: u32 = 30_000;
