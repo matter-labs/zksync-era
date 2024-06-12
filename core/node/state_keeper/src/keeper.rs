@@ -542,6 +542,7 @@ impl ZkSyncStateKeeper {
                 .process_one_tx(batch_executor, updates_manager, tx.clone())
                 .await?;
 
+            let latency = KEEPER_METRICS.match_seal_resolution.start();
             match &seal_resolution {
                 SealResolution::NoSeal | SealResolution::IncludeAndSeal => {
                     let TxExecutionResult::Success {
@@ -587,6 +588,7 @@ impl ZkSyncStateKeeper {
                         .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
                 }
             };
+            latency.observe();
 
             if seal_resolution.should_seal() {
                 tracing::debug!(
@@ -676,6 +678,8 @@ impl ZkSyncStateKeeper {
             .execute_tx(tx.clone())
             .await
             .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
+
+        let latency = KEEPER_METRICS.determine_seal_resolution.start();
         // All of `TxExecutionResult::BootloaderOutOfGasForTx`,
         // `Halt::NotEnoughGasProvided` correspond to out-of-gas errors but of different nature.
         // - `BootloaderOutOfGasForTx`: it is returned when bootloader stack frame run out of gas before tx execution finished.
@@ -792,6 +796,7 @@ impl ZkSyncStateKeeper {
                 )
             }
         };
+        latency.observe();
         Ok((resolution, exec_result))
     }
 }
