@@ -119,7 +119,7 @@ pub(super) struct StateKeeperRunner {
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
     rocksdb_dir: tempfile::TempDir,
     metadata_calculator: MetadataCalculator,
-    account: Account,
+    pub account: Account,
 }
 
 impl StateKeeper {

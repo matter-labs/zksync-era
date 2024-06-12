@@ -19,7 +19,7 @@ use crate::{
 const TEST_TIMEOUT: Duration = Duration::from_secs(90);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
-pub(crate) async fn create_test_tx_sender(
+pub async fn create_test_tx_sender(
     pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
     tx_executor: TransactionExecutor,

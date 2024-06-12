@@ -22,7 +22,7 @@ mod testonly;
 
 /// Context-aware `zksync_dal::ConnectionPool<Core>` wrapper.
 #[derive(Debug, Clone)]
-pub(super) struct ConnectionPool(pub(super) zksync_dal::ConnectionPool<Core>);
+pub(super) struct ConnectionPool(pub zksync_dal::ConnectionPool<Core>);
 
 impl ConnectionPool {
     /// Wrapper for `connection_tagged()`.

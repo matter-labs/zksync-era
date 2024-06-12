@@ -31,7 +31,7 @@ pub enum TxType {
 
 #[derive(Debug, Clone)]
 pub struct Account {
-    private_key: K256PrivateKey,
+    pub private_key: K256PrivateKey,
     pub address: Address,
     pub nonce: Nonce,
 }

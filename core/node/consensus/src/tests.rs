@@ -1,8 +1,12 @@
 #![allow(unused)]
+
+use std::time::Duration;
+
 use anyhow::Context as _;
+use multivm::circuit_sequencer_api_latest::boojum::pairing::hex;
 use test_casing::test_casing;
 use tracing::Instrument as _;
-use zksync_concurrency::{ctx, scope};
+use zksync_concurrency::{ctx, scope, time};
 use zksync_config::configs::consensus::{ValidatorPublicKey, WeightedValidator};
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network::testonly::{new_configs, new_fullnode};
@@ -10,9 +14,21 @@ use zksync_consensus_roles::{
     validator,
     validator::testonly::{Setup, SetupSpec},
 };
+use zksync_contracts::load_contract;
 use zksync_dal::CoreDal;
+use zksync_node_api_server::execution_sandbox::BlockStartInfo;
 use zksync_node_test_utils::Snapshot;
-use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_state_keeper::testonly::{fee, l2_transaction};
+use zksync_system_constants::get_intrinsic_constants;
+use zksync_test_account::{Account, TxType};
+use zksync_types::{
+    api::{BlockId, BlockNumber},
+    fee::Fee,
+    l2::L2Tx,
+    transaction_request::{CallOverrides, PaymasterParams},
+    utils::deployed_address_create,
+    Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, H256, U256,
+};
 
 use super::*;
 
@@ -88,6 +104,54 @@ async fn test_validator_block_store() {
     }
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn test_validator_validator_registry() {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    let rng = &mut ctx.rng();
+
+    scope::run!(ctx, |ctx, s| async {
+        let pool = ConnectionPool::from_genesis().await;
+        let (mut node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
+        let mut account = runner.account.clone();
+        s.spawn_bg(runner.run_real(ctx));
+
+        let tx_executor = zksync_node_api_server::execution_sandbox::TransactionExecutor::Real;
+
+        // Deploy contract
+        let l2_chain_id = L2ChainId::default();
+        let (tx_sender, _) = zksync_node_api_server::web3::testonly::create_test_tx_sender(pool.0.clone(), l2_chain_id, tx_executor).await;
+        let code = zksync_contracts::read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/ValidatorRegistry.sol/ValidatorRegistry.json");
+        let deploy_tx = account.get_deploy_tx(&code, None, TxType::L2);
+        let res = tx_sender.submit_tx(deploy_tx.tx.clone().try_into().unwrap()).await.unwrap();
+
+        // Attempt to read from contract. 
+        // `owner` field should have some value.
+        // Explicit `getOwner` func was added, although it shouldn't be needed (Solidity generates it automatically).
+        let block_id = BlockId::Number(BlockNumber::Pending);
+        let mut conn = pool.connection(ctx).await.unwrap().0;
+        let start_info = BlockStartInfo::new(&mut conn, Duration::from_secs(10)).await?;
+        let block_args = zksync_node_api_server::execution_sandbox::BlockArgs::new(&mut conn, block_id, &start_info).await.unwrap();
+        let call_overrides = CallOverrides { enforced_base_fee: None};
+        let call_tx: L2Tx = account.get_l2_tx_for_execute(
+            Execute {
+                contract_address: deploy_tx.address,
+                calldata: hex::decode("8da5cb5b").unwrap(), // keccak256("getOwner()") = 0x8da5cb5b
+                value: Default::default(),
+                factory_deps: None,
+            },
+            Some(fee(1_000_000)),
+        ).try_into().unwrap();
+        let res = tx_sender.eth_call(block_args, call_overrides, call_tx.clone()).await.unwrap();
+        // output the result.
+        panic!("{:?}", res);
+
+        Ok(())
+    })
+        .await
+        .unwrap();
+}
+
 // In the current implementation, consensus certificates are created asynchronously
 // for the L2 blocks constructed by the StateKeeper. This means that consensus actor
 // is effectively just back filling the consensus certificates for the L2 blocks in storage.
@@ -150,8 +214,8 @@ async fn test_validator(from_snapshot: bool) {
         }
         Ok(())
     })
-    .await
-    .unwrap();
+        .await
+        .unwrap();
 }
 
 // Test running a validator node and 2 full nodes recovered from different snapshots.
