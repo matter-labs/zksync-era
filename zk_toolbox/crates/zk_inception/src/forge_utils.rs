@@ -26,7 +26,8 @@ pub async fn check_the_balance(forge: &ForgeScript) -> anyhow::Result<()> {
         .check_the_balance(U256::from(MINIMUM_BALANCE_FOR_WALLET))
         .await?
     {
-        if !common::PromptConfirm::new(msg_address_doesnt_have_enough_money_prompt(&address)).ask() {
+        if !common::PromptConfirm::new(msg_address_doesnt_have_enough_money_prompt(&address)).ask()
+        {
             break;
         }
     }
