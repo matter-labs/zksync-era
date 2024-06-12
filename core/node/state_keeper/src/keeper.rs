@@ -490,6 +490,8 @@ impl ZkSyncStateKeeper {
         }
 
         while !self.is_canceled() {
+            let full_latency = KEEPER_METRICS.process_l1_batch_loop_iteration.start();
+
             if self
                 .io
                 .should_seal_l1_batch_unconditionally(updates_manager)
@@ -515,7 +517,7 @@ impl ZkSyncStateKeeper {
                     .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
                 tracing::debug!(
                     "Initialized new L2 block #{} (L1 batch #{}) with timestamp {}",
-                    updates_manager.l2_block.number,
+                    updates_manager.l2_block.number + 1,
                     updates_manager.l1_batch.number,
                     display_timestamp(new_l2_block_params.timestamp)
                 );
@@ -595,8 +597,10 @@ impl ZkSyncStateKeeper {
                      transaction {tx_hash}",
                     updates_manager.l1_batch.number
                 );
+                full_latency.observe();
                 return Ok(());
             }
+            full_latency.observe();
         }
         Err(Error::Canceled)
     }
@@ -673,10 +677,12 @@ impl ZkSyncStateKeeper {
         updates_manager: &mut UpdatesManager,
         tx: Transaction,
     ) -> anyhow::Result<(SealResolution, TxExecutionResult)> {
+        let latency = KEEPER_METRICS.execute_tx_outer_time.start();
         let exec_result = batch_executor
             .execute_tx(tx.clone())
             .await
             .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
+        latency.observe();
 
         let latency = KEEPER_METRICS.determine_seal_resolution.start();
         // All of `TxExecutionResult::BootloaderOutOfGasForTx`,
