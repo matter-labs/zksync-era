@@ -14,7 +14,7 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
 use super::{
     io::{IoCursor, L2BlockParams},
-    metrics::BATCH_TIP_METRICS,
+    metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
 use crate::types::ExecutionMetricsForCriteria;
 
@@ -111,6 +111,9 @@ impl UpdatesManager {
         execution_metrics: ExecutionMetrics,
         call_traces: Vec<Call>,
     ) {
+        let latency = UPDATES_MANAGER_METRICS
+            .extend_from_executed_transaction
+            .start();
         self.storage_writes_deduplicator
             .apply(&tx_execution_result.logs.storage_logs);
         self.l2_block.extend_from_executed_transaction(
@@ -121,9 +124,11 @@ impl UpdatesManager {
             compressed_bytecodes,
             call_traces,
         );
+        latency.observe();
     }
 
     pub(crate) fn finish_batch(&mut self, finished_batch: FinishedL1Batch) {
+        let latency = UPDATES_MANAGER_METRICS.finish_batch.start();
         assert!(
             self.l1_batch.finished.is_none(),
             "Cannot finish already finished batch"
@@ -144,6 +149,8 @@ impl UpdatesManager {
             batch_tip_metrics.execution_metrics,
         );
         self.l1_batch.finished = Some(finished_batch);
+
+        latency.observe();
     }
 
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously
