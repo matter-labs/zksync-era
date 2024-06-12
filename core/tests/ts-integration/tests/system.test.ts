@@ -224,7 +224,7 @@ describe('System behavior checks', () => {
             .transfer({
                 amount: L2_DEFAULT_ETH_PER_ACCOUNT / 8n,
                 to: bob.address,
-                token: zksync.utils.ETH_ADDRESS_IN_CONTRACTS
+                token: zksync.utils.L2_BASE_TOKEN_ADDRESS
             })
             .then((tx) => tx.wait());
         testMaster.reporter.debug('Sent ethereum on L2 to Bob');

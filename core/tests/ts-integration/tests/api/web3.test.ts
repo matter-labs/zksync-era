@@ -349,7 +349,7 @@ describe('web3 API compatibility tests', () => {
         const tx = await alice.transfer({
             to: uniqueRecipient,
             amount: 1,
-            token: zksync.utils.ETH_ADDRESS_IN_CONTRACTS // With ERC20 "to" would be an address of the contract.
+            token: zksync.utils.L2_BASE_TOKEN_ADDRESS // With ERC20 "to" would be an address of the contract.
         });
 
         let iterationsCount = 0;
