@@ -7,7 +7,11 @@ import fs from 'fs';
 import { IZkSyncStateTransition } from 'zksync-ethers/build/typechain';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
-function parseSuggestedValues(suggestedValuesString: string) {
+function parseSuggestedValues(suggestedValuesString: string): {
+    lastL1BatchNumber: bigint;
+    nonce: bigint;
+    priorityFee: bigint;
+} {
     const json = JSON.parse(suggestedValuesString);
     if (!json || typeof json !== 'object') {
         throw new TypeError('suggested values are not an object');
@@ -26,7 +30,11 @@ function parseSuggestedValues(suggestedValuesString: string) {
         throw new TypeError('suggested `priorityFee` is not an integer');
     }
 
-    return { lastL1BatchNumber, nonce, priorityFee };
+    return {
+        lastL1BatchNumber: BigInt(lastL1BatchNumber),
+        nonce: BigInt(nonce),
+        priorityFee: BigInt(priorityFee)
+    };
 }
 
 async function killServerAndWaitForShutdown(tester: Tester) {
