@@ -21,6 +21,7 @@ pub use self::{
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
     vm_runner::ProtectiveReadsWriterConfig,
+    base_token_adjuster::BaseTokenAdjusterConfig,
 };
 
 pub mod api;

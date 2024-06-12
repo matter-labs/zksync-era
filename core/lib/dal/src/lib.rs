@@ -23,10 +23,10 @@ use crate::{
     sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
     tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal, base_token_dal::BaseTokenDal,
 };
 
-mod base_token_price_dal;
+pub mod base_token_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
 pub mod consensus;
@@ -126,6 +126,8 @@ where
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a>;
 
     fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a>;
+
+    fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -244,4 +246,6 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
     fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a> {
         VmRunnerDal { storage: self }
     }
+
+    fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a> { BaseTokenDal { storage: self } }
 }

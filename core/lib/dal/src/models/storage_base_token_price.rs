@@ -5,6 +5,7 @@ use zksync_types::base_token_price::BaseTokenPrice;
 /// Represents a row in the `storage_base_token_price` table.
 #[derive(Debug, Clone)]
 pub struct StorageBaseTokenPrice {
+    pub id: i64,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub ratio_timestamp: NaiveDateTime,
@@ -16,6 +17,7 @@ pub struct StorageBaseTokenPrice {
 impl From<StorageBaseTokenPrice> for BaseTokenPrice {
     fn from(row: StorageBaseTokenPrice) -> BaseTokenPrice {
         BaseTokenPrice {
+            id: row.id,
             ratio_timestamp: row.ratio_timestamp.and_utc(),
             numerator: row.numerator,
             denominator: row.denominator,

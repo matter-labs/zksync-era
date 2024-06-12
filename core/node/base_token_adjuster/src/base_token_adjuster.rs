@@ -4,17 +4,12 @@ use std::{
 };
 
 use anyhow::Context;
-use chrono::{NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use rand::Rng;
 use tokio::sync::watch;
-// use zksync_config::BaseTokenAdjusterConfig;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
-use zksync_da_client::{
-    types::{DAError, IsTransient},
-    DataAvailabilityClient,
-};
-use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
-use zksync_types::L1BatchNumber;
+use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal, BaseTokenDal};
+use zksync_types::{L1BatchNumber, base_token_price::BaseTokenAPIPrice};
 
 use crate::metrics::METRICS;
 
@@ -41,11 +36,9 @@ impl BaseTokenAdjuster {
             let start_time = Instant::now();
 
             match self.fetch_new_ratio().await {
-                Ok((new_numerator, new_denominator)) => {
-                    let ratio_timestamp = Utc::now().naive_utc();
-
+                Ok(new_ratio) => {
                     if let Err(err) = self
-                        .persist_ratio(&new_numerator, &new_denominator, ratio_timestamp)
+                        .persist_ratio(&new_ratio, &pool)
                         .await
                     {
                         tracing::error!("Error persisting ratio: {:?}", err);
@@ -66,34 +59,37 @@ impl BaseTokenAdjuster {
         Ok(())
     }
 
-    async fn fetch_new_ratio(&self) -> anyhow::Result<(BigDecimal, BigDecimal)> {
+    async fn fetch_new_ratio(&self) -> anyhow::Result<BaseTokenAPIPrice> {
         let new_numerator = BigDecimal::from(1);
         let new_denominator = BigDecimal::from(100);
-        Ok((new_numerator, new_denominator))
+        let ratio_timestamp = DateTime::from(Utc::now());
+
+        Ok(BaseTokenAPIPrice {
+            numerator: new_numerator,
+            denominator: new_denominator,
+            ratio_timestamp: ratio_timestamp,
+        })
     }
 
     async fn persist_ratio(
         &self,
-        numerator: &BigDecimal,
-        denominator: &BigDecimal,
-        ratio_timestamp: NaiveDateTime,
+        api_price: &BaseTokenAPIPrice,
+        pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         let mut conn = pool.connection_tagged("base_token_adjuster").await?;
-        // let dal = TokenPriceDal::new(&conn);
-        // dal.insert_ratio(
-        //     //TODO
-        // ).await?;
+        conn.base_token_dal()
+            .insert_token_price(
+                api_price.numerator,
+                api_price.denominator,
+                api_price.ratio_timestamp.naive_utc(),
+            )
+            .await?;
+        drop(conn);
+
         Ok(())
     }
 
-    async fn maybe_update_l1(
-        &self,
-        numerator: &BigDecimal,
-        denominator: &BigDecimal,
-        ratio_timestamp: NaiveDateTime,
-    ) -> anyhow::Result<()> {
-        Ok(())
-    }
+    // TODO: async fn maybe_update_l1()
 
     // Sleep for the remaining duration of the polling period
     async fn sleep_until_next_fetch(&self, start_time: Instant) {
