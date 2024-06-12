@@ -952,9 +952,9 @@ describe('web3 API compatibility tests', () => {
         let receipt = await outerContract.deployTransaction.wait();
 
         const deployedBytecode = await alice.provider.getCode(receipt.contractAddress);
-        
+
         expect(expectedAddress).toEqual(receipt.contractAddress);
-        expect(expectedBytecode).toEqual(deployedBytecode)
+        expect(expectedBytecode).toEqual(deployedBytecode);
     });
 
     afterAll(async () => {
