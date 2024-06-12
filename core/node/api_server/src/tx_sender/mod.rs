@@ -1,4 +1,4 @@
-//! Helper module to submit transactions into the zkSync Network.
+//! Helper module to submit transactions into the ZKsync Network.
 
 use std::{sync::Arc, time::Instant};
 

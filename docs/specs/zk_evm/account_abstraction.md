@@ -1,6 +1,6 @@
 # Account abstraction
 
-One of the other important features of zkSync is the support of account abstraction. It is highly recommended to read
+One of the other important features of ZKsync is the support of account abstraction. It is highly recommended to read
 the documentation on our AA protocol here:
 [https://era.zksync.io/docs/reference/concepts/account-abstraction.html#introduction](https://era.zksync.io/docs/reference/concepts/account-abstraction.html#introduction)
 

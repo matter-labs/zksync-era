@@ -6,7 +6,7 @@ Many EVM instructions require special handling by the
 handling, see
 [the EVM instructions reference](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/instructions/evm).
 
-There are several types of System Contracts from the perspective of how they are handled by the zkSync Era compilers:
+There are several types of System Contracts from the perspective of how they are handled by the ZKsync Era compilers:
 
 1. [Environmental data storage](#environmental-data-storage).
 2. [KECCAK256 hash function](#keccak256-hash-function).
@@ -45,7 +45,7 @@ For reference, see
 Handling of this function is similar to [Environmental Data Storage](#environmental-data-storage) with one difference:
 
 Since EVM also uses heap to store the calldata for `KECCAK256`, the required memory chunk is allocated by the IR
-generator, and zkSync Era compiler does not need to use [the auxiliary heap](#auxiliary-heap).
+generator, and ZKsync Era compiler does not need to use [the auxiliary heap](#auxiliary-heap).
 
 For reference, see
 [the LLVM IR codegen source code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/context/function/llvm_runtime.rs).
@@ -55,7 +55,7 @@ For reference, see
 See [handling CREATE](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#create-create2)
 and
 [dependency code substitution instructions](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#datasize-dataoffset-datacopy)
-on zkSync Era documentation.
+on ZKsync Era documentation.
 
 For reference, see LLVM IR codegen for
 [the deployer call](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/context/function/runtime/deployer_call.rs)
@@ -88,7 +88,7 @@ For reference, see
 
 See
 [handling immutables](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#setimmutable-loadimmutable)
-on zkSync Era documentation.
+on ZKsync Era documentation.
 
 For reference, see LLVM IR codegen for
 [instructions for immutables](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/immutable.rs)

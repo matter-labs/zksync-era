@@ -154,7 +154,7 @@ describe('Smart contract behavior checks', () => {
 
     test('Should interchangeably use ethers for eth calls', async () => {
         // In this test we make sure that we can use `ethers` `Contract` object and provider
-        // to do an `eth_Call` and send transactions to zkSync contract.
+        // to do an `eth_Call` and send transactions to ZKsync contract.
         // This check is important to ensure that external apps do not have to use our SDK and
         // can keep using `ethers` on their side.
 

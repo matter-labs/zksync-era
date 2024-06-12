@@ -1,6 +1,6 @@
-//! zkSync types: essential type definitions for zkSync network.
+//! ZKsync types: essential type definitions for ZKsync network.
 //!
-//! `zksync_types` is a crate containing essential zkSync network types, such as transactions, operations and
+//! `zksync_types` is a crate containing essential ZKsync network types, such as transactions, operations and
 //! blockchain primitives.
 
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
@@ -63,7 +63,7 @@ pub mod proto;
 pub mod transaction_request;
 pub mod utils;
 
-/// Denotes the first byte of the special zkSync's EIP-712-signed transaction.
+/// Denotes the first byte of the special ZKsync's EIP-712-signed transaction.
 pub const EIP_712_TX_TYPE: u8 = 0x71;
 
 /// Denotes the first byte of the `EIP-1559` transaction.

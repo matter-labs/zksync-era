@@ -2,7 +2,7 @@
 
 cd `dirname $0`
 
-# Main zkSync contract interface
+# Main ZKsync contract interface
 cat $ZKSYNC_HOME/contracts/l1-contracts/artifacts/contracts/bridgehub/IBridgehub.sol/IBridgehub.json | jq '{ abi: .abi}' > IBridgehub.json
 cat $ZKSYNC_HOME/contracts/l1-contracts/artifacts/contracts/state-transition/IStateTransitionManager.sol/IStateTransitionManager.json | jq '{ abi: .abi}' > IStateTransitionManager.json
 cat $ZKSYNC_HOME/contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json | jq '{ abi: .abi}' > IZkSyncHyperchain.json

@@ -41,7 +41,7 @@ pub struct LoadtestConfig {
     /// Address of the ERC-20 token to be used in test.
     ///
     /// Token must satisfy two criteria:
-    /// - Be supported by zkSync.
+    /// - Be supported by ZKsync.
     /// - Have `mint` operation.
     ///
     /// Note that we use ERC-20 token since we can't easily mint a lot of ETH on
