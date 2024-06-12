@@ -2,7 +2,7 @@
 //! stores them in the DB.
 
 use std::{
-    num::NonZeroU32,
+    num::{NonZeroU32, NonZeroUsize},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -45,12 +45,18 @@ pub struct MetadataCalculatorRecoveryConfig {
     /// **Important.** This value cannot be changed in the middle of tree recovery (i.e., if a node is stopped in the middle
     /// of recovery and then restarted with a different config).
     pub desired_chunk_size: u64,
+    /// Buffer capacity for parallel persistence operations. Should be reasonably small since larger buffer means more RAM usage;
+    /// buffer elements are persisted tree chunks. OTOH, small buffer can lead to persistence parallelization being inefficient.
+    ///
+    /// If set to `None`, parallel persistence will be disabled.
+    pub parallel_persistence_buffer: Option<NonZeroUsize>,
 }
 
 impl Default for MetadataCalculatorRecoveryConfig {
     fn default() -> Self {
         Self {
             desired_chunk_size: 200_000,
+            parallel_persistence_buffer: NonZeroUsize::new(4),
         }
     }
 }
@@ -208,7 +214,7 @@ impl MetadataCalculator {
             started_at.elapsed()
         );
 
-        GenericAsyncTree::new(db, self.config.mode).await
+        GenericAsyncTree::new(db, &self.config).await
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
