@@ -61,7 +61,7 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 
 > [!NOTE]
 >
-> Those are requirements for a freshly started node and the the state grows about 1TB per month for mainnet
+> Those are requirements for a freshly started node and the state grows about 1TB per month for mainnet
 
 - 32 GB of RAM and a relatively modern CPU
 - 30 GB of storage for testnet nodes
