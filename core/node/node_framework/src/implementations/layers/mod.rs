@@ -25,5 +25,6 @@ pub mod sigint;
 pub mod state_keeper;
 pub mod tee_verifier_input_producer;
 pub mod tree_data_fetcher;
+pub mod validate_chain_ids;
 pub mod vm_runner;
 pub mod web3_api;

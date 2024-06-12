@@ -34,8 +34,7 @@ impl WiringLayer for L1BatchCommitmentModeValidationLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let EthInterfaceResource(query_client) =
-            context.get_resource::<EthInterfaceResource>().await?;
+        let EthInterfaceResource(query_client) = context.get_resource().await?;
         let task = L1BatchCommitmentModeValidationTask::new(
             self.duamond_proxy_addr,
             self.l1_batch_commit_data_generator_mode,

@@ -26,6 +26,7 @@ use zksync_node_framework::{
             output_handler::OutputHandlerLayer, StateKeeperLayer,
         },
         tree_data_fetcher::TreeDataFetcherLayer,
+        validate_chain_ids::ValidateChainIdsLayer,
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
@@ -220,6 +221,15 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
+        let layer = ValidateChainIdsLayer::new(
+            self.config.required.l1_chain_id,
+            self.config.required.l2_chain_id,
+        );
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
         let layer = ConsistencyCheckerLayer::new(
@@ -243,10 +253,6 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_preconditions(mut self) -> anyhow::Result<Self> {
-        todo!()
-    }
-
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
         let layer = TreeDataFetcherLayer::new(self.config.remote.diamond_proxy_addr);
         self.node.add_layer(layer);
@@ -266,7 +272,7 @@ impl ExternalNodeBuilder {
         // Add preconditions for all the components.
         self = self
             .add_l1_batch_commitment_mode_validation_layer()?
-            .add_preconditions()?;
+            .add_validate_chain_ids_layer()?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
@@ -313,8 +319,6 @@ impl ExternalNodeBuilder {
                         .add_pruning_layer()?
                         .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?;
-
-                    todo!()
                 }
             }
         }
