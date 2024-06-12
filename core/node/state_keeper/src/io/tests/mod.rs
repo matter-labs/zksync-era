@@ -556,10 +556,11 @@ async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1Batc
 
 #[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn no_name_test(commitment_mode: L1BatchCommitmentMode) {
+async fn base_token_conversion_rate_u64_overflow(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
 
+    // We first insert a token price with a rate that will overflow u64 when converted to wei.
     let mut connection = connection_pool.connection().await.unwrap();
     let mut token_price_dal = connection.token_price_dal();
     let token_price_data = TokenPriceData {
@@ -571,6 +572,7 @@ async fn no_name_test(commitment_mode: L1BatchCommitmentMode) {
         .await
         .unwrap();
 
+    // We then get the fee input provider and check that the rate is u64::MAX.
     let main_node_fee_input_provider = tester.create_batch_fee_input_provider().await;
     let (l1_gas_price, l1_pubdata_price) = match main_node_fee_input_provider.get_fee_model_params()
     {
@@ -580,4 +582,34 @@ async fn no_name_test(commitment_mode: L1BatchCommitmentMode) {
 
     assert_eq!(l1_gas_price, u64::MAX);
     assert_eq!(l1_pubdata_price, u64::MAX);
+}
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[tokio::test]
+async fn base_token_conversion_rate_no_u64_overflow(commitment_mode: L1BatchCommitmentMode) {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let tester = Tester::new(commitment_mode, Some(connection_pool.clone()));
+
+    // We first insert a token price with a rate that will overflow u64 when converted to wei.
+    let mut connection = connection_pool.connection().await.unwrap();
+    let mut token_price_dal = connection.token_price_dal();
+    let token_price_data = TokenPriceData {
+        address: Address::default(),
+        rate: BigDecimal::from(1),
+    };
+    token_price_dal
+        .insert_ratio(token_price_data)
+        .await
+        .unwrap();
+
+    // We then get the fee input provider and check that the rate is u64::MAX.
+    let main_node_fee_input_provider = tester.create_batch_fee_input_provider().await;
+    let (l1_gas_price, l1_pubdata_price) = match main_node_fee_input_provider.get_fee_model_params()
+    {
+        FeeParams::V1(f) => (f.l1_gas_price, 1),
+        FeeParams::V2(f) => (f.l1_gas_price, f.l1_pubdata_price),
+    };
+
+    assert!(l1_gas_price < u64::MAX);
+    assert!(l1_pubdata_price < u64::MAX);
 }
