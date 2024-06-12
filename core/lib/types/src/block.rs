@@ -200,7 +200,7 @@ pub struct L2BlockHasher {
 }
 
 impl L2BlockHasher {
-    /// At the beginning of the zkSync, the hashes of the blocks could be calculated as the hash of their number.
+    /// At the beginning of the ZKsync, the hashes of the blocks could be calculated as the hash of their number.
     /// This method returns the hash of such L2 blocks.
     pub fn legacy_hash(l2_block_number: L2BlockNumber) -> H256 {
         H256(keccak256(&l2_block_number.0.to_be_bytes()))

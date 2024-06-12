@@ -1,4 +1,4 @@
-//! Execution of transaction in zkSync Era
+//! Execution of transaction in ZKsync Era
 
 // Linter settings.
 #![warn(missing_debug_implementations, missing_docs, bare_trait_objects)]
