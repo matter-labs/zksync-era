@@ -9738,6 +9738,7 @@ dependencies = [
  "once_cell",
  "tokio",
  "tracing",
+ "vise",
  "vm_utils",
  "zksync_contracts",
  "zksync_dal",
