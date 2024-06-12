@@ -1,3 +1,4 @@
+use zksync_test_account::Account;
 use zksync_types::{fee::Fee, Execute};
 
 use crate::{
@@ -28,7 +29,7 @@ fn test_tx_gas_limit_offset() {
         },
         Some(Fee {
             gas_limit,
-            ..Default::default()
+            ..Account::default_fee()
         }),
     );
 

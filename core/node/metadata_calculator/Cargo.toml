@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_crypto.workspace = true
 zksync_dal.workspace = true
 zksync_health_check.workspace = true
 zksync_merkle_tree.workspace = true

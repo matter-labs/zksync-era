@@ -86,7 +86,7 @@ fn entry_proofs_are_computed_correctly_on_empty_tree(kv_count: u64) {
     let entries = tree.entries_with_proofs(0, &existing_keys).unwrap();
     assert_eq!(entries.len(), existing_keys.len());
     for (input_entry, entry) in kvs.iter().zip(entries) {
-        entry.verify(&Blake2Hasher, expected_hash);
+        entry.verify(&Blake2Hasher, expected_hash).unwrap();
         assert_eq!(entry.base, *input_entry);
     }
 
@@ -110,7 +110,7 @@ fn entry_proofs_are_computed_correctly_on_empty_tree(kv_count: u64) {
     for (key, entry) in missing_keys.iter().zip(entries) {
         assert!(entry.base.is_empty());
         assert_eq!(entry.base.key, *key);
-        entry.verify(&Blake2Hasher, expected_hash);
+        entry.verify(&Blake2Hasher, expected_hash).unwrap();
     }
 }
 
@@ -228,7 +228,7 @@ fn entry_proofs_are_computed_correctly_with_intermediate_commits(chunk_size: usi
         for (i, (key, entry)) in all_keys.iter().zip(entries).enumerate() {
             assert_eq!(entry.base.key, *key);
             assert_eq!(entry.base.is_empty(), i >= (version + 1) * chunk_size);
-            entry.verify(&Blake2Hasher, output.root_hash);
+            entry.verify(&Blake2Hasher, output.root_hash).unwrap();
         }
     }
 
@@ -239,7 +239,7 @@ fn entry_proofs_are_computed_correctly_with_intermediate_commits(chunk_size: usi
         for (i, (key, entry)) in all_keys.iter().zip(entries).enumerate() {
             assert_eq!(entry.base.key, *key);
             assert_eq!(entry.base.is_empty(), i >= (version + 1) * chunk_size);
-            entry.verify(&Blake2Hasher, root_hash);
+            entry.verify(&Blake2Hasher, root_hash).unwrap();
         }
     }
 }
@@ -415,7 +415,7 @@ fn proofs_are_computed_correctly_with_key_updates(updated_keys: usize) {
     let proofs = tree.entries_with_proofs(1, &keys).unwrap();
     for (entry, proof) in kvs.iter().zip(proofs) {
         assert_eq!(proof.base, *entry);
-        proof.verify(&Blake2Hasher, *expected_hash);
+        proof.verify(&Blake2Hasher, *expected_hash).unwrap();
     }
 }
 

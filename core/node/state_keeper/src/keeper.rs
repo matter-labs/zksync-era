@@ -354,6 +354,7 @@ impl ZkSyncStateKeeper {
     ) -> anyhow::Result<()> {
         updates_manager.push_l2_block(params);
         let block_env = updates_manager.l2_block.get_env();
+        tracing::info!("BLOCK_ENV = {block_env:?}");
         batch_executor
             .start_next_l2_block(block_env)
             .await

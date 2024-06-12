@@ -279,33 +279,54 @@ impl ConsensusDal<'_, '_> {
             .await
     }
 
-    /// Converts the L2 block `block_number` into consensus payload. `Payload` is an
+    /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
+    pub async fn block_payloads(
+        &mut self,
+        numbers: std::ops::Range<validator::BlockNumber>,
+    ) -> DalResult<Vec<Payload>> {
+        let numbers = (|| {
+            anyhow::Ok(std::ops::Range {
+                start: L2BlockNumber(numbers.start.0.try_into().context("start")?),
+                end: L2BlockNumber(numbers.end.0.try_into().context("end")?),
+            })
+        })()
+        .map_err(|err| {
+            Instrumented::new("block_payloads")
+                .with_arg("numbers", &numbers)
+                .arg_error("numbers", err)
+        })?;
+
+        let blocks = self
+            .storage
+            .sync_dal()
+            .sync_blocks_inner(numbers.clone())
+            .await?;
+        let mut transactions = self
+            .storage
+            .transactions_web3_dal()
+            .get_raw_l2_blocks_transactions(numbers)
+            .await?;
+        Ok(blocks
+            .into_iter()
+            .map(|b| {
+                let txs = transactions.remove(&b.number).unwrap_or_default();
+                b.into_payload(txs)
+            })
+            .collect())
+    }
+
+    /// Fetches an L2 block from storage and converts it to `Payload`. `Payload` is an
     /// opaque format for the L2 block that consensus understands and generates a
     /// certificate for it.
     pub async fn block_payload(
         &mut self,
-        block_number: validator::BlockNumber,
+        number: validator::BlockNumber,
     ) -> DalResult<Option<Payload>> {
-        let instrumentation =
-            Instrumented::new("block_payload").with_arg("block_number", &block_number);
-        let block_number = u32::try_from(block_number.0)
-            .map_err(|err| instrumentation.arg_error("block_number", err))?;
-        let block_number = L2BlockNumber(block_number);
-
-        let Some(block) = self
-            .storage
-            .sync_dal()
-            .sync_block_inner(block_number)
+        Ok(self
+            .block_payloads(number..number + 1)
             .await?
-        else {
-            return Ok(None);
-        };
-        let transactions = self
-            .storage
-            .transactions_web3_dal()
-            .get_raw_l2_block_transactions(block_number)
-            .await?;
-        Ok(Some(block.into_payload(transactions)))
+            .into_iter()
+            .next())
     }
 
     /// Inserts a certificate for the L2 block `cert.header().number`. It verifies that
