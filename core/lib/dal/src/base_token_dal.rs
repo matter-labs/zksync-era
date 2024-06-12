@@ -1,13 +1,7 @@
 use bigdecimal::BigDecimal;
-use zksync_db_connection::{
-    connection::Connection,
-    error::DalResult,
-};
+use zksync_db_connection::{connection::Connection, error::DalResult};
 
-use crate::{
-    models::storage_base_token_price::StorageBaseTokenPrice,
-    Core,
-};
+use crate::{models::storage_base_token_price::StorageBaseTokenPrice, Core};
 
 #[derive(Debug)]
 pub struct BaseTokenDal<'a, 'c> {
@@ -32,17 +26,15 @@ impl BaseTokenDal<'_, '_> {
             denominator.to_string(),
             ratio_timestamp,
         )
-            .instrument("insert_base_token_price")
-            .execute(self.storage)
-            .await?;
+        .instrument("insert_base_token_price")
+        .execute(self.storage)
+        .await?;
         Ok(())
     }
 
     // TODO (PE-128): pub async fn mark_l1_update()
 
-    pub async fn get_latest_price(
-        &mut self,
-    ) -> DalResult<StorageBaseTokenPrice> {
+    pub async fn get_latest_price(&mut self) -> DalResult<StorageBaseTokenPrice> {
         let row = sqlx::query_as!(
             StorageBaseTokenPrice,
             r#"
@@ -54,10 +46,9 @@ impl BaseTokenDal<'_, '_> {
                 LIMIT 1
             "#,
         )
-            .instrument("get_latest_base_token_price")
-            .fetch_one(self.storage)
-            .await?;
+        .instrument("get_latest_base_token_price")
+        .fetch_one(self.storage)
+        .await?;
         Ok(row)
     }
-
 }

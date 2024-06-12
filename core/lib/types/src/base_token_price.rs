@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
 
 /// Represents the base token price at a given point in time.
 #[derive(Debug, Clone)]

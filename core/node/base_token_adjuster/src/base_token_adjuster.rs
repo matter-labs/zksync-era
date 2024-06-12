@@ -8,8 +8,8 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use rand::Rng;
 use tokio::sync::watch;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
-use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal, BaseTokenDal};
-use zksync_types::{L1BatchNumber, base_token_price::BaseTokenAPIPrice};
+use zksync_dal::{BaseTokenDal, BigDecimal, ConnectionPool, Core, CoreDal};
+use zksync_types::{base_token_price::BaseTokenAPIPrice, L1BatchNumber};
 
 use crate::metrics::METRICS;
 
@@ -37,10 +37,7 @@ impl BaseTokenAdjuster {
 
             match self.fetch_new_ratio().await {
                 Ok(new_ratio) => {
-                    if let Err(err) = self
-                        .persist_ratio(&new_ratio, &pool)
-                        .await
-                    {
+                    if let Err(err) = self.persist_ratio(&new_ratio, &pool).await {
                         tracing::error!("Error persisting ratio: {:?}", err);
                     }
 

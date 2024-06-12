@@ -12,10 +12,11 @@ pub use zksync_db_connection::{
 };
 
 use crate::{
-    blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
-    contract_verification_dal::ContractVerificationDal, eth_sender_dal::EthSenderDal,
-    events_dal::EventsDal, events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
-    proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
+    base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
+    consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
+    eth_sender_dal::EthSenderDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
+    factory_deps_dal::FactoryDepsDal, proof_generation_dal::ProofGenerationDal,
+    protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
@@ -23,7 +24,7 @@ use crate::{
     sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
     tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal, base_token_dal::BaseTokenDal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
 pub mod base_token_dal;
@@ -247,5 +248,7 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         VmRunnerDal { storage: self }
     }
 
-    fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a> { BaseTokenDal { storage: self } }
+    fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a> {
+        BaseTokenDal { storage: self }
+    }
 }
