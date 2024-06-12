@@ -41,8 +41,7 @@ pub(crate) struct TxCache {
 
 #[derive(Debug, Default)]
 struct TxCacheInner {
-    // FIXME: implement expiration / LRU?
-    tx_cache: HashMap<H256, L2Tx>,
+    transactions_by_hash: HashMap<H256, L2Tx>,
     tx_hashes_by_initiator: HashMap<(Address, Nonce), HashSet<H256>>,
     nonces_by_account: HashMap<Address, BTreeSet<Nonce>>,
 }
@@ -61,7 +60,7 @@ impl TxCacheInner {
             for &nonce in &*account_nonces {
                 if let Some(tx_hashes) = self.tx_hashes_by_initiator.remove(&(*address, nonce)) {
                     for tx_hash in tx_hashes {
-                        self.tx_cache.remove(&tx_hash);
+                        self.transactions_by_hash.remove(&tx_hash);
                     }
                 }
             }
@@ -84,7 +83,7 @@ impl TxCacheInner {
                 .remove(&(initiator_address, nonce))
             {
                 for tx_hash in tx_hashes {
-                    self.tx_cache.remove(&tx_hash);
+                    self.transactions_by_hash.remove(&tx_hash);
                 }
             }
         }
@@ -109,11 +108,39 @@ impl TxCache {
             .entry((tx.initiator_account(), tx.nonce()))
             .or_default()
             .insert(tx.hash());
-        inner.tx_cache.insert(tx.hash(), tx);
+        inner.transactions_by_hash.insert(tx.hash(), tx);
     }
 
-    async fn get_tx(&self, tx_hash: H256) -> Option<L2Tx> {
-        self.inner.read().await.tx_cache.get(&tx_hash).cloned()
+    async fn get(&self, tx_hash: H256) -> Option<L2Tx> {
+        self.inner
+            .read()
+            .await
+            .transactions_by_hash
+            .get(&tx_hash)
+            .cloned()
+    }
+
+    async fn remove(&self, tx_hash: H256) {
+        let mut inner = self.inner.write().await;
+        let Some(tx) = inner.transactions_by_hash.remove(&tx_hash) else {
+            // The transaction is already removed; this is fine.
+            return;
+        };
+
+        let initiator_and_nonce = (tx.initiator_account(), tx.nonce());
+        if let Some(txs) = inner.tx_hashes_by_initiator.get_mut(&initiator_and_nonce) {
+            txs.remove(&tx_hash);
+            if txs.is_empty() {
+                inner.tx_hashes_by_initiator.remove(&initiator_and_nonce);
+                // No transactions with `initiator_and_nonce` remain in the cache; remove the nonce record as well
+                if let Some(nonces) = inner.nonces_by_account.get_mut(&tx.initiator_account()) {
+                    nonces.remove(&tx.nonce());
+                    if nonces.is_empty() {
+                        inner.nonces_by_account.remove(&tx.initiator_account());
+                    }
+                }
+            }
+        }
     }
 
     async fn get_nonces_for_account(&self, account_address: Address) -> BTreeSet<Nonce> {
@@ -206,16 +233,12 @@ impl TxProxy {
             .await
     }
 
-    async fn save_tx(&self, tx: L2Tx) {
-        self.tx_cache.push(tx).await;
-    }
-
     async fn find_tx(
         &self,
         storage: &mut Connection<'_, Core>,
         tx_hash: H256,
     ) -> Result<Option<L2Tx>, Web3Error> {
-        let Some(tx) = self.tx_cache.get_tx(tx_hash).await else {
+        let Some(tx) = self.tx_cache.get(tx_hash).await else {
             return Ok(None);
         };
 
@@ -279,8 +302,12 @@ impl TxSink for TxProxy {
         // We're running an external node: we have to proxy the transaction to the main node.
         // But before we do that, save the tx to cache in case someone will request it
         // Before it reaches the main node.
-        self.save_tx(tx.clone()).await;
-        self.submit_tx_impl(tx).await?; // FIXME: shouldn't tx be removed from cache on error?
+        self.tx_cache.push(tx.clone()).await;
+        if let Err(err) = self.submit_tx_impl(tx).await {
+            // Remove the transaction from the cache on failure so that it doesn't occupy space in the cache indefinitely.
+            self.tx_cache.remove(tx.hash()).await;
+            return Err(err.into());
+        }
         APP_METRICS.processed_txs[&TxStage::Proxied].inc();
         Ok(L2TxSubmissionResult::Proxied)
     }
@@ -351,7 +378,7 @@ mod tests {
     use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
     use zksync_node_test_utils::{create_l2_block, create_l2_transaction};
     use zksync_types::{get_nonce_key, web3::Bytes, L2BlockNumber, StorageLog};
-    use zksync_web3_decl::client::MockClient;
+    use zksync_web3_decl::{client::MockClient, jsonrpsee::core::ClientError};
 
     use super::*;
 
@@ -384,7 +411,7 @@ mod tests {
         assert!(send_tx_called.load(Ordering::Relaxed));
 
         // Check that the transaction is present in the cache
-        assert_eq!(proxy.tx_cache.get_tx(tx.hash()).await.unwrap(), tx);
+        assert_eq!(proxy.tx_cache.get(tx.hash()).await.unwrap(), tx);
         let found_tx = proxy
             .lookup_tx(&mut storage, api::TransactionId::Hash(tx.hash()))
             .await
@@ -405,6 +432,94 @@ mod tests {
             .unwrap()
             .expect("no transaction");
         assert_eq!(tx_details.initiator_address, tx.initiator_account());
+    }
+
+    #[tokio::test]
+    async fn low_level_transaction_cache_operations() {
+        let tx_cache = TxCache::default();
+        let tx = create_l2_transaction(10, 100);
+        let tx_hash = tx.hash();
+
+        tx_cache.push(tx.clone()).await;
+        assert_eq!(tx_cache.get(tx_hash).await.unwrap(), tx);
+        assert_eq!(
+            tx_cache
+                .get_nonces_for_account(tx.initiator_account())
+                .await,
+            BTreeSet::from([Nonce(0)])
+        );
+
+        tx_cache.remove(tx_hash).await;
+        assert_eq!(tx_cache.get(tx_hash).await, None);
+        assert_eq!(
+            tx_cache
+                .get_nonces_for_account(tx.initiator_account())
+                .await,
+            BTreeSet::new()
+        );
+
+        {
+            let inner = tx_cache.inner.read().await;
+            assert!(inner.transactions_by_hash.is_empty(), "{inner:?}");
+            assert!(inner.nonces_by_account.is_empty(), "{inner:?}");
+            assert!(inner.tx_hashes_by_initiator.is_empty(), "{inner:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn low_level_transaction_cache_operations_with_replacing_transaction() {
+        let tx_cache = TxCache::default();
+        let tx = create_l2_transaction(10, 100);
+        let tx_hash = tx.hash();
+        let mut replacing_tx = create_l2_transaction(10, 100);
+        replacing_tx.common_data.initiator_address = tx.initiator_account();
+        let replacing_tx_hash = replacing_tx.hash();
+        assert_ne!(replacing_tx_hash, tx_hash);
+
+        tx_cache.push(tx.clone()).await;
+        tx_cache.push(replacing_tx).await;
+        tx_cache.get(tx_hash).await.unwrap();
+        tx_cache.get(replacing_tx_hash).await.unwrap();
+        // Both transactions have the same nonce
+        assert_eq!(
+            tx_cache
+                .get_nonces_for_account(tx.initiator_account())
+                .await,
+            BTreeSet::from([Nonce(0)])
+        );
+
+        tx_cache.remove(tx_hash).await;
+        assert_eq!(tx_cache.get(tx_hash).await, None);
+        assert_eq!(
+            tx_cache
+                .get_nonces_for_account(tx.initiator_account())
+                .await,
+            BTreeSet::from([Nonce(0)])
+        );
+    }
+
+    #[tokio::test]
+    async fn transaction_is_not_stored_in_cache_on_main_node_failure() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
+        insert_genesis_batch(&mut storage, &params).await.unwrap();
+
+        let tx = create_l2_transaction(10, 100);
+        let main_node_client = MockClient::builder(L2::default())
+            .method("eth_sendRawTransaction", |_bytes: Bytes| {
+                Err::<H256, _>(ClientError::RequestTimeout)
+            })
+            .build();
+
+        let proxy = TxProxy::new(Box::new(main_node_client));
+        proxy
+            .submit_tx(&tx, TransactionExecutionMetrics::default())
+            .await
+            .unwrap_err();
+
+        let found_tx = proxy.find_tx(&mut storage, tx.hash()).await.unwrap();
+        assert!(found_tx.is_none(), "{found_tx:?}");
     }
 
     #[derive(Debug, Clone, Copy)]
@@ -462,10 +577,10 @@ mod tests {
             .submit_tx(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
-        assert_eq!(proxy.tx_cache.get_tx(tx.hash()).await.unwrap(), tx);
+        assert_eq!(proxy.tx_cache.get(tx.hash()).await.unwrap(), tx);
         {
             let cache_inner = proxy.tx_cache.inner.read().await;
-            assert!(cache_inner.tx_cache.contains_key(&tx.hash()));
+            assert!(cache_inner.transactions_by_hash.contains_key(&tx.hash()));
             assert!(cache_inner
                 .nonces_by_account
                 .contains_key(&tx.initiator_account()));
@@ -491,10 +606,10 @@ mod tests {
         cache_update_method.apply(&pool, &proxy, tx.hash()).await;
 
         // Transaction should be removed from the cache
-        assert!(proxy.tx_cache.get_tx(tx.hash()).await.is_none());
+        assert!(proxy.tx_cache.get(tx.hash()).await.is_none());
         {
             let cache_inner = proxy.tx_cache.inner.read().await;
-            assert!(!cache_inner.tx_cache.contains_key(&tx.hash()));
+            assert!(!cache_inner.transactions_by_hash.contains_key(&tx.hash()));
             assert!(!cache_inner
                 .nonces_by_account
                 .contains_key(&tx.initiator_account()));
@@ -584,8 +699,10 @@ mod tests {
         // Original and replacing transactions should be removed from the cache, and the future transaction should be retained.
         {
             let cache_inner = proxy.tx_cache.inner.read().await;
-            assert!(!cache_inner.tx_cache.contains_key(&tx.hash()));
-            assert!(!cache_inner.tx_cache.contains_key(&replacing_tx.hash()));
+            assert!(!cache_inner.transactions_by_hash.contains_key(&tx.hash()));
+            assert!(!cache_inner
+                .transactions_by_hash
+                .contains_key(&replacing_tx.hash()));
             assert_eq!(
                 cache_inner.nonces_by_account[&tx.initiator_account()],
                 BTreeSet::from([Nonce(1)])
