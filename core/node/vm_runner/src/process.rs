@@ -10,7 +10,7 @@ use zksync_state_keeper::{
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
 
-use crate::{storage::StorageLoader, OutputHandlerFactory, VmRunnerIo};
+use crate::{metrics::METRICS, storage::StorageLoader, OutputHandlerFactory, VmRunnerIo};
 
 /// VM runner represents a logic layer of L1 batch / L2 block processing flow akin to that of state
 /// keeper. The difference is that VM runner is designed to be run on batches/blocks that have
@@ -61,6 +61,7 @@ impl VmRunner {
         mut updates_manager: UpdatesManager,
         mut output_handler: Box<dyn StateKeeperOutputHandler>,
     ) -> anyhow::Result<()> {
+        let latency = METRICS.run_vm_time.start();
         for (i, l2_block) in l2_blocks.into_iter().enumerate() {
             if i > 0 {
                 // First L2 block in every batch is already preloaded
@@ -114,6 +115,7 @@ impl VmRunner {
             .await
             .context("failed finishing L1 batch in executor")?;
         updates_manager.finish_batch(finished_batch);
+        latency.observe();
         output_handler
             .handle_l1_batch(Arc::new(updates_manager))
             .await
@@ -134,6 +136,11 @@ impl VmRunner {
             .await?
             + 1;
         loop {
+            if *stop_receiver.borrow() {
+                tracing::info!("VM runner was interrupted");
+                return Ok(());
+            }
+
             // Traverse all handles and filter out tasks that have been finished. Also propagates
             // any panic/error that might have happened during the task's execution.
             let mut retained_handles = Vec::new();
@@ -148,11 +155,15 @@ impl VmRunner {
                 }
             }
             task_handles = retained_handles;
+            METRICS
+                .in_progress_l1_batches
+                .set(task_handles.len() as u64);
 
             let last_ready_batch = self
                 .io
                 .last_ready_to_be_loaded_batch(&mut self.pool.connection().await?)
                 .await?;
+            METRICS.last_ready_batch.set(last_ready_batch.0.into());
             if next_batch > last_ready_batch {
                 // Next batch is not ready to be processed yet
                 tokio::time::sleep(SLEEP_INTERVAL).await;

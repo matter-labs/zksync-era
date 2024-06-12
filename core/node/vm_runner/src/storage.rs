@@ -19,7 +19,7 @@ use zksync_state::{
 use zksync_storage::RocksDB;
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
 
-use crate::VmRunnerIo;
+use crate::{metrics::METRICS, VmRunnerIo};
 
 #[async_trait]
 pub trait StorageLoader: ReadStorageFactory {
@@ -338,6 +338,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             drop(state);
             let max_desired = self.io.last_ready_to_be_loaded_batch(&mut conn).await?;
             for l1_batch_number in max_present.0 + 1..=max_desired.0 {
+                let latency = METRICS.storage_load_time.start();
                 let l1_batch_number = L1BatchNumber(l1_batch_number);
                 let Some(execute_data) = Self::load_batch_execute_data(
                     &mut conn,
@@ -374,6 +375,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
                     .storage
                     .insert(l1_batch_number, BatchData { execute_data, diff });
                 drop(state);
+                latency.observe();
             }
             drop(conn);
         }
