@@ -148,6 +148,7 @@ impl MainNodeBuilder {
             self.genesis_config.clone(),
             state_keeper_config,
             try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
+            None, // TODO: add base token config
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)

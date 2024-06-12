@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
-    GasAdjusterConfig, GenesisConfig,
+    BaseTokenConfig, GasAdjusterConfig, GenesisConfig,
 };
 use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
 use zksync_types::fee_model::FeeModelConfig;
@@ -26,6 +26,7 @@ pub struct SequencerL1GasLayer {
     genesis_config: GenesisConfig,
     pubdata_sending_mode: PubdataSendingMode,
     state_keeper_config: StateKeeperConfig,
+    base_token_config: Option<BaseTokenConfig>,
 }
 
 impl SequencerL1GasLayer {
@@ -34,12 +35,14 @@ impl SequencerL1GasLayer {
         genesis_config: GenesisConfig,
         state_keeper_config: StateKeeperConfig,
         pubdata_sending_mode: PubdataSendingMode,
+        base_token_config: Option<BaseTokenConfig>,
     ) -> Self {
         Self {
             gas_adjuster_config,
             genesis_config,
             pubdata_sending_mode,
             state_keeper_config,
+            base_token_config,
         }
     }
 }
@@ -64,7 +67,7 @@ impl WiringLayer for SequencerL1GasLayer {
             self.pubdata_sending_mode,
             self.genesis_config.l1_batch_commit_data_generator_mode,
             Some(connection_pool),
-            None, // TODO: Add base token config
+            self.base_token_config,
         )
         .await
         .context("GasAdjuster::new()")?;
