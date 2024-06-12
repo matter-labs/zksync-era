@@ -217,7 +217,7 @@ impl MetadataCalculator {
         GenericAsyncTree::new(db, &self.config).await
     }
 
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let tree = self.create_tree().await?;
         let tree = tree
             .ensure_ready(
@@ -231,13 +231,19 @@ impl MetadataCalculator {
         let Some(mut tree) = tree else {
             return Ok(()); // recovery was aborted because a stop signal was received
         };
-
+        // Set a tree reader before the tree is fully initialized to not wait for the first L1 batch to appear in Postgres.
         let tree_reader = tree.reader();
-        let tree_info = tree_reader.clone().info().await;
+        self.tree_reader.send_replace(Some(tree_reader));
+
+        tree.ensure_consistency(&self.delayer, &self.pool, &mut stop_receiver)
+            .await?;
         if !self.pruning_handles_sender.is_closed() {
+            // Unlike tree reader, we shouldn't initialize pruning (as a task modifying the tree) before the tree is guaranteed
+            // to be consistent with Postgres.
             self.pruning_handles_sender.send(tree.pruner()).ok();
         }
-        self.tree_reader.send_replace(Some(tree_reader));
+
+        let tree_info = tree.reader().info().await;
         tracing::info!("Merkle tree is initialized and ready to process L1 batches: {tree_info:?}");
         self.health_updater
             .update(MerkleTreeHealth::MainLoop(tree_info).into());
