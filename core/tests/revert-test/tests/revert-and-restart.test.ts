@@ -4,7 +4,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { expect } from 'chai';
 import fs from 'fs';
-import { IZkSyncStateTransition } from 'zksync-ethers/build/typechain';
+import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string): {
@@ -65,7 +65,7 @@ const depositAmount = ethers.parseEther('0.001');
 describe('Block reverting test', function () {
     let tester: Tester;
     let alice: zksync.Wallet;
-    let mainContract: IZkSyncStateTransition;
+    let mainContract: IZkSyncHyperchain;
     let blocksCommittedBeforeRevert: bigint;
     let logs: fs.WriteStream;
     let operatorAddress = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR;
