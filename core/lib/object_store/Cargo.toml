@@ -26,6 +26,7 @@ rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 prost.workspace = true
+reqwest.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

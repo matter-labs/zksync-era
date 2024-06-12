@@ -36,7 +36,11 @@ impl MockMainNodeClient {
 
 #[async_trait]
 impl TreeDataProvider for MockMainNodeClient {
-    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
+    async fn batch_details(
+        &mut self,
+        number: L1BatchNumber,
+        _last_l2_block: &L2BlockHeader,
+    ) -> TreeDataProviderResult {
         if self.transient_error.fetch_and(false, Ordering::Relaxed) {
             let err = ClientError::RequestTimeout;
             return Err(EnrichedClientError::new(err, "batch_details").into());
@@ -95,6 +99,15 @@ pub(super) async fn seal_l1_batch_with_timestamp(
         .await
         .unwrap();
     transaction.commit().await.unwrap();
+}
+
+pub(super) async fn get_last_l2_block(
+    storage: &mut Connection<'_, Core>,
+    number: L1BatchNumber,
+) -> L2BlockHeader {
+    TreeDataFetcher::get_last_l2_block(storage, number)
+        .await
+        .unwrap()
 }
 
 #[derive(Debug)]
@@ -301,7 +314,11 @@ impl SlowMainNode {
 
 #[async_trait]
 impl TreeDataProvider for SlowMainNode {
-    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
+    async fn batch_details(
+        &mut self,
+        number: L1BatchNumber,
+        _last_l2_block: &L2BlockHeader,
+    ) -> TreeDataProviderResult {
         if number != L1BatchNumber(1) {
             return Ok(Err(MissingData::Batch));
         }

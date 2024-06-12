@@ -19,6 +19,7 @@ mod tests {
         ProofDataHandlerConfig {
             http_port: 3320,
             proof_generation_timeout_in_secs: 18000,
+            tee_support: true,
         }
     }
 
@@ -27,6 +28,7 @@ mod tests {
         let config = r#"
             PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="18000"
             PROOF_DATA_HANDLER_HTTP_PORT="3320"
+            PROOF_DATA_HANDLER_TEE_SUPPORT="true"
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);
