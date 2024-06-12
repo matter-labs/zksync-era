@@ -167,7 +167,6 @@ impl DataAvailabilityDal<'_, '_> {
                 data_availability
             WHERE
                 inclusion_data IS NULL
-                AND blob_id IS NOT NULL
             ORDER BY
                 l1_batch_number
             LIMIT
