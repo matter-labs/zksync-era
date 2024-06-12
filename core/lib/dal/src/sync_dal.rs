@@ -19,6 +19,10 @@ impl SyncDal<'_, '_> {
         &mut self,
         numbers: std::ops::Range<L2BlockNumber>,
     ) -> DalResult<Vec<SyncBlock>> {
+        // Check if range is non-empty, because BETWEEN in SQL in unordered.
+        if numbers.is_empty() {
+            return Ok(vec![]);
+        }
         let blocks = sqlx::query_as!(
             StorageSyncBlock,
             r#"

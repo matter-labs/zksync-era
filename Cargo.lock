@@ -8855,6 +8855,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 

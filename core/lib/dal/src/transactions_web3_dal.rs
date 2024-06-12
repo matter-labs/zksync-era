@@ -387,6 +387,10 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         blocks: std::ops::Range<L2BlockNumber>,
     ) -> DalResult<HashMap<L2BlockNumber, Vec<Transaction>>> {
+        // Check if range is non-empty, because BETWEEN in SQL in unordered.
+        if blocks.is_empty() {
+            return Ok(HashMap::default());
+        }
         // We do an inner join with `miniblocks.number`, because
         // transaction insertions are not atomic with miniblock insertion.
         let rows = sqlx::query_as!(

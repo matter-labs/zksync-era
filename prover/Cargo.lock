@@ -9067,6 +9067,7 @@ dependencies = [
  "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 

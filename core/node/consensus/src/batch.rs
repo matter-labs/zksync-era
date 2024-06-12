@@ -12,12 +12,17 @@ use zksync_types::{
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction, H256,
     U256,
 };
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::ConnectionPool;
 
 /// Commitment to the last block of a batch.
 pub(crate) struct LastBlockCommit {
-    /// Hash of the `StoredBatchInfo`.
+    /// Hash of the `StoredBatchInfo` which is stored on L1.
+    /// The hashed `StoredBatchInfo` contains a `root_hash` of the L2 state,
+    /// which contains state of the `SystemContext` contract,
+    /// which contains enough data to reconstruct the hash
+    /// of the last L2 block of the batch.
     pub(crate) info: H256,
 }
 
@@ -40,7 +45,7 @@ pub(crate) struct L1BatchCommit {
 }
 
 /// L1Batch with witness that can be
-/// verified against `L1BatchCommit1`.
+/// verified against `L1BatchCommit`.
 pub struct L1BatchWithWitness {
     pub(crate) blocks: Vec<Payload>,
     pub(crate) this_batch: LastBlockWitness,
@@ -49,14 +54,14 @@ pub struct L1BatchWithWitness {
 
 impl LastBlockWitness {
     /// Address of the SystemContext contract.
-    fn addr() -> AccountTreeId {
+    fn system_context_addr() -> AccountTreeId {
         AccountTreeId::new(constants::SYSTEM_CONTEXT_ADDRESS)
     }
 
     /// Storage key of the `SystemContext.current_l2_block_info` field.
     fn current_l2_block_info_key() -> U256 {
         StorageKey::new(
-            Self::addr(),
+            Self::system_context_addr(),
             constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
         )
         .hashed_key_u256()
@@ -65,7 +70,7 @@ impl LastBlockWitness {
     /// Storage key of the `SystemContext.tx_rolling_hash` field.
     fn tx_rolling_hash_key() -> U256 {
         StorageKey::new(
-            Self::addr(),
+            Self::system_context_addr(),
             constants::SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
         )
         .hashed_key_u256()
@@ -74,9 +79,9 @@ impl LastBlockWitness {
     /// Storage key of the entry of the `SystemContext.l2BlockHash[]` array, corresponding to l2
     /// block with number i.
     fn l2_block_hash_entry_key(i: L2BlockNumber) -> U256 {
-        let key = U256::from(constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION.as_bytes())
+        let key = h256_to_u256(constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION)
             + U256::from(i.0) % U256::from(constants::SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES);
-        StorageKey::new(Self::addr(), <[u8; 32]>::from(key).into()).hashed_key_u256()
+        StorageKey::new(Self::system_context_addr(), u256_to_h256(key)).hashed_key_u256()
     }
 
     /// Loads a `LastBlockWitness` from storage.
@@ -161,11 +166,14 @@ impl LastBlockWitness {
 
         // Verify merkle paths.
         self.current_l2_block_info
-            .verify(Self::current_l2_block_info_key(), self.info.batch_hash)?;
+            .verify(Self::current_l2_block_info_key(), self.info.batch_hash)
+            .context("invalid merkle path for current_l2_block_info")?;
         self.tx_rolling_hash
-            .verify(Self::tx_rolling_hash_key(), self.info.batch_hash)?;
+            .verify(Self::tx_rolling_hash_key(), self.info.batch_hash)
+            .context("invalid merkle path for tx_rolling_hash")?;
         self.l2_block_hash_entry
-            .verify(Self::l2_block_hash_entry_key(prev), self.info.batch_hash)?;
+            .verify(Self::l2_block_hash_entry_key(prev), self.info.batch_hash)
+            .context("invalid merkle path for l2_block_hash entry")?;
 
         let block_number = L2BlockNumber(block_number.try_into().context("block_number overflow")?);
         // Derive hash of the last block
@@ -258,6 +266,7 @@ impl L1BatchWithWitness {
                 hasher.push_tx_hash(t.hash());
             }
             prev_hash = hasher.finalize(self.this_batch.protocol_version);
+            anyhow::ensure!(prev_hash == b.hash);
         }
         anyhow::ensure!(prev_hash == last_hash);
         anyhow::ensure!(prev_number == last_number);

@@ -29,6 +29,7 @@ zksync_state_keeper.workspace = true
 zksync_node_sync.workspace = true
 zksync_system_constants.workspace = true
 zksync_types.workspace = true
+zksync_utils.workspace = true
 zksync_web3_decl.workspace = true
 
 anyhow.workspace = true
