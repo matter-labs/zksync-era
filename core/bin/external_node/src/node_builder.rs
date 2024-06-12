@@ -9,6 +9,7 @@ use zksync_config::{
 use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
+        batch_status_updater::BatchStatusUpdaterLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode},
         consistency_checker::ConsistencyCheckerLayer,
@@ -253,6 +254,12 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_batch_status_updater_layer(mut self) -> anyhow::Result<Self> {
+        let layer = BatchStatusUpdaterLayer;
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
         let layer = TreeDataFetcherLayer::new(self.config.remote.diamond_proxy_addr);
         self.node.add_layer(layer);
@@ -318,7 +325,8 @@ impl ExternalNodeBuilder {
                         .add_consensus_layer()?
                         .add_pruning_layer()?
                         .add_consistency_checker_layer()?
-                        .add_commitment_generator_layer()?;
+                        .add_commitment_generator_layer()?
+                        .add_batch_status_updater_layer()?;
                 }
             }
         }
