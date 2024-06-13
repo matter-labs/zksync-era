@@ -37,7 +37,12 @@ fn get_l1_noop() -> Transaction {
             gas_per_pubdata_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
             ..Default::default()
         }),
-        execute: Execute::default(),
+        execute: Execute {
+            contract_address: H160::zero(),
+            calldata: vec![],
+            value: U256::zero(),
+            factory_deps: None,
+        },
         received_timestamp_ms: 0,
         raw_bytes: None,
     }

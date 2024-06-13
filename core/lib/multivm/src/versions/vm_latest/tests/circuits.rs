@@ -25,7 +25,7 @@ fn test_circuits() {
             contract_address: Address::random(),
             calldata: Vec::new(),
             value: U256::from(1u8),
-            factory_deps: vec![],
+            factory_deps: None,
         },
         None,
     );

@@ -189,7 +189,7 @@ pub fn create_l2_transaction(
             contract_address: Address::random(),
             calldata: vec![],
             value: Default::default(),
-            factory_deps: vec![],
+            factory_deps: None,
         },
         Some(fee),
     );

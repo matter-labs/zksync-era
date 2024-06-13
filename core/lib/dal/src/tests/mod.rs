@@ -66,7 +66,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
         Default::default(),
         L2ChainId::from(270),
         &K256PrivateKey::random(),
-        vec![],
+        None,
         Default::default(),
     )
     .unwrap();
@@ -98,7 +98,7 @@ pub(crate) fn mock_l1_execute() -> L1Tx {
         contract_address: H160::random(),
         value: Default::default(),
         calldata: vec![],
-        factory_deps: vec![],
+        factory_deps: None,
     };
 
     L1Tx {
@@ -126,7 +126,7 @@ pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
         contract_address: H160::random(),
         value: Default::default(),
         calldata: vec![],
-        factory_deps: vec![],
+        factory_deps: None,
     };
 
     ProtocolUpgradeTx {
