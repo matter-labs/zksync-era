@@ -1,5 +1,3 @@
-use std::os::macos::raw::stat;
-
 use assert_cmd::Command;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use prover_cli::commands::status::utils::Status;
@@ -122,13 +120,23 @@ fn pli_status_of_multiple_non_existing_batch_succeeds() {
         .stdout(MULTIPLE_NON_EXISTING_BATCHES_STATUS_STDOUT);
 }
 
-fn status_batch_0_expects(expected_output: String, db_url: &str) {
+fn status_batch_0_expects(expected_output: String) {
     Command::cargo_bin("prover_cli")
         .unwrap()
-        .env("PLI__DB_URL", db_url)
         .arg("status")
         .arg("batch")
         .args(["-n", "0"])
+        .assert()
+        .success()
+        .stdout(expected_output);
+}
+
+fn status_verbose_batch_0_expects(expected_output: String, db_url: &str) {
+    Command::cargo_bin("prover_cli")
+        .unwrap()
+        .arg("status")
+        .arg("batch")
+        .args(["-n", "0", "-v"])
         .assert()
         .success()
         .stdout(expected_output);
@@ -504,21 +512,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Queued,
-            None,
-            Status::JobsNotFound,
-            None,
-            Status::JobsNotFound,
-            None,
-            Status::JobsNotFound,
-            Status::JobsNotFound,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Queued,
+        None,
+        Status::JobsNotFound,
+        None,
+        Status::JobsNotFound,
+        None,
+        Status::JobsNotFound,
+        Status::JobsNotFound,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // The BWS start, agg_round 0 prover jobs created. All WG set in wating for proofs.
     create_scenario(
@@ -556,21 +561,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::InProgress,
-            Some(Status::Queued),
-            Status::WaitingForProofs,
-            None,
-            Status::WaitingForProofs,
-            None,
-            Status::WaitingForProofs,
-            Status::WaitingForProofs,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::InProgress,
+        Some(Status::Queued),
+        Status::WaitingForProofs,
+        None,
+        Status::WaitingForProofs,
+        None,
+        Status::WaitingForProofs,
+        Status::WaitingForProofs,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // The BWS done, agg_round 0 prover jobs in progress.
     create_scenario(
@@ -604,21 +606,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Successful,
-            Some(Status::InProgress),
-            Status::WaitingForProofs,
-            None,
-            Status::WaitingForProofs,
-            None,
-            Status::WaitingForProofs,
-            Status::WaitingForProofs,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Successful,
+        Some(Status::InProgress),
+        Status::WaitingForProofs,
+        None,
+        Status::WaitingForProofs,
+        None,
+        Status::WaitingForProofs,
+        Status::WaitingForProofs,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // Agg_round 0, prover jobs done for VM circuit, LWG set in queue.
     create_scenario(
@@ -647,21 +646,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Successful,
-            Some(Status::InProgress),
-            Status::Queued,
-            None,
-            Status::WaitingForProofs,
-            None,
-            Status::WaitingForProofs,
-            Status::WaitingForProofs,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Successful,
+        Some(Status::InProgress),
+        Status::Queued,
+        None,
+        Status::WaitingForProofs,
+        None,
+        Status::WaitingForProofs,
+        Status::WaitingForProofs,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // Agg_round 0: all prover jobs successful, LWG in progress. Agg_round 1: prover jobs in queue.
     create_scenario(
@@ -695,21 +691,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Successful,
-            Some(Status::Successful),
-            Status::InProgress,
-            Some(Status::Queued),
-            Status::WaitingForProofs,
-            None,
-            Status::WaitingForProofs,
-            Status::WaitingForProofs,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Successful,
+        Some(Status::Successful),
+        Status::InProgress,
+        Some(Status::Queued),
+        Status::WaitingForProofs,
+        None,
+        Status::WaitingForProofs,
+        Status::WaitingForProofs,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // LWG succees. Agg_round 1: Done for VM circuit.
     create_scenario(
@@ -746,21 +739,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::InProgress),
-            Status::WaitingForProofs,
-            None,
-            Status::WaitingForProofs,
-            Status::WaitingForProofs,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::InProgress),
+        Status::WaitingForProofs,
+        None,
+        Status::WaitingForProofs,
+        Status::WaitingForProofs,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // Agg_round 1: all prover jobs successful. NWG queue.
     create_scenario(
@@ -788,21 +778,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Queued,
-            None,
-            Status::WaitingForProofs,
-            Status::WaitingForProofs,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Queued,
+        None,
+        Status::WaitingForProofs,
+        Status::WaitingForProofs,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // NWG successful for VM circuit, agg_round 2 prover jobs created.
     create_scenario(
@@ -829,21 +816,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::Successful),
-            Status::InProgress,
-            Some(Status::Queued),
-            Status::WaitingForProofs,
-            Status::WaitingForProofs,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::Successful),
+        Status::InProgress,
+        Some(Status::Queued),
+        Status::WaitingForProofs,
+        Status::WaitingForProofs,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // NWG successful, agg_round 2 prover jobs updated.
     create_scenario(
@@ -875,21 +859,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::InProgress),
-            Status::WaitingForProofs,
-            Status::WaitingForProofs,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::InProgress),
+        Status::WaitingForProofs,
+        Status::WaitingForProofs,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // Agg_round 2 prover jobs successful. RT in progress.
     create_scenario(
@@ -918,21 +899,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::Successful),
-            Status::InProgress,
-            Status::WaitingForProofs,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::Successful),
+        Status::InProgress,
+        Status::WaitingForProofs,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // RT in successful, Scheduler in progress.
     create_scenario(
@@ -952,21 +930,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Status::InProgress,
-            Status::JobsNotFound,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Status::InProgress,
+        Status::JobsNotFound,
+        batch_0,
+    ));
 
     // Scheduler in successful, Compressor in progress.
     create_scenario(
@@ -986,21 +961,18 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        scenario_expected_stdout(
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Some(Status::Successful),
-            Status::Successful,
-            Status::Successful,
-            Status::InProgress,
-            batch_0,
-        ),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(scenario_expected_stdout(
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Some(Status::Successful),
+        Status::Successful,
+        Status::Successful,
+        Status::InProgress,
+        batch_0,
+    ));
 
     // Compressor Done.
     create_scenario(
@@ -1018,8 +990,5 @@ async fn basic_batch_status() {
     )
     .await;
 
-    status_batch_0_expects(
-        COMPLETE_BATCH_STATUS_STDOUT.into(),
-        connection_pool.database_url().expose_str(),
-    );
+    status_batch_0_expects(COMPLETE_BATCH_STATUS_STDOUT.into());
 }
