@@ -7,7 +7,13 @@ import * as db from './database';
 import * as env from './env';
 import { time } from 'console';
 
-export async function server(rebuildTree: boolean, uring: boolean, components?: string, useNodeFramework?: boolean, timeToLive?: string) {
+export async function server(
+    rebuildTree: boolean,
+    uring: boolean,
+    components?: string,
+    useNodeFramework?: boolean,
+    timeToLive?: string
+) {
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
