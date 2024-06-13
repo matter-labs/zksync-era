@@ -532,6 +532,19 @@ impl EthTxManager {
                 .await
                 .context("get_l1_block_numbers()")?;
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
+
+            if storage
+                .eth_sender_dal()
+                .is_table_already_locked()
+                .await
+                .unwrap()
+            {
+                METRICS.duplicate_pods_detected.inc();
+                tracing::warn!(
+                    "New eth-sender was started, while the previous one is still running!"
+                )
+            }
+
             self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
 

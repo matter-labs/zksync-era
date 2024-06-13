@@ -89,6 +89,7 @@ pub(super) struct EthSenderMetrics {
     pub block_range_size: Family<ActionTypeLabel, Histogram<u64>>,
     /// Number of transactions resent by the Ethereum sender.
     pub transaction_resent: Counter,
+    pub duplicate_pods_detected: Counter,
     #[metrics(buckets = FEE_BUCKETS)]
     pub used_base_fee_per_gas: Family<TransactionType, Histogram<u64>>,
     #[metrics(buckets = FEE_BUCKETS)]

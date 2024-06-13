@@ -2,7 +2,10 @@ use std::{convert::TryFrom, str::FromStr};
 
 use anyhow::Context as _;
 use sqlx::types::chrono::{DateTime, Utc};
-use zksync_db_connection::{connection::Connection, interpolate_query, match_query_as};
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
@@ -22,16 +25,36 @@ pub struct EthSenderDal<'a, 'c> {
 }
 
 impl EthSenderDal<'_, '_> {
-    pub async fn acquire_exclusive_lock(&mut self) -> sqlx::Result<()> {
+    pub async fn acquire_exclusive_lock(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
             LOCK TABLE eth_sender_lock IN EXCLUSIVE MODE
             "#
         )
-        .execute(self.storage.conn())
+        .instrument("lock_eth_sender_lock")
+        .execute(self.storage)
         .await?;
         Ok(())
     }
+
+    pub async fn is_table_already_locked(&mut self) -> DalResult<bool> {
+        let mut transaction = self.storage.start_transaction().await?;
+        let was_lock_acquired = sqlx::query!(
+            r#"
+            LOCK TABLE eth_sender_lock IN EXCLUSIVE MODE NOWAIT
+            "#
+        )
+        .instrument("lock_eth_sender_lock_nowait")
+        .execute(&mut transaction)
+        .await
+        .is_ok();
+        if was_lock_acquired {
+            transaction.rollback().await?;
+        }
+
+        Ok(was_lock_acquired)
+    }
+
     pub async fn get_inflight_txs(&mut self) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
             StorageEthTx,

@@ -657,7 +657,8 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxManager) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxManager");
-        let eth_manager_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
+        // One connection for eth_sender_lock and the other for the rest of the eth-sender
+        let eth_manager_pool = ConnectionPool::<Core>::builder(database_secrets.master_url()?, 2)
             .build()
             .await
             .context("failed to build eth_manager_pool")?;
