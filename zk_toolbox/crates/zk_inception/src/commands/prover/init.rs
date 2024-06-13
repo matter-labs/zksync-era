@@ -3,16 +3,18 @@ use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
+use crate::messages::{MSG_GENERATING_VK_SPINNER, MSG_INITIALIZING_PROVER, MSG_PROVER_INITIALIZED};
+
 use super::args::init::InitArgs;
 
 pub(crate) async fn run(_args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
-    logger::info("Initializing prover");
+    logger::info(MSG_INITIALIZING_PROVER);
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let mut link_to_prover = ecosystem_config.link_to_code.into_os_string();
     link_to_prover.push("/prover");
     shell.change_dir(link_to_prover.clone());
 
-    let spinner = Spinner::new("Generating verification keys...");
+    let spinner = Spinner::new(MSG_GENERATING_VK_SPINNER);
     let mut cmd = Cmd::new(cmd!(
         shell,
         "cargo run --features gpu --release --bin key_generator -- 
@@ -22,7 +24,7 @@ pub(crate) async fn run(_args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     ));
     cmd.run()?;
     spinner.finish();
-    logger::info("Verification keys generated successfully");
+    logger::outro(MSG_PROVER_INITIALIZED);
 
     Ok(())
 }

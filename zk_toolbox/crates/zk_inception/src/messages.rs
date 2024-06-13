@@ -173,3 +173,8 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(address: &H160) -> Str
         "Address {address:?} doesn't have enough money to deploy contracts do you want to try again?"
     )
 }
+
+/// Prover related messages
+pub(super) const MSG_INITIALIZING_PROVER: &str = "Initializing prover";
+pub(super) const MSG_PROVER_INITIALIZED: &str = "Prover initialized successfully";
+pub(super) const MSG_GENERATING_VK_SPINNER: &str = "Generating verification keys...";
