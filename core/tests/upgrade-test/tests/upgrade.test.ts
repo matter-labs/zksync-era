@@ -28,10 +28,7 @@ const STATE_TRANSITON_MANAGER = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
 );
 
-let serverComponents = 'api,tree,eth,state_keeper,commitment_generator';
-if (process.env.CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE == 'Validium') {
-    serverComponents += ',da_dispatcher';
-}
+let serverComponents = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
 
 const depositAmount = ethers.utils.parseEther('0.001');
 

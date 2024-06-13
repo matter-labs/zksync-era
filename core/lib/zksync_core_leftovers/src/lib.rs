@@ -749,33 +749,38 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::DADispatcher) {
-        anyhow::ensure!(
-            eth.sender
-                .clone()
-                .context("eth_sender")?
-                .pubdata_sending_mode
-                == PubdataSendingMode::Custom,
-            "DA dispatcher component has to be used with custom pubdata sending mode"
-        );
-
-        let started_at = Instant::now();
-        let da_config = configs
-            .da_dispatcher_config
+        if eth
+            .sender
             .clone()
-            .context("da_dispatcher_config")?;
-        let da_dispatcher_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
-            .build()
-            .await
-            .context("failed to build da_dispatcher_pool")?;
-        let da_client: Box<dyn DataAvailabilityClient> = Box::new(NoDAClient); // use the `NoDAClient` as a default option for Validium
+            .context("eth_sender")?
+            .pubdata_sending_mode
+            != PubdataSendingMode::Custom
+        {
+            // Warning instead of returning an error is appropriate here because the DA dispatcher
+            // is not a critical component. It's more convenient for tests and local setup to enable
+            // it by default, but don't start the component if the pubdata sending mode is not `Custom`
+            tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA dispatcher will not be started.");
+        } else {
+            let started_at = Instant::now();
+            let da_config = configs
+                .da_dispatcher_config
+                .clone()
+                .context("da_dispatcher_config")?;
+            let da_dispatcher_pool =
+                ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
+                    .build()
+                    .await
+                    .context("failed to build da_dispatcher_pool")?;
+            let da_client: Box<dyn DataAvailabilityClient> = Box::new(NoDAClient); // use the `NoDAClient` as a default option for Validium
 
-        let da_dispatcher =
-            DataAvailabilityDispatcher::new(da_dispatcher_pool, da_config, da_client);
-        task_futures.push(tokio::spawn(da_dispatcher.run(stop_receiver.clone())));
+            let da_dispatcher =
+                DataAvailabilityDispatcher::new(da_dispatcher_pool, da_config, da_client);
+            task_futures.push(tokio::spawn(da_dispatcher.run(stop_receiver.clone())));
 
-        let elapsed = started_at.elapsed();
-        APP_METRICS.init_latency[&InitStage::DADispatcher].set(elapsed);
-        tracing::info!("initialized DA dispatcher in {elapsed:?}");
+            let elapsed = started_at.elapsed();
+            APP_METRICS.init_latency[&InitStage::DADispatcher].set(elapsed);
+            tracing::info!("initialized DA dispatcher in {elapsed:?}");
+        }
     }
 
     if components.contains(&Component::Housekeeper) {

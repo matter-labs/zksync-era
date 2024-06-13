@@ -62,13 +62,9 @@ describe('Block reverting test', function () {
     let operatorAddress = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR;
 
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
-    const isValidium = process.env.DEPLOYMENT_MODE == 'Validium';
-    let components = 'api,tree,eth,state_keeper,commitment_generator';
+    let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
     if (enableConsensus) {
         components += ',consensus';
-    }
-    if (isValidium) {
-        components += ',da_dispatcher';
     }
 
     before('create test wallet', async () => {
