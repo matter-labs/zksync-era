@@ -74,7 +74,7 @@ pub(crate) fn l2_gas_constants() -> IntrinsicSystemGasConstants {
                 0,
                 Some(U256::zero()),
                 None,
-                vec![],
+                None,
             )
             .into(),
         ],
@@ -99,7 +99,7 @@ pub(crate) fn l2_gas_constants() -> IntrinsicSystemGasConstants {
             0,
             Some(U256::zero()),
             Some(vec![0u8; DELTA_IN_TX_SIZE]),
-            vec![],
+            None,
         )
         .into()],
         true,
@@ -117,7 +117,7 @@ pub(crate) fn l2_gas_constants() -> IntrinsicSystemGasConstants {
             0,
             Some(U256::zero()),
             None,
-            vec![vec![0u8; 32]],
+            Some(vec![vec![0u8; 32]]),
         )
         .into()],
         true,

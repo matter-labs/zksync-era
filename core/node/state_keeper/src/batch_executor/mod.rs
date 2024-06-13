@@ -18,9 +18,10 @@ use crate::{
     types::ExecutionMetricsForCriteria,
 };
 
-pub mod main_executor;
 #[cfg(test)]
 mod tests;
+
+pub mod main_executor;
 
 /// Representation of a transaction executed in the virtual machine.
 #[derive(Debug, Clone)]

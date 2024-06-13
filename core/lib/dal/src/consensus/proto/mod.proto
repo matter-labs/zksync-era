@@ -18,8 +18,6 @@ message Payload {
 }
 
 message Transaction {
-  reserved 5;
-  reserved "received_timestamp_ms";
   oneof common_data {
     L1TxCommonData l1 = 1;
     L2TxCommonData l2 = 2;
@@ -82,7 +80,7 @@ message Execute {
   optional bytes contract_address = 1; // required; H160
   optional bytes calldata = 2; // required
   optional bytes value = 3; // required; U256
-  repeated bytes factory_deps = 4;
+  repeated bytes factory_deps = 4; // optional
 }
 
 message InputData {

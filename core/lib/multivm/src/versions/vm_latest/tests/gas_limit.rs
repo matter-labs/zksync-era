@@ -1,4 +1,3 @@
-use zksync_test_account::Account;
 use zksync_types::{fee::Fee, Execute};
 
 use crate::{
@@ -21,10 +20,15 @@ fn test_tx_gas_limit_offset() {
 
     let gas_limit = 9999.into();
     let tx = vm.rich_accounts[0].get_l2_tx_for_execute(
-        Execute::default(),
+        Execute {
+            contract_address: Default::default(),
+            calldata: vec![],
+            value: Default::default(),
+            factory_deps: None,
+        },
         Some(Fee {
             gas_limit,
-            ..Account::default_fee()
+            ..Default::default()
         }),
     );
 

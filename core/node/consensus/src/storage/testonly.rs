@@ -5,7 +5,6 @@ use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
-use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber};
 
 use super::ConnectionPool;
 
@@ -29,28 +28,6 @@ impl ConnectionPool {
             ctx.sleep(POLL_INTERVAL).await?;
         }
         Ok(())
-    }
-
-    /// Waits for the `number` L1 batch.
-    pub async fn wait_for_batch(
-        &self,
-        ctx: &ctx::Ctx,
-        number: L1BatchNumber,
-    ) -> ctx::Result<L1BatchWithMetadata> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
-        loop {
-            if let Some(payload) = self
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .batch(ctx, number)
-                .await
-                .wrap("batch()")?
-            {
-                return Ok(payload);
-            }
-            ctx.sleep(POLL_INTERVAL).await?;
-        }
     }
 
     /// Takes a storage snapshot at the last sealed L1 batch.

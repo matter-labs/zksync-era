@@ -277,7 +277,10 @@ impl ProtoRepr for proto::Transaction {
                     .and_then(|x| parse_h256(x))
                     .map(h256_to_u256)
                     .context("execute.value")?,
-                factory_deps: execute.factory_deps.clone(),
+                factory_deps: match execute.factory_deps.is_empty() {
+                    true => None,
+                    false => Some(execute.factory_deps.clone()),
+                },
             },
             received_timestamp_ms: 0, // This timestamp is local to the node
             raw_bytes: self.raw_bytes.as_ref().map(|x| x.clone().into()),
@@ -358,7 +361,10 @@ impl ProtoRepr for proto::Transaction {
             contract_address: Some(this.execute.contract_address.as_bytes().into()),
             calldata: Some(this.execute.calldata.clone()),
             value: Some(u256_to_h256(this.execute.value).as_bytes().into()),
-            factory_deps: this.execute.factory_deps.clone(),
+            factory_deps: match &this.execute.factory_deps {
+                Some(inner) => inner.clone(),
+                None => vec![],
+            },
         };
         Self {
             common_data: Some(common_data),

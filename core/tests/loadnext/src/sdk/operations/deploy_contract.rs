@@ -73,7 +73,7 @@ where
                 execute_calldata,
                 fee,
                 nonce,
-                vec![bytecode.clone()],
+                Some(vec![bytecode.clone()]),
                 paymaster_params,
             )
             .await
@@ -150,7 +150,7 @@ where
             Default::default(),
             self.wallet.address(),
             self.value.unwrap_or_default(),
-            factory_deps,
+            Some(factory_deps),
             paymaster_params,
         );
         self.wallet
