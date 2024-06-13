@@ -243,7 +243,7 @@ impl IoSealCriteria for TimeoutSealer {
             millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
 
         if should_seal_timeout {
-            AGGREGATION_METRICS.inc_criterion(RULE_NAME);
+            AGGREGATION_METRICS.l1_batch_inc_criterion(RULE_NAME);
             tracing::debug!(
                 "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
                  commit deadline: {block_commit_deadline_ms}ms",

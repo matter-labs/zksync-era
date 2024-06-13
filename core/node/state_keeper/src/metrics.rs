@@ -101,6 +101,9 @@ pub struct StateKeeperMetrics {
     /// The time it takes for one iteration of the main loop in `process_l1_batch`.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub process_l1_batch_loop_iteration: Histogram<Duration>,
+    /// The time it takes to wait for new L2 block parameters
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub wait_for_l2_block_params: Histogram<Duration>,
 }
 
 fn vm_revert_reason_as_metric_label(reason: &VmRevertReason) -> &'static str {
@@ -203,6 +206,13 @@ impl From<&SealResolution> for SealResolutionLabel {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(label = "reason", rename_all = "snake_case")]
+pub(super) enum L2BlockSealReason {
+    Timeout,
+    PayloadSize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
 struct TxAggregationLabels {
     criterion: &'static str,
@@ -213,10 +223,11 @@ struct TxAggregationLabels {
 #[metrics(prefix = "server_tx_aggregation")]
 pub(super) struct TxAggregationMetrics {
     reason: Family<TxAggregationLabels, Counter>,
+    l2_block_reason: Family<L2BlockSealReason, Counter>,
 }
 
 impl TxAggregationMetrics {
-    pub fn inc(&self, criterion: &'static str, resolution: &SealResolution) {
+    pub fn l1_batch_inc(&self, criterion: &'static str, resolution: &SealResolution) {
         let labels = TxAggregationLabels {
             criterion,
             seal_resolution: Some(resolution.into()),
@@ -224,12 +235,16 @@ impl TxAggregationMetrics {
         self.reason[&labels].inc();
     }
 
-    pub fn inc_criterion(&self, criterion: &'static str) {
+    pub fn l1_batch_inc_criterion(&self, criterion: &'static str) {
         let labels = TxAggregationLabels {
             criterion,
             seal_resolution: None,
         };
         self.reason[&labels].inc();
+    }
+
+    pub fn l2_block_inc(&self, reason: &L2BlockSealReason) {
+        self.l2_block_reason[reason].inc();
     }
 }
 
