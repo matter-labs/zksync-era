@@ -11,7 +11,7 @@ use zksync_config::{
     PostgresConfig,
 };
 use zksync_metadata_calculator::{MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig};
-use zksync_node_api_server::web3::Namespace;
+use zksync_node_api_server::{tx_sender::ApiContracts, web3::Namespace};
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
@@ -36,7 +36,10 @@ use zksync_node_framework::{
         tree_data_fetcher::TreeDataFetcherLayer,
         validate_chain_ids::ValidateChainIdsLayer,
         web3_api::{
-            caches::MempoolCacheLayer, tree_api_client::TreeApiClientLayer, tx_sink::TxSinkLayer,
+            caches::MempoolCacheLayer,
+            tree_api_client::TreeApiClientLayer,
+            tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
+            tx_sink::TxSinkLayer,
         },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
@@ -331,8 +334,24 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
+        let postgres_storage_config = PostgresStorageCachesConfig {
+            factory_deps_cache_size: self.config.optional.factory_deps_cache_size() as u64,
+            initial_writes_cache_size: self.config.optional.initial_writes_cache_size() as u64,
+            latest_values_cache_size: self.config.optional.latest_values_cache_size() as u64,
+        };
+        let max_vm_concurrency = self.config.optional.vm_concurrency_limit;
+        let api_contracts = ApiContracts::load_from_disk_blocking(); // TODO (BFT-138): Allow to dynamically reload API contracts;
+        let tx_sender_layer = TxSenderLayer::new(
+            (&self.config).into(),
+            postgres_storage_config,
+            max_vm_concurrency,
+            api_contracts,
+        )
+        .with_whitelisted_tokens_for_aa_cache(true);
+
         self.node.add_layer(TxSinkLayer::ProxySink);
-        todo!()
+        self.node.add_layer(tx_sender_layer);
+        Ok(self)
     }
 
     fn add_api_caches_layer(mut self) -> anyhow::Result<Self> {
@@ -378,20 +397,16 @@ impl ExternalNodeBuilder {
                 Component::HttpApi => {
                     self = self
                         .add_sync_state_updater_layer()?
-                        .add_tx_sender_layer()?
                         .add_api_caches_layer()?
-                        .add_tree_api_client_layer()?;
-
-                    todo!()
+                        .add_tree_api_client_layer()?
+                        .add_tx_sender_layer()?;
                 }
                 Component::WsApi => {
                     self = self
                         .add_sync_state_updater_layer()?
-                        .add_tx_sender_layer()?
                         .add_api_caches_layer()?
-                        .add_tree_api_client_layer()?;
-
-                    todo!()
+                        .add_tree_api_client_layer()?
+                        .add_tx_sender_layer()?;
                 }
                 Component::Tree => {
                     // Right now, distributed mode for EN is not fully supported, e.g. there are some
