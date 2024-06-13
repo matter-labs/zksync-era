@@ -13,17 +13,19 @@ use crate::{RocksdbStorage, RocksdbStorageOptions, StateKeeperColumnFamily};
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct InitialRocksdbState {
-    /// Initial L1 batch number in the RocksDB cache. `None` if the cache is empty (i.e., needs recovery).
+    /// Last processed L1 batch number in the RocksDB cache + 1 (i.e., the batch that the cache is ready to process).
+    /// `None` if the cache is empty (i.e., needs recovery).
     pub l1_batch_number: Option<L1BatchNumber>,
 }
 
-/// Error returned from [`RocksdbCell`] methods if the corresponding [`AsyncCatchupTask`] has failed.
+/// Error returned from [`RocksdbCell`] methods if the corresponding [`AsyncCatchupTask`] has failed
+/// or was canceled.
 #[derive(Debug)]
 pub struct AsyncCatchupFailed(());
 
 impl fmt::Display for AsyncCatchupFailed {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("Async RocksDB cache catchup failed")
+        formatter.write_str("Async RocksDB cache catchup failed or was canceled")
     }
 }
 
@@ -51,7 +53,7 @@ impl RocksdbCell {
     ///
     /// # Errors
     ///
-    /// Returns an error if the async catch-up task failed before initialization.
+    /// Returns an error if the async catch-up task failed or was canceled before initialization.
     #[allow(clippy::missing_panics_doc)] // false positive
     pub async fn wait(&self) -> Result<RocksDB<StateKeeperColumnFamily>, AsyncCatchupFailed> {
         self.db
@@ -73,7 +75,7 @@ impl RocksdbCell {
     ///
     /// # Errors
     ///
-    /// Returns an error if the async catch-up task failed.
+    /// Returns an error if the async catch-up task failed or was canceled.
     #[allow(clippy::missing_panics_doc)] // false positive
     pub async fn ensure_initialized(&self) -> Result<InitialRocksdbState, AsyncCatchupFailed> {
         self.initial_state
@@ -131,12 +133,12 @@ impl AsyncCatchupTask {
         let started_at = Instant::now();
         tracing::debug!("Catching up RocksDB asynchronously");
 
-        let mut rocksdb_builder = RocksdbStorage::builder_with_options(
+        let mut rocksdb_builder = dbg!(RocksdbStorage::builder_with_options(
             self.state_keeper_db_path.as_ref(),
             self.state_keeper_db_options,
         )
         .await
-        .context("Failed creating RocksDB storage builder")?;
+        .context("Failed creating RocksDB storage builder"))?;
 
         let initial_state = InitialRocksdbState {
             l1_batch_number: rocksdb_builder.l1_batch_number().await,
@@ -167,5 +169,108 @@ impl AsyncCatchupTask {
             tracing::info!("Synchronizing RocksDB interrupted");
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::TempDir;
+    use test_casing::test_casing;
+    use zksync_types::L2BlockNumber;
+
+    use super::*;
+    use crate::{
+        test_utils::{create_l1_batch, create_l2_block, gen_storage_logs, prepare_postgres},
+        RocksdbStorageBuilder,
+    };
+
+    #[tokio::test]
+    async fn catching_up_basics() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        prepare_postgres(&mut conn).await;
+        let storage_logs = gen_storage_logs(20..40);
+        create_l2_block(&mut conn, L2BlockNumber(1), storage_logs.clone()).await;
+        create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
+        drop(conn);
+
+        let temp_dir = TempDir::new().unwrap();
+        let (task, rocksdb_cell) = AsyncCatchupTask::new(
+            pool.clone(),
+            temp_dir.path().to_str().unwrap().to_owned(),
+            RocksdbStorageOptions::default(),
+            None,
+        );
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+        let task_handle = tokio::spawn(task.run(stop_receiver));
+
+        let initial_state = rocksdb_cell.ensure_initialized().await.unwrap();
+        assert_eq!(initial_state.l1_batch_number, None);
+
+        let db = rocksdb_cell.wait().await.unwrap();
+        assert_eq!(
+            RocksdbStorageBuilder::from_rocksdb(db)
+                .l1_batch_number()
+                .await,
+            Some(L1BatchNumber(2))
+        );
+        task_handle.await.unwrap().unwrap();
+        drop(rocksdb_cell); // should be enough to release RocksDB lock
+
+        let (task, rocksdb_cell) = AsyncCatchupTask::new(
+            pool,
+            temp_dir.path().to_str().unwrap().to_owned(),
+            RocksdbStorageOptions::default(),
+            None,
+        );
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+        let task_handle = tokio::spawn(task.run(stop_receiver));
+
+        let initial_state = rocksdb_cell.ensure_initialized().await.unwrap();
+        assert_eq!(initial_state.l1_batch_number, Some(L1BatchNumber(2)));
+
+        task_handle.await.unwrap().unwrap();
+        rocksdb_cell.get().unwrap(); // RocksDB must be caught up at this point
+    }
+
+    #[derive(Debug)]
+    enum CancellationScenario {
+        DropTask,
+        CancelTask,
+    }
+
+    impl CancellationScenario {
+        const ALL: [Self; 2] = [Self::DropTask, Self::CancelTask];
+    }
+
+    #[test_casing(2, CancellationScenario::ALL)]
+    #[tokio::test]
+    async fn catching_up_cancellation(scenario: CancellationScenario) {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        prepare_postgres(&mut conn).await;
+        let storage_logs = gen_storage_logs(20..40);
+        create_l2_block(&mut conn, L2BlockNumber(1), storage_logs.clone()).await;
+        create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
+        drop(conn);
+
+        let temp_dir = TempDir::new().unwrap();
+        let (task, rocksdb_cell) = AsyncCatchupTask::new(
+            pool.clone(),
+            temp_dir.path().to_str().unwrap().to_owned(),
+            RocksdbStorageOptions::default(),
+            None,
+        );
+        let (stop_sender, stop_receiver) = watch::channel(false);
+        match scenario {
+            CancellationScenario::DropTask => drop(task),
+            CancellationScenario::CancelTask => {
+                stop_sender.send_replace(true);
+                task.run(stop_receiver).await.unwrap();
+            }
+        }
+
+        assert!(rocksdb_cell.get().is_none());
+        rocksdb_cell.wait().await.unwrap_err();
     }
 }
