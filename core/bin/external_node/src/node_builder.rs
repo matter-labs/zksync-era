@@ -162,8 +162,6 @@ impl ExternalNodeBuilder {
         // compression.
         const OPTIONAL_BYTECODE_COMPRESSION: bool = true;
 
-        // let wallets = self.wallets.clone();
-        // let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(
             self.config
                 .remote
@@ -477,7 +475,7 @@ impl ExternalNodeBuilder {
                         components.contains(&Component::Core),
                         "Tree must run on the same machine as Core"
                     );
-                    let with_tree_api = components.contains(&Component::Tree);
+                    let with_tree_api = components.contains(&Component::TreeApi);
                     self = self.add_metadata_calculator_layer(with_tree_api)?;
                 }
                 Component::TreeApi => {

@@ -32,7 +32,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct MainBatchExecutor {
     save_call_traces: bool,
-    /// Whether batch executor would allow transactions with uncompressable bytecode.
+    /// Whether batch executor would allow transactions with bytecode that cannot be compressed.
     /// For new blocks, bytecode compression is mandatory -- if bytecode compression is not supported,
     /// the transaction will be rejected.
     /// Note that this flag, if set to `true`, is strictly more permissive than if set to `false`. It means

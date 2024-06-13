@@ -791,12 +791,6 @@ async fn main() -> anyhow::Result<()> {
         .fetch_remote(main_node_client.as_ref())
         .await
         .context("failed fetching remote part of node config from main node")?;
-    if let Some(threshold) = config.optional.slow_query_threshold() {
-        ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
-    }
-    if let Some(threshold) = config.optional.long_connection_threshold() {
-        ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
-    }
 
     // If the node framework is used, run the node.
     if opt.use_node_framework {
@@ -811,6 +805,13 @@ async fn main() -> anyhow::Result<()> {
         .expect("Failed to run the node")?;
 
         return Ok(());
+    }
+
+    if let Some(threshold) = config.optional.slow_query_threshold() {
+        ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
+    }
+    if let Some(threshold) = config.optional.long_connection_threshold() {
+        ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
     }
 
     RUST_METRICS.initialize();
