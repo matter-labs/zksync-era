@@ -1,12 +1,7 @@
-use std::collections::HashMap;
-
-use anyhow::Context as _;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
-    connection::Connection,
-    error::{DalResult, SqlxContext as _},
-    instrument::InstrumentExt,
-    interpolate_query, match_query_as,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
 };
 use zksync_types::{
     api, api::TransactionReceipt, event::DEPLOY_EVENT_SIGNATURE, Address, L2BlockNumber, L2ChainId,
@@ -384,17 +379,12 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok(U256::from(pending_nonce))
     }
 
-    /// Returns the server transactions (not API ones) from a L2 block range.
-    pub async fn get_raw_l2_blocks_transactions(
+    /// Returns the server transactions (not API ones) from a certain L2 block.
+    /// Returns an empty list if the L2 block doesn't exist.
+    pub async fn get_raw_l2_block_transactions(
         &mut self,
-        blocks: std::ops::Range<L2BlockNumber>,
-    ) -> DalResult<HashMap<L2BlockNumber, Vec<Transaction>>> {
-        // Check if range is non-empty, because BETWEEN in SQL in `unordered`.
-        if blocks.is_empty() {
-            return Ok(HashMap::default());
-        }
-        // We do an inner join with `miniblocks.number`, because
-        // transaction insertions are not atomic with miniblock insertion.
+        l2_block: L2BlockNumber,
+    ) -> DalResult<Vec<Transaction>> {
         let rows = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -404,46 +394,18 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions
                 INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
             WHERE
-                miniblocks.number BETWEEN $1 AND $2
+                miniblocks.number = $1
             ORDER BY
-                miniblock_number,
                 index_in_block
             "#,
-            i64::from(blocks.start.0),
-            i64::from(blocks.end.0 - 1),
+            i64::from(l2_block.0)
         )
-        .try_map(|row| {
-            let to_block_number = |n: Option<i64>| {
-                anyhow::Ok(L2BlockNumber(
-                    n.context("missing")?.try_into().context("overflow")?,
-                ))
-            };
-            Ok((
-                to_block_number(row.miniblock_number).decode_column("miniblock_number")?,
-                Transaction::from(row),
-            ))
-        })
-        .instrument("get_raw_l2_blocks_transactions")
-        .with_arg("blocks", &blocks)
+        .instrument("get_raw_l2_block_transactions")
+        .with_arg("l2_block", &l2_block)
         .fetch_all(self.storage)
         .await?;
-        let mut txs: HashMap<L2BlockNumber, Vec<Transaction>> = HashMap::new();
-        for (n, tx) in rows {
-            txs.entry(n).or_default().push(tx);
-        }
-        Ok(txs)
-    }
 
-    /// Returns the server transactions (not API ones) from an L2 block.
-    pub async fn get_raw_l2_block_transactions(
-        &mut self,
-        block: L2BlockNumber,
-    ) -> DalResult<Vec<Transaction>> {
-        Ok(self
-            .get_raw_l2_blocks_transactions(block..block + 1)
-            .await?
-            .remove(&block)
-            .unwrap_or_default())
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 }
 

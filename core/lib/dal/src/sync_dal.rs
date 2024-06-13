@@ -15,15 +15,11 @@ pub struct SyncDal<'a, 'c> {
 }
 
 impl SyncDal<'_, '_> {
-    pub(super) async fn sync_blocks_inner(
+    pub(super) async fn sync_block_inner(
         &mut self,
-        numbers: std::ops::Range<L2BlockNumber>,
-    ) -> DalResult<Vec<SyncBlock>> {
-        // Check if range is non-empty, because BETWEEN in SQL in `unordered`.
-        if numbers.is_empty() {
-            return Ok(vec![]);
-        }
-        let blocks = sqlx::query_as!(
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<SyncBlock>> {
+        let block = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -57,44 +53,35 @@ impl SyncDal<'_, '_> {
             FROM
                 miniblocks
             WHERE
-                miniblocks.number BETWEEN $1 AND $2
+                miniblocks.number = $1
             "#,
-            i64::from(numbers.start.0),
-            i64::from(numbers.end.0 - 1),
+            i64::from(block_number.0)
         )
         .try_map(SyncBlock::try_from)
-        .instrument("sync_dal_sync_blocks.block")
-        .with_arg("numbers", &numbers)
-        .fetch_all(self.storage)
+        .instrument("sync_dal_sync_block.block")
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
         .await?;
 
-        Ok(blocks)
+        Ok(block)
     }
 
     pub async fn sync_block(
         &mut self,
-        number: L2BlockNumber,
+        block_number: L2BlockNumber,
         include_transactions: bool,
     ) -> DalResult<Option<en::SyncBlock>> {
         let _latency = MethodLatency::new("sync_dal_sync_block");
-        let numbers = number..number + 1;
-        let Some(block) = self
-            .sync_blocks_inner(numbers.clone())
-            .await?
-            .into_iter()
-            .next()
-        else {
+        let Some(block) = self.sync_block_inner(block_number).await? else {
             return Ok(None);
         };
         let transactions = if include_transactions {
-            let mut transactions = self
+            let transactions = self
                 .storage
                 .transactions_web3_dal()
-                .get_raw_l2_blocks_transactions(numbers)
+                .get_raw_l2_block_transactions(block_number)
                 .await?;
-            // If there are no transactions in the block,
-            // return `Some(vec![])`.
-            Some(transactions.remove(&number).unwrap_or_default())
+            Some(transactions)
         } else {
             None
         };

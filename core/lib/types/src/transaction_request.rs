@@ -223,11 +223,13 @@ pub enum SerializationTransactionError {
     GasPerPubDataLimitZero,
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
 /// Description of a Transaction, pending or in the chain.
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct TransactionRequest {
     /// Nonce
     pub nonce: U256,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from: Option<Address>,
     /// Recipient (None when contract creation)
     pub to: Option<Address>,
@@ -238,23 +240,32 @@ pub struct TransactionRequest {
     /// Gas amount
     pub gas: U256,
     /// EIP-1559 part of gas price that goes to miners
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_priority_fee_per_gas: Option<U256>,
     /// Input data
     pub input: Bytes,
     /// ECDSA recovery id
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub v: Option<U64>,
     /// ECDSA signature r, 32 bytes
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub r: Option<U256>,
     /// ECDSA signature s, 32 bytes
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s: Option<U256>,
     /// Raw transaction data
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub raw: Option<Bytes>,
     /// Transaction type, Some(1) for AccessList transaction, None for Legacy
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub transaction_type: Option<U64>,
     /// Access list
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_list: Option<AccessList>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub eip712_meta: Option<Eip712Meta>,
     /// Chain ID
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chain_id: Option<u64>,
 }
 
@@ -288,7 +299,7 @@ impl PaymasterParams {
 pub struct Eip712Meta {
     pub gas_per_pubdata: U256,
     #[serde(default)]
-    pub factory_deps: Vec<Vec<u8>>,
+    pub factory_deps: Option<Vec<Vec<u8>>>,
     pub custom_signature: Option<Vec<u8>>,
     pub paymaster_params: Option<PaymasterParams>,
 }
@@ -296,9 +307,13 @@ pub struct Eip712Meta {
 impl Eip712Meta {
     pub fn rlp_append(&self, rlp: &mut RlpStream) {
         rlp.append(&self.gas_per_pubdata);
-        rlp.begin_list(self.factory_deps.len());
-        for dep in &self.factory_deps {
-            rlp.append(&dep.as_slice());
+        if let Some(factory_deps) = &self.factory_deps {
+            rlp.begin_list(factory_deps.len());
+            for dep in factory_deps.iter() {
+                rlp.append(&dep.as_slice());
+            }
+        } else {
+            rlp.begin_list(0);
         }
 
         rlp_opt(rlp, &self.custom_signature);
@@ -368,34 +383,30 @@ impl EIP712TypedStructure for TransactionRequest {
 
 impl TransactionRequest {
     pub fn get_custom_signature(&self) -> Option<Vec<u8>> {
-        self.eip712_meta.as_ref()?.custom_signature.clone()
+        self.eip712_meta
+            .as_ref()
+            .and_then(|meta| meta.custom_signature.as_ref())
+            .cloned()
     }
 
     pub fn get_paymaster(&self) -> Option<Address> {
-        Some(
-            self.eip712_meta
-                .as_ref()?
-                .paymaster_params
-                .as_ref()?
-                .paymaster,
-        )
+        self.eip712_meta
+            .clone()
+            .and_then(|meta| meta.paymaster_params)
+            .map(|params| params.paymaster)
     }
 
     pub fn get_paymaster_input(&self) -> Option<Vec<u8>> {
-        Some(
-            self.eip712_meta
-                .as_ref()?
-                .paymaster_params
-                .as_ref()?
-                .paymaster_input
-                .clone(),
-        )
+        self.eip712_meta
+            .clone()
+            .and_then(|meta| meta.paymaster_params)
+            .map(|params| params.paymaster_input)
     }
 
     pub fn get_factory_deps(&self) -> Vec<Vec<u8>> {
         self.eip712_meta
-            .as_ref()
-            .map(|meta| meta.factory_deps.clone())
+            .clone()
+            .and_then(|meta| meta.factory_deps)
             .unwrap_or_default()
     }
 
@@ -465,7 +476,7 @@ impl TransactionRequest {
 
     /// Encodes `TransactionRequest` to RLP.
     /// It may fail if `chain_id` is `None` while required.
-    pub fn get_rlp(&self) -> Result<Vec<u8>, SerializationTransactionError> {
+    pub fn get_rlp(&self) -> anyhow::Result<Vec<u8>> {
         let mut rlp_stream = RlpStream::new();
         self.rlp(&mut rlp_stream, None)?;
         Ok(rlp_stream.as_raw().into())
@@ -659,7 +670,7 @@ impl TransactionRequest {
                     s: Some(rlp.val_at(9)?),
                     eip712_meta: Some(Eip712Meta {
                         gas_per_pubdata: rlp.val_at(12)?,
-                        factory_deps: rlp.list_at(13)?,
+                        factory_deps: rlp.list_at(13).ok(),
                         custom_signature: rlp.val_at(14).ok(),
                         paymaster_params: if let Ok(params) = rlp.list_at(15) {
                             PaymasterParams::from_vector(params)?
@@ -678,16 +689,21 @@ impl TransactionRequest {
             }
             _ => return Err(SerializationTransactionError::UnknownTransactionFormat),
         };
-        if let Some(meta) = &tx.eip712_meta {
-            validate_factory_deps(&meta.factory_deps)?;
+        let factory_deps_ref = tx
+            .eip712_meta
+            .as_ref()
+            .and_then(|m| m.factory_deps.as_ref());
+        if let Some(deps) = factory_deps_ref {
+            validate_factory_deps(deps)?;
         }
         tx.raw = Some(Bytes(bytes.to_vec()));
 
         let default_signed_message = tx.get_default_signed_message()?;
 
-        if tx.from.is_none() {
-            tx.from = tx.recover_default_signer(default_signed_message).ok();
-        }
+        tx.from = match tx.from {
+            Some(_) => tx.from,
+            None => tx.recover_default_signer(default_signed_message).ok(),
+        };
 
         // `tx.raw` is set, so unwrap is safe here.
         let hash = tx
@@ -707,7 +723,7 @@ impl TransactionRequest {
         Ok((tx, hash))
     }
 
-    pub fn get_default_signed_message(&self) -> Result<H256, SerializationTransactionError> {
+    fn get_default_signed_message(&self) -> Result<H256, SerializationTransactionError> {
         if self.is_eip712_tx() {
             let chain_id = self
                 .chain_id
@@ -717,7 +733,9 @@ impl TransactionRequest {
                 self,
             ))
         } else {
-            let mut data = self.get_rlp()?;
+            let mut rlp_stream = RlpStream::new();
+            self.rlp(&mut rlp_stream, None)?;
+            let mut data = rlp_stream.out().to_vec();
             if let Some(tx_type) = self.transaction_type {
                 data.insert(0, tx_type.as_u64() as u8);
             }
@@ -806,14 +824,21 @@ impl TransactionRequest {
 
 impl L2Tx {
     pub(crate) fn from_request_unverified(
-        mut value: TransactionRequest,
+        value: TransactionRequest,
     ) -> Result<Self, SerializationTransactionError> {
         let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
 
         let raw_signature = value.get_signature().unwrap_or_default();
-        let meta = value.eip712_meta.take().unwrap_or_default();
-        validate_factory_deps(&meta.factory_deps)?;
+        // Destruct `eip712_meta` in one go to avoid cloning.
+        let (factory_deps, paymaster_params) = value
+            .eip712_meta
+            .map(|eip712_meta| (eip712_meta.factory_deps, eip712_meta.paymaster_params))
+            .unwrap_or_default();
+
+        if let Some(deps) = factory_deps.as_ref() {
+            validate_factory_deps(deps)?;
+        }
 
         let mut tx = L2Tx::new(
             value
@@ -824,8 +849,8 @@ impl L2Tx {
             fee,
             value.from.unwrap_or_default(),
             value.value,
-            meta.factory_deps,
-            meta.paymaster_params.unwrap_or_default(),
+            factory_deps,
+            paymaster_params.unwrap_or_default(),
         );
 
         tx.common_data.transaction_type = match value.transaction_type.map(|t| t.as_u64() as u8) {
@@ -870,7 +895,7 @@ impl From<L2Tx> for CallRequest {
     fn from(tx: L2Tx) -> Self {
         let mut meta = Eip712Meta {
             gas_per_pubdata: tx.common_data.fee.gas_per_pubdata_limit,
-            factory_deps: vec![],
+            factory_deps: None,
             custom_signature: Some(tx.common_data.signature.clone()),
             paymaster_params: Some(tx.common_data.paymaster_params.clone()),
         };
@@ -1035,7 +1060,7 @@ mod tests {
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             eip712_meta: Some(Eip712Meta {
                 gas_per_pubdata: U256::from(4u32),
-                factory_deps: vec![vec![2; 32]],
+                factory_deps: Some(vec![vec![2; 32]]),
                 custom_signature: Some(vec![1, 2, 3]),
                 paymaster_params: Some(PaymasterParams {
                     paymaster: Default::default(),
@@ -1083,7 +1108,7 @@ mod tests {
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             eip712_meta: Some(Eip712Meta {
                 gas_per_pubdata: U256::from(4u32),
-                factory_deps: vec![vec![2; 32]],
+                factory_deps: Some(vec![vec![2; 32]]),
                 custom_signature: Some(vec![]),
                 paymaster_params: None,
             }),
@@ -1120,7 +1145,7 @@ mod tests {
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             eip712_meta: Some(Eip712Meta {
                 gas_per_pubdata: U256::from(4u32),
-                factory_deps: vec![vec![2; 32]],
+                factory_deps: Some(vec![vec![2; 32]]),
                 custom_signature: Some(vec![1, 2, 3]),
                 paymaster_params: Some(PaymasterParams {
                     paymaster: Default::default(),
@@ -1398,7 +1423,7 @@ mod tests {
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             eip712_meta: Some(Eip712Meta {
                 gas_per_pubdata: U256::from(4u32),
-                factory_deps,
+                factory_deps: Some(factory_deps),
                 custom_signature: Some(vec![1, 2, 3]),
                 paymaster_params: Some(PaymasterParams {
                     paymaster: Default::default(),
