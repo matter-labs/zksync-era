@@ -105,23 +105,33 @@ pub struct AsyncCatchupTask {
 impl AsyncCatchupTask {
     /// Create a new catch-up task with the provided Postgres and RocksDB instances. Optionally
     /// accepts the last L1 batch number to catch up to (defaults to latest if not specified).
-    pub fn new(
-        pool: ConnectionPool<Core>,
-        state_keeper_db_path: String,
-        state_keeper_db_options: RocksdbStorageOptions,
-        to_l1_batch_number: Option<L1BatchNumber>,
-    ) -> (Self, RocksdbCell) {
+    pub fn new(pool: ConnectionPool<Core>, state_keeper_db_path: String) -> (Self, RocksdbCell) {
         let (initial_state_sender, initial_state) = watch::channel(None);
         let (db_sender, db) = watch::channel(None);
         let this = Self {
             pool,
             state_keeper_db_path,
-            state_keeper_db_options,
+            state_keeper_db_options: RocksdbStorageOptions::default(),
             initial_state_sender,
             db_sender,
-            to_l1_batch_number,
+            to_l1_batch_number: None,
         };
         (this, RocksdbCell { initial_state, db })
+    }
+
+    /// Sets RocksDB options.
+    #[must_use]
+    pub fn with_db_options(mut self, options: RocksdbStorageOptions) -> Self {
+        self.state_keeper_db_options = options;
+        self
+    }
+
+    /// Sets the L1 batch number to catch up. By default, the task will catch up to the latest L1 batch
+    /// (at the start of catch-up).
+    #[must_use]
+    pub fn with_target_l1_batch_number(mut self, number: L1BatchNumber) -> Self {
+        self.to_l1_batch_number = Some(number);
+        self
     }
 
     /// Block until RocksDB cache instance is caught up with Postgres.
@@ -198,12 +208,8 @@ mod tests {
         drop(conn);
 
         let temp_dir = TempDir::new().unwrap();
-        let (task, rocksdb_cell) = AsyncCatchupTask::new(
-            pool.clone(),
-            temp_dir.path().to_str().unwrap().to_owned(),
-            RocksdbStorageOptions::default(),
-            None,
-        );
+        let (task, rocksdb_cell) =
+            AsyncCatchupTask::new(pool.clone(), temp_dir.path().to_str().unwrap().to_owned());
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let task_handle = tokio::spawn(task.run(stop_receiver));
 
@@ -220,12 +226,8 @@ mod tests {
         task_handle.await.unwrap().unwrap();
         drop(rocksdb_cell); // should be enough to release RocksDB lock
 
-        let (task, rocksdb_cell) = AsyncCatchupTask::new(
-            pool,
-            temp_dir.path().to_str().unwrap().to_owned(),
-            RocksdbStorageOptions::default(),
-            None,
-        );
+        let (task, rocksdb_cell) =
+            AsyncCatchupTask::new(pool, temp_dir.path().to_str().unwrap().to_owned());
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let task_handle = tokio::spawn(task.run(stop_receiver));
 
@@ -258,12 +260,8 @@ mod tests {
         drop(conn);
 
         let temp_dir = TempDir::new().unwrap();
-        let (task, rocksdb_cell) = AsyncCatchupTask::new(
-            pool.clone(),
-            temp_dir.path().to_str().unwrap().to_owned(),
-            RocksdbStorageOptions::default(),
-            None,
-        );
+        let (task, rocksdb_cell) =
+            AsyncCatchupTask::new(pool.clone(), temp_dir.path().to_str().unwrap().to_owned());
         let (stop_sender, stop_receiver) = watch::channel(false);
         match scenario {
             CancellationScenario::DropTask => drop(task),

@@ -13,7 +13,7 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{
     AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbCell,
-    RocksdbStorage, RocksdbStorageBuilder, RocksdbStorageOptions, RocksdbWithMemory,
+    RocksdbStorage, RocksdbStorageBuilder, RocksdbWithMemory,
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
 
@@ -249,13 +249,10 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
-        let (catchup_task, rocksdb_cell) = AsyncCatchupTask::new(
-            pool.clone(),
-            rocksdb_path,
-            RocksdbStorageOptions::default(),
-            Some(io.latest_processed_batch(&mut conn).await?),
-        );
+        let target_l1_batch_number = io.latest_processed_batch(&mut conn).await?;
         drop(conn);
+
+        let (catchup_task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), rocksdb_path);
         Ok(Self {
             pool,
             l1_batch_params_provider,
@@ -263,7 +260,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             rocksdb_cell,
             io,
             state,
-            catchup_task,
+            catchup_task: catchup_task.with_target_l1_batch_number(target_l1_batch_number),
         })
     }
 
