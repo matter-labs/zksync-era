@@ -1,7 +1,6 @@
-use std::{sync::Arc, time::Instant};
+use std::{error, fmt, time::Instant};
 
 use anyhow::Context;
-use once_cell::sync::OnceCell;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
@@ -9,6 +8,83 @@ use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
 
 use crate::{RocksdbStorage, RocksdbStorageOptions, StateKeeperColumnFamily};
+
+/// Initial RocksDB cache state returned by [`RocksdbCell::ensure_initialized()`].
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct InitialRocksdbState {
+    /// Initial L1 batch number in the RocksDB cache. `None` if the cache is empty (i.e., needs recovery).
+    pub l1_batch_number: Option<L1BatchNumber>,
+}
+
+/// Error returned from [`RocksdbCell`] methods if the corresponding [`AsyncCatchupTask`] has failed.
+#[derive(Debug)]
+pub struct AsyncCatchupFailed(());
+
+impl fmt::Display for AsyncCatchupFailed {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Async RocksDB cache catchup failed")
+    }
+}
+
+impl error::Error for AsyncCatchupFailed {}
+
+/// `OnceCell` equivalent that can be `.await`ed. Correspondingly, it has the following invariants:
+///
+/// - The cell is only set once
+/// - The cell is always set to `Some(_)`.
+///
+/// `OnceCell` (either from `once_cell` or `tokio`) is not used because it lacks a way to wait for the cell
+/// to be initialized. `once_cell::sync::OnceCell` has a blocking `wait()` method, but since it's blocking,
+/// it risks spawning non-cancellable threads if misused.
+type AsyncOnceCell<T> = watch::Receiver<Option<T>>;
+
+/// A lazily initialized handle to RocksDB cache returned from [`AsyncCatchupTask::new()`].
+#[derive(Debug)]
+pub struct RocksdbCell {
+    initial_state: AsyncOnceCell<InitialRocksdbState>,
+    db: AsyncOnceCell<RocksDB<StateKeeperColumnFamily>>,
+}
+
+impl RocksdbCell {
+    /// Waits until RocksDB is initialized and returns it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the async catch-up task failed before initialization.
+    #[allow(clippy::missing_panics_doc)] // false positive
+    pub async fn wait(&self) -> Result<RocksDB<StateKeeperColumnFamily>, AsyncCatchupFailed> {
+        self.db
+            .clone()
+            .wait_for(Option::is_some)
+            .await
+            // `unwrap` below is safe by construction
+            .map(|db| db.clone().unwrap())
+            .map_err(|_| AsyncCatchupFailed(()))
+    }
+
+    /// Gets a RocksDB instance if it has been initialized.
+    pub fn get(&self) -> Option<RocksDB<StateKeeperColumnFamily>> {
+        self.db.borrow().clone()
+    }
+
+    /// Ensures that the RocksDB has started catching up, and returns the **initial** RocksDB state
+    /// at the start of the catch-up.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the async catch-up task failed.
+    #[allow(clippy::missing_panics_doc)] // false positive
+    pub async fn ensure_initialized(&self) -> Result<InitialRocksdbState, AsyncCatchupFailed> {
+        self.initial_state
+            .clone()
+            .wait_for(Option::is_some)
+            .await
+            // `unwrap` below is safe by construction
+            .map(|state| state.clone().unwrap())
+            .map_err(|_| AsyncCatchupFailed(()))
+    }
+}
 
 /// A runnable task that blocks until the provided RocksDB cache instance is caught up with
 /// Postgres.
@@ -19,7 +95,8 @@ pub struct AsyncCatchupTask {
     pool: ConnectionPool<Core>,
     state_keeper_db_path: String,
     state_keeper_db_options: RocksdbStorageOptions,
-    rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
+    initial_state_sender: watch::Sender<Option<InitialRocksdbState>>,
+    db_sender: watch::Sender<Option<RocksDB<StateKeeperColumnFamily>>>,
     to_l1_batch_number: Option<L1BatchNumber>,
 }
 
@@ -30,16 +107,19 @@ impl AsyncCatchupTask {
         pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
         state_keeper_db_options: RocksdbStorageOptions,
-        rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
         to_l1_batch_number: Option<L1BatchNumber>,
-    ) -> Self {
-        Self {
+    ) -> (Self, RocksdbCell) {
+        let (initial_state_sender, initial_state) = watch::channel(None);
+        let (db_sender, db) = watch::channel(None);
+        let this = Self {
             pool,
             state_keeper_db_path,
             state_keeper_db_options,
-            rocksdb_cell,
+            initial_state_sender,
+            db_sender,
             to_l1_batch_number,
-        }
+        };
+        (this, RocksdbCell { initial_state, db })
     }
 
     /// Block until RocksDB cache instance is caught up with Postgres.
@@ -57,6 +137,12 @@ impl AsyncCatchupTask {
         )
         .await
         .context("Failed creating RocksDB storage builder")?;
+
+        let initial_state = InitialRocksdbState {
+            l1_batch_number: rocksdb_builder.l1_batch_number().await,
+        };
+        tracing::info!("Initialized RocksDB catchup from state: {initial_state:?}");
+        self.initial_state_sender.send_replace(Some(initial_state));
 
         let mut connection = self.pool.connection_tagged("state_keeper").await?;
         let was_recovered_from_snapshot = rocksdb_builder
@@ -76,9 +162,7 @@ impl AsyncCatchupTask {
             .context("Failed to catch up RocksDB to Postgres")?;
         drop(connection);
         if let Some(rocksdb) = rocksdb {
-            self.rocksdb_cell
-                .set(rocksdb.into_rocksdb())
-                .map_err(|_| anyhow::anyhow!("Async RocksDB cache was initialized twice"))?;
+            self.db_sender.send_replace(Some(rocksdb.into_rocksdb()));
         } else {
             tracing::info!("Synchronizing RocksDB interrupted");
         }
