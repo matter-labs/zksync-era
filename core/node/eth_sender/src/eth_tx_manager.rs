@@ -378,6 +378,15 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
     ) {
+        let pool = self.pool.clone();
+        let mut lock_connection = pool.connection_tagged("eth_sender").await.unwrap();
+        let mut lock_transaction = lock_connection.start_transaction().await.unwrap();
+        lock_transaction
+            .eth_sender_dal()
+            .acquire_exclusive_lock()
+            .await
+            .unwrap();
+
         for tx in storage.eth_sender_dal().get_unsent_txs().await.unwrap() {
             // Check already sent txs not marked as sent and mark them as sent.
             // The common reason for this behavior is that we sent tx and stop the server
@@ -587,6 +596,15 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         previous_block: L1BlockNumber,
     ) -> Result<L1BlockNumber, EthSenderError> {
+        let pool = self.pool.clone();
+        let mut lock_connection = pool.connection_tagged("eth_sender").await.unwrap();
+        let mut lock_transaction = lock_connection.start_transaction().await.unwrap();
+        lock_transaction
+            .eth_sender_dal()
+            .acquire_exclusive_lock()
+            .await
+            .unwrap();
+
         let l1_block_numbers = self.l1_interface.get_l1_block_numbers().await?;
 
         self.send_new_eth_txs(storage, l1_block_numbers.latest)

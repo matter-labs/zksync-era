@@ -22,6 +22,16 @@ pub struct EthSenderDal<'a, 'c> {
 }
 
 impl EthSenderDal<'_, '_> {
+    pub async fn acquire_exclusive_lock(&mut self) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            LOCK TABLE eth_sender_lock IN EXCLUSIVE MODE
+            "#
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
     pub async fn get_inflight_txs(&mut self) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
             StorageEthTx,
