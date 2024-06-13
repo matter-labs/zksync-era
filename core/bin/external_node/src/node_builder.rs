@@ -387,9 +387,10 @@ impl ExternalNodeBuilder {
             subscriptions_limit: Some(self.config.optional.filters_limit),
             batch_request_size_limit: Some(self.config.optional.max_batch_request_size),
             response_body_size_limit: Some(self.config.optional.max_response_body_size()),
+            with_extended_tracing: self.config.optional.extended_rpc_tracing,
+            pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
             websocket_requests_per_minute_limit: None, // Not relevant for HTTP
             replication_lag_limit: None,               // TODO: Support replication lag limit
-            pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
         };
         self.node.add_layer(Web3ServerLayer::http(
             self.config.required.http_port,
@@ -411,9 +412,10 @@ impl ExternalNodeBuilder {
             subscriptions_limit: Some(self.config.optional.filters_limit),
             batch_request_size_limit: Some(self.config.optional.max_batch_request_size),
             response_body_size_limit: Some(self.config.optional.max_response_body_size()),
+            with_extended_tracing: self.config.optional.extended_rpc_tracing,
+            pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
             websocket_requests_per_minute_limit: None, // TODO: Support websocket requests per minute limit
             replication_lag_limit: None,               // TODO: Support replication lag limit
-            pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
         };
         self.node.add_layer(Web3ServerLayer::http(
             self.config.required.http_port,

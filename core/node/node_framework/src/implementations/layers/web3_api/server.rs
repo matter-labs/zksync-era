@@ -27,6 +27,7 @@ pub struct Web3ServerOptionalConfig {
     pub batch_request_size_limit: Option<usize>,
     pub response_body_size_limit: Option<MaxResponseSize>,
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
+    pub with_extended_tracing: bool,
     // Used by circuit breaker.
     pub replication_lag_limit: Option<Duration>,
     // Used by the external node.
@@ -134,7 +135,8 @@ impl WiringLayer for Web3ServerLayer {
             ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool.clone())
                 .with_updaters_pool(updaters_pool)
                 .with_tx_sender(tx_sender)
-                .with_mempool_cache(mempool_cache);
+                .with_mempool_cache(mempool_cache)
+                .with_extended_tracing(self.optional_config.with_extended_tracing);
         if let Some(client) = tree_api_client {
             api_builder = api_builder.with_tree_api(client);
         }
