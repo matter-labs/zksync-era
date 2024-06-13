@@ -131,9 +131,7 @@ mod tests {
         let entries = tree.entries_with_proofs(0, &[missing_key]).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries[0].base.is_empty());
-        entries[0]
-            .verify(&tree.hasher, tree.hasher.empty_tree_hash())
-            .unwrap();
+        entries[0].verify(&tree.hasher, tree.hasher.empty_tree_hash());
     }
 
     #[test]
@@ -153,8 +151,8 @@ mod tests {
         let entries = tree.entries_with_proofs(0, &[key, missing_key]).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(!entries[0].base.is_empty());
-        entries[0].verify(&tree.hasher, output.root_hash).unwrap();
+        entries[0].verify(&tree.hasher, output.root_hash);
         assert!(entries[1].base.is_empty());
-        entries[1].verify(&tree.hasher, output.root_hash).unwrap();
+        entries[1].verify(&tree.hasher, output.root_hash);
     }
 }

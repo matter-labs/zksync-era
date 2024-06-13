@@ -338,6 +338,7 @@ pub enum Transaction {
         factory_deps: Vec<Vec<u8>>,
         /// Auxiliary data, not hashed.
         eth_block: u64,
+        received_timestamp_ms: u64,
     },
     /// RLP encoding of a L2 transaction.
     L2(Vec<u8>),

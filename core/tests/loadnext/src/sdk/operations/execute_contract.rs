@@ -67,7 +67,7 @@ where
                 calldata,
                 fee,
                 nonce,
-                self.factory_deps.unwrap_or_default(),
+                self.factory_deps,
                 paymaster_params,
             )
             .await
@@ -150,7 +150,7 @@ where
             Default::default(),
             self.wallet.address(),
             self.value.unwrap_or_default(),
-            self.factory_deps.clone().unwrap_or_default(),
+            self.factory_deps.clone(),
             paymaster_params,
         );
         self.wallet

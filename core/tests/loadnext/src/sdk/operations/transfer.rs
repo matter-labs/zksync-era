@@ -155,7 +155,7 @@ where
             Execute {
                 contract_address: to,
                 calldata: Default::default(),
-                factory_deps: vec![],
+                factory_deps: None,
                 value: amount,
             }
         } else {
@@ -163,7 +163,7 @@ where
             Execute {
                 contract_address: token,
                 calldata: create_transfer_calldata(to, amount),
-                factory_deps: vec![],
+                factory_deps: None,
                 value: Default::default(),
             }
         };
