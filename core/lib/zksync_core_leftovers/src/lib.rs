@@ -14,6 +14,7 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
+use zksync_base_token_adjuster::NodeBaseTokenAdjuster;
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
@@ -295,6 +296,14 @@ pub async fn initialize_components(
         genesis_config.l1_batch_commit_data_generator_mode,
     );
 
+    let arc_base_token_adjuster = Arc::new(NodeBaseTokenAdjuster::new(
+        connection_pool.clone(),
+        configs
+            .base_token_adjuster
+            .clone()
+            .context("base_token_adjuster")?,
+    ));
+
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
@@ -377,6 +386,7 @@ pub async fn initialize_components(
                 .context("gas_adjuster.get_or_init()")?;
             let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
                 bounded_gas_adjuster,
+                arc_base_token_adjuster.clone(),
                 FeeModelConfig::from_state_keeper_config(&state_keeper_config),
             ));
             run_http_api(
@@ -426,6 +436,7 @@ pub async fn initialize_components(
                 .context("gas_adjuster.get_or_init()")?;
             let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
                 bounded_gas_adjuster,
+                arc_base_token_adjuster.clone(),
                 FeeModelConfig::from_state_keeper_config(&state_keeper_config),
             ));
             run_ws_api(
@@ -493,6 +504,7 @@ pub async fn initialize_components(
             .context("state_keeper_config")?;
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             bounded_gas_adjuster,
+            arc_base_token_adjuster.clone(),
             FeeModelConfig::from_state_keeper_config(&state_keeper_config),
         ));
         add_state_keeper_to_task_futures(

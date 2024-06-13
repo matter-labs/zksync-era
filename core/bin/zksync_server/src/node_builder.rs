@@ -139,11 +139,13 @@ impl MainNodeBuilder {
             .context("Gas adjuster")?;
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let eth_sender_config = try_load_config!(self.configs.eth);
+        let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             self.genesis_config.clone(),
             state_keeper_config,
             try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
+            base_token_adjuster_config,
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)

@@ -3,6 +3,7 @@
 use std::{slice, sync::Arc, time::Duration};
 
 use multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
+use zksync_base_token_adjuster::BaseTokenAdjuster;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
     GasAdjusterConfig,
@@ -16,6 +17,7 @@ use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
 };
 use zksync_types::{
+    base_token_price::BaseTokenPrice,
     block::L2BlockHeader,
     commitment::L1BatchCommitmentMode,
     fee::TransactionExecutionMetrics,
@@ -80,6 +82,7 @@ impl Tester {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         MainNodeFeeInputProvider::new(
             gas_adjuster,
+            Arc::new(MockBaseTokenAdjuster {}),
             FeeModelConfig::V1(FeeModelConfigV1 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
             }),
@@ -98,6 +101,7 @@ impl Tester {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
+            Arc::new(MockBaseTokenAdjuster {}),
             FeeModelConfig::V1(FeeModelConfigV1 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
             }),
@@ -226,5 +230,13 @@ impl Tester {
         let tx = create_l2_transaction(fee_per_gas, gas_per_pubdata.into());
         guard.insert(vec![tx.clone().into()], Default::default());
         tx
+    }
+}
+
+#[derive(Debug)]
+struct MockBaseTokenAdjuster {}
+impl BaseTokenAdjuster for MockBaseTokenAdjuster {
+    fn get_last_ratio(&self) -> Option<BaseTokenPrice> {
+        None
     }
 }

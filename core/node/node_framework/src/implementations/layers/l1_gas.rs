@@ -1,17 +1,20 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use zksync_base_token_adjuster::NodeBaseTokenAdjuster;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
-    GasAdjusterConfig, GenesisConfig,
+    BaseTokenAdjusterConfig, GasAdjusterConfig, GenesisConfig,
 };
 use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
 use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource, fee_input::FeeInputResource,
+        eth_interface::EthInterfaceResource,
+        fee_input::FeeInputResource,
         l1_tx_params::L1TxParamsResource,
+        pools::{PoolResource, ReplicaPool},
     },
     service::{ServiceContext, StopReceiver},
     task::{Task, TaskId},
@@ -24,6 +27,7 @@ pub struct SequencerL1GasLayer {
     genesis_config: GenesisConfig,
     pubdata_sending_mode: PubdataSendingMode,
     state_keeper_config: StateKeeperConfig,
+    base_token_adjuster_config: BaseTokenAdjusterConfig,
 }
 
 impl SequencerL1GasLayer {
@@ -32,12 +36,14 @@ impl SequencerL1GasLayer {
         genesis_config: GenesisConfig,
         state_keeper_config: StateKeeperConfig,
         pubdata_sending_mode: PubdataSendingMode,
+        base_token_adjuster_config: BaseTokenAdjusterConfig,
     ) -> Self {
         Self {
             gas_adjuster_config,
             genesis_config,
             pubdata_sending_mode,
             state_keeper_config,
+            base_token_adjuster_config,
         }
     }
 }
@@ -60,8 +66,15 @@ impl WiringLayer for SequencerL1GasLayer {
         .context("GasAdjuster::new()")?;
         let gas_adjuster = Arc::new(adjuster);
 
+        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_pool = pool_resource.get().await?;
+
+        let base_token_adjuster =
+            NodeBaseTokenAdjuster::new(replica_pool.clone(), self.base_token_adjuster_config);
+
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             gas_adjuster.clone(),
+            Arc::new(base_token_adjuster),
             FeeModelConfig::from_state_keeper_config(&self.state_keeper_config),
         ));
         context.insert_resource(FeeInputResource(batch_fee_input_provider))?;

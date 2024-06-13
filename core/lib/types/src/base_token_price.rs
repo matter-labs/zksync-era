@@ -2,7 +2,7 @@ use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 
 /// Represents the base token price at a given point in time.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BaseTokenPrice {
     pub id: i64,
     pub ratio_timestamp: DateTime<Utc>,
@@ -12,7 +12,7 @@ pub struct BaseTokenPrice {
 }
 
 /// Struct to represent API response containing denominator, numerator and optional timestamp.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BaseTokenAPIPrice {
     pub numerator: BigDecimal,
     pub denominator: BigDecimal,

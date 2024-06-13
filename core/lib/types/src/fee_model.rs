@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
-use crate::ProtocolVersionId;
+use crate::{base_token_price::BaseTokenPrice, ProtocolVersionId};
 
 /// Fee input to be provided into the VM. It contains two options:
 /// - `L1Pegged`: L1 gas price is provided to the VM, and the pubdata price is derived from it. Using this option is required for the
@@ -239,6 +239,7 @@ pub struct FeeParamsV2 {
     pub config: FeeModelConfigV2,
     pub l1_gas_price: u64,
     pub l1_pubdata_price: u64,
+    pub base_token_price: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

@@ -1,24 +1,31 @@
-use std::time::{Duration, Instant};
+use std::{
+    fmt::Debug,
+    time::{Duration, Instant},
+};
 
 use chrono::{DateTime, Utc};
 use tokio::sync::watch;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
-use zksync_types::base_token_price::BaseTokenAPIPrice;
+use zksync_types::base_token_price::{BaseTokenAPIPrice, BaseTokenPrice};
+
+pub trait BaseTokenAdjuster: Debug + Send + Sync {
+    fn get_last_ratio(&self) -> Option<BaseTokenPrice>;
+}
 
 #[derive(Debug)]
-pub struct BaseTokenAdjuster {
+pub struct NodeBaseTokenAdjuster {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
     // PriceAPIClient
 }
 
-impl BaseTokenAdjuster {
+impl NodeBaseTokenAdjuster {
     pub fn new(pool: ConnectionPool<Core>, config: BaseTokenAdjusterConfig) -> Self {
         Self { pool, config }
     }
 
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let pool = self.pool.clone();
         loop {
             if *stop_receiver.borrow() {
@@ -104,5 +111,11 @@ impl BaseTokenAdjuster {
         };
 
         tokio::time::sleep(sleep_duration).await;
+    }
+}
+
+impl BaseTokenAdjuster for NodeBaseTokenAdjuster {
+    fn get_last_ratio(&self) -> Option<BaseTokenPrice> {
+        return None;
     }
 }

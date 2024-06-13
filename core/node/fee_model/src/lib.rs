@@ -1,6 +1,8 @@
-use std::{fmt, sync::Arc};
+use std::{fmt, ops::Div, sync::Arc};
 
 use anyhow::Context as _;
+use bigdecimal::ToPrimitive;
+use zksync_base_token_adjuster::BaseTokenAdjuster;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     fee_model::{
@@ -59,6 +61,7 @@ impl dyn BatchFeeModelInputProvider {
 #[derive(Debug)]
 pub struct MainNodeFeeInputProvider {
     provider: Arc<GasAdjuster>,
+    base_token_adjuster: Arc<dyn BaseTokenAdjuster>,
     config: FeeModelConfig,
 }
 
@@ -73,14 +76,26 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
                 config,
                 l1_gas_price: self.provider.estimate_effective_gas_price(),
                 l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
+                base_token_price: self
+                    .base_token_adjuster
+                    .get_last_ratio()
+                    .and_then(|x| x.numerator.div(x.denominator).to_f64()),
             }),
         }
     }
 }
 
 impl MainNodeFeeInputProvider {
-    pub fn new(provider: Arc<GasAdjuster>, config: FeeModelConfig) -> Self {
-        Self { provider, config }
+    pub fn new(
+        provider: Arc<GasAdjuster>,
+        base_token_adjuster: Arc<dyn BaseTokenAdjuster>,
+        config: FeeModelConfig,
+    ) -> Self {
+        Self {
+            provider,
+            base_token_adjuster,
+            config,
+        }
     }
 }
 
@@ -160,6 +175,7 @@ fn compute_batch_fee_model_input_v2(
         config,
         l1_gas_price,
         l1_pubdata_price,
+        base_token_price,
     } = params;
 
     let FeeModelConfigV2 {
@@ -265,6 +281,7 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
+            base_token_price: None,
         };
 
         // We'll use scale factor of 3.0
@@ -291,6 +308,7 @@ mod tests {
             config,
             l1_gas_price: SMALL_L1_GAS_PRICE,
             l1_pubdata_price: SMALL_L1_GAS_PRICE,
+            base_token_price: None,
         };
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
@@ -316,6 +334,7 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
+            base_token_price: None,
         };
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
@@ -342,6 +361,7 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
+            base_token_price: None,
         };
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
@@ -368,6 +388,7 @@ mod tests {
             config: base_config,
             l1_gas_price: 1_000_000_000,
             l1_pubdata_price: 1_000_000_000,
+            base_token_price: None,
         };
 
         let base_input = compute_batch_fee_model_input_v2(base_params, 1.0, 1.0);

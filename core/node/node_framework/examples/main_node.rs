@@ -15,8 +15,8 @@ use zksync_config::{
         DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
         L1Secrets, ObservabilityConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
-    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig, DBConfig,
+    EthConfig, EthWatchConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_env_config::FromEnv;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
@@ -111,6 +111,7 @@ impl MainNodeBuilder {
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
         let eth_sender_config = EthConfig::from_env()?;
+        let base_token_adjuster_config = BaseTokenAdjusterConfig::from_env()?;
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             genesis_config,
@@ -119,6 +120,7 @@ impl MainNodeBuilder {
                 .sender
                 .context("eth_sender")?
                 .pubdata_sending_mode,
+            base_token_adjuster_config,
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
