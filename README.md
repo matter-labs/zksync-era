@@ -1,4 +1,19 @@
-# ZKsync Era: A ZK Rollup For Scaling Ethereum
+# Fork Code Conventions !!IMPORTANT!!
+
+The original repository of this fork is still in Alpha, so many breaking changes are expected. With that in mind, we've
+developed a strategy to minimize synchronization conflicts as much as possible, employing the following heuristics:
+
+- Copy, don't modify. Do not modify a source file, instead, clone it with the prefix `via-`.
+
+For example, if we are using a library, let's say `core/lib/dal/src/metrics.rs` and we need to modify the file, we copy
+and paste it attaching the prefix, like so: `core/lib/dal/src/via-metrics.rs`.
+
+That way, when we synchronize this fork, we will never have a git conflict because we've created a new file. Then, we
+can look at the changes in the original file and decide if we want to implement those changes in the copied file.
+
+This rule also applies to binaries.
+
+# zkSync Era: A ZK Rollup For Scaling Ethereum
 
 [![Logo](eraLogo.png)](https://zksync.io/)
 
