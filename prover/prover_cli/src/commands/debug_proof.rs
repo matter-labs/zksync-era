@@ -13,7 +13,7 @@ pub(crate) async fn run(_args: Args) -> anyhow::Result<()> {
     #[cfg(feature = "verbose_circuits")]
     {
         let buffer = std::fs::read(_args.file).unwrap();
-        zkevm_test_harness::debug::debug_basic_circuit(&buffer);
+        zkevm_test_harness::debug::debug_circuit(&buffer);
         Ok(())
     }
 }

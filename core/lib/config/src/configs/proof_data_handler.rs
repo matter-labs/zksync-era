@@ -6,6 +6,7 @@ use serde::Deserialize;
 pub struct ProofDataHandlerConfig {
     pub http_port: u16,
     pub proof_generation_timeout_in_secs: u16,
+    pub tee_support: bool,
 }
 
 impl ProofDataHandlerConfig {
