@@ -113,7 +113,7 @@ impl DataAvailabilityDal<'_, '_> {
         .await?;
 
         if update_result.rows_affected() == 0 {
-            tracing::debug!("L1 batch #{number}: DA data wasn't updated as it's already present or the row for the batch_number is missing");
+            tracing::debug!("L1 batch #{number}: DA data wasn't updated as it's already present");
 
             let instrumentation =
                 Instrumented::new("get_matching_batch_da_data").with_arg("number", &number);

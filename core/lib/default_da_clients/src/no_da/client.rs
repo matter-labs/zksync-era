@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use async_trait::async_trait;
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
@@ -9,12 +7,6 @@ use zksync_da_client::{
 /// A no-op implementation of the `DataAvailabilityClient` trait, that doesn't store the pubdata.
 #[derive(Clone, Debug, Default)]
 pub struct NoDAClient;
-
-impl NoDAClient {
-    pub fn new() -> Self {
-        NoDAClient {}
-    }
-}
 
 #[async_trait]
 impl DataAvailabilityClient for NoDAClient {
@@ -30,7 +22,7 @@ impl DataAvailabilityClient for NoDAClient {
         Box::new(self.clone())
     }
 
-    fn blob_size_limit(&self) -> usize {
-        100 * 1024 * 1024 // 100 MB, high enough to not be a problem
+    fn blob_size_limit(&self) -> Option<usize> {
+        None
     }
 }

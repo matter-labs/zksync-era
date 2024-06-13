@@ -404,7 +404,7 @@ impl MainNodeBuilder {
     }
 
     fn add_no_da_client_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(NoDAClientWiringLayer::new());
+        self.node.add_layer(NoDAClientWiringLayer);
         Ok(self)
     }
 

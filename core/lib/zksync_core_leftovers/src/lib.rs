@@ -748,16 +748,14 @@ pub async fn initialize_components(
         .context("add_tee_verifier_input_producer_to_task_futures()")?;
     }
 
-    if eth
-        .sender
-        .clone()
-        .context("eth_sender")?
-        .pubdata_sending_mode
-        == PubdataSendingMode::Custom
-    {
+    if components.contains(&Component::DADispatcher) {
         anyhow::ensure!(
-            components.contains(&Component::DADispatcher),
-            "Custom pubdata sending mode requires the DA dispatcher component to be enabled"
+            eth.sender
+                .clone()
+                .context("eth_sender")?
+                .pubdata_sending_mode
+                == PubdataSendingMode::Custom,
+            "DA dispatcher component has to be used with custom pubdata sending mode"
         );
 
         let started_at = Instant::now();
@@ -769,7 +767,7 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build da_dispatcher_pool")?;
-        let da_client: Box<dyn DataAvailabilityClient> = Box::new(NoDAClient::new()); // use the `NoDAClient` as a default option for Validium
+        let da_client: Box<dyn DataAvailabilityClient> = Box::new(NoDAClient); // use the `NoDAClient` as a default option for Validium
 
         let da_dispatcher =
             DataAvailabilityDispatcher::new(da_dispatcher_pool, da_config, da_client);

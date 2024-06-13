@@ -21,8 +21,8 @@ pub trait DataAvailabilityClient: Sync + Send + fmt::Debug {
     /// Clones the client and wraps it in a Box.
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient>;
 
-    /// Returns the maximum size of the blob (in bytes) that can be dispatched.
-    fn blob_size_limit(&self) -> usize;
+    /// Returns the maximum size of the blob (in bytes) that can be dispatched. None means no limit.
+    fn blob_size_limit(&self) -> Option<usize>;
 }
 
 impl Clone for Box<dyn DataAvailabilityClient> {

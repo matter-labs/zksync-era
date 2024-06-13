@@ -22,6 +22,7 @@ impl From<StorageDABlob> for DataAvailabilityBlob {
 }
 
 /// A small struct used to store a batch and its data availability, which are retrieved from the database.
+#[derive(Debug)]
 pub struct L1BatchDA {
     pub pubdata: Vec<u8>,
     pub l1_batch_number: L1BatchNumber,

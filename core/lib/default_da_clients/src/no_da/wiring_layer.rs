@@ -12,12 +12,6 @@ use crate::no_da::client::NoDAClient;
 #[derive(Debug, Default)]
 pub struct NoDAClientWiringLayer;
 
-impl NoDAClientWiringLayer {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
 #[async_trait::async_trait]
 impl WiringLayer for NoDAClientWiringLayer {
     fn layer_name(&self) -> &'static str {
@@ -25,7 +19,7 @@ impl WiringLayer for NoDAClientWiringLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let client: Box<dyn DataAvailabilityClient> = Box::new(NoDAClient::new());
+        let client: Box<dyn DataAvailabilityClient> = Box::new(NoDAClient);
 
         context.insert_resource(DAClientResource(client))?;
 

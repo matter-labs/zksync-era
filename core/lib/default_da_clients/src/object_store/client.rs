@@ -78,7 +78,7 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
         Box::new(self.clone())
     }
 
-    fn blob_size_limit(&self) -> usize {
-        100 * 1024 * 1024 // 100 MB, high enough to not be a problem
+    fn blob_size_limit(&self) -> Option<usize> {
+        None
     }
 }

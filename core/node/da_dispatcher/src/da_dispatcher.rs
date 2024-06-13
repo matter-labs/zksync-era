@@ -35,13 +35,12 @@ impl DataAvailabilityDispatcher {
         let pool = self.pool.clone();
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, da_dispatcher is shutting down");
                 break;
             }
 
             tokio::join!(
                 async {
-                    if let Err(err) = self.dispatch(&pool).await {
+                    if let Err(err) = self.dispatch().await {
                         tracing::error!("dispatch error {err:?}");
                     }
                 },
@@ -56,16 +55,17 @@ impl DataAvailabilityDispatcher {
                 .await
                 .is_ok()
             {
-                tracing::info!("Stop signal received, da_dispatcher is shutting down");
                 break;
             }
         }
+
+        tracing::info!("Stop signal received, da_dispatcher is shutting down");
         Ok(())
     }
 
     /// Dispatches the blobs to the data availability layer, and saves the blob_id in the database.
-    async fn dispatch(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
-        let mut conn = pool.connection_tagged("da_dispatcher").await?;
+    async fn dispatch(&self) -> anyhow::Result<()> {
+        let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
         let batches = conn
             .data_availability_dal()
             .get_ready_for_da_dispatch_l1_batches(self.config.max_rows_to_dispatch() as usize)
@@ -91,7 +91,7 @@ impl DataAvailabilityDispatcher {
             let sent_at =
                 NaiveDateTime::from_timestamp_millis(Utc::now().timestamp_millis()).unwrap();
 
-            let mut conn = pool.connection_tagged("da_dispatcher").await?;
+            let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
             conn.data_availability_dal()
                 .insert_l1_batch_da(
                     batch.l1_batch_number,
