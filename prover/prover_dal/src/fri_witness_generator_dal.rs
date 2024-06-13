@@ -170,7 +170,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 status = $1,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $2
+                l1_batch_number = $2 AND
+                status != 'successful'
             "#,
             status.to_string(),
             i64::from(block_number.0)
@@ -212,7 +213,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error = $1,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $2
+                l1_batch_number = $2 AND
+                status != 'successful'
             "#,
             error,
             i64::from(block_number.0)
@@ -231,7 +233,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error = $1,
                 updated_at = NOW()
             WHERE
-                id = $2
+                id = $2 AND
+                status != 'successful'
             "#,
             error,
             i64::from(id)
@@ -718,7 +721,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error = $1,
                 updated_at = NOW()
             WHERE
-                id = $2
+                id = $2 AND
+                status != 'successful'
             "#,
             error,
             i64::from(id)
@@ -1084,7 +1088,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         &mut self,
         protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
-    ) -> Option<L1BatchNumber> {
+    ) -> Option<(L1BatchNumber, i32)> {
         sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
@@ -1112,7 +1116,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         SKIP LOCKED
                 )
             RETURNING
-                recursion_tip_witness_jobs_fri.l1_batch_number
+                recursion_tip_witness_jobs_fri.l1_batch_number,
+                recursion_tip_witness_jobs_fri.number_of_final_node_jobs
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -1121,7 +1126,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+        .map(|row| {
+            (
+                L1BatchNumber(row.l1_batch_number as u32),
+                row.number_of_final_node_jobs,
+            )
+        })
     }
 
     pub async fn mark_scheduler_jobs_as_queued(&mut self, l1_batch_number: i64) {
@@ -1333,7 +1343,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error = $1,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $2
+                l1_batch_number = $2 AND
+                status != 'successful'
             "#,
             error,
             l1_batch_number.0 as i64
@@ -1352,7 +1363,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error = $1,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $2
+                l1_batch_number = $2 AND
+                status != 'successful'
             "#,
             error,
             i64::from(block_number.0)
