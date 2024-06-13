@@ -81,26 +81,18 @@ impl BlockOutputWithProofs {
 impl TreeEntryWithProof {
     /// Verifies this proof.
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// Returns an error <=> proof is invalid.
-    pub fn verify(
-        &self,
-        hasher: &dyn HashTree,
-        trusted_root_hash: ValueHash,
-    ) -> anyhow::Result<()> {
+    /// Panics if the proof doesn't verify.
+    pub fn verify(&self, hasher: &dyn HashTree, trusted_root_hash: ValueHash) {
         if self.base.leaf_index == 0 {
-            ensure!(
+            assert!(
                 self.base.value.is_zero(),
                 "Invalid missing value specification: leaf index is zero, but value is non-default"
             );
         }
         let root_hash = hasher.fold_merkle_path(&self.merkle_path, self.base);
-        ensure!(
-            root_hash == trusted_root_hash,
-            "Root hash mismatch: got {root_hash}, want {trusted_root_hash}"
-        );
-        Ok(())
+        assert_eq!(root_hash, trusted_root_hash, "Root hash mismatch");
     }
 }
 
