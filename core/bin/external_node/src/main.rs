@@ -428,10 +428,11 @@ async fn run_api(
         .build()
         .await
         .context("failed to build a proxy_cache_updater_pool")?;
-    task_handles.push(tokio::spawn(tx_proxy.run_account_nonce_sweeper(
-        proxy_cache_updater_pool.clone(),
-        stop_receiver.clone(),
-    )));
+    task_handles.push(tokio::spawn(
+        tx_proxy
+            .account_nonce_sweeper_task(proxy_cache_updater_pool.clone())
+            .run(stop_receiver.clone()),
+    ));
 
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
