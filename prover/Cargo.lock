@@ -8388,6 +8388,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_base_token_adjuster"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
@@ -8679,6 +8695,7 @@ dependencies = [
  "vise",
  "vlog",
  "vm_utils",
+ "zksync_base_token_adjuster",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",
@@ -9069,9 +9086,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bigdecimal",
  "tokio",
  "tracing",
  "vise",
+ "zksync_base_token_adjuster",
  "zksync_config",
  "zksync_dal",
  "zksync_eth_client",
@@ -9442,6 +9461,7 @@ dependencies = [
  "tracing",
  "vise",
  "vm_utils",
+ "zksync_base_token_adjuster",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
@@ -9525,6 +9545,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bigdecimal",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "derive_more",
