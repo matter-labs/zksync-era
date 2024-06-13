@@ -299,6 +299,7 @@ impl MainNodeBuilder {
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
             replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
+            ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
