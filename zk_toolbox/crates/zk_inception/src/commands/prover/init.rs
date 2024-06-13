@@ -3,9 +3,8 @@ use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
-use crate::messages::{MSG_GENERATING_VK_SPINNER, MSG_INITIALIZING_PROVER, MSG_PROVER_INITIALIZED};
-
 use super::args::init::InitArgs;
+use crate::messages::{MSG_GENERATING_VK_SPINNER, MSG_INITIALIZING_PROVER, MSG_PROVER_INITIALIZED};
 
 pub(crate) async fn run(_args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_INITIALIZING_PROVER);
