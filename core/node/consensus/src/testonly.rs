@@ -42,6 +42,7 @@ use zksync_state_keeper::{
 };
 use zksync_test_account::Account;
 use zksync_types::{
+    Transaction,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
 };
@@ -222,6 +223,13 @@ impl StateKeeper {
                 number: self.last_block,
             }
         }
+    }
+
+    pub async fn push_block(&mut self, txs: &[Transaction]) {
+        let mut actions = vec![self.open_block()];
+        actions.extend(txs.iter().map(|tx|FetchedTransaction::new(tx.clone()).into()));
+        actions.push(SyncAction::SealL2Block);
+        self.actions_sender.push_actions(actions).await;
     }
 
     /// Pushes a new L2 block with `transactions` transactions to the `StateKeeper`.
