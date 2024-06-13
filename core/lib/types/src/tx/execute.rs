@@ -16,18 +16,13 @@ pub struct Execute {
     pub value: U256,
 
     /// Factory dependencies: list of contract bytecodes associated with the deploy transaction.
-    /// This field is always `None` for all the transaction that do not cause the contract deployment.
-    /// For the deployment transactions, this field is always `Some`, even if there s no "dependencies" for the
-    /// contract being deployed, since the bytecode of the contract itself is also included into this list.
-    pub factory_deps: Option<Vec<Vec<u8>>>,
+    #[serde(default)]
+    pub factory_deps: Vec<Vec<u8>>,
 }
 
 impl std::fmt::Debug for Execute {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let factory_deps = match &self.factory_deps {
-            Some(deps) => format!("Some(<{} factory deps>)", deps.len()),
-            None => "None".to_string(),
-        };
+        let factory_deps = format!("<{} factory deps>", self.factory_deps.len());
         f.debug_struct("Execute")
             .field("contract_address", &self.contract_address)
             .field("calldata", &hex::encode(&self.calldata))
@@ -82,13 +77,5 @@ impl Execute {
         ]);
 
         FUNCTION_SIGNATURE.iter().copied().chain(params).collect()
-    }
-
-    /// Number of new factory dependencies in this transaction
-    pub fn factory_deps_length(&self) -> usize {
-        self.factory_deps
-            .as_ref()
-            .map(|deps| deps.len())
-            .unwrap_or_default()
     }
 }
