@@ -64,12 +64,7 @@ impl ExecutionResult {
 impl VmExecutionResultAndLogs {
     pub fn get_execution_metrics(&self, tx: Option<&Transaction>) -> ExecutionMetrics {
         let contracts_deployed = tx
-            .map(|tx| {
-                tx.execute
-                    .factory_deps
-                    .as_ref()
-                    .map_or(0, |deps| deps.len() as u16)
-            })
+            .map(|tx| tx.execute.factory_deps.len() as u16)
             .unwrap_or(0);
 
         // We published the data as ABI-encoded `bytes`, so the total length is:

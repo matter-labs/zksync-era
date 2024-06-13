@@ -4,7 +4,7 @@ use crate::eip712_signature::typed_structure::{EIP712TypedStructure, Eip712Domai
 
 /// Formats the data that needs to be signed in json according to the standard eip-712.
 /// Compatible with `eth_signTypedData` RPC call.
-pub fn get_eip712_json<T: EIP712TypedStructure>(
+pub fn get_eip712_json<T: EIP712TypedStructure + serde::Serialize>(
     eip712_domain: &Eip712Domain,
     typed_struct: &T,
 ) -> Value {
