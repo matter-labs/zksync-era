@@ -38,6 +38,7 @@ use zksync_node_framework::{
         validate_chain_ids::ValidateChainIdsLayer,
         web3_api::{
             caches::MempoolCacheLayer,
+            server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
             tx_sink::TxSinkLayer,
@@ -375,6 +376,54 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
+        // The refresh interval should be several times lower than the pruning removal delay, so that
+        // soft-pruning will timely propagate to the API server.
+        let pruning_info_refresh_interval = self.config.optional.pruning_removal_delay() / 5;
+
+        let optional_config = Web3ServerOptionalConfig {
+            namespaces: Some(self.config.optional.api_namespaces()),
+            filters_limit: Some(self.config.optional.filters_limit),
+            subscriptions_limit: Some(self.config.optional.filters_limit),
+            batch_request_size_limit: Some(self.config.optional.max_batch_request_size),
+            response_body_size_limit: Some(self.config.optional.max_response_body_size()),
+            websocket_requests_per_minute_limit: None, // Not relevant for HTTP
+            replication_lag_limit: None,               // TODO: Support replication lag limit
+            pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
+        };
+        self.node.add_layer(Web3ServerLayer::http(
+            self.config.required.http_port,
+            (&self.config).into(),
+            optional_config,
+        ));
+
+        Ok(self)
+    }
+
+    fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
+        // The refresh interval should be several times lower than the pruning removal delay, so that
+        // soft-pruning will timely propagate to the API server.
+        let pruning_info_refresh_interval = self.config.optional.pruning_removal_delay() / 5;
+
+        let optional_config = Web3ServerOptionalConfig {
+            namespaces: Some(self.config.optional.api_namespaces()),
+            filters_limit: Some(self.config.optional.filters_limit),
+            subscriptions_limit: Some(self.config.optional.filters_limit),
+            batch_request_size_limit: Some(self.config.optional.max_batch_request_size),
+            response_body_size_limit: Some(self.config.optional.max_response_body_size()),
+            websocket_requests_per_minute_limit: None, // TODO: Support websocket requests per minute limit
+            replication_lag_limit: None,               // TODO: Support replication lag limit
+            pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
+        };
+        self.node.add_layer(Web3ServerLayer::http(
+            self.config.required.http_port,
+            (&self.config).into(),
+            optional_config,
+        ));
+
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
         self = self
@@ -406,7 +455,8 @@ impl ExternalNodeBuilder {
                         .add_api_caches_layer()?
                         .add_tree_api_client_layer()?
                         .add_main_node_fee_params_fetcher_layer()?
-                        .add_tx_sender_layer()?;
+                        .add_tx_sender_layer()?
+                        .add_http_web3_api_layer()?;
                 }
                 Component::WsApi => {
                     self = self
@@ -414,7 +464,8 @@ impl ExternalNodeBuilder {
                         .add_api_caches_layer()?
                         .add_tree_api_client_layer()?
                         .add_main_node_fee_params_fetcher_layer()?
-                        .add_tx_sender_layer()?;
+                        .add_tx_sender_layer()?
+                        .add_ws_web3_api_layer()?;
                 }
                 Component::Tree => {
                     // Right now, distributed mode for EN is not fully supported, e.g. there are some
