@@ -281,45 +281,6 @@ impl TxProxy {
         pending_nonce
     }
 
-    async fn request_tx(&self, id: TransactionId) -> EnrichedClientResult<Option<Transaction>> {
-        match id {
-            TransactionId::Block(BlockId::Hash(block), index) => {
-                self.client
-                    .get_transaction_by_block_hash_and_index(block, index)
-                    .rpc_context("get_transaction_by_block_hash_and_index")
-                    .with_arg("block", &block)
-                    .with_arg("index", &index)
-                    .await
-            }
-            TransactionId::Block(BlockId::Number(block), index) => {
-                self.client
-                    .get_transaction_by_block_number_and_index(block, index)
-                    .rpc_context("get_transaction_by_block_number_and_index")
-                    .with_arg("block", &block)
-                    .with_arg("index", &index)
-                    .await
-            }
-            TransactionId::Hash(hash) => {
-                self.client
-                    .get_transaction_by_hash(hash)
-                    .rpc_context("get_transaction_by_hash")
-                    .with_arg("hash", &hash)
-                    .await
-            }
-        }
-    }
-
-    async fn request_tx_details(
-        &self,
-        hash: H256,
-    ) -> EnrichedClientResult<Option<TransactionDetails>> {
-        self.client
-            .get_transaction_details(hash)
-            .rpc_context("get_transaction_details")
-            .with_arg("hash", &hash)
-            .await
-    }
-
     pub fn account_nonce_sweeper_task(
         &self,
         pool: ConnectionPool<Core>,
