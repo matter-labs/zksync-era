@@ -76,14 +76,14 @@ impl From<Vec<WitnessJobStatus>> for Status {
         if status_vector.is_empty() {
             Status::JobsNotFound
         } else if status_vector
-        .iter()
-        .all(|job| matches!(job, WitnessJobStatus::WaitingForProofs))
+            .iter()
+            .all(|job| matches!(job, WitnessJobStatus::WaitingForProofs))
         {
             Status::WaitingForProofs
-        } else if status_vector
-            .iter()
-            .all(|job| matches!(job, WitnessJobStatus::Queued) || matches!(job, WitnessJobStatus::WaitingForProofs))
-        {
+        } else if status_vector.iter().all(|job| {
+            matches!(job, WitnessJobStatus::Queued)
+                || matches!(job, WitnessJobStatus::WaitingForProofs)
+        }) {
             Status::Queued
         } else if status_vector
             .iter()
