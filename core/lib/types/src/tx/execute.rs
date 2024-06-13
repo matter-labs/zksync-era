@@ -4,20 +4,48 @@ use zksync_utils::ZeroPrefixHexSerde;
 
 use crate::{ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
 
-/// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
-#[derive(Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ExecuteSerde {
+    contract_address: Address,
+    #[serde(with = "ZeroPrefixHexSerde")]
+    calldata: Vec<u8>,
+    value: U256,
+    factory_deps: Option<Vec<Vec<u8>>>,
+}
+
+/// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
+#[derive(Clone, Default, PartialEq)]
 pub struct Execute {
     pub contract_address: Address,
-
-    #[serde(with = "ZeroPrefixHexSerde")]
     pub calldata: Vec<u8>,
-
     pub value: U256,
-
     /// Factory dependencies: list of contract bytecodes associated with the deploy transaction.
-    #[serde(default)]
     pub factory_deps: Vec<Vec<u8>>,
+}
+
+impl serde::Serialize for Execute {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        ExecuteSerde {
+            contract_address: self.contract_address,
+            calldata: self.calldata.clone(),
+            value: self.value,
+            factory_deps: Some(self.factory_deps.clone()),
+        }
+        .serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Execute {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let x = ExecuteSerde::deserialize(d)?;
+        Ok(Self {
+            contract_address: x.contract_address,
+            calldata: x.calldata,
+            value: x.value,
+            factory_deps: x.factory_deps.unwrap_or_default(),
+        })
+    }
 }
 
 impl std::fmt::Debug for Execute {
