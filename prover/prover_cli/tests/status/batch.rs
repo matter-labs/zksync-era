@@ -131,17 +131,6 @@ fn status_batch_0_expects(expected_output: String) {
         .stdout(expected_output);
 }
 
-fn status_verbose_batch_0_expects(expected_output: String, db_url: &str) {
-    Command::cargo_bin("prover_cli")
-        .unwrap()
-        .arg("status")
-        .arg("batch")
-        .args(["-n", "0", "-v"])
-        .assert()
-        .success()
-        .stdout(expected_output);
-}
-
 async fn insert_prover_job(
     status: ProverJobStatus,
     circuit_id: BaseLayerCircuitType,
