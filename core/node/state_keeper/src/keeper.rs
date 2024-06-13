@@ -332,6 +332,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         updates: &UpdatesManager,
     ) -> Result<L2BlockParams, Error> {
+        let latency = KEEPER_METRICS.wait_for_l2_block_params.start();
         let cursor = updates.io_cursor();
         while !self.is_canceled() {
             if let Some(params) = self
@@ -340,6 +341,7 @@ impl ZkSyncStateKeeper {
                 .await
                 .context("error waiting for new L2 block params")?
             {
+                latency.observe();
                 return Ok(params);
             }
         }
@@ -712,7 +714,7 @@ impl ZkSyncStateKeeper {
                 } else {
                     SealResolution::ExcludeAndSeal
                 };
-                AGGREGATION_METRICS.inc(error_message, &resolution);
+                AGGREGATION_METRICS.l1_batch_reason_inc(error_message, &resolution);
                 resolution
             }
             TxExecutionResult::RejectedByVm { reason } => {
