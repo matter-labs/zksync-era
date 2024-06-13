@@ -65,7 +65,7 @@ impl IoSealCriteria for MempoolIO {
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
         if self.timeout_sealer.should_seal_l2_block(manager) {
-            AGGREGATION_METRICS.l2_block_inc(&L2BlockSealReason::Timeout);
+            AGGREGATION_METRICS.l2_block_reason_inc(&L2BlockSealReason::Timeout);
             return true;
         }
 
@@ -73,7 +73,7 @@ impl IoSealCriteria for MempoolIO {
             .l2_block_max_payload_size_sealer
             .should_seal_l2_block(manager)
         {
-            AGGREGATION_METRICS.l2_block_inc(&L2BlockSealReason::PayloadSize);
+            AGGREGATION_METRICS.l2_block_reason_inc(&L2BlockSealReason::PayloadSize);
             return true;
         }
 

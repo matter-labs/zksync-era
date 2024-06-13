@@ -721,7 +721,7 @@ impl ZkSyncStateKeeper {
                 } else {
                     SealResolution::ExcludeAndSeal
                 };
-                AGGREGATION_METRICS.l1_batch_inc(criterion, &resolution);
+                AGGREGATION_METRICS.l1_batch_reason_inc(criterion, &resolution);
                 resolution
             }
             TxExecutionResult::RejectedByVm { reason } => {

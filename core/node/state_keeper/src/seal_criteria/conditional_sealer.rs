@@ -104,7 +104,7 @@ impl ConditionalSealer for SequencerSealer {
                         name = sealer.prom_criterion_name()
                     );
                     AGGREGATION_METRICS
-                        .l1_batch_inc(sealer.prom_criterion_name(), &seal_resolution);
+                        .l1_batch_reason_inc(sealer.prom_criterion_name(), &seal_resolution);
                 }
                 SealResolution::NoSeal => { /* Don't do anything */ }
             }

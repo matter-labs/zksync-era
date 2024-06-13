@@ -227,7 +227,7 @@ pub(super) struct TxAggregationMetrics {
 }
 
 impl TxAggregationMetrics {
-    pub fn l1_batch_inc(&self, criterion: &'static str, resolution: &SealResolution) {
+    pub fn l1_batch_reason_inc(&self, criterion: &'static str, resolution: &SealResolution) {
         let labels = TxAggregationLabels {
             criterion,
             seal_resolution: Some(resolution.into()),
@@ -235,7 +235,7 @@ impl TxAggregationMetrics {
         self.reason[&labels].inc();
     }
 
-    pub fn l1_batch_inc_criterion(&self, criterion: &'static str) {
+    pub fn l1_batch_reason_inc_criterion(&self, criterion: &'static str) {
         let labels = TxAggregationLabels {
             criterion,
             seal_resolution: None,
@@ -243,7 +243,7 @@ impl TxAggregationMetrics {
         self.reason[&labels].inc();
     }
 
-    pub fn l2_block_inc(&self, reason: &L2BlockSealReason) {
+    pub fn l2_block_reason_inc(&self, reason: &L2BlockSealReason) {
         self.l2_block_reason[reason].inc();
     }
 }
