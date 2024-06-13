@@ -156,7 +156,12 @@ impl JobProcessor for RecursionTipWitnessGenerator {
             .get_final_node_proof_job_ids_for(l1_batch_number)
             .await;
 
-        assert_eq!(final_node_proof_job_ids.len(), number_of_final_node_jobs as usize, "recursion tip witness job was scheduled without all final node jobs being completed; expected {}, got {}", number_of_final_node_jobs, final_node_proof_job_ids.len());
+        assert_eq!(
+            final_node_proof_job_ids.len(),
+            number_of_final_node_jobs as usize,
+            "recursion tip witness job was scheduled without all final node jobs being completed; expected {}, got {}", 
+            number_of_final_node_jobs, final_node_proof_job_ids.len()
+        );
 
         Ok(Some((
             l1_batch_number,

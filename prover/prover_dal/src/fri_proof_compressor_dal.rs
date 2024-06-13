@@ -161,7 +161,7 @@ impl FriProofCompressorDal<'_, '_> {
             WHERE
                 l1_batch_number = $3
                 AND status != $4
-                OR status != $5
+                AND status != $5
             "#,
             ProofCompressionJobStatus::Failed.to_string(),
             error,
