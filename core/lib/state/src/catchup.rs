@@ -131,14 +131,17 @@ impl AsyncCatchupTask {
     /// Propagates RocksDB and Postgres errors.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let started_at = Instant::now();
-        tracing::debug!("Catching up RocksDB asynchronously");
+        tracing::debug!(
+            "Catching up RocksDB asynchronously to L1 batch #{:?}",
+            self.to_l1_batch_number
+        );
 
-        let mut rocksdb_builder = dbg!(RocksdbStorage::builder_with_options(
+        let mut rocksdb_builder = RocksdbStorage::builder_with_options(
             self.state_keeper_db_path.as_ref(),
             self.state_keeper_db_options,
         )
         .await
-        .context("Failed creating RocksDB storage builder"))?;
+        .context("Failed creating RocksDB storage builder")?;
 
         let initial_state = InitialRocksdbState {
             l1_batch_number: rocksdb_builder.l1_batch_number().await,

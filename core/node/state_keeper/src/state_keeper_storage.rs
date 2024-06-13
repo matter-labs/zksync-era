@@ -27,11 +27,17 @@ impl AsyncRocksdbCache {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         let initial_state = self.rocksdb_cell.ensure_initialized().await?;
-        let rocksdb = if initial_state.l1_batch_number == Some(l1_batch_number) {
-            // RocksDB cache doesn't need to catch up; wait until the cell is set (which should be quite soon)
-            // to not miss the opportunity to use the cache
+        let rocksdb = if initial_state.l1_batch_number >= Some(l1_batch_number) {
+            tracing::info!(
+                "RocksDB cache (initial state: {initial_state:?}) doesn't need to catch up to L1 batch #{l1_batch_number}, \
+                 waiting for it to become available"
+            );
+            // Opening the cache RocksDB can take a couple of seconds, so if we don't wait here, we unnecessarily miss an opportunity
+            // to use the cache for an entire batch.
             Some(self.rocksdb_cell.wait().await?)
         } else {
+            // This clause includes several cases: if the cache needs catching up or recovery, or if `l1_batch_number`
+            // is not the first processed L1 batch.
             self.rocksdb_cell.get()
         };
 
@@ -43,7 +49,7 @@ impl AsyncRocksdbCache {
                 .context("Failed getting a Postgres connection")?;
             PgOrRocksdbStorage::access_storage_rocksdb(
                 &mut connection,
-                rocksdb.clone(),
+                rocksdb,
                 stop_receiver,
                 l1_batch_number,
             )
