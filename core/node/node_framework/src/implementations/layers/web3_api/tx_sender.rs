@@ -14,7 +14,7 @@ use crate::{
         web3_api::{TxSenderResource, TxSinkResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -96,14 +96,12 @@ impl WiringLayer for TxSenderLayer {
         if let Some(sealer) = sealer {
             tx_sender = tx_sender.with_sealer(sealer);
         }
-        let tx_sender = tx_sender
-            .build(
-                fee_input,
-                Arc::new(vm_concurrency_limiter),
-                self.api_contracts,
-                storage_caches,
-            )
-            .await;
+        let tx_sender = tx_sender.build(
+            fee_input,
+            Arc::new(vm_concurrency_limiter),
+            self.api_contracts,
+            storage_caches,
+        );
         context.insert_resource(TxSenderResource(tx_sender))?;
 
         Ok(())
@@ -123,8 +121,8 @@ impl fmt::Debug for PostgresStorageCachesTask {
 
 #[async_trait::async_trait]
 impl Task for PostgresStorageCachesTask {
-    fn name(&self) -> &'static str {
-        "postgres_storage_caches"
+    fn id(&self) -> TaskId {
+        "postgres_storage_caches".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -138,8 +136,8 @@ struct VmConcurrencyBarrierTask {
 
 #[async_trait::async_trait]
 impl Task for VmConcurrencyBarrierTask {
-    fn name(&self) -> &'static str {
-        "vm_concurrency_barrier_task"
+    fn id(&self) -> TaskId {
+        "vm_concurrency_barrier_task".into()
     }
 
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

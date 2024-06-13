@@ -3,15 +3,16 @@ use std::{cell::RefCell, time::Duration};
 use anyhow::Context as _;
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use prometheus_exporter::PrometheusExporterConfig;
+use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{ObservabilityConfig, PrometheusConfig},
-    ApiConfig, ContractVerifierConfig, PostgresConfig,
+    ApiConfig, ContractVerifierConfig,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_utils::{wait_for_tasks::ManagedTasks, workspace_dir_or_current_dir};
 
 use crate::verifier::ContractVerifier;
 
@@ -25,9 +26,9 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.connection().await.unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+    let zksync_home = workspace_dir_or_current_dir();
 
-    let zksolc_path = format!("{}/etc/zksolc-bin/", zksync_home);
+    let zksolc_path = zksync_home.join("etc/zksolc-bin/");
     let zksolc_versions: Vec<String> = std::fs::read_dir(zksolc_path)
         .unwrap()
         .filter_map(|file| {
@@ -48,7 +49,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
         .await
         .unwrap();
 
-    let solc_path = format!("{}/etc/solc-bin/", zksync_home);
+    let solc_path = zksync_home.join("etc/solc-bin/");
     let solc_versions: Vec<String> = std::fs::read_dir(solc_path)
         .unwrap()
         .filter_map(|file| {
@@ -69,7 +70,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
         .await
         .unwrap();
 
-    let zkvyper_path = format!("{}/etc/zkvyper-bin/", zksync_home);
+    let zkvyper_path = zksync_home.join("etc/zkvyper-bin/");
     let zkvyper_versions: Vec<String> = std::fs::read_dir(zkvyper_path)
         .unwrap()
         .filter_map(|file| {
@@ -90,7 +91,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
         .await
         .unwrap();
 
-    let vyper_path = format!("{}/etc/vyper-bin/", zksync_home);
+    let vyper_path = zksync_home.join("etc/vyper-bin/");
     let vyper_versions: Vec<String> = std::fs::read_dir(vyper_path)
         .unwrap()
         .filter_map(|file| {
@@ -115,7 +116,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     transaction.commit().await.unwrap();
 }
 
-use structopt::StructOpt;
+use zksync_config::configs::DatabaseSecrets;
 
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
@@ -134,9 +135,9 @@ async fn main() -> anyhow::Result<()> {
         listener_port: verifier_config.prometheus_port,
         ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets")?;
     let pool = ConnectionPool::<Core>::singleton(
-        postgres_config
+        database_secrets
             .master_url()
             .context("Master DB URL is absent")?,
     )

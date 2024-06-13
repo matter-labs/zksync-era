@@ -6,8 +6,9 @@ import * as env from './env';
 import path from 'path';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
-import * as utils from './utils';
+import * as utils from 'utils';
 import { getTestAccounts } from './run';
+import { unpackStringSemVer } from 'utils';
 
 function loadConfigFile(configPath: string, stack: string[] = []) {
     if (stack.includes(configPath)) {
@@ -207,9 +208,11 @@ export function pushConfig(environment?: string, diff?: string) {
     env.modify('DATABASE_MERKLE_TREE_BACKUP_PATH', `./db/${environment}/backups`, l2InitFile, false);
 
     if (process.env.CONTRACTS_DEV_PROTOCOL_VERSION) {
+        const minor = unpackStringSemVer(process.env.CONTRACTS_DEV_PROTOCOL_VERSION)[1];
+        // Since we are bumping the minor version the patch is reset to 0.
         env.modify(
             'CONTRACTS_GENESIS_PROTOCOL_VERSION',
-            (parseInt(process.env.CONTRACTS_GENESIS_PROTOCOL_VERSION!) + 1).toString(),
+            `0.${minor + 1}.0`, // The major version is always 0 for now
             l1InitFile,
             false
         );

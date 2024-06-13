@@ -1,6 +1,10 @@
 name: Publish zk-environment Docker images
 
 on:
+  # Workflow dispatch, to allow building and pushing new environments.
+  # It will NOT mark them as latest.
+  workflow_dispatch:
+
   push:
     branches:
       - main
@@ -26,7 +30,7 @@ jobs:
       zk_environment_cuda_12_0: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_12_any_changed }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
 
@@ -46,7 +50,7 @@ jobs:
               - .github/workflows/zk-environment-publish.yml
 
   get_short_sha:
-    if: needs.changed_files.outputs.zk_environment == 'true'
+    if: ${{ (needs.changed_files.outputs.zk_environment == 'true') || (github.event_name == 'workflow_dispatch') }}
     needs: [changed_files]
     runs-on: ubuntu-latest
     outputs:
@@ -60,7 +64,8 @@ jobs:
         run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
   zk_environment:
-    if: needs.changed_files.outputs.zk_environment == 'true'
+    # Build and push new environment, if workflow dispatch is requested.
+    if: ${{ (needs.changed_files.outputs.zk_environment == 'true') || (github.event_name == 'workflow_dispatch') }}
     needs: [changed_files, get_short_sha]
     name: Build and optionally push zk-environment Docker images to Docker Hub
     strategy:
@@ -79,7 +84,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 # v2
       - name: Log in to Docker Hub
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
@@ -91,7 +96,7 @@ jobs:
           target: rust-lightweight
           tags: "matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-${{ matrix.arch }}"
           build-args: ARCH=${{ matrix.arch }}
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
       - name: Build and optionally push zk-environment lightweight Rust nightly
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
@@ -99,9 +104,10 @@ jobs:
           target: rust-lightweight-nightly
           tags: "matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-nightly-${{ matrix.arch }}"
           build-args: ARCH=${{ matrix.arch }}
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
 
   zk_environment_multiarch_manifest:
+    # We'll update the 'latest' tag, only on environments generated from 'main'.
     if: needs.changed_files.outputs.zk_environment == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [changed_files, get_short_sha, zk_environment]
     runs-on: ubuntu-latest

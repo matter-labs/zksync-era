@@ -22,9 +22,12 @@ google-cloud-auth.workspace = true
 http.workspace = true
 serde_json.workspace = true
 flate2.workspace = true
+rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 prost.workspace = true
+reqwest.workspace = true
 
 [dev-dependencies]
+assert_matches.workspace = true
 tempfile.workspace = true

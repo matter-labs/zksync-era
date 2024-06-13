@@ -138,30 +138,36 @@ impl<'a> Visitor<'a> for BytesVisitor {
 // `Log`: from `web3::types::log`
 
 /// Filter
-#[derive(Default, Debug, PartialEq, Clone, Serialize)]
+#[derive(Default, Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Filter {
     /// From Block
     #[serde(rename = "fromBlock", skip_serializing_if = "Option::is_none")]
-    from_block: Option<BlockNumber>,
+    pub from_block: Option<BlockNumber>,
     /// To Block
     #[serde(rename = "toBlock", skip_serializing_if = "Option::is_none")]
-    to_block: Option<BlockNumber>,
+    pub to_block: Option<BlockNumber>,
     /// Block Hash
     #[serde(rename = "blockHash", skip_serializing_if = "Option::is_none")]
-    block_hash: Option<H256>,
+    pub block_hash: Option<H256>,
     /// Address
     #[serde(skip_serializing_if = "Option::is_none")]
-    address: Option<ValueOrArray<H160>>,
+    pub address: Option<ValueOrArray<H160>>,
     /// Topics
     #[serde(skip_serializing_if = "Option::is_none")]
-    topics: Option<Vec<Option<ValueOrArray<H256>>>>,
+    pub topics: Option<Vec<Option<ValueOrArray<H256>>>>,
     /// Limit
     #[serde(skip_serializing_if = "Option::is_none")]
-    limit: Option<usize>,
+    pub limit: Option<usize>,
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
-struct ValueOrArray<T>(Vec<T>);
+pub struct ValueOrArray<T>(Vec<T>);
+
+impl<T> ValueOrArray<T> {
+    pub fn flatten(self) -> Vec<T> {
+        self.0
+    }
+}
 
 impl<T> Serialize for ValueOrArray<T>
 where
@@ -176,6 +182,25 @@ where
             1 => Serialize::serialize(&self.0[0], serializer),
             _ => Serialize::serialize(&self.0, serializer),
         }
+    }
+}
+
+impl<'de, T> Deserialize<'de> for ValueOrArray<T>
+where
+    T: Deserialize<'de>,
+{
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr<T> {
+            Single(T),
+            Sequence(Vec<T>),
+        }
+
+        Ok(match Repr::<T>::deserialize(deserializer)? {
+            Repr::Single(element) => Self(vec![element]),
+            Repr::Sequence(elements) => Self(elements),
+        })
     }
 }
 
@@ -271,7 +296,7 @@ fn topic_to_option<T>(topic: ethabi::Topic<T>) -> Option<Vec<T>> {
 }
 
 /// A log produced by a transaction.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Log {
     /// H160
     pub address: H160,
@@ -473,6 +498,28 @@ impl Serialize for BlockId {
             }
             BlockId::Number(ref num) => num.serialize(serializer),
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for BlockId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum BlockIdRepresentation {
+            Number(BlockNumber),
+            Hash {
+                #[serde(rename = "blockHash")]
+                block_hash: H256,
+            },
+        }
+
+        Ok(match BlockIdRepresentation::deserialize(deserializer)? {
+            BlockIdRepresentation::Number(number) => Self::Number(number),
+            BlockIdRepresentation::Hash { block_hash } => Self::Hash(block_hash),
+        })
     }
 }
 
@@ -820,6 +867,28 @@ pub enum SyncState {
     NotSyncing,
 }
 
+// Sync info from subscription has a different key format
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct SubscriptionSyncInfo {
+    /// The block at which import began.
+    pub starting_block: U256,
+    /// The highest currently synced block.
+    pub current_block: U256,
+    /// The estimated highest block.
+    pub highest_block: U256,
+}
+
+impl From<SubscriptionSyncInfo> for SyncInfo {
+    fn from(s: SubscriptionSyncInfo) -> Self {
+        Self {
+            starting_block: s.starting_block,
+            current_block: s.current_block,
+            highest_block: s.highest_block,
+        }
+    }
+}
+
 // The `eth_syncing` method returns either `false` or an instance of the sync info object.
 // This doesn't play particularly well with the features exposed by `serde_derive`,
 // so we use the custom impls below to ensure proper behavior.
@@ -828,28 +897,6 @@ impl<'de> Deserialize<'de> for SyncState {
     where
         D: Deserializer<'de>,
     {
-        // Sync info from subscription has a different key format
-        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-        #[serde(rename_all = "PascalCase")]
-        struct SubscriptionSyncInfo {
-            /// The block at which import began.
-            pub starting_block: U256,
-            /// The highest currently synced block.
-            pub current_block: U256,
-            /// The estimated highest block.
-            pub highest_block: U256,
-        }
-
-        impl From<SubscriptionSyncInfo> for SyncInfo {
-            fn from(s: SubscriptionSyncInfo) -> Self {
-                Self {
-                    starting_block: s.starting_block,
-                    current_block: s.current_block,
-                    highest_block: s.highest_block,
-                }
-            }
-        }
-
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         struct SubscriptionSyncState {
             pub syncing: bool,

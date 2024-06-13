@@ -1,7 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use zksync_basic_types::{
-    protocol_version::ProtocolVersionId,
+    protocol_version::ProtocolSemanticVersion,
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
 };
 use zksync_db_connection::connection::Connection;
@@ -19,7 +19,7 @@ impl FriGpuProverQueueDal<'_, '_> {
         processing_timeout: Duration,
         specialized_prover_group_id: u8,
         zone: String,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Option<SocketAddress> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<SocketAddress> = sqlx::query!(
@@ -39,6 +39,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                         specialized_prover_group_id = $2
                         AND zone = $3
                         AND protocol_version = $4
+                        AND protocol_version_patch = $5
                         AND (
                             instance_status = 'available'
                             OR (
@@ -59,7 +60,8 @@ impl FriGpuProverQueueDal<'_, '_> {
             &processing_timeout,
             i16::from(specialized_prover_group_id),
             zone,
-            protocol_version as i32
+            protocol_version.minor as i32,
+            protocol_version.patch.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -77,7 +79,7 @@ impl FriGpuProverQueueDal<'_, '_> {
         address: SocketAddress,
         specialized_prover_group_id: u8,
         zone: String,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) {
         sqlx::query!(
             r#"
@@ -90,10 +92,11 @@ impl FriGpuProverQueueDal<'_, '_> {
                     zone,
                     created_at,
                     updated_at,
-                    protocol_version
+                    protocol_version,
+                    protocol_version_patch
                 )
             VALUES
-                (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW(), $5)
+                (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW(), $5, $6)
             ON CONFLICT (instance_host, instance_port, zone) DO
             UPDATE
             SET
@@ -101,13 +104,15 @@ impl FriGpuProverQueueDal<'_, '_> {
                 specialized_prover_group_id = $3,
                 zone = $4,
                 updated_at = NOW(),
-                protocol_version = $5
+                protocol_version = $5,
+                protocol_version_patch = $6
             "#,
             address.host.to_string(),
             i32::from(address.port),
             i16::from(specialized_prover_group_id),
             zone,
-            protocol_version as i32
+            protocol_version.minor as i32,
+            protocol_version.patch.0 as i32
         )
         .execute(self.storage.conn())
         .await
@@ -214,7 +219,8 @@ impl FriGpuProverQueueDal<'_, '_> {
                     updated_at,
                     processing_started_at,
                     NOW() as archived_at,
-                    protocol_version
+                    protocol_version,
+                    protocol_version_patch
             ),
             inserted_count AS (
                 INSERT INTO gpu_prover_queue_fri_archive
@@ -233,21 +239,16 @@ impl FriGpuProverQueueDal<'_, '_> {
     pub async fn delete_gpu_prover_queue_fri(
         &mut self,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!("DELETE FROM gpu_prover_queue_fri")
-            .execute(self.storage.conn())
-            .await
-    }
-
-    pub async fn delete_gpu_prover_queue_fri_archive(
-        &mut self,
-    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!("DELETE FROM gpu_prover_queue_fri")
-            .execute(self.storage.conn())
-            .await
+        sqlx::query!(
+            r#"
+            DELETE FROM gpu_prover_queue_fri
+            "#
+        )
+        .execute(self.storage.conn())
+        .await
     }
 
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_gpu_prover_queue_fri().await?;
-        self.delete_gpu_prover_queue_fri_archive().await
+        self.delete_gpu_prover_queue_fri().await
     }
 }

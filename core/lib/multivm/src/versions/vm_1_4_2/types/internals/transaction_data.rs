@@ -231,11 +231,12 @@ impl TransactionData {
         }
 
         let l2_tx: L2Tx = self.clone().try_into().unwrap();
-        let transaction_request: TransactionRequest = l2_tx.into();
+        let mut transaction_request: TransactionRequest = l2_tx.into();
+        transaction_request.chain_id = Some(chain_id.as_u64());
 
         // It is assumed that the `TransactionData` always has all the necessary components to recover the hash.
         transaction_request
-            .get_tx_hash(chain_id)
+            .get_tx_hash()
             .expect("Could not recover L2 transaction hash")
     }
 

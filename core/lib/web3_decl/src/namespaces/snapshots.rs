@@ -6,20 +6,15 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-#[cfg(feature = "client")]
 use crate::client::{ForNetwork, L2};
 
 #[cfg_attr(
-    all(feature = "client", feature = "server"),
+    feature = "server",
     rpc(server, client, namespace = "snapshots", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
-    all(feature = "client", not(feature = "server")),
+    not(feature = "server"),
     rpc(client, namespace = "snapshots", client_bounds(Self: ForNetwork<Net = L2>))
-)]
-#[cfg_attr(
-    all(not(feature = "client"), feature = "server"),
-    rpc(server, namespace = "snapshots")
 )]
 pub trait SnapshotsNamespace {
     #[method(name = "getAllSnapshots")]

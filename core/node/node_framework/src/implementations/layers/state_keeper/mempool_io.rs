@@ -3,14 +3,16 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_config::{
     configs::{
-        chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
+        chain::{MempoolConfig, StateKeeperConfig},
         wallets,
     },
     ContractsConfig,
 };
 use zksync_state_keeper::{
-    MempoolFetcher, MempoolGuard, MempoolIO, OutputHandler, SequencerSealer, StateKeeperPersistence,
+    io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, MempoolFetcher, MempoolGuard,
+    MempoolIO, OutputHandler, SequencerSealer, StateKeeperPersistence, TreeWritesPersistence,
 };
+use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
@@ -20,13 +22,13 @@ use crate::{
     },
     resource::Unique,
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
 #[derive(Debug)]
 pub struct MempoolIOLayer {
-    network_config: NetworkConfig,
+    zksync_network_id: L2ChainId,
     contracts_config: ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     mempool_config: MempoolConfig,
@@ -35,14 +37,14 @@ pub struct MempoolIOLayer {
 
 impl MempoolIOLayer {
     pub fn new(
-        network_config: NetworkConfig,
+        zksync_network_id: L2ChainId,
         contracts_config: ContractsConfig,
         state_keeper_config: StateKeeperConfig,
         mempool_config: MempoolConfig,
         wallets: wallets::StateKeeper,
     ) -> Self {
         Self {
-            network_config,
+            zksync_network_id,
             contracts_config,
             state_keeper_config,
             mempool_config,
@@ -79,16 +81,20 @@ impl WiringLayer for MempoolIOLayer {
         let batch_fee_input_provider = context.get_resource::<FeeInputResource>().await?.0;
         let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
 
-        // Create miniblock sealer task.
+        // Create L2 block sealer task and output handler.
+        // L2 Block sealing process is parallelized, so we have to provide enough pooled connections.
+        let persistence_pool = master_pool
+            .get_custom(L2BlockSealProcess::subtasks_len())
+            .await
+            .context("Get master pool")?;
         let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
-            master_pool
-                .get_singleton()
-                .await
-                .context("Get master pool")?,
+            persistence_pool.clone(),
             self.contracts_config.l2_shared_bridge_addr.unwrap(),
             self.state_keeper_config.l2_block_seal_queue_capacity,
         );
-        let output_handler = OutputHandler::new(Box::new(persistence));
+        let tree_writes_persistence = TreeWritesPersistence::new(persistence_pool);
+        let output_handler = OutputHandler::new(Box::new(persistence))
+            .with_handler(Box::new(tree_writes_persistence));
         context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
         context.add_task(Box::new(L2BlockSealerTask(l2_block_sealer)));
 
@@ -118,7 +124,7 @@ impl WiringLayer for MempoolIOLayer {
             &self.state_keeper_config,
             self.wallets.fee_account.address(),
             self.mempool_config.delay_interval(),
-            self.network_config.zksync_network_id,
+            self.zksync_network_id,
         )
         .await?;
         context.insert_resource(StateKeeperIOResource(Unique::new(Box::new(io))))?;
@@ -136,8 +142,8 @@ struct L2BlockSealerTask(zksync_state_keeper::L2BlockSealerTask);
 
 #[async_trait::async_trait]
 impl Task for L2BlockSealerTask {
-    fn name(&self) -> &'static str {
-        "state_keeper/l2_block_sealer"
+    fn id(&self) -> TaskId {
+        "state_keeper/l2_block_sealer".into()
     }
 
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -151,8 +157,8 @@ struct MempoolFetcherTask(MempoolFetcher);
 
 #[async_trait::async_trait]
 impl Task for MempoolFetcherTask {
-    fn name(&self) -> &'static str {
-        "state_keeper/mempool_fetcher"
+    fn id(&self) -> TaskId {
+        "state_keeper/mempool_fetcher".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

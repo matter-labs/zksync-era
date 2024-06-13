@@ -6,6 +6,8 @@ use std::{convert::TryFrom, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
+use crate::protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch};
+
 const BLOB_CHUNK_SIZE: usize = 31;
 const ELEMENTS_PER_4844_BLOCK: usize = 4096;
 pub const MAX_4844_BLOBS_PER_BLOCK: usize = 16;
@@ -181,6 +183,23 @@ impl TryFrom<i32> for AggregationRound {
             x if x == AggregationRound::Scheduler as i32 => Ok(AggregationRound::Scheduler),
             _ => Err(()),
         }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
+pub struct JobIdentifiers {
+    pub circuit_id: u8,
+    pub aggregation_round: u8,
+    pub protocol_version: u16,
+    pub protocol_version_patch: u32,
+}
+
+impl JobIdentifiers {
+    pub fn get_semantic_protocol_version(&self) -> ProtocolSemanticVersion {
+        ProtocolSemanticVersion::new(
+            ProtocolVersionId::try_from(self.protocol_version).unwrap(),
+            VersionPatch(self.protocol_version_patch),
+        )
     }
 }
 
