@@ -9,8 +9,8 @@ use zksync_db_connection::{
     interpolate_query, match_query_as,
 };
 use zksync_types::{
-    api, api::TransactionReceipt, Address, L2BlockNumber, L2ChainId, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
+    api, api::TransactionReceipt, event::DEPLOY_EVENT_SIGNATURE, Address, L2BlockNumber, L2ChainId,
+    Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 
 use crate::{
@@ -40,22 +40,25 @@ impl TransactionsWeb3Dal<'_, '_> {
         hashes: &[H256],
     ) -> DalResult<Vec<TransactionReceipt>> {
         let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
+        // Clarification for first part of the query(`WITH` clause):
+        // Looking for `ContractDeployed` event in the events table
+        // to find the address of deployed contract
         let mut receipts: Vec<TransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
             WITH
-                sl AS (
+                events AS (
                     SELECT DISTINCT
-                        ON (storage_logs.tx_hash) *
+                        ON (events.tx_hash) *
                     FROM
-                        storage_logs
+                        events
                     WHERE
-                        storage_logs.address = $1
-                        AND storage_logs.tx_hash = ANY ($3)
+                        events.address = $1
+                        AND events.topic1 = $2
+                        AND events.tx_hash = ANY ($3)
                     ORDER BY
-                        storage_logs.tx_hash,
-                        storage_logs.miniblock_number DESC,
-                        storage_logs.operation_number DESC
+                        events.tx_hash,
+                        events.event_index_in_tx DESC
                 )
             SELECT
                 transactions.hash AS tx_hash,
@@ -72,21 +75,20 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.gas_limit AS gas_limit,
                 miniblocks.hash AS "block_hash",
                 miniblocks.l1_batch_number AS "l1_batch_number?",
-                sl.key AS "contract_address?"
+                events.topic4 AS "contract_address?"
             FROM
                 transactions
                 JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                LEFT JOIN sl ON sl.value != $2
-                AND sl.tx_hash = transactions.hash
+                LEFT JOIN events ON events.tx_hash = transactions.hash
             WHERE
                 transactions.hash = ANY ($3)
                 AND transactions.data != '{}'::jsonb
             "#,
             // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
             // transaction info.
-            ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
-            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
-            &hash_bytes as &[&[u8]]
+            CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
+            DEPLOY_EVENT_SIGNATURE.as_bytes(),
+            &hash_bytes as &[&[u8]],
         )
         .instrument("get_transaction_receipts")
         .with_arg("hashes.len", &hashes.len())
