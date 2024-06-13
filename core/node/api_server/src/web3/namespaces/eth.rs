@@ -18,8 +18,9 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::web3::{
-    backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter,
+use crate::{
+    utils::open_readonly_transaction,
+    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
@@ -469,6 +470,9 @@ impl EthNamespace {
         id: TransactionId,
     ) -> Result<Option<Transaction>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
+        // Open a readonly transaction to have a consistent view of Postgres
+        let mut storage = open_readonly_transaction(&mut storage).await?;
+
         let chain_id = self.state.api_config.l2_chain_id;
         let mut transaction = match id {
             TransactionId::Hash(hash) => storage
@@ -503,7 +507,7 @@ impl EthNamespace {
         };
 
         if transaction.is_none() {
-            transaction = self.state.tx_sink().lookup_tx(id).await?;
+            transaction = self.state.tx_sink().lookup_tx(&mut storage, id).await?;
         }
         Ok(transaction)
     }

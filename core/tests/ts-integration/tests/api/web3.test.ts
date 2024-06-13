@@ -18,7 +18,9 @@ const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
 
 const contracts = {
     counter: getTestContract('Counter'),
-    events: getTestContract('Emitter')
+    events: getTestContract('Emitter'),
+    outer: getTestContract('Outer'),
+    inner: getTestContract('Inner')
 };
 
 describe('web3 API compatibility tests', () => {
@@ -664,13 +666,20 @@ describe('web3 API compatibility tests', () => {
 
         // There are around `0.5 * maxLogsLimit` logs in [tx1Receipt.blockNumber, tx1Receipt.blockNumber] range,
         // so query with such filter should succeed.
-        await expect(alice.provider.getLogs({ fromBlock: tx1Receipt.blockNumber, toBlock: tx1Receipt.blockNumber }))
-            .resolves;
+        await expect(
+            alice.provider.getLogs({
+                fromBlock: tx1Receipt.blockNumber,
+                toBlock: tx1Receipt.blockNumber
+            })
+        ).resolves;
 
         // There are at least `1.5 * maxLogsLimit` logs in [tx1Receipt.blockNumber, tx3Receipt.blockNumber] range,
         // so query with such filter should fail.
         await expect(
-            alice.provider.getLogs({ fromBlock: tx1Receipt.blockNumber, toBlock: tx3Receipt.blockNumber })
+            alice.provider.getLogs({
+                fromBlock: tx1Receipt.blockNumber,
+                toBlock: tx3Receipt.blockNumber
+            })
         ).rejects.toThrow(`Query returned more than ${maxLogsLimit} results.`);
     });
 
@@ -948,7 +957,11 @@ describe('web3 API compatibility tests', () => {
                 },
                 'latest',
                 //override with maximum balance
-                { [alice.address]: { balance: '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' } }
+                {
+                    [alice.address]: {
+                        balance: '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+                    }
+                }
             ]);
 
             // Assert that the response is successful
@@ -968,7 +981,12 @@ describe('web3 API compatibility tests', () => {
             const incrementFunctionData = contract2.interface.encodeFunctionData('increment', [1]);
 
             // Assert that the estimation fails because the increment function is not present in contract1
-            expect(alice.provider.estimateGas({ to: contract1.address, data: incrementFunctionData })).toBeRejected();
+            expect(
+                alice.provider.estimateGas({
+                    to: contract1.address,
+                    data: incrementFunctionData
+                })
+            ).toBeRejected();
 
             // Call estimate_gas overriding the code of contract1 with the code of contract2 using the eth_estimateGas endpoint
             const response = await alice.provider.send('eth_estimateGas', [
@@ -984,6 +1002,29 @@ describe('web3 API compatibility tests', () => {
             // Assert that the response is successful
             expect(response).toEqual(expect.stringMatching(HEX_VALUE_REGEX));
         });
+    });
+
+    // We want to be sure that correct(outer) contract address is return in the transaction receipt,
+    // when there is a contract that initializa another contract in the constructor
+    test('Should check inner-outer contract address in the receipt of the deploy tx', async () => {
+        const deploymentNonce = await alice.getDeploymentNonce();
+        const expectedAddress = zksync.utils.createAddress(alice.address, deploymentNonce);
+
+        const expectedBytecode = contracts.outer.bytecode;
+
+        let innerContractBytecode = contracts.inner.bytecode;
+        let outerContractOverrides = {
+            customData: {
+                factoryDeps: [innerContractBytecode]
+            }
+        };
+        const outerContract = await deployContract(alice, contracts.outer, [1], undefined, outerContractOverrides);
+        let receipt = await outerContract.deployTransaction.wait();
+
+        const deployedBytecode = await alice.provider.getCode(receipt.contractAddress);
+
+        expect(expectedAddress).toEqual(receipt.contractAddress);
+        expect(expectedBytecode).toEqual(deployedBytecode);
     });
 
     afterAll(async () => {
