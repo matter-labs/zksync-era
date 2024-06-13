@@ -21,6 +21,7 @@ use zksync_node_framework::{
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         main_node_client::MainNodeClientLayer,
+        main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
         metadata_calculator::MetadataCalculatorLayer,
         pools_layer::PoolsLayerBuilder,
         postgres_metrics::PostgresMetricsLayer,
@@ -369,6 +370,11 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_main_node_fee_params_fetcher_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(MainNodeFeeParamsFetcherLayer);
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
         self = self
@@ -399,6 +405,7 @@ impl ExternalNodeBuilder {
                         .add_sync_state_updater_layer()?
                         .add_api_caches_layer()?
                         .add_tree_api_client_layer()?
+                        .add_main_node_fee_params_fetcher_layer()?
                         .add_tx_sender_layer()?;
                 }
                 Component::WsApi => {
@@ -406,6 +413,7 @@ impl ExternalNodeBuilder {
                         .add_sync_state_updater_layer()?
                         .add_api_caches_layer()?
                         .add_tree_api_client_layer()?
+                        .add_main_node_fee_params_fetcher_layer()?
                         .add_tx_sender_layer()?;
                 }
                 Component::Tree => {

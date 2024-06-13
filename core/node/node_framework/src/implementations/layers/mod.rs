@@ -11,6 +11,7 @@ pub mod house_keeper;
 pub mod l1_batch_commitment_mode_validation;
 pub mod l1_gas;
 pub mod main_node_client;
+pub mod main_node_fee_params_fetcher;
 pub mod metadata_calculator;
 pub mod object_store;
 pub mod pk_signing_eth_client;
