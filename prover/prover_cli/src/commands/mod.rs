@@ -5,4 +5,4 @@ pub(crate) mod get_file_info;
 pub(crate) mod requeue;
 pub(crate) mod restart;
 pub mod status;
-pub(crate) use status::StatusCommand;
+pub use status::StatusCommand;
