@@ -1,4 +1,7 @@
+use std::os::macos::raw::stat;
+
 use assert_cmd::Command;
+use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use prover_cli::commands::status::utils::Status;
 use prover_dal::{
     fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
@@ -6,7 +9,10 @@ use prover_dal::{
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
-    prover_dal::{ProofCompressionJobStatus, ProverJobStatus},
+    prover_dal::{
+        ProofCompressionJobStatus, ProverJobStatus, ProverJobStatusInProgress,
+        ProverJobStatusSuccessful, WitnessJobStatus, WitnessJobStatusSuccessful,
+    },
     L1BatchNumber,
 };
 
@@ -18,6 +24,10 @@ const MULTIPLE_NON_EXISTING_BATCHES_STATUS_STDOUT: &str = "== Batch 10000 Status
 > No batch found. 🚫
 == Batch 10001 Status ==
 > No batch found. 🚫
+";
+
+const COMPLETE_BATCH_STATUS_STDOUT: &str = "== Batch 0 Status ==
+> Proof sent to server ✅
 ";
 
 #[tokio::test]
@@ -87,19 +97,6 @@ fn pli_status_batch_help_succeeds() {
 }
 
 #[test]
-#[doc = "prover_cli status batch -n 1"]
-#[ignore = "this is flaky, if run locally it'd say 'Prover DB URL is absent', but if ran with zk f it succeeds"]
-fn pli_status_batch_without_db_fails() {
-    Command::cargo_bin("prover_cli")
-        .unwrap()
-        .arg("status")
-        .arg("batch")
-        .args(["-n", "1"])
-        .assert()
-        .failure();
-}
-
-#[test]
 #[doc = "prover_cli status batch -n 10000"]
 fn pli_status_of_non_existing_batch_succeeds() {
     Command::cargo_bin("prover_cli")
@@ -139,17 +136,19 @@ fn status_batch_0_expects(expected_output: String, db_url: &str) {
 
 async fn insert_prover_job(
     status: ProverJobStatus,
+    circuit_id: BaseLayerCircuitType,
     aggregation_round: AggregationRound,
     batch_number: L1BatchNumber,
+    sequence_number: usize,
     connection: &mut Connection<'_, Prover>,
 ) {
     connection
         .fri_prover_jobs_dal()
         .insert_prover_job(
             batch_number,
+            circuit_id as u8,
             0,
-            0,
-            0,
+            sequence_number,
             aggregation_round,
             "",
             false,
@@ -157,8 +156,12 @@ async fn insert_prover_job(
         )
         .await;
     sqlx::query(&format!(
-        "UPDATE prover_jobs_fri SET status = '{}' WHERE l1_batch_number = {}",
-        status, batch_number.0
+        "UPDATE prover_jobs_fri SET status = '{}' 
+            WHERE l1_batch_number = {} 
+            AND sequence_number = {} 
+            AND aggregation_round = {}
+            AND circuit_id = {}",
+        status, batch_number.0, sequence_number, aggregation_round as i64, circuit_id as u8,
     ))
     .execute(connection.conn())
     .await
@@ -186,8 +189,9 @@ async fn insert_bwg_job(
 }
 
 async fn insert_lwg_job(
-    status: FriWitnessJobStatus,
+    status: WitnessJobStatus,
     batch_number: L1BatchNumber,
+    circuit_id: BaseLayerCircuitType,
     connection: &mut Connection<'_, Prover>,
 ) {
     sqlx::query(&format!(
@@ -196,29 +200,18 @@ async fn insert_lwg_job(
             leaf_aggregation_witness_jobs_fri (
                 l1_batch_number,
                 circuit_id,
-                closed_form_inputs_blob_url,
-                number_of_basic_circuits,
-                protocol_version,
                 status,
+                number_of_basic_circuits,
                 created_at,
                 updated_at
             )
         VALUES
-            ({}, {}, '{}', {}, {}, 'waiting_for_proofs', NOW(), NOW())
+            ({}, {}, 'waiting_for_proofs', 2, NOW(), NOW())
+        ON CONFLICT (l1_batch_number, circuit_id) DO
+        UPDATE
+        SET status = '{}'
         ",
-        batch_number.0,
-        0,
-        "",
-        0,
-        ProtocolSemanticVersion::default(),
-    ))
-    .execute(connection.conn())
-    .await
-    .unwrap();
-
-    sqlx::query(&format!(
-        "UPDATE leaf_aggregation_witness_jobs_fri SET status = '{}' WHERE l1_batch_number = {}",
-        status, batch_number.0
+        batch_number.0, circuit_id as u8, status
     ))
     .execute(connection.conn())
     .await
@@ -226,8 +219,9 @@ async fn insert_lwg_job(
 }
 
 async fn insert_nwg_job(
-    status: FriWitnessJobStatus,
+    status: WitnessJobStatus,
     batch_number: L1BatchNumber,
+    circuit_id: BaseLayerCircuitType,
     connection: &mut Connection<'_, Prover>,
 ) {
     sqlx::query(&format!(
@@ -241,17 +235,12 @@ async fn insert_nwg_job(
                 updated_at
             )
         VALUES
-            ({}, {}, '{}', NOW(), NOW())
+            ({}, {}, 'waiting_for_proofs', NOW(), NOW())
+        ON CONFLICT (l1_batch_number, circuit_id, depth) DO
+        UPDATE
+        SET status = '{}'
         ",
-        batch_number.0, 0, status,
-    ))
-    .execute(connection.conn())
-    .await
-    .unwrap();
-
-    sqlx::query(&format!(
-        "UPDATE node_aggregation_witness_jobs_fri SET status = '{}' WHERE l1_batch_number = {}",
-        status, batch_number.0
+        batch_number.0, circuit_id as u8, status,
     ))
     .execute(connection.conn())
     .await
@@ -259,7 +248,7 @@ async fn insert_nwg_job(
 }
 
 async fn insert_rt_job(
-    status: FriWitnessJobStatus,
+    status: WitnessJobStatus,
     batch_number: L1BatchNumber,
     connection: &mut Connection<'_, Prover>,
 ) {
@@ -268,23 +257,17 @@ async fn insert_rt_job(
         INSERT INTO
             recursion_tip_witness_jobs_fri (
                 l1_batch_number,
-                circuit_id,
                 status,
                 created_at,
                 updated_at
             )
         VALUES
-            ({}, {}, '{}', NOW(), NOW())
+            ({}, 'waiting_for_proofs', NOW(), NOW())
+        ON CONFLICT (l1_batch_number) DO
+        UPDATE
+        SET status = '{}'
         ",
-        batch_number.0, 0, status,
-    ))
-    .execute(connection.conn())
-    .await
-    .unwrap();
-
-    sqlx::query(&format!(
-        "UPDATE recursion_tip_witness_jobs_fri SET status = '{}' WHERE l1_batch_number = {}",
-        status, batch_number.0
+        batch_number.0, status,
     ))
     .execute(connection.conn())
     .await
@@ -292,7 +275,7 @@ async fn insert_rt_job(
 }
 
 async fn insert_scheduler_job(
-    status: FriWitnessJobStatus,
+    status: WitnessJobStatus,
     batch_number: L1BatchNumber,
     connection: &mut Connection<'_, Prover>,
 ) {
@@ -307,17 +290,12 @@ async fn insert_scheduler_job(
                 updated_at
             )
         VALUES
-            ({}, {}, {}, '{}', NOW(), NOW())
+            ({}, '', 'waiting_for_proofs', NOW(), NOW())
+        ON CONFLICT (l1_batch_number) DO
+        UPDATE
+        SET status = '{}'
         ",
-        batch_number.0, "", 0, status,
-    ))
-    .execute(connection.conn())
-    .await
-    .unwrap();
-
-    sqlx::query(&format!(
-        "UPDATE scheduler_witness_jobs_fri SET status = '{}' WHERE l1_batch_number = {}",
-        status, batch_number.0
+        batch_number.0, status,
     ))
     .execute(connection.conn())
     .await
@@ -340,16 +318,11 @@ async fn insert_compressor_job(
             )
         VALUES
             ({}, '{}', NOW(), NOW())
+        ON CONFLICT (l1_batch_number) DO
+        UPDATE
+        SET status = '{}'
         ",
-        batch_number.0, status,
-    ))
-    .execute(connection.conn())
-    .await
-    .unwrap();
-
-    sqlx::query(&format!(
-        "UPDATE proof_compression_jobs_fri SET status = '{}' WHERE l1_batch_number = {}",
-        status, batch_number.0
+        batch_number.0, status, status,
     ))
     .execute(connection.conn())
     .await
@@ -359,15 +332,13 @@ async fn insert_compressor_job(
 #[allow(clippy::too_many_arguments)]
 async fn create_scenario(
     bwg_status: Option<FriWitnessJobStatus>,
-    agg_0_prover_jobs_status: Option<ProverJobStatus>,
-    lwg_status: Option<FriWitnessJobStatus>,
-    agg_1_prover_jobs_status: Option<ProverJobStatus>,
-    nwg_status: Option<FriWitnessJobStatus>,
-    agg_2_prover_jobs_status: Option<ProverJobStatus>,
-    rt_status: Option<FriWitnessJobStatus>,
-    agg_3_prover_jobs_status: Option<ProverJobStatus>,
-    scheduler_status: Option<FriWitnessJobStatus>,
-    agg_4_prover_jobs_status: Option<ProverJobStatus>,
+    agg_0_prover_jobs_status: Option<Vec<(ProverJobStatus, BaseLayerCircuitType, usize)>>,
+    lwg_status: Option<Vec<(WitnessJobStatus, BaseLayerCircuitType)>>,
+    agg_1_prover_jobs_status: Option<Vec<(ProverJobStatus, BaseLayerCircuitType, usize)>>,
+    nwg_status: Option<Vec<(WitnessJobStatus, BaseLayerCircuitType)>>,
+    agg_2_prover_jobs_status: Option<Vec<(ProverJobStatus, BaseLayerCircuitType, usize)>>,
+    rt_status: Option<WitnessJobStatus>,
+    scheduler_status: Option<WitnessJobStatus>,
     compressor_status: Option<ProofCompressionJobStatus>,
     batch_number: L1BatchNumber,
     connection: &mut Connection<'_, Prover>,
@@ -375,62 +346,60 @@ async fn create_scenario(
     if let Some(status) = bwg_status {
         insert_bwg_job(status, batch_number, connection).await;
     }
-    if let Some(status) = agg_0_prover_jobs_status {
-        insert_prover_job(
-            status,
-            AggregationRound::BasicCircuits,
-            batch_number,
-            connection,
-        )
-        .await;
+    if let Some(jobs) = agg_0_prover_jobs_status {
+        for (status, circuit_id, sequence_number) in jobs.into_iter() {
+            insert_prover_job(
+                status,
+                circuit_id,
+                AggregationRound::BasicCircuits,
+                batch_number,
+                sequence_number,
+                connection,
+            )
+            .await;
+        }
     }
-    if let Some(status) = lwg_status {
-        insert_lwg_job(status, batch_number, connection).await;
+    if let Some(jobs) = lwg_status {
+        for (status, circuit_id) in jobs.into_iter() {
+            insert_lwg_job(status, batch_number, circuit_id, connection).await;
+        }
     }
-    if let Some(status) = agg_1_prover_jobs_status {
-        insert_prover_job(
-            status,
-            AggregationRound::LeafAggregation,
-            batch_number,
-            connection,
-        )
-        .await;
+    if let Some(jobs) = agg_1_prover_jobs_status {
+        for (status, circuit_id, sequence_number) in jobs.into_iter() {
+            insert_prover_job(
+                status,
+                circuit_id,
+                AggregationRound::LeafAggregation,
+                batch_number,
+                sequence_number,
+                connection,
+            )
+            .await;
+        }
     }
-    if let Some(status) = nwg_status {
-        insert_nwg_job(status, batch_number, connection).await;
+    if let Some(jobs) = nwg_status {
+        for (status, circuit_id) in jobs.into_iter() {
+            insert_nwg_job(status, batch_number, circuit_id, connection).await;
+        }
     }
-    if let Some(status) = agg_2_prover_jobs_status {
-        insert_prover_job(
-            status,
-            AggregationRound::NodeAggregation,
-            batch_number,
-            connection,
-        )
-        .await;
+    if let Some(jobs) = agg_2_prover_jobs_status {
+        for (status, circuit_id, sequence_number) in jobs.into_iter() {
+            insert_prover_job(
+                status,
+                circuit_id,
+                AggregationRound::NodeAggregation,
+                batch_number,
+                sequence_number,
+                connection,
+            )
+            .await;
+        }
     }
     if let Some(status) = rt_status {
         insert_rt_job(status, batch_number, connection).await;
     }
-    if let Some(status) = agg_3_prover_jobs_status {
-        insert_prover_job(
-            status,
-            AggregationRound::RecursionTip,
-            batch_number,
-            connection,
-        )
-        .await;
-    }
     if let Some(status) = scheduler_status {
         insert_scheduler_job(status, batch_number, connection).await;
-    }
-    if let Some(status) = agg_4_prover_jobs_status {
-        insert_prover_job(
-            status,
-            AggregationRound::Scheduler,
-            batch_number,
-            connection,
-        )
-        .await;
     }
     if let Some(status) = compressor_status {
         insert_compressor_job(status, batch_number, connection).await;
@@ -446,9 +415,7 @@ fn scenario_expected_stdout(
     nwg_status: Status,
     agg_2_prover_jobs_status: Option<Status>,
     rt_status: Status,
-    agg_3_prover_jobs_status: Option<Status>,
     scheduler_status: Status,
-    agg_4_prover_jobs_status: Option<Status>,
     compressor_status: Status,
     batch_number: L1BatchNumber,
 ) -> String {
@@ -461,14 +428,6 @@ fn scenario_expected_stdout(
         None => String::new(),
     };
     let agg_2_prover_jobs_status = match agg_2_prover_jobs_status {
-        Some(status) => format!("\n> Prover Jobs: {}", status),
-        None => String::new(),
-    };
-    let agg_3_prover_jobs_status = match agg_3_prover_jobs_status {
-        Some(status) => format!("\n> Prover Jobs: {}", status),
-        None => String::new(),
-    };
-    let agg_4_prover_jobs_status = match agg_4_prover_jobs_status {
         Some(status) => format!("\n> Prover Jobs: {}", status),
         None => String::new(),
     };
@@ -486,10 +445,10 @@ Leaf Witness Generator: {}{}
 Node Witness Generator: {}{}
 
 -- Aggregation Round 3 --
-Recursion Tip: {}{}
+Recursion Tip: {}
 
 -- Aggregation Round 4 --
-Scheduler: {}{}
+Scheduler: {}
 
 -- Proof Compression --
 Compressor: {}
@@ -502,15 +461,13 @@ Compressor: {}
         nwg_status,
         agg_2_prover_jobs_status,
         rt_status,
-        agg_3_prover_jobs_status,
         scheduler_status,
-        agg_4_prover_jobs_status,
         compressor_status
     )
 }
 
 #[tokio::test]
-async fn testito() {
+async fn basic_batch_status() {
     let connection_pool = ConnectionPool::<Prover>::test_pool().await;
     let mut connection = connection_pool.connection().await.unwrap();
 
@@ -531,10 +488,9 @@ async fn testito() {
 
     let batch_0 = L1BatchNumber(0);
 
+    // A BWG is created for batch 0.
     create_scenario(
         Some(FriWitnessJobStatus::Queued),
-        None,
-        None,
         None,
         None,
         None,
@@ -557,20 +513,85 @@ async fn testito() {
             Status::JobsNotFound,
             None,
             Status::JobsNotFound,
-            None,
             Status::JobsNotFound,
-            None,
             Status::JobsNotFound,
             batch_0,
         ),
         connection_pool.database_url().expose_str(),
     );
 
+    // The BWS start, agg_round 0 prover jobs created. All WG set in wating for proofs.
     create_scenario(
         Some(FriWitnessJobStatus::InProgress),
-        Some(ProverJobStatus::Queued),
+        Some(vec![
+            (ProverJobStatus::Queued, BaseLayerCircuitType::VM, 1),
+            (ProverJobStatus::Queued, BaseLayerCircuitType::VM, 2),
+            (
+                ProverJobStatus::Queued,
+                BaseLayerCircuitType::DecommitmentsFilter,
+                1,
+            ),
+        ]),
+        Some(vec![
+            (WitnessJobStatus::WaitingForProofs, BaseLayerCircuitType::VM),
+            (
+                WitnessJobStatus::WaitingForProofs,
+                BaseLayerCircuitType::DecommitmentsFilter,
+            ),
+        ]),
         None,
+        Some(vec![
+            (WitnessJobStatus::WaitingForProofs, BaseLayerCircuitType::VM),
+            (
+                WitnessJobStatus::WaitingForProofs,
+                BaseLayerCircuitType::DecommitmentsFilter,
+            ),
+        ]),
         None,
+        Some(WitnessJobStatus::WaitingForProofs),
+        Some(WitnessJobStatus::WaitingForProofs),
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        scenario_expected_stdout(
+            Status::InProgress,
+            Some(Status::Queued),
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // The BWS done, agg_round 0 prover jobs in progress.
+    create_scenario(
+        Some(FriWitnessJobStatus::Successful),
+        Some(vec![
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                1,
+            ),
+            (
+                ProverJobStatus::InProgress(ProverJobStatusInProgress::default()),
+                BaseLayerCircuitType::VM,
+                2,
+            ),
+            (
+                ProverJobStatus::Queued,
+                BaseLayerCircuitType::DecommitmentsFilter,
+                1,
+            ),
+        ]),
         None,
         None,
         None,
@@ -585,19 +606,420 @@ async fn testito() {
 
     status_batch_0_expects(
         scenario_expected_stdout(
-            Status::InProgress,
-            Some(Status::Queued),
-            Status::JobsNotFound,
+            Status::Successful,
+            Some(Status::InProgress),
+            Status::WaitingForProofs,
             None,
-            Status::JobsNotFound,
+            Status::WaitingForProofs,
             None,
-            Status::JobsNotFound,
-            None,
-            Status::JobsNotFound,
-            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
             Status::JobsNotFound,
             batch_0,
         ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // Agg_round 0, prover jobs done for VM circuit, LWG set in queue.
+    create_scenario(
+        None,
+        Some(vec![
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                2,
+            ),
+            (
+                ProverJobStatus::InProgress(ProverJobStatusInProgress::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                1,
+            ),
+        ]),
+        Some(vec![(WitnessJobStatus::Queued, BaseLayerCircuitType::VM)]),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::InProgress),
+            Status::Queued,
+            None,
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // Agg_round 0: all prover jobs successful, LWG in progress. Agg_round 1: prover jobs in queue.
+    create_scenario(
+        None,
+        Some(vec![(
+            ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+            BaseLayerCircuitType::DecommitmentsFilter,
+            1,
+        )]),
+        Some(vec![
+            (
+                WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+            ),
+            (
+                WitnessJobStatus::InProgress,
+                BaseLayerCircuitType::DecommitmentsFilter,
+            ),
+        ]),
+        Some(vec![
+            (ProverJobStatus::Queued, BaseLayerCircuitType::VM, 1),
+            (ProverJobStatus::Queued, BaseLayerCircuitType::VM, 2),
+        ]),
+        None,
+        None,
+        None,
+        None,
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::InProgress,
+            Some(Status::Queued),
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // LWG succees. Agg_round 1: Done for VM circuit.
+    create_scenario(
+        None,
+        None,
+        Some(vec![(
+            WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+            BaseLayerCircuitType::DecommitmentsFilter,
+        )]),
+        Some(vec![
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                1,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                2,
+            ),
+            (
+                ProverJobStatus::InProgress(ProverJobStatusInProgress::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                1,
+            ),
+        ]),
+        None,
+        None,
+        None,
+        None,
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::InProgress),
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // Agg_round 1: all prover jobs successful. NWG queue.
+    create_scenario(
+        None,
+        None,
+        None,
+        Some(vec![(
+            ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+            BaseLayerCircuitType::DecommitmentsFilter,
+            1,
+        )]),
+        Some(vec![
+            (WitnessJobStatus::Queued, BaseLayerCircuitType::VM),
+            (
+                WitnessJobStatus::Queued,
+                BaseLayerCircuitType::DecommitmentsFilter,
+            ),
+        ]),
+        None,
+        None,
+        None,
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Queued,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // NWG successful for VM circuit, agg_round 2 prover jobs created.
+    create_scenario(
+        None,
+        None,
+        None,
+        None,
+        Some(vec![
+            (
+                WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+            ),
+            (
+                WitnessJobStatus::InProgress,
+                BaseLayerCircuitType::DecommitmentsFilter,
+            ),
+        ]),
+        Some(vec![(ProverJobStatus::Queued, BaseLayerCircuitType::VM, 1)]),
+        None,
+        None,
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::InProgress,
+            Some(Status::Queued),
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // NWG successful, agg_round 2 prover jobs updated.
+    create_scenario(
+        None,
+        None,
+        None,
+        None,
+        Some(vec![(
+            WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+            BaseLayerCircuitType::DecommitmentsFilter,
+        )]),
+        Some(vec![
+            (
+                ProverJobStatus::InProgress(ProverJobStatusInProgress::default()),
+                BaseLayerCircuitType::VM,
+                1,
+            ),
+            (
+                ProverJobStatus::Queued,
+                BaseLayerCircuitType::DecommitmentsFilter,
+                1,
+            ),
+        ]),
+        None,
+        None,
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::InProgress),
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // Agg_round 2 prover jobs successful. RT in progress.
+    create_scenario(
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(vec![
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                1,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                1,
+            ),
+        ]),
+        Some(WitnessJobStatus::InProgress),
+        None,
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::InProgress,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // RT in successful, Scheduler in progress.
+    create_scenario(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(WitnessJobStatus::Successful(
+            WitnessJobStatusSuccessful::default(),
+        )),
+        Some(WitnessJobStatus::InProgress),
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Status::InProgress,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // Scheduler in successful, Compressor in progress.
+    create_scenario(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(WitnessJobStatus::Successful(
+            WitnessJobStatusSuccessful::default(),
+        )),
+        Some(ProofCompressionJobStatus::InProgress),
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Status::Successful,
+            Status::InProgress,
+            batch_0,
+        ),
+        connection_pool.database_url().expose_str(),
+    );
+
+    // Compressor Done.
+    create_scenario(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(ProofCompressionJobStatus::SentToServer),
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(
+        COMPLETE_BATCH_STATUS_STDOUT.into(),
         connection_pool.database_url().expose_str(),
     );
 }
