@@ -89,6 +89,18 @@ pub struct StateKeeperMetrics {
     pub gas_price_too_high: Counter,
     /// Number of times blob base fee was reported as too high.
     pub blob_base_fee_too_high: Counter,
+    /// The time it takes to match seal resolution for each tx.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub match_seal_resolution: Histogram<Duration>,
+    /// The time it takes to determine seal resolution for each tx.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub determine_seal_resolution: Histogram<Duration>,
+    /// The time it takes for state keeper to wait for tx execution result from batch executor.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub execute_tx_outer_time: Histogram<Duration>,
+    /// The time it takes for one iteration of the main loop in `process_l1_batch`.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub process_l1_batch_loop_iteration: Histogram<Duration>,
 }
 
 fn vm_revert_reason_as_metric_label(reason: &VmRevertReason) -> &'static str {
@@ -493,3 +505,16 @@ impl BatchTipMetrics {
 
 #[vise::register]
 pub(crate) static BATCH_TIP_METRICS: vise::Global<BatchTipMetrics> = vise::Global::new();
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "server_state_keeper_updates_manager")]
+pub struct UpdatesManagerMetrics {
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub finish_batch: Histogram<Duration>,
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub extend_from_executed_transaction: Histogram<Duration>,
+}
+
+#[vise::register]
+pub(crate) static UPDATES_MANAGER_METRICS: vise::Global<UpdatesManagerMetrics> =
+    vise::Global::new();
