@@ -210,8 +210,8 @@ impl FriProverDal<'_, '_> {
                     error = $1,
                     updated_at = NOW()
                 WHERE
-                    id = $2 AND
-                    status != 'successful'
+                    id = $2
+                    AND status != 'successful'
                 "#,
                 error,
                 i64::from(id)
@@ -520,8 +520,8 @@ impl FriProverDal<'_, '_> {
                 status = $1,
                 updated_at = NOW()
             WHERE
-                id = $2 AND
-                status != 'successful'
+                id = $2
+                AND status != 'successful'
             "#,
             status,
             i64::from(id)

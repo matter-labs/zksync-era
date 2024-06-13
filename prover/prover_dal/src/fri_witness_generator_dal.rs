@@ -170,8 +170,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 status = $1,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $2 AND
-                status != 'successful'
+                l1_batch_number = $2
+                AND status != 'successful'
             "#,
             status.to_string(),
             i64::from(block_number.0)
@@ -213,8 +213,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error = $1,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $2 AND
-                status != 'successful'
+                l1_batch_number = $2
+                AND status != 'successful'
             "#,
             error,
             i64::from(block_number.0)
@@ -233,8 +233,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error = $1,
                 updated_at = NOW()
             WHERE
-                id = $2 AND
-                status != 'successful'
+                id = $2
+                AND status != 'successful'
             "#,
             error,
             i64::from(id)
@@ -721,8 +721,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error = $1,
                 updated_at = NOW()
             WHERE
-                id = $2 AND
-                status != 'successful'
+                id = $2
+                AND status != 'successful'
             "#,
             error,
             i64::from(id)
@@ -1343,8 +1343,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error = $1,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $2 AND
-                status != 'successful'
+                l1_batch_number = $2
+                AND status != 'successful'
             "#,
             error,
             l1_batch_number.0 as i64
@@ -1363,8 +1363,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error = $1,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $2 AND
-                status != 'successful'
+                l1_batch_number = $2
+                AND status != 'successful'
             "#,
             error,
             i64::from(block_number.0)
