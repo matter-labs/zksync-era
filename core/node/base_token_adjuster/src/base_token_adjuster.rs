@@ -63,12 +63,12 @@ impl NodeBaseTokenAdjuster {
     async fn fetch_new_ratio(&self) -> anyhow::Result<BaseTokenAPIPrice> {
         let new_numerator = BigDecimal::from(1);
         let new_denominator = BigDecimal::from(100);
-        let ratio_timestamp = DateTime::from(Utc::now());
+        let ratio_timestamp = Utc::now();
 
         Ok(BaseTokenAPIPrice {
             numerator: new_numerator,
             denominator: new_denominator,
-            ratio_timestamp: ratio_timestamp,
+            ratio_timestamp,
         })
     }
 
@@ -116,6 +116,6 @@ impl NodeBaseTokenAdjuster {
 
 impl BaseTokenAdjuster for NodeBaseTokenAdjuster {
     fn get_last_ratio(&self) -> Option<BaseTokenPrice> {
-        return None;
+        None
     }
 }

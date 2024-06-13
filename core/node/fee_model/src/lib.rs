@@ -227,7 +227,7 @@ fn compute_batch_fee_model_input_v2(
 
     // if there is base token quote available - multiplying the final results onto it
     // if not - ETH is used as a base token
-    match params.base_token_price {
+    match base_token_price {
         Some(x) => PubdataIndependentBatchFeeModelInput {
             l1_gas_price: (x * l1_gas_price as f64) as u64,
             fair_l2_gas_price: (x * fair_l2_gas_price as f64) as u64,

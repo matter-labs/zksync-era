@@ -8,10 +8,10 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObjectStoreConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig,
+        BaseTokenAdjusterConfig, DatabaseSecrets, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        GeneralConfig, ObjectStoreConfig, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     PostgresConfig, SnapshotsCreatorConfig,
@@ -50,6 +50,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
+        base_token_adjuster_config: BaseTokenAdjusterConfig::from_env().ok(),
     })
 }
 
