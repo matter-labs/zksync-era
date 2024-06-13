@@ -4,6 +4,14 @@ use zksync_utils::ZeroPrefixHexSerde;
 
 use crate::{ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
 
+/// This struct is the serde schema for the Execute struct.
+/// It allows us to modify Execute struct without worrying
+/// about encoding compatibility.
+///
+/// For example, changing type of `factory_deps` from `Option<Vec<Vec<u8>>`
+/// to `Vec<Vec<u8>>` (even with `#[serde(default)]` annotation)
+/// would be incompatible for serde json encoding,
+/// because `null` is a valid value for the former but not for the latter.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ExecuteSerde {
