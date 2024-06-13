@@ -9,7 +9,7 @@
  * sure that the test is maintained does not get broken.
  *
  */
-import * as utils from 'utils';
+import * as utils from '../../../../etc/utils/src';
 import * as fs from 'fs';
 import { TestMaster } from '../src/index';
 

@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from 'utils';
+import * as utils from '../../../etc/utils/src';
 
 export async function compileTestContracts() {
     await utils.spawn('yarn workspace contracts-test-data build');

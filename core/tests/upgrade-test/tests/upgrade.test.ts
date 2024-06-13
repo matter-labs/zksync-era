@@ -1,4 +1,4 @@
-import * as utils from 'utils';
+import * as utils from '../../../../etc/utils/src';
 import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
 import { BigNumber, BigNumberish, ethers } from 'ethers';

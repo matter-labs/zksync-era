@@ -13,7 +13,7 @@ import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
-import { announced } from 'utils';
+import { announced } from '../../../etc/utils/src';
 import { DeploymentMode } from './contract';
 
 const title = chalk.blueBright;

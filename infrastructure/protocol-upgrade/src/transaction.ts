@@ -23,7 +23,7 @@ import {
 } from './utils';
 import fs from 'fs';
 import { Command } from 'commander';
-import { web3Url } from 'utils';
+import { web3Url } from '../../../etc/utils/src';
 import * as path from 'path';
 
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);

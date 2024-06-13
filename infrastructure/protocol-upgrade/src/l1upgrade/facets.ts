@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { Command } from 'commander';
-import { spawn } from 'utils';
+import { spawn } from '../../../etc/utils/src';
 import { getFacetCutsFileName, getFacetsFileName, getUpgradePath } from '../utils';
 import { callFacetDeployer } from './deployer';
 

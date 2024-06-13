@@ -1,4 +1,4 @@
-import { spawn } from 'utils';
+import { spawn } from '../../../etc/utils/src';
 
 export async function deployVerifier(
     l1Rpc: string,

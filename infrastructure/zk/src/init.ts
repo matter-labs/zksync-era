@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
-import * as utils from 'utils';
-import { announced } from 'utils';
+import * as utils from '../../../etc/utils/src';
+import { announced } from '../../../etc/utils/src';
 
 import { clean } from './clean';
 import * as compiler from './compiler';
