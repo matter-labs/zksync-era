@@ -53,7 +53,8 @@ impl ProtoFmt for Payload {
                 );
                 for (i, tx) in r.transactions_v25.iter().enumerate() {
                     transactions.push(
-                        TransactionV25::read(tx).with_context(|| format!("transactions[{i}]"))?,
+                        tx.read()
+                            .with_context(|| format!("transactions_v25[{i}]"))?,
                     );
                 }
             }
@@ -107,18 +108,10 @@ impl ProtoFmt for Payload {
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {
-                x.transactions_v25 = self
-                    .transactions
-                    .iter()
-                    .map(|t| TransactionV25::build(t).unwrap())
-                    .collect();
+                x.transactions_v25 = self.transactions.iter().map(ProtoRepr::build).collect();
             }
             _ => {
-                x.transactions = self
-                    .transactions
-                    .iter()
-                    .map(proto::Transaction::build)
-                    .collect();
+                x.transactions = self.transactions.iter().map(ProtoRepr::build).collect();
             }
         }
         x
@@ -135,12 +128,12 @@ impl Payload {
     }
 }
 
-struct TransactionV25;
+impl ProtoRepr for proto::TransactionV25 {
+    type Type = Transaction;
 
-impl TransactionV25 {
-    fn read(r: &proto::TransactionV25) -> anyhow::Result<Transaction> {
+    fn read(&self) -> anyhow::Result<Self::Type> {
         use proto::transaction_v25::T;
-        let tx = match required(&r.t)? {
+        let tx = match required(&self.t)? {
             T::L1(l1) => abi::Transaction::L1 {
                 tx: required(&l1.rlp)
                     .and_then(|x| {
@@ -156,17 +149,16 @@ impl TransactionV25 {
                     .into(),
                 factory_deps: l1.factory_deps.clone(),
                 eth_block: 0,
-                received_timestamp_ms: 0,
             },
             T::L2(l2) => abi::Transaction::L2(required(&l2.rlp).context("rlp")?.clone()),
         };
-        Transaction::try_from(tx)
+        tx.try_into()
     }
 
-    fn build(tx: &Transaction) -> anyhow::Result<proto::TransactionV25> {
-        let tx = abi::Transaction::try_from(tx.clone())?;
+    fn build(tx: &Self::Type) -> Self {
+        let tx = abi::Transaction::try_from(tx.clone()).unwrap();
         use proto::transaction_v25::T;
-        Ok(proto::TransactionV25 {
+        Self {
             t: Some(match tx {
                 abi::Transaction::L1 {
                     tx, factory_deps, ..
@@ -176,7 +168,7 @@ impl TransactionV25 {
                 }),
                 abi::Transaction::L2(tx) => T::L2(proto::L2Transaction { rlp: Some(tx) }),
             }),
-        })
+        }
     }
 }
 
