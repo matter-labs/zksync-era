@@ -598,6 +598,7 @@ pub struct ResultDebugCall {
 pub enum DebugCallType {
     Call,
     Create,
+    Bootloader,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -623,6 +624,7 @@ impl From<Call> for DebugCall {
             CallType::Call(_) => DebugCallType::Call,
             CallType::Create => DebugCallType::Create,
             CallType::NearCall => unreachable!("We have to filter our near calls before"),
+            CallType::Bootloader => DebugCallType::Bootloader,
         };
         Self {
             r#type: debug_type,

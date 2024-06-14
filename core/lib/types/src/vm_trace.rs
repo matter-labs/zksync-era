@@ -70,6 +70,8 @@ pub enum CallType {
     Call(FarCallOpcode),
     Create,
     NearCall,
+    // Bootloader frame, which is at the bottom of the stack.
+    Bootloader,
 }
 
 /// Represents a call in the VM trace.
