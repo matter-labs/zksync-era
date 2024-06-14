@@ -12,9 +12,10 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BigNumberish, BytesLike } from 'ethers';
-import { serialize, hashBytecode } from 'zksync-ethers/build/src/utils';
-import { getTestContract } from '../src/helpers';
-import { isNetworkLocalL2 } from 'zk/src/utils';
+import { hashBytecode, serialize } from 'zksync-ethers/build/utils';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
+import { DataAvailabityMode } from '../src/types';
+import { isNetworkLocalL2 } from 'utils';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -316,6 +317,20 @@ describe('System behavior checks', () => {
         ).toBeAccepted();
     });
 
+    test('Gas per pubdata byte getter should work', async () => {
+        const systemContextArtifact = getTestContract('ISystemContext');
+        const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
+        const currentGasPerPubdata = await systemContext.gasPerPubdataByte();
+
+        // The current gas per pubdata depends on a lot of factors, so it wouldn't be sustainable to check the exact value.
+        // We'll just check that it is greater than zero.
+        if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Rollup) {
+            expect(currentGasPerPubdata.toNumber()).toBeGreaterThan(0);
+        } else {
+            expect(currentGasPerPubdata.toNumber()).toEqual(0);
+        }
+    });
+
     it('should reject transaction with huge gas limit', async () => {
         await expect(
             alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(51) })
@@ -350,7 +365,9 @@ describe('System behavior checks', () => {
     function bootloaderUtilsContract() {
         const BOOTLOADER_UTILS_ADDRESS = '0x000000000000000000000000000000000000800c';
         const BOOTLOADER_UTILS = new ethers.utils.Interface(
-            require(`${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/BootloaderUtilities.sol/BootloaderUtilities.json`).abi
+            require(`${
+                testMaster.environment().pathToHome
+            }/contracts/system-contracts/artifacts-zk/contracts-preprocessed/BootloaderUtilities.sol/BootloaderUtilities.json`).abi
         );
 
         return new ethers.Contract(BOOTLOADER_UTILS_ADDRESS, BOOTLOADER_UTILS, alice);

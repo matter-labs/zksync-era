@@ -7,7 +7,7 @@ use crate::{
         pools::{MasterPool, PoolResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -30,7 +30,8 @@ impl WiringLayer for CommitmentGeneratorLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let main_pool = pool_resource.get().await?;
+        let pool_size = CommitmentGenerator::default_parallelism().get();
+        let main_pool = pool_resource.get_custom(pool_size).await?;
 
         let commitment_generator = CommitmentGenerator::new(main_pool, self.mode);
 
@@ -54,8 +55,8 @@ struct CommitmentGeneratorTask {
 
 #[async_trait::async_trait]
 impl Task for CommitmentGeneratorTask {
-    fn name(&self) -> &'static str {
-        "commitment_generator"
+    fn id(&self) -> TaskId {
+        "commitment_generator".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

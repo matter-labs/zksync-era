@@ -21,7 +21,7 @@ use zksync_types::{
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     l2::L2Tx,
-    protocol_version::L1VerifierConfig,
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
     tx::TransactionExecutionResult,
     L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
@@ -47,8 +47,9 @@ impl Tester {
     }
 
     async fn create_gas_adjuster(&self) -> GasAdjuster {
-        let eth_client =
-            MockEthereum::default().with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9]);
+        let eth_client = MockEthereum::builder()
+            .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
+            .build();
 
         let gas_adjuster_config = GasAdjusterConfig {
             default_priority_fee_per_gas: 10,
@@ -66,7 +67,7 @@ impl Tester {
         };
 
         GasAdjuster::new(
-            Box::new(eth_client),
+            Box::new(eth_client.into_client()),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
             self.commitment_mode,
@@ -133,7 +134,10 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                ProtocolVersionId::latest(),
+                ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::latest(),
+                    patch: 0.into(),
+                },
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
                 L1VerifierConfig::default(),

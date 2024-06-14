@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 import { clean } from './clean';
 import fs from 'fs';
 import * as path from 'path';
@@ -7,12 +7,18 @@ import * as db from './database';
 import * as env from './env';
 import { time } from 'console';
 
-export async function server(rebuildTree: boolean, uring: boolean, components?: string, timeToLive?: string) {
+export async function server(
+    rebuildTree: boolean,
+    uring: boolean,
+    components?: string,
+    useNodeFramework?: boolean,
+    timeToLive?: string
+) {
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
     }
-    if (rebuildTree || components) {
+    if (rebuildTree || components || useNodeFramework) {
         options += ' --';
     }
     if (rebuildTree) {
@@ -21,6 +27,9 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     }
     if (components) {
         options += ` --components=${components}`;
+    }
+    if (useNodeFramework) {
+        options += ' --use-node-framework';
     }
 
     if (!timeToLive) {
@@ -119,6 +128,7 @@ export const serverCommand = new Command('server')
     .option('--components <components>', 'comma-separated list of components to run')
     .option('--chain-name <chain-name>', 'environment name')
     .option('--time-to-live <time-to-live>', 'time to live for the server')
+    .option('--use-node-framework', 'use node framework for server')
     .action(async (cmd: Command) => {
         cmd.chainName ? env.reload(cmd.chainName) : env.load();
         if (cmd.genesis) {
@@ -126,7 +136,7 @@ export const serverCommand = new Command('server')
         } else if (cmd.clearL1TxsHistory) {
             await clearL1TxsHistory();
         } else {
-            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.timeToLive);
+            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.useNodeFramework, cmd.timeToLive);
         }
     });
 

@@ -83,7 +83,7 @@ impl L2ClientMetrics {
         };
         let info = &self.info[&network];
         if let Err(err) = info.set(config_labels) {
-            tracing::warn!(
+            tracing::debug!(
                 "Error setting configuration info {:?} for L2 client; already set to {:?}",
                 err.into_inner(),
                 info.get()

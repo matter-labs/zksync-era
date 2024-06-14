@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
-import * as utils from './utils';
-import { announced } from './utils';
+import * as utils from 'utils';
+import { announced } from 'utils';
 
 import { clean } from './clean';
 import * as compiler from './compiler';
@@ -76,17 +76,15 @@ const initSetup = async ({
     }
 };
 
-// Sets up the database, deploys the verifier (if set) and runs server genesis
-type InitDatabaseOptions = { skipVerifierDeployment: boolean };
-const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Promise<void> => {
+const initDatabase = async (): Promise<void> => {
     await announced('Drop postgres db', db.drop({ core: true, prover: true }));
     await announced('Setup postgres db', db.setup({ core: true, prover: true }));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
+};
 
-    if (!skipVerifierDeployment) {
-        await announced('Deploying L1 verifier', contract.deployVerifier());
-    }
+const deployVerifier = async (): Promise<void> => {
+    await announced('Deploying L1 verifier', contract.deployVerifier());
 };
 
 // Deploys ERC20 and WETH tokens to localhost
@@ -146,6 +144,7 @@ const makeEraAddressSameAsCurrent = async () => {
 // ########################### Command Actions ###########################
 type InitDevCmdActionOptions = InitSetupOptions & {
     skipTestTokenDeployment?: boolean;
+    skipVerifier?: boolean;
     testTokenOptions?: DeployTestTokensOptions;
     baseTokenName?: string;
     validiumMode?: boolean;
@@ -155,6 +154,7 @@ export const initDevCmdAction = async ({
     skipEnvSetup,
     skipSubmodulesCheckout,
     skipContractCompilation,
+    skipVerifier,
     skipTestTokenDeployment,
     testTokenOptions,
     baseTokenName,
@@ -173,13 +173,20 @@ export const initDevCmdAction = async ({
         runObservability,
         deploymentMode
     });
-    await initDatabase({ skipVerifierDeployment: false });
+    if (!skipVerifier) {
+        await deployVerifier();
+    }
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
     }
     await initBridgehubStateTransition();
-    await initDatabase({ skipVerifierDeployment: true });
-    await initHyperchain({ includePaymaster: true, baseTokenName, localLegacyBridgeTesting, deploymentMode });
+    await initDatabase();
+    await initHyperchain({
+        includePaymaster: true,
+        baseTokenName,
+        localLegacyBridgeTesting,
+        deploymentMode
+    });
     if (localLegacyBridgeTesting) {
         await makeEraAddressSameAsCurrent();
     }
@@ -200,7 +207,8 @@ const lightweightInitCmdAction = async (): Promise<void> => {
 type InitSharedBridgeCmdActionOptions = InitSetupOptions;
 const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptions): Promise<void> => {
     await initSetup(options);
-    await initDatabase({ skipVerifierDeployment: false });
+    await deployVerifier();
+    await initDatabase();
     await initBridgehubStateTransition();
 };
 
@@ -234,8 +242,12 @@ export const initHyperCmdAction = async ({
             deploymentMode
         });
     }
-    await initDatabase({ skipVerifierDeployment: true });
-    await initHyperchain({ includePaymaster: true, baseTokenName, deploymentMode });
+    await initDatabase();
+    await initHyperchain({
+        includePaymaster: true,
+        baseTokenName,
+        deploymentMode
+    });
 };
 
 // ########################### Command Definitions ###########################
@@ -243,6 +255,7 @@ export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
     .option('--skip-contract-compilation')
+    .option('--skip-test-token-deployment')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')

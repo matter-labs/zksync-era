@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use tokio::sync::Barrier;
 
-use crate::service::StopReceiver;
+use crate::{service::StopReceiver, task::TaskId};
 
 #[async_trait::async_trait]
 pub trait Precondition: 'static + Send + Sync {
     /// Unique name of the precondition.
-    fn name(&self) -> &'static str;
+    fn id(&self) -> TaskId;
 
     async fn check(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()>;
 }

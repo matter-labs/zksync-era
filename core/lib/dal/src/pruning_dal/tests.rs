@@ -44,7 +44,7 @@ async fn insert_l2_to_l1_logs(conn: &mut Connection<'_, Core>, l2_block_number: 
         tx_index_in_l2_block: 0,
         tx_initiator_address: Address::default(),
     };
-    let first_logs = vec![mock_l2_to_l1_log(), mock_l2_to_l1_log()];
+    let first_logs = [mock_l2_to_l1_log(), mock_l2_to_l1_log()];
     let second_location = IncludedTxLocation {
         tx_hash: H256([2; 32]),
         tx_index_in_l2_block: 1,
@@ -71,7 +71,7 @@ async fn insert_events(conn: &mut Connection<'_, Core>, l2_block_number: L2Block
         tx_index_in_l2_block: 0,
         tx_initiator_address: Address::default(),
     };
-    let first_events = vec![mock_vm_event(0), mock_vm_event(1)];
+    let first_events = [mock_vm_event(0), mock_vm_event(1)];
     let second_location = IncludedTxLocation {
         tx_hash: H256([2; 32]),
         tx_index_in_l2_block: 1,
@@ -361,7 +361,7 @@ async fn storage_logs_pruning_works_correctly() {
     )
     .await;
 
-    transaction
+    let stats = transaction
         .pruning_dal()
         .hard_prune_batches_range(L1BatchNumber(4), L2BlockNumber(9))
         .await
@@ -377,8 +377,10 @@ async fn storage_logs_pruning_works_correctly() {
         &[random_storage_log(2, 3), random_storage_log(3, 4)],
     );
     assert_l2_block_storage_logs_equal(L2BlockNumber(1), &actual_logs, &[random_storage_log(1, 1)]);
+    assert_eq!(stats.deleted_storage_logs_from_past_batches, 0);
+    assert_eq!(stats.deleted_storage_logs_from_pruned_batches, 1);
 
-    transaction
+    let stats = transaction
         .pruning_dal()
         .hard_prune_batches_range(L1BatchNumber(10), L2BlockNumber(21))
         .await
@@ -400,6 +402,8 @@ async fn storage_logs_pruning_works_correctly() {
         &actual_logs,
         &[random_storage_log(5, 7)],
     );
+    assert_eq!(stats.deleted_storage_logs_from_past_batches, 1);
+    assert_eq!(stats.deleted_storage_logs_from_pruned_batches, 1);
 }
 
 #[tokio::test]

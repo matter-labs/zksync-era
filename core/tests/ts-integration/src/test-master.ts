@@ -4,7 +4,7 @@ import { TestEnvironment, TestContext } from './types';
 import { claimEtherBack } from './context-owner';
 import { RetryProvider } from './retry-provider';
 import { Reporter } from './reporter';
-import { isNetworkLocal } from 'zk/src/utils';
+import { isNetworkLocal } from 'utils';
 
 /**
  * Test master is a singleton class (per suite) that is capable of providing wallets to the suite.

@@ -81,7 +81,6 @@ pub(crate) fn mock_l1_execute() -> L1Tx {
         sender: H160::random(),
         canonical_tx_hash: H256::from_low_u64_be(serial_id),
         serial_id: PriorityOpId(serial_id),
-        deadline_block: 100000,
         layer_2_tip_fee: U256::zero(),
         full_fee: U256::zero(),
         gas_limit: U256::from(100_100),
@@ -89,10 +88,10 @@ pub(crate) fn mock_l1_execute() -> L1Tx {
         gas_per_pubdata_limit: 100.into(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,
-        eth_hash: H256::random(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),
-        eth_block: 1,
+        // DEPRECATED.
+        eth_block: 0,
     };
 
     let execute = Execute {
@@ -118,7 +117,6 @@ pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
         gas_limit: U256::from(100_100),
         max_fee_per_gas: U256::from(1u32),
         gas_per_pubdata_limit: 100.into(),
-        eth_hash: H256::random(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),
         eth_block: 1,

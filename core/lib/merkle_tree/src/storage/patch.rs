@@ -3,6 +3,7 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
+    sync::Arc,
     time::Instant,
 };
 
@@ -31,9 +32,23 @@ pub(super) struct PartialPatchSet {
 }
 
 impl PartialPatchSet {
+    pub fn empty() -> Self {
+        Self {
+            root: None,
+            nodes: HashMap::new(),
+        }
+    }
+
     pub fn merge(&mut self, other: Self) {
         self.root = other.root;
         self.nodes.extend(other.nodes);
+    }
+
+    pub fn cloned(self: &Arc<Self>) -> Self {
+        Self {
+            root: self.root.clone(),
+            nodes: self.nodes.clone(),
+        }
     }
 }
 
@@ -305,7 +320,7 @@ impl WorkingPatchSet {
             if nibble_count == 0 {
                 // Copy the root node to all parts.
                 for part in &mut parts {
-                    part.changes_by_nibble_count[0] = level.clone();
+                    part.changes_by_nibble_count[0].clone_from(&level);
                 }
             } else {
                 for (nibbles, node) in level {
@@ -744,7 +759,7 @@ mod tests {
         let key = Key::from(1234_u64);
         let (_, patch) =
             Storage::new(&db, &(), 0, true).extend(vec![TreeEntry::new(key, 1, ValueHash::zero())]);
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
 
         let mut patch = WorkingPatchSet::new(1, db.root(0).unwrap());
         let (greatest_leaf, load_result) = patch.load_greatest_key(&db).unwrap();
@@ -760,7 +775,7 @@ mod tests {
             2,
             ValueHash::zero(),
         )]);
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
 
         let mut patch = WorkingPatchSet::new(2, db.root(1).unwrap());
         let (greatest_leaf, load_result) = patch.load_greatest_key(&db).unwrap();
@@ -775,7 +790,7 @@ mod tests {
             3,
             ValueHash::zero(),
         )]);
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
 
         let mut patch = WorkingPatchSet::new(3, db.root(2).unwrap());
         let (greatest_leaf, load_result) = patch.load_greatest_key(&db).unwrap();

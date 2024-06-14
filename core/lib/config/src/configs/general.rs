@@ -3,11 +3,13 @@ use crate::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        vm_runner::ProtectiveReadsWriterConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ObjectStoreConfig, PostgresConfig,
+    SnapshotsCreatorConfig,
 };
 
 #[derive(Debug)]
@@ -32,4 +34,6 @@ pub struct GeneralConfig {
     pub eth: Option<EthConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub observability: Option<ObservabilityConfig>,
+    pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub core_object_store: Option<ObjectStoreConfig>,
 }

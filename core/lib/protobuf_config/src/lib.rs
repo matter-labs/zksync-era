@@ -21,11 +21,13 @@ mod observability;
 mod proof_data_handler;
 pub mod proto;
 mod prover;
+mod secrets;
 mod snapshots_creator;
 pub mod testonly;
 #[cfg(test)]
 mod tests;
 mod utils;
+mod vm_runner;
 mod wallets;
 
 use std::str::FromStr;

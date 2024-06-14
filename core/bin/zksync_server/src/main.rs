@@ -11,9 +11,10 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        ContractsConfig, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig,
+        ContractsConfig, DatabaseSecrets, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ProtectiveReadsWriterConfig, Secrets,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -21,7 +22,7 @@ use zksync_config::{
 use zksync_core_leftovers::{
     delete_l1_txs_history, genesis_init, initialize_components, is_genesis_needed,
     setup_sigint_handler,
-    temp_config_store::{decode_yaml, decode_yaml_repr, Secrets, TempConfigStore},
+    temp_config_store::{decode_yaml, decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
@@ -29,7 +30,10 @@ use zksync_eth_client::clients::Client;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
+use crate::node_builder::MainNodeBuilder;
+
 mod config;
+mod node_builder;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -67,6 +71,9 @@ struct Cli {
     /// Path to the yaml with genesis. If set, it will be used instead of env vars.
     #[arg(long)]
     genesis_path: Option<std::path::PathBuf>,
+    /// Run the node using the node framework.
+    #[arg(long)]
+    use_node_framework: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +95,6 @@ impl FromStr for ComponentsToRun {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-    let sigint_receiver = setup_sigint_handler();
 
     // Load env config and use it if file config is not provided
     let tmp_config = load_env_config()?;
@@ -147,10 +153,13 @@ async fn main() -> anyhow::Result<()> {
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml(&yaml).context("failed decoding secrets YAML config")?
+            decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
+                .context("failed decoding secrets YAML config")?
         }
         None => Secrets {
             consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
+            database: DatabaseSecrets::from_env().ok(),
+            l1: L1Secrets::from_env().ok(),
         },
     };
 
@@ -176,23 +185,24 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
+    let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
 
-    if opt.genesis || is_genesis_needed(&postgres_config).await {
-        genesis_init(genesis.clone(), &postgres_config)
+    if opt.genesis || is_genesis_needed(&database_secrets).await {
+        genesis_init(genesis.clone(), &database_secrets)
             .await
             .context("genesis_init")?;
 
-        if contracts_config.ecosystem_contracts.is_some() {
-            let eth_config = configs.eth.as_ref().context("eth config")?;
-            let query_client = Client::http(eth_config.web3_url.clone())
+        if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
+            let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
+            let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
                 .context("Ethereum client")?
                 .for_network(genesis.l1_chain_id.into())
                 .build();
             zksync_node_genesis::save_set_chain_id_tx(
                 &query_client,
                 contracts_config.diamond_proxy_addr,
-                &postgres_config,
+                ecosystem_contracts.state_transition_proxy_addr,
+                &database_secrets,
             )
             .await
             .context("Failed to save SetChainId upgrade transaction")?;
@@ -205,7 +215,7 @@ async fn main() -> anyhow::Result<()> {
 
     if opt.clear_l1_txs_history {
         println!("Clearing L1 txs history!");
-        delete_l1_txs_history(&postgres_config).await?;
+        delete_l1_txs_history(&database_secrets).await?;
         println!("Complete!");
         return Ok(());
     }
@@ -216,7 +226,30 @@ async fn main() -> anyhow::Result<()> {
         opt.components.0
     };
 
+    // If the node framework is used, run the node.
+    if opt.use_node_framework {
+        // We run the node from a different thread, since the current thread is in tokio context.
+        std::thread::spawn(move || -> anyhow::Result<()> {
+            let node = MainNodeBuilder::new(
+                configs,
+                wallets,
+                genesis,
+                contracts_config,
+                secrets,
+                consensus,
+            )
+            .build(components)?;
+            node.run()?;
+            Ok(())
+        })
+        .join()
+        .expect("Failed to run the node")?;
+
+        return Ok(());
+    }
+
     // Run core actors.
+    let sigint_receiver = setup_sigint_handler();
     let (core_task_handles, stop_sender, health_check_handle) = initialize_components(
         &configs,
         &wallets,
@@ -270,9 +303,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         state_keeper_config: StateKeeperConfig::from_env().ok(),
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
-        fri_prover_config: FriProverConfig::from_env()
-            .context("fri_prover_config")
-            .ok(),
+        fri_prover_config: FriProverConfig::from_env().ok(),
         fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
         fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
         fri_witness_vector_generator: FriWitnessVectorGeneratorConfig::from_env().ok(),
@@ -284,8 +315,9 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         eth_sender_config: EthConfig::from_env().ok(),
         eth_watch_config: EthWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
-        object_store_config: ObjectStoreConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
+        core_object_store: ObjectStoreConfig::from_env().ok(),
     })
 }

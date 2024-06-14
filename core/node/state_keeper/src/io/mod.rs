@@ -1,6 +1,5 @@
 use std::{fmt, time::Duration};
 
-use anyhow::Context as _;
 use async_trait::async_trait;
 use multivm::interface::{L1BatchEnv, SystemEnv};
 use vm_utils::storage::l1_batch_params;
@@ -13,9 +12,9 @@ use zksync_types::{
 pub use self::{
     common::IoCursor,
     output_handler::{OutputHandler, StateKeeperOutputHandler},
-    persistence::{L2BlockSealerTask, StateKeeperPersistence},
+    persistence::{L2BlockSealerTask, StateKeeperPersistence, TreeWritesPersistence},
 };
-use super::seal_criteria::IoSealCriteria;
+use super::seal_criteria::{IoSealCriteria, UnexecutableReason};
 
 pub mod common;
 pub(crate) mod mempool;
@@ -102,9 +101,12 @@ impl L1BatchParams {
 /// it's used to receive volatile parameters (such as batch parameters) and sequence transactions
 /// providing L2 block and L1 batch boundaries for them.
 ///
+/// Methods with `&self` receiver must be cancel-safe; i.e., they should not use interior mutability
+/// to change the I/O state. Methods with `&mut self` receiver don't need to be cancel-safe.
+///
 /// All errors returned from this method are treated as unrecoverable.
 #[async_trait]
-pub trait StateKeeperIO: 'static + Send + fmt::Debug + IoSealCriteria {
+pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// Returns the ID of the L2 chain. This ID is supposed to be static.
     fn chain_id(&self) -> L2ChainId;
 
@@ -134,56 +136,25 @@ pub trait StateKeeperIO: 'static + Send + fmt::Debug + IoSealCriteria {
     /// Marks the transaction as "not executed", so it can be retrieved from the IO again.
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()>;
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.
-    async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()>;
+    async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()>;
 
     /// Loads base system contracts with the specified version.
     async fn load_base_system_contracts(
-        &mut self,
+        &self,
         protocol_version: ProtocolVersionId,
         cursor: &IoCursor,
     ) -> anyhow::Result<BaseSystemContracts>;
     /// Loads protocol version of the specified L1 batch, which is guaranteed to exist in the storage.
     async fn load_batch_version_id(
-        &mut self,
+        &self,
         number: L1BatchNumber,
     ) -> anyhow::Result<ProtocolVersionId>;
     /// Loads protocol upgrade tx for given version.
     async fn load_upgrade_tx(
-        &mut self,
+        &self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
-    async fn load_batch_state_hash(&mut self, number: L1BatchNumber) -> anyhow::Result<H256>;
-}
-
-impl dyn StateKeeperIO {
-    pub(super) async fn wait_for_new_batch_env(
-        &mut self,
-        cursor: &IoCursor,
-        max_wait: Duration,
-    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
-        let Some(params) = self.wait_for_new_batch_params(cursor, max_wait).await? else {
-            return Ok(None);
-        };
-        let contracts = self
-            .load_base_system_contracts(params.protocol_version, cursor)
-            .await
-            .with_context(|| {
-                format!(
-                    "failed loading system contracts for protocol version {:?}",
-                    params.protocol_version
-                )
-            })?;
-        let previous_batch_hash = self
-            .load_batch_state_hash(cursor.l1_batch - 1)
-            .await
-            .context("cannot load state hash for previous L1 batch")?;
-        Ok(Some(params.into_env(
-            self.chain_id(),
-            contracts,
-            cursor,
-            previous_batch_hash,
-        )))
-    }
+    async fn load_batch_state_hash(&self, number: L1BatchNumber) -> anyhow::Result<H256>;
 }
