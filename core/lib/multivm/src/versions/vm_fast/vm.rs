@@ -224,7 +224,10 @@ impl<S: ReadStorage> Vm<S> {
                         user_logs: extract_l2tol1logs_from_l1_messenger(&events),
                         l2_to_l1_messages: extract_long_l2_to_l1_messages(&events),
                         published_bytecodes,
-                        state_diffs: self.compute_state_diffs(),
+                        state_diffs: self
+                            .compute_state_diffs()
+                            .filter(|diff| diff.address != L1_MESSENGER_ADDRESS)
+                            .collect(),
                     };
 
                     // Save the pubdata for the future initial bootloader memory building
@@ -377,13 +380,11 @@ impl<S: ReadStorage> Vm<S> {
         self.write_to_bootloader_heap(memory);
     }
 
-    fn compute_state_diffs(&self) -> Vec<StateDiffRecord> {
+    fn compute_state_diffs(&self) -> impl Iterator<Item = StateDiffRecord> + '_ {
         let mut storage = self.world.storage.borrow_mut();
 
-        self.inner
-            .world_diff
-            .get_storage_changes()
-            .map(|((address, key), (_, initial_value, final_value))| {
+        self.inner.world_diff.get_storage_changes().map(
+            move |((address, key), (_, initial_value, final_value))| {
                 let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
                 StateDiffRecord {
                     address,
@@ -398,8 +399,8 @@ impl<S: ReadStorage> Vm<S> {
                     initial_value: initial_value.unwrap_or_default(),
                     final_value,
                 }
-            })
-            .collect()
+            },
+        )
     }
 
     pub(crate) fn get_decommitted_hashes(&self) -> impl Iterator<Item = &U256> + '_ {
@@ -447,7 +448,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         inner.state.current_frame.sp = 0;
 
         // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
-        inner.state.heaps[vm2::FIRST_HEAP].reserve(get_used_bootloader_memory_bytes(VM_VERSION), 0);
+        inner.state.heaps[vm2::FIRST_HEAP].reserve(get_used_bootloader_memory_bytes(VM_VERSION));
         inner.state.current_frame.heap_size = u32::MAX;
         inner.state.current_frame.aux_heap_size = u32::MAX;
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
@@ -649,7 +650,6 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .get_pubdata_information()
                     .state_diffs
                     .iter()
-                    .filter(|diff| diff.address != L1_MESSENGER_ADDRESS)
                     .cloned()
                     .collect(),
             ),
