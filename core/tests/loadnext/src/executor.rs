@@ -59,16 +59,16 @@ impl Executor {
         let pool = AccountPool::new(&config).await?;
 
         // derive L2 main token address
-        let l2_standard_deployer = pool
+        let l2_native_token_vault = pool
             .master_wallet
             .provider
-            .get_standard_deployer_proxy_addr()
+            .get_native_token_vault_proxy_addr()
             .await?
             .unwrap();
         let abi = load_contract(L2_SHARED_BRIDGE_ABI);
         let query_client = Client::http(config.l2_rpc_address.parse()?)?.build();
         let l2_main_token = CallFunctionArgs::new("l2TokenAddress", (config.main_token,))
-            .for_contract(l2_standard_deployer, &abi)
+            .for_contract(l2_native_token_vault, &abi)
             .call(&query_client)
             .await?;
 

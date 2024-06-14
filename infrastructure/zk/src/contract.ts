@@ -120,8 +120,8 @@ export async function deployL2ThroughL1({
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
         'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR',
-        'CONTRACTS_L2_STANDARD_DEPLOYER_IMPL_ADDR',
-        'CONTRACTS_L2_STANDARD_DEPLOYER_PROXY_ADDR',
+        'CONTRACTS_L2_NATIVE_TOKEN_VAULT_IMPL_ADDR',
+        'CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR',
         'CONTRACTS_L2_PROXY_ADMIN_ADDR'
     ];
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);

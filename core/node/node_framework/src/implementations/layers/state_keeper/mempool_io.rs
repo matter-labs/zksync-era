@@ -91,7 +91,7 @@ impl WiringLayer for MempoolIOLayer {
             persistence_pool.clone(),
             self.contracts_config.l2_shared_bridge_addr.unwrap(),
             self.contracts_config
-                .l2_standard_deployer_proxy_addr
+                .l2_native_token_vault_proxy_addr
                 .unwrap(),
             self.state_keeper_config.l2_block_seal_queue_capacity,
         );

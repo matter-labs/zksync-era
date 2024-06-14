@@ -223,7 +223,7 @@ async fn run_core(
             .expect("L2 shared bridge address is not set"),
         config
             .remote
-            .l2_standard_deployer_proxy_addr
+            .l2_native_token_vault_proxy_addr
             .expect("L2 standard deployer address is not set"),
         config.optional.l2_block_seal_queue_capacity,
     );

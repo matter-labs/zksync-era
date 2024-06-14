@@ -284,7 +284,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_shared_bridge_addr: Address::default(),
-        l2_standard_deployer_proxy_addr: Address::default(),
+        l2_native_token_vault_proxy_addr: Address::default(),
         pre_insert_txs: false,
     };
     connection_pool
@@ -374,7 +374,7 @@ async fn processing_events_when_sealing_l2_block() {
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_shared_bridge_addr: Address::default(),
-        l2_standard_deployer_proxy_addr: Address::default(),
+        l2_native_token_vault_proxy_addr: Address::default(),
         pre_insert_txs: false,
     };
     pool.connection()

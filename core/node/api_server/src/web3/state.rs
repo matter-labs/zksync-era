@@ -112,7 +112,7 @@ pub struct InternalApiConfig {
     pub filters_disabled: bool,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-    pub l2_standard_deployer_proxy_addr: Option<Address>,
+    pub l2_native_token_vault_proxy_addr: Option<Address>,
 }
 
 impl InternalApiConfig {
@@ -156,7 +156,7 @@ impl InternalApiConfig {
             filters_disabled: web3_config.filters_disabled,
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
-            l2_standard_deployer_proxy_addr: contracts_config.l2_standard_deployer_proxy_addr,
+            l2_native_token_vault_proxy_addr: contracts_config.l2_native_token_vault_proxy_addr,
         }
     }
 }
