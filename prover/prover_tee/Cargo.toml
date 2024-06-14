@@ -1,5 +1,5 @@
 [package]
-name = "zksync_tee_prover"
+name = "zksync_prover_tee"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -13,7 +13,9 @@ categories.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-k256.workspace = true
+clap.workspace = true
+rand.workspace = true
+secp256k1.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true

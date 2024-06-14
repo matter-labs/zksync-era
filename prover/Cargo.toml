@@ -8,6 +8,7 @@ members = [
     "witness_generator",
     "vk_setup_data_generator_server_fri",
     "prover_fri",
+    "prover_tee",
     "witness_vector_generator",
     "prover_fri_gateway",
     "proof_fri_compressor",
@@ -56,6 +57,7 @@ queues = "1.1.0"
 rand = "0.8"
 regex = "1.10.4"
 reqwest = "0.11"
+secp256k1 = { version = "0.29.0", features=["global-context", "rand", "recovery"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
@@ -94,6 +96,7 @@ zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
+zksync_tee_verifier = { path = "../core/lib/tee_verifier" }
 
 wrapper_prover = { package = "wrapper-prover", git = "https://github.com/matter-labs/era-heavy-ops-service.git", rev = "3d33e06" }
 
