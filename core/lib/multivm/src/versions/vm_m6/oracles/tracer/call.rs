@@ -92,8 +92,6 @@ impl<H: HistoryMode> Tracer for CallTracer<H> {
             CallType::NearCall => {
                 self.handle_near_call_op_code(state, data, memory, &mut current_call);
             }
-            // This should never happen, as 15 lines above we never generate this enum.
-            CallType::Bootloader => (),
         }
         self.stack.push(current_call);
     }
