@@ -51,7 +51,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     shell.create_dir(ecosystem_name)?;
     shell.change_dir(ecosystem_name);
 
-    let configs_path = create_local_configs_dir(shell, ".")?;
+    let configs_path: PathBuf = create_local_configs_dir(shell, ".")?;
 
     let link_to_code = if args.link_to_code.is_empty() {
         let spinner = Spinner::new(MSG_CLONING_ERA_REPO_SPINNER);
@@ -63,6 +63,9 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         update_submodules_recursive(shell, &path)?;
         path
     };
+
+    let mut link_to_prover = link_to_code.clone().into_os_string();
+    link_to_prover.push("/prover");
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
     let chain_config = args.chain_config();
@@ -76,6 +79,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         name: ecosystem_name.clone(),
         l1_network: args.l1_network,
         link_to_code: link_to_code.clone(),
+        link_to_prover: link_to_prover.into(),
         chains: chains_path.clone(),
         config: configs_path,
         era_chain_id: get_default_era_chain_id(),

@@ -9,9 +9,8 @@ use crate::messages::{MSG_GENERATING_VK_SPINNER, MSG_INITIALIZING_PROVER, MSG_PR
 pub(crate) async fn run(_args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_INITIALIZING_PROVER);
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let mut link_to_prover = ecosystem_config.link_to_code.into_os_string();
-    link_to_prover.push("/prover");
-    shell.change_dir(link_to_prover.clone());
+    let link_to_prover = ecosystem_config.link_to_prover;
+    shell.change_dir(&link_to_prover);
 
     let spinner = Spinner::new(MSG_GENERATING_VK_SPINNER);
     let mut cmd = Cmd::new(cmd!(
