@@ -131,6 +131,17 @@ fn status_batch_0_expects(expected_output: String) {
         .stdout(expected_output);
 }
 
+fn status_verbose_batch_0_expects(expected_output: String) {
+    Command::cargo_bin("prover_cli")
+        .unwrap()
+        .arg("status")
+        .arg("batch")
+        .args(["-n", "0", "--verbose"])
+        .assert()
+        .success()
+        .stdout(expected_output);
+}
+
 async fn insert_prover_job(
     status: ProverJobStatus,
     circuit_id: BaseLayerCircuitType,
@@ -980,4 +991,390 @@ async fn basic_batch_status() {
     .await;
 
     status_batch_0_expects(COMPLETE_BATCH_STATUS_STDOUT.into());
+}
+
+#[tokio::test]
+async fn verbose_batch_status() {
+    let connection_pool = ConnectionPool::<Prover>::test_pool().await;
+    let mut connection = connection_pool.connection().await.unwrap();
+
+    connection
+        .fri_protocol_versions_dal()
+        .save_prover_protocol_version(
+            ProtocolSemanticVersion::default(),
+            L1VerifierConfig::default(),
+        )
+        .await;
+
+    Command::cargo_bin("prover_cli")
+        .unwrap()
+        .arg("config")
+        .arg(connection_pool.database_url().expose_str())
+        .assert()
+        .success();
+
+    let batch_0 = L1BatchNumber(0);
+
+    create_scenario(
+        Some(FriWitnessJobStatus::Successful),
+        Some(vec![
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                1,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                2,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                3,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                1,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                2,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                3,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::Decommiter,
+                1,
+            ),
+            (
+                ProverJobStatus::InProgress(ProverJobStatusInProgress::default()),
+                BaseLayerCircuitType::Decommiter,
+                2,
+            ),
+            (ProverJobStatus::Queued, BaseLayerCircuitType::Decommiter, 3),
+            (
+                ProverJobStatus::Queued,
+                BaseLayerCircuitType::LogDemultiplexer,
+                1,
+            ),
+            (
+                ProverJobStatus::Queued,
+                BaseLayerCircuitType::LogDemultiplexer,
+                2,
+            ),
+            (
+                ProverJobStatus::Queued,
+                BaseLayerCircuitType::LogDemultiplexer,
+                3,
+            ),
+        ]),
+        Some(vec![
+            (WitnessJobStatus::WaitingForProofs, BaseLayerCircuitType::VM),
+            (
+                WitnessJobStatus::WaitingForProofs,
+                BaseLayerCircuitType::DecommitmentsFilter,
+            ),
+            (
+                WitnessJobStatus::WaitingForProofs,
+                BaseLayerCircuitType::Decommiter,
+            ),
+            (
+                WitnessJobStatus::WaitingForProofs,
+                BaseLayerCircuitType::LogDemultiplexer,
+            ),
+        ]),
+        None,
+        Some(vec![
+            (WitnessJobStatus::WaitingForProofs, BaseLayerCircuitType::VM),
+            (
+                WitnessJobStatus::WaitingForProofs,
+                BaseLayerCircuitType::DecommitmentsFilter,
+            ),
+            (
+                WitnessJobStatus::WaitingForProofs,
+                BaseLayerCircuitType::Decommiter,
+            ),
+            (
+                WitnessJobStatus::WaitingForProofs,
+                BaseLayerCircuitType::LogDemultiplexer,
+            ),
+        ]),
+        None,
+        Some(WitnessJobStatus::WaitingForProofs),
+        Some(WitnessJobStatus::WaitingForProofs),
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_verbose_batch_0_expects(
+        "== Batch 0 Status ==
+
+-- Aggregation Round 0 --
+> Basic Witness Generator: Successful ✅
+v Prover Jobs: In Progress ⌛️
+   > VM: Successful ✅
+   > DecommitmentsFilter: Successful ✅
+   > Decommiter: In Progress ⌛️
+     - Total jobs: 3
+     - Successful: 1
+     - In Progress: 1
+     - Queued: 1
+     - Failed: 0
+   > LogDemultiplexer: Queued 📥
+
+-- Aggregation Round 1 --
+ > Leaf Witness Generator: Waiting for Proof ⏱️
+
+-- Aggregation Round 2 --
+ > Node Witness Generator: Waiting for Proof ⏱️
+
+-- Aggregation Round 3 --
+ > Recursion Tip: Waiting for Proof ⏱️
+
+-- Aggregation Round 4 --
+ > Scheduler: Waiting for Proof ⏱️
+
+-- Proof Compression --
+ > Compressor: Jobs not found 🚫
+"
+        .into(),
+    );
+
+    create_scenario(
+        None,
+        Some(vec![
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::Decommiter,
+                2,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::Decommiter,
+                3,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::LogDemultiplexer,
+                1,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::LogDemultiplexer,
+                2,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::LogDemultiplexer,
+                3,
+            ),
+        ]),
+        Some(vec![
+            (
+                WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+            ),
+            (
+                WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+            ),
+            (
+                WitnessJobStatus::InProgress,
+                BaseLayerCircuitType::Decommiter,
+            ),
+            (
+                WitnessJobStatus::Queued,
+                BaseLayerCircuitType::LogDemultiplexer,
+            ),
+        ]),
+        Some(vec![
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                1,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                2,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                3,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                4,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                1,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                2,
+            ),
+            (
+                ProverJobStatus::InProgress(ProverJobStatusInProgress::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                2,
+            ),
+            (
+                ProverJobStatus::InProgress(ProverJobStatusInProgress::default()),
+                BaseLayerCircuitType::Decommiter,
+                1,
+            ),
+            (
+                ProverJobStatus::InProgress(ProverJobStatusInProgress::default()),
+                BaseLayerCircuitType::Decommiter,
+                3,
+            ),
+            (ProverJobStatus::Queued, BaseLayerCircuitType::Decommiter, 2),
+        ]),
+        Some(vec![(WitnessJobStatus::Queued, BaseLayerCircuitType::VM)]),
+        None,
+        None,
+        None,
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_verbose_batch_0_expects(
+        "== Batch 0 Status ==
+
+-- Aggregation Round 0 --
+> Basic Witness Generator: Successful ✅
+> Prover Jobs: Successful ✅
+
+-- Aggregation Round 1 --
+v Leaf Witness Generator: In Progress ⌛️
+   > VM: Successful ✅
+   > DecommitmentsFilter: Successful ✅
+   > Decommiter: In Progress ⌛️
+   > LogDemultiplexer: Queued 📥
+v Prover Jobs: In Progress ⌛️
+   > VM: Successful ✅
+   > DecommitmentsFilter: In Progress ⌛️
+     - Total jobs: 2
+     - Successful: 1
+     - In Progress: 1
+     - Queued: 0
+     - Failed: 0
+   > Decommiter: In Progress ⌛️
+     - Total jobs: 3
+     - Successful: 0
+     - In Progress: 2
+     - Queued: 1
+     - Failed: 0
+
+-- Aggregation Round 2 --
+ > Node Witness Generator: Queued 📥
+
+-- Aggregation Round 3 --
+ > Recursion Tip: Waiting for Proof ⏱️
+
+-- Aggregation Round 4 --
+ > Scheduler: Waiting for Proof ⏱️
+
+-- Proof Compression --
+ > Compressor: Jobs not found 🚫
+"
+        .into(),
+    );
+
+    create_scenario(
+        None,
+        None,
+        Some(vec![
+            (
+                WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+                BaseLayerCircuitType::Decommiter,
+            ),
+            (
+                WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+                BaseLayerCircuitType::LogDemultiplexer,
+            ),
+        ]),
+        Some(vec![
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                2,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::Decommiter,
+                1,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::Decommiter,
+                3,
+            ),
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::Decommiter,
+                2,
+            ),
+        ]),
+        Some(vec![
+            (
+                WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+            ),
+            (
+                WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+            ),
+            (
+                WitnessJobStatus::InProgress,
+                BaseLayerCircuitType::Decommiter,
+            ),
+            (
+                WitnessJobStatus::Queued,
+                BaseLayerCircuitType::LogDemultiplexer,
+            ),
+        ]),
+        Some(vec![
+            (
+                ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+                BaseLayerCircuitType::VM,
+                1,
+            ),
+            (
+                ProverJobStatus::InProgress(ProverJobStatusInProgress::default()),
+                BaseLayerCircuitType::DecommitmentsFilter,
+                1,
+            ),
+        ]),
+        None,
+        None,
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_verbose_batch_0_expects(
+        "== Batch 0 Status ==
+
+boca
+"
+        .into(),
+    );
 }
