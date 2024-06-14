@@ -7,8 +7,7 @@ use anyhow::{anyhow, Context as _};
 use zksync_consensus_roles::validator;
 use zksync_protobuf::{required, ProtoFmt, ProtoRepr};
 use zksync_types::{
-    abi,
-    ethabi,
+    abi, ethabi,
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
@@ -45,16 +44,24 @@ impl ProtoFmt for Payload {
             .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
             .context("protocol_version")?;
         let mut transactions = vec![];
-        
+
         match protocol_version {
             v if v >= ProtocolVersionId::Version25 => {
-                anyhow::ensure!(r.transactions.is_empty(),"transactions should be empty in protocol_version {v}");
+                anyhow::ensure!(
+                    r.transactions.is_empty(),
+                    "transactions should be empty in protocol_version {v}"
+                );
                 for (i, tx) in r.transactions_v25.iter().enumerate() {
-                    transactions.push(TransactionV25::read(tx).with_context(|| format!("transactions[{i}]"))?);
+                    transactions.push(
+                        TransactionV25::read(tx).with_context(|| format!("transactions[{i}]"))?,
+                    );
                 }
             }
             v => {
-                anyhow::ensure!(r.transactions_v25.is_empty(),"transactions_v25 should be empty in protocol_version {v}");
+                anyhow::ensure!(
+                    r.transactions_v25.is_empty(),
+                    "transactions_v25 should be empty in protocol_version {v}"
+                );
                 for (i, tx) in r.transactions.iter().enumerate() {
                     transactions.push(tx.read().with_context(|| format!("transactions[{i}]"))?)
                 }
@@ -62,7 +69,7 @@ impl ProtoFmt for Payload {
         }
 
         Ok(Self {
-            protocol_version, 
+            protocol_version,
             hash: required(&r.hash)
                 .and_then(|h| parse_h256(h))
                 .context("hash")?,
@@ -71,8 +78,7 @@ impl ProtoFmt for Payload {
             ),
             timestamp: *required(&r.timestamp).context("timestamp")?,
             l1_gas_price: *required(&r.l1_gas_price).context("l1_gas_price")?,
-            l2_fair_gas_price: *required(&r.l2_fair_gas_price)
-                .context("l2_fair_gas_price")?,
+            l2_fair_gas_price: *required(&r.l2_fair_gas_price).context("l2_fair_gas_price")?,
             fair_pubdata_price: r.fair_pubdata_price,
             virtual_blocks: *required(&r.virtual_blocks).context("virtual_blocks")?,
             operator_address: required(&r.operator_address)
@@ -101,10 +107,18 @@ impl ProtoFmt for Payload {
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {
-                x.transactions_v25 = self.transactions.iter().map(|t|TransactionV25::build(t).unwrap()).collect();
+                x.transactions_v25 = self
+                    .transactions
+                    .iter()
+                    .map(|t| TransactionV25::build(t).unwrap())
+                    .collect();
             }
             _ => {
-                x.transactions = self.transactions.iter().map(proto::Transaction::build).collect();
+                x.transactions = self
+                    .transactions
+                    .iter()
+                    .map(proto::Transaction::build)
+                    .collect();
             }
         }
         x
@@ -128,12 +142,18 @@ impl TransactionV25 {
         use proto::transaction_v25::T;
         let tx = match required(&r.t)? {
             T::L1(l1) => abi::Transaction::L1 {
-                tx: required(&l1.rlp).and_then(|x|{
-                    let tokens = ethabi::decode(&[abi::L2CanonicalTransaction::schema()],x).context("ethabi::decode()")?;
-                    // Unwrap is safe because `ethabi::decode` does the verification.
-                    let tx = abi::L2CanonicalTransaction::decode(tokens.into_iter().next().unwrap()).context("L2CanonicalTransaction::decode()")?;
-                    Ok(tx)
-                }).context("rlp")?.into(), 
+                tx: required(&l1.rlp)
+                    .and_then(|x| {
+                        let tokens = ethabi::decode(&[abi::L2CanonicalTransaction::schema()], x)
+                            .context("ethabi::decode()")?;
+                        // Unwrap is safe because `ethabi::decode` does the verification.
+                        let tx =
+                            abi::L2CanonicalTransaction::decode(tokens.into_iter().next().unwrap())
+                                .context("L2CanonicalTransaction::decode()")?;
+                        Ok(tx)
+                    })
+                    .context("rlp")?
+                    .into(),
                 factory_deps: l1.factory_deps.clone(),
                 eth_block: 0,
                 received_timestamp_ms: 0,
@@ -148,13 +168,13 @@ impl TransactionV25 {
         use proto::transaction_v25::T;
         Ok(proto::TransactionV25 {
             t: Some(match tx {
-                abi::Transaction::L1 { tx, factory_deps, .. } => T::L1(proto::L1Transaction {
+                abi::Transaction::L1 {
+                    tx, factory_deps, ..
+                } => T::L1(proto::L1Transaction {
                     rlp: Some(ethabi::encode(&[tx.encode()])),
                     factory_deps,
                 }),
-                abi::Transaction::L2(tx) => T::L2(proto::L2Transaction {
-                    rlp: Some(tx),
-                }),
+                abi::Transaction::L2(tx) => T::L2(proto::L2Transaction { rlp: Some(tx) }),
             }),
         })
     }
