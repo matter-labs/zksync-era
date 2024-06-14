@@ -236,7 +236,7 @@ impl Tester {
 #[derive(Debug)]
 struct MockBaseTokenAdjuster {}
 impl BaseTokenAdjuster for MockBaseTokenAdjuster {
-    fn get_last_ratio(&self) -> Option<BaseTokenPrice> {
+    fn get_last_ratio(&self) -> Option<f64> {
         None
     }
 }

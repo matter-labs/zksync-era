@@ -76,10 +76,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
                 config,
                 l1_gas_price: self.provider.estimate_effective_gas_price(),
                 l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
-                base_token_price: self
-                    .base_token_adjuster
-                    .get_last_ratio()
-                    .and_then(|x| x.numerator.div(x.denominator).to_f64()),
+                base_token_price: self.base_token_adjuster.get_last_ratio(),
             }),
         }
     }

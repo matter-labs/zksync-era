@@ -10,7 +10,7 @@ use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
 use zksync_types::base_token_price::{BaseTokenAPIPrice, BaseTokenPrice};
 
 pub trait BaseTokenAdjuster: Debug + Send + Sync {
-    fn get_last_ratio(&self) -> Option<BaseTokenPrice>;
+    fn get_last_ratio(&self) -> Option<f64>;
 }
 
 #[derive(Debug)]
@@ -115,7 +115,7 @@ impl NodeBaseTokenAdjuster {
 }
 
 impl BaseTokenAdjuster for NodeBaseTokenAdjuster {
-    fn get_last_ratio(&self) -> Option<BaseTokenPrice> {
+    fn get_last_ratio(&self) -> Option<f64> {
         None
     }
 }
