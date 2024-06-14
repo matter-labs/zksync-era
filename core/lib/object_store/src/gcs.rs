@@ -87,7 +87,7 @@ impl From<AuthError> for ObjectStoreError {
     fn from(err: AuthError) -> Self {
         let is_transient = matches!(
             &err,
-            AuthError::HttpError(err) if err.is_timeout() || err.is_connect() || has_transient_io_source(err)
+            AuthError::HttpError(err) if err.is_timeout() || err.is_connect() || has_transient_io_source(err) || upstream_unavailable(err)
         );
         Self::Initialization {
             source: err.into(),
@@ -111,6 +111,11 @@ fn has_transient_io_source(mut err: &(dyn StdError + 'static)) -> bool {
     }
 }
 
+fn upstream_unavailable(err: &reqwest::Error) -> bool {
+    err.status() == Some(StatusCode::BAD_GATEWAY)
+        || err.status() == Some(StatusCode::SERVICE_UNAVAILABLE)
+}
+
 impl From<HttpError> for ObjectStoreError {
     fn from(err: HttpError) -> Self {
         let is_not_found = match &err {
@@ -126,7 +131,7 @@ impl From<HttpError> for ObjectStoreError {
         } else {
             let is_transient = matches!(
                 &err,
-                HttpError::HttpClient(err) if err.is_timeout() || err.is_connect() || has_transient_io_source(err)
+                HttpError::HttpClient(err) if err.is_timeout() || err.is_connect() || has_transient_io_source(err) || upstream_unavailable(err)
             );
             ObjectStoreError::Other {
                 is_transient,

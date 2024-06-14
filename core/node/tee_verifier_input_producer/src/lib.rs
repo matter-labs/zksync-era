@@ -260,6 +260,10 @@ impl JobProcessor for TeeVerifierInputProducer {
             .await
             .context("failed to mark job as successful for TeeVerifierInputProducer")?;
         transaction
+            .tee_proof_generation_dal()
+            .insert_tee_proof_generation_job(job_id)
+            .await?;
+        transaction
             .commit()
             .await
             .context("failed to commit DB transaction for TeeVerifierInputProducer")?;

@@ -14,6 +14,7 @@ import "zksync/config/observability.proto";
 import "zksync/config/snapshots_creator.proto";
 import "zksync/config/utils.proto";
 import "zksync/config/vm_runner.proto";
+import "zksync/config/object_store.proto";
 
 message GeneralConfig {
   optional config.database.Postgres postgres = 1;
@@ -37,4 +38,5 @@ message GeneralConfig {
   optional config.snapshot_creator.SnapshotsCreator snapshot_creator = 31;
   optional config.observability.Observability observability = 32;
   optional config.vm_runner.ProtectiveReadsWriter protective_reads_writer = 33;
+  optional config.object_store.ObjectStore core_object_store = 34;
 }

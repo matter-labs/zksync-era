@@ -1929,7 +1929,21 @@ impl TransactionsDal<'_, '_> {
             FROM
                 transactions
             WHERE
-                l1_batch_number = $1
+                miniblock_number BETWEEN (
+                    SELECT
+                        MIN(number)
+                    FROM
+                        miniblocks
+                    WHERE
+                        miniblocks.l1_batch_number = $1
+                ) AND (
+                    SELECT
+                        MAX(number)
+                    FROM
+                        miniblocks
+                    WHERE
+                        miniblocks.l1_batch_number = $1
+                )
             ORDER BY
                 miniblock_number,
                 index_in_block
