@@ -1,7 +1,7 @@
 use std::{fmt, ops::Div, sync::Arc};
 
 use anyhow::Context as _;
-use bigdecimal::ToPrimitive;
+use bigdecimal::{ToPrimitive, Zero};
 use zksync_base_token_adjuster::BaseTokenAdjuster;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
@@ -225,11 +225,26 @@ fn compute_batch_fee_model_input_v2(
     // if there is base token quote available - multiplying the final results onto it
     // if not - ETH is used as a base token
     match base_token_price {
-        Some(x) => PubdataIndependentBatchFeeModelInput {
-            l1_gas_price: (x * l1_gas_price as f64) as u64,
-            fair_l2_gas_price: (x * fair_l2_gas_price as f64) as u64,
-            fair_pubdata_price: (x * fair_pubdata_price as f64) as u64,
-        },
+        Some(x) => {
+            let adjust_base_token = |n: u64| -> u64 {
+                // disregard quote as invalid if it's not a finite positive number
+                if !(x.is_finite() && x.is_sign_positive() && !x.is_zero()) {
+                    return n;
+                }
+                let v = x * n as f64;
+                if v.is_finite() {
+                    v as u64
+                } else {
+                    u64::MAX
+                }
+            };
+
+            PubdataIndependentBatchFeeModelInput {
+                l1_gas_price: adjust_base_token(l1_gas_price),
+                fair_l2_gas_price: adjust_base_token(fair_l2_gas_price),
+                fair_pubdata_price: adjust_base_token(fair_pubdata_price),
+            }
+        }
         None => PubdataIndependentBatchFeeModelInput {
             l1_gas_price,
             fair_l2_gas_price,
@@ -257,6 +272,8 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 
 #[cfg(test)]
 mod tests {
+    use test_casing::test_casing;
+
     use super::*;
 
     // To test that overflow never happens, we'll use giant L1 gas price, i.e.
@@ -267,8 +284,19 @@ mod tests {
     // As a small small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: u64 = 1;
 
+    // base token ration to use in the tests
+    const BASE_TOKEN_RATIO: f64 = 1.5;
+
+    fn apply_base_token_ratio(base_token_ratio: Option<f64>, value: u64) -> u64 {
+        match base_token_ratio {
+            Some(x) => (x * value as f64) as u64,
+            None => value,
+        }
+    }
+
+    #[test_casing(2, [Some(BASE_TOKEN_RATIO), None])]
     #[test]
-    fn test_compute_batch_fee_model_input_v2_giant_numbers() {
+    fn test_compute_batch_fee_model_input_v2_giant_numbers(base_token_ratio: Option<f64>) {
         let config = FeeModelConfigV2 {
             minimal_l2_gas_price: GIANT_L1_GAS_PRICE,
             // We generally don't expect those values to be larger than 1. Still, in theory the operator
@@ -287,19 +315,29 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
-            base_token_price: None,
+            base_token_price: base_token_ratio,
         };
 
         // We'll use scale factor of 3.0
         let input = compute_batch_fee_model_input_v2(params, 3.0, 3.0);
 
-        assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE * 3);
-        assert_eq!(input.fair_l2_gas_price, 130_000_000_000_000);
-        assert_eq!(input.fair_pubdata_price, 15_300_000_000_000_000);
+        assert_eq!(
+            input.l1_gas_price,
+            apply_base_token_ratio(base_token_ratio, GIANT_L1_GAS_PRICE * 3)
+        );
+        assert_eq!(
+            input.fair_l2_gas_price,
+            apply_base_token_ratio(base_token_ratio, 130_000_000_000_000)
+        );
+        assert_eq!(
+            input.fair_pubdata_price,
+            apply_base_token_ratio(base_token_ratio, 15_300_000_000_000_000)
+        );
     }
 
+    #[test_casing(2, [Some(BASE_TOKEN_RATIO), None])]
     #[test]
-    fn test_compute_batch_fee_model_input_v2_small_numbers() {
+    fn test_compute_batch_fee_model_input_v2_small_numbers(base_token_ratio: Option<f64>) {
         // Here we assume that the operator wants to make the lives of users as cheap as possible.
         let config = FeeModelConfigV2 {
             minimal_l2_gas_price: SMALL_L1_GAS_PRICE,
@@ -314,18 +352,28 @@ mod tests {
             config,
             l1_gas_price: SMALL_L1_GAS_PRICE,
             l1_pubdata_price: SMALL_L1_GAS_PRICE,
-            base_token_price: None,
+            base_token_price: base_token_ratio,
         };
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
 
-        assert_eq!(input.l1_gas_price, SMALL_L1_GAS_PRICE);
-        assert_eq!(input.fair_l2_gas_price, SMALL_L1_GAS_PRICE);
-        assert_eq!(input.fair_pubdata_price, SMALL_L1_GAS_PRICE);
+        assert_eq!(
+            input.l1_gas_price,
+            apply_base_token_ratio(base_token_ratio, SMALL_L1_GAS_PRICE)
+        );
+        assert_eq!(
+            input.fair_l2_gas_price,
+            apply_base_token_ratio(base_token_ratio, SMALL_L1_GAS_PRICE)
+        );
+        assert_eq!(
+            input.fair_pubdata_price,
+            apply_base_token_ratio(base_token_ratio, SMALL_L1_GAS_PRICE)
+        );
     }
 
+    #[test_casing(2, [Some(BASE_TOKEN_RATIO), None])]
     #[test]
-    fn test_compute_batch_fee_model_input_v2_only_pubdata_overhead() {
+    fn test_compute_batch_fee_model_input_v2_only_pubdata_overhead(base_token_ratio: Option<f64>) {
         // Here we use sensible config, but when only pubdata is used to close the batch
         let config = FeeModelConfigV2 {
             minimal_l2_gas_price: 100_000_000_000,
@@ -340,19 +388,29 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
-            base_token_price: None,
+            base_token_price: base_token_ratio,
         };
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
-        assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
+        assert_eq!(
+            input.l1_gas_price,
+            apply_base_token_ratio(base_token_ratio, GIANT_L1_GAS_PRICE)
+        );
         // The fair L2 gas price is identical to the minimal one.
-        assert_eq!(input.fair_l2_gas_price, 100_000_000_000);
+        assert_eq!(
+            input.fair_l2_gas_price,
+            apply_base_token_ratio(base_token_ratio, 100_000_000_000)
+        );
         // The fair pubdata price is the minimal one plus the overhead.
-        assert_eq!(input.fair_pubdata_price, 800_000_000_000_000);
+        assert_eq!(
+            input.fair_pubdata_price,
+            apply_base_token_ratio(base_token_ratio, 800_000_000_000_000)
+        );
     }
 
+    #[test_casing(2, [Some(BASE_TOKEN_RATIO), None])]
     #[test]
-    fn test_compute_batch_fee_model_input_v2_only_compute_overhead() {
+    fn test_compute_batch_fee_model_input_v2_only_compute_overhead(base_token_ratio: Option<f64>) {
         // Here we use sensible config, but when only compute is used to close the batch
         let config = FeeModelConfigV2 {
             minimal_l2_gas_price: 100_000_000_000,
@@ -367,19 +425,29 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
-            base_token_price: None,
+            base_token_price: base_token_ratio,
         };
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
-        assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
+        assert_eq!(
+            input.l1_gas_price,
+            apply_base_token_ratio(base_token_ratio, GIANT_L1_GAS_PRICE)
+        );
         // The fair L2 gas price is identical to the minimal one, plus the overhead
-        assert_eq!(input.fair_l2_gas_price, 240_000_000_000);
+        assert_eq!(
+            input.fair_l2_gas_price,
+            apply_base_token_ratio(base_token_ratio, 240_000_000_000)
+        );
         // The fair pubdata price is equal to the original one.
-        assert_eq!(input.fair_pubdata_price, GIANT_L1_GAS_PRICE);
+        assert_eq!(
+            input.fair_pubdata_price,
+            apply_base_token_ratio(base_token_ratio, GIANT_L1_GAS_PRICE)
+        );
     }
 
+    #[test_casing(2, [Some(BASE_TOKEN_RATIO), None])]
     #[test]
-    fn test_compute_batch_fee_model_input_v2_param_tweaking() {
+    fn test_compute_batch_fee_model_input_v2_param_tweaking(base_token_ratio: Option<f64>) {
         // In this test we generally checking that each param behaves as expected
         let base_config = FeeModelConfigV2 {
             minimal_l2_gas_price: 100_000_000_000,
@@ -394,7 +462,7 @@ mod tests {
             config: base_config,
             l1_gas_price: 1_000_000_000,
             l1_pubdata_price: 1_000_000_000,
-            base_token_price: None,
+            base_token_price: base_token_ratio,
         };
 
         let base_input = compute_batch_fee_model_input_v2(base_params, 1.0, 1.0);
@@ -484,5 +552,79 @@ mod tests {
             base_input.fair_pubdata_price > base_input_larger_max_pubdata.fair_pubdata_price,
             "Max pubdata increase lowers pubdata price"
         );
+    }
+
+    #[test]
+    fn test_compute_batch_fee_model_input_v2_base_token_overflow() {
+        let config = FeeModelConfigV2 {
+            minimal_l2_gas_price: 100_000_000_000,
+            compute_overhead_part: 1.0,
+            pubdata_overhead_part: 0.0,
+            batch_overhead_l1_gas: 700_000,
+            max_gas_per_batch: 500_000_000,
+            max_pubdata_per_batch: 100_000,
+        };
+
+        let params = FeeParamsV2 {
+            config,
+            l1_gas_price: GIANT_L1_GAS_PRICE,
+            l1_pubdata_price: GIANT_L1_GAS_PRICE,
+            base_token_price: Some(f64::MAX),
+        };
+
+        let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
+        // in case of overflow, gas fees should be clamped at u64::MAX
+        assert_eq!(input.l1_gas_price, u64::MAX);
+        assert_eq!(input.fair_l2_gas_price, u64::MAX);
+        assert_eq!(input.fair_pubdata_price, u64::MAX);
+    }
+
+    #[test]
+    fn test_compute_batch_fee_model_input_v2_base_token_disregard_non_positive_quote() {
+        let config = FeeModelConfigV2 {
+            minimal_l2_gas_price: 100_000_000_000,
+            compute_overhead_part: 1.0,
+            pubdata_overhead_part: 0.0,
+            batch_overhead_l1_gas: 700_000,
+            max_gas_per_batch: 500_000_000,
+            max_pubdata_per_batch: 100_000,
+        };
+
+        // these assertions ensure that invalid base token ratios such as negative numbers, nan,
+        // infinity, zero is disregarded
+        let test_fn = |params: FeeParamsV2| {
+            let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
+            assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
+            assert_eq!(input.fair_l2_gas_price, 240_000_000_000);
+            assert_eq!(input.fair_pubdata_price, GIANT_L1_GAS_PRICE);
+        };
+
+        let params = FeeParamsV2 {
+            config,
+            l1_gas_price: GIANT_L1_GAS_PRICE,
+            l1_pubdata_price: GIANT_L1_GAS_PRICE,
+            base_token_price: Some(f64::NAN),
+        };
+
+        test_fn(FeeParamsV2 {
+            base_token_price: Some(f64::NAN),
+            ..params
+        });
+        test_fn(FeeParamsV2 {
+            base_token_price: Some(f64::NEG_INFINITY),
+            ..params
+        });
+        test_fn(FeeParamsV2 {
+            base_token_price: Some(f64::INFINITY),
+            ..params
+        });
+        test_fn(FeeParamsV2 {
+            base_token_price: Some(0.0),
+            ..params
+        });
+        test_fn(FeeParamsV2 {
+            base_token_price: Some(1.0),
+            ..params
+        });
     }
 }
