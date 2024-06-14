@@ -13,6 +13,11 @@ can look at the changes in the original file and decide if we want to implement 
 
 This rule also applies to binaries.
 
+## Running our new binaries
+
+If we create a new binary, we should add it to the `./Cargo.toml` under “members” section, and execute it with cargo -p
+flag: `cargo run -p new-bin`.
+
 # zkSync Era: A ZK Rollup For Scaling Ethereum
 
 [![Logo](eraLogo.png)](https://zksync.io/)
