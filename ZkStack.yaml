@@ -1,6 +1,7 @@
 name: zk
 l1_network: Localhost
 link_to_code: .
+link_to_prover: ./prover
 chains: ./chains
 config: ./configs/
 default_chain: era
