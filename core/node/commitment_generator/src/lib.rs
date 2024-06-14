@@ -278,6 +278,7 @@ impl CommitmentGenerator {
                 state_diffs,
                 aux_commitments,
                 blob_commitments,
+                l1_batch_number,
             }
         };
 

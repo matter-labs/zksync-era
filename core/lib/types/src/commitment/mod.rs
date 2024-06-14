@@ -10,6 +10,7 @@ use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
 pub use zksync_basic_types::commitment::L1BatchCommitmentMode;
+use zksync_basic_types::L1BatchNumber;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
@@ -334,6 +335,7 @@ impl L1BatchAuxiliaryOutput {
                 state_diffs,
                 aux_commitments,
                 blob_commitments,
+                l1_batch_number,
             } => {
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
@@ -355,7 +357,7 @@ impl L1BatchAuxiliaryOutput {
 
                 let state_diffs_packed = serialize_commitments(&state_diffs);
                 let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
-                let state_diffs_compressed = compress_state_diffs(state_diffs);
+                let state_diffs_compressed = compress_state_diffs(state_diffs.clone());
 
                 let blob_linear_hashes =
                     parse_system_logs_for_blob_hashes(&common_input.protocol_version, &system_logs);
@@ -371,7 +373,8 @@ impl L1BatchAuxiliaryOutput {
                         .expect("Failed to find state diff hash in system logs");
                     assert_eq!(
                         state_diffs_hash, state_diff_hash_from_logs,
-                        "State diff hash mismatch"
+                        "State diff hash mismatch for batch {}. Computed: {}, from logs: {}. Total state diffs: {}",
+                        l1_batch_number, state_diffs_hash, state_diff_hash_from_logs, state_diffs.len()
                     );
 
                     let l2_to_l1_logs_tree_root_from_logs = system_logs
@@ -670,6 +673,7 @@ pub enum CommitmentInput {
         state_diffs: Vec<StateDiffRecord>,
         aux_commitments: AuxCommitments,
         blob_commitments: Vec<H256>,
+        l1_batch_number: L1BatchNumber,
     },
 }
 
@@ -715,6 +719,7 @@ impl CommitmentInput {
 
                     vec![H256::zero(); num_blobs]
                 },
+                l1_batch_number: L1BatchNumber(0),
             }
         }
     }
