@@ -239,7 +239,7 @@ pub struct FeeParamsV2 {
     pub config: FeeModelConfigV2,
     pub l1_gas_price: u64,
     pub l1_pubdata_price: u64,
-    pub base_token_price: Option<f64>,
+    pub base_token_ratio: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

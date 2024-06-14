@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use tokio::sync::watch;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
-use zksync_types::base_token_price::{BaseTokenAPIPrice, BaseTokenPrice};
+use zksync_types::base_token_price::BaseTokenAPIPrice;
 
 pub trait BaseTokenAdjuster: Debug + Send + Sync {
     fn get_last_ratio(&self) -> Option<f64>;

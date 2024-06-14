@@ -1,7 +1,7 @@
-use std::{fmt, ops::Div, sync::Arc};
+use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
-use bigdecimal::{ToPrimitive, Zero};
+use bigdecimal::Zero;
 use zksync_base_token_adjuster::BaseTokenAdjuster;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
@@ -76,7 +76,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
                 config,
                 l1_gas_price: self.provider.estimate_effective_gas_price(),
                 l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
-                base_token_price: self.base_token_adjuster.get_last_ratio(),
+                base_token_ratio: self.base_token_adjuster.get_last_ratio(),
             }),
         }
     }
@@ -172,7 +172,7 @@ fn compute_batch_fee_model_input_v2(
         config,
         l1_gas_price,
         l1_pubdata_price,
-        base_token_price,
+        base_token_ratio,
     } = params;
 
     let FeeModelConfigV2 {
@@ -224,7 +224,7 @@ fn compute_batch_fee_model_input_v2(
 
     // if there is base token quote available - multiplying the final results onto it
     // if not - ETH is used as a base token
-    match base_token_price {
+    match base_token_ratio {
         Some(x) => {
             let adjust_base_token = |n: u64| -> u64 {
                 // disregard quote as invalid if it's not a finite positive number
@@ -315,7 +315,7 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
-            base_token_price: base_token_ratio,
+            base_token_ratio,
         };
 
         // We'll use scale factor of 3.0
@@ -352,7 +352,7 @@ mod tests {
             config,
             l1_gas_price: SMALL_L1_GAS_PRICE,
             l1_pubdata_price: SMALL_L1_GAS_PRICE,
-            base_token_price: base_token_ratio,
+            base_token_ratio,
         };
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
@@ -388,7 +388,7 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
-            base_token_price: base_token_ratio,
+            base_token_ratio,
         };
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
@@ -425,7 +425,7 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
-            base_token_price: base_token_ratio,
+            base_token_ratio,
         };
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
@@ -462,7 +462,7 @@ mod tests {
             config: base_config,
             l1_gas_price: 1_000_000_000,
             l1_pubdata_price: 1_000_000_000,
-            base_token_price: base_token_ratio,
+            base_token_ratio,
         };
 
         let base_input = compute_batch_fee_model_input_v2(base_params, 1.0, 1.0);
@@ -569,7 +569,7 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
-            base_token_price: Some(f64::MAX),
+            base_token_ratio: Some(f64::MAX),
         };
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
@@ -603,27 +603,27 @@ mod tests {
             config,
             l1_gas_price: GIANT_L1_GAS_PRICE,
             l1_pubdata_price: GIANT_L1_GAS_PRICE,
-            base_token_price: Some(f64::NAN),
+            base_token_ratio: Some(f64::NAN),
         };
 
         test_fn(FeeParamsV2 {
-            base_token_price: Some(f64::NAN),
+            base_token_ratio: Some(f64::NAN),
             ..params
         });
         test_fn(FeeParamsV2 {
-            base_token_price: Some(f64::NEG_INFINITY),
+            base_token_ratio: Some(f64::NEG_INFINITY),
             ..params
         });
         test_fn(FeeParamsV2 {
-            base_token_price: Some(f64::INFINITY),
+            base_token_ratio: Some(f64::INFINITY),
             ..params
         });
         test_fn(FeeParamsV2 {
-            base_token_price: Some(0.0),
+            base_token_ratio: Some(0.0),
             ..params
         });
         test_fn(FeeParamsV2 {
-            base_token_price: Some(1.0),
+            base_token_ratio: Some(1.0),
             ..params
         });
     }
