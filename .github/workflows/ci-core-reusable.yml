@@ -334,6 +334,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
+          ci_run run_retried rustup show
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
             ci_run zk config compile
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
