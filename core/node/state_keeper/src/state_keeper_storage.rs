@@ -21,7 +21,23 @@ pub struct AsyncRocksdbCache {
 }
 
 impl AsyncRocksdbCache {
-    async fn access_storage_inner(
+    pub fn new(
+        pool: ConnectionPool<Core>,
+        state_keeper_db_path: String,
+        state_keeper_db_options: RocksdbStorageOptions,
+    ) -> (Self, AsyncCatchupTask) {
+        let (task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), state_keeper_db_path);
+        (
+            Self { pool, rocksdb_cell },
+            task.with_db_options(state_keeper_db_options),
+        )
+    }
+}
+
+#[async_trait]
+impl ReadStorageFactory for AsyncRocksdbCache {
+    #[tracing::instrument(skip(self, stop_receiver))]
+    async fn access_storage(
         &self,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
@@ -62,29 +78,5 @@ impl AsyncRocksdbCache {
                     .context("Failed accessing Postgres storage")?,
             ))
         }
-    }
-
-    pub fn new(
-        pool: ConnectionPool<Core>,
-        state_keeper_db_path: String,
-        state_keeper_db_options: RocksdbStorageOptions,
-    ) -> (Self, AsyncCatchupTask) {
-        let (task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), state_keeper_db_path);
-        (
-            Self { pool, rocksdb_cell },
-            task.with_db_options(state_keeper_db_options),
-        )
-    }
-}
-
-#[async_trait]
-impl ReadStorageFactory for AsyncRocksdbCache {
-    async fn access_storage(
-        &self,
-        stop_receiver: &watch::Receiver<bool>,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        self.access_storage_inner(stop_receiver, l1_batch_number)
-            .await
     }
 }

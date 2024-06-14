@@ -139,12 +139,10 @@ impl AsyncCatchupTask {
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
+    #[tracing::instrument(name = "catch_up", skip_all, fields(target_l1_batch = ?self.to_l1_batch_number))]
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let started_at = Instant::now();
-        tracing::debug!(
-            "Catching up RocksDB asynchronously to L1 batch #{:?}",
-            self.to_l1_batch_number
-        );
+        tracing::info!("Catching up RocksDB asynchronously");
 
         let mut rocksdb_builder = RocksdbStorage::builder_with_options(
             self.state_keeper_db_path.as_ref(),
