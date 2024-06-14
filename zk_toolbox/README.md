@@ -94,6 +94,7 @@ If contracts were deployed by a third party (e.g., MatterLabs), you may need to 
 ```bash
 zk_inception chain genesis
 ```
+#zkSync poor pair
 
 This ensures proper initialization of the server.
 
