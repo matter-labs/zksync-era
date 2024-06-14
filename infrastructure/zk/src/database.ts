@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from '../../../etc/utils/src';
+import * as utils from 'utils';
 
 export async function reset(opts: DbOpts) {
     await utils.confirmAction();

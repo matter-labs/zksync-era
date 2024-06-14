@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from '../../../etc/utils/src';
+import * as utils from 'utils';
 import * as env from './env';
 import fs from 'fs';
 
@@ -229,7 +229,8 @@ export async function registerHyperchain({
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
-        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''
+        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : '',
+        '--use-governance'
     ];
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();

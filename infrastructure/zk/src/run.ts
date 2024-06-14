@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from '../../../etc/utils/src';
+import * as utils from 'utils';
 import { Wallet } from 'ethers';
 import fs from 'fs';
 import * as path from 'path';

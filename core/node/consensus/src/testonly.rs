@@ -454,8 +454,12 @@ impl StateKeeperRunner {
             fund(&self.pool.0, &[self.account.address]).await;
 
             let (stop_send, stop_recv) = sync::watch::channel(false);
-            let (persistence, l2_block_sealer) =
-                StateKeeperPersistence::new(self.pool.0.clone(), Address::repeat_byte(11), 5);
+            let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
+                self.pool.0.clone(),
+                Address::repeat_byte(11),
+                Address::repeat_byte(12),
+                5,
+            );
 
             let io = ExternalIO::new(
                 self.pool.0.clone(),
