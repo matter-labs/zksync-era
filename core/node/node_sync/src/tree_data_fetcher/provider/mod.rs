@@ -2,7 +2,6 @@ use std::fmt;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use vise::{EncodeLabelSet, EncodeLabelValue};
 use zksync_eth_client::EthInterface;
 use zksync_types::{block::L2BlockHeader, web3, Address, L1BatchNumber, H256, U256, U64};
 use zksync_web3_decl::{
@@ -29,21 +28,7 @@ pub(super) enum MissingData {
     PossibleReorg,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "source", rename_all = "snake_case")]
-pub(super) enum TreeDataProviderSource {
-    L1CommitEvent,
-    BatchDetailsRpc,
-}
-
-#[derive(Debug)]
-pub(super) struct TreeDataProviderOutput {
-    pub root_hash: H256,
-    pub source: TreeDataProviderSource,
-}
-
-pub(super) type TreeDataProviderResult =
-    TreeDataFetcherResult<Result<TreeDataProviderOutput, MissingData>>;
+pub(super) type TreeDataProviderResult = TreeDataFetcherResult<Result<H256, MissingData>>;
 
 /// External provider of tree data, such as main node (via JSON-RPC).
 #[async_trait]
@@ -92,14 +77,7 @@ impl TreeDataProvider for Box<DynClient<L2>> {
             return Ok(Err(MissingData::PossibleReorg));
         }
 
-        Ok(batch_details
-            .base
-            .root_hash
-            .ok_or(MissingData::RootHash)
-            .map(|root_hash| TreeDataProviderOutput {
-                root_hash,
-                source: TreeDataProviderSource::BatchDetailsRpc,
-            }))
+        Ok(batch_details.base.root_hash.ok_or(MissingData::RootHash))
     }
 }
 
@@ -205,13 +183,6 @@ impl L1DataProvider {
         })?;
         Ok((number, block.timestamp))
     }
-
-    pub fn with_fallback(self, fallback: Box<dyn TreeDataProvider>) -> CombinedDataProvider {
-        CombinedDataProvider {
-            l1: Some(self),
-            fallback,
-        }
-    }
 }
 
 #[async_trait]
@@ -305,10 +276,7 @@ impl TreeDataProvider for L1DataProvider {
                     l1_commit_block_number,
                     l1_commit_block_timestamp: l1_commit_block.timestamp,
                 });
-                Ok(Ok(TreeDataProviderOutput {
-                    root_hash,
-                    source: TreeDataProviderSource::L1CommitEvent,
-                }))
+                Ok(Ok(root_hash))
             }
             _ => {
                 tracing::warn!(
@@ -326,6 +294,19 @@ impl TreeDataProvider for L1DataProvider {
 pub(super) struct CombinedDataProvider {
     l1: Option<L1DataProvider>,
     fallback: Box<dyn TreeDataProvider>,
+}
+
+impl CombinedDataProvider {
+    pub fn new(fallback: impl TreeDataProvider) -> Self {
+        Self {
+            l1: None,
+            fallback: Box::new(fallback),
+        }
+    }
+
+    pub fn set_l1(&mut self, l1: L1DataProvider) {
+        self.l1 = Some(l1);
+    }
 }
 
 #[async_trait]
