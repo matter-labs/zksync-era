@@ -51,7 +51,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     shell.create_dir(ecosystem_name)?;
     shell.change_dir(ecosystem_name);
 
-    let configs_path: PathBuf = create_local_configs_dir(shell, ".")?;
+    let configs_path = create_local_configs_dir(shell, ".")?;
 
     let link_to_code = if args.link_to_code.is_empty() {
         let spinner = Spinner::new(MSG_CLONING_ERA_REPO_SPINNER);
