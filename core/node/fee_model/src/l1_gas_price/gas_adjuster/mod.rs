@@ -334,6 +334,18 @@ impl L1TxParamsProvider for GasAdjuster {
     fn get_priority_fee(&self) -> u64 {
         self.config.default_priority_fee_per_gas
     }
+
+    fn get_blob_tx_base_fee(&self) -> u64 {
+        self.base_fee_statistics.last_added_value() * 2
+    }
+
+    fn get_blob_tx_blob_base_fee(&self) -> u64 {
+        self.blob_base_fee_statistics.last_added_value().as_u64() * 2
+    }
+
+    fn get_blob_tx_priority_fee(&self) -> u64 {
+        self.get_priority_fee() * 2
+    }
 }
 
 /// Helper structure responsible for collecting the data about recent transactions,
