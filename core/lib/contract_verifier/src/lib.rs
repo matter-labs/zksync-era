@@ -213,7 +213,7 @@ impl ContractVerifier {
         }
     }
 
-    pub async fn compile_zkvyper(
+    async fn compile_zkvyper(
         request: VerificationRequest,
         config: ContractVerifierConfig,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
@@ -279,7 +279,7 @@ impl ContractVerifier {
         Err(ContractVerifierError::MissingContract(contract_name))
     }
 
-    async fn compile(
+    pub async fn compile(
         request: VerificationRequest,
         config: ContractVerifierConfig,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
