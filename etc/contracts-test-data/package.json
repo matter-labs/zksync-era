@@ -12,5 +12,8 @@
   "scripts": {
     "build": "hardhat compile",
     "clean": "hardhat clean"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.2"
   }
 }
