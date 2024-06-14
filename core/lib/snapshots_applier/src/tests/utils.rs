@@ -156,6 +156,7 @@ fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         executed_at: None,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
+        fair_pubdata_price: None,
         base_system_contracts_hashes: Default::default(),
     }
 }
