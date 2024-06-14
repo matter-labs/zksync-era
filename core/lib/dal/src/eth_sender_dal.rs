@@ -221,6 +221,7 @@ impl EthSenderDal<'_, '_> {
         Ok(eth_tx.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_tx_history(
         &mut self,
         eth_tx_id: u32,
