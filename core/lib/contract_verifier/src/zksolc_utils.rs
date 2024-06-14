@@ -74,18 +74,6 @@ impl Default for Optimizer {
     }
 }
 
-impl Optimizer {
-    ///
-    /// A shortcut constructor.
-    ///
-    pub fn new(enabled: bool) -> Self {
-        Self {
-            enabled,
-            mode: None,
-        }
-    }
-}
-
 pub struct ZkSolc {
     zksolc_path: PathBuf,
     solc_path: PathBuf,

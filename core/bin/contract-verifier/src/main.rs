@@ -14,13 +14,7 @@ use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::{wait_for_tasks::ManagedTasks, workspace_dir_or_current_dir};
 
-use crate::verifier::ContractVerifier;
-
-pub mod error;
-mod metrics;
-pub mod verifier;
-pub mod zksolc_utils;
-pub mod zkvyper_utils;
+use zksync_contract_verifier_lib::ContractVerifier;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.connection().await.unwrap();

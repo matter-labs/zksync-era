@@ -30,6 +30,11 @@ use crate::{
     zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
 
+pub mod error;
+mod metrics;
+mod zksolc_utils;
+mod zkvyper_utils;
+
 lazy_static! {
     static ref DEPLOYER_CONTRACT: Contract = zksync_contracts::deployer_contract();
 }
