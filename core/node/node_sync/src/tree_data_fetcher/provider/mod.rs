@@ -11,7 +11,10 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use super::{metrics::METRICS, TreeDataFetcherResult};
+use super::{
+    metrics::{ProcessingStage, TreeDataProviderSource, METRICS},
+    TreeDataFetcherResult,
+};
 
 #[cfg(test)]
 mod tests;
@@ -293,14 +296,15 @@ impl TreeDataProvider for L1DataProvider {
 #[derive(Debug)]
 pub(super) struct CombinedDataProvider {
     l1: Option<L1DataProvider>,
-    fallback: Box<dyn TreeDataProvider>,
+    // Generic to allow for tests.
+    rpc: Box<dyn TreeDataProvider>,
 }
 
 impl CombinedDataProvider {
     pub fn new(fallback: impl TreeDataProvider) -> Self {
         Self {
             l1: None,
-            fallback: Box::new(fallback),
+            rpc: Box::new(fallback),
         }
     }
 
@@ -318,7 +322,11 @@ impl TreeDataProvider for CombinedDataProvider {
         last_l2_block: &L2BlockHeader,
     ) -> TreeDataProviderResult {
         if let Some(l1) = &mut self.l1 {
-            match l1.batch_details(number, last_l2_block).await {
+            let stage_latency = METRICS.stage_latency[&ProcessingStage::FetchL1CommitEvent].start();
+            let l1_result = l1.batch_details(number, last_l2_block).await;
+            stage_latency.observe();
+
+            match l1_result {
                 Err(err) => {
                     if err.is_transient() {
                         tracing::info!(
@@ -333,7 +341,10 @@ impl TreeDataProvider for CombinedDataProvider {
                         self.l1 = None;
                     }
                 }
-                Ok(Ok(root_hash)) => return Ok(Ok(root_hash)),
+                Ok(Ok(root_hash)) => {
+                    METRICS.root_hash_sources[&TreeDataProviderSource::L1CommitEvent].inc();
+                    return Ok(Ok(root_hash));
+                }
                 Ok(Err(missing_data)) => {
                     tracing::info!("L1 data provider misses batch data: {missing_data}");
                     // No sense of calling the L1 provider in the future; the L2 provider will very likely get information
@@ -342,6 +353,12 @@ impl TreeDataProvider for CombinedDataProvider {
                 }
             }
         }
-        self.fallback.batch_details(number, last_l2_block).await
+        let stage_latency = METRICS.stage_latency[&ProcessingStage::FetchBatchDetailsRpc].start();
+        let rpc_result = self.rpc.batch_details(number, last_l2_block).await;
+        stage_latency.observe();
+        if matches!(rpc_result, Ok(Ok(_))) {
+            METRICS.root_hash_sources[&TreeDataProviderSource::BatchDetailsRpc].inc();
+        }
+        rpc_result
     }
 }

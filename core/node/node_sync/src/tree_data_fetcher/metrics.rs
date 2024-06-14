@@ -30,6 +30,9 @@ impl From<&TreeDataFetcher> for TreeDataFetcherInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum ProcessingStage {
+    FetchL1CommitEvent,
+    FetchBatchDetailsRpc,
+    /// Total latency for all clients.
     Fetch,
     Persistence,
 }
@@ -46,7 +49,6 @@ pub(super) enum StepOutcomeLabel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "source", rename_all = "snake_case")]
-#[allow(dead_code)] // FIXME
 pub(super) enum TreeDataProviderSource {
     L1CommitEvent,
     BatchDetailsRpc,
