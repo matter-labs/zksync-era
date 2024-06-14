@@ -1,3 +1,4 @@
+#![allow(unused)]
 use anyhow::Context as _;
 use test_casing::test_casing;
 use tracing::Instrument as _;
@@ -9,6 +10,7 @@ use zksync_consensus_roles::{
     validator,
     validator::testonly::{Setup, SetupSpec},
 };
+use zksync_dal::CoreDal;
 use zksync_node_test_utils::Snapshot;
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
@@ -510,6 +512,48 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
             .wait_for_payload(ctx, validator.last_block())
             .await?;
         assert_eq!(want, got);
+        Ok(())
+    })
+    .await
+    .unwrap();
+}
+
+/// Tests that generated L1 batch witnesses can be verified successfully.
+/// TODO: add tests for verification failures.
+#[tokio::test]
+async fn test_batch_witness() {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    let rng = &mut ctx.rng();
+
+    scope::run!(ctx, |ctx, s| async {
+        let pool = ConnectionPool::from_genesis().await;
+        let (mut node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
+        s.spawn_bg(runner.run_real(ctx));
+
+        tracing::info!("analyzing storage");
+        {
+            let mut conn = pool.connection(ctx).await.unwrap();
+            let mut n = validator::BlockNumber(0);
+            while let Some(p) = conn.payload(ctx, n).await? {
+                tracing::info!("block[{n}] = {p:?}");
+                n = n + 1;
+            }
+        }
+
+        // Seal a bunch of batches.
+        node.push_random_blocks(rng, 10).await;
+        node.seal_batch().await;
+        pool.wait_for_batch(ctx, node.last_sealed_batch()).await?;
+        // We can verify only 2nd batch onward, because
+        // batch witness verifies parent of the last block of the
+        // previous batch (and 0th batch contains only 1 block).
+        for n in 2..=node.last_sealed_batch().0 {
+            let n = L1BatchNumber(n);
+            let batch_with_witness = node.load_batch_with_witness(ctx, n).await?;
+            let commit = node.load_batch_commit(ctx, n).await?;
+            batch_with_witness.verify(&commit)?;
+        }
         Ok(())
     })
     .await
