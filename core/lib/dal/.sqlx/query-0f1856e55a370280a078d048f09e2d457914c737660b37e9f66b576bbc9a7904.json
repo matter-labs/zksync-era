@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                transactions\n            WHERE\n                l1_batch_number = $1\n            ORDER BY\n                miniblock_number,\n                index_in_block\n            ",
+  "query": "\n            SELECT\n                transactions.*\n            FROM\n                transactions\n                INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number\n            WHERE\n                miniblocks.number BETWEEN $1 AND $2\n            ORDER BY\n                miniblock_number,\n                index_in_block\n            ",
   "describe": {
     "columns": [
       {
@@ -186,6 +186,7 @@
     ],
     "parameters": {
       "Left": [
+        "Int8",
         "Int8"
       ]
     },
@@ -228,5 +229,5 @@
       true
     ]
   },
-  "hash": "f63586d59264eab7388ad1de823227ecaa45d76d1ba260074898fe57c059a15a"
+  "hash": "0f1856e55a370280a078d048f09e2d457914c737660b37e9f66b576bbc9a7904"
 }

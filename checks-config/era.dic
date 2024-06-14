@@ -969,5 +969,15 @@ preloaded
 e2e
 upcasting
 foundryup
+uncached
+untrimmed
 UNNEST
 semver
+TeeRequestProcessor
+l1_batch_number
+RequestProcessorError
+map_err
+proof_inputs
+submit_proofs
+ready_to_be_proven
+privkey
