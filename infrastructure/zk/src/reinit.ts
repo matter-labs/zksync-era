@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
 import { up } from './up';
-import { announced } from '../../../etc/utils/src';
+import { announced } from 'utils';
 import { initDevCmdAction, initHyperCmdAction } from './init';
 import { DeploymentMode } from './contract';
 

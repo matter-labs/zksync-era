@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from '../../../etc/utils/src';
+import * as utils from 'utils';
 import fs from 'fs';
 
 // Make sure that the volumes exists before starting the containers.

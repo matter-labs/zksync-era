@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { spawn } from '../../../etc/utils/src';
+import { spawn } from 'utils';
 import fs from 'fs';
 import { ethers } from 'ethers';
 
