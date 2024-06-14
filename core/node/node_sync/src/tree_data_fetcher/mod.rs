@@ -30,7 +30,7 @@ mod tests;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum TreeDataFetcherError {
-    #[error("error fetching data from main node")]
+    #[error("error fetching data")]
     Rpc(#[from] EnrichedClientError),
     #[error("internal error")]
     Internal(#[from] anyhow::Error),

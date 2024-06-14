@@ -330,6 +330,7 @@ pub(super) struct CombinedDataProvider {
 
 #[async_trait]
 impl TreeDataProvider for CombinedDataProvider {
+    #[tracing::instrument(skip(self, last_l2_block))]
     async fn batch_details(
         &mut self,
         number: L1BatchNumber,
@@ -340,23 +341,20 @@ impl TreeDataProvider for CombinedDataProvider {
                 Err(err) => {
                     if err.is_transient() {
                         tracing::info!(
-                            number = number.0,
-                            "Transient error calling L1 data provider: {err}"
+                            "Transient error calling L1 data provider: {:#}",
+                            anyhow::Error::from(err)
                         );
                     } else {
                         tracing::warn!(
-                            number = number.0,
-                            "Fatal error calling L1 data provider: {err}"
+                            "Fatal error calling L1 data provider: {:#}",
+                            anyhow::Error::from(err)
                         );
                         self.l1 = None;
                     }
                 }
                 Ok(Ok(root_hash)) => return Ok(Ok(root_hash)),
                 Ok(Err(missing_data)) => {
-                    tracing::debug!(
-                        number = number.0,
-                        "L1 data provider misses batch data: {missing_data}"
-                    );
+                    tracing::info!("L1 data provider misses batch data: {missing_data}");
                     // No sense of calling the L1 provider in the future; the L2 provider will very likely get information
                     // about batches significantly faster.
                     self.l1 = None;
