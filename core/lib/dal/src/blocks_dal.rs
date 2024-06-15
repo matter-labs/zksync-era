@@ -253,7 +253,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         eth_tx_id: u32,
     ) -> DalResult<Vec<L1BatchHeader>> {
-        let storage_l1_batches = sqlx::query_as!(
+        let storage_l1_batch_headers = sqlx::query_as!(
             StorageL1BatchHeader,
             r#"
             SELECT
@@ -284,9 +284,9 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        let mut l1_batch_headers = Vec::with_capacity(storage_l1_batches.len());
+        let mut l1_batch_headers = Vec::with_capacity(storage_l1_batch_headers.len());
 
-        for batch in storage_l1_batches {
+        for batch in storage_l1_batch_headers {
             let l2_to_l1_logs = self.get_l2_to_l1_logs_by_number(batch.number).await?;
             l1_batch_headers.push(batch.into_l1_batch_header_with_logs(l2_to_l1_logs));
         }
@@ -303,7 +303,6 @@ impl BlocksDal<'_, '_> {
                 log_index_in_miniblock,
                 log_index_in_tx,
                 tx_hash,
-                NULL::bytea AS "block_hash",
                 NULL::BIGINT AS "l1_batch_number?",
                 shard_id,
                 is_service,

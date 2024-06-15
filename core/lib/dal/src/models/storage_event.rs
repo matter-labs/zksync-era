@@ -53,7 +53,6 @@ impl From<StorageWeb3Log> for api::Log {
 
 #[derive(sqlx::FromRow, Debug, Clone)]
 pub struct StorageL2ToL1Log {
-    pub block_hash: Option<Vec<u8>>,
     pub miniblock_number: i64,
     pub l1_batch_number: Option<i64>,
     pub log_index_in_miniblock: i32,
@@ -71,7 +70,7 @@ pub struct StorageL2ToL1Log {
 impl From<StorageL2ToL1Log> for api::L2ToL1Log {
     fn from(log: StorageL2ToL1Log) -> api::L2ToL1Log {
         api::L2ToL1Log {
-            block_hash: log.block_hash.map(|hash| H256::from_slice(&hash)),
+            block_hash: None,
             block_number: (log.miniblock_number as u32).into(),
             l1_batch_number: (log.l1_batch_number).map(|n| (n as u32).into()),
             log_index: (log.log_index_in_miniblock as u32).into(),

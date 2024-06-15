@@ -307,7 +307,6 @@ impl EventsDal<'_, '_> {
                 log_index_in_miniblock,
                 log_index_in_tx,
                 tx_hash,
-                NULL::bytea AS "block_hash",
                 NULL::BIGINT AS "l1_batch_number?",
                 shard_id,
                 is_service,
