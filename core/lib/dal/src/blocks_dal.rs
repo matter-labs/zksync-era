@@ -30,7 +30,6 @@ use crate::{
         storage_block::{
             IntoL1BatchHeader, StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader,
         },
-        storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
     },
     Core, CoreDal,
@@ -287,45 +286,15 @@ impl BlocksDal<'_, '_> {
         let mut l1_batch_headers = Vec::with_capacity(storage_l1_batch_headers.len());
 
         for batch in storage_l1_batch_headers {
-            let l2_to_l1_logs = self.get_l2_to_l1_logs_by_number(batch.number).await?;
+            let l2_to_l1_logs = self
+                .storage
+                .blocks_web3_dal()
+                .get_l2_to_l1_logs_by_number::<UserL2ToL1Log>(L1BatchNumber(batch.number as u32))
+                .await?;
             l1_batch_headers.push(batch.into_l1_batch_header_with_logs(l2_to_l1_logs));
         }
 
         Ok(l1_batch_headers)
-    }
-
-    async fn get_l2_to_l1_logs_by_number(&mut self, number: i64) -> DalResult<Vec<UserL2ToL1Log>> {
-        Ok(sqlx::query_as!(
-            StorageL2ToL1Log,
-            r#"
-            SELECT
-                miniblock_number,
-                log_index_in_miniblock,
-                log_index_in_tx,
-                tx_hash,
-                NULL::BIGINT AS "l1_batch_number?",
-                shard_id,
-                is_service,
-                tx_index_in_miniblock,
-                tx_index_in_l1_batch,
-                sender,
-                key,
-                value
-            FROM
-                l2_to_l1_logs
-                JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
-            WHERE
-                l1_batch_number = $1
-            "#,
-            number
-        )
-        .instrument("get_l2_to_l1_logs_by_number")
-        .with_arg("number", &number)
-        .fetch_all(self.storage)
-        .await?
-        .into_iter()
-        .map(|log| UserL2ToL1Log(log.into()))
-        .collect())
     }
 
     async fn get_storage_l1_batch(
@@ -411,7 +380,11 @@ impl BlocksDal<'_, '_> {
 
         if let Some(storage_l1_batch_header) = storage_l1_batch_header {
             let l2_to_l1_logs = self
-                .get_l2_to_l1_logs_by_number(storage_l1_batch_header.number)
+                .storage
+                .blocks_web3_dal()
+                .get_l2_to_l1_logs_by_number::<UserL2ToL1Log>(L1BatchNumber(
+                    storage_l1_batch_header.number as u32,
+                ))
                 .await?;
             return Ok(Some(
                 storage_l1_batch_header.into_l1_batch_header_with_logs(l2_to_l1_logs),
@@ -1770,7 +1743,11 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        let l2_to_l1_logs = self.get_l2_to_l1_logs_by_number(i64::from(*number)).await?;
+        let l2_to_l1_logs = self
+            .storage
+            .blocks_web3_dal()
+            .get_l2_to_l1_logs_by_number::<UserL2ToL1Log>(number)
+            .await?;
         Ok(Some(L1BatchWithOptionalMetadata {
             header: l1_batch
                 .clone()
@@ -1817,8 +1794,13 @@ impl BlocksDal<'_, '_> {
             .await?;
 
         let l2_to_l1_logs = self
-            .get_l2_to_l1_logs_by_number(storage_batch.number)
+            .storage
+            .blocks_web3_dal()
+            .get_l2_to_l1_logs_by_number::<UserL2ToL1Log>(L1BatchNumber(
+                storage_batch.number as u32,
+            ))
             .await?;
+
         let header: L1BatchHeader = storage_batch
             .clone()
             .into_l1_batch_header_with_logs(l2_to_l1_logs);
@@ -2407,11 +2389,7 @@ impl BlocksDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{
-        l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-        tx::IncludedTxLocation,
-        Address, ProtocolVersion, ProtocolVersionId,
-    };
+    use zksync_types::{Address, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
     use crate::{ConnectionPool, Core, CoreDal};
@@ -2421,32 +2399,6 @@ mod tests {
             .save_eth_tx(1, vec![], action_type, Address::default(), 1, None, None)
             .await
             .unwrap();
-    }
-
-    fn mock_l1_batch_header() -> L1BatchHeader {
-        let mut header = L1BatchHeader::new(
-            L1BatchNumber(1),
-            100,
-            BaseSystemContractsHashes {
-                bootloader: H256::repeat_byte(1),
-                default_aa: H256::repeat_byte(42),
-            },
-            ProtocolVersionId::latest(),
-        );
-        header.l1_tx_count = 3;
-        header.l2_tx_count = 5;
-        header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
-            shard_id: 0,
-            is_service: false,
-            tx_number_in_l1_batch: 0,
-            sender: Address::repeat_byte(2),
-            key: H256::repeat_byte(3),
-            value: H256::zero(),
-        }));
-        header.l2_to_l1_messages.push(vec![22; 22]);
-        header.l2_to_l1_messages.push(vec![33; 33]);
-
-        header
     }
 
     #[tokio::test]
@@ -2460,7 +2412,7 @@ mod tests {
             .unwrap();
 
         conn.blocks_dal()
-            .insert_mock_l1_batch(&mock_l1_batch_header())
+            .insert_mock_l1_batch(&create_l1_batch_header())
             .await
             .unwrap();
 

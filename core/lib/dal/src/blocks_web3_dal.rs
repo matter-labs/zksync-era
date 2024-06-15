@@ -5,7 +5,6 @@ use zksync_db_connection::{
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
-    l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::{BlockHeader, Bytes},
     L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H2048, H256, U256, U64,
@@ -403,11 +402,14 @@ impl BlocksWeb3Dal<'_, '_> {
         Ok(hash)
     }
 
-    pub async fn get_l2_to_l1_logs(
+    pub async fn get_l2_to_l1_logs_by_number<L>(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> DalResult<Vec<L2ToL1Log>> {
-        Ok(sqlx::query_as!(
+    ) -> DalResult<Vec<L>>
+    where
+        L: From<StorageL2ToL1Log>,
+    {
+        let results = sqlx::query_as!(
             StorageL2ToL1Log,
             r#"
             SELECT
@@ -434,10 +436,9 @@ impl BlocksWeb3Dal<'_, '_> {
         .instrument("get_l2_to_l1_logs")
         .with_arg("l1_batch_number", &l1_batch_number)
         .fetch_all(self.storage)
-        .await?
-        .into_iter()
-        .map(|log| log.into())
-        .collect())
+        .await?;
+
+        Ok(results.into_iter().map(L::from).collect())
     }
 
     pub async fn get_l1_batch_number_of_l2_block(

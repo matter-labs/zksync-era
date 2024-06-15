@@ -60,7 +60,7 @@ pub struct L1BatchHeader {
 }
 
 /// Holder for the L2 block metadata that is not available from transactions themselves.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct L2BlockHeader {
     pub number: L2BlockNumber,
     pub timestamp: u64,

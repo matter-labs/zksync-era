@@ -1,6 +1,6 @@
 use zksync_types::{
     api::{self},
-    l2_to_l1_log::{self},
+    l2_to_l1_log::{self, UserL2ToL1Log},
     web3::{Bytes, Index},
     Address, H256, U256, U64,
 };
@@ -97,5 +97,11 @@ impl From<StorageL2ToL1Log> for l2_to_l1_log::L2ToL1Log {
             key: H256::from_slice(&log.key),
             value: H256::from_slice(&log.value),
         }
+    }
+}
+
+impl From<StorageL2ToL1Log> for l2_to_l1_log::UserL2ToL1Log {
+    fn from(log: StorageL2ToL1Log) -> l2_to_l1_log::UserL2ToL1Log {
+        UserL2ToL1Log(log.into())
     }
 }
