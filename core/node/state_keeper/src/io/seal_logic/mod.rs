@@ -527,7 +527,7 @@ impl L2BlockSealCommand {
         is_fictive: bool,
     ) -> Vec<(IncludedTxLocation, Vec<&UserL2ToL1Log>)> {
         self.group_by_tx_location(&self.l2_block.user_l2_to_l1_logs, is_fictive, |log| {
-            u32::from(log.0.tx_number_in_block)
+            u32::from(log.0.tx_number_in_l1_batch)
         })
     }
 

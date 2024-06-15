@@ -438,7 +438,7 @@ mod tests {
         let user_l2_to_l1_logs = vec![UserL2ToL1Log(L2ToL1Log {
             shard_id: 0,
             is_service: false,
-            tx_number_in_block: 0,
+            tx_number_in_l1_batch: 0,
             sender: Address::zero(),
             key: H256::zero(),
             value: H256::zero(),

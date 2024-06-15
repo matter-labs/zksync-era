@@ -19,6 +19,7 @@ use crate::{
             ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
             LEGACY_BLOCK_GAS_LIMIT,
         },
+        storage_event::StorageL2ToL1Log,
         storage_transaction::CallTrace,
     },
     Core,
@@ -406,28 +407,38 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<Vec<L2ToL1Log>> {
-        let raw_logs = sqlx::query!(
+        Ok(sqlx::query_as!(
+            StorageL2ToL1Log,
             r#"
             SELECT
-                l2_to_l1_logs
+                miniblock_number,
+                log_index_in_miniblock,
+                log_index_in_tx,
+                tx_hash,
+                NULL::bytea AS "block_hash",
+                NULL::BIGINT AS "l1_batch_number?",
+                shard_id,
+                is_service,
+                tx_index_in_miniblock,
+                tx_index_in_l1_batch,
+                sender,
+                key,
+                value
             FROM
-                l1_batches
+                l2_to_l1_logs
+                JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
             WHERE
-                number = $1
+                l1_batch_number = $1
             "#,
             i64::from(l1_batch_number.0)
         )
         .instrument("get_l2_to_l1_logs")
         .with_arg("l1_batch_number", &l1_batch_number)
-        .fetch_optional(self.storage)
+        .fetch_all(self.storage)
         .await?
-        .map(|row| row.l2_to_l1_logs)
-        .unwrap_or_default();
-
-        Ok(raw_logs
-            .into_iter()
-            .map(|bytes| L2ToL1Log::from_slice(&bytes))
-            .collect())
+        .into_iter()
+        .map(|log| log.into())
+        .collect())
     }
 
     pub async fn get_l1_batch_number_of_l2_block(

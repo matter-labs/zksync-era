@@ -2410,6 +2410,7 @@ mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+        tx::IncludedTxLocation,
         Address, ProtocolVersion, ProtocolVersionId,
     };
 
@@ -2438,7 +2439,7 @@ mod tests {
         header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
             shard_id: 0,
             is_service: false,
-            tx_number_in_block: 2,
+            tx_number_in_l1_batch: 0,
             sender: Address::repeat_byte(2),
             key: H256::repeat_byte(3),
             value: H256::zero(),
@@ -2538,25 +2539,88 @@ mod tests {
             .await
             .unwrap();
 
-        let header = mock_l1_batch_header();
+        let l2_to_l1_logs = UserL2ToL1Log(L2ToL1Log {
+            shard_id: 0,
+            is_service: false,
+            tx_number_in_l1_batch: 0,
+            sender: Address::repeat_byte(2),
+            key: H256::repeat_byte(3),
+            value: H256::zero(),
+        });
+
+        let number = L1BatchNumber(1);
+
+        let mut l1_batch_header = L1BatchHeader::new(
+            number,
+            100,
+            BaseSystemContractsHashes {
+                bootloader: H256::repeat_byte(1),
+                default_aa: H256::repeat_byte(42),
+            },
+            ProtocolVersionId::latest(),
+        );
+
+        l1_batch_header.l1_tx_count = 3;
+        l1_batch_header.l2_tx_count = 5;
+        l1_batch_header.l2_to_l1_logs.push(l2_to_l1_logs);
+        l1_batch_header.l2_to_l1_messages.push(vec![22; 22]);
+        l1_batch_header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_mock_l1_batch(&header)
+            .insert_mock_l1_batch(&l1_batch_header)
+            .await
+            .unwrap();
+
+        let l2_block_header = L2BlockHeader {
+            number: L2BlockNumber(1),
+            ..Default::default()
+        };
+        conn.blocks_dal()
+            .insert_l2_block(&l2_block_header)
+            .await
+            .unwrap();
+
+        conn.blocks_dal()
+            .mark_l2_blocks_as_executed_in_l1_batch(number)
+            .await
+            .unwrap();
+
+        let first_location = IncludedTxLocation {
+            tx_hash: H256([1; 32]),
+            tx_index_in_l2_block: 0,
+            tx_initiator_address: Address::repeat_byte(2),
+        };
+        let first_logs = vec![UserL2ToL1Log(L2ToL1Log {
+            shard_id: 0,
+            is_service: false,
+            tx_number_in_l1_batch: 0,
+            sender: Address::repeat_byte(2),
+            key: H256::repeat_byte(3),
+            value: H256::zero(),
+        })];
+
+        let all_logs = vec![(first_location, first_logs.iter().collect())];
+        conn.events_dal()
+            .save_user_l2_to_l1_logs(L2BlockNumber(1), &all_logs)
             .await
             .unwrap();
 
         let loaded_header = conn
             .blocks_dal()
-            .get_l1_batch_header(L1BatchNumber(1))
+            .get_l1_batch_header(number)
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(loaded_header.number, header.number);
-        assert_eq!(loaded_header.timestamp, header.timestamp);
-        assert_eq!(loaded_header.l1_tx_count, header.l1_tx_count);
-        assert_eq!(loaded_header.l2_tx_count, header.l2_tx_count);
-        assert_eq!(loaded_header.l2_to_l1_logs, header.l2_to_l1_logs);
-        assert_eq!(loaded_header.l2_to_l1_messages, header.l2_to_l1_messages);
+
+        assert_eq!(loaded_header.number, l1_batch_header.number);
+        assert_eq!(loaded_header.timestamp, l1_batch_header.timestamp);
+        assert_eq!(loaded_header.l1_tx_count, l1_batch_header.l1_tx_count);
+        assert_eq!(loaded_header.l2_tx_count, l1_batch_header.l2_tx_count);
+        assert_eq!(loaded_header.l2_to_l1_logs, l1_batch_header.l2_to_l1_logs);
+        assert_eq!(
+            loaded_header.l2_to_l1_messages,
+            l1_batch_header.l2_to_l1_messages
+        );
 
         assert!(conn
             .blocks_dal()

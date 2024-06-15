@@ -155,7 +155,7 @@ impl EventsDal<'_, '_> {
                 let L2ToL1Log {
                     shard_id,
                     is_service,
-                    tx_number_in_block,
+                    tx_number_in_l1_batch: tx_number_in_block,
                     sender,
                     key,
                     value,
@@ -502,7 +502,7 @@ mod tests {
         UserL2ToL1Log(L2ToL1Log {
             shard_id: 0,
             is_service: false,
-            tx_number_in_block,
+            tx_number_in_l1_batch: tx_number_in_block,
             sender: Address::repeat_byte(index),
             key: H256::from_low_u64_be(u64::from(index)),
             value: H256::repeat_byte(index),

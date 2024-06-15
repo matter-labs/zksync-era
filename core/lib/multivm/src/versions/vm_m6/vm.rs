@@ -146,7 +146,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 UserL2ToL1Log(L2ToL1Log {
                     shard_id: m.shard_id,
                     is_service: m.is_first,
-                    tx_number_in_block: m.tx_number_in_block,
+                    tx_number_in_l1_batch: m.tx_number_in_block,
                     sender: m.address,
                     key: u256_to_h256(m.key),
                     value: u256_to_h256(m.value),

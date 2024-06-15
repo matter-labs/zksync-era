@@ -75,7 +75,7 @@ fn mock_l1_batch_header(number: u32) -> L1BatchHeader {
     header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
         shard_id: 0,
         is_service: false,
-        tx_number_in_block: 2,
+        tx_number_in_l1_batch: 2,
         sender: Address::repeat_byte(2),
         key: H256::repeat_byte(3),
         value: H256::zero(),
