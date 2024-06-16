@@ -2541,7 +2541,7 @@ mod tests {
             tx_index_in_l2_block: 0,
             tx_initiator_address: Address::repeat_byte(2),
         };
-        let first_logs = vec![create_l2_to_l1_log(0, 0)];
+        let first_logs = [create_l2_to_l1_log(0, 0)];
 
         let all_logs = vec![(first_location, first_logs.iter().collect())];
         conn.events_dal()
