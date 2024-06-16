@@ -8496,7 +8496,6 @@ dependencies = [
  "zksync_basic_types",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
- "zksync_system_constants",
 ]
 
 [[package]]
