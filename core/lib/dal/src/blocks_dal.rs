@@ -2389,10 +2389,13 @@ impl BlocksDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{Address, ProtocolVersion, ProtocolVersionId};
+    use zksync_types::{tx::IncludedTxLocation, Address, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::{ConnectionPool, Core, CoreDal};
+    use crate::{
+        tests::{create_l2_block_header, create_l2_to_l1_log, mock_l1_batch_header},
+        ConnectionPool, Core, CoreDal,
+    };
 
     async fn save_mock_eth_tx(action_type: AggregatedActionType, conn: &mut Connection<'_, Core>) {
         conn.eth_sender_dal()
@@ -2411,8 +2414,10 @@ mod tests {
             .await
             .unwrap();
 
+        let l1_batch_header = mock_l1_batch_header();
+
         conn.blocks_dal()
-            .insert_mock_l1_batch(&create_l1_batch_header())
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
 
@@ -2485,19 +2490,13 @@ mod tests {
     async fn loading_l1_batch_header() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
+
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
 
-        let l2_to_l1_logs = UserL2ToL1Log(L2ToL1Log {
-            shard_id: 0,
-            is_service: false,
-            tx_number_in_l1_batch: 0,
-            sender: Address::repeat_byte(2),
-            key: H256::repeat_byte(3),
-            value: H256::zero(),
-        });
+        let l2_to_l1_logs = create_l2_to_l1_log(0, 2);
 
         let number = L1BatchNumber(1);
 
@@ -2522,10 +2521,8 @@ mod tests {
             .await
             .unwrap();
 
-        let l2_block_header = L2BlockHeader {
-            number: L2BlockNumber(1),
-            ..Default::default()
-        };
+        let l2_block_header = create_l2_block_header(1);
+
         conn.blocks_dal()
             .insert_l2_block(&l2_block_header)
             .await
@@ -2541,14 +2538,7 @@ mod tests {
             tx_index_in_l2_block: 0,
             tx_initiator_address: Address::repeat_byte(2),
         };
-        let first_logs = vec![UserL2ToL1Log(L2ToL1Log {
-            shard_id: 0,
-            is_service: false,
-            tx_number_in_l1_batch: 0,
-            sender: Address::repeat_byte(2),
-            key: H256::repeat_byte(3),
-            value: H256::zero(),
-        })];
+        let first_logs = vec![create_l2_to_l1_log(0, 2)];
 
         let all_logs = vec![(first_location, first_logs.iter().collect())];
         conn.events_dal()

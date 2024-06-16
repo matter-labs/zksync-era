@@ -11,7 +11,7 @@ use crate::{
 pub struct L2ToL1Log {
     pub shard_id: u8,
     pub is_service: bool,
-    pub tx_number_in_l1_batch: u16,
+    pub tx_index_in_l1_batch: u16,
     pub sender: Address,
     pub key: H256,
     pub value: H256,
@@ -34,7 +34,7 @@ impl L2ToL1Log {
         Self {
             shard_id: data[0],
             is_service: data[1] != 0,
-            tx_number_in_l1_batch: u16::from_be_bytes([data[2], data[3]]),
+            tx_index_in_l1_batch: u16::from_be_bytes([data[2], data[3]]),
             sender: Address::from_slice(&data[4..24]),
             key: H256::from_slice(&data[24..56]),
             value: H256::from_slice(&data[56..88]),
@@ -52,7 +52,7 @@ impl L2ToL1Log {
         let mut res = vec![];
         res.extend_from_slice(&self.shard_id.to_be_bytes());
         res.extend_from_slice(&(self.is_service as u8).to_be_bytes());
-        res.extend_from_slice(&self.tx_number_in_l1_batch.to_be_bytes());
+        res.extend_from_slice(&self.tx_index_in_l1_batch.to_be_bytes());
         res.extend_from_slice(self.sender.as_bytes());
         res.extend(self.key.as_bytes());
         res.extend(self.value.as_bytes());
@@ -128,7 +128,7 @@ mod tests {
         let log = L2ToL1Log {
             shard_id: 0u8,
             is_service: false,
-            tx_number_in_l1_batch: 6u16,
+            tx_index_in_l1_batch: 6u16,
             sender: L1_MESSENGER_ADDRESS,
             key: u256_to_h256(U256::from(11)),
             value: u256_to_h256(U256::from(19)),

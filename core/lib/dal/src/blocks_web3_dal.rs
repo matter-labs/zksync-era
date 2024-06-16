@@ -417,7 +417,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 log_index_in_miniblock,
                 log_index_in_tx,
                 tx_hash,
-                NULL::BIGINT AS "l1_batch_number?",
+                l1_batch_number,
                 shard_id,
                 is_service,
                 tx_index_in_miniblock,

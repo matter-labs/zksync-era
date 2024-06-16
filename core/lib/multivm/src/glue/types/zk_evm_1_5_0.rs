@@ -81,7 +81,7 @@ impl GlueFrom<zk_evm_1_5_0::reference_impls::event_sink::EventMessage>
         Self {
             shard_id: event.shard_id,
             is_service: event.is_first,
-            tx_number_in_l1_batch: event.tx_number_in_block,
+            tx_index_in_l1_batch: event.tx_number_in_block,
             sender: event.address,
             key: u256_to_h256(event.key),
             value: u256_to_h256(event.value),
