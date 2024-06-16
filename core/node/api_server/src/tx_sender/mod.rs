@@ -531,9 +531,9 @@ impl TxSender {
             );
             return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
         }
-        if tx.execute.factory_deps_length() > MAX_NEW_FACTORY_DEPS {
+        if tx.execute.factory_deps.len() > MAX_NEW_FACTORY_DEPS {
             return Err(SubmitTxError::TooManyFactoryDependencies(
-                tx.execute.factory_deps_length(),
+                tx.execute.factory_deps.len(),
                 MAX_NEW_FACTORY_DEPS,
             ));
         }

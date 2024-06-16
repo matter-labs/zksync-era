@@ -2,7 +2,7 @@
 
 Now that we know how to bridge tokens back and forth, let's talk about running things on zkSync.
 
-We have a bunch of great tutorials (like this one <https://era.zksync.io/docs/api/hardhat/getting-started.html>) that
+We have a bunch of great tutorials (like this one <https://docs.zksync.io/build/tooling/hardhat/getting-started>) that
 you can follow to get the exact code & command line calls to create the contracts - so in this article, let's focus on
 how things differ between zkSync and Ethereum.
 
