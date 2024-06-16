@@ -433,7 +433,7 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .instrument("get_l2_to_l1_logs")
+        .instrument("get_l2_to_l1_logs_by_number")
         .with_arg("l1_batch_number", &l1_batch_number)
         .fetch_all(self.storage)
         .await?;
