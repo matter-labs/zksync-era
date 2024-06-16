@@ -1,15 +1,16 @@
 use std::sync::Arc;
-
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
+use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
     helpers::unix_timestamp_ms,
+    l1::L1Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataDA,
     L1BatchNumber, ProtocolVersionId,
@@ -38,6 +39,7 @@ pub struct Aggregator {
     operate_4844_mode: bool,
     pubdata_da: PubdataDA,
     commitment_mode: L1BatchCommitmentMode,
+    priority_merkle_tree: SyncMerkleTree<L1Tx>,
 }
 
 impl Aggregator {
@@ -46,6 +48,7 @@ impl Aggregator {
         blob_store: Arc<dyn ObjectStore>,
         operate_4844_mode: bool,
         commitment_mode: L1BatchCommitmentMode,
+        priority_merkle_tree: SyncMerkleTree<L1Tx>,
     ) -> Self {
         let pubdata_da = config.pubdata_sending_mode.into();
 
@@ -109,6 +112,7 @@ impl Aggregator {
             operate_4844_mode,
             pubdata_da,
             commitment_mode,
+            priority_merkle_tree,
         }
     }
 
@@ -182,7 +186,30 @@ impl Aggregator {
         )
         .await;
 
-        l1_batches.map(|l1_batches| ExecuteBatches { l1_batches })
+        l1_batches.map(|l1_batches| {
+            let priority_ops_proofs = l1_batches
+                .iter()
+                .map(|batch| {
+                    let count = batch.header.l1_tx_count as usize;
+                    let (_, left, right) = self
+                        .priority_merkle_tree
+                        .merkle_root_and_paths_for_range(count);
+                    let hashes = self.priority_merkle_tree.hashes_prefix(count);
+                    self.priority_merkle_tree.trim_start(count); // TODO: trim only after tx
+                                                                 // succeeds?
+                    PriorityOpsMerkleProof {
+                        // TODO: are zero hashes fine?
+                        left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
+                        right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
+                        hashes,
+                    }
+                })
+                .collect::<Vec<_>>();
+            ExecuteBatches {
+                l1_batches,
+                priority_ops_proofs,
+            }
+        })
     }
 
     async fn get_commit_operation(

@@ -42,6 +42,7 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
             metadata: default_l1_batch_metadata(),
             raw_published_factory_deps: Vec::new(),
         }],
+        priority_ops_proofs: Vec::new(),
     })
 });
 
@@ -52,6 +53,7 @@ fn get_dummy_operation(number: u32) -> AggregatedOperation {
             metadata: default_l1_batch_metadata(),
             raw_published_factory_deps: Vec::new(),
         }],
+        priority_ops_proofs: Vec::new(),
     })
 }
 
