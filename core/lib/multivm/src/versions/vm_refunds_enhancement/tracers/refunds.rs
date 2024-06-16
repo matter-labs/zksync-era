@@ -322,7 +322,7 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
         .map(|log| L2ToL1Log {
             shard_id: log.shard_id,
             is_service: log.is_first,
-            tx_index_in_l1_batch: log.tx_number_in_block,
+            tx_number_in_block: log.tx_number_in_block,
             sender: log.address,
             key: u256_to_h256(log.key),
             value: u256_to_h256(log.value),

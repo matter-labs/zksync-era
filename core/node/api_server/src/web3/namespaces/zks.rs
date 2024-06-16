@@ -329,7 +329,7 @@ impl ZksNamespace {
                 &mut storage,
                 l1_batch_number,
                 index.unwrap_or(0),
-                |log| log.tx_index_in_l1_batch == l1_batch_tx_index,
+                |log| log.tx_number_in_block == l1_batch_tx_index,
             )
             .await?;
         Ok(log_proof)

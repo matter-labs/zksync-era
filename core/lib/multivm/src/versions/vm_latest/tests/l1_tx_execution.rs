@@ -56,7 +56,7 @@ fn test_l1_tx_execution() {
     let required_l2_to_l1_logs: Vec<_> = vec![L2ToL1Log {
         shard_id: 0,
         is_service: true,
-        tx_index_in_l1_batch: 0,
+        tx_number_in_block: 0,
         sender: BOOTLOADER_ADDRESS,
         key: tx_data.tx_hash(0.into()),
         value: u256_to_h256(U256::from(1u32)),

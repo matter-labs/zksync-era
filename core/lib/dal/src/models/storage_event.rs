@@ -92,7 +92,7 @@ impl From<StorageL2ToL1Log> for l2_to_l1_log::L2ToL1Log {
         l2_to_l1_log::L2ToL1Log {
             shard_id: (log.shard_id as u32).try_into().unwrap(),
             is_service: log.is_service,
-            tx_index_in_l1_batch: (log.tx_index_in_l1_batch as u32).try_into().unwrap(),
+            tx_number_in_block: (log.tx_index_in_l1_batch as u32).try_into().unwrap(),
             sender: Address::from_slice(&log.sender),
             key: H256::from_slice(&log.key),
             value: H256::from_slice(&log.value),

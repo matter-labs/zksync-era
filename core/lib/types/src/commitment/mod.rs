@@ -209,7 +209,7 @@ impl SerializeCommitment for L2ToL1Log {
     fn serialize_commitment(&self, buffer: &mut [u8]) {
         buffer[0] = self.shard_id;
         buffer[1] = self.is_service as u8;
-        buffer[2..4].copy_from_slice(&self.tx_index_in_l1_batch.to_be_bytes());
+        buffer[2..4].copy_from_slice(&self.tx_number_in_block.to_be_bytes());
         buffer[4..24].copy_from_slice(self.sender.as_bytes());
         buffer[24..56].copy_from_slice(self.key.as_bytes());
         buffer[56..88].copy_from_slice(self.value.as_bytes());

@@ -123,7 +123,7 @@ impl From<L1MessengerL2ToL1Log> for L2ToL1Log {
         L2ToL1Log {
             shard_id: log.l2_shard_id,
             is_service: log.is_service,
-            tx_index_in_l1_batch: log.tx_number_in_block,
+            tx_number_in_block: log.tx_number_in_block,
             sender: log.sender,
             key: u256_to_h256(log.key),
             value: u256_to_h256(log.value),

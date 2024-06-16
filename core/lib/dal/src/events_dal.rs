@@ -155,7 +155,7 @@ impl EventsDal<'_, '_> {
                 let L2ToL1Log {
                     shard_id,
                     is_service,
-                    tx_index_in_l1_batch,
+                    tx_number_in_block: tx_index_in_l1_batch,
                     sender,
                     key,
                     value,

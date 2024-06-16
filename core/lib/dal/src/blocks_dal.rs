@@ -2426,7 +2426,7 @@ mod tests {
 
     async fn insert_mock_l1_batch_header(conn: &mut Connection<'_, Core>, header: &L1BatchHeader) {
         conn.blocks_dal()
-            .insert_mock_l1_batch(&header)
+            .insert_mock_l1_batch(header)
             .await
             .unwrap();
     }
