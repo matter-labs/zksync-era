@@ -155,7 +155,7 @@ impl EventsDal<'_, '_> {
                 let L2ToL1Log {
                     shard_id,
                     is_service,
-                    tx_number_in_block: tx_index_in_l1_batch,
+                    tx_number_in_block,
                     sender,
                     key,
                     value,
@@ -167,7 +167,7 @@ impl EventsDal<'_, '_> {
                 );
                 write_str!(
                     &mut buffer,
-                    r"{tx_index_in_l2_block}|{tx_index_in_l1_batch}|{shard_id}|{is_service}|"
+                    r"{tx_index_in_l2_block}|{tx_number_in_block}|{shard_id}|{is_service}|"
                 );
                 writeln_str!(
                     &mut buffer,
