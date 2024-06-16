@@ -2393,13 +2393,40 @@ mod tests {
 
     use super::*;
     use crate::{
-        tests::{create_l2_block_header, create_l2_to_l1_log, mock_l1_batch_header},
+        tests::{create_l2_block_header, create_l2_to_l1_log},
         ConnectionPool, Core, CoreDal,
     };
 
     async fn save_mock_eth_tx(action_type: AggregatedActionType, conn: &mut Connection<'_, Core>) {
         conn.eth_sender_dal()
             .save_eth_tx(1, vec![], action_type, Address::default(), 1, None, None)
+            .await
+            .unwrap();
+    }
+
+    fn mock_l1_batch_header() -> L1BatchHeader {
+        let mut header = L1BatchHeader::new(
+            L1BatchNumber(1),
+            100,
+            BaseSystemContractsHashes {
+                bootloader: H256::repeat_byte(1),
+                default_aa: H256::repeat_byte(42),
+            },
+            ProtocolVersionId::latest(),
+        );
+
+        header.l1_tx_count = 3;
+        header.l2_tx_count = 5;
+        header.l2_to_l1_logs.push(create_l2_to_l1_log(0, 0));
+        header.l2_to_l1_messages.push(vec![22; 22]);
+        header.l2_to_l1_messages.push(vec![33; 33]);
+
+        header
+    }
+
+    async fn insert_mock_l1_batch_header(conn: &mut Connection<'_, Core>, header: &L1BatchHeader) {
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&header)
             .await
             .unwrap();
     }
@@ -2414,12 +2441,9 @@ mod tests {
             .await
             .unwrap();
 
-        let l1_batch_header = mock_l1_batch_header();
+        let header = mock_l1_batch_header();
 
-        conn.blocks_dal()
-            .insert_mock_l1_batch(&l1_batch_header)
-            .await
-            .unwrap();
+        insert_mock_l1_batch_header(&mut conn, &header).await;
 
         save_mock_eth_tx(AggregatedActionType::Commit, &mut conn).await;
         save_mock_eth_tx(AggregatedActionType::PublishProofOnchain, &mut conn).await;
@@ -2496,30 +2520,9 @@ mod tests {
             .await
             .unwrap();
 
-        let l2_to_l1_logs = create_l2_to_l1_log(0, 2);
+        let header = mock_l1_batch_header();
 
-        let number = L1BatchNumber(1);
-
-        let mut l1_batch_header = L1BatchHeader::new(
-            number,
-            100,
-            BaseSystemContractsHashes {
-                bootloader: H256::repeat_byte(1),
-                default_aa: H256::repeat_byte(42),
-            },
-            ProtocolVersionId::latest(),
-        );
-
-        l1_batch_header.l1_tx_count = 3;
-        l1_batch_header.l2_tx_count = 5;
-        l1_batch_header.l2_to_l1_logs.push(l2_to_l1_logs);
-        l1_batch_header.l2_to_l1_messages.push(vec![22; 22]);
-        l1_batch_header.l2_to_l1_messages.push(vec![33; 33]);
-
-        conn.blocks_dal()
-            .insert_mock_l1_batch(&l1_batch_header)
-            .await
-            .unwrap();
+        insert_mock_l1_batch_header(&mut conn, &header).await;
 
         let l2_block_header = create_l2_block_header(1);
 
@@ -2529,7 +2532,7 @@ mod tests {
             .unwrap();
 
         conn.blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(number)
+            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(1))
             .await
             .unwrap();
 
@@ -2538,7 +2541,7 @@ mod tests {
             tx_index_in_l2_block: 0,
             tx_initiator_address: Address::repeat_byte(2),
         };
-        let first_logs = vec![create_l2_to_l1_log(0, 2)];
+        let first_logs = vec![create_l2_to_l1_log(0, 0)];
 
         let all_logs = vec![(first_location, first_logs.iter().collect())];
         conn.events_dal()
@@ -2548,20 +2551,17 @@ mod tests {
 
         let loaded_header = conn
             .blocks_dal()
-            .get_l1_batch_header(number)
+            .get_l1_batch_header(L1BatchNumber(1))
             .await
             .unwrap()
             .unwrap();
 
-        assert_eq!(loaded_header.number, l1_batch_header.number);
-        assert_eq!(loaded_header.timestamp, l1_batch_header.timestamp);
-        assert_eq!(loaded_header.l1_tx_count, l1_batch_header.l1_tx_count);
-        assert_eq!(loaded_header.l2_tx_count, l1_batch_header.l2_tx_count);
-        assert_eq!(loaded_header.l2_to_l1_logs, l1_batch_header.l2_to_l1_logs);
-        assert_eq!(
-            loaded_header.l2_to_l1_messages,
-            l1_batch_header.l2_to_l1_messages
-        );
+        assert_eq!(loaded_header.number, header.number);
+        assert_eq!(loaded_header.timestamp, header.timestamp);
+        assert_eq!(loaded_header.l1_tx_count, header.l1_tx_count);
+        assert_eq!(loaded_header.l2_tx_count, header.l2_tx_count);
+        assert_eq!(loaded_header.l2_to_l1_logs, header.l2_to_l1_logs);
+        assert_eq!(loaded_header.l2_to_l1_messages, header.l2_to_l1_messages);
 
         assert!(conn
             .blocks_dal()

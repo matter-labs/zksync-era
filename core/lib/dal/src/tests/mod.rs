@@ -3,7 +3,7 @@ use std::time::Duration;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
-    block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
+    block::{L2BlockHasher, L2BlockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
@@ -49,25 +49,6 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         virtual_blocks: 1,
         gas_limit: 0,
     }
-}
-
-pub(crate) fn mock_l1_batch_header() -> L1BatchHeader {
-    let mut header = L1BatchHeader::new(
-        L1BatchNumber(1),
-        100,
-        BaseSystemContractsHashes {
-            bootloader: H256::repeat_byte(1),
-            default_aa: H256::repeat_byte(42),
-        },
-        ProtocolVersionId::latest(),
-    );
-    header.l1_tx_count = 3;
-    header.l2_tx_count = 5;
-    header.l2_to_l1_logs.push(create_l2_to_l1_log(2, 2));
-    header.l2_to_l1_messages.push(vec![22; 22]);
-    header.l2_to_l1_messages.push(vec![33; 33]);
-
-    header
 }
 
 pub(crate) fn mock_l2_transaction() -> L2Tx {
