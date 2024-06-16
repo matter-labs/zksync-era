@@ -4,13 +4,16 @@
 use anyhow::Context;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{
-    configs::{consensus::ConsensusConfig, wallets::Wallets, GeneralConfig, Secrets},
+    configs::{
+        consensus::ConsensusConfig, eth_sender::PubdataSendingMode, wallets::Wallets,
+        GeneralConfig, Secrets,
+    },
     ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
 use zksync_default_da_clients::{
     no_da::wiring_layer::NoDAClientWiringLayer,
-    object_store::{config::ObjectStoreDAConfig, wiring_layer::ObjectStorageClientWiringLayer},
+    object_store::{config::DAObjectStoreConfig, wiring_layer::ObjectStorageClientWiringLayer},
 };
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
@@ -410,14 +413,21 @@ impl MainNodeBuilder {
 
     #[allow(dead_code)]
     fn add_object_storage_da_client_layer(mut self) -> anyhow::Result<Self> {
-        let object_store_config = ObjectStoreDAConfig::from_env()?;
-        self.node.add_layer(ObjectStorageClientWiringLayer::new(
-            object_store_config.config,
-        ));
+        let object_store_config = DAObjectStoreConfig::from_env()?;
+        self.node
+            .add_layer(ObjectStorageClientWiringLayer::new(object_store_config.0));
         Ok(self)
     }
 
     fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
+        let eth_sender_config = try_load_config!(self.configs.eth);
+        if let Some(sender_config) = eth_sender_config.sender {
+            if sender_config.pubdata_sending_mode != PubdataSendingMode::Custom {
+                tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA dispatcher will not be started.");
+                return Ok(self);
+            }
+        }
+
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let da_config = try_load_config!(self.configs.da_dispatcher_config);
         self.node.add_layer(DataAvailabilityDispatcherLayer::new(

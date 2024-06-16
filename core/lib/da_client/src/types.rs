@@ -17,11 +17,12 @@ impl DAError {
 
 impl Display for DAError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "DAError: {}, is_transient: {}",
-            self.error, self.is_transient
-        )
+        let kind = if self.is_transient {
+            "transient"
+        } else {
+            "fatal"
+        };
+        write!(f, "{kind} data availability client error: {}", self.error)
     }
 }
 

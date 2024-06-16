@@ -32,7 +32,6 @@ impl DataAvailabilityDispatcher {
     }
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let pool = self.pool.clone();
         loop {
             if *stop_receiver.borrow() {
                 break;
@@ -45,7 +44,7 @@ impl DataAvailabilityDispatcher {
                     }
                 },
                 async {
-                    if let Err(err) = self.poll_for_inclusion(&pool).await {
+                    if let Err(err) = self.poll_for_inclusion().await {
                         tracing::error!("poll_for_inclusion error {err:?}");
                     }
                 }
@@ -116,8 +115,8 @@ impl DataAvailabilityDispatcher {
     }
 
     /// Polls the data availability layer for inclusion data, and saves it in the database.
-    async fn poll_for_inclusion(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
-        let mut conn = pool.connection_tagged("da_dispatcher").await?;
+    async fn poll_for_inclusion(&self) -> anyhow::Result<()> {
+        let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
         let blob_info = conn
             .data_availability_dal()
             .get_first_da_blob_awaiting_inclusion()
@@ -127,7 +126,7 @@ impl DataAvailabilityDispatcher {
         if let Some(blob_info) = blob_info {
             let inclusion_data = self
                 .client
-                .get_inclusion_data(blob_info.blob_id.clone())
+                .get_inclusion_data(blob_info.blob_id.as_str())
                 .await
                 .with_context(|| {
                     format!(
@@ -136,7 +135,7 @@ impl DataAvailabilityDispatcher {
                     )
                 })?;
 
-            let mut conn = pool.connection_tagged("da_dispatcher").await?;
+            let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
             if let Some(inclusion_data) = inclusion_data {
                 conn.data_availability_dal()
                     .save_l1_batch_inclusion_data(

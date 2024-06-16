@@ -767,7 +767,7 @@ pub async fn initialize_components(
                 .clone()
                 .context("da_dispatcher_config")?;
             let da_dispatcher_pool =
-                ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
+                ConnectionPool::<Core>::builder(database_secrets.master_url()?, 2)
                     .build()
                     .await
                     .context("failed to build da_dispatcher_pool")?;

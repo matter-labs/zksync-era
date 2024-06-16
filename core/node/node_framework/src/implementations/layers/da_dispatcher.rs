@@ -37,7 +37,7 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let master_pool = master_pool_resource.get().await?;
+        let master_pool = master_pool_resource.get_custom(2).await?;
         let da_client = context.get_resource::<DAClientResource>().await?.0;
 
         if let Some(limit) = da_client.blob_size_limit() {

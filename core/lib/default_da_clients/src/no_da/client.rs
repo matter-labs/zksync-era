@@ -14,7 +14,7 @@ impl DataAvailabilityClient for NoDAClient {
         Ok(DispatchResponse::default())
     }
 
-    async fn get_inclusion_data(&self, _: String) -> Result<Option<InclusionData>, DAError> {
+    async fn get_inclusion_data(&self, _: &str) -> Result<Option<InclusionData>, DAError> {
         return Ok(Some(InclusionData::default()));
     }
 
