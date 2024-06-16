@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use ethabi::Token;
 use zksync_eth_signer::{EthereumSigner, TransactionParameters};
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
@@ -68,7 +66,7 @@ async fn test_require_eip712() {
             contract_address: account_abstraction.address,
             calldata: encoded_input,
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -104,7 +102,7 @@ async fn test_require_eip712() {
     l2_tx.set_input(aa_tx, hash);
     // Pretend that operator is malicious and sets the initiator to the AA account.
     l2_tx.common_data.initiator_address = account_abstraction.address;
-    let transaction: Transaction = l2_tx.try_into().unwrap();
+    let transaction: Transaction = l2_tx.into();
 
     vm.vm.push_transaction(transaction);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
@@ -133,11 +131,12 @@ async fn test_require_eip712() {
         },
         account_abstraction.address,
         U256::from(28374938),
-        None,
+        vec![],
         Default::default(),
     );
 
-    let transaction_request: TransactionRequest = tx_712.into();
+    let mut transaction_request: TransactionRequest = tx_712.into();
+    transaction_request.chain_id = Some(chain_id.into());
 
     let domain = Eip712Domain::new(L2ChainId::from(chain_id));
     let signature = private_account
@@ -145,7 +144,7 @@ async fn test_require_eip712() {
         .sign_typed_data(&domain, &transaction_request)
         .await
         .unwrap();
-    let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId::from(chain_id));
+    let encoded_tx = transaction_request.get_signed_bytes(&signature).unwrap();
 
     let (aa_txn_request, aa_hash) =
         TransactionRequest::from_bytes(&encoded_tx, L2ChainId::from(chain_id)).unwrap();
@@ -153,7 +152,7 @@ async fn test_require_eip712() {
     let mut l2_tx = L2Tx::from_request(aa_txn_request, 100000).unwrap();
     l2_tx.set_input(encoded_tx, aa_hash);
 
-    let transaction: Transaction = l2_tx.try_into().unwrap();
+    let transaction: Transaction = l2_tx.into();
     vm.vm.push_transaction(transaction);
     vm.vm.execute(VmExecutionMode::OneTx);
 

@@ -11,14 +11,16 @@ pub struct VmRunnerDal<'c, 'a> {
 impl VmRunnerDal<'_, '_> {
     pub async fn get_protective_reads_latest_processed_batch(
         &mut self,
+        default_batch: L1BatchNumber,
     ) -> DalResult<L1BatchNumber> {
         let row = sqlx::query!(
             r#"
             SELECT
-                COALESCE(MAX(l1_batch_number), 0) AS "last_processed_l1_batch!"
+                COALESCE(MAX(l1_batch_number), $1) AS "last_processed_l1_batch!"
             FROM
                 vm_runner_protective_reads
-            "#
+            "#,
+            default_batch.0 as i32
         )
         .instrument("get_protective_reads_latest_processed_batch")
         .report_latency()
@@ -29,6 +31,7 @@ impl VmRunnerDal<'_, '_> {
 
     pub async fn get_protective_reads_last_ready_batch(
         &mut self,
+        default_batch: L1BatchNumber,
         window_size: u32,
     ) -> DalResult<L1BatchNumber> {
         let row = sqlx::query!(
@@ -42,7 +45,7 @@ impl VmRunnerDal<'_, '_> {
                 ),
                 processed_batches AS (
                     SELECT
-                        COALESCE(MAX(l1_batch_number), 0) + $1 AS "last_ready_batch"
+                        COALESCE(MAX(l1_batch_number), $1) + $2 AS "last_ready_batch"
                     FROM
                         vm_runner_protective_reads
                 )
@@ -52,6 +55,7 @@ impl VmRunnerDal<'_, '_> {
                 available_batches
                 FULL JOIN processed_batches ON TRUE
             "#,
+            default_batch.0 as i32,
             window_size as i32
         )
         .instrument("get_protective_reads_last_ready_batch")

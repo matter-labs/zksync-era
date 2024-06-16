@@ -38,7 +38,7 @@ use zkevm_test_harness::{
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     get_current_pod_name,
     keys::{ClosedFormInputKey, FriCircuitKey},
@@ -79,15 +79,15 @@ pub struct RecursionTipWitnessGenerator {
 }
 
 impl RecursionTipWitnessGenerator {
-    pub async fn new(
+    pub fn new(
         config: FriWitnessGeneratorConfig,
-        store_factory: &ObjectStoreFactory,
+        object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             config,
-            object_store: store_factory.create_store().await,
+            object_store,
             prover_connection_pool,
             protocol_version,
         }
@@ -143,7 +143,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
         let mut prover_connection = self.prover_connection_pool.connection().await?;
         let pod_name = get_current_pod_name();
-        let Some(l1_batch_number) = prover_connection
+        let Some((l1_batch_number, number_of_final_node_jobs)) = prover_connection
             .fri_witness_generator_dal()
             .get_next_recursion_tip_witness_job(self.protocol_version, &pod_name)
             .await
@@ -155,6 +155,13 @@ impl JobProcessor for RecursionTipWitnessGenerator {
             .fri_prover_jobs_dal()
             .get_final_node_proof_job_ids_for(l1_batch_number)
             .await;
+
+        assert_eq!(
+            final_node_proof_job_ids.len(),
+            number_of_final_node_jobs as usize,
+            "recursion tip witness job was scheduled without all final node jobs being completed; expected {}, got {}", 
+            number_of_final_node_jobs, final_node_proof_job_ids.len()
+        );
 
         Ok(Some((
             l1_batch_number,

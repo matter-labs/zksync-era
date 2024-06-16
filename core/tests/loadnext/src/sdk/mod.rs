@@ -1,7 +1,6 @@
-pub use zksync_types::{self, ethabi, network::Network, web3};
+pub use zksync_types::{self, ethabi, web3};
 pub use zksync_web3_decl::{
-    jsonrpsee::http_client::*,
-    namespaces::{EthNamespaceClient, NetNamespaceClient, Web3NamespaceClient, ZksNamespaceClient},
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types,
 };
 

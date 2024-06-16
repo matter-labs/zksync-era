@@ -123,7 +123,14 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
         number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>>;
 
-    async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>>;
+    async fn fetch_newest_snapshot_l1_batch_number(
+        &self,
+    ) -> EnrichedClientResult<Option<L1BatchNumber>>;
+
+    async fn fetch_snapshot(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<SnapshotHeader>>;
 
     async fn fetch_tokens(
         &self,
@@ -153,17 +160,23 @@ impl SnapshotsApplierMainNodeClient for Box<DynClient<L2>> {
             .await
     }
 
-    async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>> {
+    async fn fetch_newest_snapshot_l1_batch_number(
+        &self,
+    ) -> EnrichedClientResult<Option<L1BatchNumber>> {
         let snapshots = self
             .get_all_snapshots()
             .rpc_context("get_all_snapshots")
             .await?;
-        let Some(newest_snapshot) = snapshots.snapshots_l1_batch_numbers.first() else {
-            return Ok(None);
-        };
-        self.get_snapshot_by_l1_batch_number(*newest_snapshot)
+        Ok(snapshots.snapshots_l1_batch_numbers.first().copied())
+    }
+
+    async fn fetch_snapshot(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<SnapshotHeader>> {
+        self.get_snapshot_by_l1_batch_number(l1_batch_number)
             .rpc_context("get_snapshot_by_l1_batch_number")
-            .with_arg("number", newest_snapshot)
+            .with_arg("number", &l1_batch_number)
             .await
     }
 
@@ -179,7 +192,7 @@ impl SnapshotsApplierMainNodeClient for Box<DynClient<L2>> {
 }
 
 /// Snapshot applier configuration options.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SnapshotsApplierConfig {
     /// Number of retries for transient errors before giving up on recovery (i.e., returning an error
     /// from [`Self::run()`]).
@@ -223,6 +236,7 @@ pub struct SnapshotApplierTaskStats {
 
 #[derive(Debug)]
 pub struct SnapshotsApplierTask {
+    snapshot_l1_batch: Option<L1BatchNumber>,
     config: SnapshotsApplierConfig,
     health_updater: HealthUpdater,
     connection_pool: ConnectionPool<Core>,
@@ -238,12 +252,18 @@ impl SnapshotsApplierTask {
         blob_store: Arc<dyn ObjectStore>,
     ) -> Self {
         Self {
+            snapshot_l1_batch: None,
             config,
             health_updater: ReactiveHealthCheck::new("snapshot_recovery").1,
             connection_pool,
             main_node_client,
             blob_store,
         }
+    }
+
+    /// Specifies the L1 batch to recover from. This setting is ignored if recovery is complete or resumed.
+    pub fn set_snapshot_l1_batch(&mut self, number: L1BatchNumber) {
+        self.snapshot_l1_batch = Some(number);
     }
 
     /// Returns the health check for snapshot recovery.
@@ -268,8 +288,9 @@ impl SnapshotsApplierTask {
             let result = SnapshotsApplier::load_snapshot(
                 &self.connection_pool,
                 self.main_node_client.as_ref(),
-                &self.blob_store,
+                self.blob_store.as_ref(),
                 &self.health_updater,
+                self.snapshot_l1_batch,
                 self.config.max_concurrency.get(),
             )
             .await;
@@ -324,6 +345,7 @@ impl SnapshotRecoveryStrategy {
     async fn new(
         storage: &mut Connection<'_, Core>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
+        snapshot_l1_batch: Option<L1BatchNumber>,
     ) -> Result<(Self, SnapshotRecoveryStatus), SnapshotsApplierError> {
         let latency =
             METRICS.initial_stage_duration[&InitialStage::FetchMetadataFromMainNode].start();
@@ -350,7 +372,8 @@ impl SnapshotRecoveryStrategy {
                 return Err(SnapshotsApplierError::Fatal(err));
             }
 
-            let recovery_status = Self::create_fresh_recovery_status(main_node_client).await?;
+            let recovery_status =
+                Self::create_fresh_recovery_status(main_node_client, snapshot_l1_batch).await?;
 
             let storage_logs_count = storage
                 .storage_logs_dal()
@@ -373,12 +396,20 @@ impl SnapshotRecoveryStrategy {
 
     async fn create_fresh_recovery_status(
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
+        snapshot_l1_batch: Option<L1BatchNumber>,
     ) -> Result<SnapshotRecoveryStatus, SnapshotsApplierError> {
-        let snapshot_response = main_node_client.fetch_newest_snapshot().await?;
+        let l1_batch_number = match snapshot_l1_batch {
+            Some(num) => num,
+            None => main_node_client
+                .fetch_newest_snapshot_l1_batch_number()
+                .await?
+                .context("no snapshots on main node; snapshot recovery is impossible")?,
+        };
+        let snapshot_response = main_node_client.fetch_snapshot(l1_batch_number).await?;
 
-        let snapshot = snapshot_response
-            .context("no snapshots on main node; snapshot recovery is impossible")?;
-        let l1_batch_number = snapshot.l1_batch_number;
+        let snapshot = snapshot_response.with_context(|| {
+            format!("snapshot for L1 batch #{l1_batch_number} is not present on main node")
+        })?;
         let l2_block_number = snapshot.l2_block_number;
         tracing::info!(
             "Found snapshot with data up to L1 batch #{l1_batch_number}, L2 block #{l2_block_number}, \
@@ -461,6 +492,7 @@ impl<'a> SnapshotsApplier<'a> {
         main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
         blob_store: &'a dyn ObjectStore,
         health_updater: &'a HealthUpdater,
+        snapshot_l1_batch: Option<L1BatchNumber>,
         max_concurrency: usize,
     ) -> Result<(SnapshotRecoveryStrategy, SnapshotRecoveryStatus), SnapshotsApplierError> {
         // While the recovery is in progress, the node is healthy (no error has occurred),
@@ -472,8 +504,12 @@ impl<'a> SnapshotsApplier<'a> {
             .await?;
         let mut storage_transaction = storage.start_transaction().await?;
 
-        let (strategy, applied_snapshot_status) =
-            SnapshotRecoveryStrategy::new(&mut storage_transaction, main_node_client).await?;
+        let (strategy, applied_snapshot_status) = SnapshotRecoveryStrategy::new(
+            &mut storage_transaction,
+            main_node_client,
+            snapshot_l1_batch,
+        )
+        .await?;
         tracing::info!("Chosen snapshot recovery strategy: {strategy:?} with status: {applied_snapshot_status:?}");
         let created_from_scratch = match strategy {
             SnapshotRecoveryStrategy::Completed => return Ok((strategy, applied_snapshot_status)),

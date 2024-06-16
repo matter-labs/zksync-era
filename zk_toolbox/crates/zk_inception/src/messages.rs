@@ -164,11 +164,12 @@ pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosys
 /// Server related messages
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
+pub(super) const MSG_BUILDING_L1_CONTRACTS: &str = "Building L1 contracts...";
 
 /// Forge utils related messages
 pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
 pub(super) fn msg_address_doesnt_have_enough_money_prompt(address: &H160) -> String {
     format!(
-        "Address {address:?} doesn't have enough money to deploy contracts do you want to continue?"
+        "Address {address:?} doesn't have enough money to deploy contracts do you want to try again?"
     )
 }

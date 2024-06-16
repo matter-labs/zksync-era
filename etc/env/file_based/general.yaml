@@ -156,7 +156,11 @@ snapshot_creator:
 
 
 prover:
-  object_store:
+  prover_object_store:
+    file_backed:
+      file_backed_base_path: artifacts
+    max_retries: 10
+  public_object_store:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
@@ -186,6 +190,7 @@ witness_vector_generator:
 data_handler:
   http_port: 3320
   proof_generation_timeout_in_secs: 18000
+  tee_support: true
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 1000
@@ -323,5 +328,12 @@ observability:
     level: debug
 
 protective_reads_writer:
-  protective_reads_db_path: "./db/main/protective_reads"
-  protective_reads_window_size: 3
+  db_path: "./db/main/protective_reads"
+  window_size: 3
+  first_processed_batch: 0
+
+
+core_object_store:
+  file_backed:
+    file_backed_base_path: artifacts
+  max_retries: 10
