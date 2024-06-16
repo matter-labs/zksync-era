@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 use anyhow::Context;
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
+use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{l1::L1Tx, web3::Log, PriorityOpId, H256};
 
@@ -17,16 +18,21 @@ use crate::{
 pub struct PriorityOpsEventProcessor {
     next_expected_priority_id: PriorityOpId,
     new_priority_request_signature: H256,
+    priority_merkle_tree: SyncMerkleTree<L1Tx>,
 }
 
 impl PriorityOpsEventProcessor {
-    pub fn new(next_expected_priority_id: PriorityOpId) -> anyhow::Result<Self> {
+    pub fn new(
+        next_expected_priority_id: PriorityOpId,
+        priority_merkle_tree: SyncMerkleTree<L1Tx>,
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             next_expected_priority_id,
             new_priority_request_signature: hyperchain_contract()
                 .event("NewPriorityRequest")
                 .context("NewPriorityRequest event is missing in ABI")?
                 .signature(),
+            priority_merkle_tree,
         })
     }
 }
@@ -90,6 +96,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
                 .insert_transaction_l1(&new_op, eth_block)
                 .await
                 .map_err(DalError::generalize)?;
+            self.priority_merkle_tree.push_hash(new_op.hash());
         }
         stage_latency.observe();
         self.next_expected_priority_id = next_expected_priority_id;

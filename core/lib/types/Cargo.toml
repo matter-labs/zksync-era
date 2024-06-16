@@ -18,6 +18,7 @@ zksync_mini_merkle_tree.workspace = true
 zksync_config.workspace = true
 zksync_protobuf.workspace = true
 zksync_crypto_primitives.workspace = true
+zksync_crypto.workspace = true
 
 anyhow.workspace = true
 chrono = { workspace = true, features = ["serde"] }
@@ -33,6 +34,7 @@ num_enum.workspace = true
 hex.workspace = true
 prost.workspace = true
 itertools.workspace = true
+ethabi.workspace = true
 
 # Crypto stuff
 secp256k1.workspace = true

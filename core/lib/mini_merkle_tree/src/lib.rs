@@ -1,11 +1,16 @@
 //! Crate allowing to calculate root hashes and Merkle proofs for small in-memory Merkle trees.
 
 // Linter settings.
-#![warn(missing_debug_implementations, missing_docs, bare_trait_objects)]
+#![warn(missing_debug_implementations, bare_trait_objects)]
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::must_use_candidate, clippy::similar_names)]
 
-use std::{collections::VecDeque, iter, marker::PhantomData};
+use std::{
+    collections::VecDeque,
+    iter,
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 use once_cell::sync::OnceCell;
 
@@ -95,6 +100,19 @@ where
         Self::from_hashes(hasher, hashes.into_iter(), min_tree_size)
     }
 
+    /// Adds a new leaf to the tree (replaces leftmost empty leaf).
+    /// If the tree is full, its size is doubled.
+    /// Note: empty leaves != zero leaves.
+    pub fn push(&mut self, leaf: L) {
+        let leaf_hash = self.hasher.hash_bytes(leaf.as_ref());
+        self.push_hash(leaf_hash);
+    }
+}
+
+impl<L, H> MiniMerkleTree<L, H>
+where
+    H: HashEmptySubtree<L>,
+{
     /// Creates a new Merkle tree from the supplied raw hashes. If `min_tree_size` is supplied and is larger than the
     /// number of the supplied leaves, the leaves are padded to `min_tree_size` with zero-hash entries,
     /// but are deemed empty.
@@ -199,12 +217,9 @@ where
         }
     }
 
-    /// Adds a new leaf to the tree (replaces leftmost empty leaf).
-    /// If the tree is full, its size is doubled.
-    /// Note: empty leaves != zero leaves.
-    pub fn push(&mut self, leaf: L) {
-        let leaf_hash = self.hasher.hash_bytes(leaf.as_ref());
-        self.push_hash(leaf_hash);
+    /// Returns the leftmost `length` untrimmed leaf hashes.
+    pub fn hashes_prefix(&self, length: usize) -> Vec<H256> {
+        self.hashes.iter().take(length).copied().collect()
     }
 
     /// Trims and caches the leftmost `count` leaves.
@@ -320,4 +335,42 @@ fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
     })
     .take(MAX_TREE_DEPTH + 1)
     .collect()
+}
+
+#[derive(Debug, Clone)]
+pub struct SyncMerkleTree<T>(pub Arc<Mutex<MiniMerkleTree<T>>>);
+
+impl<T> SyncMerkleTree<T>
+where
+    KeccakHasher: HashEmptySubtree<T>,
+{
+    pub fn push_hash(&self, hash: H256) {
+        self.0.lock().unwrap().push_hash(hash);
+    }
+
+    pub fn trim_start(&self, count: usize) {
+        self.0.lock().unwrap().trim_start(count);
+    }
+
+    pub fn merkle_root_and_paths_for_range(
+        &self,
+        length: usize,
+    ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
+        self.0
+            .lock()
+            .unwrap()
+            .merkle_root_and_paths_for_range(length)
+    }
+
+    pub fn hashes_prefix(&self, count: usize) -> Vec<H256> {
+        self.0.lock().unwrap().hashes_prefix(count)
+    }
+
+    pub fn from_hashes(hashes: impl Iterator<Item = H256>, min_tree_size: Option<usize>) -> Self {
+        Self(Arc::new(Mutex::new(MiniMerkleTree::from_hashes(
+            KeccakHasher,
+            hashes,
+            min_tree_size,
+        ))))
+    }
 }

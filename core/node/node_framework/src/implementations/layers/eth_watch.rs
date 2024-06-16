@@ -4,12 +4,14 @@ use zksync_config::{ContractsConfig, EthWatchConfig};
 use zksync_contracts::governance_contract;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
-use zksync_types::{ethabi::Contract, Address};
+use zksync_mini_merkle_tree::SyncMerkleTree;
+use zksync_types::{ethabi::Contract, l1::L1Tx, Address};
 
 use crate::{
     implementations::resources::{
         eth_interface::EthInterfaceResource,
         pools::{MasterPool, PoolResource},
+        priority_merkle_tree::PriorityMerkleTreeResource,
     },
     service::{ServiceContext, StopReceiver},
     task::{Task, TaskId},
@@ -42,6 +44,10 @@ impl WiringLayer for EthWatchLayer {
         let main_pool = pool_resource.get().await.unwrap();
 
         let client = context.get_resource::<EthInterfaceResource>().await?.0;
+        let priority_merkle_tree = context
+            .get_resource::<PriorityMerkleTreeResource>()
+            .await?
+            .0;
 
         let eth_client = EthHttpQueryClient::new(
             client,
@@ -58,6 +64,7 @@ impl WiringLayer for EthWatchLayer {
             governance_contract: governance_contract(),
             diamond_proxy_address: self.contracts_config.diamond_proxy_addr,
             poll_interval: self.eth_watch_config.poll_interval(),
+            priority_merkle_tree,
         }));
 
         Ok(())
@@ -71,6 +78,7 @@ struct EthWatchTask {
     governance_contract: Contract,
     diamond_proxy_address: Address,
     poll_interval: Duration,
+    priority_merkle_tree: SyncMerkleTree<L1Tx>,
 }
 
 #[async_trait::async_trait]
@@ -86,6 +94,7 @@ impl Task for EthWatchTask {
             Box::new(self.client),
             self.main_pool,
             self.poll_interval,
+            self.priority_merkle_tree,
         )
         .await?;
 

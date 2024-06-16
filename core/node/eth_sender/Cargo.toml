@@ -22,6 +22,7 @@ zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_node_fee_model.workspace = true
+zksync_mini_merkle_tree.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
