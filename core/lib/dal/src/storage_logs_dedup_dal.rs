@@ -72,11 +72,7 @@ impl StorageLogsDedupDal<'_, '_> {
         for log in snapshot_storage_logs.iter() {
             let row = format!(
                 "\\\\x{:x}|{}|{}|{}|{}\n",
-                log.key.hashed_key(),
-                log.enumeration_index,
-                log.l1_batch_number_of_initial_write,
-                now,
-                now,
+                log.key, log.enumeration_index, log.l1_batch_number_of_initial_write, now, now,
             );
             bytes.extend_from_slice(row.as_bytes());
         }

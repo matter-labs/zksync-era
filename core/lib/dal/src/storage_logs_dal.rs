@@ -82,7 +82,7 @@ impl StorageLogsDal<'_, '_> {
         let storage_logs_len = snapshot_storage_logs.len();
         let copy = CopyStatement::new(
             "COPY storage_logs(
-                hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
+                hashed_key, value, operation_number, tx_hash, miniblock_number,
                 created_at, updated_at
             )
             FROM STDIN WITH (DELIMITER '|')",
@@ -98,10 +98,8 @@ impl StorageLogsDal<'_, '_> {
         for log in snapshot_storage_logs.iter() {
             write_str!(
                 &mut buffer,
-                r"\\x{hashed_key:x}|\\x{address:x}|\\x{key:x}|\\x{value:x}|",
-                hashed_key = log.key.hashed_key(),
-                address = log.key.address(),
-                key = log.key.key(),
+                r"\\x{hashed_key:x}|\\x{value:x}|",
+                hashed_key = log.key,
                 value = log.value
             );
             writeln_str!(

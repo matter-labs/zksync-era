@@ -1,8 +1,5 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{
-    snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, L2BlockNumber,
-    StorageKey, H256,
-};
+use zksync_types::{snapshots::SnapshotStorageLog, L1BatchNumber, L2BlockNumber, H256};
 
 use crate::Core;
 
@@ -55,9 +52,8 @@ impl SnapshotsCreatorDal<'_, '_> {
         let storage_logs = sqlx::query!(
             r#"
             SELECT
-                storage_logs.key AS "key!",
+                storage_logs.hashed_key AS "hashed_key!",
                 storage_logs.value AS "value!",
-                storage_logs.address AS "address!",
                 storage_logs.miniblock_number AS "miniblock_number!",
                 initial_writes.l1_batch_number AS "l1_batch_number!",
                 initial_writes.index
@@ -99,10 +95,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         .await?
         .iter()
         .map(|row| SnapshotStorageLog {
-            key: StorageKey::new(
-                AccountTreeId::new(Address::from_slice(&row.address)),
-                H256::from_slice(&row.key),
-            ),
+            key: H256::from_slice(&row.hashed_key),
             value: H256::from_slice(&row.value),
             l1_batch_number_of_initial_write: L1BatchNumber(row.l1_batch_number as u32),
             enumeration_index: row.index as u64,
@@ -143,7 +136,7 @@ impl SnapshotsCreatorDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::StorageLog;
+    use zksync_types::{AccountTreeId, Address, StorageKey, StorageLog};
 
     use super::*;
     use crate::{ConnectionPool, Core, CoreDal};
@@ -239,7 +232,7 @@ mod tests {
             .unwrap();
         assert_eq!(all_logs.len(), expected_logs.len());
         for (log, expected_log) in all_logs.iter().zip(expected_logs) {
-            assert_eq!(log.key, expected_log.key);
+            assert_eq!(log.key, expected_log.key.hashed_key());
             assert_eq!(log.value, expected_log.value);
             assert_eq!(log.l1_batch_number_of_initial_write, l1_batch_number);
         }
@@ -254,7 +247,7 @@ mod tests {
                     .unwrap();
                 assert_eq!(logs.len(), chunk.len());
                 for (log, expected_log) in logs.iter().zip(chunk) {
-                    assert_eq!(log.key, expected_log.key);
+                    assert_eq!(log.key, expected_log.key.hashed_key());
                     assert_eq!(log.value, expected_log.value);
                 }
             }
@@ -308,7 +301,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(logs.len(), 1);
-        assert_eq!(logs[0].key, key);
+        assert_eq!(logs[0].key, key.hashed_key());
         assert_eq!(logs[0].value, real_write.value);
         assert_eq!(logs[0].l1_batch_number_of_initial_write, L1BatchNumber(2));
     }
