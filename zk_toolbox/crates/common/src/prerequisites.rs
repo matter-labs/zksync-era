@@ -25,6 +25,11 @@ const PREREQUISITES: [Prerequisite; 5] = [
     },
 ];
 
+const DOCKER_COMPOSE_PREREQUISITE: Prerequisite = Prerequisite {
+    name: "docker compose",
+    download_link: "https://docs.docker.com/compose/install/",
+};
+
 struct Prerequisite {
     name: &'static str,
     download_link: &'static str,
@@ -37,6 +42,10 @@ pub fn check_prerequisites(shell: &Shell) {
         if !check_prerequisite(shell, prerequisite.name) {
             missing_prerequisites.push(prerequisite);
         }
+    }
+
+    if !check_docker_compose_prerequisite(shell) {
+        missing_prerequisites.push(&DOCKER_COMPOSE_PREREQUISITE);
     }
 
     if !missing_prerequisites.is_empty() {
@@ -58,4 +67,10 @@ pub fn check_prerequisites(shell: &Shell) {
 
 fn check_prerequisite(shell: &Shell, name: &str) -> bool {
     Cmd::new(cmd!(shell, "which {name}")).run().is_ok()
+}
+
+fn check_docker_compose_prerequisite(shell: &Shell) -> bool {
+    Cmd::new(cmd!(shell, "docker compose version"))
+        .run()
+        .is_ok()
 }
