@@ -169,6 +169,7 @@ mod tests {
             .unwrap();
         let mut written_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
         written_keys.sort_unstable();
+        let written_keys: Vec<_> = written_keys.iter().map(StorageKey::hashed_key).collect();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(1), &written_keys)
             .await
@@ -190,7 +191,7 @@ mod tests {
             );
             StorageLog::new_write_log(key, H256::repeat_byte(1))
         });
-        let new_written_keys: Vec<_> = new_logs.clone().map(|log| log.key).collect();
+        let new_written_keys: Vec<_> = new_logs.clone().map(|log| log.key.hashed_key()).collect();
         let updated_logs = logs.iter().step_by(3).map(|&log| StorageLog {
             value: H256::repeat_byte(23),
             ..log
@@ -282,7 +283,7 @@ mod tests {
             .await
             .unwrap();
         conn.storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(2), &[key])
+            .insert_initial_writes(L1BatchNumber(2), &[key.hashed_key()])
             .await
             .unwrap();
 

@@ -28,7 +28,7 @@ impl StorageWeb3Dal<'_, '_> {
     ) -> DalResult<U256> {
         let nonce_key = get_nonce_key(&address);
         let nonce_value = self
-            .get_historical_value_unchecked(&nonce_key, block_number)
+            .get_historical_value_unchecked(nonce_key.hashed_key(), block_number)
             .await?;
         let full_nonce = h256_to_u256(nonce_value);
         Ok(decompose_full_nonce(full_nonce).0)
@@ -66,13 +66,14 @@ impl StorageWeb3Dal<'_, '_> {
     ) -> DalResult<U256> {
         let key = storage_key_for_standard_token_balance(token_id, account_id.address());
         let balance = self
-            .get_historical_value_unchecked(&key, block_number)
+            .get_historical_value_unchecked(key.hashed_key(), block_number)
             .await?;
         Ok(h256_to_u256(balance))
     }
 
     /// Gets the current value for the specified `key`. Uses state of the latest sealed L2 block.
     /// Returns error if there is no sealed L2 blocks.
+    // FIXME: propagate hashed_key?
     pub async fn get_value(&mut self, key: &StorageKey) -> DalResult<H256> {
         let Some(l2_block_number) = self
             .storage
@@ -85,7 +86,7 @@ impl StorageWeb3Dal<'_, '_> {
                 .constraint_error(anyhow::anyhow!("no sealed l2 blocks"));
             return Err(err);
         };
-        self.get_historical_value_unchecked(key, l2_block_number)
+        self.get_historical_value_unchecked(key.hashed_key(), l2_block_number)
             .await
     }
 
@@ -119,11 +120,9 @@ impl StorageWeb3Dal<'_, '_> {
     /// It will return the current value if the block is in the future.
     pub async fn get_historical_value_unchecked(
         &mut self,
-        key: &StorageKey,
+        hashed_key: H256,
         block_number: L2BlockNumber,
     ) -> DalResult<H256> {
-        let hashed_key = key.hashed_key();
-
         sqlx::query!(
             r#"
             SELECT
@@ -204,9 +203,8 @@ impl StorageWeb3Dal<'_, '_> {
 
     pub async fn get_l1_batch_number_for_initial_write(
         &mut self,
-        key: &StorageKey,
+        hashed_key: H256,
     ) -> DalResult<Option<L1BatchNumber>> {
-        let hashed_key = key.hashed_key();
         let row = sqlx::query!(
             r#"
             SELECT

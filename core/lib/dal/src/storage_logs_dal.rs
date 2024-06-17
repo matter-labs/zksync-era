@@ -301,17 +301,16 @@ impl StorageLogsDal<'_, '_> {
         Ok(deployment_data.collect())
     }
 
-    /// Returns latest values for all [`StorageKey`]s written to in the specified L1 batch
+    /// Returns latest values for all slots written to in the specified L1 batch
     /// judging by storage logs (i.e., not taking deduplication logic into account).
     pub async fn get_touched_slots_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> DalResult<HashMap<StorageKey, H256>> {
+    ) -> DalResult<HashMap<H256, H256>> {
         let rows = sqlx::query!(
             r#"
             SELECT
-                address,
-                key,
+                hashed_key,
                 value
             FROM
                 storage_logs
@@ -338,6 +337,57 @@ impl StorageLogsDal<'_, '_> {
             i64::from(l1_batch_number.0)
         )
         .instrument("get_touched_slots_for_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
+        .await?;
+
+        let touched_slots = rows.into_iter().map(|row| {
+            (
+                H256::from_slice(&row.hashed_key),
+                H256::from_slice(&row.value),
+            )
+        });
+        Ok(touched_slots.collect())
+    }
+
+    /// Same as [`Self::get_touched_slots_for_l1_batch()`], but loads key preimages instead of hashed keys.
+    /// Correspondingly, this method is safe to call for locally executed L1 batches, for which key preimages
+    /// are known; otherwise, it will error.
+    pub async fn get_touched_slots_for_executed_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<HashMap<StorageKey, H256>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                address AS "address!",
+                key AS "key!",
+                value
+            FROM
+                storage_logs
+            WHERE
+                miniblock_number BETWEEN (
+                    SELECT
+                        MIN(number)
+                    FROM
+                        miniblocks
+                    WHERE
+                        l1_batch_number = $1
+                ) AND (
+                    SELECT
+                        MAX(number)
+                    FROM
+                        miniblocks
+                    WHERE
+                        l1_batch_number = $1
+                )
+            ORDER BY
+                miniblock_number,
+                operation_number
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_touched_slots_for_executed_l1_batch")
         .with_arg("l1_batch_number", &l1_batch_number)
         .fetch_all(self.storage)
         .await?;
@@ -581,8 +631,8 @@ impl StorageLogsDal<'_, '_> {
         rows.into_iter()
             .map(|row| DbStorageLog {
                 hashed_key: H256::from_slice(&row.hashed_key),
-                address: H160::from_slice(&row.address),
-                key: H256::from_slice(&row.key),
+                address: row.address.as_deref().map(H160::from_slice),
+                key: row.key.as_deref().map(H256::from_slice),
                 value: H256::from_slice(&row.value),
                 operation_number: row.operation_number as u64,
                 tx_hash: H256::from_slice(&row.tx_hash),
@@ -724,7 +774,9 @@ impl StorageLogsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
+    use zksync_types::{
+        block::L1BatchHeader, AccountTreeId, ProtocolVersion, ProtocolVersionId, StorageKey,
+    };
 
     use super::*;
     use crate::{tests::create_l2_block_header, ConnectionPool, Core};
@@ -778,8 +830,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(touched_slots.len(), 2);
-        assert_eq!(touched_slots[&first_key], H256::repeat_byte(1));
-        assert_eq!(touched_slots[&second_key], H256::repeat_byte(2));
+        assert_eq!(touched_slots[&first_key.hashed_key()], H256::repeat_byte(1));
+        assert_eq!(
+            touched_slots[&second_key.hashed_key()],
+            H256::repeat_byte(2)
+        );
 
         // Add more logs and check log ordering.
         let third_log = StorageLog::new_write_log(first_key, H256::repeat_byte(3));
@@ -795,8 +850,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(touched_slots.len(), 2);
-        assert_eq!(touched_slots[&first_key], H256::repeat_byte(3));
-        assert_eq!(touched_slots[&second_key], H256::repeat_byte(2));
+        assert_eq!(touched_slots[&first_key.hashed_key()], H256::repeat_byte(3));
+        assert_eq!(
+            touched_slots[&second_key.hashed_key()],
+            H256::repeat_byte(2)
+        );
 
         test_revert(&mut conn, first_key, second_key).await;
     }
@@ -866,7 +924,7 @@ mod tests {
             })
             .collect();
         insert_l2_block(&mut conn, 1, logs.clone()).await;
-        let written_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
+        let written_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(1), &written_keys)
             .await
@@ -879,7 +937,10 @@ mod tests {
             })
             .collect();
         insert_l2_block(&mut conn, 2, new_logs.clone()).await;
-        let new_written_keys: Vec<_> = new_logs[5..].iter().map(|log| log.key).collect();
+        let new_written_keys: Vec<_> = new_logs[5..]
+            .iter()
+            .map(|log| log.key.hashed_key())
+            .collect();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(2), &new_written_keys)
             .await
@@ -936,8 +997,9 @@ mod tests {
             let initial_keys: Vec<_> = logs
                 .iter()
                 .filter_map(|log| {
-                    (!log.value.is_zero() && !non_initial.contains(&log.key.hashed_key()))
-                        .then_some(log.key)
+                    let hashed_key = log.key.hashed_key();
+                    (!log.value.is_zero() && !non_initial.contains(&hashed_key))
+                        .then_some(hashed_key)
                 })
                 .collect();
 
@@ -1021,6 +1083,7 @@ mod tests {
 
         let mut initial_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
         initial_keys.sort_unstable();
+        let initial_keys: Vec<_> = initial_keys.iter().map(StorageKey::hashed_key).collect();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(1), &initial_keys)
             .await
