@@ -29,6 +29,7 @@ jobs:
       - name: Init
         run: |
           ci_run zk
+          ci_run run_retried rustup show
           ci_run zk db setup
 
       # This does both linting and "building". We're using `zk lint prover` as it's common practice within our repo
