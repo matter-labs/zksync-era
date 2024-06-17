@@ -28,7 +28,7 @@ use crate::{
         L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     mempool_actor::l2_tx_filter,
-    metrics::KEEPER_METRICS,
+    metrics::{L2BlockSealReason, AGGREGATION_METRICS, KEEPER_METRICS},
     seal_criteria::{
         IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer, UnexecutableReason,
     },
@@ -65,10 +65,19 @@ impl IoSealCriteria for MempoolIO {
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
         if self.timeout_sealer.should_seal_l2_block(manager) {
+            AGGREGATION_METRICS.l2_block_reason_inc(&L2BlockSealReason::Timeout);
             return true;
         }
-        self.l2_block_max_payload_size_sealer
+
+        if self
+            .l2_block_max_payload_size_sealer
             .should_seal_l2_block(manager)
+        {
+            AGGREGATION_METRICS.l2_block_reason_inc(&L2BlockSealReason::PayloadSize);
+            return true;
+        }
+
+        false
     }
 }
 

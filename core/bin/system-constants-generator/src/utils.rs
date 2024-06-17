@@ -99,7 +99,7 @@ pub(super) fn get_l2_tx(
         U256::from(0),
         L2ChainId::from(270),
         signer,
-        None,
+        vec![],
         Default::default(),
     )
     .unwrap()
@@ -128,7 +128,7 @@ pub(super) fn get_l1_tx(
     pubdata_price: u32,
     custom_gas_limit: Option<U256>,
     custom_calldata: Option<Vec<u8>>,
-    factory_deps: Option<Vec<Vec<u8>>>,
+    factory_deps: Vec<Vec<u8>>,
 ) -> L1Tx {
     L1Tx {
         execute: Execute {
@@ -157,10 +157,10 @@ pub(super) fn get_l1_txs(number_of_txs: usize) -> (Vec<Transaction>, Vec<Transac
         let contract_address = Address::random();
 
         txs_without_pubdata_price
-            .push(get_l1_tx(id as u64, sender, contract_address, 0, None, None, None).into());
+            .push(get_l1_tx(id as u64, sender, contract_address, 0, None, None, vec![]).into());
 
         txs_with_pubdata_price
-            .push(get_l1_tx(id as u64, sender, contract_address, 1, None, None, None).into());
+            .push(get_l1_tx(id as u64, sender, contract_address, 1, None, None, vec![]).into());
     }
 
     (txs_with_pubdata_price, txs_without_pubdata_price)
