@@ -67,7 +67,7 @@ fn test_nonce_holder() {
                     contract_address: account.address,
                     calldata: vec![12],
                     value: Default::default(),
-                    factory_deps: None,
+                    factory_deps: vec![],
                 },
                 None,
                 Nonce(nonce),

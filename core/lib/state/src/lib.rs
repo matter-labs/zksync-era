@@ -31,7 +31,7 @@ mod test_utils;
 
 pub use self::{
     cache::sequential_cache::SequentialCache,
-    catchup::AsyncCatchupTask,
+    catchup::{AsyncCatchupTask, RocksdbCell},
     in_memory::InMemoryStorage,
     // Note, that `test_infra` of the bootloader tests relies on this value to be exposed
     in_memory::IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID,
