@@ -37,9 +37,9 @@ pub(crate) const GRAMINE_ATTESTATION_USER_REPORT_DATA_DEVICE_FILE: &str =
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
-    /// In simulation mode, a simulated/mocked attestation is used, read from the TEE_SIGNING_KEY
-    /// environment variable file. To fetch a real attestation, the application must be run inside
-    /// an enclave.
+    /// In simulation mode, a simulated/mocked attestation is used, read from the
+    /// ATTESTATION_QUOTE_FILE environment variable file. To fetch a real attestation, the
+    /// application must be run inside an enclave.
     #[arg(long)]
     simulation_mode: bool,
 
@@ -57,7 +57,7 @@ fn save_attestation_user_report_data(pubkey: PublicKey) -> Result<()> {
         .map_err(|err| anyhow!("Failed to save user report data: {err}"))
 }
 
-fn get_sgx_quote() -> Result<Vec<u8>> {
+fn get_attestation_quote() -> Result<Vec<u8>> {
     let mut quote_file = File::open(GRAMINE_ATTESTATION_QUOTE_DEVICE_FILE)?;
     let mut quote = Vec::new();
     quote_file.read_to_end(&mut quote)?;
@@ -91,7 +91,6 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    // Report whether sentry is running after the logging subsystem was initialized.
     if let Some(sentry_url) = observability_config.sentry_url {
         tracing::info!("Sentry configured with URL: {sentry_url}");
     } else {
@@ -100,11 +99,11 @@ async fn main() -> anyhow::Result<()> {
 
     let key_pair = KeyPair::new_global(&mut OsRng);
     let attestation_quote_bytes = if opt.simulation_mode {
-        let attestation_quote_file = std::env::var("TEE_SIGNING_KEY").unwrap_or_default();
+        let attestation_quote_file = std::env::var("ATTESTATION_QUOTE_FILE").unwrap_or_default();
         std::fs::read(&attestation_quote_file).unwrap_or_default()
     } else {
         save_attestation_user_report_data(key_pair.public_key())?;
-        get_sgx_quote()?
+        get_attestation_quote()?
     };
 
     let proof_gen_data_fetcher = PeriodicApiStruct {
@@ -259,7 +258,7 @@ async fn main() -> anyhow::Result<()> {
     // }
 
     //////
-    //     let signing_key_pem = std::env::var("TEE_SIGNING_KEY").unwrap_or(
+    //     let signing_key_pem = std::env::var("ATTESTATION_QUOTE_FILE").unwrap_or(
     //         r#"-----BEGIN PRIVATE KEY-----
     // MIGEAgEAMBAGByqGSM49AgEGBSuBBAAKBG0wawIBAQQgtQs4yNOWyIco/AMuzlWO
     // valpB6CxqTQCiXFe73vyneuhRANCAARXX55cR5OHwxskdsKKBBalUBgCAU+oKIl7

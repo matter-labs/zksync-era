@@ -8,7 +8,7 @@ members = [
     "witness_generator",
     "vk_setup_data_generator_server_fri",
     "prover_fri",
-    "prover_tee",
+    "prover_tee_gateway",
     "witness_vector_generator",
     "prover_fri_gateway",
     "proof_fri_compressor",

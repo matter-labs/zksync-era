@@ -460,6 +460,18 @@ impl Distribution<configs::FriProverGatewayConfig> for EncodeDist {
     }
 }
 
+impl Distribution<configs::TeeProverGatewayConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::TeeProverGatewayConfig {
+        configs::TeeProverGatewayConfig {
+            api_url: self.sample(rng),
+            api_poll_duration_secs: self.sample(rng),
+            prometheus_listener_port: self.sample(rng),
+            prometheus_pushgateway_url: self.sample(rng),
+            prometheus_push_interval_ms: self.sample(rng),
+        }
+    }
+}
+
 impl Sample for CircuitIdRoundTuple {
     fn sample(rng: &mut (impl Rng + ?Sized)) -> CircuitIdRoundTuple {
         CircuitIdRoundTuple {

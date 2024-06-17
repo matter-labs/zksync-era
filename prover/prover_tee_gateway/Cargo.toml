@@ -1,5 +1,5 @@
 [package]
-name = "zksync_prover_tee"
+name = "zksync_prover_tee_gateway"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

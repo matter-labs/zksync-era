@@ -14,7 +14,7 @@ use zksync_config::{
         ContractsConfig, DatabaseSecrets, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
         L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, Secrets,
+        ProtectiveReadsWriterConfig, Secrets, TeeProverGatewayConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -308,5 +308,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
+        tee_prover_gateway_config: TeeProverGatewayConfig::from_env().ok(),
     })
 }

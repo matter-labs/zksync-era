@@ -19,6 +19,7 @@ pub use self::{
     proof_data_handler::ProofDataHandlerConfig,
     secrets::{DatabaseSecrets, L1Secrets, Secrets},
     snapshots_creator::SnapshotsCreatorConfig,
+    tee_prover_gateway::TeeProverGatewayConfig,
     utils::PrometheusConfig,
     vm_runner::ProtectiveReadsWriterConfig,
 };
@@ -46,6 +47,7 @@ pub mod observability;
 pub mod proof_data_handler;
 pub mod secrets;
 pub mod snapshots_creator;
+pub mod tee_prover_gateway;
 pub mod utils;
 pub mod vm_runner;
 pub mod wallets;

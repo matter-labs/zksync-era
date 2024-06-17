@@ -23,7 +23,7 @@ pub(crate) struct PeriodicApiStruct {
     pub(crate) client: Client,
 }
 
-
+// TODO copy-paste
 impl PeriodicApiStruct {
     pub(crate) async fn send_http_request<Req, Resp>(
         &self,

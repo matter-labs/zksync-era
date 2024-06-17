@@ -11,6 +11,7 @@ use zksync_config::{
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
+        TeeProverGatewayConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -62,6 +63,7 @@ pub struct TempConfigStore {
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
+    pub tee_prover_gateway_config: Option<TeeProverGatewayConfig>,
 }
 
 impl TempConfigStore {
@@ -89,6 +91,7 @@ impl TempConfigStore {
             observability: self.observability.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
             core_object_store: self.core_object_store.clone(),
+            prover_tee_gateway: self.tee_prover_gateway_config.clone(),
         }
     }
 

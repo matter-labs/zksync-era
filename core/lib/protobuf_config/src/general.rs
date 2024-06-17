@@ -22,6 +22,8 @@ impl ProtoRepr for proto::GeneralConfig {
                 .context("proof_compressor_config")?,
             prover_config: read_optional_repr(&self.prover).context("prover_config")?,
             prover_gateway: read_optional_repr(&self.prover_gateway).context("prover_gateway")?,
+            prover_tee_gateway: read_optional_repr(&self.prover_tee_gateway)
+                .context("prover_tee_gateway")?,
             witness_vector_generator: read_optional_repr(&self.witness_vector_generator)
                 .context("witness_vector_generator")?,
             prover_group_config: read_optional_repr(&self.prover_group)
@@ -61,6 +63,7 @@ impl ProtoRepr for proto::GeneralConfig {
             prover_group: this.prover_group_config.as_ref().map(ProtoRepr::build),
             witness_generator: this.witness_generator.as_ref().map(ProtoRepr::build),
             prover_gateway: this.prover_gateway.as_ref().map(ProtoRepr::build),
+            prover_tee_gateway: this.prover_tee_gateway.as_ref().map(ProtoRepr::build),
             witness_vector_generator: this.witness_vector_generator.as_ref().map(ProtoRepr::build),
             prometheus: this.prometheus_config.as_ref().map(ProtoRepr::build),
             data_handler: this

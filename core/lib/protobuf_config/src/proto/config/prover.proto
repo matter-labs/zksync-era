@@ -70,6 +70,14 @@ message ProverGateway {
   optional uint64 prometheus_push_interval_ms = 5; // optional; ms
 }
 
+message ProverTeeGateway {
+  optional string api_url = 1; // required
+  optional uint32 api_poll_duration_secs = 2; // required; s
+  optional uint32 prometheus_listener_port = 3; // required; u16
+  optional string prometheus_pushgateway_url = 4; // required
+  optional uint64 prometheus_push_interval_ms = 5; // optional; ms
+}
+
 
 message WitnessGenerator {
   optional uint32 generation_timeout_in_secs = 1; // required;
