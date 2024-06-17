@@ -220,12 +220,13 @@ pub async fn insert_genesis_batch(
         .into_iter()
         .partition(|log_query| log_query.rw_flag);
 
-    let storage_logs: Vec<TreeInstruction<StorageKey>> = deduplicated_writes
+    let storage_logs: Vec<TreeInstruction> = deduplicated_writes
         .iter()
         .enumerate()
         .map(|(index, log)| {
             TreeInstruction::write(
-                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)),
+                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key))
+                    .hashed_key_u256(),
                 (index + 1) as u64,
                 u256_to_h256(log.written_value),
             )

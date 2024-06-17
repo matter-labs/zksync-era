@@ -32,7 +32,11 @@ fn initialize_merkle_tree(path: &Path, storage_logs: &[StorageLog]) -> Vec<H256>
     let mut tree = ZkSyncTree::new(db.into()).unwrap();
     let hashes = storage_logs.iter().enumerate().map(|(i, log)| {
         let output = tree
-            .process_l1_batch(&[TreeInstruction::write(log.key, i as u64 + 1, log.value)])
+            .process_l1_batch(&[TreeInstruction::write(
+                log.key.hashed_key_u256(),
+                i as u64 + 1,
+                log.value,
+            )])
             .unwrap();
         tree.save().unwrap();
         output.root_hash

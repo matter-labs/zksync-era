@@ -17,7 +17,7 @@ use zksync_types::{
     fee::Fee,
     fee_model::BatchFeeInput,
     l2::L2Tx,
-    snapshots::SnapshotRecoveryStatus,
+    snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
@@ -153,16 +153,16 @@ pub fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
 pub struct Snapshot {
     pub l1_batch: L1BatchHeader,
     pub l2_block: L2BlockHeader,
-    pub storage_logs: Vec<StorageLog>,
+    pub storage_logs: Vec<SnapshotStorageLog>,
     pub factory_deps: HashMap<H256, Vec<u8>>,
 }
 
 impl Snapshot {
     // Constructs a dummy Snapshot based on the provided values.
-    pub fn make(
+    pub fn new(
         l1_batch: L1BatchNumber,
         l2_block: L2BlockNumber,
-        storage_logs: &[StorageLog],
+        storage_logs: Vec<SnapshotStorageLog>,
     ) -> Self {
         let genesis_params = GenesisParams::mock();
         let contracts = genesis_params.base_system_contracts();
@@ -196,7 +196,7 @@ impl Snapshot {
                 .into_iter()
                 .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
                 .collect(),
-            storage_logs: storage_logs.to_vec(),
+            storage_logs,
         }
     }
 }
@@ -208,7 +208,17 @@ pub async fn prepare_recovery_snapshot(
     l2_block: L2BlockNumber,
     storage_logs: &[StorageLog],
 ) -> SnapshotRecoveryStatus {
-    recover(storage, Snapshot::make(l1_batch, l2_block, storage_logs)).await
+    let storage_logs = storage_logs
+        .iter()
+        .enumerate()
+        .map(|(i, log)| SnapshotStorageLog {
+            key: log.key.hashed_key(),
+            value: log.value,
+            l1_batch_number_of_initial_write: l1_batch,
+            enumeration_index: i as u64 + 1,
+        })
+        .collect();
+    recover(storage, Snapshot::new(l1_batch, l2_block, storage_logs)).await
 }
 
 /// Takes a storage snapshot at the last sealed L1 batch.
@@ -243,10 +253,7 @@ pub async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
             .snapshots_creator_dal()
             .get_storage_logs_chunk(l2_block, l1_batch.number, all_hashes)
             .await
-            .unwrap()
-            .into_iter()
-            .map(|l| StorageLog::new_write_log(l.key, l.value))
-            .collect(),
+            .unwrap(),
         factory_deps: storage
             .snapshots_creator_dal()
             .get_all_factory_deps(l2_block)
@@ -265,16 +272,14 @@ pub async fn recover(
     snapshot: Snapshot,
 ) -> SnapshotRecoveryStatus {
     let mut storage = storage.start_transaction().await.unwrap();
-    let written_keys: Vec<_> = snapshot
-        .storage_logs
-        .iter()
-        .map(|log| log.key.hashed_key())
-        .collect();
+    let written_keys: Vec<_> = snapshot.storage_logs.iter().map(|log| log.key).collect();
     let tree_instructions: Vec<_> = snapshot
         .storage_logs
         .iter()
-        .enumerate()
-        .map(|(i, log)| TreeInstruction::write(log.key, i as u64 + 1, log.value))
+        .map(|log| {
+            let tree_key = U256::from_little_endian(log.key.as_bytes());
+            TreeInstruction::write(tree_key, log.enumeration_index, log.value)
+        })
         .collect();
     let l1_batch_root_hash = ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
 
@@ -312,10 +317,7 @@ pub async fn recover(
         .unwrap();
     storage
         .storage_logs_dal()
-        .insert_storage_logs(
-            snapshot.l2_block.number,
-            &[(H256::zero(), snapshot.storage_logs)],
-        )
+        .insert_storage_logs_from_snapshot(snapshot.l2_block.number, &snapshot.storage_logs)
         .await
         .unwrap();
 

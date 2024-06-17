@@ -242,7 +242,7 @@ async fn prepare_postgres(
                 let (l1_batch_number_of_initial_write, enumeration_index) =
                     expected_l1_batches_and_indices[&log.key.hashed_key()];
                 SnapshotStorageLog {
-                    key: log.key,
+                    key: log.key.hashed_key(),
                     value: log.value,
                     l1_batch_number_of_initial_write,
                     enumeration_index,

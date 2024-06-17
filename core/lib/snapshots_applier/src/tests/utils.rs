@@ -15,8 +15,7 @@ use zksync_types::{
     },
     tokens::{TokenInfo, TokenMetadata},
     web3::Bytes,
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
-    StorageValue, H160, H256,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageValue, H256,
 };
 use zksync_web3_decl::error::EnrichedClientResult;
 
@@ -187,10 +186,7 @@ pub(super) fn random_storage_logs(
 ) -> Vec<SnapshotStorageLog> {
     (0..count)
         .map(|i| SnapshotStorageLog {
-            key: StorageKey::new(
-                AccountTreeId::from_fixed_bytes(H160::random().to_fixed_bytes()),
-                H256::random(),
-            ),
+            key: H256::random(),
             value: StorageValue::random(),
             l1_batch_number_of_initial_write: l1_batch_number,
             enumeration_index: i + 1,

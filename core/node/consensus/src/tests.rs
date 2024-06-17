@@ -19,8 +19,12 @@ use super::*;
 async fn new_pool(from_snapshot: bool) -> ConnectionPool {
     match from_snapshot {
         true => {
-            ConnectionPool::from_snapshot(Snapshot::make(L1BatchNumber(23), L2BlockNumber(87), &[]))
-                .await
+            ConnectionPool::from_snapshot(Snapshot::new(
+                L1BatchNumber(23),
+                L2BlockNumber(87),
+                vec![],
+            ))
+            .await
         }
         false => ConnectionPool::from_genesis().await,
     }

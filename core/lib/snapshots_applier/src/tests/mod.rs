@@ -39,10 +39,8 @@ async fn snapshots_creator_can_successfully_recover_db(
     let expected_status = mock_recovery_status();
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
-    let storage_logs_by_hashed_key: HashMap<_, _> = storage_logs
-        .into_iter()
-        .map(|log| (log.key.hashed_key(), log))
-        .collect();
+    let storage_logs_by_hashed_key: HashMap<_, _> =
+        storage_logs.into_iter().map(|log| (log.key, log)).collect();
 
     let object_store_with_errors;
     let object_store = if with_object_store_errors {
@@ -103,8 +101,9 @@ async fn snapshots_creator_can_successfully_recover_db(
     assert_eq!(all_storage_logs.len(), storage_logs_by_hashed_key.len());
     for db_log in all_storage_logs {
         let expected_log = &storage_logs_by_hashed_key[&db_log.hashed_key];
-        assert_eq!(db_log.address, Some(*expected_log.key.address()));
-        assert_eq!(db_log.key, Some(*expected_log.key.key()));
+        assert_eq!(db_log.hashed_key, expected_log.key);
+        assert!(db_log.key.is_none());
+        assert!(db_log.address.is_none());
         assert_eq!(db_log.value, expected_log.value);
         assert_eq!(db_log.l2_block_number, expected_status.l2_block_number);
     }
@@ -482,7 +481,7 @@ async fn recovering_tokens() {
             continue;
         }
         storage_logs.push(SnapshotStorageLog {
-            key: get_code_key(&token.l2_address),
+            key: get_code_key(&token.l2_address).hashed_key(),
             value: H256::random(),
             l1_batch_number_of_initial_write: expected_status.l1_batch_number,
             enumeration_index: storage_logs.len() as u64 + 1,

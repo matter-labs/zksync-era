@@ -358,7 +358,9 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
                 .iter()
                 .chain(&new_logs)
                 .enumerate()
-                .map(|(i, log)| TreeInstruction::write(log.key, i as u64 + 1, log.value))
+                .map(|(i, log)| {
+                    TreeInstruction::write(log.key.hashed_key_u256(), i as u64 + 1, log.value)
+                })
                 .collect();
             let expected_new_root_hash =
                 ZkSyncTree::process_genesis_batch(&all_tree_instructions).root_hash;
