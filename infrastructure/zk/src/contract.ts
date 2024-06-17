@@ -385,6 +385,7 @@ export async function registerHyperchain({
 
     const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const args = [
+        "--use-governance",
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
         deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''
