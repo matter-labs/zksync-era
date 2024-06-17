@@ -247,12 +247,11 @@ command
     });
 
 command
-    .command('prepare-l1-hyperchain [envName] [chainId] [diff]')
+    .command('prepare-l1-hyperchain [envName] [chainId]')
     .description('prepare the config for the next hyperchain deployment')
     .option('-n,--env-name', 'envName')
     .option('-c,--chain-id', 'chainId')
-    .option('-d,--diff', 'diff')
-    .action(async (envName: string, chainId: string, diff: string) => {
+    .action(async (envName: string, chainId: string) => {
         if (!utils.isNetworkLocalL1(process.env.CHAIN_ETH_NETWORK!)) {
             console.error('This command is only for local networks');
             process.exit(1);

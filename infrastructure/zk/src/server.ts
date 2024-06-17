@@ -5,7 +5,7 @@ import fs from 'fs';
 import * as path from 'path';
 import * as db from './database';
 import * as env from './env';
-import { time } from 'console';
+// import { time } from 'console';
 
 export async function server(
     rebuildTree: boolean,
@@ -146,20 +146,20 @@ export const enCommand = new Command('external-node')
         await externalNode(cmd.reinit, cmd.args);
     });
 
-const fn = async () => {
-    const transactions: string[] = [];
+// const fn = async () => {
+//     const transactions: string[] = [];
 
-    const validateTx = (tx: string) => {};
-    const executeTx = (tx: string) => {};
+//     const validateTx = (tx: string) => {};
+//     const executeTx = (tx: string) => {};
 
-    // 1. Initialize batch params.
+//     // 1. Initialize batch params.
 
-    // 2. Validate and execute transactions:
-    for (const transaction of transactions) {
-        validateTx(transaction);
-        executeTx(transaction);
-    }
+//     // 2. Validate and execute transactions:
+//     for (const transaction of transactions) {
+//         validateTx(transaction);
+//         executeTx(transaction);
+//     }
 
-    // 3. Distribute funds to the operator
-    // and compress the final state diffs.
-};
+//     // 3. Distribute funds to the operator
+//     // and compress the final state diffs.
+// };

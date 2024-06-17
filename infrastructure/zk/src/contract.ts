@@ -468,7 +468,7 @@ command
 command
     .command('migrate-to-sync-layer')
     .description('prepare the network to server as a synclayer')
-    .action(async (cmd) => {
+    .action(async () => {
         await migrateToSyncLayer();
     });
 
