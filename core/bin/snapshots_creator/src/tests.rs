@@ -181,6 +181,7 @@ async fn create_l1_batch(
 
     let mut written_keys: Vec<_> = logs_for_initial_writes.iter().map(|log| log.key).collect();
     written_keys.sort_unstable();
+    let written_keys: Vec<_> = written_keys.iter().map(StorageKey::hashed_key).collect();
     conn.storage_logs_dedup_dal()
         .insert_initial_writes(l1_batch_number, &written_keys)
         .await

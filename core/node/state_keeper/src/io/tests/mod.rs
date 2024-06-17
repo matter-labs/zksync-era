@@ -311,7 +311,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     // Keys that are only read must not be written to `storage_logs`.
     let account = AccountTreeId::default();
     let read_key = StorageKey::new(account, H256::from_low_u64_be(1));
-    assert!(!touched_slots.contains_key(&read_key));
+    assert!(!touched_slots.contains_key(&read_key.hashed_key()));
 
     // The storage logs must be inserted and read in the correct order, so that
     // `touched_slots` contain the most recent values in the L1 batch.
@@ -320,7 +320,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     for (key, value) in written_kvs {
         let key = StorageKey::new(account, H256::from_low_u64_be(key));
         let expected_value = H256::from_low_u64_be(value);
-        assert_eq!(touched_slots[&key], expected_value);
+        assert_eq!(touched_slots[&key.hashed_key()], expected_value);
     }
 }
 

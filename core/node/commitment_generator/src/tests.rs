@@ -31,7 +31,7 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
         .unwrap();
     storage
         .storage_logs_dedup_dal()
-        .insert_initial_writes(number, &[storage_key])
+        .insert_initial_writes(number, &[storage_key.hashed_key()])
         .await
         .unwrap();
 

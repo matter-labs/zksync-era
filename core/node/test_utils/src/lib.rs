@@ -265,7 +265,11 @@ pub async fn recover(
     snapshot: Snapshot,
 ) -> SnapshotRecoveryStatus {
     let mut storage = storage.start_transaction().await.unwrap();
-    let written_keys: Vec<_> = snapshot.storage_logs.iter().map(|log| log.key).collect();
+    let written_keys: Vec<_> = snapshot
+        .storage_logs
+        .iter()
+        .map(|log| log.key.hashed_key())
+        .collect();
     let tree_instructions: Vec<_> = snapshot
         .storage_logs
         .iter()

@@ -338,8 +338,10 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
             })?;
             // Check that both storages have identical key-value pairs written in them
             for storage_log in &storage_logs {
-                let storage_key =
-                    StorageKey::new(AccountTreeId::new(storage_log.address), storage_log.key);
+                let storage_key = StorageKey::new(
+                    AccountTreeId::new(storage_log.address.unwrap()),
+                    storage_log.key.unwrap(),
+                );
                 assert_eq!(
                     pg_storage.read_value(&storage_key),
                     vm_storage.read_value(&storage_key)

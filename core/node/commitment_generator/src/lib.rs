@@ -180,7 +180,7 @@ impl CommitmentGenerator {
         };
         let touched_slots = connection
             .storage_logs_dal()
-            .get_touched_slots_for_l1_batch(l1_batch_number)
+            .get_touched_slots_for_executed_l1_batch(l1_batch_number)
             .await?;
         let touched_hashed_keys: Vec<_> =
             touched_slots.keys().map(|key| key.hashed_key()).collect();

@@ -102,7 +102,7 @@ async fn prepare_recovery_snapshot_with_genesis(
     // Add all logs from the genesis L1 batch to `logs` so that they cover all state keys.
     let genesis_logs = storage
         .storage_logs_dal()
-        .get_touched_slots_for_l1_batch(L1BatchNumber(0))
+        .get_touched_slots_for_executed_l1_batch(L1BatchNumber(0))
         .await
         .unwrap();
     let genesis_logs = genesis_logs

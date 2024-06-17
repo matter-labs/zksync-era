@@ -104,7 +104,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             .unwrap();
         storage
             .storage_logs_dedup_dal()
-            .insert_initial_writes(l1_batch_header.number, &[storage_log.key])
+            .insert_initial_writes(l1_batch_header.number, &[storage_log.key.hashed_key()])
             .await
             .unwrap();
     }

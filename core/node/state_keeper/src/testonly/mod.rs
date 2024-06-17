@@ -142,7 +142,7 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
         {
             storage
                 .storage_logs_dedup_dal()
-                .insert_initial_writes(L1BatchNumber(0), &[storage_log.key])
+                .insert_initial_writes(L1BatchNumber(0), &[storage_log.key.hashed_key()])
                 .await
                 .unwrap();
         }

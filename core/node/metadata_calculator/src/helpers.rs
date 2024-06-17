@@ -736,7 +736,7 @@ impl L1BatchWithLogs {
         let touched_slots_latency = METRICS.start_load_stage(LoadChangesStage::LoadTouchedSlots);
         let mut touched_slots = connection
             .storage_logs_dal()
-            .get_touched_slots_for_l1_batch(l1_batch_number)
+            .get_touched_slots_for_executed_l1_batch(l1_batch_number)
             .await
             .context("cannot fetch touched slots")?;
         touched_slots_latency.observe_with_count(touched_slots.len());
@@ -814,7 +814,7 @@ mod tests {
                 .unwrap();
             let touched_slots = storage
                 .storage_logs_dal()
-                .get_touched_slots_for_l1_batch(l1_batch_number)
+                .get_touched_slots_for_executed_l1_batch(l1_batch_number)
                 .await
                 .unwrap();
 

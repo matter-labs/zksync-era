@@ -103,8 +103,8 @@ async fn snapshots_creator_can_successfully_recover_db(
     assert_eq!(all_storage_logs.len(), storage_logs_by_hashed_key.len());
     for db_log in all_storage_logs {
         let expected_log = &storage_logs_by_hashed_key[&db_log.hashed_key];
-        assert_eq!(db_log.address, *expected_log.key.address());
-        assert_eq!(db_log.key, *expected_log.key.key());
+        assert_eq!(db_log.address, Some(*expected_log.key.address()));
+        assert_eq!(db_log.key, Some(*expected_log.key.key()));
         assert_eq!(db_log.value, expected_log.value);
         assert_eq!(db_log.l2_block_number, expected_status.l2_block_number);
     }
