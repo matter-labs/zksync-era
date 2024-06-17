@@ -85,7 +85,7 @@ pub struct SnapshotStorageLogsChunk {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SnapshotStorageLog {
-    pub key: StorageKey,
+    pub key: H256,
     pub value: StorageValue,
     pub l1_batch_number_of_initial_write: L1BatchNumber,
     pub enumeration_index: u64,
@@ -144,17 +144,22 @@ impl ProtoFmt for SnapshotStorageLog {
     type Proto = crate::proto::SnapshotStorageLog;
 
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        let hashed_key = if let Some(hashed_key) = &r.hashed_key {
+            <[u8; 32]>::try_from(hashed_key.as_slice())
+                .context("hashed_key")?
+                .into()
+        } else {
+            let address = required(&r.account_address)
+                .and_then(|bytes| Ok(<[u8; 20]>::try_from(bytes.as_slice())?.into()))
+                .context("account_address")?;
+            let key = required(&r.storage_key)
+                .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
+                .context("storage_key")?;
+            StorageKey::new(AccountTreeId::new(address), key).hashed_key()
+        };
+
         Ok(Self {
-            key: StorageKey::new(
-                AccountTreeId::new(
-                    required(&r.account_address)
-                        .and_then(|bytes| Ok(<[u8; 20]>::try_from(bytes.as_slice())?.into()))
-                        .context("account_address")?,
-                ),
-                required(&r.storage_key)
-                    .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
-                    .context("storage_key")?,
-            ),
+            key: hashed_key,
             value: required(&r.storage_value)
                 .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
                 .context("storage_value")?,
@@ -168,9 +173,10 @@ impl ProtoFmt for SnapshotStorageLog {
 
     fn build(&self) -> Self::Proto {
         Self::Proto {
-            account_address: Some(self.key.address().as_bytes().into()),
-            storage_key: Some(self.key.key().as_bytes().into()),
-            storage_value: Some(self.value.as_bytes().into()),
+            account_address: None,
+            storage_key: None,
+            hashed_key: Some(self.key.as_bytes().to_vec()),
+            storage_value: Some(self.value.as_bytes().to_vec()),
             l1_batch_number_of_initial_write: Some(self.l1_batch_number_of_initial_write.0),
             enumeration_index: Some(self.enumeration_index),
         }

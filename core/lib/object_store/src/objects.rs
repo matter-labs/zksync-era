@@ -181,7 +181,7 @@ mod tests {
     use zksync_types::{
         snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
         web3::Bytes,
-        AccountTreeId, StorageKey, H160, H256,
+        H256,
     };
 
     use super::*;
@@ -225,13 +225,13 @@ mod tests {
         let storage_logs = SnapshotStorageLogsChunk {
             storage_logs: vec![
                 SnapshotStorageLog {
-                    key: StorageKey::new(AccountTreeId::new(H160::random()), H256::random()),
+                    key: H256::random(),
                     value: H256::random(),
                     l1_batch_number_of_initial_write: L1BatchNumber(123),
                     enumeration_index: 234,
                 },
                 SnapshotStorageLog {
-                    key: StorageKey::new(AccountTreeId::new(H160::random()), H256::random()),
+                    key: H256::random(),
                     value: H256::random(),
                     l1_batch_number_of_initial_write: L1BatchNumber(345),
                     enumeration_index: 456,

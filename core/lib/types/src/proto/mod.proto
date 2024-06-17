@@ -7,8 +7,12 @@ message SnapshotStorageLogsChunk {
 }
 
 message SnapshotStorageLog {
-    optional bytes account_address = 1; // required; H160
-    optional bytes storage_key = 2; // required; H256
+    // `account_address` and `storage_key` fields are obsolete and are not used in the new snapshot format;
+    // `hashed_key` is used instead. The fields are retained for now to support recovery from old snapshots.
+    optional bytes account_address = 1; // optional; H160
+    optional bytes storage_key = 2; // optional; H256
+    optional bytes hashed_key = 6; // optional; H256
+
     optional bytes storage_value = 3; // required; H256
     optional uint32 l1_batch_number_of_initial_write = 4; // required
     optional uint64 enumeration_index = 5; // required
