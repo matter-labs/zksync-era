@@ -22,6 +22,7 @@ use crate::tests::HandleEvent;
 /// Encapsulates progress of creating a particular storage snapshot.
 #[derive(Debug)]
 struct SnapshotProgress {
+    version: SnapshotVersion,
     l1_batch_number: L1BatchNumber,
     /// `true` if the snapshot is new (i.e., its progress is not recovered from Postgres).
     is_new_snapshot: bool,
@@ -32,6 +33,7 @@ struct SnapshotProgress {
 impl SnapshotProgress {
     fn new(l1_batch_number: L1BatchNumber, chunk_count: u64) -> Self {
         Self {
+            version: SnapshotVersion::Version1, // assigned for all new snapshots
             l1_batch_number,
             is_new_snapshot: true,
             chunk_count,
@@ -48,6 +50,7 @@ impl SnapshotProgress {
             .collect();
 
         Self {
+            version: snapshot.version,
             l1_batch_number: snapshot.l1_batch_number,
             is_new_snapshot: false,
             chunk_count: snapshot.storage_logs_filepaths.len() as u64,
@@ -319,12 +322,17 @@ impl SnapshotCreator {
             master_conn
                 .snapshots_dal()
                 .add_snapshot(
-                    SnapshotVersion::Version0,
+                    progress.version,
                     progress.l1_batch_number,
                     progress.chunk_count,
                     &factory_deps_output_file,
                 )
                 .await?;
+        } else {
+            anyhow::ensure!(
+                matches!(progress.version, SnapshotVersion::Version1),
+                "Cannot continue creating a snapshot with a previous version after the new version became the default"
+            );
         }
 
         METRICS

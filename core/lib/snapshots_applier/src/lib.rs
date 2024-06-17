@@ -464,10 +464,12 @@ impl SnapshotRecoveryStrategy {
             )
         })?;
         anyhow::ensure!(
-            matches!(version, SnapshotVersion::Version0),
-            "Cannot recover from a snapshot with version {version:?}; the only supported version is {:?}",
-            SnapshotVersion::Version0
+            matches!(version, SnapshotVersion::Version0 | SnapshotVersion::Version1),
+            "Cannot recover from a snapshot with version {version:?}; the only supported versions are {:?}",
+            [SnapshotVersion::Version0, SnapshotVersion::Version1]
         );
+        // Differences between versions 0 and 1 are completely encapsulated in `SnapshotStorageLog` conversion from Protobuf;
+        // we don't need to conditionally execute any code based on it.
         Ok(())
     }
 }

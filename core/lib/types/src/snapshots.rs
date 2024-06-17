@@ -25,6 +25,9 @@ pub struct AllSnapshots {
 pub enum SnapshotVersion {
     /// Initial snapshot version. Keys in storage logs are stored as `(address, key)` pairs.
     Version0 = 0,
+    /// Snapshot version made compatible with L1 recovery. Differs from `Version0` by including
+    /// hashed keys in storage logs instead of `(address, key)` pairs.
+    Version1 = 1,
 }
 
 /// Storage snapshot metadata. Used in DAL to fetch certain snapshot data.

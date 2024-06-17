@@ -232,7 +232,7 @@ pub(super) fn mock_tokens() -> Vec<TokenInfo> {
 
 pub(super) fn mock_snapshot_header(status: &SnapshotRecoveryStatus) -> SnapshotHeader {
     SnapshotHeader {
-        version: SnapshotVersion::Version0.into(),
+        version: SnapshotVersion::Version1.into(),
         l1_batch_number: status.l1_batch_number,
         l2_block_number: status.l2_block_number,
         storage_logs_chunks: (0..status.storage_logs_chunks_processed.len() as u64)
