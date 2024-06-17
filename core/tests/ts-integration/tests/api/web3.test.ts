@@ -935,11 +935,11 @@ describe('web3 API compatibility tests', () => {
             }
         };
         const outerContract = await deployContract(alice, contracts.outer, [1], undefined, outerContractOverrides);
-        let receipt = await outerContract.deployTransaction.wait();
+        const contract = await outerContract.waitForDeployment();
 
-        const deployedBytecode = await alice.provider.getCode(receipt.contractAddress);
+        const deployedBytecode = await alice.provider.getCode(await contract.getAddress());
 
-        expect(expectedAddress).toEqual(receipt.contractAddress);
+        expect(expectedAddress).toEqual(await contract.getAddress());
         expect(expectedBytecode).toEqual(deployedBytecode);
     });
 
