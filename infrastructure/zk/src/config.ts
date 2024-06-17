@@ -7,6 +7,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import { getTestAccounts } from './run';
+import * as utils from 'utils';
 import { unpackStringSemVer } from 'utils';
 
 function loadConfigFile(configPath: string, stack: string[] = []) {
