@@ -183,7 +183,7 @@ explored how it's ultimately included in the execution results (as part of Query
 transmitted to L1 for final verification.
 
 [overview_image]: https://user-images.githubusercontent.com/128217157/257739371-f971c10b-87c7-4ee9-bd0e-731670c616ac.png
-[user_docs]: https://era.zksync.io/docs/dev/how-to/send-message-l2-l1.html
+[user_docs]: https://code.zksync.io/tutorials/how-to-send-l2-l1-message
 [l1_messenger]:
   https://github.com/matter-labs/era-system-contracts/blob/f01df555c03860b6093dd669d119eed4d9f8ec99/contracts/L1Messenger.sol#L22
 [list_of_opcodes]:

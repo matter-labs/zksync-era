@@ -148,6 +148,8 @@ pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
+pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
+    "Additional arguments that can be passed through the CLI";
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
@@ -170,6 +172,6 @@ pub(super) const MSG_BUILDING_L1_CONTRACTS: &str = "Building L1 contracts...";
 pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
 pub(super) fn msg_address_doesnt_have_enough_money_prompt(address: &H160) -> String {
     format!(
-        "Address {address:?} doesn't have enough money to deploy contracts do you want to continue?"
+        "Address {address:?} doesn't have enough money to deploy contracts do you want to try again?"
     )
 }

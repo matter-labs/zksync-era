@@ -59,7 +59,7 @@ The admin facet is controlled by two entities:
 ### MailboxFacet
 
 The facet that handles L2 <-> L1 communication, an overview for which can be found in
-[docs](https://era.zksync.io/docs/dev/developer-guides/bridging/l1-l2-interop.html).
+[docs](https://docs.zksync.io/build/developer-reference/l1-l2-interoperability).
 
 The Mailbox performs three functions:
 

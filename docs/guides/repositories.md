@@ -65,7 +65,7 @@
 
 | Public repository                                                                       | Description                                                                        |
 | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [zksync-web-era-docs](https://github.com/matter-labs/zksync-web-era-docs)               | [Public ZKsync documentation](https://era.zksync.io/docs/), API descriptions etc.  |
+| [zksync-web-era-docs](https://github.com/matter-labs/zksync-docs)                       | [Public ZKsync documentation](https://docs.zksync.io), API descriptions etc.       |
 | [zksync-contract-templates](https://github.com/matter-labs/zksync-contract-templates)   | Quick contract deployment and testing with tools like Hardhat on Solidity or Vyper |
 | [zksync-frontend-templates](https://github.com/matter-labs/zksync-frontend-templates)   | Rapid UI development with templates for Vue, React, Next.js, Nuxt, Vite, etc.      |
 | [zksync-scripting-templates](https://github.com/matter-labs/zksync-scripting-templates) | Automated interactions and advanced ZKsync operations using Node.js                |
