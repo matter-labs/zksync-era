@@ -15,7 +15,7 @@ import { BigNumberish, BytesLike } from 'ethers';
 import { hashBytecode, serialize } from 'zksync-ethers/build/utils';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
-import { isNetworkLocalL2 } from 'zk/src/utils';
+import { isNetworkLocalL2 } from 'utils';
 
 const contracts = {
     counter: getTestContract('Counter'),

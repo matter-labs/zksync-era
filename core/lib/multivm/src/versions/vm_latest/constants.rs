@@ -26,6 +26,7 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVMSubversi
     match subversion {
         MultiVMSubversion::SmallBootloaderMemory => 59_000_000,
         MultiVMSubversion::IncreasedBootloaderMemory => 63_800_000,
+        MultiVMSubversion::SyncLayer => 63_800_000,
     }
 }
 

@@ -63,7 +63,8 @@ impl CommitmentComputer for RealCommitmentComputer {
                 ),
             )),
             VmVersion::Vm1_5_0SmallBootloaderMemory
-            | VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(H256(
+            | VmVersion::Vm1_5_0IncreasedBootloaderMemory
+            | VmVersion::VmSyncLayer => Ok(H256(
                 circuit_sequencer_api_1_5_0::commitments::events_queue_commitment_fixed(
                     &events_queue
                         .iter()
@@ -101,7 +102,8 @@ impl CommitmentComputer for RealCommitmentComputer {
                 ),
             )),
             VmVersion::Vm1_5_0SmallBootloaderMemory
-            | VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(H256(
+            | VmVersion::Vm1_5_0IncreasedBootloaderMemory
+            | VmVersion::VmSyncLayer => Ok(H256(
                 circuit_sequencer_api_1_5_0::commitments::initial_heap_content_commitment_fixed(
                     &full_bootloader_memory,
                 ),
