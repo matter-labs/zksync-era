@@ -5,7 +5,7 @@ use common::{slugify, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
-use types::{BaseToken, L1BatchCommitDataGeneratorMode, ProverMode, WalletCreation};
+use types::{BaseToken, L1BatchCommitDataGeneratorMode, L1Network, ProverMode, WalletCreation};
 
 use crate::{
     defaults::L2_CHAIN_ID,
@@ -47,7 +47,11 @@ pub struct ChainCreateArgs {
 }
 
 impl ChainCreateArgs {
-    pub fn fill_values_with_prompt(self, number_of_chains: u32) -> ChainCreateArgsFinal {
+    pub fn fill_values_with_prompt(
+        self,
+        number_of_chains: u32,
+        l1_network: &L1Network,
+    ) -> ChainCreateArgsFinal {
         let mut chain_name = self
             .chain_name
             .unwrap_or_else(|| Prompt::new(MSG_CHAIN_NAME_PROMPT).ask());
@@ -59,8 +63,18 @@ impl ChainCreateArgs {
                 .ask()
         });
 
-        let wallet_creation =
-            PromptSelect::new(MSG_WALLET_CREATION_PROMPT, WalletCreation::iter()).ask();
+        let wallet_creation = PromptSelect::new(
+            MSG_WALLET_CREATION_PROMPT,
+            WalletCreation::iter().filter(|wallet| {
+                // Disable localhost wallets for external networks
+                if l1_network == &L1Network::Localhost {
+                    true
+                } else {
+                    wallet != &WalletCreation::Localhost
+                }
+            }),
+        )
+        .ask();
 
         let prover_version = PromptSelect::new(MSG_PROVER_VERSION_PROMPT, ProverMode::iter()).ask();
 

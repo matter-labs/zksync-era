@@ -100,7 +100,7 @@ impl<TypedStructure: EIP712TypedStructure> StructMember for TypedStructure {
 }
 
 /// Interface for defining the structure for the EIP712 signature.
-pub trait EIP712TypedStructure: Serialize {
+pub trait EIP712TypedStructure {
     const TYPE_NAME: &'static str;
 
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER);

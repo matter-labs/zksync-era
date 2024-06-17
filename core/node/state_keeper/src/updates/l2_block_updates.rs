@@ -120,7 +120,7 @@ impl L2BlockUpdates {
         };
 
         // Get transaction factory deps
-        let factory_deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
+        let factory_deps = &tx.execute.factory_deps;
         let tx_factory_deps: HashMap<_, _> = factory_deps
             .iter()
             .map(|bytecode| (hash_bytecode(bytecode), bytecode))
