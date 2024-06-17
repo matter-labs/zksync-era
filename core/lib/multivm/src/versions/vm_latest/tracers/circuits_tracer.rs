@@ -177,8 +177,8 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
             .decommitted_code_hashes
             .history();
         for (_, history_event) in &history[last_decommitment_history_entry_checked..] {
-            // We update cycles once per bytecode when it is inserted to `decommitted_code_hashes` first time.
-            if history_event.value.is_none() {
+            // We update cycles once per bytecode when it is actually decommitted.
+            if history_event.value.is_some() {
                 let bytecode_len = state
                     .decommittment_processor
                     .known_bytecodes
