@@ -377,7 +377,7 @@ fn gen_l2_tx_with_timestamp(address: Address, nonce: Nonce, received_at_ms: u64)
         Fee::default(),
         address,
         U256::zero(),
-        None,
+        vec![],
         Default::default(),
     );
     txn.received_timestamp_ms = received_at_ms;
@@ -388,13 +388,12 @@ fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
     let execute = Execute {
         contract_address: Address::repeat_byte(0x11),
         calldata: vec![1, 2, 3],
-        factory_deps: None,
+        factory_deps: vec![],
         value: U256::zero(),
     };
     let op_data = L1TxCommonData {
         sender: Address::random(),
         serial_id: priority_id,
-        deadline_block: 100000,
         layer_2_tip_fee: U256::zero(),
         full_fee: U256::zero(),
         gas_limit: U256::zero(),
@@ -402,8 +401,7 @@ fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
         gas_per_pubdata_limit: U256::one(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,
-        eth_hash: H256::zero(),
-        eth_block: 1,
+        eth_block: 0,
         canonical_tx_hash: H256::zero(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),

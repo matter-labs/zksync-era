@@ -9,9 +9,11 @@ mod sync_state;
 pub mod testonly;
 #[cfg(test)]
 mod tests;
+pub mod tree_data_fetcher;
+pub mod validate_chain_ids_task;
 
 pub use self::{
-    client::MainNodeClient,
+    client::{MainNodeClient, MainNodeHealthCheck},
     external_io::ExternalIO,
     sync_action::{ActionQueue, ActionQueueSender},
     sync_state::SyncState,

@@ -8,14 +8,14 @@ use prover_dal::ConnectionPool;
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProverConfig, FriWitnessVectorGeneratorConfig,
-    ObservabilityConfig, PostgresConfig,
+    fri_prover_group::FriProverGroupConfig, DatabaseSecrets, FriProverConfig,
+    FriWitnessVectorGeneratorConfig, ObservabilityConfig,
 };
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::ProtocolVersionId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
 use crate::generator::WitnessVectorGenerator;
@@ -67,16 +67,16 @@ async fn main() -> anyhow::Result<()> {
     let specialized_group_id = config.specialized_group_id;
     let exporter_config = PrometheusExporterConfig::pull(config.prometheus_listener_port);
 
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let pool = ConnectionPool::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
     let object_store_config =
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
-    let blob_store = ObjectStoreFactory::new(object_store_config.0)
+    let object_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
-        .await;
+        .await?;
     let circuit_ids_for_round_to_be_proven = FriProverGroupConfig::from_env()
         .context("FriProverGroupConfig::from_env()")?
         .get_circuit_ids_for_group_id(specialized_group_id)
@@ -87,10 +87,10 @@ async fn main() -> anyhow::Result<()> {
     let zone_url = &fri_prover_config.zone_read_url;
     let zone = get_zone(zone_url).await.context("get_zone()")?;
 
-    let protocol_version = ProtocolVersionId::current_prover_version();
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let witness_vector_generator = WitnessVectorGenerator::new(
-        blob_store,
+        object_store,
         pool,
         circuit_ids_for_round_to_be_proven.clone(),
         zone.clone(),

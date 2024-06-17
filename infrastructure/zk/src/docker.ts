@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 
 const IMAGES = [
     'server-v2',
@@ -15,6 +15,7 @@ const IMAGES = [
     'witness-vector-generator',
     'prover-fri-gateway',
     'proof-fri-compressor',
+    'proof-fri-gpu-compressor',
     'snapshots-creator',
     'verified-sources-fetcher'
 ];
@@ -38,6 +39,8 @@ async function dockerCommand(
         ? process.env.IMAGE_TAG_SUFFIX
         : `${COMMIT_SHORT_SHA.trim()}-${UNIX_TIMESTAMP}`;
 
+    const protocolVersionTag: string = process.env.PROTOCOL_VERSION ? process.env.PROTOCOL_VERSION : '';
+
     // We want an alternative flow for Rust image
     if (image == 'rust') {
         await dockerCommand(command, 'server-v2', platform, customTag, dockerOrg);
@@ -52,7 +55,9 @@ async function dockerCommand(
         image = 'keybase-secret';
     }
 
-    const tagList = customTag ? [customTag] : defaultTagList(image, COMMIT_SHORT_SHA.trim(), imageTagShaTS);
+    const tagList = customTag
+        ? [customTag]
+        : defaultTagList(image, COMMIT_SHORT_SHA.trim(), imageTagShaTS, protocolVersionTag);
 
     // Main build\push flow
     switch (command) {
@@ -65,24 +70,37 @@ async function dockerCommand(
     }
 }
 
-function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: string) {
-    const tagList = [
+function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: string, protocolVersionTag: string) {
+    let tagList = [
         'server-v2',
         'external-node',
-        'prover',
         'contract-verifier',
-        'prover-v2',
-        'circuit-synthesizer',
         'witness-generator',
         'prover-fri',
         'prover-gpu-fri',
         'witness-vector-generator',
         'prover-fri-gateway',
         'proof-fri-compressor',
+        'proof-fri-gpu-compressor',
         'snapshots-creator'
     ].includes(image)
         ? ['latest', 'latest2.0', `2.0-${imageTagSha}`, `${imageTagSha}`, `2.0-${imageTagShaTS}`, `${imageTagShaTS}`]
         : [`latest2.0`, 'latest'];
+
+    if (
+        protocolVersionTag &&
+        [
+            'proof-fri-compressor',
+            'proof-fri-gpu-compressor',
+            'prover-fri',
+            'prover-fri-gateway',
+            'prover-gpu-fri',
+            'witness-generator',
+            'witness-vector-generator'
+        ].includes(image)
+    ) {
+        tagList.push(`2.0-${protocolVersionTag}-${imageTagShaTS}`, `${protocolVersionTag}-${imageTagShaTS}`);
+    }
 
     return tagList;
 }

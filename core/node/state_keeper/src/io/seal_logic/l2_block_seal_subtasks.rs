@@ -211,8 +211,8 @@ impl L2BlockSealSubtask for InsertFactoryDepsSubtask {
                 .factory_deps_dal()
                 .insert_factory_deps(command.l2_block.number, &command.l2_block.new_factory_deps)
                 .await?;
-            progress.observe(command.l2_block.new_factory_deps.len());
         }
+        progress.observe(command.l2_block.new_factory_deps.len());
 
         Ok(())
     }
@@ -246,16 +246,18 @@ impl L2BlockSealSubtask for InsertTokensSubtask {
     ) -> anyhow::Result<()> {
         let is_fictive = command.is_l2_block_fictive();
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
-        let added_tokens =
-            extract_added_tokens(command.l2_shared_bridge_addr, &command.l2_block.events);
+        let added_tokens = extract_added_tokens(
+            command.l2_native_token_vault_proxy_addr,
+            &command.l2_block.events,
+        );
+
         progress.observe(added_tokens.len());
 
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
         if !added_tokens.is_empty() {
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
-            let added_tokens_len = added_tokens.len();
             connection.tokens_dal().add_tokens(&added_tokens).await?;
-            progress.observe(added_tokens_len);
         }
+        progress.observe(added_tokens.len());
 
         Ok(())
     }
@@ -342,10 +344,12 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
         progress.observe(user_l2_to_l1_log_count);
 
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2ToL1Logs, is_fictive);
-        connection
-            .events_dal()
-            .save_user_l2_to_l1_logs(command.l2_block.number, &user_l2_to_l1_logs)
-            .await?;
+        if !user_l2_to_l1_logs.is_empty() {
+            connection
+                .events_dal()
+                .save_user_l2_to_l1_logs(command.l2_block.number, &user_l2_to_l1_logs)
+                .await?;
+        }
         progress.observe(user_l2_to_l1_log_count);
         Ok(())
     }
@@ -473,6 +477,7 @@ mod tests {
             base_system_contracts_hashes: Default::default(),
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_shared_bridge_addr: Default::default(),
+            l2_native_token_vault_proxy_addr: Default::default(),
             pre_insert_txs: false,
         };
 
@@ -516,7 +521,7 @@ mod tests {
             .get_transaction_receipts(&[tx_hash])
             .await
             .unwrap()
-            .get(0)
+            .first()
             .cloned();
         assert!(tx_receipt.is_none());
 

@@ -1,17 +1,17 @@
 use std::convert::TryInto;
 
-use sqlx::types::chrono::NaiveDateTime;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     protocol_upgrade::{self, ProtocolUpgradeTx},
-    protocol_version::{L1VerifierConfig, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VersionPatch},
     H256,
 };
 
 #[derive(sqlx::FromRow)]
 pub struct StorageProtocolVersion {
-    pub id: i32,
+    pub minor: i32,
+    pub patch: i32,
     pub timestamp: i64,
     pub recursion_scheduler_level_vk_hash: Vec<u8>,
     pub recursion_node_level_vk_hash: Vec<u8>,
@@ -19,10 +19,6 @@ pub struct StorageProtocolVersion {
     pub recursion_circuits_set_vks_hash: Vec<u8>,
     pub bootloader_code_hash: Vec<u8>,
     pub default_account_code_hash: Vec<u8>,
-    // deprecated
-    pub verifier_address: Option<Vec<u8>>,
-    pub created_at: NaiveDateTime,
-    pub upgrade_tx_hash: Option<Vec<u8>>,
 }
 
 pub(crate) fn protocol_version_from_storage(
@@ -30,7 +26,10 @@ pub(crate) fn protocol_version_from_storage(
     tx: Option<ProtocolUpgradeTx>,
 ) -> protocol_upgrade::ProtocolVersion {
     protocol_upgrade::ProtocolVersion {
-        id: (storage_version.id as u16).try_into().unwrap(),
+        version: ProtocolSemanticVersion {
+            minor: (storage_version.minor as u16).try_into().unwrap(),
+            patch: VersionPatch(storage_version.patch as u32),
+        },
         timestamp: storage_version.timestamp as u64,
         l1_verifier_config: L1VerifierConfig {
             params: VerifierParams {
@@ -56,36 +55,28 @@ pub(crate) fn protocol_version_from_storage(
     }
 }
 
-impl From<StorageProtocolVersion> for api::ProtocolVersion {
-    fn from(storage_protocol_version: StorageProtocolVersion) -> Self {
+#[derive(sqlx::FromRow)]
+pub struct StorageApiProtocolVersion {
+    pub minor: i32,
+    pub timestamp: i64,
+    pub bootloader_code_hash: Vec<u8>,
+    pub default_account_code_hash: Vec<u8>,
+    pub upgrade_tx_hash: Option<Vec<u8>>,
+}
+
+impl From<StorageApiProtocolVersion> for api::ProtocolVersion {
+    #[allow(deprecated)]
+    fn from(storage_protocol_version: StorageApiProtocolVersion) -> Self {
         let l2_system_upgrade_tx_hash = storage_protocol_version
             .upgrade_tx_hash
             .as_ref()
             .map(|hash| H256::from_slice(hash));
-        api::ProtocolVersion {
-            version_id: storage_protocol_version.id as u16,
-            timestamp: storage_protocol_version.timestamp as u64,
-            verification_keys_hashes: L1VerifierConfig {
-                params: VerifierParams {
-                    recursion_node_level_vk_hash: H256::from_slice(
-                        &storage_protocol_version.recursion_node_level_vk_hash,
-                    ),
-                    recursion_leaf_level_vk_hash: H256::from_slice(
-                        &storage_protocol_version.recursion_leaf_level_vk_hash,
-                    ),
-                    recursion_circuits_set_vks_hash: H256::from_slice(
-                        &storage_protocol_version.recursion_circuits_set_vks_hash,
-                    ),
-                },
-                recursion_scheduler_level_vk_hash: H256::from_slice(
-                    &storage_protocol_version.recursion_scheduler_level_vk_hash,
-                ),
-            },
-            base_system_contracts: BaseSystemContractsHashes {
-                bootloader: H256::from_slice(&storage_protocol_version.bootloader_code_hash),
-                default_aa: H256::from_slice(&storage_protocol_version.default_account_code_hash),
-            },
+        api::ProtocolVersion::new(
+            storage_protocol_version.minor as u16,
+            storage_protocol_version.timestamp as u64,
+            H256::from_slice(&storage_protocol_version.bootloader_code_hash),
+            H256::from_slice(&storage_protocol_version.default_account_code_hash),
             l2_system_upgrade_tx_hash,
-        }
+        )
     }
 }

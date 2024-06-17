@@ -113,6 +113,7 @@ pub struct InternalApiConfig {
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub user_facing_bridgehub_addr: Option<Address>,
+    pub l2_native_token_vault_proxy_addr: Option<Address>,
 }
 
 impl InternalApiConfig {
@@ -168,6 +169,7 @@ impl InternalApiConfig {
                     .as_ref()
                     .map(|a| a.bridgehub_proxy_addr),
             ),
+            l2_native_token_vault_proxy_addr: contracts_config.l2_native_token_vault_proxy_addr,
         }
     }
 }

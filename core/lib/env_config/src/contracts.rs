@@ -77,6 +77,9 @@ mod tests {
             user_facing_diamond_proxy_addr: Some(addr(
                 "0xF00B988a98Ca742e7958DeF9F7823b5908715f4a",
             )),
+            l2_native_token_vault_proxy_addr: Some(addr(
+                "0xfc073319977e314f251eae6ae6be76b0b3baeecf",
+            )),
         }
     }
 
@@ -103,6 +106,7 @@ CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347
 CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
 CONTRACTS_USER_FACING_BRIDGEHUB="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_USER_FACING_DIAMOND_PROXY="0xF00B988a98Ca742e7958DeF9F7823b5908715f4a
+CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR="0xfc073319977e314f251eae6ae6be76b0b3baeecf"
         "#;
         lock.set_env(config);
 

@@ -20,10 +20,10 @@ use crate::{
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
-    sync_dal::SyncDal, system_dal::SystemDal,
+    sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
     tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
 pub mod blocks_dal;
@@ -50,11 +50,13 @@ pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
+pub mod tee_proof_generation_dal;
 pub mod tee_verifier_input_producer_dal;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
+pub mod vm_runner_dal;
 
 #[cfg(test)]
 mod tests;
@@ -110,6 +112,8 @@ where
 
     fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a>;
 
+    fn tee_proof_generation_dal(&mut self) -> TeeProofGenerationDal<'_, 'a>;
+
     fn system_dal(&mut self) -> SystemDal<'_, 'a>;
 
     fn snapshots_dal(&mut self) -> SnapshotsDal<'_, 'a>;
@@ -119,6 +123,8 @@ where
     fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a>;
 
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a>;
+
+    fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -210,6 +216,10 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         ProofGenerationDal { storage: self }
     }
 
+    fn tee_proof_generation_dal(&mut self) -> TeeProofGenerationDal<'_, 'a> {
+        TeeProofGenerationDal { storage: self }
+    }
+
     fn system_dal(&mut self) -> SystemDal<'_, 'a> {
         SystemDal { storage: self }
     }
@@ -228,5 +238,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a> {
         PruningDal { storage: self }
+    }
+
+    fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a> {
+        VmRunnerDal { storage: self }
     }
 }

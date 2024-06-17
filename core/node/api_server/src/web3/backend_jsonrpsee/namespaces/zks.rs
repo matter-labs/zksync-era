@@ -14,7 +14,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
-    namespaces::zks::ZksNamespaceServer,
+    namespaces::ZksNamespaceServer,
     types::Token,
 };
 
@@ -44,6 +44,10 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>> {
         Ok(self.get_testnet_paymaster_impl())
+    }
+
+    async fn get_native_token_vault_proxy_addr(&self) -> RpcResult<Option<Address>> {
+        Ok(self.get_native_token_vault_proxy_addr_impl())
     }
 
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses> {

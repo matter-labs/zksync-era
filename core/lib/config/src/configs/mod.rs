@@ -17,8 +17,10 @@ pub use self::{
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
+    secrets::{DatabaseSecrets, L1Secrets, Secrets},
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
+    vm_runner::ProtectiveReadsWriterConfig,
 };
 
 pub mod api;
@@ -42,8 +44,10 @@ pub mod house_keeper;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
+pub mod secrets;
 pub mod snapshots_creator;
 pub mod utils;
+pub mod vm_runner;
 pub mod wallets;
 
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;

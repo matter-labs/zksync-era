@@ -1,13 +1,22 @@
 use ethabi::Token;
 use zksync_contracts::{load_contract, read_bytecode};
-use zksync_types::{Address, Execute, U256};
+use zksync_test_account::Account;
+use zksync_types::{fee::Fee, Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled},
     vm_latest::{tests::tester::VmTesterBuilder, HistoryEnabled},
 };
 
-fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 {
+#[derive(Debug, Default)]
+
+struct TestTxInfo {
+    calldata: Vec<u8>,
+    fee_overrides: Option<Fee>,
+    should_fail: bool,
+}
+
+fn test_storage(txs: Vec<TestTxInfo>) -> u32 {
     let bytecode = read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
     );
@@ -20,44 +29,58 @@ fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
-        .with_random_rich_accounts(1)
+        .with_random_rich_accounts(txs.len() as u32)
         .with_custom_contracts(vec![(bytecode, test_contract_address, false)])
         .build();
 
-    let account = &mut vm.rich_accounts[0];
+    let mut last_result = None;
 
-    let tx1 = account.get_l2_tx_for_execute(
-        Execute {
-            contract_address: test_contract_address,
-            calldata: first_tx_calldata,
-            value: 0.into(),
-            factory_deps: None,
-        },
-        None,
-    );
+    for (id, tx) in txs.into_iter().enumerate() {
+        let TestTxInfo {
+            calldata,
+            fee_overrides,
+            should_fail,
+        } = tx;
 
-    let tx2 = account.get_l2_tx_for_execute(
-        Execute {
-            contract_address: test_contract_address,
-            calldata: second_tx_calldata,
-            value: 0.into(),
-            factory_deps: None,
-        },
-        None,
-    );
+        let account = &mut vm.rich_accounts[id];
 
-    vm.vm.push_transaction(tx1);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
-    assert!(!result.result.is_failed(), "First tx failed");
+        vm.vm.make_snapshot();
 
-    vm.vm.push_transaction(tx2);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
-    assert!(!result.result.is_failed(), "Second tx failed");
-    result.statistics.pubdata_published
+        let tx = account.get_l2_tx_for_execute(
+            Execute {
+                contract_address: test_contract_address,
+                calldata,
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            fee_overrides,
+        );
+
+        vm.vm.push_transaction(tx);
+        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        if should_fail {
+            assert!(result.result.is_failed(), "Transaction should fail");
+            vm.vm.rollback_to_the_latest_snapshot();
+        } else {
+            assert!(!result.result.is_failed(), "Transaction should not fail");
+            vm.vm.pop_snapshot_no_rollback();
+        }
+
+        last_result = Some(result);
+    }
+
+    last_result.unwrap().statistics.pubdata_published
 }
 
 fn test_storage_one_tx(second_tx_calldata: Vec<u8>) -> u32 {
-    test_storage(vec![], second_tx_calldata)
+    test_storage(vec![
+        TestTxInfo::default(),
+        TestTxInfo {
+            calldata: second_tx_calldata,
+            fee_overrides: None,
+            should_fail: false,
+        },
+    ])
 }
 
 #[test]
@@ -115,5 +138,49 @@ fn test_transient_storage_behavior() {
         .encode_input(&[Token::Uint(U256::zero())])
         .unwrap();
 
-    test_storage(first_tstore_test, second_tstore_test);
+    test_storage(vec![
+        TestTxInfo {
+            calldata: first_tstore_test,
+            ..TestTxInfo::default()
+        },
+        TestTxInfo {
+            calldata: second_tstore_test,
+            ..TestTxInfo::default()
+        },
+    ]);
+}
+
+#[test]
+fn test_transient_storage_behavior_panic() {
+    let contract = load_contract(
+        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
+    );
+
+    let basic_tstore_test = contract
+        .function("tStoreAndRevert")
+        .unwrap()
+        .encode_input(&[Token::Uint(U256::one()), Token::Bool(false)])
+        .unwrap();
+
+    let small_fee = Fee {
+        // Something very-very small to make the validation fail
+        gas_limit: 10_000.into(),
+        ..Account::default_fee()
+    };
+
+    test_storage(vec![
+        TestTxInfo {
+            calldata: basic_tstore_test.clone(),
+            ..TestTxInfo::default()
+        },
+        TestTxInfo {
+            fee_overrides: Some(small_fee),
+            should_fail: true,
+            ..TestTxInfo::default()
+        },
+        TestTxInfo {
+            calldata: basic_tstore_test,
+            ..TestTxInfo::default()
+        },
+    ]);
 }

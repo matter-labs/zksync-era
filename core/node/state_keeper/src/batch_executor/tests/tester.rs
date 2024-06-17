@@ -17,12 +17,11 @@ use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
-    block::L2BlockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
-    storage_writes_deduplicator::StorageWritesDeduplicator,
+    block::L2BlockHasher, ethabi::Token, protocol_version::ProtocolSemanticVersion,
+    snapshots::SnapshotRecoveryStatus, storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
-    StorageKey, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
-    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    StorageKey, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -32,12 +31,11 @@ use super::{
 };
 use crate::{
     batch_executor::{BatchExecutorHandle, TxExecutionResult},
+    testonly,
     testonly::BASE_SYSTEM_CONTRACTS,
     tests::{default_l1_batch_env, default_system_env},
     AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
 };
-
-const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;
 
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.
@@ -145,11 +143,10 @@ impl Tester {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let mut batch_executor =
-            MainBatchExecutor::new(storage_factory, self.config.save_call_traces, false);
+        let mut batch_executor = MainBatchExecutor::new(self.config.save_call_traces, false);
         let (_stop_sender, stop_receiver) = watch::channel(false);
         batch_executor
-            .init_batch(l1_batch_env, system_env, &stop_receiver)
+            .init_batch(storage_factory, l1_batch_env, system_env, &stop_receiver)
             .await
             .expect("Batch executor was interrupted")
     }
@@ -245,7 +242,10 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                ProtocolVersionId::latest(),
+                ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::latest(),
+                    patch: 0.into(),
+                },
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
                 Default::default(),
@@ -344,15 +344,7 @@ impl AccountLoadNextExecutable for Account {
         )
     }
     fn l1_execute(&mut self, serial_id: PriorityOpId) -> Transaction {
-        self.get_l1_tx(
-            Execute {
-                contract_address: Address::random(),
-                value: Default::default(),
-                calldata: vec![],
-                factory_deps: None,
-            },
-            serial_id.0,
-        )
+        testonly::l1_transaction(self, serial_id)
     }
 
     /// Returns a valid `execute` transaction.
@@ -371,10 +363,12 @@ impl AccountLoadNextExecutable for Account {
     ) -> Transaction {
         // For each iteration of the expensive contract, there are two slots that are updated:
         // the length of the vector and the new slot with the element itself.
-        let minimal_fee =
-            2 * DEFAULT_GAS_PER_PUBDATA * writes * INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32;
+        let minimal_fee = 2
+            * testonly::DEFAULT_GAS_PER_PUBDATA
+            * writes
+            * INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32;
 
-        let fee = fee(minimal_fee + gas_limit);
+        let fee = testonly::fee(minimal_fee + gas_limit);
 
         self.get_l2_tx_for_execute(
             Execute {
@@ -389,7 +383,7 @@ impl AccountLoadNextExecutable for Account {
                 }
                 .to_bytes(),
                 value: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
             },
             Some(fee),
         )
@@ -398,16 +392,7 @@ impl AccountLoadNextExecutable for Account {
     /// Returns a valid `execute` transaction.
     /// Automatically increments nonce of the account.
     fn execute_with_gas_limit(&mut self, gas_limit: u32) -> Transaction {
-        let fee = fee(gas_limit);
-        self.get_l2_tx_for_execute(
-            Execute {
-                contract_address: Address::random(),
-                calldata: vec![],
-                value: Default::default(),
-                factory_deps: None,
-            },
-            Some(fee),
-        )
+        testonly::l2_transaction(self, gas_limit)
     }
 
     /// Returns a transaction to the loadnext contract with custom gas limit and expected burned gas amount.
@@ -418,7 +403,7 @@ impl AccountLoadNextExecutable for Account {
         gas_to_burn: u32,
         gas_limit: u32,
     ) -> Transaction {
-        let fee = fee(gas_limit);
+        let fee = testonly::fee(gas_limit);
         let calldata = mock_loadnext_gas_burn_calldata(gas_to_burn);
 
         self.get_l2_tx_for_execute(
@@ -426,19 +411,10 @@ impl AccountLoadNextExecutable for Account {
                 contract_address: address,
                 calldata,
                 value: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
             },
             Some(fee),
         )
-    }
-}
-
-fn fee(gas_limit: u32) -> Fee {
-    Fee {
-        gas_limit: U256::from(gas_limit),
-        max_fee_per_gas: SYSTEM_CONTEXT_MINIMAL_BASE_FEE.into(),
-        max_priority_fee_per_gas: U256::zero(),
-        gas_per_pubdata_limit: U256::from(DEFAULT_GAS_PER_PUBDATA),
     }
 }
 
@@ -493,7 +469,7 @@ impl StorageSnapshot {
             .collect();
         drop(storage);
 
-        let executor = tester
+        let mut executor = tester
             .create_batch_executor(StorageType::AsyncRocksdbCache)
             .await;
         let mut l2_block_env = L2BlockEnv {
@@ -507,7 +483,7 @@ impl StorageSnapshot {
         for _ in 0..transaction_count {
             let tx = alice.execute();
             let tx_hash = tx.hash(); // probably incorrect
-            let res = executor.execute_tx(tx).await;
+            let res = executor.execute_tx(tx).await.unwrap();
             if let TxExecutionResult::Success { tx_result, .. } = res {
                 let storage_logs = &tx_result.logs.storage_logs;
                 storage_writes_deduplicator
@@ -526,10 +502,10 @@ impl StorageSnapshot {
             l2_block_env.number += 1;
             l2_block_env.timestamp += 1;
             l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
-            executor.start_next_l2_block(l2_block_env).await;
+            executor.start_next_l2_block(l2_block_env).await.unwrap();
         }
 
-        let finished_batch = executor.finish_batch().await;
+        let finished_batch = executor.finish_batch().await.unwrap();
         let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
         storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
         let modified_entries = storage_writes_deduplicator.into_modified_key_values();

@@ -23,7 +23,7 @@ pub async fn run_main_node(
     // For now in case of error we just log it and allow the server
     // to continue running.
     if let Err(err) = super::run_main_node(ctx, cfg, secrets, ConnectionPool(pool)).await {
-        tracing::error!(%err, "Consensus actor failed");
+        tracing::error!("Consensus actor failed: {err:#}");
     } else {
         tracing::info!("Consensus actor stopped");
     }
@@ -44,7 +44,7 @@ pub async fn run_en(
     let en = en::EN {
         pool: ConnectionPool(pool),
         sync_state: sync_state.clone(),
-        client: main_node_client,
+        client: main_node_client.for_component("block_fetcher"),
     };
     let res = match cfg {
         Some((cfg, secrets)) => en.run(ctx, actions, cfg, secrets).await,

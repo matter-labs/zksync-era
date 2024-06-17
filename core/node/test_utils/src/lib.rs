@@ -66,7 +66,7 @@ pub fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: BaseSystemContractsHashes::default().bootloader,
             default_aa_code_hash: BaseSystemContractsHashes::default().default_aa,
-            protocol_version: ProtocolVersionId::latest(),
+            protocol_version: Some(ProtocolVersionId::latest()),
         },
         aux_data_hash: H256::zero(),
         meta_parameters_hash: H256::zero(),
@@ -123,7 +123,7 @@ pub fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
         U256::zero(),
         L2ChainId::from(271),
         &K256PrivateKey::random(),
-        None,
+        vec![],
         PaymasterParams::default(),
     )
     .unwrap();
@@ -170,7 +170,7 @@ impl Snapshot {
             l1_batch,
             l1_batch.0.into(),
             contracts.hashes(),
-            genesis_params.protocol_version(),
+            genesis_params.minor_protocol_version(),
         );
         let l2_block = L2BlockHeader {
             number: l2_block,
@@ -182,10 +182,10 @@ impl Snapshot {
             batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
             fee_account_address: Address::zero(),
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
-                genesis_params.protocol_version().into(),
+                genesis_params.minor_protocol_version().into(),
             ),
             base_system_contracts_hashes: contracts.hashes(),
-            protocol_version: Some(genesis_params.protocol_version()),
+            protocol_version: Some(genesis_params.minor_protocol_version()),
             virtual_blocks: 1,
             gas_limit: 0,
         };
@@ -276,7 +276,7 @@ pub async fn recover(
 
     let protocol_version = storage
         .protocol_versions_dal()
-        .get_protocol_version(snapshot.l1_batch.protocol_version.unwrap())
+        .get_protocol_version_with_latest_patch(snapshot.l1_batch.protocol_version.unwrap())
         .await
         .unwrap();
     if let Some(protocol_version) = protocol_version {

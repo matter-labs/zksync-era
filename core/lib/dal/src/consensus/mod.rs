@@ -109,6 +109,17 @@ impl ProtoRepr for proto::Transaction {
         Ok(Self::Type {
             common_data: match common_data {
                 proto::transaction::CommonData::L1(common_data) => {
+                    anyhow::ensure!(
+                        *required(&common_data.deadline_block)
+                            .context("common_data.deadline_block")?
+                            == 0
+                    );
+                    anyhow::ensure!(
+                        required(&common_data.eth_hash)
+                            .and_then(|x| parse_h256(x))
+                            .context("common_data.eth_hash")?
+                            == H256::default()
+                    );
                     ExecuteTransactionCommon::L1(L1TxCommonData {
                         sender: required(&common_data.sender_address)
                             .and_then(|x| parse_h160(x))
@@ -116,8 +127,6 @@ impl ProtoRepr for proto::Transaction {
                         serial_id: required(&common_data.serial_id)
                             .map(|x| PriorityOpId(*x))
                             .context("common_data.serial_id")?,
-                        deadline_block: *required(&common_data.deadline_block)
-                            .context("common_data.deadline_block")?,
                         layer_2_tip_fee: required(&common_data.layer_2_tip_fee)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
@@ -150,9 +159,6 @@ impl ProtoRepr for proto::Transaction {
                                     .map_err(|_| anyhow!("u8::try_from"))
                             })
                             .context("common_data.priority_queue_type")?,
-                        eth_hash: required(&common_data.eth_hash)
-                            .and_then(|x| parse_h256(x))
-                            .context("common_data.eth_hash")?,
                         eth_block: *required(&common_data.eth_block)
                             .context("common_data.eth_block")?,
                         canonical_tx_hash: required(&common_data.canonical_tx_hash)
@@ -247,9 +253,6 @@ impl ProtoRepr for proto::Transaction {
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
                             .context("common_data.gas_per_pubdata_limit")?,
-                        eth_hash: required(&common_data.eth_hash)
-                            .and_then(|x| parse_h256(x))
-                            .context("common_data.eth_hash")?,
                         eth_block: *required(&common_data.eth_block)
                             .context("common_data.eth_block")?,
                         canonical_tx_hash: required(&common_data.canonical_tx_hash)
@@ -274,10 +277,7 @@ impl ProtoRepr for proto::Transaction {
                     .and_then(|x| parse_h256(x))
                     .map(h256_to_u256)
                     .context("execute.value")?,
-                factory_deps: match execute.factory_deps.is_empty() {
-                    true => None,
-                    false => Some(execute.factory_deps.clone()),
-                },
+                factory_deps: execute.factory_deps.clone(),
             },
             received_timestamp_ms: 0, // This timestamp is local to the node
             raw_bytes: self.raw_bytes.as_ref().map(|x| x.clone().into()),
@@ -290,7 +290,7 @@ impl ProtoRepr for proto::Transaction {
                 proto::transaction::CommonData::L1(proto::L1TxCommonData {
                     sender_address: Some(data.sender.as_bytes().into()),
                     serial_id: Some(data.serial_id.0),
-                    deadline_block: Some(data.deadline_block),
+                    deadline_block: Some(0),
                     layer_2_tip_fee: Some(u256_to_h256(data.layer_2_tip_fee).as_bytes().into()),
                     full_fee: Some(u256_to_h256(data.full_fee).as_bytes().into()),
                     max_fee_per_gas: Some(u256_to_h256(data.max_fee_per_gas).as_bytes().into()),
@@ -300,7 +300,7 @@ impl ProtoRepr for proto::Transaction {
                     ),
                     op_processing_type: Some(data.op_processing_type as u32),
                     priority_queue_type: Some(data.priority_queue_type as u32),
-                    eth_hash: Some(data.eth_hash.as_bytes().into()),
+                    eth_hash: Some(H256::default().as_bytes().into()),
                     eth_block: Some(data.eth_block),
                     canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
                     to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
@@ -345,7 +345,7 @@ impl ProtoRepr for proto::Transaction {
                         gas_per_pubdata_limit: Some(
                             u256_to_h256(data.gas_per_pubdata_limit).as_bytes().into(),
                         ),
-                        eth_hash: Some(data.eth_hash.as_bytes().into()),
+                        eth_hash: Some(H256::default().as_bytes().into()),
                         eth_block: Some(data.eth_block),
                         canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
                         to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
@@ -358,10 +358,7 @@ impl ProtoRepr for proto::Transaction {
             contract_address: Some(this.execute.contract_address.as_bytes().into()),
             calldata: Some(this.execute.calldata.clone()),
             value: Some(u256_to_h256(this.execute.value).as_bytes().into()),
-            factory_deps: match &this.execute.factory_deps {
-                Some(inner) => inner.clone(),
-                None => vec![],
-            },
+            factory_deps: this.execute.factory_deps.clone(),
         };
         Self {
             common_data: Some(common_data),

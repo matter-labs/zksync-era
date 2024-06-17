@@ -14,7 +14,7 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
 use super::{
     io::{IoCursor, L2BlockParams},
-    metrics::BATCH_TIP_METRICS,
+    metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
 use crate::types::ExecutionMetricsForCriteria;
 
@@ -82,6 +82,7 @@ impl UpdatesManager {
     pub(crate) fn seal_l2_block_command(
         &self,
         l2_shared_bridge_addr: Address,
+        l2_native_token_vault_proxy_addr: Address,
         pre_insert_txs: bool,
     ) -> L2BlockSealCommand {
         L2BlockSealCommand {
@@ -94,6 +95,7 @@ impl UpdatesManager {
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),
             l2_shared_bridge_addr,
+            l2_native_token_vault_proxy_addr,
             pre_insert_txs,
         }
     }
@@ -102,7 +104,7 @@ impl UpdatesManager {
         self.protocol_version
     }
 
-    pub(crate) fn extend_from_executed_transaction(
+    pub fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
@@ -111,6 +113,9 @@ impl UpdatesManager {
         execution_metrics: ExecutionMetrics,
         call_traces: Vec<Call>,
     ) {
+        let latency = UPDATES_MANAGER_METRICS
+            .extend_from_executed_transaction
+            .start();
         self.storage_writes_deduplicator
             .apply(&tx_execution_result.logs.storage_logs);
         self.l2_block.extend_from_executed_transaction(
@@ -121,9 +126,11 @@ impl UpdatesManager {
             compressed_bytecodes,
             call_traces,
         );
+        latency.observe();
     }
 
-    pub(crate) fn finish_batch(&mut self, finished_batch: FinishedL1Batch) {
+    pub fn finish_batch(&mut self, finished_batch: FinishedL1Batch) {
+        let latency = UPDATES_MANAGER_METRICS.finish_batch.start();
         assert!(
             self.l1_batch.finished.is_none(),
             "Cannot finish already finished batch"
@@ -144,11 +151,13 @@ impl UpdatesManager {
             batch_tip_metrics.execution_metrics,
         );
         self.l1_batch.finished = Some(finished_batch);
+
+        latency.observe();
     }
 
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously
     /// held L2 block is considered sealed and is used to extend the L1 batch data.
-    pub(crate) fn push_l2_block(&mut self, l2_block_params: L2BlockParams) {
+    pub fn push_l2_block(&mut self, l2_block_params: L2BlockParams) {
         let new_l2_block_updates = L2BlockUpdates::new(
             l2_block_params.timestamp,
             self.l2_block.number + 1,
@@ -190,6 +199,7 @@ pub struct L2BlockSealCommand {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
     pub l2_shared_bridge_addr: Address,
+    pub l2_native_token_vault_proxy_addr: Address,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into L2 blocks.

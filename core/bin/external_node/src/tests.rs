@@ -2,13 +2,17 @@
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
+use zksync_dal::CoreDal;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
     api, ethabi, fee_model::FeeParams, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
     H256, U64,
 };
-use zksync_web3_decl::{client::MockClient, jsonrpsee::core::ClientError};
+use zksync_web3_decl::{
+    client::{MockClient, L1},
+    jsonrpsee::core::ClientError,
+};
 
 use super::*;
 
@@ -96,10 +100,11 @@ fn expected_health_components(components: &ComponentsToRun) -> Vec<&'static str>
     output
 }
 
-fn mock_eth_client(diamond_proxy_addr: Address) -> MockEthereum {
-    MockEthereum::default().with_call_handler(move |call, _| {
+fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
+    let mock = MockEthereum::builder().with_call_handler(move |call, _| {
         tracing::info!("L1 call: {call:?}");
         if call.to == Some(diamond_proxy_addr) {
+            let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
             let call_signature = &call.data.as_ref().unwrap().0[..4];
             let contract = zksync_contracts::hyperchain_contract();
             let pricing_mode_sig = contract
@@ -114,14 +119,13 @@ fn mock_eth_client(diamond_proxy_addr: Address) -> MockEthereum {
                 sig if sig == pricing_mode_sig => {
                     return ethabi::Token::Uint(0.into()); // "rollup" mode encoding
                 }
-                sig if sig == protocol_version_sig => {
-                    return ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
-                }
+                sig if sig == protocol_version_sig => return ethabi::Token::Uint(packed_semver),
                 _ => { /* unknown call; panic below */ }
             }
         }
         panic!("Unexpected L1 call: {call:?}");
-    })
+    });
+    mock.build().into_client()
 }
 
 #[test_casing(5, ["all", "core", "api", "tree", "tree,tree_api"])]
@@ -150,7 +154,6 @@ async fn external_node_basics(components_str: &'static str) {
     let components: ComponentsToRun = components_str.parse().unwrap();
     let expected_health_components = expected_health_components(&components);
     let opt = Cli {
-        revert_pending_l1_batch: false,
         enable_consensus: false,
         components,
     };
@@ -259,7 +262,6 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     drop(storage);
 
     let opt = Cli {
-        revert_pending_l1_batch: false,
         enable_consensus: false,
         components: "core".parse().unwrap(),
     };

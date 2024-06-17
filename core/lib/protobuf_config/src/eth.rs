@@ -24,24 +24,6 @@ impl proto::ProofSendingMode {
     }
 }
 
-impl proto::ProofLoadingMode {
-    fn new(x: &configs::eth_sender::ProofLoadingMode) -> Self {
-        use configs::eth_sender::ProofLoadingMode as From;
-        match x {
-            From::OldProofFromDb => Self::OldProofFromDb,
-            From::FriProofFromGcs => Self::FriProofFromGcs,
-        }
-    }
-
-    fn parse(&self) -> configs::eth_sender::ProofLoadingMode {
-        use configs::eth_sender::ProofLoadingMode as To;
-        match self {
-            Self::OldProofFromDb => To::OldProofFromDb,
-            Self::FriProofFromGcs => To::FriProofFromGcs,
-        }
-    }
-}
-
 impl proto::PubdataSendingMode {
     fn new(x: &configs::eth_sender::PubdataSendingMode) -> Self {
         use configs::eth_sender::PubdataSendingMode as From;
@@ -68,10 +50,6 @@ impl ProtoRepr for proto::Eth {
             sender: read_optional_repr(&self.sender).context("sender")?,
             gas_adjuster: read_optional_repr(&self.gas_adjuster).context("gas_adjuster")?,
             watcher: read_optional_repr(&self.watcher).context("watcher")?,
-            web3_url: required(&self.web3_url)
-                .context("web3_url")?
-                .parse()
-                .context("web3_url")?,
         })
     }
 
@@ -80,7 +58,6 @@ impl ProtoRepr for proto::Eth {
             sender: this.sender.as_ref().map(ProtoRepr::build),
             gas_adjuster: this.gas_adjuster.as_ref().map(ProtoRepr::build),
             watcher: this.watcher.as_ref().map(ProtoRepr::build),
-            web3_url: Some(this.web3_url.expose_str().to_owned()),
         }
     }
 }
@@ -132,10 +109,10 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
                 .context("pubdata_sending_mode")?
                 .parse(),
-            proof_loading_mode: required(&self.proof_loading_mode)
-                .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
-                .context("proof_loading_mode")?
-                .parse(),
+            // proof_loading_mode: required(&self.proof_loading_mode)
+            //     .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
+            //     .context("proof_loading_mode")?
+            //     .parse(),
             ignore_db_nonce: None,
         })
     }
@@ -167,7 +144,6 @@ impl ProtoRepr for proto::Sender {
             pubdata_sending_mode: Some(
                 proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
             ),
-            proof_loading_mode: Some(proto::ProofLoadingMode::new(&this.proof_loading_mode).into()),
         }
     }
 }

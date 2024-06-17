@@ -26,15 +26,21 @@ pub struct FriProverJobMetadata {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct JobCountStatistics {
+pub struct ExtendedJobCountStatistics {
     pub queued: usize,
     pub in_progress: usize,
     pub failed: usize,
     pub successful: usize,
 }
 
-impl Add for JobCountStatistics {
-    type Output = JobCountStatistics;
+#[derive(Debug, Clone, Copy, Default)]
+pub struct JobCountStatistics {
+    pub queued: usize,
+    pub in_progress: usize,
+}
+
+impl Add for ExtendedJobCountStatistics {
+    type Output = ExtendedJobCountStatistics;
 
     fn add(self, rhs: Self) -> Self::Output {
         Self {
@@ -326,7 +332,7 @@ pub struct RecursionTipWitnessGeneratorJobInfo {
     pub error: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub number_of_final_node_jobs: Option<i32>,
+    pub number_of_final_node_jobs: i32,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
 }
