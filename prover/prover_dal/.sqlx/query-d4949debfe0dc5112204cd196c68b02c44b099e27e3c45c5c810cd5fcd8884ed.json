@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE witness_inputs_fri\n            SET\n                status = 'failed',\n                error = $1,\n                updated_at = NOW()\n            WHERE\n                l1_batch_number = $2\n                AND status != 'successful'\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d4949debfe0dc5112204cd196c68b02c44b099e27e3c45c5c810cd5fcd8884ed"
+}
