@@ -96,14 +96,12 @@ impl WiringLayer for TxSenderLayer {
         if let Some(sealer) = sealer {
             tx_sender = tx_sender.with_sealer(sealer);
         }
-        let tx_sender = tx_sender
-            .build(
-                fee_input,
-                Arc::new(vm_concurrency_limiter),
-                self.api_contracts,
-                storage_caches,
-            )
-            .await;
+        let tx_sender = tx_sender.build(
+            fee_input,
+            Arc::new(vm_concurrency_limiter),
+            self.api_contracts,
+            storage_caches,
+        );
         context.insert_resource(TxSenderResource(tx_sender))?;
 
         Ok(())

@@ -31,7 +31,7 @@ pub(crate) struct DebugNamespace {
 
 impl DebugNamespace {
     pub async fn new(state: RpcState) -> anyhow::Result<Self> {
-        let api_contracts = ApiContracts::load_from_disk();
+        let api_contracts = ApiContracts::load_from_disk().await?;
         let fee_input_provider = &state.tx_sender.0.batch_fee_input_provider;
         let batch_fee_input = fee_input_provider
             .get_batch_fee_input_scaled(
@@ -63,6 +63,10 @@ impl DebugNamespace {
         options: Option<TracerConfig>,
     ) -> Result<Vec<ResultDebugCall>, Web3Error> {
         self.current_method().set_block_id(block_id);
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // See `EthNamespace::get_block_impl()` for an explanation why this check is needed.
+            return Ok(vec![]);
+        }
 
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)

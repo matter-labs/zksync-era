@@ -16,6 +16,7 @@ use sqlx::{
 use crate::{
     connection_pool::ConnectionPool,
     error::{DalConnectionError, DalResult},
+    instrument::InstrumentExt,
     metrics::CONNECTION_METRICS,
     utils::InternalMarker,
 };
@@ -183,6 +184,7 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
         }
     }
 
+    /// Starts a transaction or a new checkpoint within the current transaction.
     pub async fn start_transaction(&mut self) -> DalResult<Connection<'_, DB>> {
         let (conn, tags) = self.conn_and_tags();
         let inner = ConnectionInner::Transaction {
@@ -195,6 +197,24 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
         Ok(Connection {
             inner,
             _marker: Default::default(),
+        })
+    }
+
+    /// Starts building a new transaction with custom settings. Unlike [`Self::start_transaction()`], this method
+    /// will error if called from a transaction; it is a logical error to change transaction settings in the middle of it.
+    pub fn transaction_builder(&mut self) -> DalResult<TransactionBuilder<'_, 'a, DB>> {
+        if let ConnectionInner::Transaction { tags, .. } = &self.inner {
+            let err = io::Error::new(
+                io::ErrorKind::Other,
+                "`Connection::transaction_builder()` can only be invoked outside of a transaction",
+            );
+            return Err(
+                DalConnectionError::start_transaction(sqlx::Error::Io(err), tags.cloned()).into(),
+            );
+        }
+        Ok(TransactionBuilder {
+            connection: self,
+            is_readonly: false,
         })
     }
 
@@ -260,9 +280,36 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
     }
 }
 
+/// Builder of transactions allowing to configure transaction characteristics (for now, just its readonly status).
+#[derive(Debug)]
+pub struct TransactionBuilder<'a, 'c, DB: DbMarker> {
+    connection: &'a mut Connection<'c, DB>,
+    is_readonly: bool,
+}
+
+impl<'a, DB: DbMarker> TransactionBuilder<'a, '_, DB> {
+    /// Sets the readonly status of the created transaction.
+    pub fn set_readonly(mut self) -> Self {
+        self.is_readonly = true;
+        self
+    }
+
+    /// Builds the transaction with the provided characteristics.
+    pub async fn build(self) -> DalResult<Connection<'a, DB>> {
+        let mut transaction = self.connection.start_transaction().await?;
+        if self.is_readonly {
+            sqlx::query("SET TRANSACTION READ ONLY")
+                .instrument("set_transaction_characteristics")
+                .execute(&mut transaction)
+                .await?;
+        }
+        Ok(transaction)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{connection_pool::ConnectionPool, utils::InternalMarker};
+    use super::*;
 
     #[tokio::test]
     async fn processor_tags_propagate_to_transactions() {
@@ -295,5 +342,32 @@ mod tests {
             let traced = traced.connections.lock().unwrap();
             assert!(traced.is_empty());
         }
+    }
+
+    #[tokio::test]
+    async fn creating_readonly_transaction() {
+        let pool = ConnectionPool::<InternalMarker>::constrained_test_pool(1).await;
+        let mut connection = pool.connection().await.unwrap();
+        let mut readonly_transaction = connection
+            .transaction_builder()
+            .unwrap()
+            .set_readonly()
+            .build()
+            .await
+            .unwrap();
+        assert!(readonly_transaction.in_transaction());
+
+        sqlx::query("SELECT COUNT(*) AS \"count?\" FROM miniblocks")
+            .instrument("test")
+            .fetch_optional(&mut readonly_transaction)
+            .await
+            .unwrap()
+            .expect("no row returned");
+        // Check that it's impossible to execute write statements in the transaction.
+        sqlx::query("DELETE FROM miniblocks")
+            .instrument("test")
+            .execute(&mut readonly_transaction)
+            .await
+            .unwrap_err();
     }
 }

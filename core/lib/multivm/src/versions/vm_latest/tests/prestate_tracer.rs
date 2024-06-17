@@ -91,7 +91,7 @@ fn test_prestate_tracer_diff_mode() {
         contract_address: vm.test_contract.unwrap(),
         calldata: Default::default(),
         value: U256::from(100000),
-        factory_deps: None,
+        factory_deps: vec![],
     };
 
     vm.vm
@@ -101,7 +101,7 @@ fn test_prestate_tracer_diff_mode() {
         contract_address: deployed_address2,
         calldata: Default::default(),
         value: U256::from(200000),
-        factory_deps: None,
+        factory_deps: vec![],
     };
 
     vm.vm

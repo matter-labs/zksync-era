@@ -736,7 +736,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -745,7 +745,7 @@ dependencies = [
  "convert_case",
  "crossbeam 0.8.4",
  "crypto-bigint 0.5.5",
- "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum.git?branch=main)",
  "derivative",
  "ethereum-types",
  "firestorm",
@@ -1021,7 +1021,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
 dependencies = [
  "circuit_encodings 0.1.50",
  "crossbeam 0.8.4",
@@ -1067,7 +1067,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
 dependencies = [
  "derivative",
  "serde",
@@ -1129,7 +1129,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
  "circuit_encodings 0.1.50",
@@ -1578,7 +1578,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.85",
@@ -3444,7 +3444,7 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
 dependencies = [
  "boojum",
  "derivative",
@@ -3541,18 +3541,18 @@ dependencies = [
 
 [[package]]
 name = "linkme"
-version = "0.3.26"
+version = "0.3.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "833222afbfe72868ac8f9770c91a33673f0d5fefc37c9dbe94aa3548b571623f"
+checksum = "ccb76662d78edc9f9bf56360d6919bdacc8b7761227727e5082f128eeb90bbf5"
 dependencies = [
  "linkme-impl",
 ]
 
 [[package]]
 name = "linkme-impl"
-version = "0.3.26"
+version = "0.3.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39f0dea92dbea3271557cc2e1848723967bba81f722f95026860974ec9283f08"
+checksum = "f8dccda732e04fa3baf2e17cf835bfe2601c7c2edafd64417c627dabae3a8cda"
 dependencies = [
  "proc-macro2 1.0.85",
  "quote 1.0.36",
@@ -4982,6 +4982,7 @@ dependencies = [
  "dialoguer",
  "hex",
  "prover_dal",
+ "serde_json",
  "sqlx",
  "strum",
  "tokio",
@@ -4998,6 +4999,7 @@ dependencies = [
  "zksync_prover_fri_types",
  "zksync_prover_interface",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8175,7 +8177,7 @@ dependencies = [
  "arrayvec 0.7.4",
  "bincode",
  "boojum",
- "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum.git?branch=main)",
  "derivative",
  "hex",
  "itertools 0.10.5",
@@ -8196,7 +8198,7 @@ dependencies = [
  "arrayvec 0.7.4",
  "bincode",
  "boojum",
- "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum.git?branch=main)",
  "derivative",
  "hex",
  "itertools 0.10.5",
@@ -8217,7 +8219,7 @@ dependencies = [
  "arrayvec 0.7.4",
  "bincode",
  "boojum",
- "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum.git?branch=main)",
  "derivative",
  "hex",
  "itertools 0.10.5",
@@ -8237,7 +8239,7 @@ source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
- "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum.git?branch=main)",
  "derivative",
  "hex",
  "itertools 0.10.5",
@@ -8342,7 +8344,7 @@ dependencies = [
  "codegen 0.2.0",
  "crossbeam 0.8.4",
  "derivative",
- "env_logger 0.9.3",
+ "env_logger 0.11.3",
  "hex",
  "rand 0.4.6",
  "rayon",
@@ -8358,7 +8360,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
 dependencies = [
  "bincode",
  "circuit_definitions 1.5.0",
@@ -8972,6 +8974,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_config",
+ "zksync_crypto",
  "zksync_dal",
  "zksync_health_check",
  "zksync_merkle_tree",
@@ -9043,6 +9046,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "secrecy",
+ "tempfile",
  "tracing",
  "zksync_concurrency",
  "zksync_config",
@@ -9054,10 +9058,16 @@ dependencies = [
  "zksync_consensus_storage",
  "zksync_consensus_utils",
  "zksync_dal",
+ "zksync_l1_contract_interface",
+ "zksync_merkle_tree",
+ "zksync_metadata_calculator",
  "zksync_node_sync",
  "zksync_protobuf",
+ "zksync_state",
  "zksync_state_keeper",
+ "zksync_system_constants",
  "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -9156,6 +9166,7 @@ dependencies = [
  "http",
  "prost 0.12.6",
  "rand 0.8.5",
+ "reqwest",
  "serde_json",
  "tokio",
  "tracing",
@@ -9177,6 +9188,7 @@ dependencies = [
  "zksync_dal",
  "zksync_object_store",
  "zksync_prover_interface",
+ "zksync_tee_verifier",
  "zksync_types",
 ]
 
@@ -9269,6 +9281,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_prover_config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "zksync_config",
+ "zksync_core_leftovers",
+ "zksync_env_config",
+ "zksync_protobuf_config",
+]
+
+[[package]]
 name = "zksync_prover_fri"
 version = "0.1.0"
 dependencies = [
@@ -9319,10 +9342,9 @@ dependencies = [
  "vise",
  "vlog",
  "zksync_config",
- "zksync_core_leftovers",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_protobuf_config",
+ "zksync_prover_config",
  "zksync_prover_interface",
  "zksync_types",
  "zksync_utils",
@@ -9433,11 +9455,13 @@ dependencies = [
  "zksync_dal",
  "zksync_mempool",
  "zksync_node_fee_model",
+ "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_protobuf",
  "zksync_shared_metrics",
  "zksync_state",
  "zksync_storage",
+ "zksync_test_account",
  "zksync_types",
  "zksync_utils",
 ]
@@ -9502,6 +9526,19 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_state",
  "zksync_tee_verifier",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
+name = "zksync_test_account"
+version = "0.1.0"
+dependencies = [
+ "ethabi",
+ "hex",
+ "zksync_contracts",
+ "zksync_eth_signer",
+ "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
 ]
@@ -9612,6 +9649,7 @@ dependencies = [
  "zksync_env_config",
  "zksync_object_store",
  "zksync_protobuf_config",
+ "zksync_prover_config",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
  "zksync_prover_interface",

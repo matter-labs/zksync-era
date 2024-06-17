@@ -442,7 +442,8 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             zone_read_url: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
             availability_check_interval_in_secs: self.sample(rng),
-            object_store: self.sample(rng),
+            prover_object_store: self.sample(rng),
+            public_object_store: self.sample(rng),
         }
     }
 }
@@ -615,6 +616,7 @@ impl Distribution<configs::ObjectStoreConfig> for EncodeDist {
         configs::ObjectStoreConfig {
             mode: self.sample(rng),
             max_retries: self.sample(rng),
+            local_mirror_path: self.sample(rng),
         }
     }
 }
@@ -624,6 +626,7 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
+            tee_support: self.sample(rng),
         }
     }
 }
