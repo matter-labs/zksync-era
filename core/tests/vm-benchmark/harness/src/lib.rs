@@ -147,7 +147,7 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
         U256::zero(),
         L2ChainId::from(270),
         &PRIVATE_KEY,
-        Some(vec![code.to_vec()]), // maybe not needed?
+        vec![code.to_vec()], // maybe not needed?
         Default::default(),
     )
     .expect("should create a signed execute transaction");
