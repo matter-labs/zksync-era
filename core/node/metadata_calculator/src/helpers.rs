@@ -704,7 +704,6 @@ impl L1BatchWithLogs {
         }))
     }
 
-    #[allow(clippy::needless_pass_by_ref_mut)] // false positive
     async fn wait_for_tree_writes(
         connection: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
