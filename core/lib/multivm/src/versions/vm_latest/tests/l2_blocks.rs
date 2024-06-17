@@ -3,6 +3,7 @@
 //! The description for each of the tests can be found in the corresponding `.yul` file.
 //!
 
+use ethabi::Token;
 use zk_evm_1_5_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
@@ -74,7 +75,11 @@ fn test_l2_block_initialization_timestamp() {
 
     assert_eq!(
         res.result,
-        ExecutionResult::Halt {reason: Halt::FailedToSetL2Block("The timestamp of the L2 block must be greater than or equal to the timestamp of the current batch".to_string())}
+        ExecutionResult::Halt {
+            reason: Halt::FailedToSetL2Block(
+                "Error function_selector = 0xd018e08e, data = 0xd018e08e".to_string()
+            )
+        }
     );
 }
 
@@ -111,7 +116,7 @@ fn test_l2_block_initialization_number_non_zero() {
         res.result,
         ExecutionResult::Halt {
             reason: Halt::FailedToSetL2Block(
-                "L2 block number is never expected to be zero".to_string()
+                "Error function_selector = 0x903e89d9, data = 0x903e89d9".to_string()
             )
         }
     );
@@ -169,7 +174,7 @@ fn test_l2_block_same_l2_block() {
     // Case 1: Incorrect timestamp
     test_same_l2_block(
         Some(Halt::FailedToSetL2Block(
-            "The timestamp of the same L2 block must be same".to_string(),
+            "Error function_selector = 0xd54b530a, data = 0xd54b530a000000000000000000000000000000000000000000000000000001900dee06f90000000000000000000000000000000000000000000000000000000000000000".to_string(),
         )),
         Some(0),
         None,
@@ -194,7 +199,7 @@ fn test_new_l2_block(
     overriden_second_block_timestamp: Option<u64>,
     overriden_second_block_prev_block_hash: Option<H256>,
     expected_error: Option<Halt>,
-) {
+) -> H256 {
     let mut l1_batch = default_l1_batch(L1BatchNumber(1));
     l1_batch.timestamp = 1;
     l1_batch.first_l2_block = first_l2_block;
@@ -237,6 +242,8 @@ fn test_new_l2_block(
     } else {
         assert_eq!(result.result, ExecutionResult::Success { output: vec![] });
     }
+
+    return second_l2_block.prev_block_hash;
 }
 
 #[test]
@@ -257,17 +264,31 @@ fn test_l2_block_new_l2_block() {
         None,
         None,
         Some(Halt::FailedToSetL2Block(
-            "Invalid new L2 block number".to_string(),
+            "Error function_selector = 0xd72810cc, data = 0xd72810cc".to_string(),
         )),
     );
 
     // Case 2: Timestamp not increasing
-    test_new_l2_block(
+    let l2_block_hash = test_new_l2_block(
         correct_first_block,
         None,
         Some(1),
         None,
-        Some(Halt::FailedToSetL2Block("The timestamp of the new L2 block must be greater than the timestamp of the previous L2 block".to_string())),
+        Some(Halt::FailedToSetL2Block(
+            "Error function_selector = 0xd018e08e, data = 0xd018e08e".to_string(),
+        )),
+    );
+
+    let encoded_error_data = [
+        hex::decode("0b08d5be").unwrap(),
+        l2_block_hash.0.to_vec(),
+        H256::zero().0.to_vec(),
+    ]
+    .concat();
+
+    let expected_error = format!(
+        "Error function_selector = 0x0b08d5be, data = 0x{}",
+        hex::encode(encoded_error_data)
     );
 
     // Case 3: Incorrect previous block hash
@@ -276,9 +297,7 @@ fn test_l2_block_new_l2_block() {
         None,
         None,
         Some(H256::zero()),
-        Some(Halt::FailedToSetL2Block(
-            "The current L2 block hash is incorrect".to_string(),
-        )),
+        Some(Halt::FailedToSetL2Block(expected_error)),
     );
 
     // Case 4: Correct new block
@@ -404,7 +423,9 @@ fn test_l2_block_first_in_batch() {
             prev_block_hash,
             max_virtual_blocks_to_create: 1,
         },
-        Some(Halt::FailedToSetL2Block("The timestamp of the L2 block must be greater than or equal to the timestamp of the current batch".to_string())),
+        Some(Halt::FailedToSetL2Block(
+            "Error function_selector = 0xd018e08e, data = 0xd018e08e".to_string(),
+        )),
     );
 }
 
