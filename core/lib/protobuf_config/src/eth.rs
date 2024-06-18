@@ -109,10 +109,6 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
                 .context("pubdata_sending_mode")?
                 .parse(),
-            // proof_loading_mode: required(&self.proof_loading_mode)
-            //     .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
-            //     .context("proof_loading_mode")?
-            //     .parse(),
             ignore_db_nonce: None,
         })
     }

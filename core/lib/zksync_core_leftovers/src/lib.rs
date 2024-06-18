@@ -28,11 +28,10 @@ use zksync_config::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
-        wallets,
-        wallets::Wallets,
+        wallets::{self, Wallets},
         ContractsConfig, DatabaseSecrets, GeneralConfig, Secrets,
     },
-    ApiConfig, DBConfig, EthWatchConfig, GenesisConfig,
+    ApiConfig, DBConfig, EthWatchConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
