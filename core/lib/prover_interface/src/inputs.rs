@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
-    commitment::L1BatchWithMetadata, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageLog,
-    H256, U256,
+    block::L1BatchHeader, commitment::L1BatchWithMetadata, L1BatchNumber, ProtocolVersionId, H256,
+    U256,
 };
 
 const HASH_LEN: usize = H256::len_bytes();
@@ -148,18 +148,12 @@ pub struct BasicCircuitWitnessGeneratorInput {
 }
 
 pub struct WitnessGeneratorData {
-    pub block_number: L1BatchNumber,
+    pub l1_batch_header: L1BatchHeader,
     pub previous_batch_with_metadata: L1BatchWithMetadata,
-    pub last_miniblock_number: L2BlockNumber,
-    pub previous_block_hash: H256,
-    pub previous_block_timestamp: u64,
-    pub block_timestamp: u64,
     pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
     pub initial_heap_content: Vec<(usize, U256)>,
     pub protocol_version: ProtocolVersionId,
 
-    pub storage_logs: Vec<StorageLog>,
-    pub bootloader_code_hash: H256,
     pub bootloader_code: Vec<[u8; 32]>,
     pub default_account_code_hash: U256,
     pub storage_refunds: Vec<u32>,

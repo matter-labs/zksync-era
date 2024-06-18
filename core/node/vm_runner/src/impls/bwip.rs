@@ -1,12 +1,11 @@
 use std::{collections::HashSet, sync::Arc};
 
-use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_prover_interface::inputs::WitnessGeneratorData;
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
-use zksync_types::{L1BatchNumber, L2ChainId, ProtocolVersionId, H256};
+use zksync_types::{block::StorageOracleInfo, L1BatchNumber, L2ChainId, ProtocolVersionId, H256};
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
 use crate::{
@@ -133,11 +132,6 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         &mut self,
         updates_manager: Arc<UpdatesManager>,
     ) -> anyhow::Result<()> {
-        let finished_batch = updates_manager
-            .l1_batch
-            .finished
-            .as_ref()
-            .context("L1 batch is not actually finished")?;
         let l1_batch_number = updates_manager.l1_batch.number;
 
         let mut connection = self.pool.connection().await?;
@@ -155,19 +149,6 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
             .await
             .unwrap()
             .unwrap();
-
-        let (_, previous_block_timestamp) = connection
-            .blocks_dal()
-            .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
-            .await
-            .unwrap()
-            .unwrap();
-        let previous_block_hash = connection
-            .blocks_dal()
-            .get_l1_batch_state_root(l1_batch_number - 1)
-            .await
-            .unwrap()
-            .expect("cannot generate witness before the root hash is computed");
 
         let account_code_hash = h256_to_u256(block_header.base_system_contracts_hashes.default_aa);
         let account_bytecode_bytes = connection
@@ -205,25 +186,37 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
             hashes.len() - used_bytecodes.len()
         );
 
+        let previous_batch_with_metadata = connection
+            .blocks_dal()
+            .get_l1_batch_metadata(L1BatchNumber(block_header.number.checked_sub(1).unwrap()))
+            .await
+            .unwrap()
+            .unwrap();
+
+        let StorageOracleInfo {
+            storage_refunds,
+            pubdata_costs,
+        } = connection
+            .blocks_dal()
+            .get_storage_oracle_info(input.block_number)
+            .await
+            .unwrap()
+            .unwrap();
+
         let result = WitnessGeneratorData {
-            block_number: l1_batch_number,
-            previous_batch_with_metadata: L1BatchWithMetadata {},
-            last_miniblock_number: Default::default(),
-            previous_block_hash,
-            previous_block_timestamp,
-            block_timestamp: block_header.timestamp,
+            l1_batch_header: block_header.clone(),
+            previous_batch_with_metadata,
             used_bytecodes,
             initial_heap_content,
 
             protocol_version: block_header
                 .protocol_version
                 .unwrap_or(ProtocolVersionId::last_potentially_undefined()),
-            storage_logs: vec![],
-            bootloader_code_hash: Default::default(),
+
             bootloader_code: vec![],
             default_account_code_hash: account_code_hash,
-            storage_refunds: vec![],
-            pubdata_costs: None,
+            storage_refunds,
+            pubdata_costs,
             witness_storage_memory: (),
             merkle_paths_input: (),
         };

@@ -277,16 +277,14 @@ async fn process_basic_circuits_job(
     connection_pool: ConnectionPool<Core>,
     started_at: Instant,
     block_number: L1BatchNumber,
-    job: PrepareBasicCircuitsJob,
+    job: WitnessGeneratorData,
     eip_4844_blobs: Eip4844Blobs,
 ) -> BasicCircuitArtifacts {
-    let witness_gen_input =
-        build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
     let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
         block_number,
         object_store,
         connection_pool,
-        witness_gen_input,
+        job,
         eip_4844_blobs,
     )
     .await;
@@ -405,49 +403,6 @@ async fn save_recursion_queue(
     (circuit_id, blob_url, basic_circuit_count)
 }
 
-// If making changes to this method, consider moving this logic to the DAL layer and make
-// `PrepareBasicCircuitsJob` have all fields of `BasicCircuitWitnessGeneratorInput`.
-async fn build_basic_circuits_witness_generator_input(
-    connection_pool: &ConnectionPool<Core>,
-    witness_merkle_input: PrepareBasicCircuitsJob,
-    l1_batch_number: L1BatchNumber,
-) -> BasicCircuitWitnessGeneratorInput {
-    let mut connection = connection_pool.connection().await.unwrap();
-    let block_header = connection
-        .blocks_dal()
-        .get_l1_batch_header(l1_batch_number)
-        .await
-        .unwrap()
-        .unwrap();
-    let initial_heap_content = connection
-        .blocks_dal()
-        .get_initial_bootloader_heap(l1_batch_number)
-        .await
-        .unwrap()
-        .unwrap();
-    let (_, previous_block_timestamp) = connection
-        .blocks_dal()
-        .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
-        .await
-        .unwrap()
-        .unwrap();
-    let previous_block_hash = connection
-        .blocks_dal()
-        .get_l1_batch_state_root(l1_batch_number - 1)
-        .await
-        .unwrap()
-        .expect("cannot generate witness before the root hash is computed");
-    BasicCircuitWitnessGeneratorInput {
-        block_number: l1_batch_number,
-        previous_block_timestamp,
-        previous_block_hash,
-        block_timestamp: block_header.timestamp,
-        used_bytecodes_hashes: block_header.used_contract_hashes,
-        initial_heap_content,
-        merkle_paths_input: witness_merkle_input,
-    }
-}
-
 async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
@@ -464,66 +419,19 @@ async fn generate_witness(
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
 ) {
-    let mut connection = connection_pool.connection().await.unwrap();
-    let header = connection
-        .blocks_dal()
-        .get_l1_batch_header(input.block_number)
-        .await
-        .unwrap()
-        .unwrap();
-
-    let protocol_version = input.protocol_version;
-
-    let previous_batch_with_metadata = connection
-        .blocks_dal()
-        .get_l1_batch_metadata(zksync_types::L1BatchNumber(
-            input.block_number.checked_sub(1).unwrap(),
-        ))
-        .await
-        .unwrap()
-        .unwrap();
-
-    let bootloader_code_bytes = connection
-        .factory_deps_dal()
-        .get_sealed_factory_dep(header.base_system_contracts_hashes.bootloader)
-        .await
-        .expect("Failed fetching bootloader bytecode from DB")
-        .expect("Bootloader bytecode should exist");
-    let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
-
     let bootloader_contents =
-        expand_bootloader_contents(&input.initial_heap_content, protocol_version);
-
-    let StorageOracleInfo {
-        storage_refunds,
-        pubdata_costs,
-    } = connection
-        .blocks_dal()
-        .get_storage_oracle_info(input.block_number)
-        .await
-        .unwrap()
-        .unwrap();
-
-    // `DbStorageProvider` was designed to be used in API, so it accepts miniblock numbers.
-    // Probably, we should make it work with L1 batch numbers too.
-    let (_, last_miniblock_number) = connection
-        .blocks_dal()
-        .get_l2_block_range_of_l1_batch(input.block_number - 1)
-        .await
-        .unwrap()
-        .expect("L1 batch should contain at least one miniblock");
-    drop(connection);
+        expand_bootloader_contents(&input.initial_heap_content, input.protocol_version);
 
     let mut tree = PrecalculatedMerklePathsProvider::new(
         input.merkle_paths_input,
-        input.previous_block_hash.0,
+        input.previous_batch_with_metadata.metadata.root_hash.0,
     );
     let geometry_config = get_geometry_config();
     let mut hasher = DefaultHasher::new();
     geometry_config.hash(&mut hasher);
     tracing::info!(
         "generating witness for block {} using geometry config hash: {}",
-        input.block_number.0,
+        input.l1_batch_header.number.0,
         hasher.finish()
     );
 
@@ -534,8 +442,6 @@ async fn generate_witness(
     let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
 
     let make_circuits = tokio::task::spawn_blocking(move || {
-        let connection = rt_handle.block_on(connection_pool.connection()).unwrap();
-
         let storage_view = StorageView::new(input.witness_storage_memory).to_rc_ptr();
 
         let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
@@ -606,10 +512,13 @@ async fn generate_witness(
 
     recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
 
-    scheduler_witness.previous_block_meta_hash =
-        previous_batch_with_metadata.metadata.meta_parameters_hash.0;
+    scheduler_witness.previous_block_meta_hash = input
+        .previous_batch_with_metadata
+        .metadata
+        .meta_parameters_hash
+        .0;
     scheduler_witness.previous_block_aux_hash =
-        previous_batch_with_metadata.metadata.aux_data_hash.0;
+        input.previous_batch_with_metadata.metadata.aux_data_hash.0;
 
     (
         circuit_urls,
