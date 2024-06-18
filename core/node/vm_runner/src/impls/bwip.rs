@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_prover_interface::inputs::WitnessGeneratorData;
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
-use zksync_types::{L1BatchNumber, L2ChainId, H256};
+use zksync_types::{L1BatchNumber, L2ChainId, ProtocolVersionId, H256};
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
 use crate::{
@@ -148,12 +148,14 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
             .await
             .unwrap()
             .unwrap();
+
         let initial_heap_content = connection
             .blocks_dal()
             .get_initial_bootloader_heap(l1_batch_number)
             .await
             .unwrap()
             .unwrap();
+
         let (_, previous_block_timestamp) = connection
             .blocks_dal()
             .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
@@ -205,18 +207,25 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 
         let result = WitnessGeneratorData {
             block_number: l1_batch_number,
+            previous_batch_with_metadata: L1BatchWithMetadata {},
+            last_miniblock_number: Default::default(),
             previous_block_hash,
             previous_block_timestamp,
             block_timestamp: block_header.timestamp,
             used_bytecodes,
             initial_heap_content,
 
+            protocol_version: block_header
+                .protocol_version
+                .unwrap_or(ProtocolVersionId::last_potentially_undefined()),
             storage_logs: vec![],
             bootloader_code_hash: Default::default(),
             bootloader_code: vec![],
             default_account_code_hash: account_code_hash,
             storage_refunds: vec![],
             pubdata_costs: None,
+            witness_storage_memory: (),
+            merkle_paths_input: (),
         };
 
         Ok(())

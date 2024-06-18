@@ -472,9 +472,7 @@ async fn generate_witness(
         .unwrap()
         .unwrap();
 
-    let protocol_version = header
-        .protocol_version
-        .unwrap_or(ProtocolVersionId::last_potentially_undefined());
+    let protocol_version = input.protocol_version;
 
     let previous_batch_with_metadata = connection
         .blocks_dal()
@@ -538,8 +536,7 @@ async fn generate_witness(
     let make_circuits = tokio::task::spawn_blocking(move || {
         let connection = rt_handle.block_on(connection_pool.connection()).unwrap();
 
-        let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
-        let storage_view = StorageView::new(storage).to_rc_ptr();
+        let storage_view = StorageView::new(input.witness_storage_memory).to_rc_ptr();
 
         let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
             VmStorageOracle::new(storage_view.clone());
