@@ -43,28 +43,3 @@ struct DatabaseEthSenderInterface {
     base_nonce_custom_commit_sender: Option<u64>,
     custom_commit_sender_addr: Option<Address>,
 }
-
-impl DatabaseEthSenderInterface {
-    async fn get_next_nonce(
-        &self,
-        storage: &mut Connection<'_, Core>,
-        from_addr: Option<Address>,
-    ) -> Result<u64, EthSenderError> {
-        let db_nonce = storage
-            .eth_sender_dal()
-            .get_next_nonce(from_addr)
-            .await
-            .unwrap()
-            .unwrap_or(0);
-        // Between server starts we can execute some txs using operator account or remove some txs from the database
-        // At the start we have to consider this fact and get the max nonce.
-        Ok(if from_addr.is_none() {
-            db_nonce.max(self.base_nonce)
-        } else {
-            db_nonce.max(
-                self.base_nonce_custom_commit_sender
-                    .expect("custom base nonce is expected to be initialized; qed"),
-            )
-        })
-    }
-}
