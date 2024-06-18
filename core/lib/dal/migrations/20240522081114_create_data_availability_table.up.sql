@@ -1,4 +1,4 @@
-CREATE TABLE data_availability
+CREATE TABLE IF NOT EXISTS data_availability
 (
     l1_batch_number BIGINT PRIMARY KEY REFERENCES l1_batches (number) ON DELETE CASCADE,
 

@@ -1,1 +1,1 @@
-DROP TABLE data_availability;
+DROP TABLE IF EXISTS data_availability;

@@ -766,6 +766,7 @@ pub async fn initialize_components(
                 .da_dispatcher_config
                 .clone()
                 .context("da_dispatcher_config")?;
+            // A pool with size 2 is used here because there are 2 functions within a task that execute in parallel
             let da_dispatcher_pool =
                 ConnectionPool::<Core>::builder(database_secrets.master_url()?, 2)
                     .build()

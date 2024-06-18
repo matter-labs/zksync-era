@@ -18,7 +18,7 @@ impl ProtoRepr for proto::DataAvailabilityDispatcher {
         Self {
             polling_interval_ms: this.polling_interval_ms,
             max_rows_to_dispatch: this.max_rows_to_dispatch,
-            max_retries: this.max_retries.map(|x| x as u32),
+            max_retries: this.max_retries.map(Into::into),
         }
     }
 }
