@@ -376,10 +376,10 @@ async fn persisting_snapshot_logs_for_v0_snapshot() {
         .unwrap();
     let snapshot_l1_batch_number = L1BatchNumber(8);
 
-    // Logs must be compatible with v1 `SnapshotStorageLog` format
+    // Logs must be compatible with version 1 `SnapshotStorageLog` format
     assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
 
-    // ...and must be compatible with v0 format as well
+    // ...and must be compatible with version 0 format as well
     let mut actual_logs = HashSet::new();
     for chunk_id in 0..MIN_CHUNK_COUNT {
         let key = SnapshotStorageLogsStorageKey {

@@ -100,7 +100,7 @@ impl SnapshotCreator {
             METRICS.storage_logs_processing_duration[&StorageChunkStage::LoadFromPostgres].start();
         let (output_filepath, latency) = match progress.version {
             SnapshotVersion::Version0 => {
-                #[allow(deprecated)] // support of v0 snapshots will be removed eventually
+                #[allow(deprecated)] // support of version 0 snapshots will be removed eventually
                 let logs = conn
                     .snapshots_creator_dal()
                     .get_storage_logs_chunk_with_key_preimages(

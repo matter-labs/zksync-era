@@ -88,8 +88,8 @@ pub struct SnapshotStorageLogsChunk<K = H256> {
 
 /// Storage log record in a storage snapshot.
 ///
-/// v0 and v1 snapshots differ in the key type; v0 uses full [`StorageKey`]s (i.e., storage key preimages),
-/// and v1 uses [`H256`] hashed keys. See [`SnapshotVersion`] for details.
+/// Version 0 and version 1 snapshots differ in the key type; version 0 uses full [`StorageKey`]s (i.e., storage key preimages),
+/// and version 1 uses [`H256`] hashed keys. See [`SnapshotVersion`] for details.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SnapshotStorageLog<K = H256> {
     pub key: K,
