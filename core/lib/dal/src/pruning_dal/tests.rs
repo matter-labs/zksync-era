@@ -291,7 +291,7 @@ async fn insert_l2_block_storage_logs(
     storage_logs: Vec<StorageLog>,
 ) {
     conn.storage_logs_dal()
-        .insert_storage_logs(l2_block_number, &[(H256::zero(), storage_logs)])
+        .insert_storage_logs(l2_block_number, &storage_logs)
         .await
         .unwrap();
 }

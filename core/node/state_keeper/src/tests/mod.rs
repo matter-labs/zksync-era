@@ -21,10 +21,10 @@ use zksync_types::{
     block::{BlockGasCount, L2BlockExecutionData, L2BlockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::tx_execution_info::ExecutionMetrics,
-    zk_evm_types::{LogQuery, Timestamp},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageLogQuery,
-    StorageLogQueryType, Transaction, H256, U256, ZKPORTER_IS_AVAILABLE,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
+    StorageLog, StorageLogKind, Transaction, H256, U256, ZKPORTER_IS_AVAILABLE,
 };
+use zksync_utils::u256_to_h256;
 
 use crate::{
     batch_executor::TxExecutionResult,
@@ -112,12 +112,11 @@ pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> Tran
 }
 
 pub(super) fn create_execution_result(
-    tx_number_in_block: u16,
     storage_logs: impl IntoIterator<Item = (U256, Query)>,
 ) -> VmExecutionResultAndLogs {
     let storage_logs: Vec<_> = storage_logs
         .into_iter()
-        .map(|(key, query)| query.into_log(key, tx_number_in_block))
+        .map(|(key, query)| query.into_log(key))
         .collect();
 
     let total_log_queries = storage_logs.len() + 2;
@@ -148,38 +147,23 @@ pub(super) fn create_execution_result(
 pub(super) enum Query {
     Read(U256),
     InitialWrite(U256),
-    RepeatedWrite(U256, U256),
+    RepeatedWrite(U256),
 }
 
 impl Query {
-    fn into_log(self, key: U256, tx_number_in_block: u16) -> StorageLogQuery {
-        let log_type = match self {
-            Self::Read(_) => StorageLogQueryType::Read,
-            Self::InitialWrite(_) => StorageLogQueryType::InitialWrite,
-            Self::RepeatedWrite(_, _) => StorageLogQueryType::RepeatedWrite,
-        };
-
-        StorageLogQuery {
-            log_query: LogQuery {
-                timestamp: Timestamp(0),
-                tx_number_in_block,
-                aux_byte: 0,
-                shard_id: 0,
-                address: Address::default(),
-                key,
-                read_value: match self {
-                    Self::Read(prev) | Self::RepeatedWrite(prev, _) => prev,
-                    Self::InitialWrite(_) => U256::zero(),
-                },
-                written_value: match self {
-                    Self::Read(_) => U256::zero(),
-                    Self::InitialWrite(value) | Self::RepeatedWrite(_, value) => value,
-                },
-                rw_flag: !matches!(self, Self::Read(_)),
-                rollback: false,
-                is_service: false,
+    fn into_log(self, key: U256) -> StorageLog {
+        StorageLog {
+            kind: match self {
+                Self::Read(_) => StorageLogKind::Read,
+                Self::InitialWrite(_) => StorageLogKind::InitialWrite,
+                Self::RepeatedWrite(_) => StorageLogKind::RepeatedWrite,
             },
-            log_type,
+            key: StorageKey::new(AccountTreeId::new(Address::default()), u256_to_h256(key)),
+            value: u256_to_h256(match self {
+                Query::Read(value) | Query::InitialWrite(value) | Query::RepeatedWrite(value) => {
+                    value
+                }
+            }),
         }
     }
 }

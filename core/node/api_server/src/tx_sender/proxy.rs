@@ -599,7 +599,7 @@ mod tests {
         let nonce_log = StorageLog::new_write_log(nonce_key, H256::from_low_u64_be(1));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), vec![nonce_log])])
+            .insert_storage_logs(L2BlockNumber(1), &[nonce_log])
             .await
             .unwrap();
 
@@ -688,7 +688,7 @@ mod tests {
         let nonce_log = StorageLog::new_write_log(nonce_key, H256::from_low_u64_be(1));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), vec![nonce_log])])
+            .insert_storage_logs(L2BlockNumber(1), &[nonce_log])
             .await
             .unwrap();
 

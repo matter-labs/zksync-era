@@ -12,7 +12,7 @@ use zksync_types::{
         compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    AccountTreeId, Address, StorageKey, StorageLogQueryType, BOOTLOADER_ADDRESS, U256,
+    AccountTreeId, Address, StorageKey, StorageLogKind, BOOTLOADER_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -136,7 +136,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
                 log_query: query,
-                log_type: StorageLogQueryType::Read,
+                log_type: StorageLogKind::Read,
             }),
             query.timestamp,
         );
@@ -155,9 +155,9 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         let is_initial_write = self.storage.get_ptr().borrow_mut().is_write_initial(&key);
         let log_query_type = if is_initial_write {
-            StorageLogQueryType::InitialWrite
+            StorageLogKind::InitialWrite
         } else {
-            StorageLogQueryType::RepeatedWrite
+            StorageLogKind::RepeatedWrite
         };
 
         self.set_initial_value(&key, current_value, query.timestamp);
@@ -423,12 +423,12 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             // perform actual rollback
             for query in self.frames_stack.rollback().current_frame().iter().rev() {
                 let read_value = match query.log_type {
-                    StorageLogQueryType::Read => {
+                    StorageLogKind::Read => {
                         // Having Read logs in rollback is not possible
                         tracing::warn!("Read log in rollback queue {:?}", query);
                         continue;
                     }
-                    StorageLogQueryType::InitialWrite | StorageLogQueryType::RepeatedWrite => {
+                    StorageLogKind::InitialWrite | StorageLogKind::RepeatedWrite => {
                         query.log_query.read_value
                     }
                 };

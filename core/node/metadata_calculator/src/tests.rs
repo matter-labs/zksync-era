@@ -682,7 +682,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .storage_logs_dal()
-            .insert_storage_logs(l2_block_number, &[(H256::zero(), batch_logs)])
+            .insert_storage_logs(l2_block_number, &batch_logs)
             .await
             .unwrap();
         storage

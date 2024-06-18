@@ -19,8 +19,8 @@ use zksync_state::ReadStorageFactory;
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
-    L1BatchNumber, L2BlockNumber, PriorityOpId, StorageLog, Transaction, H256,
-    L2_BASE_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    L1BatchNumber, L2BlockNumber, PriorityOpId, StorageLog, Transaction, L2_BASE_TOKEN_ADDRESS,
+    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -130,7 +130,7 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
 
         storage
             .storage_logs_dal()
-            .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![storage_log])])
+            .append_storage_logs(L2BlockNumber(0), &[storage_log])
             .await
             .unwrap();
         if storage

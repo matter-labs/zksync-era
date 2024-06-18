@@ -3,6 +3,7 @@ use itertools::Itertools;
 use zk_evm_1_3_1::aux_structures::LogQuery as LogQuery_1_3_1;
 use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 
+use super::storage_log::storage_log_from_storage_log_query;
 use crate::{
     glue::{GlueFrom, GlueInto},
     interface::{
@@ -221,7 +222,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
                     .full_result
                     .storage_log_queries
                     .into_iter()
-                    .map(GlueInto::glue_into)
+                    .map(storage_log_from_storage_log_query)
                     .collect(),
                 total_log_queries_count: value.full_result.total_log_queries,
             },
@@ -301,7 +302,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
                     .full_result
                     .storage_log_queries
                     .into_iter()
-                    .map(GlueInto::glue_into)
+                    .map(storage_log_from_storage_log_query)
                     .collect(),
                 total_log_queries_count: value.full_result.total_log_queries,
             },

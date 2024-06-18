@@ -2,7 +2,7 @@ use std::mem;
 
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::AccountTreeId;
-use zksync_utils::u256_to_h256;
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     api::ApiStorageLog,
@@ -10,11 +10,11 @@ use crate::{
     StorageKey, StorageValue, U256,
 };
 
-// TODO (SMA-1269): Refactor `StorageLog/StorageLogQuery and StorageLogKind/StorageLongQueryType`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum StorageLogKind {
     Read,
-    Write,
+    InitialWrite,
+    RepeatedWrite,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -48,14 +48,14 @@ impl StorageLog {
 
     pub fn new_write_log(key: StorageKey, value: StorageValue) -> Self {
         Self {
-            kind: StorageLogKind::Write,
+            kind: StorageLogKind::RepeatedWrite,
             key,
             value,
         }
     }
 
     pub fn is_write(&self) -> bool {
-        matches!(self.kind, StorageLogKind::Write)
+        !matches!(self.kind, StorageLogKind::Read)
     }
 
     /// Converts this log to a log query that could be used in tests.
@@ -75,7 +75,7 @@ impl StorageLog {
             key: U256::from_big_endian(self.key.key().as_bytes()),
             read_value,
             written_value,
-            rw_flag: matches!(self.kind, StorageLogKind::Write),
+            rw_flag: self.is_write(),
             rollback: false,
             is_service: false,
         }
@@ -88,18 +88,21 @@ impl From<zk_evm_types::LogQuery> for StorageLog {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
-pub enum StorageLogQueryType {
-    Read,
-    InitialWrite,
-    RepeatedWrite,
+impl From<&StorageLog> for ApiStorageLog {
+    fn from(storage_log: &StorageLog) -> Self {
+        Self {
+            address: *storage_log.key.address(),
+            key: h256_to_u256(*storage_log.key.key()),
+            written_value: h256_to_u256(storage_log.value),
+        }
+    }
 }
 
 /// Log query, which handle initial and repeated writes to the storage
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StorageLogQuery {
     pub log_query: LogQuery,
-    pub log_type: StorageLogQueryType,
+    pub log_type: StorageLogKind,
 }
 
 impl From<&StorageLogQuery> for ApiStorageLog {

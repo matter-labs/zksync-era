@@ -164,7 +164,7 @@ mod tests {
         logs.sort_unstable_by_key(|log| log.key.hashed_key());
 
         conn.storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), logs.clone())])
+            .insert_storage_logs(L2BlockNumber(1), &logs)
             .await
             .unwrap();
         let mut written_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
@@ -198,7 +198,7 @@ mod tests {
         let all_new_logs: Vec<_> = new_logs.chain(updated_logs).collect();
         let all_new_logs_len = all_new_logs.len();
         conn.storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(2), &[(H256::zero(), all_new_logs)])
+            .insert_storage_logs(L2BlockNumber(2), &all_new_logs)
             .await
             .unwrap();
         conn.storage_logs_dedup_dal()
@@ -271,14 +271,14 @@ mod tests {
             StorageLog::new_write_log(key, H256::zero()),
         ];
         conn.storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), phantom_writes)])
+            .insert_storage_logs(L2BlockNumber(1), &phantom_writes)
             .await
             .unwrap();
         // initial writes are intentionally not inserted.
 
         let real_write = StorageLog::new_write_log(key, H256::repeat_byte(2));
         conn.storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(2), &[(H256::zero(), vec![real_write])])
+            .insert_storage_logs(L2BlockNumber(2), &[real_write])
             .await
             .unwrap();
         conn.storage_logs_dedup_dal()
