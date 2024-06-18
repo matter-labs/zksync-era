@@ -356,10 +356,9 @@ mod tests {
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
         api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics,
-        writes::StateDiffRecord, AccountTreeId, L1BatchNumber, L2BlockNumber, StorageKey,
-        StorageLogQueryType,
+        writes::StateDiffRecord, L1BatchNumber, L2BlockNumber, StorageLogKind,
     };
-    use zksync_utils::u256_to_h256;
+    use zksync_utils::h256_to_u256;
 
     use super::*;
     use crate::{
@@ -458,7 +457,7 @@ mod tests {
             (U256::from(1), Query::Read(U256::from(0))),
             (U256::from(2), Query::InitialWrite(U256::from(1))),
         ];
-        let tx_result = create_execution_result(0, storage_logs);
+        let tx_result = create_execution_result(storage_logs);
         let storage_logs = tx_result.logs.storage_logs.clone();
         updates.extend_from_executed_transaction(
             tx,
@@ -475,27 +474,18 @@ mod tests {
         });
 
         let mut batch_result = default_vm_batch_result();
-        batch_result.final_execution_state.deduplicated_storage_logs = storage_logs
-            .iter()
-            .map(|query| query.log_query.into())
-            .collect();
+        batch_result.final_execution_state.deduplicated_storage_logs = storage_logs.clone();
         batch_result.state_diffs = Some(
             storage_logs
                 .into_iter()
-                .filter(|&log| log.log_type == StorageLogQueryType::InitialWrite)
-                .map(|log| {
-                    let key = StorageKey::new(
-                        AccountTreeId::new(log.log_query.address),
-                        u256_to_h256(log.log_query.key),
-                    );
-                    StateDiffRecord {
-                        address: log.log_query.address,
-                        key: log.log_query.key,
-                        derived_key: key.hashed_key().0,
-                        enumeration_index: 0,
-                        initial_value: log.log_query.read_value,
-                        final_value: log.log_query.written_value,
-                    }
+                .filter(|&log| log.kind == StorageLogKind::InitialWrite)
+                .map(|log| StateDiffRecord {
+                    address: *log.key.address(),
+                    key: h256_to_u256(*log.key.key()),
+                    derived_key: log.key.hashed_key().0,
+                    enumeration_index: 0,
+                    initial_value: U256::zero(), // TODO not sure about this one
+                    final_value: h256_to_u256(log.value),
                 })
                 .collect(),
         );

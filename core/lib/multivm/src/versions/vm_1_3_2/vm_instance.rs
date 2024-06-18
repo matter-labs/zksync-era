@@ -19,7 +19,7 @@ use zksync_types::{
 };
 
 use crate::{
-    glue::GlueInto,
+    glue::{storage_log_from_storage_log_query, GlueInto},
     interface::types::outputs::VmExecutionLogs,
     vm_1_3_2::{
         bootloader_state::BootloaderState,
@@ -448,7 +448,10 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
             from_timestamp,
         );
         VmExecutionLogs {
-            storage_logs: storage_logs.into_iter().map(GlueInto::glue_into).collect(),
+            storage_logs: storage_logs
+                .into_iter()
+                .map(storage_log_from_storage_log_query)
+                .collect(),
             events,
             user_l2_to_l1_logs: l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
             total_log_queries_count: storage_logs_count

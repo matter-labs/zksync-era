@@ -159,7 +159,7 @@ async fn create_l2_block(
         .await
         .unwrap();
     conn.storage_logs_dal()
-        .insert_storage_logs(l2_block_number, &[(H256::zero(), block_logs)])
+        .insert_storage_logs(l2_block_number, &block_logs)
         .await
         .unwrap();
 }

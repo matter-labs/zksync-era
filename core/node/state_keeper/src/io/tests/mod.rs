@@ -232,16 +232,10 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     let storage_logs = [
         (U256::from(1), Query::Read(U256::from(0))),
         (U256::from(2), Query::InitialWrite(U256::from(1))),
-        (
-            U256::from(3),
-            Query::RepeatedWrite(U256::from(2), U256::from(3)),
-        ),
-        (
-            U256::from(2),
-            Query::RepeatedWrite(U256::from(1), U256::from(4)),
-        ),
+        (U256::from(3), Query::RepeatedWrite(U256::from(3))),
+        (U256::from(2), Query::RepeatedWrite(U256::from(4))),
     ];
-    let execution_result = create_execution_result(0, storage_logs);
+    let execution_result = create_execution_result(storage_logs);
     l2_block.extend_from_executed_transaction(
         tx,
         execution_result,
@@ -254,12 +248,9 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     let tx = create_transaction(10, 100);
     let storage_logs = [
         (U256::from(4), Query::InitialWrite(U256::from(5))),
-        (
-            U256::from(3),
-            Query::RepeatedWrite(U256::from(3), U256::from(6)),
-        ),
+        (U256::from(3), Query::RepeatedWrite(U256::from(6))),
     ];
-    let execution_result = create_execution_result(1, storage_logs);
+    let execution_result = create_execution_result(storage_logs);
     l2_block.extend_from_executed_transaction(
         tx,
         execution_result,
@@ -345,9 +336,9 @@ async fn processing_events_when_sealing_l2_block() {
     });
     let events: Vec<_> = events.collect();
 
-    for (i, events_chunk) in events.chunks(4).enumerate() {
+    for events_chunk in events.chunks(4) {
         let tx = create_transaction(10, 100);
-        let mut execution_result = create_execution_result(i as u16, []);
+        let mut execution_result = create_execution_result([]);
         execution_result.logs.events = events_chunk.to_vec();
         l2_block.extend_from_executed_transaction(
             tx,
@@ -454,7 +445,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(
         tx.into(),
-        create_execution_result(0, []),
+        create_execution_result([]),
         vec![],
         BlockGasCount::default(),
         ExecutionMetrics::default(),

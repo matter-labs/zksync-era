@@ -317,10 +317,7 @@ pub async fn recover(
         .unwrap();
     storage
         .storage_logs_dal()
-        .insert_storage_logs(
-            snapshot.l2_block.number,
-            &[(H256::zero(), snapshot.storage_logs)],
-        )
+        .insert_storage_logs(snapshot.l2_block.number, &snapshot.storage_logs)
         .await
         .unwrap();
 

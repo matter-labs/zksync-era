@@ -6,7 +6,7 @@ use zksync_types::{
 };
 
 use crate::{
-    glue::GlueInto,
+    glue::{storage_log_from_storage_log_query, GlueInto},
     interface::types::outputs::VmExecutionLogs,
     vm_refunds_enhancement::{
         old_vm::{events::merge_events, utils::precompile_calls_count_after_timestamp},
@@ -45,7 +45,10 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         let total_log_queries_count =
             storage_logs_count + log_queries.len() + precompile_calls_count;
         VmExecutionLogs {
-            storage_logs: storage_logs.into_iter().map(GlueInto::glue_into).collect(),
+            storage_logs: storage_logs
+                .into_iter()
+                .map(storage_log_from_storage_log_query)
+                .collect(),
             events,
             user_l2_to_l1_logs: l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
             system_l2_to_l1_logs: vec![],
