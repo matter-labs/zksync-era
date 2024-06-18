@@ -1,5 +1,8 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{snapshots::SnapshotStorageLog, L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{
+    snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, L2BlockNumber,
+    StorageKey, H256,
+};
 
 use crate::Core;
 
@@ -104,6 +107,75 @@ impl SnapshotsCreatorDal<'_, '_> {
         Ok(storage_logs)
     }
 
+    /// Same as [`Self::get_storage_logs_chunk()`], but returns full keys.
+    #[deprecated(
+        note = "will fail if called on a node restored from a v1 snapshot; use `get_storage_logs_chunk()` instead"
+    )]
+    pub async fn get_storage_logs_chunk_with_key_preimages(
+        &mut self,
+        l2_block_number: L2BlockNumber,
+        l1_batch_number: L1BatchNumber,
+        hashed_keys_range: std::ops::RangeInclusive<H256>,
+    ) -> DalResult<Vec<SnapshotStorageLog<StorageKey>>> {
+        let storage_logs = sqlx::query!(
+            r#"
+            SELECT
+                storage_logs.address AS "address!",
+                storage_logs.key AS "key!",
+                storage_logs.value AS "value!",
+                storage_logs.miniblock_number AS "miniblock_number!",
+                initial_writes.l1_batch_number AS "l1_batch_number!",
+                initial_writes.index
+            FROM
+                (
+                    SELECT
+                        hashed_key,
+                        MAX(ARRAY[miniblock_number, operation_number]::INT[]) AS op
+                    FROM
+                        storage_logs
+                    WHERE
+                        miniblock_number <= $1
+                        AND hashed_key >= $3
+                        AND hashed_key <= $4
+                    GROUP BY
+                        hashed_key
+                    ORDER BY
+                        hashed_key
+                ) AS keys
+                INNER JOIN storage_logs ON keys.hashed_key = storage_logs.hashed_key
+                AND storage_logs.miniblock_number = keys.op[1]
+                AND storage_logs.operation_number = keys.op[2]
+                INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key
+            WHERE
+                initial_writes.l1_batch_number <= $2
+            "#,
+            i64::from(l2_block_number.0),
+            i64::from(l1_batch_number.0),
+            hashed_keys_range.start().as_bytes(),
+            hashed_keys_range.end().as_bytes()
+        )
+        .instrument("get_storage_logs_chunk")
+        .with_arg("l2_block_number", &l2_block_number)
+        .with_arg("min_hashed_key", &hashed_keys_range.start())
+        .with_arg("max_hashed_key", &hashed_keys_range.end())
+        .report_latency()
+        .expect_slow_query()
+        .fetch_all(self.storage)
+        .await?
+        .iter()
+        .map(|row| SnapshotStorageLog {
+            key: StorageKey::new(
+                AccountTreeId::new(Address::from_slice(&row.address)),
+                H256::from_slice(&row.key),
+            ),
+            value: H256::from_slice(&row.value),
+            l1_batch_number_of_initial_write: L1BatchNumber(row.l1_batch_number as u32),
+            enumeration_index: row.index as u64,
+        })
+        .collect();
+        Ok(storage_logs)
+    }
+
     /// Returns all factory dependencies up to and including the specified `l2_block_number`.
     pub async fn get_all_factory_deps(
         &mut self,
@@ -136,7 +208,7 @@ impl SnapshotsCreatorDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{AccountTreeId, Address, StorageKey, StorageLog};
+    use zksync_types::StorageLog;
 
     use super::*;
     use crate::{ConnectionPool, Core, CoreDal};

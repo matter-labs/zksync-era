@@ -244,7 +244,7 @@ async fn create_mock_snapshot(
         let key = object_store
             .put(
                 key,
-                &SnapshotStorageLogsChunk {
+                &SnapshotStorageLogsChunk::<H256> {
                     storage_logs: vec![],
                 },
             )

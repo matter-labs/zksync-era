@@ -87,11 +87,15 @@ impl StoredObject for SnapshotFactoryDependencies {
     }
 }
 
-impl StoredObject for SnapshotStorageLogsChunk {
+impl<K> StoredObject for SnapshotStorageLogsChunk<K>
+where
+    Self: ProtoFmt,
+{
     const BUCKET: Bucket = Bucket::StorageSnapshot;
     type Key<'a> = SnapshotStorageLogsStorageKey;
 
     fn encode_key(key: Self::Key<'_>) -> String {
+        // FIXME: should keys be separated by version?
         format!(
             "snapshot_l1_batch_{}_storage_logs_part_{:0>4}.proto.gzip",
             key.l1_batch_number, key.chunk_id
@@ -189,15 +193,15 @@ mod tests {
 
     #[test]
     fn test_storage_logs_filesnames_generate_corretly() {
-        let filename1 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+        let filename1 = <SnapshotStorageLogsChunk>::encode_key(SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(42),
             chunk_id: 97,
         });
-        let filename2 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+        let filename2 = <SnapshotStorageLogsChunk>::encode_key(SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(3),
             chunk_id: 531,
         });
-        let filename3 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+        let filename3 = <SnapshotStorageLogsChunk>::encode_key(SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(567),
             chunk_id: 5,
         });

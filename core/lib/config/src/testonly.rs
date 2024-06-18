@@ -634,6 +634,7 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
 impl Distribution<configs::SnapshotsCreatorConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SnapshotsCreatorConfig {
         configs::SnapshotsCreatorConfig {
+            version: if rng.gen() { 0 } else { 1 },
             storage_logs_chunk_size: self.sample(rng),
             concurrent_queries_count: self.sample(rng),
             object_store: self.sample(rng),

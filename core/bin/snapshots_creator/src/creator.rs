@@ -1,16 +1,17 @@
 //! [`SnapshotCreator`] and tightly related types.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::Semaphore;
 use zksync_config::SnapshotsCreatorConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalResult};
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{ObjectStore, StoredObject};
 use zksync_types::{
     snapshots::{
         uniform_hashed_keys_chunk, SnapshotFactoryDependencies, SnapshotFactoryDependency,
-        SnapshotMetadata, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
+        SnapshotMetadata, SnapshotStorageLog, SnapshotStorageLogsChunk,
+        SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     L1BatchNumber, L2BlockNumber,
 };
@@ -31,9 +32,9 @@ struct SnapshotProgress {
 }
 
 impl SnapshotProgress {
-    fn new(l1_batch_number: L1BatchNumber, chunk_count: u64) -> Self {
+    fn new(version: SnapshotVersion, l1_batch_number: L1BatchNumber, chunk_count: u64) -> Self {
         Self {
-            version: SnapshotVersion::Version1, // assigned for all new snapshots
+            version,
             l1_batch_number,
             is_new_snapshot: true,
             chunk_count,
@@ -79,11 +80,13 @@ impl SnapshotCreator {
     async fn process_storage_logs_single_chunk(
         &self,
         semaphore: &Semaphore,
+        progress: &SnapshotProgress,
         l2_block_number: L2BlockNumber,
-        l1_batch_number: L1BatchNumber,
         chunk_id: u64,
-        chunk_count: u64,
     ) -> anyhow::Result<()> {
+        let chunk_count = progress.chunk_count;
+        let l1_batch_number = progress.l1_batch_number;
+
         let _permit = semaphore.acquire().await?;
         #[cfg(test)]
         if self.event_listener.on_chunk_started().should_exit() {
@@ -95,35 +98,45 @@ impl SnapshotCreator {
 
         let latency =
             METRICS.storage_logs_processing_duration[&StorageChunkStage::LoadFromPostgres].start();
-        let logs = conn
-            .snapshots_creator_dal()
-            .get_storage_logs_chunk(l2_block_number, l1_batch_number, hashed_keys_range)
-            .await
-            .context("Error fetching storage logs count")?;
-        drop(conn);
-        let latency = latency.observe();
-        tracing::info!(
-            "Loaded chunk {chunk_id} ({} logs) from Postgres in {latency:?}",
-            logs.len()
-        );
+        let (output_filepath, latency) = match progress.version {
+            SnapshotVersion::Version0 => {
+                #[allow(deprecated)] // support of v0 snapshots will be removed eventually
+                let logs = conn
+                    .snapshots_creator_dal()
+                    .get_storage_logs_chunk_with_key_preimages(
+                        l2_block_number,
+                        l1_batch_number,
+                        hashed_keys_range,
+                    )
+                    .await
+                    .context("error fetching storage logs")?;
+                drop(conn);
 
-        let latency =
-            METRICS.storage_logs_processing_duration[&StorageChunkStage::SaveToGcs].start();
-        let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
-        let key = SnapshotStorageLogsStorageKey {
-            l1_batch_number,
-            chunk_id,
+                let latency = latency.observe();
+                tracing::info!(
+                    "Loaded chunk {chunk_id} ({} logs) from Postgres in {latency:?}",
+                    logs.len()
+                );
+                self.store_storage_logs_chunk(l1_batch_number, chunk_id, logs)
+                    .await?
+            }
+            SnapshotVersion::Version1 => {
+                let logs = conn
+                    .snapshots_creator_dal()
+                    .get_storage_logs_chunk(l2_block_number, l1_batch_number, hashed_keys_range)
+                    .await
+                    .context("error fetching storage logs")?;
+                drop(conn);
+
+                let latency = latency.observe();
+                tracing::info!(
+                    "Loaded chunk {chunk_id} ({} logs) from Postgres in {latency:?}",
+                    logs.len()
+                );
+                self.store_storage_logs_chunk(l1_batch_number, chunk_id, logs)
+                    .await?
+            }
         };
-        let filename = self
-            .blob_store
-            .put(key, &storage_logs_chunk)
-            .await
-            .context("Error storing storage logs chunk in blob store")?;
-        let output_filepath_prefix = self
-            .blob_store
-            .get_storage_prefix::<SnapshotStorageLogsChunk>();
-        let output_filepath = format!("{output_filepath_prefix}/{filename}");
-        let latency = latency.observe();
 
         let mut master_conn = self
             .master_pool
@@ -142,6 +155,35 @@ impl SnapshotCreator {
             chunk_count - tasks_left as u64
         );
         Ok(())
+    }
+
+    async fn store_storage_logs_chunk<K>(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        chunk_id: u64,
+        logs: Vec<SnapshotStorageLog<K>>,
+    ) -> anyhow::Result<(String, Duration)>
+    where
+        for<'a> SnapshotStorageLogsChunk<K>: StoredObject<Key<'a> = SnapshotStorageLogsStorageKey>,
+    {
+        let latency =
+            METRICS.storage_logs_processing_duration[&StorageChunkStage::SaveToGcs].start();
+        let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
+        let key = SnapshotStorageLogsStorageKey {
+            l1_batch_number,
+            chunk_id,
+        };
+        let filename = self
+            .blob_store
+            .put(key, &storage_logs_chunk)
+            .await
+            .context("Error storing storage logs chunk in blob store")?;
+        let output_filepath_prefix = self
+            .blob_store
+            .get_storage_prefix::<SnapshotStorageLogsChunk<K>>();
+        let output_filepath = format!("{output_filepath_prefix}/{filename}");
+        let latency = latency.observe();
+        Ok((output_filepath, latency))
     }
 
     async fn process_factory_deps(
@@ -197,6 +239,9 @@ impl SnapshotCreator {
         latest_snapshot: Option<&SnapshotMetadata>,
         conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<Option<SnapshotProgress>> {
+        let snapshot_version = SnapshotVersion::try_from(config.version)
+            .context("invalid snapshot version specified in config")?;
+
         // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch.
         let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;
         let sealed_l1_batch_number = sealed_l1_batch_number.context("No L1 batches in Postgres")?;
@@ -241,7 +286,11 @@ impl SnapshotCreator {
             "Selected storage logs chunking for L1 batch {l1_batch_number}: \
             {chunk_count} chunks of expected size {chunk_size}"
         );
-        Ok(Some(SnapshotProgress::new(l1_batch_number, chunk_count)))
+        Ok(Some(SnapshotProgress::new(
+            snapshot_version,
+            l1_batch_number,
+            chunk_count,
+        )))
     }
 
     /// Returns `Ok(None)` if a snapshot should not be created / resumed.
@@ -328,26 +377,24 @@ impl SnapshotCreator {
                     &factory_deps_output_file,
                 )
                 .await?;
-        } else {
-            anyhow::ensure!(
-                matches!(progress.version, SnapshotVersion::Version1),
-                "Cannot continue creating a snapshot with a previous version after the new version became the default"
-            );
         }
 
         METRICS
             .storage_logs_chunks_left_to_process
             .set(progress.remaining_chunk_ids.len());
         let semaphore = Semaphore::new(config.concurrent_queries_count as usize);
-        let tasks = progress.remaining_chunk_ids.into_iter().map(|chunk_id| {
-            self.process_storage_logs_single_chunk(
-                &semaphore,
-                last_l2_block_number_in_batch,
-                progress.l1_batch_number,
-                chunk_id,
-                progress.chunk_count,
-            )
-        });
+        let tasks = progress
+            .remaining_chunk_ids
+            .iter()
+            .copied()
+            .map(|chunk_id| {
+                self.process_storage_logs_single_chunk(
+                    &semaphore,
+                    &progress,
+                    last_l2_block_number_in_batch,
+                    chunk_id,
+                )
+            });
         futures::future::try_join_all(tasks).await?;
 
         METRICS

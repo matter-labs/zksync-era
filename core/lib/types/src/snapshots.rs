@@ -82,13 +82,17 @@ pub struct SnapshotStorageLogsStorageKey {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct SnapshotStorageLogsChunk {
-    pub storage_logs: Vec<SnapshotStorageLog>,
+pub struct SnapshotStorageLogsChunk<K = H256> {
+    pub storage_logs: Vec<SnapshotStorageLog<K>>,
 }
 
+/// Storage log record in a storage snapshot.
+///
+/// v0 and v1 snapshots differ in the key type; v0 uses full [`StorageKey`]s (i.e., storage key preimages),
+/// and v1 uses [`H256`] hashed keys. See [`SnapshotVersion`] for details.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SnapshotStorageLog {
-    pub key: H256,
+pub struct SnapshotStorageLog<K = H256> {
+    pub key: K,
     pub value: StorageValue,
     pub l1_batch_number_of_initial_write: L1BatchNumber,
     pub enumeration_index: u64,
@@ -186,14 +190,53 @@ impl ProtoFmt for SnapshotStorageLog {
     }
 }
 
-impl ProtoFmt for SnapshotStorageLogsChunk {
+impl ProtoFmt for SnapshotStorageLog<StorageKey> {
+    type Proto = crate::proto::SnapshotStorageLog;
+
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        let address = required(&r.account_address)
+            .and_then(|bytes| Ok(<[u8; 20]>::try_from(bytes.as_slice())?.into()))
+            .context("account_address")?;
+        let key = required(&r.storage_key)
+            .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
+            .context("storage_key")?;
+
+        Ok(Self {
+            key: StorageKey::new(AccountTreeId::new(address), key),
+            value: required(&r.storage_value)
+                .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
+                .context("storage_value")?,
+            l1_batch_number_of_initial_write: L1BatchNumber(
+                *required(&r.l1_batch_number_of_initial_write)
+                    .context("l1_batch_number_of_initial_write")?,
+            ),
+            enumeration_index: *required(&r.enumeration_index).context("enumeration_index")?,
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            account_address: Some(self.key.address().as_bytes().to_vec()),
+            storage_key: Some(self.key.key().as_bytes().to_vec()),
+            hashed_key: None,
+            storage_value: Some(self.value.as_bytes().to_vec()),
+            l1_batch_number_of_initial_write: Some(self.l1_batch_number_of_initial_write.0),
+            enumeration_index: Some(self.enumeration_index),
+        }
+    }
+}
+
+impl<K> ProtoFmt for SnapshotStorageLogsChunk<K>
+where
+    SnapshotStorageLog<K>: ProtoFmt<Proto = crate::proto::SnapshotStorageLog>,
+{
     type Proto = crate::proto::SnapshotStorageLogsChunk;
 
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         let mut storage_logs = Vec::with_capacity(r.storage_logs.len());
         for (i, storage_log) in r.storage_logs.iter().enumerate() {
             storage_logs.push(
-                SnapshotStorageLog::read(storage_log)
+                SnapshotStorageLog::<K>::read(storage_log)
                     .with_context(|| format!("storage_log[{i}]"))?,
             )
         }
@@ -205,7 +248,7 @@ impl ProtoFmt for SnapshotStorageLogsChunk {
             storage_logs: self
                 .storage_logs
                 .iter()
-                .map(SnapshotStorageLog::build)
+                .map(SnapshotStorageLog::<K>::build)
                 .collect(),
         }
     }

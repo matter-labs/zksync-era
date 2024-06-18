@@ -13,6 +13,11 @@ impl ProtoRepr for proto::SnapshotsCreator {
             None
         };
         Ok(Self::Type {
+            version: self
+                .version
+                .unwrap_or_default()
+                .try_into()
+                .context("version")?,
             storage_logs_chunk_size: *required(&self.storage_logs_chunk_size)
                 .context("storage_logs_chunk_size")?,
             concurrent_queries_count: *required(&self.concurrent_queries_count)
@@ -23,6 +28,7 @@ impl ProtoRepr for proto::SnapshotsCreator {
 
     fn build(this: &Self::Type) -> Self {
         Self {
+            version: Some(this.version.into()),
             storage_logs_chunk_size: Some(this.storage_logs_chunk_size),
             concurrent_queries_count: Some(this.concurrent_queries_count),
             object_store: this.object_store.as_ref().map(ProtoRepr::build),

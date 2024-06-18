@@ -25,11 +25,13 @@ use zksync_types::{
 use super::*;
 
 const TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
+    version: 1,
     storage_logs_chunk_size: 1_000_000,
     concurrent_queries_count: 10,
     object_store: None,
 };
 const SEQUENTIAL_TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
+    version: 1,
     storage_logs_chunk_size: 1_000_000,
     concurrent_queries_count: 1,
     object_store: None,
@@ -351,7 +353,50 @@ async fn assert_storage_logs(
             chunk_id,
         };
         let chunk: SnapshotStorageLogsChunk = object_store.get(key).await.unwrap();
-        actual_logs.extend(chunk.storage_logs.into_iter());
+        actual_logs.extend(chunk.storage_logs);
+    }
+    assert_eq!(actual_logs, expected_outputs.storage_logs);
+}
+
+#[tokio::test]
+async fn persisting_snapshot_logs_for_v0_snapshot() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut rng = thread_rng();
+    let object_store = MockObjectStore::arc();
+    let mut conn = pool.connection().await.unwrap();
+    let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
+
+    let config = SnapshotsCreatorConfig {
+        version: 0,
+        ..TEST_CONFIG
+    };
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
+        .run(config, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+    let snapshot_l1_batch_number = L1BatchNumber(8);
+
+    // Logs must be compatible with v1 `SnapshotStorageLog` format
+    assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
+
+    // ...and must be compatible with v0 format as well
+    let mut actual_logs = HashSet::new();
+    for chunk_id in 0..MIN_CHUNK_COUNT {
+        let key = SnapshotStorageLogsStorageKey {
+            l1_batch_number: snapshot_l1_batch_number,
+            chunk_id,
+        };
+        let chunk: SnapshotStorageLogsChunk<StorageKey> = object_store.get(key).await.unwrap();
+        let logs_with_hashed_key = chunk
+            .storage_logs
+            .into_iter()
+            .map(|log| SnapshotStorageLog {
+                key: log.key.hashed_key(),
+                value: log.value,
+                l1_batch_number_of_initial_write: log.l1_batch_number_of_initial_write,
+                enumeration_index: log.enumeration_index,
+            });
+        actual_logs.extend(logs_with_hashed_key);
     }
     assert_eq!(actual_logs, expected_outputs.storage_logs);
 }
