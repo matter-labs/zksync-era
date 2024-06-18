@@ -25,7 +25,6 @@ struct EcosystemConfigInternal {
     pub name: String,
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,
-    pub link_to_prover: PathBuf,
     pub chains: PathBuf,
     pub config: PathBuf,
     pub default_chain: String,
@@ -41,7 +40,6 @@ pub struct EcosystemConfig {
     pub name: String,
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,
-    pub link_to_prover: PathBuf,
     pub chains: PathBuf,
     pub config: PathBuf,
     pub default_chain: String,
@@ -73,11 +71,6 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
                 .link_to_code
                 .absolutize()
                 .expect("Failed to parse zksync-era path")
-                .to_path_buf(),
-            link_to_prover: config
-                .link_to_prover
-                .absolutize()
-                .expect("Failed to parse prover path")
                 .to_path_buf(),
             chains: config.chains.clone(),
             config: config.config.clone(),
@@ -207,11 +200,6 @@ impl EcosystemConfig {
                 .link_to_code
                 .absolutize()
                 .expect("Failed to parse zksync-era path")
-                .into(),
-            link_to_prover: self
-                .link_to_prover
-                .absolutize()
-                .expect("Failed to parse prover path")
                 .into(),
             chains: self.chains.clone(),
             config: self.config.clone(),

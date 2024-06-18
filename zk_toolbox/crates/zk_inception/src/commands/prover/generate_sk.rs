@@ -5,9 +5,11 @@ use xshell::{cmd, Shell};
 
 use crate::messages::{MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED};
 
+use super::utils::get_link_to_prover;
+
 pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let link_to_prover = ecosystem_config.link_to_prover;
+    let link_to_prover = get_link_to_prover(&ecosystem_config);
     shell.change_dir(&link_to_prover);
 
     let spinner = Spinner::new(MSG_GENERATING_SK_SPINNER);

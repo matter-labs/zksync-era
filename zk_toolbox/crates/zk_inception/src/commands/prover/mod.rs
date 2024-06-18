@@ -1,6 +1,7 @@
 use clap::Subcommand;
 use xshell::Shell;
 mod generate_sk;
+mod utils;
 
 #[derive(Subcommand, Debug)]
 pub enum ProverCommands {
