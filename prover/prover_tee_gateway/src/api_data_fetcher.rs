@@ -1,21 +1,22 @@
 // TODO inspired (i.e. copy-pasted) by prover/prover_fri_gateway/src/api_data_fetcher.rs
 
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use async_trait::async_trait;
-use prover_dal::{ConnectionPool, Prover};
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::{sync::watch, time::sleep};
-use zksync_object_store::ObjectStore;
 
 use crate::metrics::METRICS;
 
 /// The path to the TEE API endpoint that returns the next proof generation data
-pub(crate) const PROOF_GENERATION_DATA_PATH: &str = "/tee/proof_inputs";
+pub(crate) const PROOF_GENERATION_DATA_ENDPOINT: &str = "/tee/proof_inputs";
 
 /// The path to the API endpoint that submits the proof
-pub(crate) const SUBMIT_PROOF_PATH: &str = "/tee/submit_proofs";
+pub(crate) const SUBMIT_PROOF_ENDPOINT: &str = "/tee/submit_proofs";
+
+/// The path to the API endpoint that registers the attestation
+pub(crate) const REGISTER_ATTESTATION_ENDPOINT: &str = "/tee/register_attestation";
 
 pub(crate) struct PeriodicApiStruct {
     pub(crate) api_url: String,

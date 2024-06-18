@@ -5761,7 +5761,17 @@ version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
- "secp256k1-sys",
+ "secp256k1-sys 0.8.1",
+]
+
+[[package]]
+name = "secp256k1"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e0cc0f1cf93f4969faf3ea1c7d8a9faed25918d96affa959720823dfe86d4f3"
+dependencies = [
+ "rand 0.8.5",
+ "secp256k1-sys 0.10.0",
 ]
 
 [[package]]
@@ -5769,6 +5779,15 @@ name = "secp256k1-sys"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a129b9e9efbfb223753b9163c4ab3b13cff7fd9c7f010fbac25ab4099fa07e"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1433bd67156263443f14d603720b082dd3121779323fce20cba2aa07b874bc1b"
 dependencies = [
  "cc",
 ]
@@ -8749,7 +8768,7 @@ dependencies = [
  "anyhow",
  "hex",
  "rand 0.8.5",
- "secp256k1",
+ "secp256k1 0.27.0",
  "serde",
  "serde_json",
  "thiserror",
@@ -9392,6 +9411,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_prover_tee_gateway"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 4.5.4",
+ "ctrlc",
+ "prometheus_exporter",
+ "rand 0.8.5",
+ "reqwest",
+ "secp256k1 0.29.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "vise",
+ "vlog",
+ "zksync_config",
+ "zksync_env_config",
+ "zksync_object_store",
+ "zksync_prover_config",
+ "zksync_prover_interface",
+ "zksync_tee_verifier",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_queued_job_processor"
 version = "0.1.0"
 dependencies = [
@@ -9558,7 +9605,7 @@ dependencies = [
  "once_cell",
  "prost 0.12.6",
  "rlp",
- "secp256k1",
+ "secp256k1 0.27.0",
  "serde",
  "serde_json",
  "strum",

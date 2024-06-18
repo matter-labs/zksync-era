@@ -12,7 +12,9 @@ use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
-use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};
+use crate::api_data_fetcher::{
+    PeriodicApiStruct, PROOF_GENERATION_DATA_ENDPOINT, SUBMIT_PROOF_ENDPOINT,
+};
 
 mod api_data_fetcher;
 mod metrics;
@@ -68,14 +70,14 @@ async fn main() -> anyhow::Result<()> {
     let proof_submitter = PeriodicApiStruct {
         blob_store: store_factory.create_store().await?,
         pool: pool.clone(),
-        api_url: format!("{}{SUBMIT_PROOF_PATH}", config.api_url),
+        api_url: format!("{}{SUBMIT_PROOF_ENDPOINT}", config.api_url),
         poll_duration: config.api_poll_duration(),
         client: Client::new(),
     };
     let proof_gen_data_fetcher = PeriodicApiStruct {
         blob_store: store_factory.create_store().await?,
         pool,
-        api_url: format!("{}{PROOF_GENERATION_DATA_PATH}", config.api_url),
+        api_url: format!("{}{PROOF_GENERATION_DATA_ENDPOINT}", config.api_url),
         poll_duration: config.api_poll_duration(),
         client: Client::new(),
     };

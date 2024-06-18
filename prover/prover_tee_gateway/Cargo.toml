@@ -9,19 +9,26 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 anyhow.workspace = true
-clap.workspace = true
+async-trait.workspace = true
+clap = { workspace = true, features = ["derive"] }
+ctrlc = { workspace = true, features = ["termination"] }
+prometheus_exporter.workspace = true
 rand.workspace = true
+reqwest = { workspace = true, features = ["blocking"] }
 secp256k1.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["time", "macros"] }
 tracing.workspace = true
+vise.workspace = true
 vlog.workspace = true
 zksync_config.workspace = true
 zksync_env_config.workspace = true
 zksync_object_store.workspace = true
+zksync_prover_config.workspace = true
+zksync_prover_interface.workspace = true
 zksync_tee_verifier.workspace = true
 zksync_types.workspace = true
+zksync_utils.workspace = true

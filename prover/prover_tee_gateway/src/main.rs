@@ -3,20 +3,30 @@ extern crate core;
 use std::{
     fs::{File, OpenOptions},
     io::{Read, Write},
+    time::Duration,
 };
 
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
+use prometheus_exporter::PrometheusExporterConfig;
 use rand::rngs::OsRng;
-use secp256k1::{KeyPair, PublicKey};
-use zksync_config::configs::ObservabilityConfig;
-use zksync_env_config::FromEnv;
-use zksync_tee_verifier::TeeVerifierInput;
-use zksync_types::L1BatchNumber;
+use reqwest::Client;
+use secp256k1::{Keypair, PublicKey};
+use tokio::sync::{oneshot, watch};
+use zksync_prover_config::load_general_config;
+use zksync_prover_interface::api::{
+    RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, TeeProofGenerationDataRequest,
+};
+// use zksync_types::L1BatchNumber;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
-use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};
+use crate::api_data_fetcher::{
+    PeriodicApiStruct, PROOF_GENERATION_DATA_ENDPOINT, REGISTER_ATTESTATION_ENDPOINT,
+};
 
 mod api_data_fetcher;
+mod metrics;
+mod proof_gen_data_fetcher;
 
 // Gramine-specific device file from which the attestation quote can be read
 pub(crate) const GRAMINE_ATTESTATION_QUOTE_DEVICE_FILE: &str = "/dev/attestation/quote";
@@ -37,6 +47,10 @@ pub(crate) const GRAMINE_ATTESTATION_USER_REPORT_DATA_DEVICE_FILE: &str =
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
+    /// Path of the configuration file.
+    #[arg(long)]
+    pub(crate) config_path: Option<std::path::PathBuf>,
+
     /// In simulation mode, a simulated/mocked attestation is used, read from the
     /// ATTESTATION_QUOTE_FILE environment variable file. To fetch a real attestation, the
     /// application must be run inside an enclave.
@@ -76,12 +90,17 @@ fn get_attestation_quote() -> Result<Vec<u8>> {
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let general_config = load_general_config(opt.config_path).context("general config")?;
+
+    let observability_config = general_config
+        .observability
+        .context("observability config")?;
+
     let log_format: vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
+
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
@@ -91,13 +110,16 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    if let Some(sentry_url) = observability_config.sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}");
-    } else {
-        tracing::info!("No sentry URL was provided");
-    }
+    let config = general_config
+        .prover_gateway
+        .context("prover gateway config")?;
 
-    let key_pair = KeyPair::new_global(&mut OsRng);
+    // 1. Generate a new priv-public key pair
+
+    let key_pair = Keypair::new_global(&mut OsRng);
+
+    // 2. Get attestation quote
+
     let attestation_quote_bytes = if opt.simulation_mode {
         let attestation_quote_file = std::env::var("ATTESTATION_QUOTE_FILE").unwrap_or_default();
         std::fs::read(&attestation_quote_file).unwrap_or_default()
@@ -106,13 +128,10 @@ async fn main() -> anyhow::Result<()> {
         get_attestation_quote()?
     };
 
+    // 3. Create TEE verifier input fetcher
+
     let proof_gen_data_fetcher = PeriodicApiStruct {
-        api_url: format!("{}{PROOF_GENERATION_DATA_PATH}", config.api_url),
-        poll_duration: config.api_poll_duration(),
-        client: Client::new(),
-    };
-    let proof_submitter = PeriodicApiStruct {
-        api_url: format!("{}{SUBMIT_PROOF_PATH}", config.api_url),
+        api_url: format!("{}/{}", config.api_url, PROOF_GENERATION_DATA_ENDPOINT),
         poll_duration: config.api_poll_duration(),
         client: Client::new(),
     };
@@ -128,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
     })
     .context("Error setting Ctrl+C handler")?;
 
-    tracing::info!("Starting Fri Prover Gateway");
+    tracing::info!("Starting TEE Prover Gateway");
 
     let tasks = vec![
         tokio::spawn(
@@ -136,9 +155,8 @@ async fn main() -> anyhow::Result<()> {
                 .run(stop_receiver.clone()),
         ),
         tokio::spawn(
-            proof_gen_data_fetcher.run::<ProofGenerationDataRequest>(stop_receiver.clone()),
+            proof_gen_data_fetcher.run::<TeeProofGenerationDataRequest>(stop_receiver.clone()),
         ),
-        tokio::spawn(proof_submitter.run::<SubmitProofRequest>(stop_receiver)),
     ];
 
     let mut tasks = ManagedTasks::new(tasks);
@@ -152,6 +170,22 @@ async fn main() -> anyhow::Result<()> {
     tasks.complete(Duration::from_secs(5)).await;
 
     // 3. Register attestation (input needed: endpoint URL)
+
+    let result = proof_gen_data_fetcher
+        .send_http_request(
+            RegisterTeeAttestationRequest {
+                attestation: attestation_quote_bytes,
+                pubkey: key_pair.public_key().serialize().to_vec(),
+            },
+            &format!("{}{REGISTER_ATTESTATION_ENDPOINT}", opt.endpoint_url),
+        )
+        .await?;
+
+    // match result {
+    //     Ok(response) => println!("Response: {}", response),
+    //     Err(error) => println!("Error: {}", error),
+    // }
+
     // 4. In a loop until the process is interrupted:
     //    4a. fetch input
     //    4b. process input, generating proof

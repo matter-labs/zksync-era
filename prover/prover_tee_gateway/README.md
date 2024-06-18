@@ -2,9 +2,9 @@
 
 <!-- TODO refine docs -->
 
-The Prover Gateway is a service component in our system infrastructure that acts as an intermediary between the TEE prover
-and the server's HTTP API. It regularly invokes the server's HTTP API to get proof related data, and it submits proof.
-Its primary functions include:
+The Prover Gateway is a service component in our system infrastructure that acts as an intermediary between the TEE
+prover and the server's HTTP API. It regularly invokes the server's HTTP API to get proof related data, and it submits
+proof. Its primary functions include:
 
 - **GetProofGenerationData**: This function is responsible for pulling proof generation data from the HTTPS API. It
   obtains the necessary data required to generate proofs in our system. The retrieved data is then used as input by
