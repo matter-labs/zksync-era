@@ -18,7 +18,9 @@ const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
 
 const contracts = {
     counter: getTestContract('Counter'),
-    events: getTestContract('Emitter')
+    events: getTestContract('Emitter'),
+    outer: getTestContract('Outer'),
+    inner: getTestContract('Inner')
 };
 
 describe.skip('web3 API compatibility tests', () => {
@@ -930,6 +932,29 @@ describe.skip('web3 API compatibility tests', () => {
         });
         expect(signerAddr).toEqual(alice.address);
         expect(txFromApi.v! <= 1).toEqual(true);
+    });
+
+    // We want to be sure that correct(outer) contract address is return in the transaction receipt,
+    // when there is a contract that initializa another contract in the constructor
+    test('Should check inner-outer contract address in the receipt of the deploy tx', async () => {
+        const deploymentNonce = await alice.getDeploymentNonce();
+        const expectedAddress = zksync.utils.createAddress(alice.address, deploymentNonce);
+
+        const expectedBytecode = contracts.outer.bytecode;
+
+        let innerContractBytecode = contracts.inner.bytecode;
+        let outerContractOverrides = {
+            customData: {
+                factoryDeps: [innerContractBytecode]
+            }
+        };
+        const outerContract = await deployContract(alice, contracts.outer, [1], undefined, outerContractOverrides);
+        let receipt = await outerContract.deployTransaction.wait();
+
+        const deployedBytecode = await alice.provider.getCode(receipt.contractAddress);
+
+        expect(expectedAddress).toEqual(receipt.contractAddress);
+        expect(expectedBytecode).toEqual(deployedBytecode);
     });
 
     afterAll(async () => {

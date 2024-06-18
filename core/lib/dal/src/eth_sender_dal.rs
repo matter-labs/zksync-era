@@ -221,6 +221,7 @@ impl EthSenderDal<'_, '_> {
         Ok(eth_tx.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_tx_history(
         &mut self,
         eth_tx_id: u32,
@@ -229,6 +230,7 @@ impl EthSenderDal<'_, '_> {
         blob_base_fee_per_gas: Option<u64>,
         tx_hash: H256,
         raw_signed_tx: &[u8],
+        sent_at_block: u32,
     ) -> anyhow::Result<Option<u32>> {
         let priority_fee_per_gas =
             i64::try_from(priority_fee_per_gas).context("Can't convert u64 to i64")?;
@@ -247,10 +249,12 @@ impl EthSenderDal<'_, '_> {
                     signed_raw_tx,
                     created_at,
                     updated_at,
-                    blob_base_fee_per_gas
+                    blob_base_fee_per_gas,
+                    sent_at_block,
+                    sent_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, NOW())
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
                 id
@@ -261,6 +265,7 @@ impl EthSenderDal<'_, '_> {
             tx_hash,
             raw_signed_tx,
             blob_base_fee_per_gas.map(|v| v as i64),
+            sent_at_block as i32
         )
         .fetch_optional(self.storage.conn())
         .await?

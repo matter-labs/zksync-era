@@ -54,6 +54,7 @@ jobs:
       - name: Init
         run: |
           ci_run zk
+          ci_run run_retried rustup show
           ci_run zk run yarn
           ci_run zk db setup
           ci_run zk compiler all
@@ -198,6 +199,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
+          ci_run run_retried rustup show
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
@@ -346,15 +348,21 @@ jobs:
   #         ci_localnet_up
   #         ci_run sccache --start-server
 
-  #     - name: Init
-  #       run: |
-  #         ci_run git config --global --add safe.directory /usr/src/zksync
-  #         ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-  #         ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-  #         ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-  #         ci_run zk
-  #         ci_run zk config compile
-  #         ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}}
+      # - name: Init
+      #   run: |
+      #     ci_run git config --global --add safe.directory /usr/src/zksync
+      #     ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
+      #     ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+      #     ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+      #     ci_run zk
+      #     ci_run run_retried rustup show
+      #     if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
+      #       ci_run zk config compile
+      #     elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
+      #       ci_run zk env dev_validium_docker
+      #       ci_run zk config compile dev_validium_docker
+      #     fi
+      #     ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}} ${{ matrix.deployment_mode == 'Validium' && '--validium-mode' || ''}}
 
   #     # `sleep 30` because we need to wait until server started properly
   #     - name: Run server

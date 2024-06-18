@@ -160,13 +160,13 @@ is common for Yul and EVMLA representations.
 
 ## [CODECOPY](https://www.evm.codes/#38?fork=shanghai)
 
-See [the EraVM docs](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#codecopy).
+See [the EraVM docs](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#codecopy).
 
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/evmla/ethereal_ir/function/block/element/mod.rs#L856).
 
 ## [CODESIZE](https://www.evm.codes/#39?fork=shanghai)
 
-See [the EraVM docs](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#codesize).
+See [the EraVM docs](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#codesize).
 
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/evmla/ethereal_ir/function/block/element/mod.rs#L837).
 
