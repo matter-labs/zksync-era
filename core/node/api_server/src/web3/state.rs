@@ -123,8 +123,12 @@ impl InternalApiConfig {
         genesis_config: &GenesisConfig,
     ) -> Self {
         println!(
-            "contracts_config.user_facing_bridgehub_proxy_addr = {:#?}",
-            contracts_config.user_facing_bridgehub_proxy_addr
+            "contracts_config.user_facing_bridgehub_proxy_addr = {:#?}, 
+            contracts_config.user_facing_diamond_proxy_addr = {:#?}, 
+            contracts_config.diamond_proxy_addr = {:#?}",
+            contracts_config.user_facing_bridgehub_proxy_addr,
+            contracts_config.user_facing_diamond_proxy_addr,
+            contracts_config.diamond_proxy_addr
         );
         Self {
             l1_chain_id: genesis_config.l1_chain_id,
