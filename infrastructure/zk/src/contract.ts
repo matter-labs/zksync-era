@@ -124,7 +124,7 @@ async function recoverFromFailedMigrationToSyncLayer(failedTxSLHash: string) {
 async function updateConfigOnSyncLayer() {
     const specialParams = ['SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL', 'SYNC_LAYER_CHAIN_ID'];
 
-    const envFile = `etc/env/l1-inits/dev.env`;
+    const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
 
     // for (const userVar of USER_FACING_ENV_VARS) {
     //     const originalVar = userVar.replace(/CONTRACTS_USER_FACING/g, 'CONTRACTS');
