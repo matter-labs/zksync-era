@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io::Write, path::PathBuf, process::Stdio};
 
-use regex::Regex;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ContractVerifierError;
@@ -200,18 +200,18 @@ impl ZkSolc {
     }
 
     pub fn is_post_1_5_0(&self) -> bool {
+        // Special case
         if &self.zksolc_version == "vm-1.5.0-a167aa3" {
             false
-        } else {
-            let re =
-                Regex::new(r"^v(?<MAJOR>(?:0|(?:[1-9]\d*)))\.(?<MINOR>(?:0|(?:[1-9]\d*)))\.(?<PATCH>(?:0|(?:[1-9]\d*)))")
-                    .unwrap();
-            if let Some(caps) = re.captures(&self.zksolc_version) {
-                (caps["MAJOR"].len() > 1 || &caps["MAJOR"] > "1")
-                    || (&caps["MAJOR"] == "1" && (caps["MINOR"].len() > 1 || &caps["MINOR"] >= "5"))
+        } else if let Some(version) = self.zksolc_version.strip_prefix("v") {
+            if let Ok(semver) = Version::parse(version) {
+                let target = Version::new(1, 5, 0);
+                semver >= target
             } else {
                 true
             }
+        } else {
+            true
         }
     }
 }

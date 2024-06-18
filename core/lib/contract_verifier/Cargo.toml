@@ -31,3 +31,4 @@ lazy_static.workspace = true
 tempfile.workspace = true
 regex.workspace = true
 tracing.workspace = true
+semver.workspace = true
