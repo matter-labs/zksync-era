@@ -1,6 +1,6 @@
 use std::{fmt, num::ParseIntError, str::FromStr};
 
-use ethers::prelude::U256;
+use alloy::primitives::U256;
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 pub const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;

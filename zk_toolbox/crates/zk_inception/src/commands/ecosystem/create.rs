@@ -15,7 +15,7 @@ use xshell::{cmd, Shell};
 use crate::{
     commands::{
         chain::create_chain_inner,
-        containers::{initialize_docker, start_containers},
+        containers::docker_up,
         ecosystem::{
             args::create::EcosystemCreateArgs,
             create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
@@ -25,7 +25,6 @@ use crate::{
         MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATED_ECOSYSTEM, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
         MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
         MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
-        MSG_STARTING_CONTAINERS_SPINNER,
     },
 };
 
@@ -102,10 +101,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     spinner.finish();
 
     if args.start_containers {
-        let spinner = Spinner::new(MSG_STARTING_CONTAINERS_SPINNER);
-        initialize_docker(shell, &ecosystem_config)?;
-        start_containers(shell)?;
-        spinner.finish();
+        docker_up(shell, &ecosystem_config)?;
     }
 
     logger::outro(MSG_CREATED_ECOSYSTEM);

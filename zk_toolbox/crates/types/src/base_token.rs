@@ -1,4 +1,4 @@
-use ethers::types::Address;
+use alloy::primitives::Address;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -14,7 +14,7 @@ impl BaseToken {
         Self {
             nominator: 1,
             denominator: 1,
-            address: Address::from_low_u64_be(1),
+            address: Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]),
         }
     }
 }

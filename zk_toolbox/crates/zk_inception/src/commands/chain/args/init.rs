@@ -27,7 +27,7 @@ pub struct InitArgs {
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_paymaster: Option<bool>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
-    pub l1_rpc_url: Option<String>,
+    pub l1_rpc_url: Option<Url>,
 }
 
 impl InitArgs {
@@ -66,5 +66,5 @@ pub struct InitArgsFinal {
     pub forge_args: ForgeScriptArgs,
     pub genesis_args: GenesisArgsFinal,
     pub deploy_paymaster: bool,
-    pub l1_rpc_url: String,
+    pub l1_rpc_url: Url,
 }

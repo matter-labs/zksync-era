@@ -8,6 +8,7 @@ use config::{
     ChainConfig, ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig,
 };
 use types::ProverMode;
+use url::Url;
 use xshell::Shell;
 
 use crate::defaults::{ROCKS_DB_STATE_KEEPER, ROCKS_DB_TREE};
@@ -39,7 +40,7 @@ pub(crate) fn update_database_secrets(
 pub(crate) fn update_l1_rpc_url_secret(
     shell: &Shell,
     config: &ChainConfig,
-    l1_rpc_url: String,
+    l1_rpc_url: Url,
 ) -> anyhow::Result<()> {
     let mut secrets = SecretsConfig::read_with_base_path(shell, &config.configs)?;
     secrets.l1.l1_rpc_url = l1_rpc_url;

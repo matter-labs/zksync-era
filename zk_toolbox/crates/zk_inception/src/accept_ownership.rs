@@ -1,3 +1,4 @@
+use alloy::primitives::{Address, B256};
 use common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
@@ -9,7 +10,7 @@ use config::{
     traits::SaveConfig,
     EcosystemConfig,
 };
-use ethers::types::{Address, H256};
+use url::Url;
 use xshell::Shell;
 
 use crate::{
@@ -21,10 +22,10 @@ pub async fn accept_admin(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
-    governor: Option<H256>,
+    governor: Option<B256>,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
-    l1_rpc_url: String,
+    l1_rpc_url: Url,
 ) -> anyhow::Result<()> {
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)
@@ -51,10 +52,10 @@ pub async fn accept_owner(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
-    governor: Option<H256>,
+    governor: Option<B256>,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
-    l1_rpc_url: String,
+    l1_rpc_url: Url,
 ) -> anyhow::Result<()> {
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)
@@ -81,7 +82,7 @@ async fn accept_ownership(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
-    governor: Option<H256>,
+    governor: Option<B256>,
     target_address: Address,
     mut forge: ForgeScript,
 ) -> anyhow::Result<()> {

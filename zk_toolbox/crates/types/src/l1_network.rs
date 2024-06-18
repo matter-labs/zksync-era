@@ -26,7 +26,7 @@ pub enum L1Network {
 
 impl L1Network {
     #[must_use]
-    pub fn chain_id(&self) -> u32 {
+    pub fn chain_id(&self) -> u64 {
         match self {
             L1Network::Localhost => 9,
             L1Network::Sepolia => 11_155_111,

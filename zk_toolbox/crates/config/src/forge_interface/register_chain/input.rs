@@ -1,4 +1,4 @@
-use ethers::types::Address;
+use alloy::primitives::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use types::{ChainId, L1BatchCommitDataGeneratorMode};

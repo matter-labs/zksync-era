@@ -27,11 +27,11 @@ config = { path = "crates/config" }
 types = { path = "crates/types" }
 
 # External dependencies
+alloy = { version = "0.1.1", features = ["full"] }
 anyhow = "1.0.82"
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
 cliclack = "0.2.5"
 console = "0.15.8"
-ethers = "2.0"
 futures = "0.3.30"
 human-panic = "2.0"
 lazy_static = "1.4.0"

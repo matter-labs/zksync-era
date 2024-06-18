@@ -1,7 +1,4 @@
-use ethers::{
-    types::{H160, U256},
-    utils::format_ether,
-};
+use alloy::primitives::{utils::format_ether, Address, U256};
 
 /// Common messages
 pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
@@ -25,7 +22,6 @@ pub(super) const MSG_CLONING_ERA_REPO_SPINNER: &str = "Cloning zksync-era reposi
 pub(super) const MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER: &str =
     "Creating initial configurations...";
 pub(super) const MSG_CREATING_DEFAULT_CHAIN_SPINNER: &str = "Creating default chain...";
-pub(super) const MSG_STARTING_CONTAINERS_SPINNER: &str = "Starting containers...";
 pub(super) const MSG_ECOSYSTEM_ALREADY_EXISTS_ERR: &str = "Ecosystem already exists";
 pub(super) const MSG_ECOSYSTEM_CONFIG_INVALID_ERR: &str = "Invalid ecosystem configuration";
 pub(super) const MSG_LINK_TO_CODE_SELECTION_CLONE: &str = "Clone for me (recommended)";
@@ -166,8 +162,14 @@ pub(super) const MSG_STARTING_DOCKER_CONTAINERS_SPINNER: &str =
     "Starting containers using docker...";
 pub(super) const MSG_CONTAINERS_STARTED: &str = "Containers started successfully";
 pub(super) const MSG_RETRY_START_CONTAINERS_PROMPT: &str =
-    "Failed to start containers. Make sure there is nothing running on default ports for Ethereum node l1 and postgres. Want to try again?";
+"Failed to start containers. Make sure there is nothing running on default ports for Ethereum node l1 and postgres. Want to try again?";
 pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosystem folder.";
+pub(super) const MSG_STOPPING_CONTAINERS: &str = "Stopping containers";
+pub(super) const MSG_STOPPING_DOCKER_CONTAINERS_SPINNER: &str =
+    "Stopping containers using docker...";
+pub(super) const MSG_CONTAINERS_STOPPED: &str = "Containers stopped successfully";
+pub(super) const MSG_RESETTING_CONTAINERS: &str = "Resetting containers and volumes";
+pub(super) const MSG_CONTAINERS_RESETTED: &str = "Containers resetted successfully";
 
 /// Server related messages
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
@@ -178,7 +180,7 @@ pub(super) const MSG_BUILDING_L1_CONTRACTS: &str = "Building L1 contracts...";
 pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
 
 pub(super) fn msg_address_doesnt_have_enough_money_prompt(
-    address: &H160,
+    address: &Address,
     actual: U256,
     expected: U256,
 ) -> String {

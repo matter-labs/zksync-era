@@ -1,4 +1,5 @@
 use clap::{command, Parser, Subcommand};
+use commands::{containers::ContainersArgs, server::RunServerArgs};
 use common::{
     check_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
@@ -7,7 +8,7 @@ use common::{
 use config::EcosystemConfig;
 use xshell::Shell;
 
-use crate::commands::{args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands};
+use crate::commands::{chain::ChainCommands, ecosystem::EcosystemCommands};
 
 pub mod accept_ownership;
 mod commands;
@@ -38,7 +39,8 @@ pub enum InceptionSubcommands {
     /// Run server
     Server(RunServerArgs),
     /// Run containers for local development
-    Containers,
+    #[command(subcommand)]
+    Containers(ContainersArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -102,7 +104,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(shell, args).await?,
         InceptionSubcommands::Chain(args) => commands::chain::run(shell, args).await?,
         InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
-        InceptionSubcommands::Containers => commands::containers::run(shell)?,
+        InceptionSubcommands::Containers(args) => commands::containers::run(shell, args)?,
     }
     Ok(())
 }

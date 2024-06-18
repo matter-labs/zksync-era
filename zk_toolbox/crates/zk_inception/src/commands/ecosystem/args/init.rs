@@ -25,7 +25,7 @@ pub struct EcosystemArgs {
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
-    pub l1_rpc_url: Option<String>,
+    pub l1_rpc_url: Option<Url>,
 }
 
 impl EcosystemArgs {
@@ -36,7 +36,7 @@ impl EcosystemArgs {
                 .ask()
         });
 
-        let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
+        let l1_rpc_url: Url = self.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
             if l1_network == L1Network::Localhost {
                 prompt = prompt.default(LOCAL_RPC_URL);
@@ -61,7 +61,7 @@ impl EcosystemArgs {
 pub struct EcosystemArgsFinal {
     pub deploy_ecosystem: bool,
     pub ecosystem_contracts_path: Option<PathBuf>,
-    pub l1_rpc_url: String,
+    pub l1_rpc_url: Url,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]

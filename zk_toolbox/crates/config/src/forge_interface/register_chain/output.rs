@@ -1,4 +1,4 @@
-use ethers::types::Address;
+use alloy::primitives::Address;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::FileConfig;

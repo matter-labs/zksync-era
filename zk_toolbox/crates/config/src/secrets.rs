@@ -13,7 +13,7 @@ pub struct DatabaseSecrets {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct L1Secret {
-    pub l1_rpc_url: String,
+    pub l1_rpc_url: Url,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }

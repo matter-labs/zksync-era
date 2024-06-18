@@ -29,6 +29,7 @@ use config::{
     ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use types::{L1Network, ProverMode, WalletCreation};
+use url::Url;
 use xshell::{cmd, Shell};
 
 use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
@@ -109,12 +110,14 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         };
 
+        println!("1");
         distribute_eth(
             &ecosystem_config,
             &chain_config,
             final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         )
         .await?;
+        println!("2");
 
         chain::init::init(
             &mut chain_init_args,
@@ -134,7 +137,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn distribute_eth(
     ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
-    l1_rpc_url: String,
+    l1_rpc_url: Url,
 ) -> anyhow::Result<()> {
     if chain_config.wallet_creation == WalletCreation::Localhost
         && ecosystem_config.l1_network == L1Network::Localhost
@@ -155,7 +158,7 @@ pub async fn distribute_eth(
             addresses,
             l1_rpc_url,
             ecosystem_config.l1_network.chain_id(),
-            AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+            *AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
         )
         .await?;
         spinner.finish();
@@ -192,7 +195,7 @@ async fn deploy_erc20(
     ecosystem_config: &EcosystemConfig,
     contracts_config: &ContractsConfig,
     forge_args: ForgeScriptArgs,
-    l1_rpc_url: String,
+    l1_rpc_url: Url,
 ) -> anyhow::Result<DeployErc20Output> {
     let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
     DeployErc20Config::new(erc20_deployment_config, contracts_config)
@@ -280,7 +283,7 @@ async fn deploy_ecosystem_inner(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
-    l1_rpc_url: String,
+    l1_rpc_url: Url,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
 

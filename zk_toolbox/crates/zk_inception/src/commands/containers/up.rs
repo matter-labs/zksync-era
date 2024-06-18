@@ -13,19 +13,21 @@ use crate::messages::{
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell).context(MSG_FAILED_TO_FIND_ECOSYSTEM_ERR)?;
 
-    initialize_docker(shell, &ecosystem)?;
-
     logger::info(MSG_STARTING_CONTAINERS);
-
-    let spinner = Spinner::new(MSG_STARTING_DOCKER_CONTAINERS_SPINNER);
-    start_containers(shell)?;
-    spinner.finish();
-
+    docker_up(shell, &ecosystem)?;
     logger::outro(MSG_CONTAINERS_STARTED);
     Ok(())
 }
 
-pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
+pub fn docker_up(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
+    initialize_docker(shell, ecosystem)?;
+    let spinner = Spinner::new(MSG_STARTING_DOCKER_CONTAINERS_SPINNER);
+    start_containers(shell)?;
+    spinner.finish();
+    Ok(())
+}
+
+fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
     if !shell.path_exists("volumes") {
         create_docker_folders(shell)?;
     };
@@ -37,7 +39,7 @@ pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::
     Ok(())
 }
 
-pub fn start_containers(shell: &Shell) -> anyhow::Result<()> {
+fn start_containers(shell: &Shell) -> anyhow::Result<()> {
     while let Err(err) = docker::up(shell, DOCKER_COMPOSE_FILE) {
         logger::error(err.to_string());
         if !common::PromptConfirm::new(MSG_RETRY_START_CONTAINERS_PROMPT)

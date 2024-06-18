@@ -1,20 +1,19 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::path::{Path, PathBuf};
 
-use clap::{Parser, ValueEnum};
-use ethers::{
-    middleware::Middleware,
-    prelude::{LocalWallet, Signer},
-    types::{Address, H256, U256},
-    utils::hex::ToHex,
+use alloy::{
+    primitives::{Address, B256, U256},
+    signers::local::PrivateKeySigner,
 };
+use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
+use url::Url;
 use xshell::{cmd, Shell};
 
-use crate::{cmd::Cmd, ethereum::create_ethers_client};
+use crate::{
+    cmd::Cmd,
+    ethereum::{create_ethers_client, get_address_from_private_key, get_address_from_signer},
+};
 
 /// Forge is a wrapper around the forge binary.
 pub struct Forge {
@@ -70,7 +69,7 @@ impl ForgeScript {
     }
 
     /// Add the rpc-url flag to the forge script command.
-    pub fn with_rpc_url(mut self, rpc_url: String) -> Self {
+    pub fn with_rpc_url(mut self, rpc_url: Url) -> Self {
         self.args.add_arg(ForgeScriptArg::RpcUrl { url: rpc_url });
         self
     }
@@ -95,24 +94,31 @@ impl ForgeScript {
     }
 
     /// Adds the private key of the deployer account.
-    pub fn with_private_key(mut self, private_key: H256) -> Self {
+    pub fn with_private_key(mut self, private_key: B256) -> Self {
         self.args.add_arg(ForgeScriptArg::PrivateKey {
-            private_key: private_key.encode_hex(),
+            address: get_address_from_private_key(&private_key),
+            private_key,
         });
         self
     }
-    // Do not start the script if balance is not enough
-    pub fn private_key(&self) -> Option<H256> {
+
+    /// Returns the private key of the deployer account, if set.
+    pub fn private_key(&self) -> Option<B256> {
         self.args.args.iter().find_map(|a| {
-            if let ForgeScriptArg::PrivateKey { private_key } = a {
-                Some(H256::from_str(private_key).unwrap())
+            if let ForgeScriptArg::PrivateKey {
+                address: _,
+                private_key,
+            } = a
+            {
+                Some(*private_key)
             } else {
                 None
             }
         })
     }
 
-    pub fn rpc_url(&self) -> Option<String> {
+    /// Returns the rpc url, if set.
+    pub fn rpc_url(&self) -> Option<Url> {
         self.args.args.iter().find_map(|a| {
             if let ForgeScriptArg::RpcUrl { url } = a {
                 Some(url.clone())
@@ -122,11 +128,12 @@ impl ForgeScript {
         })
     }
 
+    /// Returns the address of the deployer account, if set.
     pub fn address(&self) -> Option<Address> {
-        self.private_key().and_then(|a| {
-            LocalWallet::from_bytes(a.as_bytes())
+        self.private_key().and_then(|private_key| {
+            PrivateKeySigner::from_bytes(&private_key)
                 .ok()
-                .map(|a| Address::from_slice(a.address().as_bytes()))
+                .map(|signer| get_address_from_signer(&signer))
         })
     }
 
@@ -138,7 +145,12 @@ impl ForgeScript {
             return Ok(None);
         };
         let client = create_ethers_client(private_key, rpc_url, None)?;
-        let balance = client.get_balance(client.address(), None).await?;
+        let balance = client
+            .get_balance(
+                self.address()
+                    .expect("Deployer account not set for forge script"),
+            )
+            .await?;
         Ok(Some(balance))
     }
 }
@@ -189,11 +201,12 @@ pub enum ForgeScriptArg {
     Ffi,
     #[strum(to_string = "private-key={private_key}")]
     PrivateKey {
-        private_key: String,
+        address: Address,
+        private_key: B256,
     },
     #[strum(to_string = "rpc-url={url}")]
     RpcUrl {
-        url: String,
+        url: Url,
     },
     #[strum(to_string = "sig={sig}")]
     Sig {

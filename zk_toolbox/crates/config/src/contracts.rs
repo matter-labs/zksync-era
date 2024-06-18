@@ -1,4 +1,4 @@
-use ethers::types::{Address, H256};
+use alloy::primitives::{Address, B256};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct ContractsConfig {
     pub create2_factory_addr: Address,
-    pub create2_factory_salt: H256,
+    pub create2_factory_salt: B256,
     pub ecosystem_contracts: EcosystemContracts,
     pub bridges: BridgesContracts,
     pub l1: L1Contracts,

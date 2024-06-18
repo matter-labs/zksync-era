@@ -14,6 +14,7 @@ use config::{
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
+use url::Url;
 use xshell::Shell;
 
 use super::args::init::InitArgsFinal;
@@ -112,7 +113,7 @@ async fn register_chain(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
-    l1_rpc_url: String,
+    l1_rpc_url: Url,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
 
