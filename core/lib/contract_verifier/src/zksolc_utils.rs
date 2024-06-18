@@ -102,7 +102,6 @@ impl ZkSolc {
         let mut command = tokio::process::Command::new(&self.zksolc_path);
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        dbg!(&input);
         match &input {
             ZkSolcInput::StandardJson(input) => {
                 if !self.is_post_1_5_0() {
@@ -113,6 +112,8 @@ impl ZkSolc {
                         command.arg("--force-evmla");
                     }
                 }
+
+                command.arg("--solc").arg(self.solc_path.to_str().unwrap())
             }
             ZkSolcInput::YulSingleFile { is_system, .. } => {
                 if self.is_post_1_5_0() {
@@ -239,6 +240,9 @@ mod tests {
 
         zksolc.zksolc_version = "v1.4.15".to_string();
         assert!(!zksolc.is_post_1_5_0(), "v1.4.15");
+
+        zksolc.zksolc_version = "v1.3.21".to_string();
+        assert!(!zksolc.is_post_1_5_0(), "v1.3.21");
 
         zksolc.zksolc_version = "v0.5.1".to_string();
         assert!(!zksolc.is_post_1_5_0(), "v0.5.1");
