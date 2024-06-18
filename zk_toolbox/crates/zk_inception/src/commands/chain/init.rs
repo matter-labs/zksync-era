@@ -1,5 +1,6 @@
 use anyhow::Context;
 use common::{
+    cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     logger,
@@ -14,7 +15,7 @@ use config::{
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
+use xshell::{cmd, Shell};
 
 use super::args::init::InitArgsFinal;
 use crate::{
@@ -25,9 +26,9 @@ use crate::{
     config_manipulations::{update_genesis, update_l1_contracts, update_l1_rpc_url_secret},
     forge_utils::{check_the_balance, fill_forge_private_key},
     messages::{
-        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_BUILDING_L1_CONTRACTS,
+        MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR,
+        MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
     },
 };
 
@@ -55,7 +56,7 @@ pub async fn init(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
-
+    build_l1_contracts(shell, ecosystem_config)?;
     update_genesis(shell, chain_config)?;
     update_l1_rpc_url_secret(shell, chain_config, init_args.l1_rpc_url.clone())?;
     let mut contracts_config =
@@ -137,4 +138,12 @@ async fn register_chain(
         REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
     update_l1_contracts(shell, chain_config, &register_chain_output)
+}
+
+fn build_l1_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(ecosystem_config.path_to_foundry());
+    let spinner = Spinner::new(MSG_BUILDING_L1_CONTRACTS);
+    Cmd::new(cmd!(shell, "yarn build")).run()?;
+    spinner.finish();
+    Ok(())
 }

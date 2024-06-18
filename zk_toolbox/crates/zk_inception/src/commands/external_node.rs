@@ -4,12 +4,12 @@ use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::{
-    commands::args::RunServerArgs,
+    commands::args::RunExternalNodeArgs,
+    external_node::RunExternalNode,
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_STARTING_SERVER},
-    server::{RunServer, ServerMode},
 };
 
-pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
+pub fn run(shell: &Shell, args: RunExternalNodeArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain = global_config().chain_name.clone();
@@ -19,21 +19,16 @@ pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_STARTING_SERVER);
 
-    run_server(args, &chain_config, shell)?;
+    run_external_node(args, &chain_config, shell)?;
 
     Ok(())
 }
 
-fn run_server(
-    args: RunServerArgs,
+fn run_external_node(
+    args: RunExternalNodeArgs,
     chain_config: &ChainConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let server = RunServer::new(args.components.clone(), chain_config);
-    let mode = if args.genesis {
-        ServerMode::Genesis
-    } else {
-        ServerMode::Normal
-    };
-    server.run(shell, mode, args.additional_args)
+    let server = RunExternalNode::new(args.components.clone(), chain_config)?;
+    server.run(shell, args.additional_args.clone())
 }

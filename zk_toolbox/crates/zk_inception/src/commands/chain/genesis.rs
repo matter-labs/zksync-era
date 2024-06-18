@@ -128,5 +128,5 @@ async fn initialize_databases(
 
 fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
     let server = RunServer::new(None, chain_config);
-    server.run(shell, ServerMode::Genesis)
+    server.run(shell, ServerMode::Genesis, vec![])
 }
