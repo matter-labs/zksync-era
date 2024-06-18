@@ -153,7 +153,11 @@ impl ContractVerifier {
             ));
         }
 
-        let zksolc = ZkSolc::new(zksolc_path, solc_path);
+        let zksolc = ZkSolc::new(
+            zksolc_path,
+            solc_path,
+            request.req.compiler_versions.zk_compiler_version(),
+        );
 
         let output = time::timeout(config.compilation_timeout(), zksolc.async_compile(input))
             .await
