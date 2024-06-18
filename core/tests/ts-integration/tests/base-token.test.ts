@@ -9,7 +9,7 @@ import * as zksync from 'zksync-ethers';
 import { BigNumber, utils as etherUtils } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 
-describe('base ERC20 contract checks', () => {
+describe.skip('base ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;

@@ -6,6 +6,7 @@ import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
+import { isNetworkLocal } from 'utils';
 
 /**
  * Attempts to connect to server.
@@ -43,8 +44,8 @@ export async function waitForServer(l2NodeUrl: string) {
 }
 
 function getMainWalletPk(pathToHome: string, network: string): string {
-    if (network.toLowerCase() == 'localhost') {
-        const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
+    if (isNetworkLocal(network)) {
+        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
         return ethers.Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/0").privateKey;
     } else {

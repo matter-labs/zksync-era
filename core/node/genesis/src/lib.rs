@@ -421,8 +421,9 @@ pub async fn save_set_chain_id_tx(
 
     let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
+
     let filter = FilterBuilder::default()
-        .address(vec![state_transition_manager_address])
+        .address(vec![diamond_proxy_address])
         .topics(
             Some(vec![SET_CHAIN_ID_EVENT.signature()]),
             Some(vec![diamond_proxy_address.into()]),

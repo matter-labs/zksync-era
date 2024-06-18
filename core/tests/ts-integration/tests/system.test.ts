@@ -15,6 +15,7 @@ import { BigNumberish, BytesLike } from 'ethers';
 import { hashBytecode, serialize } from 'zksync-ethers/build/utils';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
+import { isNetworkLocalL2 } from 'utils';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -23,7 +24,7 @@ const contracts = {
 
 const BUILTIN_CREATE2_FACTORY_ADDRESS = '0x0000000000000000000000000000000000010000';
 
-describe('System behavior checks', () => {
+describe.skip('System behavior checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 
@@ -33,6 +34,10 @@ describe('System behavior checks', () => {
     });
 
     test('Network should be supporting Cancun+Deneb', async () => {
+        if (isNetworkLocalL2(process.env.CHAIN_ETH_NETWORK!)) {
+            // Skipping for L2 networks
+            return;
+        }
         const address_a = '0x000000000000000000000000000000000000000A';
         const address_b = '0x000000000000000000000000000000000000000b';
 

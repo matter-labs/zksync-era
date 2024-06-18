@@ -3,6 +3,8 @@ import * as zksync from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { isNetworkLocal } from 'utils';
+
 type Network = string;
 
 export class Tester {
@@ -22,7 +24,7 @@ export class Tester {
         const ethProvider = new ethers.providers.JsonRpcProvider(process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL);
 
         let ethWallet;
-        if (network == 'localhost') {
+        if (isNetworkLocal(network)) {
             ethProvider.pollingInterval = 100;
 
             const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);

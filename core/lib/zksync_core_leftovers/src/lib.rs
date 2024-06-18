@@ -28,11 +28,10 @@ use zksync_config::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
-        wallets,
-        wallets::Wallets,
+        wallets::{self, Wallets},
         ContractsConfig, DatabaseSecrets, GeneralConfig, Secrets,
     },
-    ApiConfig, DBConfig, EthWatchConfig, GenesisConfig,
+    ApiConfig, DBConfig, EthWatchConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
@@ -92,6 +91,20 @@ pub async fn genesis_init(
 
     let params = GenesisParams::load_genesis_params(genesis_config)?;
     ensure_genesis_state(&mut storage, &params).await?;
+
+    Ok(())
+}
+
+/// Clear L1 txs history. FIXME dont include it in the main branch
+pub async fn delete_l1_txs_history(database_secrets: &DatabaseSecrets) -> anyhow::Result<()> {
+    let db_url = database_secrets.master_url()?;
+    let pool = ConnectionPool::<Core>::singleton(db_url)
+        .build()
+        .await
+        .context("failed to build connection_pool")?;
+    let mut storage = pool.connection().await.context("connection()")?;
+
+    storage.transactions_dal().erase_l1_txs_history().await?;
 
     Ok(())
 }

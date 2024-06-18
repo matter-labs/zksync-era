@@ -20,8 +20,9 @@ use zksync_config::{
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
-    temp_config_store::{decode_yaml_repr, TempConfigStore},
+    delete_l1_txs_history, genesis_init, initialize_components, is_genesis_needed,
+    setup_sigint_handler,
+    temp_config_store::{decode_yaml, decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
@@ -46,6 +47,9 @@ struct Cli {
     /// Rebuild tree.
     #[arg(long)]
     rebuild_tree: bool,
+    /// FIXME: dangerous option. Should be decided within the team.
+    #[arg(long)]
+    clear_l1_txs_history: bool,
     /// Comma-separated list of components to launch.
     #[arg(
         long,
@@ -207,6 +211,13 @@ async fn main() -> anyhow::Result<()> {
         if opt.genesis {
             return Ok(());
         }
+    }
+
+    if opt.clear_l1_txs_history {
+        println!("Clearing L1 txs history!");
+        delete_l1_txs_history(&database_secrets).await?;
+        println!("Complete!");
+        return Ok(());
     }
 
     let components = if opt.rebuild_tree {

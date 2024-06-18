@@ -67,7 +67,7 @@ const initSetup = async ({
     await announced('Compiling JS packages', run.yarn());
 
     await Promise.all([
-        announced('Building L1 L2 contracts', contract.build()),
+        announced('Building L1 L2 contracts', contract.build(false)),
         announced('Compile L2 system contracts', compiler.compileAll())
     ]);
 };
@@ -220,6 +220,8 @@ export const initHyperCmdAction = async ({
     runObservability,
     deploymentMode
 }: InitHyperCmdActionOptions): Promise<void> => {
+    console.log('ZKSYNC_ENV : ', process.env.ZKSYNC_ENV);
+    console.log('DB URL : ', process.env.DATABASE_URL);
     if (bumpChainId) {
         config.bumpChainId();
     }

@@ -7,6 +7,7 @@ import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
 import { scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
+import { isNetworkLocal } from 'utils';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
 // It is assumed to be enough to run a set of "normal" transactions.
@@ -77,7 +78,7 @@ export class TestContextOwner {
             this.reporter
         );
 
-        if (env.network == 'localhost') {
+        if (isNetworkLocal(env.network)) {
             // Setup small polling interval on localhost to speed up tests.
             this.l1Provider.pollingInterval = 100;
             this.l2Provider.pollingInterval = 100;
@@ -89,12 +90,12 @@ export class TestContextOwner {
 
     // Returns the required amount of L1 ETH
     requiredL1ETHPerAccount() {
-        return this.env.network === 'localhost' ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
+        return isNetworkLocal(this.env.network) ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
     }
 
     // Returns the required amount of L2 ETH
     requiredL2ETHPerAccount() {
-        return this.env.network === 'localhost' ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
+        return isNetworkLocal(this.env.network) ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
     }
 
     /**
@@ -209,7 +210,8 @@ export class TestContextOwner {
         const wallets = this.createTestWallets(suites);
         const baseTokenAddress = await this.mainSyncWallet.provider.getBaseTokenContractAddress();
         await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit, baseTokenAddress);
-        await this.cancelAllowances();
+        // FIXME: restore once ERC20 deposits are available.
+        // await this.cancelAllowances();
         await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit, baseTokenAddress);
         await this.distributeL2Tokens(wallets);
 
@@ -400,10 +402,10 @@ export class TestContextOwner {
                     // specify gas limit manually, until EVM-554 is fixed
                     l2GasLimit: 1000000
                 })
-                .then((tx) => {
+                .then(async (tx) => {
                     const amount = ethers.utils.formatEther(l2ETHAmountToDeposit);
                     this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
-                    tx.wait();
+                    await tx.wait();
                 });
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
             this.reporter.debug(
@@ -414,54 +416,54 @@ export class TestContextOwner {
             await depositHandle;
         }
         // Define values for handling ERC20 transfers/deposits.
-        const erc20Token = this.env.erc20Token.l1Address;
-        const erc20MintAmount = l2erc20DepositAmount.mul(100);
-        // Mint ERC20.
-        const baseIsTransferred = false; // we are not transferring the base
-        const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
-        const l1Erc20Contract = new ethers.Contract(erc20Token, l1Erc20ABI, this.mainEthersWallet);
-        const erc20MintPromise = l1Erc20Contract
-            .mint(this.mainSyncWallet.address, erc20MintAmount, {
-                nonce: nonce++,
-                gasPrice
-            })
-            .then((tx: any) => {
-                this.reporter.debug(`Sent ERC20 mint transaction. Hash: ${tx.hash}, nonce ${tx.nonce}`);
-                return tx.wait();
-            });
-        this.reporter.debug(`Nonce changed by 1 for ERC20 mint, new nonce: ${nonce}`);
-        await erc20MintPromise;
-        // Deposit ERC20.
-        const erc20DepositPromise = this.mainSyncWallet
-            .deposit({
-                token: erc20Token,
-                amount: l2erc20DepositAmount,
-                approveERC20: true,
-                approveBaseERC20: true,
-                approveBaseOverrides: {
-                    nonce: nonce,
-                    gasPrice
-                },
-                approveOverrides: {
-                    nonce: nonce + (ethIsBaseToken ? 0 : 1), // if eth is base, we don't need to approve base
-                    gasPrice
-                },
-                overrides: {
-                    nonce: nonce + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1), // if base is transferred, we don't need to approve override
-                    gasPrice
-                }
-            })
-            .then((tx) => {
-                // Note: there is an `approve` tx, not listed here.
-                this.reporter.debug(`Sent ERC20 deposit transaction. Hash: ${tx.hash}, nonce: ${tx.nonce}`);
-                return tx.wait();
-            });
-        nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
-        this.reporter.debug(
-            `Nonce changed by ${
-                1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1)
-            } for ERC20 deposit, new nonce: ${nonce}`
-        );
+        // const erc20Token = this.env.erc20Token.l1Address;
+        // const erc20MintAmount = l2erc20DepositAmount.mul(100);
+        // // Mint ERC20.
+        // const baseIsTransferred = false; // we are not transferring the base
+        // const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
+        // const l1Erc20Contract = new ethers.Contract(erc20Token, l1Erc20ABI, this.mainEthersWallet);
+        // const erc20MintPromise = l1Erc20Contract
+        //     .mint(this.mainSyncWallet.address, erc20MintAmount, {
+        //         nonce: nonce++,
+        //         gasPrice
+        //     })
+        //     .then((tx: any) => {
+        //         this.reporter.debug(`Sent ERC20 mint transaction. Hash: ${tx.hash}, nonce ${tx.nonce}`);
+        //         return tx.wait();
+        //     });
+        // this.reporter.debug(`Nonce changed by 1 for ERC20 mint, new nonce: ${nonce}`);
+        // await erc20MintPromise;
+        // // Deposit ERC20.
+        // const erc20DepositPromise = this.mainSyncWallet
+        //     .deposit({
+        //         token: erc20Token,
+        //         amount: l2erc20DepositAmount,
+        //         approveERC20: true,
+        //         approveBaseERC20: true,
+        //         approveBaseOverrides: {
+        //             nonce: nonce,
+        //             gasPrice
+        //         },
+        //         approveOverrides: {
+        //             nonce: nonce + (ethIsBaseToken ? 0 : 1), // if eth is base, we don't need to approve base
+        //             gasPrice
+        //         },
+        //         overrides: {
+        //             nonce: nonce + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1), // if base is transferred, we don't need to approve override
+        //             gasPrice
+        //         }
+        //     })
+        //     .then((tx) => {
+        //         // Note: there is an `approve` tx, not listed here.
+        //         this.reporter.debug(`Sent ERC20 deposit transaction. Hash: ${tx.hash}, nonce: ${tx.nonce}`);
+        //         return tx.wait();
+        //     });
+        // nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
+        // this.reporter.debug(
+        //     `Nonce changed by ${
+        //         1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1)
+        //     } for ERC20 deposit, new nonce: ${nonce}`
+        // );
         // Send ETH on L1.
         const ethTransfers = await sendTransfers(
             zksync.utils.ETH_ADDRESS,
@@ -474,33 +476,33 @@ export class TestContextOwner {
         );
         nonce += ethTransfers.length;
 
-        // Send ERC20 on L1.
-        const erc20Transfers = await sendTransfers(
-            erc20Token,
-            this.mainEthersWallet,
-            wallets,
-            ERC20_PER_ACCOUNT,
-            nonce,
-            gasPrice,
-            this.reporter
-        );
+        // // Send ERC20 on L1.
+        // const erc20Transfers = await sendTransfers(
+        //     erc20Token,
+        //     this.mainEthersWallet,
+        //     wallets,
+        //     ERC20_PER_ACCOUNT,
+        //     nonce,
+        //     gasPrice,
+        //     this.reporter
+        // );
 
-        nonce += erc20Transfers.length;
-        // Send ERC20 base token on L1.
-        const baseErc20Transfers = await sendTransfers(
-            baseTokenAddress,
-            this.mainEthersWallet,
-            wallets,
-            ERC20_PER_ACCOUNT,
-            nonce,
-            gasPrice,
-            this.reporter
-        );
+        // nonce += erc20Transfers.length;
+        // // Send ERC20 base token on L1.
+        // const baseErc20Transfers = await sendTransfers(
+        //     baseTokenAddress,
+        //     this.mainEthersWallet,
+        //     wallets,
+        //     ERC20_PER_ACCOUNT,
+        //     nonce,
+        //     gasPrice,
+        //     this.reporter
+        // );
 
-        l1TxPromises.push(erc20DepositPromise);
+        // l1TxPromises.push(erc20DepositPromise);
         l1TxPromises.push(...ethTransfers);
-        l1TxPromises.push(...erc20Transfers);
-        l1TxPromises.push(...baseErc20Transfers);
+        // l1TxPromises.push(...erc20Transfers);
+        // l1TxPromises.push(...baseErc20Transfers);
 
         this.reporter.debug(`Sent ${l1TxPromises.length} initial transactions on L1`);
         await Promise.all(l1TxPromises);
@@ -514,6 +516,7 @@ export class TestContextOwner {
     private async distributeL2Tokens(wallets: TestWallets) {
         this.reporter.startAction(`Distributing tokens on L2`);
         let l2startNonce = await this.mainSyncWallet.getTransactionCount();
+        console.log(ethers.utils.formatEther(await this.mainSyncWallet.getBalance()));
 
         // ETH transfers.
         const l2TxPromises = await sendTransfers(
@@ -525,20 +528,20 @@ export class TestContextOwner {
             undefined,
             this.reporter
         );
-        l2startNonce += l2TxPromises.length;
+        // l2startNonce += l2TxPromises.length;
 
-        // ERC20 transfers.
-        const l2TokenAddress = await this.mainSyncWallet.l2TokenAddress(this.env.erc20Token.l1Address);
-        const erc20Promises = await sendTransfers(
-            l2TokenAddress,
-            this.mainSyncWallet,
-            wallets,
-            ERC20_PER_ACCOUNT,
-            l2startNonce,
-            undefined,
-            this.reporter
-        );
-        l2TxPromises.push(...erc20Promises);
+        // // ERC20 transfers.
+        // const l2TokenAddress = await this.mainSyncWallet.l2TokenAddress(this.env.erc20Token.l1Address);
+        // const erc20Promises = await sendTransfers(
+        //     l2TokenAddress,
+        //     this.mainSyncWallet,
+        //     wallets,
+        //     ERC20_PER_ACCOUNT,
+        //     l2startNonce,
+        //     undefined,
+        //     this.reporter
+        // );
+        // l2TxPromises.push(...erc20Promises);
         await Promise.all(l2TxPromises);
 
         this.reporter.finishAction();

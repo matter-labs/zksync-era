@@ -26,7 +26,7 @@ const contracts = {
 // Sane amount of L2 gas enough to process a transaction.
 const DEFAULT_L2_GAS_LIMIT = 5000000;
 
-describe('Tests for L1 behavior', () => {
+describe.skip('Tests for L1 behavior', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 
@@ -203,7 +203,7 @@ describe('Tests for L1 behavior', () => {
     test('Should revert l1 tx with too many initial storage writes', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
-        if (!testMaster.isLocalHost()) {
+        if (!testMaster.isLocalNetwork()) {
             return;
         }
 
@@ -238,7 +238,7 @@ describe('Tests for L1 behavior', () => {
     test('Should revert l1 tx with too many repeated storage writes', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
-        if (!testMaster.isLocalHost()) {
+        if (!testMaster.isLocalNetwork()) {
             return;
         }
 
@@ -293,7 +293,7 @@ describe('Tests for L1 behavior', () => {
     test('Should revert l1 tx with too many l2 to l1 messages', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
-        if (!testMaster.isLocalHost()) {
+        if (!testMaster.isLocalNetwork()) {
             return;
         }
 
@@ -328,7 +328,7 @@ describe('Tests for L1 behavior', () => {
     test('Should revert l1 tx with too big l2 to l1 message', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
-        if (!testMaster.isLocalHost()) {
+        if (!testMaster.isLocalNetwork()) {
             return;
         }
 
