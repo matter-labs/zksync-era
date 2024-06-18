@@ -102,6 +102,7 @@ impl ZkSolc {
         let mut command = tokio::process::Command::new(&self.zksolc_path);
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
+        dbg!(&input);
         match &input {
             ZkSolcInput::StandardJson(input) => {
                 if !self.is_post_1_5_0() {
@@ -202,13 +203,13 @@ impl ZkSolc {
             false
         } else {
             let re =
-                Regex::new(r"^(?<MAJOR>(?:0|(?:[1-9]\d*)))\.(?<MINOR>(?:0|(?:[1-9]\d*)))\.(?<PATCH>(?:0|(?:[1-9]\d*)))")
+                Regex::new(r"^v(?<MAJOR>(?:0|(?:[1-9]\d*)))\.(?<MINOR>(?:0|(?:[1-9]\d*)))\.(?<PATCH>(?:0|(?:[1-9]\d*)))")
                     .unwrap();
             if let Some(caps) = re.captures(&self.zksolc_version) {
                 (caps["MAJOR"].len() > 1 || &caps["MAJOR"] > "1")
                     || (&caps["MAJOR"] == "1" && (caps["MINOR"].len() > 1 || &caps["MINOR"] >= "5"))
             } else {
-                false
+                true
             }
         }
     }
@@ -224,22 +225,22 @@ mod tests {
         let mut zksolc = ZkSolc::new(".", ".", "vm-1.5.0-a167aa3".to_string());
         assert!(!zksolc.is_post_1_5_0(), "vm-1.5.0-a167aa3");
 
-        zksolc.zksolc_version = "1.5.0".to_string();
-        assert!(zksolc.is_post_1_5_0(), "1.5.0");
+        zksolc.zksolc_version = "v1.5.0".to_string();
+        assert!(zksolc.is_post_1_5_0(), "v1.5.0");
 
-        zksolc.zksolc_version = "1.5.1".to_string();
-        assert!(zksolc.is_post_1_5_0(), "1.5.1");
+        zksolc.zksolc_version = "v1.5.1".to_string();
+        assert!(zksolc.is_post_1_5_0(), "v1.5.1");
 
-        zksolc.zksolc_version = "1.10.1".to_string();
-        assert!(zksolc.is_post_1_5_0(), "1.10.1");
+        zksolc.zksolc_version = "v1.10.1".to_string();
+        assert!(zksolc.is_post_1_5_0(), "v1.10.1");
 
-        zksolc.zksolc_version = "2.0.0".to_string();
-        assert!(zksolc.is_post_1_5_0(), "2.0.0");
+        zksolc.zksolc_version = "v2.0.0".to_string();
+        assert!(zksolc.is_post_1_5_0(), "v2.0.0");
 
-        zksolc.zksolc_version = "1.4.15".to_string();
-        assert!(!zksolc.is_post_1_5_0(), "1.4.15");
+        zksolc.zksolc_version = "v1.4.15".to_string();
+        assert!(!zksolc.is_post_1_5_0(), "v1.4.15");
 
-        zksolc.zksolc_version = "0.5.1".to_string();
-        assert!(!zksolc.is_post_1_5_0(), "0.5.1");
+        zksolc.zksolc_version = "v0.5.1".to_string();
+        assert!(!zksolc.is_post_1_5_0(), "v0.5.1");
     }
 }
