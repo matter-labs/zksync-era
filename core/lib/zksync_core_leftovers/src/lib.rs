@@ -31,7 +31,7 @@ use zksync_config::{
         wallets::{self, Wallets},
         ContractsConfig, DatabaseSecrets, GeneralConfig, Secrets,
     },
-    ApiConfig, DBConfig, EthWatchConfig, GenesisConfig, PostgresConfig,
+    ApiConfig, DBConfig, EthWatchConfig, GenesisConfig,
 };
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
