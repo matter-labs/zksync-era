@@ -474,7 +474,10 @@ mod tests {
         });
 
         let mut batch_result = default_vm_batch_result();
-        batch_result.final_execution_state.deduplicated_storage_logs = storage_logs.clone();
+        batch_result
+            .final_execution_state
+            .deduplicated_storage_logs
+            .clone_from(&storage_logs);
         batch_result.state_diffs = Some(
             storage_logs
                 .into_iter()
