@@ -11,11 +11,12 @@ use xshell::Shell;
 
 use crate::{
     consts::{
-        CONFIG_NAME, CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
+        CONFIG_NAME, CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY,
+        SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -71,6 +72,10 @@ impl ChainConfig {
 
     pub fn get_genesis_config(&self) -> anyhow::Result<GenesisConfig> {
         GenesisConfig::read(self.get_shell(), self.configs.join(GENESIS_FILE))
+    }
+
+    pub fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
+        GeneralConfig::read(self.get_shell(), self.configs.join(GENERAL_FILE))
     }
 
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {
