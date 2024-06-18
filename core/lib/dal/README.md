@@ -83,6 +83,12 @@ invariants are expected to be upheld:
 - L2 blocks and L1 batches present in the DB form a continuous range of numbers. If a DB is recovered from a node
   snapshot, the first L2 block / L1 batch is **the next one** after the snapshot L2 block / L1 batch mentioned in the
   `snapshot_recovery` table. Otherwise, L2 blocks / L1 batches must start from number 0 (aka genesis).
+- `address` and `key` fields in the `storage_logs` table are not null for all blocks executed on the node (i.e., blocks
+  the header of which is present in `miniblocks`). On the other hand, `address` and `key` fields may be null for
+  snapshot storage logs. These fields are needed for some components post-processing L1 batches, such as the Merkle tree
+  and the commitment generator. Both use `(address, key)` tuples to sort logs in a batch to get canonical ordering.
+  Since a snapshot is not post-processed in such a way, it is acceptable to skip them for the snapshot logs (and only
+  for them).
 
 ## Contributing to DAL
 
