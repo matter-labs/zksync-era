@@ -6,7 +6,7 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     api::ApiStorageLog,
-    zk_evm_types::{LogQuery, Timestamp},
+    zk_evm_types::{self, LogQuery, Timestamp},
     StorageKey, StorageValue, U256,
 };
 
@@ -25,19 +25,16 @@ pub struct StorageLog {
 }
 
 impl StorageLog {
-    pub fn from_log_query(log: &StorageLogQuery) -> Self {
-        let key = StorageKey::new(
-            AccountTreeId::new(log.log_query.address),
-            u256_to_h256(log.log_query.key),
-        );
-        if log.log_query.rw_flag {
-            if log.log_query.rollback {
-                Self::new_write_log(key, u256_to_h256(log.log_query.read_value))
+    pub fn from_log_query(log: &LogQuery) -> Self {
+        let key = StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
+        if log.rw_flag {
+            if log.rollback {
+                Self::new_write_log(key, u256_to_h256(log.read_value))
             } else {
-                Self::new_write_log(key, u256_to_h256(log.log_query.written_value))
+                Self::new_write_log(key, u256_to_h256(log.written_value))
             }
         } else {
-            Self::new_read_log(key, u256_to_h256(log.log_query.read_value))
+            Self::new_read_log(key, u256_to_h256(log.read_value))
         }
     }
 
@@ -55,6 +52,10 @@ impl StorageLog {
             key,
             value,
         }
+    }
+
+    pub fn is_write(&self) -> bool {
+        matches!(self.kind, StorageLogKind::Write)
     }
 
     /// Converts this log to a log query that could be used in tests.
@@ -81,6 +82,12 @@ impl StorageLog {
     }
 }
 
+impl From<zk_evm_types::LogQuery> for StorageLog {
+    fn from(log_query: zk_evm_types::LogQuery) -> Self {
+        Self::from_log_query(&log_query)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum StorageLogQueryType {
     Read,
@@ -97,10 +104,16 @@ pub struct StorageLogQuery {
 
 impl From<&StorageLogQuery> for ApiStorageLog {
     fn from(log_query: &StorageLogQuery) -> Self {
+        log_query.log_query.into()
+    }
+}
+
+impl From<LogQuery> for ApiStorageLog {
+    fn from(log_query: LogQuery) -> Self {
         ApiStorageLog {
-            address: log_query.log_query.address,
-            key: log_query.log_query.key,
-            written_value: log_query.log_query.written_value,
+            address: log_query.address,
+            key: log_query.key,
+            written_value: log_query.written_value,
         }
     }
 }
