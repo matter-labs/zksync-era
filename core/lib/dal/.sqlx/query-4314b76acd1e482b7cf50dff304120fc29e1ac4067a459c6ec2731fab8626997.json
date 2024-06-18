@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            LOCK TABLE eth_sender_lock IN EXCLUSIVE MODE\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "4314b76acd1e482b7cf50dff304120fc29e1ac4067a459c6ec2731fab8626997"
+}
