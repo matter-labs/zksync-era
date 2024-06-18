@@ -20,7 +20,7 @@ export async function waitForServer(l2NodeUrl: string) {
     const reporter = new Reporter();
     // Server startup may take a lot of time on the staging.
     const attemptIntervalMs = 1000;
-    const maxAttempts = 20 * 60; // 20 minutes
+    const maxAttempts = 3 * 60; // 20 minutes
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
 
