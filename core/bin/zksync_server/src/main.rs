@@ -191,7 +191,7 @@ async fn main() -> anyhow::Result<()> {
         genesis_init(genesis.clone(), &database_secrets)
             .await
             .context("genesis_init")?;
-        // todo: can we remove this condition?
+        // TODO: can we remove this condition?
         if let Some(_ecosystem_contracts) = &contracts_config.ecosystem_contracts {
             let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
             let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
