@@ -1,5 +1,6 @@
 use std::{collections::HashMap, io::Write, path::PathBuf, process::Stdio};
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ContractVerifierError;
@@ -77,13 +78,19 @@ impl Default for Optimizer {
 pub struct ZkSolc {
     zksolc_path: PathBuf,
     solc_path: PathBuf,
+    zksolc_version: String,
 }
 
 impl ZkSolc {
-    pub fn new(zksolc_path: impl Into<PathBuf>, solc_path: impl Into<PathBuf>) -> Self {
+    pub fn new(
+        zksolc_path: impl Into<PathBuf>,
+        solc_path: impl Into<PathBuf>,
+        zksolc_version: String,
+    ) -> Self {
         ZkSolc {
             zksolc_path: zksolc_path.into(),
             solc_path: solc_path.into(),
+            zksolc_version,
         }
     }
 
@@ -93,26 +100,34 @@ impl ZkSolc {
     ) -> Result<ZkSolcOutput, ContractVerifierError> {
         use tokio::io::AsyncWriteExt;
         let mut command = tokio::process::Command::new(&self.zksolc_path);
+        command.stdout(Stdio::piped()).stderr(Stdio::piped());
+
         match &input {
             ZkSolcInput::StandardJson(input) => {
-                if input.settings.is_system {
-                    command.arg("--system-mode");
-                }
-                if input.settings.force_evmla {
-                    command.arg("--force-evmla");
+                if !self.is_post_1_5_0() {
+                    if input.settings.is_system {
+                        command.arg("--system-mode");
+                    }
+                    if input.settings.force_evmla {
+                        command.arg("--force-evmla");
+                    }
                 }
             }
             ZkSolcInput::YulSingleFile { is_system, .. } => {
-                if *is_system {
-                    command.arg("--system-mode");
+                if self.is_post_1_5_0() {
+                    if *is_system {
+                        command.arg("--enable-eravm-extensions");
+                    } else {
+                        command.arg("--solc").arg(self.solc_path.to_str().unwrap());
+                    }
+                } else {
+                    if *is_system {
+                        command.arg("--system-mode");
+                    }
+                    command.arg("--solc").arg(self.solc_path.to_str().unwrap());
                 }
             }
         }
-        command
-            .arg("--solc")
-            .arg(self.solc_path.to_str().unwrap())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
         match input {
             ZkSolcInput::StandardJson(input) => {
                 let mut child = command
@@ -180,5 +195,51 @@ impl ZkSolc {
                 }
             }
         }
+    }
+
+    pub fn is_post_1_5_0(&self) -> bool {
+        if &self.zksolc_version == "vm-1.5.0-a167aa3" {
+            false
+        } else {
+            let re =
+                Regex::new(r"^(?<MAJOR>(?:0|(?:[1-9]\d*)))\.(?<MINOR>(?:0|(?:[1-9]\d*)))\.(?<PATCH>(?:0|(?:[1-9]\d*)))")
+                    .unwrap();
+            if let Some(caps) = re.captures(&self.zksolc_version) {
+                (caps["MAJOR"].len() > 1 || &caps["MAJOR"] > "1")
+                    || (&caps["MAJOR"] == "1" && (caps["MINOR"].len() > 1 || &caps["MINOR"] >= "5"))
+            } else {
+                false
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::zksolc_utils::ZkSolc;
+
+    #[test]
+    fn check_is_post_1_5_0() {
+        // Special case.
+        let mut zksolc = ZkSolc::new(".", ".", "vm-1.5.0-a167aa3".to_string());
+        assert!(!zksolc.is_post_1_5_0(), "vm-1.5.0-a167aa3");
+
+        zksolc.zksolc_version = "1.5.0".to_string();
+        assert!(zksolc.is_post_1_5_0(), "1.5.0");
+
+        zksolc.zksolc_version = "1.5.1".to_string();
+        assert!(zksolc.is_post_1_5_0(), "1.5.1");
+
+        zksolc.zksolc_version = "1.10.1".to_string();
+        assert!(zksolc.is_post_1_5_0(), "1.10.1");
+
+        zksolc.zksolc_version = "2.0.0".to_string();
+        assert!(zksolc.is_post_1_5_0(), "2.0.0");
+
+        zksolc.zksolc_version = "1.4.15".to_string();
+        assert!(!zksolc.is_post_1_5_0(), "1.4.15");
+
+        zksolc.zksolc_version = "0.5.1".to_string();
+        assert!(!zksolc.is_post_1_5_0(), "0.5.1");
     }
 }
