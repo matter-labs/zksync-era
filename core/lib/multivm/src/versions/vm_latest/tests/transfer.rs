@@ -76,7 +76,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
             contract_address: test_contract_address,
             calldata,
             value: U256::zero(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -176,7 +176,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
                 .encode_input(&[])
                 .unwrap(),
             value: U256::from(1),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -193,7 +193,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
             contract_address: test_contract_address,
             calldata,
             value,
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );

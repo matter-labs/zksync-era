@@ -104,7 +104,7 @@ impl VmRunnerIo for ProtectiveReadsIo {
     ) -> anyhow::Result<L1BatchNumber> {
         Ok(conn
             .vm_runner_dal()
-            .get_protective_reads_last_ready_batch(self.window_size)
+            .get_protective_reads_last_ready_batch(self.first_processed_batch, self.window_size)
             .await?)
     }
 
