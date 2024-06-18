@@ -8307,6 +8307,7 @@ dependencies = [
  "hex",
  "lazy_static",
  "regex",
+ "semver",
  "serde",
  "serde_json",
  "tempfile",
