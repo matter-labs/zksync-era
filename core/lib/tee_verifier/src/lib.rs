@@ -21,11 +21,8 @@ use zksync_merkle_tree::{
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
-use zksync_types::{
-    block::L2BlockExecutionData, ethabi::ethereum_types::BigEndianHash, zk_evm_types::LogQuery,
-    AccountTreeId, L1BatchNumber, StorageKey, H256,
-};
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, H256};
+use zksync_utils::bytecode::hash_bytecode;
 
 /// Version 1 of the data used as input for the TEE verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -217,34 +214,30 @@ impl TeeVerifierInput {
 
     /// Map `LogQuery` and `TreeLogEntry` to a `TreeInstruction`
     fn map_log_tree(
-        log_query: &LogQuery,
+        storage_log: &StorageLog,
         tree_log_entry: &TreeLogEntry,
         idx: &mut u64,
     ) -> anyhow::Result<TreeInstruction> {
-        let key = StorageKey::new(
-            AccountTreeId::new(log_query.address),
-            u256_to_h256(log_query.key),
-        )
-        .hashed_key_u256();
-        Ok(match (log_query.rw_flag, *tree_log_entry) {
+        let key = storage_log.key.hashed_key_u256();
+        Ok(match (storage_log.is_write(), *tree_log_entry) {
             (true, TreeLogEntry::Updated { leaf_index, .. }) => {
-                TreeInstruction::write(key, leaf_index, H256(log_query.written_value.into()))
+                TreeInstruction::write(key, leaf_index, H256(storage_log.value.into()))
             }
             (true, TreeLogEntry::Inserted) => {
                 let leaf_index = *idx;
                 *idx += 1;
-                TreeInstruction::write(key, leaf_index, H256(log_query.written_value.into()))
+                TreeInstruction::write(key, leaf_index, H256(storage_log.value.into()))
             }
             (false, TreeLogEntry::Read { value, .. }) => {
-                if log_query.read_value != value.into_uint() {
+                if storage_log.value != value {
                     tracing::error!(
                         "Failed to map LogQuery to TreeInstruction: {:#?} != {:#?}",
-                        log_query.read_value,
+                        storage_log.value,
                         value
                     );
                     anyhow::bail!(
                         "Failed to map LogQuery to TreeInstruction: {:#?} != {:#?}",
-                        log_query.read_value,
+                        storage_log.value,
                         value
                     );
                 }
@@ -266,7 +259,7 @@ impl TeeVerifierInput {
     ) -> anyhow::Result<Vec<TreeInstruction>> {
         vm_out
             .final_execution_state
-            .deduplicated_storage_log_queries
+            .deduplicated_storage_logs
             .into_iter()
             .zip(bowp.logs.iter())
             .map(|(log_query, tree_log_entry)| {

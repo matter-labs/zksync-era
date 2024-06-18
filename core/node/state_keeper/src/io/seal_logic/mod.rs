@@ -22,7 +22,6 @@ use zksync_types::{
         TransactionExecutionResult,
     },
     utils::display_timestamp,
-    zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
     Transaction, VmEvent, H256,
 };
@@ -82,7 +81,7 @@ impl UpdatesManager {
         progress.observe(
             finished_batch
                 .final_execution_state
-                .deduplicated_storage_log_queries
+                .deduplicated_storage_logs
                 .len(),
         );
 
@@ -90,7 +89,7 @@ impl UpdatesManager {
         let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
             finished_batch
                 .final_execution_state
-                .deduplicated_storage_log_queries
+                .deduplicated_storage_logs
                 .iter(),
         );
 
@@ -173,9 +172,9 @@ impl UpdatesManager {
             let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
             let protective_reads: Vec<_> = finished_batch
                 .final_execution_state
-                .deduplicated_storage_log_queries
+                .deduplicated_storage_logs
                 .iter()
-                .filter(|log_query| !log_query.rw_flag)
+                .filter(|log_query| !log_query.is_write())
                 .copied()
                 .collect();
             transaction
@@ -204,18 +203,13 @@ impl UpdatesManager {
         } else {
             let deduplicated_writes = finished_batch
                 .final_execution_state
-                .deduplicated_storage_log_queries
+                .deduplicated_storage_logs
                 .iter()
-                .filter(|log_query| log_query.rw_flag);
+                .filter(|log_query| log_query.is_write());
 
             let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
                 .clone()
-                .map(|log| {
-                    H256(StorageKey::raw_hashed_key(
-                        &log.address,
-                        &u256_to_h256(log.key),
-                    ))
-                })
+                .map(|log| log.key.hashed_key())
                 .collect();
             let all_writes_len = deduplicated_writes_hashed_keys.len();
             let non_initial_writes = transaction
@@ -226,9 +220,7 @@ impl UpdatesManager {
             (
                 deduplicated_writes
                     .filter_map(|log| {
-                        let key =
-                            StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
-                        (!non_initial_writes.contains(&key.hashed_key())).then_some(key)
+                        (!non_initial_writes.contains(&log.key.hashed_key())).then_some(log.key)
                     })
                     .collect(),
                 all_writes_len,
@@ -601,12 +593,12 @@ fn l1_l2_tx_count(executed_transactions: &[TransactionExecutionResult]) -> (usiz
     (l1_tx_count, l2_tx_count)
 }
 
-fn log_query_write_read_counts<'a>(logs: impl Iterator<Item = &'a LogQuery>) -> (usize, usize) {
+fn log_query_write_read_counts<'a>(logs: impl Iterator<Item = &'a StorageLog>) -> (usize, usize) {
     let mut reads_count = 0;
     let mut writes_count = 0;
 
     for log in logs {
-        if log.rw_flag {
+        if log.is_write() {
             writes_count += 1;
         } else {
             reads_count += 1;

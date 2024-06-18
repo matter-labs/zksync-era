@@ -206,7 +206,13 @@ pub(super) async fn insert_system_contracts(
 
     transaction
         .storage_logs_dedup_dal()
-        .insert_protective_reads(L1BatchNumber(0), &protective_reads)
+        .insert_protective_reads(
+            L1BatchNumber(0),
+            &protective_reads
+                .into_iter()
+                .map(StorageLog::from)
+                .collect::<Vec<_>>(),
+        )
         .await?;
 
     let written_storage_keys: Vec<_> = deduplicated_writes
