@@ -17,4 +17,3 @@ message SnapshotRecovery {
   optional Tree tree = 3;
   optional uint32 l1_batch = 4;
 }
-

@@ -4,7 +4,7 @@ use serde::Deserialize;
 use zksync_basic_types::L1BatchNumber;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
-pub struct Tree {
+pub struct TreeRecoveryConfig {
     /// Approximate chunk size (measured in the number of entries) to recover in a single iteration.
     /// Reasonable values are order of 100,000 (meaning an iteration takes several seconds).
     ///
@@ -19,7 +19,7 @@ pub struct Tree {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
-pub struct Postgres {
+pub struct PostgresRecoveryConfig {
     /// Maximum concurrency factor for the concurrent parts of snapshot recovery for Postgres. It may be useful to
     /// reduce this factor to about 5 if snapshot recovery overloads I/O capacity of the node. Conversely,
     /// if I/O capacity of your infra is high, you may increase concurrency to speed up Postgres recovery.
@@ -36,6 +36,6 @@ pub struct SnapshotRecoveryConfig {
     pub enabled: bool,
     /// L1 batch number of the snapshot to use during recovery. Specifying this parameter is mostly useful for testing.
     pub l1_batch: Option<L1BatchNumber>,
-    pub tree: Tree,
-    pub postgres: Postgres,
+    pub tree: TreeRecoveryConfig,
+    pub postgres: PostgresRecoveryConfig,
 }

@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use anyhow::Context;
 use zksync_basic_types::L1BatchNumber;
 use zksync_config::configs::{
-    snapshot_recovery::{Postgres, Tree},
+    snapshot_recovery::{PostgresRecoveryConfig, TreeRecoveryConfig},
     SnapshotRecoveryConfig,
 };
 use zksync_protobuf::ProtoRepr;
@@ -11,7 +11,7 @@ use zksync_protobuf::ProtoRepr;
 use crate::{proto::snapshot_recovery as proto, read_optional_repr};
 
 impl ProtoRepr for proto::Tree {
-    type Type = Tree;
+    type Type = TreeRecoveryConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
@@ -31,7 +31,7 @@ impl ProtoRepr for proto::Tree {
 }
 
 impl ProtoRepr for proto::Postgres {
-    type Type = Postgres;
+    type Type = PostgresRecoveryConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
@@ -65,12 +65,12 @@ impl ProtoRepr for proto::SnapshotRecovery {
     }
 
     fn build(this: &Self::Type) -> Self {
-        let tree = if this.tree == Tree::default() {
+        let tree = if this.tree == TreeRecoveryConfig::default() {
             None
         } else {
             Some(this.tree.clone())
         };
-        let postgres = if this.postgres == Postgres::default() {
+        let postgres = if this.postgres == PostgresRecoveryConfig::default() {
             None
         } else {
             Some(this.postgres.clone())

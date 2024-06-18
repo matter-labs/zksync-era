@@ -5,8 +5,7 @@ use serde::Deserialize;
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct PruningConfig {
     pub enabled: bool,
-    /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
-    /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
+    /// Number of L1 batches pruned at a time.
     pub chunk_size: Option<u32>,
     /// Delta between soft- and hard-removing data from Postgres. Should be reasonably large (order of 60 seconds).
     /// The default value is 60 seconds.
