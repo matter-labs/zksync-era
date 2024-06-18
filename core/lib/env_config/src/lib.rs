@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use serde::de::DeserializeOwned;
 
 mod api;
+mod base_token;
 mod chain;
 mod contract_verifier;
 mod contracts;

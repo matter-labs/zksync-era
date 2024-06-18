@@ -14,6 +14,7 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
+use zksync_base_token_price_fetcher::{BaseTokenPriceFetcher, BaseTokenPriceFetcherConfig};
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
@@ -154,6 +155,8 @@ pub enum Component {
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
+    /// Component for fetching base token prices from external sources.
+    BaseTokenPriceFetcher,
     /// VM runner-based component that saves protective reads to Postgres.
     VmRunnerProtectiveReads,
 }
@@ -192,6 +195,7 @@ impl FromStr for Components {
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
+            "base_token_price_fetcher" => Ok(Components(vec![Component::BaseTokenPriceFetcher])),
             "vm_runner_protective_reads" => {
                 Ok(Components(vec![Component::VmRunnerProtectiveReads]))
             }
@@ -290,6 +294,8 @@ pub async fn initialize_components(
         gas_adjuster_config,
         sender.pubdata_sending_mode,
         genesis_config.l1_batch_commit_data_generator_mode,
+        Some(connection_pool.clone()),
+        configs.base_token_config.clone(),
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -316,6 +322,25 @@ pub async fn initialize_components(
         prometheus_task,
         tokio::spawn(circuit_breaker_checker.run(stop_receiver.clone())),
     ];
+
+    if components.contains(&Component::BaseTokenPriceFetcher) {
+        let started_at = Instant::now();
+        tracing::info!("Initializing base token price fetcher");
+
+        let mut base_token_price_fetcher_config = BaseTokenPriceFetcherConfig::default();
+        if let Some(configs) = configs.base_token_config.clone() {
+            base_token_price_fetcher_config.token_price_api_token = configs.base_token_address;
+        }
+        let base_token_price_fetcher =
+            BaseTokenPriceFetcher::new(base_token_price_fetcher_config, connection_pool.clone());
+        task_futures.push(tokio::spawn(
+            base_token_price_fetcher.run(stop_receiver.clone()),
+        ));
+
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
+        tracing::info!("Initialized base token price fetcher in {elapsed:?}",);
+    }
 
     if components.contains(&Component::WsApi)
         || components.contains(&Component::HttpApi)

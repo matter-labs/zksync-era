@@ -1,3 +1,4 @@
+use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::Address;
 pub use zksync_system_constants::ETHEREUM_ADDRESS;
@@ -31,4 +32,11 @@ impl TokenMetadata {
             decimals: 18,
         }
     }
+}
+
+// Information about base token with its address, conversion rate and last update time.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TokenPriceData {
+    pub address: Address,
+    pub rate: BigDecimal,
 }

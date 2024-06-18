@@ -39,6 +39,7 @@ impl ProtoRepr for proto::GeneralConfig {
             observability: read_optional_repr(&self.observability).context("observability")?,
             protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer)
                 .context("protective_reads_writer")?,
+            base_token_config: read_optional_repr(&self.base_token).context("base_token")?,
             core_object_store: read_optional_repr(&self.core_object_store)
                 .context("core_object_store")?,
         })
@@ -76,6 +77,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .protective_reads_writer_config
                 .as_ref()
                 .map(ProtoRepr::build),
+            base_token: this.base_token_config.as_ref().map(ProtoRepr::build),
             core_object_store: this.core_object_store.as_ref().map(ProtoRepr::build),
         }
     }

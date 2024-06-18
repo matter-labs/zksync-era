@@ -3,6 +3,7 @@
 
 use anyhow::Context;
 use prometheus_exporter::PrometheusExporterConfig;
+use zksync_base_token_price_fetcher::BaseTokenPriceFetcherConfig;
 use zksync_config::{
     configs::{consensus::ConsensusConfig, wallets::Wallets, GeneralConfig, Secrets},
     ContractsConfig, GenesisConfig,
@@ -15,6 +16,7 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
+        base_token_price_fetcher::BaseTokenPriceFetcherLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
@@ -65,6 +67,7 @@ pub struct MainNodeBuilder {
     contracts_config: ContractsConfig,
     secrets: Secrets,
     consensus_config: Option<ConsensusConfig>,
+    base_token_price_fetcher_config: Option<BaseTokenPriceFetcherConfig>,
 }
 
 impl MainNodeBuilder {
@@ -75,6 +78,7 @@ impl MainNodeBuilder {
         contracts_config: ContractsConfig,
         secrets: Secrets,
         consensus_config: Option<ConsensusConfig>,
+        base_token_price_fetcher_config: Option<BaseTokenPriceFetcherConfig>,
     ) -> Self {
         Self {
             node: ZkStackServiceBuilder::new(),
@@ -84,6 +88,7 @@ impl MainNodeBuilder {
             contracts_config,
             secrets,
             consensus_config,
+            base_token_price_fetcher_config,
         }
     }
 
@@ -143,6 +148,7 @@ impl MainNodeBuilder {
             self.genesis_config.clone(),
             state_keeper_config,
             try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
+            None, // TODO: add base token config
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
@@ -398,6 +404,14 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_base_token_price_fetcher_layer(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.base_token_price_fetcher_config);
+        self.node
+            .add_layer(BaseTokenPriceFetcherLayer(config.clone()));
+
+        Ok(self)
+    }
+
     fn add_vm_runner_protective_reads_layer(mut self) -> anyhow::Result<Self> {
         let protective_reads_writer_config =
             try_load_config!(self.configs.protective_reads_writer_config);
@@ -489,6 +503,9 @@ impl MainNodeBuilder {
                 }
                 Component::CommitmentGenerator => {
                     self = self.add_commitment_generator_layer()?;
+                }
+                Component::BaseTokenPriceFetcher => {
+                    self = self.add_base_token_price_fetcher_layer()?;
                 }
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;

@@ -1,5 +1,6 @@
 use crate::{
     configs::{
+        base_token::BaseTokenConfig,
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
@@ -35,5 +36,6 @@ pub struct GeneralConfig {
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub base_token_config: Option<BaseTokenConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
 }

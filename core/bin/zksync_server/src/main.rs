@@ -2,6 +2,7 @@ use std::{str::FromStr, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
+use zksync_base_token_price_fetcher::BaseTokenPriceFetcherConfig;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -11,10 +12,10 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        ContractsConfig, DatabaseSecrets, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, Secrets,
+        BaseTokenConfig, ContractsConfig, DatabaseSecrets, FriProofCompressorConfig,
+        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
+        FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -218,6 +219,7 @@ async fn main() -> anyhow::Result<()> {
     // If the node framework is used, run the node.
     if opt.use_node_framework {
         // We run the node from a different thread, since the current thread is in tokio context.
+        let base_token_price_fetcher_config = Some(BaseTokenPriceFetcherConfig::default()); // TODO: use actual config
         std::thread::spawn(move || -> anyhow::Result<()> {
             let node = MainNodeBuilder::new(
                 configs,
@@ -226,6 +228,7 @@ async fn main() -> anyhow::Result<()> {
                 contracts_config,
                 secrets,
                 consensus,
+                base_token_price_fetcher_config,
             )
             .build(components)?;
             node.run()?;
@@ -307,6 +310,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
+        base_token_config: BaseTokenConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
     })
 }

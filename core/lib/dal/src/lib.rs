@@ -21,8 +21,8 @@ use crate::{
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
-    tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
-    tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
+    tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, token_price_dal::TokenPriceDal,
+    tokens_dal::TokensDal, tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
@@ -52,6 +52,7 @@ pub mod sync_dal;
 pub mod system_dal;
 pub mod tee_proof_generation_dal;
 pub mod tee_verifier_input_producer_dal;
+pub mod token_price_dal;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
@@ -123,6 +124,8 @@ where
     fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a>;
 
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a>;
+
+    fn token_price_dal(&mut self) -> TokenPriceDal<'_, 'a>;
 
     fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a>;
 }
@@ -238,6 +241,10 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a> {
         PruningDal { storage: self }
+    }
+
+    fn token_price_dal(&mut self) -> TokenPriceDal<'_, 'a> {
+        TokenPriceDal { storage: self }
     }
 
     fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a> {

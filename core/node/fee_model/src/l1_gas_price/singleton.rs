@@ -2,7 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
-use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+use zksync_config::{
+    configs::{eth_sender::PubdataSendingMode, BaseTokenConfig},
+    GasAdjusterConfig,
+};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{commitment::L1BatchCommitmentMode, url::SensitiveUrl, L1ChainId};
 use zksync_web3_decl::client::Client;
 
@@ -18,6 +22,8 @@ pub struct GasAdjusterSingleton {
     pubdata_sending_mode: PubdataSendingMode,
     singleton: Option<Arc<GasAdjuster>>,
     commitment_mode: L1BatchCommitmentMode,
+    connection_pool: Option<ConnectionPool<Core>>,
+    base_token_config: Option<BaseTokenConfig>,
 }
 
 impl GasAdjusterSingleton {
@@ -27,6 +33,8 @@ impl GasAdjusterSingleton {
         gas_adjuster_config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         commitment_mode: L1BatchCommitmentMode,
+        connection_pool: Option<ConnectionPool<Core>>,
+        base_token_config: Option<BaseTokenConfig>,
     ) -> Self {
         Self {
             chain_id,
@@ -35,6 +43,8 @@ impl GasAdjusterSingleton {
             pubdata_sending_mode,
             singleton: None,
             commitment_mode,
+            connection_pool,
+            base_token_config,
         }
     }
 
@@ -51,6 +61,8 @@ impl GasAdjusterSingleton {
                 self.gas_adjuster_config,
                 self.pubdata_sending_mode,
                 self.commitment_mode,
+                self.connection_pool.clone(),
+                self.base_token_config.clone(),
             )
             .await
             .context("GasAdjuster::new()")?;

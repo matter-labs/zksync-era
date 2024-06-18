@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                token_price_ratio (token_address, ratio, updated_at)\n            VALUES\n                ($1, $2, NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "22bc2aee16dc788a50822cf927430706d9d682f474c9604dd430e6be04e6ec42"
+}

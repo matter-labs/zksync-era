@@ -3,13 +3,20 @@
 use std::{
     collections::VecDeque,
     ops::RangeInclusive,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
+use chrono::DateTime;
 use tokio::sync::watch;
-use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+use zksync_config::{
+    configs::{eth_sender::PubdataSendingMode, BaseTokenConfig},
+    GasAdjusterConfig,
+};
+use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
-use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
+use zksync_types::{
+    commitment::L1BatchCommitmentMode, Address, L1_GAS_PER_PUBDATA_BYTE, U256, U64,
+};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use self::metrics::METRICS;
@@ -18,6 +25,15 @@ use super::L1TxParamsProvider;
 mod metrics;
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug)]
+struct BaseTokenPriceElements {
+    pub connection_pool: ConnectionPool<Core>,
+    pub address: Address,
+    pub latest_price: Mutex<Option<BigDecimal>>,
+    pub outdated_token_price_timeout: Option<u64>,
+    pub last_updated: Mutex<DateTime<chrono::Utc>>,
+}
 
 /// This component keeps track of the median `base_fee` from the last `max_base_fee_samples` blocks
 /// and of the median `blob_base_fee` from the last `max_blob_base_fee_sample` blocks.
@@ -33,6 +49,7 @@ pub struct GasAdjuster {
     pubdata_sending_mode: PubdataSendingMode,
     eth_client: Box<DynClient<L1>>,
     commitment_mode: L1BatchCommitmentMode,
+    base_token_elements: Option<BaseTokenPriceElements>,
 }
 
 impl GasAdjuster {
@@ -41,6 +58,8 @@ impl GasAdjuster {
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         commitment_mode: L1BatchCommitmentMode,
+        connection_pool: Option<ConnectionPool<Core>>,
+        base_token_config: Option<BaseTokenConfig>,
     ) -> anyhow::Result<Self> {
         let eth_client = eth_client.for_component("gas_adjuster");
 
@@ -61,6 +80,28 @@ impl GasAdjuster {
         let (_, last_block_blob_base_fee) =
             Self::get_base_fees_history(eth_client.as_ref(), current_block..=current_block).await?;
 
+        let base_token_elements = match base_token_config.as_ref() {
+            Some(config) => {
+                let connection_pool = connection_pool.unwrap();
+                let mut connection = connection_pool.connection().await?;
+                let address = config.base_token_address;
+                let latest = connection.token_price_dal().fetch_ratio(address).await?;
+                let latest_price = Mutex::new(latest.0);
+                let last_updated = Mutex::new(latest.1);
+                let outdated_token_price_timeout =
+                    base_token_config.unwrap().outdated_token_price_timeout;
+
+                Some(BaseTokenPriceElements {
+                    connection_pool: connection_pool.clone(),
+                    address,
+                    latest_price,
+                    outdated_token_price_timeout,
+                    last_updated,
+                })
+            }
+            None => None,
+        };
+
         Ok(Self {
             base_fee_statistics: GasStatistics::new(
                 config.max_base_fee_samples,
@@ -76,6 +117,7 @@ impl GasAdjuster {
             pubdata_sending_mode,
             eth_client,
             commitment_mode,
+            base_token_elements,
         })
     }
 
@@ -123,6 +165,28 @@ impl GasAdjuster {
             }
             self.blob_base_fee_statistics
                 .add_samples(&blob_base_fee_history);
+
+            if let Some(base_token_elements) = self.base_token_elements.as_ref() {
+                let mut connection = base_token_elements.connection_pool.connection().await?;
+                let latest = connection
+                    .token_price_dal()
+                    .fetch_ratio(base_token_elements.address)
+                    .await?;
+
+                let updated_base_token_price = latest.0;
+                if let Some(updated_base_token_price) = updated_base_token_price {
+                    *base_token_elements.last_updated.lock().unwrap() = latest.1;
+                    *base_token_elements.latest_price.lock().unwrap() =
+                        Some(updated_base_token_price);
+                }
+
+                if let Some(timeout) = base_token_elements.outdated_token_price_timeout {
+                    if (latest.1.time() - chrono::Utc::now().time()).num_seconds() >= timeout as i64
+                    {
+                        tracing::warn!("Token price is out of date!");
+                    };
+                }
+            }
         }
         Ok(())
     }
@@ -200,6 +264,19 @@ impl GasAdjuster {
             PubdataSendingMode::Calldata => {
                 self.estimate_effective_gas_price() * self.pubdata_byte_gas()
             }
+        }
+    }
+
+    pub(crate) fn base_token_price_ratio(&self) -> BigDecimal {
+        if let Some(base_token_elements) = self.base_token_elements.as_ref() {
+            base_token_elements
+                .latest_price
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or(BigDecimal::from(1))
+        } else {
+            BigDecimal::from(1)
         }
     }
 

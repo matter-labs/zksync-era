@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE token_price_ratio\n            SET\n                ratio = $2,\n                updated_at = NOW()\n            WHERE\n                token_address = $1\n            RETURNING\n                *\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "token_address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "ratio",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3a10e7e95ebf9f16541cdf5028c7aac10a9b1be5f127899ab4054d9db86379e7"
+}

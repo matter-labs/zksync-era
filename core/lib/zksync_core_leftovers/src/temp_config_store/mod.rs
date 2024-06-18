@@ -8,7 +8,7 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
+        BaseTokenConfig, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
     },
@@ -61,6 +61,7 @@ pub struct TempConfigStore {
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub base_token_config: Option<BaseTokenConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
 }
 
@@ -88,6 +89,7 @@ impl TempConfigStore {
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
+            base_token_config: self.base_token_config.clone(),
             core_object_store: self.core_object_store.clone(),
         }
     }

@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package zksync.config.base_token;
+
+message BaseToken {
+    optional string base_token_address = 1;
+    optional uint64 outdated_token_price_timeout = 2;
+}
