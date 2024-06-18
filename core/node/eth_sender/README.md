@@ -3,7 +3,7 @@
 Eth-sender is the component that executes scheduled transactions on Ethereum. As of 06.2024 it is only used by core to
 execute Commit, Prove and Execute L1 transactions.
 
-It was designed with fire-and-forget ideology in mind, as soon as you send transaction to it to be executed, it will
+It was designed with fire-and-forget ideology in mind, as soon as you send transaction to be executed, eth-sender will
 make sure it is mined, handling stuff as bumping gas prices and resending transaction if needed.
 
 ## API
