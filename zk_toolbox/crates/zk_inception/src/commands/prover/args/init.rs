@@ -1,5 +1,0 @@
-use clap::Parser;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct InitArgs {}

@@ -190,6 +190,5 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(
 }
 
 /// Prover related messages
-pub(super) const MSG_INITIALIZING_PROVER: &str = "Initializing prover";
-pub(super) const MSG_PROVER_INITIALIZED: &str = "Prover initialized successfully";
-pub(super) const MSG_GENERATING_VK_SPINNER: &str = "Generating verification keys...";
+pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
+pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
