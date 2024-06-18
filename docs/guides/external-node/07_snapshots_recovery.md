@@ -4,8 +4,8 @@ Instead of starting node using DB snapshots, it's possible to configure them to 
 This process is much faster and requires way less storage. Postgres database of a mainnet node recovered from a snapshot
 is only about 300GB.
 
-> [!NOTE] 
-> 
+> [!NOTE]
+>
 > Nodes recovered from snapshot don't have any historical data from before the recovery!
 
 ## Configuration
