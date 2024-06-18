@@ -266,11 +266,12 @@ async fn insert_rt_job(
             recursion_tip_witness_jobs_fri (
                 l1_batch_number,
                 status,
+                number_of_final_node_jobs,
                 created_at,
                 updated_at
             )
         VALUES
-            ({}, 'waiting_for_proofs', NOW(), NOW())
+            ({}, 'waiting_for_proofs',1, NOW(), NOW())
         ON CONFLICT (l1_batch_number) DO
         UPDATE
         SET status = '{}'
@@ -1373,8 +1374,156 @@ v Prover Jobs: In Progress ⌛️
     status_verbose_batch_0_expects(
         "== Batch 0 Status ==
 
-boca
+-- Aggregation Round 0 --
+> Basic Witness Generator: Successful ✅
+> Prover Jobs: Successful ✅
+
+-- Aggregation Round 1 --
+> Leaf Witness Generator: Successful ✅
+> Prover Jobs: Successful ✅
+
+-- Aggregation Round 2 --
+v Node Witness Generator: In Progress ⌛️
+   > VM: Successful ✅
+   > DecommitmentsFilter: Successful ✅
+   > Decommiter: In Progress ⌛️
+   > LogDemultiplexer: Queued 📥
+v Prover Jobs: In Progress ⌛️
+   > VM: Successful ✅
+   > DecommitmentsFilter: In Progress ⌛️
+     - Total jobs: 1
+     - Successful: 0
+     - In Progress: 1
+     - Queued: 0
+     - Failed: 0
+
+-- Aggregation Round 3 --
+ > Recursion Tip: Waiting for Proof ⏱️
+
+-- Aggregation Round 4 --
+ > Scheduler: Waiting for Proof ⏱️
+
+-- Proof Compression --
+ > Compressor: Jobs not found 🚫
 "
         .into(),
     );
+
+    create_scenario(
+        None,
+        None,
+        None,
+        None,
+        Some(vec![
+            (
+                WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+                BaseLayerCircuitType::Decommiter,
+            ),
+            (
+                WitnessJobStatus::Successful(WitnessJobStatusSuccessful::default()),
+                BaseLayerCircuitType::LogDemultiplexer,
+            ),
+        ]),
+        Some(vec![(
+            ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+            BaseLayerCircuitType::DecommitmentsFilter,
+            1,
+        )]),
+        Some(WitnessJobStatus::InProgress),
+        None,
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_verbose_batch_0_expects(
+        "== Batch 0 Status ==
+
+-- Aggregation Round 0 --
+> Basic Witness Generator: Successful ✅
+> Prover Jobs: Successful ✅
+
+-- Aggregation Round 1 --
+> Leaf Witness Generator: Successful ✅
+> Prover Jobs: Successful ✅
+
+-- Aggregation Round 2 --
+> Node Witness Generator: Successful ✅
+> Prover Jobs: Successful ✅
+
+-- Aggregation Round 3 --
+v Recursion Tip: In Progress ⌛️
+
+-- Aggregation Round 4 --
+ > Scheduler: Waiting for Proof ⏱️
+
+-- Proof Compression --
+ > Compressor: Jobs not found 🚫
+"
+        .into(),
+    );
+
+    create_scenario(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(WitnessJobStatus::Successful(
+            WitnessJobStatusSuccessful::default(),
+        )),
+        Some(WitnessJobStatus::InProgress),
+        None,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_verbose_batch_0_expects(
+        "== Batch 0 Status ==
+
+-- Aggregation Round 0 --
+> Basic Witness Generator: Successful ✅
+> Prover Jobs: Successful ✅
+
+-- Aggregation Round 1 --
+> Leaf Witness Generator: Successful ✅
+> Prover Jobs: Successful ✅
+
+-- Aggregation Round 2 --
+> Node Witness Generator: Successful ✅
+> Prover Jobs: Successful ✅
+
+-- Aggregation Round 3 --
+> Recursion Tip: Successful ✅
+
+-- Aggregation Round 4 --
+v Scheduler: In Progress ⌛️
+
+-- Proof Compression --
+ > Compressor: Jobs not found 🚫
+"
+        .into(),
+    );
+
+    create_scenario(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(WitnessJobStatus::Successful(
+            WitnessJobStatusSuccessful::default(),
+        )),
+        Some(ProofCompressionJobStatus::SentToServer),
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_batch_0_expects(COMPLETE_BATCH_STATUS_STDOUT.into());
 }
