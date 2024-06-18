@@ -36,3 +36,11 @@ pub fn generate_db_names(config: &ChainConfig) -> DBNames {
         ),
     }
 }
+
+pub fn generate_external_node_db_name(config: &ChainConfig) -> String {
+    format!(
+        "external_node_{}_{}",
+        config.l1_network.to_string().to_ascii_lowercase(),
+        config.name
+    )
+}

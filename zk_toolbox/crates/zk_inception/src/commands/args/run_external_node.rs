@@ -5,6 +5,8 @@ use crate::messages::{MSG_SERVER_ADDITIONAL_ARGS_HELP, MSG_SERVER_COMPONENTS_HEL
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct RunExternalNodeArgs {
+    #[clap(long)]
+    pub reinit: bool,
     #[clap(long, help = MSG_SERVER_COMPONENTS_HELP)]
     pub components: Option<Vec<String>>,
     #[clap(long, short)]

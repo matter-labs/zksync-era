@@ -46,7 +46,7 @@ pub fn get_prover_dal(shell: &Shell) -> anyhow::Result<Dal> {
 
     Ok(Dal {
         path: PROVER_DAL_PATH.to_string(),
-        url: secrets.database.prover_url.clone(),
+        url: secrets.database.prover_url.unwrap().clone(),
     })
 }
 

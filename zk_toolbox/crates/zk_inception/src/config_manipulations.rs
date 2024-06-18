@@ -31,7 +31,7 @@ pub(crate) fn update_database_secrets(
 ) -> anyhow::Result<()> {
     let mut secrets = SecretsConfig::read_with_base_path(shell, &config.configs)?;
     secrets.database.server_url = server_db_config.full_url();
-    secrets.database.prover_url = prover_db_config.full_url();
+    secrets.database.prover_url = Some(prover_db_config.full_url());
     secrets.save_with_base_path(shell, &config.configs)?;
     Ok(())
 }

@@ -6,7 +6,8 @@ use crate::{consts::SECRETS_FILE, traits::FileConfigWithDefaultName};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseSecrets {
     pub server_url: Url,
-    pub prover_url: Url,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prover_url: Option<Url>,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }

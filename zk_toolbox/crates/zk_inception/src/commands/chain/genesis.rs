@@ -14,6 +14,7 @@ use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
     config_manipulations::{update_database_secrets, update_general_config},
+    consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_COMPLETED,
@@ -23,9 +24,6 @@ use crate::{
     },
     server::{RunServer, ServerMode},
 };
-
-const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
-const PROVER_MIGRATIONS: &str = "prover/prover_dal/migrations";
 
 pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();

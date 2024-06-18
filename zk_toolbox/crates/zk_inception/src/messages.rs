@@ -120,7 +120,7 @@ pub(super) const MSG_SERVER_DB_URL_HELP: &str = "Server database url without dat
 pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
 pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";
 pub(super) const MSG_PROVER_DB_NAME_HELP: &str = "Prover database name";
-pub(super) const MSG_GENESIS_USE_DEFAULT_HELP: &str = "Use default database urls and names";
+pub(super) const MSG_USE_DEFAULT_DATABASES_HELP: &str = "Use default database urls and names";
 pub(super) const MSG_GENESIS_COMPLETED: &str = "Genesis completed successfully";
 pub(super) const MSG_STARTING_GENESIS: &str = "Starting genesis process";
 pub(super) const MSG_INITIALIZING_DATABASES_SPINNER: &str = "Initializing databases...";
@@ -135,12 +135,20 @@ pub(super) fn msg_server_db_url_prompt(chain_name: &str) -> String {
     format!("Please provide server database url for chain {chain_name}")
 }
 
+pub(super) fn msg_external_node_db_url_prompt(chain_name: &str) -> String {
+    format!("Please provide external_node database url for chain {chain_name}")
+}
+
 pub(super) fn msg_prover_db_url_prompt(chain_name: &str) -> String {
     format!("Please provide prover database url for chain {chain_name}")
 }
 
 pub(super) fn msg_prover_db_name_prompt(chain_name: &str) -> String {
     format!("Please provide prover database name for chain {chain_name}")
+}
+
+pub(super) fn msg_external_node_db_name_prompt(chain_name: &str) -> String {
+    format!("Please provide external_node database name for chain {chain_name}")
 }
 
 pub(super) fn msg_server_db_name_prompt(chain_name: &str) -> String {

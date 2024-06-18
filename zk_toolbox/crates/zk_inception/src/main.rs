@@ -114,7 +114,9 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::Prover(args) => commands::prover::run(shell, args).await?,
         InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
         InceptionSubcommands::Containers => commands::containers::run(shell)?,
-        InceptionSubcommands::ExternalNode(args) => commands::external_node::run(shell, args)?,
+        InceptionSubcommands::ExternalNode(args) => {
+            commands::external_node::run(shell, args).await?
+        }
     }
     Ok(())
 }
