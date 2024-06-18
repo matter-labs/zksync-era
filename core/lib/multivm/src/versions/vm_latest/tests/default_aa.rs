@@ -41,7 +41,14 @@ fn test_default_aa_interaction() {
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    vm.vm.execute(VmExecutionMode::Batch);
+    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    if batch_result.result.is_failed() {
+        panic!("Batch execution failed: {:?}", batch_result.result);
+    }
+    assert!(
+        !batch_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
 
     vm.vm.get_current_execution_state();
 

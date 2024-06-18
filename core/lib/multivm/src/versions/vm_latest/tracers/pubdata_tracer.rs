@@ -232,7 +232,11 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
             // Apply the pubdata to the current memory
             let mut memory_to_apply = vec![];
 
-            apply_pubdata_to_memory(&mut memory_to_apply, pubdata_input);
+            apply_pubdata_to_memory(
+                &mut memory_to_apply,
+                pubdata_input,
+                bootloader_state.pubdata_params,
+            );
             state.memory.populate_page(
                 BOOTLOADER_HEAP_PAGE as usize,
                 memory_to_apply,
