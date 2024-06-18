@@ -126,10 +126,10 @@ async function updateConfigOnSyncLayer() {
 
     const envFile = `etc/env/l1-inits/dev.env`;
 
-    for (const userVar of USER_FACING_ENV_VARS) {
-        const originalVar = userVar.replace(/CONTRACTS_USER_FACING/g, 'CONTRACTS');
-        env.modify(userVar, process.env[originalVar]!, envFile, false);
-    }
+    // for (const userVar of USER_FACING_ENV_VARS) {
+    //     const originalVar = userVar.replace(/CONTRACTS_USER_FACING/g, 'CONTRACTS');
+    //     env.modify(userVar, process.env[originalVar]!, envFile, false);
+    // }
 
     for (const envVar of syncLayerEnvVars) {
         if (specialParams.includes(envVar)) {
@@ -340,12 +340,9 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR'
     ];
 
-    console.log('Writing to', `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`);
-    const updatedContracts = updateContractsEnv(
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`,
-        deployLog,
-        l1EnvVars
-    );
+    const envFile = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
+    console.log('Writing to');
+    const updatedContracts = updateContractsEnv(envFile, deployLog, l1EnvVars);
 
     // Write updated contract addresses and tx hashes to the separate file
     // Currently it's used by loadtest github action to update deployment configmap.
@@ -392,13 +389,15 @@ export async function registerHyperchain({
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();
 
     const l2EnvVars = ['CHAIN_ETH_ZKSYNC_NETWORK_ID', 'CONTRACTS_DIAMOND_PROXY_ADDR', 'CONTRACTS_BASE_TOKEN_ADDR'];
-    console.log('Writing to', `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`);
+    const l2EnvFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
+    console.log('Writing to', l2EnvFile);
 
-    const updatedContracts = updateContractsEnv(
-        `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`,
-        deployLog,
-        l2EnvVars
-    );
+    const updatedContracts = updateContractsEnv(l2EnvFile, deployLog, l2EnvVars);
+
+    for (const userVar of USER_FACING_ENV_VARS) {
+        const originalVar = userVar.replace(/CONTRACTS_USER_FACING/g, 'CONTRACTS');
+        env.modify(userVar, process.env[originalVar]!, l2EnvFile, false);
+    }
 
     // Write updated contract addresses and tx hashes to the separate file
     // Currently it's used by loadtest github action to update deployment configmap.
