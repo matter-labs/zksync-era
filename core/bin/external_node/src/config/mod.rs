@@ -444,7 +444,7 @@ pub(crate) struct OptionalENConfig {
 impl OptionalENConfig {
     fn from_configs(general_config: &GeneralConfig, enconfig: &ENConfig) -> anyhow::Result<Self> {
         let api_namespaces = load_config!(general_config.api_config, web3_json_rpc.api_namespaces)
-            .map(|a: Vec<String>| serde_json::from_str(&a.join(",")))
+            .map(|a: Vec<String>| a.iter().map(|a| a.parse()).collect::<Result<_, _>>())
             .transpose()?;
 
         Ok(OptionalENConfig {

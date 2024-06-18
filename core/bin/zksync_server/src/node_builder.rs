@@ -293,7 +293,10 @@ impl MainNodeBuilder {
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
         let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
-            serde_json::from_str(&namespaces.join(","))?
+            namespaces
+                .iter()
+                .map(|a| a.parse())
+                .collect::<Result<_, _>>()?
         } else {
             Namespace::DEFAULT.to_vec()
         };
