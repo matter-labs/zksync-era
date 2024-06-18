@@ -113,7 +113,7 @@ impl ZkSolc {
                     }
                 }
 
-                command.arg("--solc").arg(self.solc_path.to_str().unwrap())
+                command.arg("--solc").arg(self.solc_path.to_str().unwrap());
             }
             ZkSolcInput::YulSingleFile { is_system, .. } => {
                 if self.is_post_1_5_0() {
