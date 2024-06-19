@@ -12,7 +12,7 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_node_genesis::create_genesis_l1_batch;
+use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
 use zksync_node_test_utils::{recover, Snapshot};
 use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
@@ -553,11 +553,13 @@ impl StorageSnapshot {
             .collect();
         let mut storage = connection_pool.connection().await.unwrap();
 
-        let mut snapshot = recover(
-            &mut storage,
-            Snapshot::new(L1BatchNumber(1), self.l2_block_number, snapshot_logs),
-        )
-        .await;
+        let snapshot = Snapshot::new(
+            L1BatchNumber(1),
+            self.l2_block_number,
+            snapshot_logs,
+            GenesisParams::mock(),
+        );
+        let mut snapshot = recover(&mut storage, snapshot).await;
         snapshot.l2_block_hash = self.l2_block_hash;
         snapshot.l2_block_timestamp = self.l2_block_timestamp;
 

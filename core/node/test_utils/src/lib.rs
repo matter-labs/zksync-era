@@ -17,6 +17,7 @@ use zksync_types::{
     fee::Fee,
     fee_model::BatchFeeInput,
     l2::L2Tx,
+    protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
@@ -163,8 +164,8 @@ impl Snapshot {
         l1_batch: L1BatchNumber,
         l2_block: L2BlockNumber,
         storage_logs: Vec<SnapshotStorageLog>,
+        genesis_params: GenesisParams,
     ) -> Self {
-        let genesis_params = GenesisParams::mock();
         let contracts = genesis_params.base_system_contracts();
         let l1_batch = L1BatchHeader::new(
             l1_batch,
@@ -218,7 +219,8 @@ pub async fn prepare_recovery_snapshot(
             enumeration_index: i as u64 + 1,
         })
         .collect();
-    recover(storage, Snapshot::new(l1_batch, l2_block, storage_logs)).await
+    let snapshot = Snapshot::new(l1_batch, l2_block, storage_logs, GenesisParams::mock());
+    recover(storage, snapshot).await
 }
 
 /// Takes a storage snapshot at the last sealed L1 batch.
@@ -299,6 +301,10 @@ pub async fn recover(
             .protocol_versions_dal()
             .save_protocol_version_with_tx(&ProtocolVersion {
                 base_system_contracts_hashes: snapshot.l1_batch.base_system_contracts_hashes,
+                version: ProtocolSemanticVersion {
+                    minor: snapshot.l1_batch.protocol_version.unwrap(),
+                    patch: 0.into(),
+                },
                 ..ProtocolVersion::default()
             })
             .await
