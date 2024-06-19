@@ -17,6 +17,7 @@ use zksync_types::{
     fee::Fee,
     fee_model::BatchFeeInput,
     l2::L2Tx,
+    protocol_version::ProtocolSemanticVersion,
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
@@ -123,7 +124,7 @@ pub fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
         U256::zero(),
         L2ChainId::from(271),
         &K256PrivateKey::random(),
-        None,
+        vec![],
         PaymasterParams::default(),
     )
     .unwrap();
@@ -163,8 +164,8 @@ impl Snapshot {
         l1_batch: L1BatchNumber,
         l2_block: L2BlockNumber,
         storage_logs: &[StorageLog],
+        genesis_params: GenesisParams,
     ) -> Self {
-        let genesis_params = GenesisParams::mock();
         let contracts = genesis_params.base_system_contracts();
         let l1_batch = L1BatchHeader::new(
             l1_batch,
@@ -208,7 +209,11 @@ pub async fn prepare_recovery_snapshot(
     l2_block: L2BlockNumber,
     storage_logs: &[StorageLog],
 ) -> SnapshotRecoveryStatus {
-    recover(storage, Snapshot::make(l1_batch, l2_block, storage_logs)).await
+    recover(
+        storage,
+        Snapshot::make(l1_batch, l2_block, storage_logs, GenesisParams::mock()),
+    )
+    .await
 }
 
 /// Takes a storage snapshot at the last sealed L1 batch.
@@ -290,6 +295,10 @@ pub async fn recover(
             .protocol_versions_dal()
             .save_protocol_version_with_tx(&ProtocolVersion {
                 base_system_contracts_hashes: snapshot.l1_batch.base_system_contracts_hashes,
+                version: ProtocolSemanticVersion {
+                    minor: snapshot.l1_batch.protocol_version.unwrap(),
+                    patch: 0.into(),
+                },
                 ..ProtocolVersion::default()
             })
             .await
@@ -308,10 +317,7 @@ pub async fn recover(
         .unwrap();
     storage
         .storage_logs_dal()
-        .insert_storage_logs(
-            snapshot.l2_block.number,
-            &[(H256::zero(), snapshot.storage_logs)],
-        )
+        .insert_storage_logs(snapshot.l2_block.number, &snapshot.storage_logs)
         .await
         .unwrap();
 

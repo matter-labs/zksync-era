@@ -12,7 +12,7 @@
 
 use std::fmt;
 
-use multivm::vm_latest::TransactionVmExt;
+use multivm::{interface::Halt, vm_latest::TransactionVmExt};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
     block::BlockGasCount,
@@ -33,6 +33,84 @@ use super::{
     utils::{gas_count_from_tx_and_metrics, gas_count_from_writes},
 };
 
+fn halt_as_metric_label(halt: &Halt) -> &'static str {
+    match halt {
+        Halt::ValidationFailed(_) => "ValidationFailed",
+        Halt::PaymasterValidationFailed(_) => "PaymasterValidationFailed",
+        Halt::PrePaymasterPreparationFailed(_) => "PrePaymasterPreparationFailed",
+        Halt::PayForTxFailed(_) => "PayForTxFailed",
+        Halt::FailedToMarkFactoryDependencies(_) => "FailedToMarkFactoryDependencies",
+        Halt::FailedToChargeFee(_) => "FailedToChargeFee",
+        Halt::FromIsNotAnAccount => "FromIsNotAnAccount",
+        Halt::InnerTxError => "InnerTxError",
+        Halt::Unknown(_) => "Unknown",
+        Halt::UnexpectedVMBehavior(_) => "UnexpectedVMBehavior",
+        Halt::BootloaderOutOfGas => "BootloaderOutOfGas",
+        Halt::ValidationOutOfGas => "ValidationOutOfGas",
+        Halt::TooBigGasLimit => "TooBigGasLimit",
+        Halt::NotEnoughGasProvided => "NotEnoughGasProvided",
+        Halt::MissingInvocationLimitReached => "MissingInvocationLimitReached",
+        Halt::FailedToSetL2Block(_) => "FailedToSetL2Block",
+        Halt::FailedToAppendTransactionToL2Block(_) => "FailedToAppendTransactionToL2Block",
+        Halt::VMPanic => "VMPanic",
+        Halt::TracerCustom(_) => "TracerCustom",
+        Halt::FailedToPublishCompressedBytecodes => "FailedToPublishCompressedBytecodes",
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnexecutableReason {
+    Halt(Halt),
+    TxEncodingSize,
+    LargeEncodingSize,
+    PubdataLimit,
+    ProofWillFail,
+    TooMuchGas,
+    OutOfGasForBatchTip,
+    BootloaderOutOfGas,
+    NotEnoughGasProvided,
+}
+
+impl UnexecutableReason {
+    pub fn as_metric_label(&self) -> &'static str {
+        match self {
+            UnexecutableReason::Halt(halt) => halt_as_metric_label(halt),
+            UnexecutableReason::TxEncodingSize => "TxEncodingSize",
+            UnexecutableReason::LargeEncodingSize => "LargeEncodingSize",
+            UnexecutableReason::PubdataLimit => "PubdataLimit",
+            UnexecutableReason::ProofWillFail => "ProofWillFail",
+            UnexecutableReason::TooMuchGas => "TooMuchGas",
+            UnexecutableReason::OutOfGasForBatchTip => "OutOfGasForBatchTip",
+            UnexecutableReason::BootloaderOutOfGas => "BootloaderOutOfGas",
+            UnexecutableReason::NotEnoughGasProvided => "NotEnoughGasProvided",
+        }
+    }
+}
+
+impl From<UnexecutableReason> for SealResolution {
+    fn from(reason: UnexecutableReason) -> Self {
+        SealResolution::Unexecutable(reason)
+    }
+}
+
+impl fmt::Display for UnexecutableReason {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            UnexecutableReason::Halt(halt) => write!(f, "{}", halt),
+            UnexecutableReason::TxEncodingSize => write!(f, "Transaction encoding size is too big"),
+            UnexecutableReason::LargeEncodingSize => {
+                write!(f, "Transaction encoding size is too big")
+            }
+            UnexecutableReason::PubdataLimit => write!(f, "Pubdata limit reached"),
+            UnexecutableReason::ProofWillFail => write!(f, "Proof will fail"),
+            UnexecutableReason::TooMuchGas => write!(f, "Too much gas"),
+            UnexecutableReason::OutOfGasForBatchTip => write!(f, "Out of gas for batch tip"),
+            UnexecutableReason::BootloaderOutOfGas => write!(f, "Bootloader out of gas"),
+            UnexecutableReason::NotEnoughGasProvided => write!(f, "Not enough gas provided"),
+        }
+    }
+}
+
 /// Reported decision regarding block sealing.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SealResolution {
@@ -44,7 +122,7 @@ pub enum SealResolution {
     /// tx in the next block.
     /// While it may be kinda counter-intuitive that we first execute transaction and just then
     /// decided whether we should include it into the block or not, it is required by the architecture of
-    /// zkSync Era. We may not know, for example, how much gas block will consume, because 1) smart contract
+    /// ZKsync Era. We may not know, for example, how much gas block will consume, because 1) smart contract
     /// execution is hard to predict and 2) we may have writes to the same storage slots, which will save us
     /// gas.
     ExcludeAndSeal,
@@ -52,7 +130,7 @@ pub enum SealResolution {
     /// if the block will consist of it solely. Such a transaction must be rejected.
     ///
     /// Contains a reason for why transaction was considered unexecutable.
-    Unexecutable(String),
+    Unexecutable(UnexecutableReason),
 }
 
 impl SealResolution {
@@ -165,7 +243,7 @@ impl IoSealCriteria for TimeoutSealer {
             millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
 
         if should_seal_timeout {
-            AGGREGATION_METRICS.inc_criterion(RULE_NAME);
+            AGGREGATION_METRICS.l1_batch_reason_inc_criterion(RULE_NAME);
             tracing::debug!(
                 "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
                  commit deadline: {block_commit_deadline_ms}ms",
@@ -208,7 +286,7 @@ mod tests {
     fn apply_tx_to_manager(tx: Transaction, manager: &mut UpdatesManager) {
         manager.extend_from_executed_transaction(
             tx,
-            create_execution_result(0, []),
+            create_execution_result([]),
             vec![],
             BlockGasCount::default(),
             ExecutionMetrics::default(),

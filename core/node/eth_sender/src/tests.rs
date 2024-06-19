@@ -9,11 +9,11 @@ use zksync_config::{
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockEthereum, EthInterface};
+use zksync_eth_client::clients::MockEthereum;
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::MockObjectStore;
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{
@@ -28,7 +28,7 @@ use zksync_types::{
 };
 
 use crate::{
-    aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
+    abstract_l1_interface::L1BlockNumbers, aggregated_operations::AggregatedOperation, Aggregator,
     EthSenderError, EthTxAggregator, EthTxManager,
 };
 
@@ -161,7 +161,6 @@ impl EthSenderTester {
             .await
             .unwrap(),
         );
-        let store_factory = ObjectStoreFactory::mock();
 
         let eth_sender = eth_sender_config.sender.clone().unwrap();
         let aggregator = EthTxAggregator::new(
@@ -174,12 +173,12 @@ impl EthSenderTester {
             // Aggregator - unused
             Aggregator::new(
                 aggregator_config.clone(),
-                store_factory.create_store().await,
+                MockObjectStore::arc(),
                 aggregator_operate_4844_mode,
                 commitment_mode,
             ),
             gateway.clone(),
-            // zkSync contract address
+            // ZKsync contract address
             Address::random(),
             contracts_config.l1_multicall3_addr,
             Address::random(),
@@ -211,12 +210,11 @@ impl EthSenderTester {
     async fn get_block_numbers(&self) -> L1BlockNumbers {
         let latest = self
             .manager
-            .query_client()
-            .block_number()
+            .l1_interface()
+            .get_l1_block_numbers()
             .await
             .unwrap()
-            .as_u32()
-            .into();
+            .latest;
         let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
         L1BlockNumbers {
             finalized,
@@ -433,7 +431,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
 
     let sent_tx = tester
         .manager
-        .query_client()
+        .l1_interface()
         .get_tx(hash)
         .await
         .unwrap()
@@ -482,7 +480,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
 
     let resent_tx = tester
         .manager
-        .query_client()
+        .l1_interface()
         .get_tx(resent_hash)
         .await
         .unwrap()

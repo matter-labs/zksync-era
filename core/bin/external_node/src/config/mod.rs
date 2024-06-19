@@ -647,7 +647,7 @@ pub(crate) struct RequiredENConfig {
     /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L1 network.
     pub l1_chain_id: L1ChainId,
-    /// L2 chain ID (e.g., 270 for zkSync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
+    /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
 
@@ -755,6 +755,12 @@ pub(crate) struct ExperimentalENConfig {
     /// of recovery and then restarted with a different config).
     #[serde(default = "ExperimentalENConfig::default_snapshots_recovery_tree_chunk_size")]
     pub snapshots_recovery_tree_chunk_size: u64,
+    /// Buffer capacity for parallel persistence operations. Should be reasonably small since larger buffer means more RAM usage;
+    /// buffer elements are persisted tree chunks. OTOH, small buffer can lead to persistence parallelization being inefficient.
+    ///
+    /// If not set, parallel persistence will be disabled.
+    #[serde(default)] // Temporarily use a conservative option (sequential recovery) as default
+    pub snapshots_recovery_tree_parallel_persistence_buffer: Option<NonZeroUsize>,
 
     // Commitment generator
     /// Maximum degree of parallelism during commitment generation, i.e., the maximum number of L1 batches being processed in parallel.
@@ -779,6 +785,7 @@ impl ExperimentalENConfig {
             state_keeper_db_max_open_files: None,
             snapshots_recovery_l1_batch: None,
             snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
+            snapshots_recovery_tree_parallel_persistence_buffer: None,
             commitment_generator_max_parallelism: None,
         }
     }

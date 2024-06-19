@@ -1,4 +1,4 @@
-# zkSync fee model
+# ZKsync fee model
 
 This document will assume that you already know how gas & fees work on Ethereum.
 
@@ -6,18 +6,18 @@ On Ethereum, all the computational, as well as storage costs, are represented vi
 certain amount of gas, which is generally constant (though it may change during
 [upgrades](https://blog.ethereum.org/2021/03/08/ethereum-berlin-upgrade-announcement)).
 
-zkSync as well as other L2s have the issue which does not allow to adopt the same model as the one for Ethereum so
+ZKsync as well as other L2s have the issue which does not allow to adopt the same model as the one for Ethereum so
 easily: the main reason is the requirement for publishing of the pubdata on Ethereum. This means that prices for L2
 transactions will depend on the volatile L1 gas prices and can not be simply hardcoded.
 
 ## High-level description
 
-zkSync, being a zkRollup is required to prove every operation with zero knowledge proofs. That comes with a few nuances.
+ZKsync, being a zkRollup is required to prove every operation with zero knowledge proofs. That comes with a few nuances.
 
 ### `gas_per_pubdata_limit`
 
-As already mentioned, the transactions on zkSync depend on volatile L1 gas costs to publish the pubdata for batch,
-verify proofs, etc. For this reason, zkSync-specific EIP712 transactions contain the `gas_per_pubdata_limit` field in
+As already mentioned, the transactions on ZKsync depend on volatile L1 gas costs to publish the pubdata for batch,
+verify proofs, etc. For this reason, ZKsync-specific EIP712 transactions contain the `gas_per_pubdata_limit` field in
 them, denoting the maximum price in _gas_ that the operator \*\*can charge from users for a single byte of pubdata.
 
 For Ethereum transactions (which do not contain this field), it is enforced that the operator will not use a value
@@ -28,23 +28,23 @@ larger value than a certain constant.
 The operations tend to have different “complexity”/”pricing” in zero knowledge proof terms than in standard CPU terms.
 For instance, `keccak256` which was optimized for CPU performance, will cost more to prove.
 
-That’s why you will find the prices for operations on zkSync a lot different from the ones on Ethereum.
+That’s why you will find the prices for operations on ZKsync a lot different from the ones on Ethereum.
 
 ### Different intrinsic costs
 
 Unlike Ethereum, where the intrinsic cost of transactions (`21000` gas) is used to cover the price of updating the
-balances of the users, the nonce and signature verification, on zkSync these prices are _not_ included in the intrinsic
+balances of the users, the nonce and signature verification, on ZKsync these prices are _not_ included in the intrinsic
 costs for transactions, due to the native support of account abstraction, meaning that each account type may have their
 own transaction cost. In theory, some may even use more zk-friendly signature schemes or other kinds of optimizations to
 allow cheaper transactions for their users.
 
-That being said, zkSync transactions do come with some small intrinsic costs, but they are mostly used to cover costs
+That being said, ZKsync transactions do come with some small intrinsic costs, but they are mostly used to cover costs
 related to the processing of the transaction by the bootloader which can not be easily measured in code in real-time.
 These are measured via testing and are hard coded.
 
 ### Batch overhead & limited resources of the batch
 
-In order to process the batch, the zkSync team has to pay for proving of the batch, committing to it, etc. Processing a
+In order to process the batch, the ZKsync team has to pay for proving of the batch, committing to it, etc. Processing a
 batch involves some operational costs as well. All of these values we call “Batch overhead”. It consists of two parts:
 
 - The L2 requirements for proving the circuits (denoted in L2 gas).
@@ -57,7 +57,7 @@ resources_.
 
 While on Ethereum, the main reason for the existence of batch gas limit is to keep the system decentralized & load low,
 i.e. assuming the existence of the correct hardware, only time would be a requirement for a batch to adhere to. In the
-case of zkSync batches, there are some limited resources the batch should manage:
+case of ZKsync batches, there are some limited resources the batch should manage:
 
 - **Time.** The same as on Ethereum, the batch should generally not take too much time to be closed in order to provide
   better UX. To represent the time needed we use a batch gas limit, note that it is higher than the gas limit for a
@@ -71,7 +71,7 @@ case of zkSync batches, there are some limited resources the batch should manage
   single slot happening in the same batch need to be published only once, we need to publish all the batch’s public data
   only after the transaction has been processed. Right now, we publish all the data with the storage diffs as well as
   L2→L1 messages, etc in a single transaction at the end of the batch. Most nodes have limit of 128kb per transaction
-  and so this is the limit that each zkSync batch should adhere to.
+  and so this is the limit that each ZKsync batch should adhere to.
 
 Each transaction spends the batch overhead proportionally to how close it consumes the resources above.
 
@@ -79,7 +79,7 @@ Note, that before the transaction is executed, the system can not know how many 
 transaction will actually take, so we need to charge for the worst case and provide the refund at the end of the
 transaction.
 
-### How `baseFee` works on zkSync
+### How `baseFee` works on ZKsync
 
 In order to protect us from DDoS attacks we need to set a limited `MAX_TRANSACTION_GAS_LIMIT` per transaction. Since the
 computation costs are relatively constant for us, we _could_ use a “fair” `baseFee` equal to the real costs for us to
@@ -114,16 +114,16 @@ sure that the excess gas will be spent on the pubdata).
 
 ### High-level: conclusion
 
-The zkSync fee model is meant to be the basis of the long-term fee model, which provides both robustness and security.
+The ZKsync fee model is meant to be the basis of the long-term fee model, which provides both robustness and security.
 One of the most distinctive parts of it is the existing of the batch overhead, which is proportional for the resources
 consumed by the transaction.
 
-The other distinctive feature of the fee model used on zkSync is the abundance of refunds, i.e.:
+The other distinctive feature of the fee model used on ZKsync is the abundance of refunds, i.e.:
 
 - For unused limited system resources.
 - For overpaid computation.
 
-This is needed because of the relatively big upfront payments required in zkSync to provide DDoS security.
+This is needed because of the relatively big upfront payments required in ZKsync to provide DDoS security.
 
 ## Formalization
 
@@ -156,7 +156,7 @@ contain almost any arbitrary value depending on the capacity of batch that we wa
 `BOOTLOADER_MEMORY_FOR_TXS` (_BM_) — The size of the bootloader memory that is used for transaction encoding
 (i.e. excluding the constant space, preallocated for other purposes).
 
-`GUARANTEED_PUBDATA_PER_TX` (_PG_) — The guaranteed number of pubdata that should be possible to pay for in one zkSync
+`GUARANTEED_PUBDATA_PER_TX` (_PG_) — The guaranteed number of pubdata that should be possible to pay for in one ZKsync
 batch. This is a number that should be enough for most reasonable cases.
 
 #### Derived constants

@@ -9,18 +9,11 @@ use zksync_config::{
     configs::{ObservabilityConfig, PrometheusConfig},
     ApiConfig, ContractVerifierConfig,
 };
+use zksync_contract_verifier_lib::ContractVerifier;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::{wait_for_tasks::ManagedTasks, workspace_dir_or_current_dir};
-
-use crate::verifier::ContractVerifier;
-
-pub mod error;
-mod metrics;
-pub mod verifier;
-pub mod zksolc_utils;
-pub mod zkvyper_utils;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.connection().await.unwrap();
@@ -119,7 +112,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
 use zksync_config::configs::DatabaseSecrets;
 
 #[derive(StructOpt)]
-#[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
+#[structopt(name = "ZKsync contract code verifier", author = "Matter Labs")]
 struct Opt {
     /// Number of jobs to process. If None, runs indefinitely.
     #[structopt(long)]

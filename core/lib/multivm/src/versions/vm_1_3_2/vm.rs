@@ -164,7 +164,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         CurrentExecutionState {
             events,
-            deduplicated_storage_log_queries: deduped_storage_log_queries
+            deduplicated_storage_logs: deduped_storage_log_queries
                 .into_iter()
                 .map(GlueInto::glue_into)
                 .collect(),
@@ -196,7 +196,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         }
         self.last_tx_compressed_bytecodes = vec![];
         let bytecodes = if with_compression {
-            let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
+            let deps = &tx.execute.factory_deps;
             let mut deps_hashes = HashSet::with_capacity(deps.len());
             let mut bytecode_hashes = vec![];
             let filtered_deps = deps.iter().filter_map(|bytecode| {

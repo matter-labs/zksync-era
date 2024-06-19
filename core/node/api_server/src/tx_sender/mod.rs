@@ -1,4 +1,4 @@
-//! Helper module to submit transactions into the zkSync Network.
+//! Helper module to submit transactions into the ZKsync Network.
 
 use std::{sync::Arc, time::Instant};
 
@@ -61,7 +61,7 @@ pub async fn build_tx_sender(
     master_pool: ConnectionPool<Core>,
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     storage_caches: PostgresStorageCaches,
-) -> (TxSender, VmConcurrencyBarrier) {
+) -> anyhow::Result<(TxSender, VmConcurrencyBarrier)> {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
     let master_pool_sink = MasterPoolSink::new(master_pool);
     let tx_sender_builder = TxSenderBuilder::new(
@@ -77,15 +77,13 @@ pub async fn build_tx_sender(
     let batch_fee_input_provider =
         ApiFeeInputProvider::new(batch_fee_model_input_provider, replica_pool);
 
-    let tx_sender = tx_sender_builder
-        .build(
-            Arc::new(batch_fee_input_provider),
-            Arc::new(vm_concurrency_limiter),
-            ApiContracts::load_from_disk(),
-            storage_caches,
-        )
-        .await;
-    (tx_sender, vm_barrier)
+    let tx_sender = tx_sender_builder.build(
+        Arc::new(batch_fee_input_provider),
+        Arc::new(vm_concurrency_limiter),
+        ApiContracts::load_from_disk().await?,
+        storage_caches,
+    );
+    Ok((tx_sender, vm_barrier))
 }
 
 #[derive(Debug, Clone)]
@@ -161,7 +159,14 @@ impl ApiContracts {
     /// Loads the contracts from the local file system.
     /// This method is *currently* preferred to be used in all contexts,
     /// given that there is no way to fetch "playground" contracts from the main node.
-    pub fn load_from_disk() -> Self {
+    pub async fn load_from_disk() -> anyhow::Result<Self> {
+        tokio::task::spawn_blocking(Self::load_from_disk_blocking)
+            .await
+            .context("loading `ApiContracts` panicked")
+    }
+
+    /// Blocking version of [`Self::load_from_disk()`].
+    pub fn load_from_disk_blocking() -> Self {
         Self {
             estimate_gas: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::estimate_gas_pre_virtual_blocks(),
@@ -233,7 +238,7 @@ impl TxSenderBuilder {
         self
     }
 
-    pub async fn build(
+    pub fn build(
         self,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
@@ -526,9 +531,9 @@ impl TxSender {
             );
             return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
         }
-        if tx.execute.factory_deps_length() > MAX_NEW_FACTORY_DEPS {
+        if tx.execute.factory_deps.len() > MAX_NEW_FACTORY_DEPS {
             return Err(SubmitTxError::TooManyFactoryDependencies(
-                tx.execute.factory_deps_length(),
+                tx.execute.factory_deps.len(),
                 MAX_NEW_FACTORY_DEPS,
             ));
         }

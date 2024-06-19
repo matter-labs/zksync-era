@@ -100,7 +100,7 @@ impl<TypedStructure: EIP712TypedStructure> StructMember for TypedStructure {
 }
 
 /// Interface for defining the structure for the EIP712 signature.
-pub trait EIP712TypedStructure: Serialize {
+pub trait EIP712TypedStructure {
     const TYPE_NAME: &'static str;
 
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER);
@@ -160,7 +160,7 @@ impl Eip712Domain {
     pub const NAME: &'static str = "zkSync";
     /// Version of the protocol. While there may be `2.x` releases, the minor release version bump
     /// should not be breaking, meaning that clients from the `2.x-1` version should be able to communicate
-    /// with zkSync server. Thus `VERSION` corresponds to the major version only.
+    /// with ZKsync server. Thus `VERSION` corresponds to the major version only.
     pub const VERSION: &'static str = "2";
 
     pub fn new(chain_id: L2ChainId) -> Self {

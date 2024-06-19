@@ -13,16 +13,16 @@
 # $ nix build .#zksync_server.block_reverter
 #
 # To enter the development shell, run:
-# $ nix develop --impure
+# $ nix develop
 #
 # To vendor the dependencies manually, run:
 # $ nix shell .#cargo-vendor -c cargo vendor --no-merge-sources
 #
 ###################################################################################################
 {
-  description = "zkSync-era";
+  description = "ZKsync-era";
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
@@ -46,7 +46,7 @@
         # patched version of cargo to support `cargo vendor` for vendoring dependencies
         # see https://github.com/matter-labs/zksync-era/issues/1086
         # used as `cargo vendor --no-merge-sources`
-        cargo-vendor = pkgs.rustPlatform.buildRustPackage rec {
+        cargo-vendor = pkgs.rustPlatform.buildRustPackage {
           pname = "cargo-vendor";
           version = "0.78.0";
           src = pkgs.fetchFromGitHub {
@@ -68,7 +68,7 @@
 
         # custom import-cargo-lock to import Cargo.lock file and vendor dependencies
         # see https://github.com/matter-labs/zksync-era/issues/1086
-        import-cargo-lock = { lib, cacert, runCommand }: { src, cargoHash ? null } @ args:
+        import-cargo-lock = { lib, cacert, runCommand }: { src, cargoHash ? null }:
           runCommand "import-cargo-lock"
             {
               inherit src;
@@ -96,12 +96,12 @@
 
         stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.clangStdenv;
 
-        rustPlatform = (pkgs.makeRustPlatform {
+        rustPlatform = pkgs.makeRustPlatform {
           cargo = rustVersion;
           rustc = rustVersion;
           inherit stdenv;
-        });
-        zksync_server_cargoToml = (builtins.fromTOML (builtins.readFile ./core/bin/zksync_server/Cargo.toml));
+        };
+        zksync_server_cargoToml = builtins.fromTOML (builtins.readFile ./core/bin/zksync_server/Cargo.toml);
 
         hardeningEnable = [ "fortify3" "pie" "relro" ];
 
@@ -212,7 +212,7 @@
               export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="clang"
 
               if [ "x$NIX_LD" = "x" ]; then
-                export NIX_LD="$ZK_NIX_LD"
+                export NIX_LD="$(<${clangStdenv.cc}/nix-support/dynamic-linker)"
               fi
               if [ "x$NIX_LD_LIBRARY_PATH" = "x" ]; then
                 export NIX_LD_LIBRARY_PATH="$ZK_NIX_LD_LIBRARY_PATH"
@@ -222,7 +222,6 @@
             '';
 
             ZK_NIX_LD_LIBRARY_PATH = lib.makeLibraryPath [ ];
-            ZK_NIX_LD = builtins.readFile "${clangStdenv.cc}/nix-support/dynamic-linker";
           };
         };
       });

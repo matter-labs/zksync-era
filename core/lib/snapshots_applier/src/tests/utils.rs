@@ -4,7 +4,7 @@ use std::{collections::HashMap, fmt, future, sync::Arc};
 
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_object_store::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory};
+use zksync_object_store::{Bucket, MockObjectStore, ObjectStore, ObjectStoreError};
 use zksync_types::{
     api,
     block::L2BlockHeader,
@@ -156,6 +156,7 @@ fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         executed_at: None,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
+        fair_pubdata_price: None,
         base_system_contracts_hashes: Default::default(),
     }
 }
@@ -253,8 +254,7 @@ pub(super) async fn prepare_clients(
     status: &SnapshotRecoveryStatus,
     logs: &[SnapshotStorageLog],
 ) -> (Arc<dyn ObjectStore>, MockMainNodeClient) {
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
     let mut client = MockMainNodeClient::default();
     let factory_dep_bytes: Vec<u8> = (0..32).collect();
     let factory_deps = SnapshotFactoryDependencies {
@@ -333,12 +333,12 @@ impl ObjectStore for HangingObjectStore {
         let mut should_proceed = true;
         self.count_sender.send_modify(|count| {
             *count += 1;
-            if dbg!(*count) > self.stop_after_count {
+            if *count > self.stop_after_count {
                 should_proceed = false;
             }
         });
 
-        if dbg!(should_proceed) {
+        if should_proceed {
             self.inner.get_raw(bucket, key).await
         } else {
             future::pending().await // Hang up the snapshot applier task

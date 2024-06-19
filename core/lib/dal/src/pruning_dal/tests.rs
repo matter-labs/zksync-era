@@ -291,7 +291,7 @@ async fn insert_l2_block_storage_logs(
     storage_logs: Vec<StorageLog>,
 ) {
     conn.storage_logs_dal()
-        .insert_storage_logs(l2_block_number, &[(H256::zero(), storage_logs)])
+        .insert_storage_logs(l2_block_number, &storage_logs)
         .await
         .unwrap();
 }
@@ -361,7 +361,7 @@ async fn storage_logs_pruning_works_correctly() {
     )
     .await;
 
-    transaction
+    let stats = transaction
         .pruning_dal()
         .hard_prune_batches_range(L1BatchNumber(4), L2BlockNumber(9))
         .await
@@ -377,8 +377,9 @@ async fn storage_logs_pruning_works_correctly() {
         &[random_storage_log(2, 3), random_storage_log(3, 4)],
     );
     assert_l2_block_storage_logs_equal(L2BlockNumber(1), &actual_logs, &[random_storage_log(1, 1)]);
+    assert_eq!(stats.deleted_storage_logs, 1);
 
-    transaction
+    let stats = transaction
         .pruning_dal()
         .hard_prune_batches_range(L1BatchNumber(10), L2BlockNumber(21))
         .await
@@ -400,6 +401,7 @@ async fn storage_logs_pruning_works_correctly() {
         &actual_logs,
         &[random_storage_log(5, 7)],
     );
+    assert_eq!(stats.deleted_storage_logs, 2);
 }
 
 #[tokio::test]

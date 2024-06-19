@@ -1,4 +1,4 @@
-//! Data access layer (DAL) for zkSync Era.
+//! Data access layer (DAL) for ZKsync Era.
 
 // Linter settings.
 #![warn(clippy::cast_lossless)]
@@ -20,7 +20,7 @@ use crate::{
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
-    sync_dal::SyncDal, system_dal::SystemDal,
+    sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
     tee_verifier_input_producer_dal::TeeVerifierInputProducerDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
@@ -50,6 +50,7 @@ pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
+pub mod tee_proof_generation_dal;
 pub mod tee_verifier_input_producer_dal;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
@@ -110,6 +111,8 @@ where
     fn sync_dal(&mut self) -> SyncDal<'_, 'a>;
 
     fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a>;
+
+    fn tee_proof_generation_dal(&mut self) -> TeeProofGenerationDal<'_, 'a>;
 
     fn system_dal(&mut self) -> SystemDal<'_, 'a>;
 
@@ -211,6 +214,10 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a> {
         ProofGenerationDal { storage: self }
+    }
+
+    fn tee_proof_generation_dal(&mut self) -> TeeProofGenerationDal<'_, 'a> {
+        TeeProofGenerationDal { storage: self }
     }
 
     fn system_dal(&mut self) -> SystemDal<'_, 'a> {

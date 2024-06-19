@@ -7,7 +7,7 @@ use vise::{
     Info, Metrics, Unit,
 };
 
-use super::{provider::TreeDataProviderSource, StepOutcome, TreeDataFetcher, TreeDataFetcherError};
+use super::{StepOutcome, TreeDataFetcher, TreeDataFetcherError};
 
 #[derive(Debug, EncodeLabelSet)]
 struct TreeDataFetcherInfo {
@@ -30,6 +30,9 @@ impl From<&TreeDataFetcher> for TreeDataFetcherInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum ProcessingStage {
+    FetchL1CommitEvent,
+    FetchBatchDetailsRpc,
+    /// Total latency for all clients.
     Fetch,
     Persistence,
 }
@@ -40,7 +43,15 @@ pub(super) enum StepOutcomeLabel {
     UpdatedBatch,
     NoProgress,
     RemoteHashMissing,
+    PossibleReorg,
     TransientError,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "source", rename_all = "snake_case")]
+pub(super) enum TreeDataProviderSource {
+    L1CommitEvent,
+    BatchDetailsRpc,
 }
 
 const BLOCK_DIFF_BUCKETS: Buckets = Buckets::values(&[
@@ -91,6 +102,7 @@ impl TreeDataFetcherMetrics {
             }
             Ok(StepOutcome::NoProgress) => StepOutcomeLabel::NoProgress,
             Ok(StepOutcome::RemoteHashMissing) => StepOutcomeLabel::RemoteHashMissing,
+            Ok(StepOutcome::PossibleReorg) => StepOutcomeLabel::PossibleReorg,
             Err(err) if err.is_transient() => StepOutcomeLabel::TransientError,
             Err(_) => return, // fatal error; the node will exit soon anyway
         };

@@ -16,11 +16,7 @@ use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, StorageLog, H256};
 use zksync_web3_decl::jsonrpsee::core::ClientError;
 
-use super::{
-    metrics::StepOutcomeLabel,
-    provider::{TreeDataProviderOutput, TreeDataProviderResult, TreeDataProviderSource},
-    *,
-};
+use super::{metrics::StepOutcomeLabel, provider::TreeDataProviderResult, *};
 
 #[derive(Debug, Default)]
 pub(super) struct MockMainNodeClient {
@@ -36,7 +32,11 @@ impl MockMainNodeClient {
 
 #[async_trait]
 impl TreeDataProvider for MockMainNodeClient {
-    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
+    async fn batch_details(
+        &mut self,
+        number: L1BatchNumber,
+        _last_l2_block: &L2BlockHeader,
+    ) -> TreeDataProviderResult {
         if self.transient_error.fetch_and(false, Ordering::Relaxed) {
             let err = ClientError::RequestTimeout;
             return Err(EnrichedClientError::new(err, "batch_details").into());
@@ -44,10 +44,7 @@ impl TreeDataProvider for MockMainNodeClient {
         Ok(self
             .batch_details_responses
             .get(&number)
-            .map(|&root_hash| TreeDataProviderOutput {
-                root_hash,
-                source: TreeDataProviderSource::BatchDetailsRpc,
-            })
+            .copied()
             .ok_or(MissingData::Batch))
     }
 }
@@ -97,6 +94,15 @@ pub(super) async fn seal_l1_batch_with_timestamp(
     transaction.commit().await.unwrap();
 }
 
+pub(super) async fn get_last_l2_block(
+    storage: &mut Connection<'_, Core>,
+    number: L1BatchNumber,
+) -> L2BlockHeader {
+    TreeDataFetcher::get_last_l2_block(storage, number)
+        .await
+        .unwrap()
+}
+
 #[derive(Debug)]
 struct FetcherHarness {
     fetcher: TreeDataFetcher,
@@ -109,7 +115,7 @@ impl FetcherHarness {
         let (updates_sender, updates_receiver) = mpsc::unbounded_channel();
         let metrics = &*Box::leak(Box::<TreeDataFetcherMetrics>::default());
         let fetcher = TreeDataFetcher {
-            data_provider: Box::new(client),
+            data_provider: CombinedDataProvider::new(client),
             diamond_proxy_address: None,
             pool: pool.clone(),
             metrics,
@@ -301,16 +307,17 @@ impl SlowMainNode {
 
 #[async_trait]
 impl TreeDataProvider for SlowMainNode {
-    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
+    async fn batch_details(
+        &mut self,
+        number: L1BatchNumber,
+        _last_l2_block: &L2BlockHeader,
+    ) -> TreeDataProviderResult {
         if number != L1BatchNumber(1) {
             return Ok(Err(MissingData::Batch));
         }
         let request_count = self.request_count.fetch_add(1, Ordering::Relaxed);
         Ok(if request_count >= self.compute_root_hash_after {
-            Ok(TreeDataProviderOutput {
-                root_hash: H256::repeat_byte(1),
-                source: TreeDataProviderSource::BatchDetailsRpc,
-            })
+            Ok(H256::repeat_byte(1))
         } else {
             Err(MissingData::RootHash)
         })

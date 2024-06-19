@@ -2,10 +2,8 @@ use std::fmt;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use vise::{EncodeLabelSet, EncodeLabelValue};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
-use zksync_types::{web3, Address, L1BatchNumber, H256, U256, U64};
+use zksync_types::{block::L2BlockHeader, web3, Address, L1BatchNumber, H256, U256, U64};
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
@@ -13,7 +11,10 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use super::{metrics::METRICS, TreeDataFetcherResult};
+use super::{
+    metrics::{ProcessingStage, TreeDataProviderSource, METRICS},
+    TreeDataFetcherResult,
+};
 
 #[cfg(test)]
 mod tests;
@@ -26,36 +27,33 @@ pub(super) enum MissingData {
     /// The provider lacks a root hash for a requested L1 batch; the batch itself is present on the provider.
     #[error("no root hash for L1 batch")]
     RootHash,
+    #[error("possible chain reorg detected")]
+    PossibleReorg,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "source", rename_all = "snake_case")]
-pub(super) enum TreeDataProviderSource {
-    L1CommitEvent,
-    BatchDetailsRpc,
-}
-
-#[derive(Debug)]
-pub(super) struct TreeDataProviderOutput {
-    pub root_hash: H256,
-    pub source: TreeDataProviderSource,
-}
-
-pub(super) type TreeDataProviderResult =
-    TreeDataFetcherResult<Result<TreeDataProviderOutput, MissingData>>;
+pub(super) type TreeDataProviderResult = TreeDataFetcherResult<Result<H256, MissingData>>;
 
 /// External provider of tree data, such as main node (via JSON-RPC).
 #[async_trait]
 pub(super) trait TreeDataProvider: fmt::Debug + Send + Sync + 'static {
     /// Fetches a state root hash for the L1 batch with the specified number.
+    /// The method receives a header of the last L2 block in the batch, which can be used to check L1 batch consistency etc.
     ///
     /// It is guaranteed that this method will be called with monotonically increasing `number`s (although not necessarily sequential ones).
-    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult;
+    async fn batch_details(
+        &mut self,
+        number: L1BatchNumber,
+        last_l2_block: &L2BlockHeader,
+    ) -> TreeDataProviderResult;
 }
 
 #[async_trait]
 impl TreeDataProvider for Box<DynClient<L2>> {
-    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
+    async fn batch_details(
+        &mut self,
+        number: L1BatchNumber,
+        last_l2_block: &L2BlockHeader,
+    ) -> TreeDataProviderResult {
         let Some(batch_details) = self
             .get_l1_batch_details(number)
             .rpc_context("get_l1_batch_details")
@@ -64,14 +62,25 @@ impl TreeDataProvider for Box<DynClient<L2>> {
         else {
             return Ok(Err(MissingData::Batch));
         };
-        Ok(batch_details
-            .base
-            .root_hash
-            .ok_or(MissingData::RootHash)
-            .map(|root_hash| TreeDataProviderOutput {
-                root_hash,
-                source: TreeDataProviderSource::BatchDetailsRpc,
-            }))
+
+        // Check the local data correspondence.
+        let remote_l2_block_hash = self
+            .get_block_details(last_l2_block.number)
+            .rpc_context("get_block_details")
+            .with_arg("number", &last_l2_block.number)
+            .await?
+            .and_then(|block| block.base.root_hash);
+        if remote_l2_block_hash != Some(last_l2_block.hash) {
+            let last_l2_block_number = last_l2_block.number;
+            let last_l2_block_hash = last_l2_block.hash;
+            tracing::info!(
+                "Fetched hash of the last L2 block #{last_l2_block_number} in L1 batch #{number} ({remote_l2_block_hash:?}) \
+                 does not match the local one ({last_l2_block_hash:?}); this can be caused by a chain reorg"
+            );
+            return Ok(Err(MissingData::PossibleReorg));
+        }
+
+        Ok(batch_details.base.root_hash.ok_or(MissingData::RootHash))
     }
 }
 
@@ -94,7 +103,6 @@ struct PastL1BatchInfo {
 /// (provided it's not too far behind the seal timestamp of the batch).
 #[derive(Debug)]
 pub(super) struct L1DataProvider {
-    pool: ConnectionPool<Core>,
     eth_client: Box<DynClient<L1>>,
     diamond_proxy_address: Address,
     block_commit_signature: H256,
@@ -109,7 +117,6 @@ impl L1DataProvider {
     const L1_BLOCK_RANGE: U64 = U64([20_000]);
 
     pub fn new(
-        pool: ConnectionPool<Core>,
         eth_client: Box<DynClient<L1>>,
         diamond_proxy_address: Address,
     ) -> anyhow::Result<Self> {
@@ -118,27 +125,11 @@ impl L1DataProvider {
             .context("missing `BlockCommit` event")?
             .signature();
         Ok(Self {
-            pool,
             eth_client,
             diamond_proxy_address,
             block_commit_signature,
             past_l1_batch: None,
         })
-    }
-
-    async fn l1_batch_seal_timestamp(&self, number: L1BatchNumber) -> anyhow::Result<u64> {
-        let mut storage = self.pool.connection_tagged("tree_data_fetcher").await?;
-        let (_, last_l2_block_number) = storage
-            .blocks_dal()
-            .get_l2_block_range_of_l1_batch(number)
-            .await?
-            .with_context(|| format!("L1 batch #{number} does not have L2 blocks"))?;
-        let block_header = storage
-            .blocks_dal()
-            .get_l2_block_header(last_l2_block_number)
-            .await?
-            .with_context(|| format!("L2 block #{last_l2_block_number} (last block in L1 batch #{number}) disappeared"))?;
-        Ok(block_header.timestamp)
     }
 
     /// Guesses the number of an L1 block with a `BlockCommit` event for the specified L1 batch.
@@ -195,19 +186,16 @@ impl L1DataProvider {
         })?;
         Ok((number, block.timestamp))
     }
-
-    pub fn with_fallback(self, fallback: Box<dyn TreeDataProvider>) -> CombinedDataProvider {
-        CombinedDataProvider {
-            l1: Some(self),
-            fallback,
-        }
-    }
 }
 
 #[async_trait]
 impl TreeDataProvider for L1DataProvider {
-    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
-        let l1_batch_seal_timestamp = self.l1_batch_seal_timestamp(number).await?;
+    async fn batch_details(
+        &mut self,
+        number: L1BatchNumber,
+        last_l2_block: &L2BlockHeader,
+    ) -> TreeDataProviderResult {
+        let l1_batch_seal_timestamp = last_l2_block.timestamp;
         let from_block = self.past_l1_batch.and_then(|info| {
             assert!(
                 info.number < number,
@@ -291,14 +279,14 @@ impl TreeDataProvider for L1DataProvider {
                     l1_commit_block_number,
                     l1_commit_block_timestamp: l1_commit_block.timestamp,
                 });
-                Ok(Ok(TreeDataProviderOutput {
-                    root_hash,
-                    source: TreeDataProviderSource::L1CommitEvent,
-                }))
+                Ok(Ok(root_hash))
             }
             _ => {
-                tracing::warn!("Non-unique `BlockCommit` event for L1 batch #{number} queried using {filter:?}: {logs:?}");
-                Ok(Err(MissingData::RootHash))
+                tracing::warn!(
+                    "Non-unique `BlockCommit` event for L1 batch #{number} queried using {filter:?}, potentially as a result \
+                     of a chain reorg: {logs:?}"
+                );
+                Ok(Err(MissingData::PossibleReorg))
             }
         }
     }
@@ -308,40 +296,69 @@ impl TreeDataProvider for L1DataProvider {
 #[derive(Debug)]
 pub(super) struct CombinedDataProvider {
     l1: Option<L1DataProvider>,
-    fallback: Box<dyn TreeDataProvider>,
+    // Generic to allow for tests.
+    rpc: Box<dyn TreeDataProvider>,
+}
+
+impl CombinedDataProvider {
+    pub fn new(fallback: impl TreeDataProvider) -> Self {
+        Self {
+            l1: None,
+            rpc: Box::new(fallback),
+        }
+    }
+
+    pub fn set_l1(&mut self, l1: L1DataProvider) {
+        self.l1 = Some(l1);
+    }
 }
 
 #[async_trait]
 impl TreeDataProvider for CombinedDataProvider {
-    async fn batch_details(&mut self, number: L1BatchNumber) -> TreeDataProviderResult {
+    #[tracing::instrument(skip(self, last_l2_block))]
+    async fn batch_details(
+        &mut self,
+        number: L1BatchNumber,
+        last_l2_block: &L2BlockHeader,
+    ) -> TreeDataProviderResult {
         if let Some(l1) = &mut self.l1 {
-            match l1.batch_details(number).await {
+            let stage_latency = METRICS.stage_latency[&ProcessingStage::FetchL1CommitEvent].start();
+            let l1_result = l1.batch_details(number, last_l2_block).await;
+            stage_latency.observe();
+
+            match l1_result {
                 Err(err) => {
                     if err.is_transient() {
                         tracing::info!(
-                            number = number.0,
-                            "Transient error calling L1 data provider: {err}"
+                            "Transient error calling L1 data provider: {:#}",
+                            anyhow::Error::from(err)
                         );
                     } else {
                         tracing::warn!(
-                            number = number.0,
-                            "Fatal error calling L1 data provider: {err}"
+                            "Fatal error calling L1 data provider: {:#}",
+                            anyhow::Error::from(err)
                         );
                         self.l1 = None;
                     }
                 }
-                Ok(Ok(root_hash)) => return Ok(Ok(root_hash)),
+                Ok(Ok(root_hash)) => {
+                    METRICS.root_hash_sources[&TreeDataProviderSource::L1CommitEvent].inc();
+                    return Ok(Ok(root_hash));
+                }
                 Ok(Err(missing_data)) => {
-                    tracing::debug!(
-                        number = number.0,
-                        "L1 data provider misses batch data: {missing_data}"
-                    );
+                    tracing::info!("L1 data provider misses batch data: {missing_data}");
                     // No sense of calling the L1 provider in the future; the L2 provider will very likely get information
                     // about batches significantly faster.
                     self.l1 = None;
                 }
             }
         }
-        self.fallback.batch_details(number).await
+        let stage_latency = METRICS.stage_latency[&ProcessingStage::FetchBatchDetailsRpc].start();
+        let rpc_result = self.rpc.batch_details(number, last_l2_block).await;
+        stage_latency.observe();
+        if matches!(rpc_result, Ok(Ok(_))) {
+            METRICS.root_hash_sources[&TreeDataProviderSource::BatchDetailsRpc].inc();
+        }
+        rpc_result
     }
 }

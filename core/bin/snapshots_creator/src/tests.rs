@@ -11,7 +11,7 @@ use std::{
 
 use rand::{thread_rng, Rng};
 use zksync_dal::{Connection, CoreDal};
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{MockObjectStore, ObjectStore};
 use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData, L2BlockHeader},
     snapshots::{
@@ -159,7 +159,7 @@ async fn create_l2_block(
         .await
         .unwrap();
     conn.storage_logs_dal()
-        .insert_storage_logs(l2_block_number, &[(H256::zero(), block_logs)])
+        .insert_storage_logs(l2_block_number, &block_logs)
         .await
         .unwrap();
 }
@@ -257,8 +257,7 @@ async fn prepare_postgres(
 async fn persisting_snapshot_metadata() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
 
     // Insert some data to Postgres.
     let mut conn = pool.connection().await.unwrap();
@@ -306,18 +305,16 @@ async fn persisting_snapshot_metadata() {
 async fn persisting_snapshot_factory_deps() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
     let mut conn = pool.connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
-    SnapshotCreator::for_tests(object_store, pool.clone())
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .run(TEST_CONFIG, MIN_CHUNK_COUNT)
         .await
         .unwrap();
     let snapshot_l1_batch_number = L1BatchNumber(8);
 
-    let object_store = object_store_factory.create_store().await;
     let SnapshotFactoryDependencies { factory_deps } =
         object_store.get(snapshot_l1_batch_number).await.unwrap();
     let actual_deps: HashSet<_> = factory_deps.into_iter().collect();
@@ -328,18 +325,16 @@ async fn persisting_snapshot_factory_deps() {
 async fn persisting_snapshot_logs() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
     let mut conn = pool.connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
-    SnapshotCreator::for_tests(object_store, pool.clone())
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .run(TEST_CONFIG, MIN_CHUNK_COUNT)
         .await
         .unwrap();
     let snapshot_l1_batch_number = L1BatchNumber(8);
 
-    let object_store = object_store_factory.create_store().await;
     assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
 }
 
@@ -364,12 +359,11 @@ async fn assert_storage_logs(
 async fn recovery_workflow() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
     let mut conn = pool.connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
-    SnapshotCreator::for_tests(object_store, pool.clone())
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .stop_after_chunk_count(0)
         .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
         .await
@@ -387,14 +381,13 @@ async fn recovery_workflow() {
         .iter()
         .all(Option::is_none));
 
-    let object_store = object_store_factory.create_store().await;
     let SnapshotFactoryDependencies { factory_deps } =
         object_store.get(snapshot_l1_batch_number).await.unwrap();
     let actual_deps: HashSet<_> = factory_deps.into_iter().collect();
     assert_eq!(actual_deps, expected_outputs.deps);
 
     // Process 2 storage log chunks, then stop.
-    SnapshotCreator::for_tests(object_store, pool.clone())
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .stop_after_chunk_count(2)
         .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
         .await
@@ -416,13 +409,11 @@ async fn recovery_workflow() {
     );
 
     // Process the remaining chunks.
-    let object_store = object_store_factory.create_store().await;
-    SnapshotCreator::for_tests(object_store, pool.clone())
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
-    let object_store = object_store_factory.create_store().await;
     assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
 }
 
@@ -430,12 +421,11 @@ async fn recovery_workflow() {
 async fn recovery_workflow_with_varying_chunk_size() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    let object_store = MockObjectStore::arc();
     let mut conn = pool.connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
-    SnapshotCreator::for_tests(object_store, pool.clone())
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .stop_after_chunk_count(2)
         .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
         .await
@@ -461,12 +451,10 @@ async fn recovery_workflow_with_varying_chunk_size() {
         storage_logs_chunk_size: 1, // << should be ignored
         ..SEQUENTIAL_TEST_CONFIG
     };
-    let object_store = object_store_factory.create_store().await;
-    SnapshotCreator::for_tests(object_store, pool.clone())
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .run(config_with_other_size, MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
-    let object_store = object_store_factory.create_store().await;
     assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
 }

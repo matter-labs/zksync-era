@@ -13,12 +13,12 @@ use zksync_node_sync::{
     SyncState,
 };
 use zksync_state_keeper::io::common::IoCursor;
-use zksync_types::L2BlockNumber;
+use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber, L2BlockNumber};
 
 use super::config;
 
 #[cfg(test)]
-mod testonly;
+pub(crate) mod testonly;
 
 /// Context-aware `zksync_dal::ConnectionPool<Core>` wrapper.
 #[derive(Debug, Clone)]
@@ -101,6 +101,18 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
+    /// Wrapper for `consensus_dal().block_payloads()`.
+    pub async fn payloads(
+        &mut self,
+        ctx: &ctx::Ctx,
+        numbers: std::ops::Range<validator::BlockNumber>,
+    ) -> ctx::Result<Vec<Payload>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_payloads(numbers))
+            .await?
+            .map_err(DalError::generalize)?)
+    }
+
     /// Wrapper for `consensus_dal().first_certificate()`.
     pub async fn first_certificate(
         &mut self,
@@ -164,6 +176,18 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().set_replica_state(state))
             .await?
             .context("sqlx")?)
+    }
+
+    /// Wrapper for `consensus_dal().get_l1_batch_metadata()`.
+    pub async fn batch(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+    ) -> ctx::Result<Option<L1BatchWithMetadata>> {
+        Ok(ctx
+            .wait(self.0.blocks_dal().get_l1_batch_metadata(number))
+            .await?
+            .context("get_l1_batch_metadata()")?)
     }
 
     /// Wrapper for `FetcherCursor::new()`.

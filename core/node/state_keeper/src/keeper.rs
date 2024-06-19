@@ -23,6 +23,7 @@ use super::{
     updates::UpdatesManager,
     utils::gas_count_from_writes,
 };
+use crate::seal_criteria::UnexecutableReason;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -332,6 +333,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         updates: &UpdatesManager,
     ) -> Result<L2BlockParams, Error> {
+        let latency = KEEPER_METRICS.wait_for_l2_block_params.start();
         let cursor = updates.io_cursor();
         while !self.is_canceled() {
             if let Some(params) = self
@@ -340,6 +342,7 @@ impl ZkSyncStateKeeper {
                 .await
                 .context("error waiting for new L2 block params")?
             {
+                latency.observe();
                 return Ok(params);
             }
         }
@@ -490,6 +493,8 @@ impl ZkSyncStateKeeper {
         }
 
         while !self.is_canceled() {
+            let full_latency = KEEPER_METRICS.process_l1_batch_loop_iteration.start();
+
             if self
                 .io
                 .should_seal_l1_batch_unconditionally(updates_manager)
@@ -515,7 +520,7 @@ impl ZkSyncStateKeeper {
                     .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
                 tracing::debug!(
                     "Initialized new L2 block #{} (L1 batch #{}) with timestamp {}",
-                    updates_manager.l2_block.number,
+                    updates_manager.l2_block.number + 1,
                     updates_manager.l1_batch.number,
                     display_timestamp(new_l2_block_params.timestamp)
                 );
@@ -541,6 +546,7 @@ impl ZkSyncStateKeeper {
                 .process_one_tx(batch_executor, updates_manager, tx.clone())
                 .await?;
 
+            let latency = KEEPER_METRICS.match_seal_resolution.start();
             match &seal_resolution {
                 SealResolution::NoSeal | SealResolution::IncludeAndSeal => {
                     let TxExecutionResult::Success {
@@ -581,11 +587,12 @@ impl ZkSyncStateKeeper {
                         format!("failed rolling back transaction {tx_hash:?} in batch executor")
                     })?;
                     self.io
-                        .reject(&tx, reason)
+                        .reject(&tx, reason.clone())
                         .await
                         .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
                 }
             };
+            latency.observe();
 
             if seal_resolution.should_seal() {
                 tracing::debug!(
@@ -593,8 +600,10 @@ impl ZkSyncStateKeeper {
                      transaction {tx_hash}",
                     updates_manager.l1_batch.number
                 );
+                full_latency.observe();
                 return Ok(());
             }
+            full_latency.observe();
         }
         Err(Error::Canceled)
     }
@@ -671,10 +680,14 @@ impl ZkSyncStateKeeper {
         updates_manager: &mut UpdatesManager,
         tx: Transaction,
     ) -> anyhow::Result<(SealResolution, TxExecutionResult)> {
+        let latency = KEEPER_METRICS.execute_tx_outer_time.start();
         let exec_result = batch_executor
             .execute_tx(tx.clone())
             .await
             .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
+        latency.observe();
+
+        let latency = KEEPER_METRICS.determine_seal_resolution.start();
         // All of `TxExecutionResult::BootloaderOutOfGasForTx`,
         // `Halt::NotEnoughGasProvided` correspond to out-of-gas errors but of different nature.
         // - `BootloaderOutOfGasForTx`: it is returned when bootloader stack frame run out of gas before tx execution finished.
@@ -690,23 +703,29 @@ impl ZkSyncStateKeeper {
             | TxExecutionResult::RejectedByVm {
                 reason: Halt::NotEnoughGasProvided,
             } => {
-                let error_message = match &exec_result {
-                    TxExecutionResult::BootloaderOutOfGasForTx => "bootloader_tx_out_of_gas",
+                let (reason, criterion) = match &exec_result {
+                    TxExecutionResult::BootloaderOutOfGasForTx => (
+                        UnexecutableReason::BootloaderOutOfGas,
+                        "bootloader_tx_out_of_gas",
+                    ),
                     TxExecutionResult::RejectedByVm {
                         reason: Halt::NotEnoughGasProvided,
-                    } => "not_enough_gas_provided_to_start_tx",
+                    } => (
+                        UnexecutableReason::NotEnoughGasProvided,
+                        "not_enough_gas_provided_to_start_tx",
+                    ),
                     _ => unreachable!(),
                 };
                 let resolution = if is_first_tx {
-                    SealResolution::Unexecutable(error_message.to_string())
+                    SealResolution::Unexecutable(reason)
                 } else {
                     SealResolution::ExcludeAndSeal
                 };
-                AGGREGATION_METRICS.inc(error_message, &resolution);
+                AGGREGATION_METRICS.l1_batch_reason_inc(criterion, &resolution);
                 resolution
             }
             TxExecutionResult::RejectedByVm { reason } => {
-                SealResolution::Unexecutable(reason.to_string())
+                UnexecutableReason::Halt(reason.clone()).into()
             }
             TxExecutionResult::Success {
                 tx_result,
@@ -785,6 +804,7 @@ impl ZkSyncStateKeeper {
                 )
             }
         };
+        latency.observe();
         Ok((resolution, exec_result))
     }
 }

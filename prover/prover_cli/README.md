@@ -1,6 +1,6 @@
 # Prover CLI
 
-CLI tool for performing maintenance of a zkSync Prover
+CLI tool for performing maintenance of a ZKsync Prover
 
 ## Installation
 
@@ -160,6 +160,36 @@ TODO
 ### `prover_cli config`
 
 TODO
+
+### `prover_cli debug-proof`
+
+Debug proof is an advanced feature that can be used to debug failing circuit proofs. It will re-run the proving circuit
+for a given proof file - and print detailed debug logs.
+
+**WARNING** - it does require compilation with `--release --features verbose_circuits` enabled (which includes all the
+necessary dependencies).
+
+Example output
+
+```
+cargo run --release --features verbose_circuits -- debug-proof --file ~/prover_jobs_23_05.bin
+
+[call_ret_impl/far_call.rs:1012:13] max_passable.witness_hook(&*cs)().unwrap() = 535437
+[call_ret_impl/far_call.rs:1024:13] leftover.witness_hook(&*cs)().unwrap() = 8518
+[call_ret_impl/far_call.rs:1025:13] ergs_to_pass.witness_hook(&*cs)().unwrap() = 544211
+[call_ret_impl/far_call.rs:1036:13] remaining_from_max_passable.witness_hook(&*cs)().unwrap() = 4294958522
+[call_ret_impl/far_call.rs:1037:13] leftover_and_remaining_if_no_uf.witness_hook(&*cs)().unwrap() = 4294967040
+[call_ret_impl/far_call.rs:1047:13] ergs_to_pass.witness_hook(&*cs)().unwrap() = 535437
+[call_ret_impl/far_call.rs:1048:13] remaining_for_this_context.witness_hook(&*cs)().unwrap() = 8518
+[call_ret_impl/far_call.rs:1049:13] extra_ergs_from_caller_to_callee.witness_hook(&*cs)().unwrap() = 0
+[call_ret_impl/far_call.rs:1050:13] callee_stipend.witness_hook(&*cs)().unwrap() = 0
+New frame as a result of FAR CALL: Some(ExecutionContextRecordWitness { this: 0x263eb3945d7cee723110c69da5fabc3c6d5a802f, caller: 0x973a7a18f29699b5b976a5026d795f5169cb3348, code_address: 0x0000000000000000000000000000000000000000, code_page: 2416, base_page: 3075968, heap_upper_bound: 4096, aux_heap_upper_bound: 4096, reverted_queue_head: [0x1d06f395ca74bd80, 0x3c3099adfd7d31cb, 0x119db3dd58b4aca6, 0xb8d2f7bd2c1b5e48], reverted_queue_tail: [0x1d06f395ca74bd80, 0x3c3099adfd7d31cb, 0x119db3dd58b4aca6, 0xb8d2f7bd2c1b5e48], reverted_queue_segment_len: 0, pc: 0, sp: 0, exception_handler_loc: 176, ergs_remaining: 535437, is_static_execution: false, is_kernel_mode: false, this_shard_id: 0, caller_shard_id: 0, code_shard_id: 0, context_u128_value_composite: [0, 0, 0, 0], is_local_call: false, total_pubdata_spent: 0, stipend: 0 })
+thread 'main' panicked at circuit_definitions/src/aux_definitions/witness_oracle.rs:506:13:
+assertion `left == right` failed
+  left: 2097152
+ right: 4096
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+```
 
 ## Development Status
 

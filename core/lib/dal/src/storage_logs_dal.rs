@@ -26,7 +26,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn insert_storage_logs(
         &mut self,
         block_number: L2BlockNumber,
-        logs: &[(H256, Vec<StorageLog>)],
+        logs: &[StorageLog],
     ) -> DalResult<()> {
         self.insert_storage_logs_inner(block_number, logs, 0).await
     }
@@ -34,13 +34,13 @@ impl StorageLogsDal<'_, '_> {
     async fn insert_storage_logs_inner(
         &mut self,
         block_number: L2BlockNumber,
-        logs: &[(H256, Vec<StorageLog>)],
+        logs: &[StorageLog],
         mut operation_number: u32,
     ) -> DalResult<()> {
         let logs_len = logs.len();
         let copy = CopyStatement::new(
             "COPY storage_logs(
-                hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
+                hashed_key, address, key, value, operation_number, miniblock_number,
                 created_at, updated_at
             )
             FROM STDIN WITH (DELIMITER '|')",
@@ -53,23 +53,21 @@ impl StorageLogsDal<'_, '_> {
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
-        for (tx_hash, logs) in logs {
-            for log in logs {
-                write_str!(
-                    &mut buffer,
-                    r"\\x{hashed_key:x}|\\x{address:x}|\\x{key:x}|\\x{value:x}|",
-                    hashed_key = log.key.hashed_key(),
-                    address = log.key.address(),
-                    key = log.key.key(),
-                    value = log.value
-                );
-                writeln_str!(
-                    &mut buffer,
-                    r"{operation_number}|\\x{tx_hash:x}|{block_number}|{now}|{now}"
-                );
+        for log in logs {
+            write_str!(
+                &mut buffer,
+                r"\\x{hashed_key:x}|\\x{address:x}|\\x{key:x}|\\x{value:x}|",
+                hashed_key = log.key.hashed_key(),
+                address = log.key.address(),
+                key = log.key.key(),
+                value = log.value
+            );
+            writeln_str!(
+                &mut buffer,
+                r"{operation_number}|{block_number}|{now}|{now}"
+            );
 
-                operation_number += 1;
-            }
+            operation_number += 1;
         }
         copy.send(buffer.as_bytes()).await
     }
@@ -117,7 +115,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn append_storage_logs(
         &mut self,
         block_number: L2BlockNumber,
-        logs: &[(H256, Vec<StorageLog>)],
+        logs: &[StorageLog],
     ) -> DalResult<()> {
         let operation_number = sqlx::query!(
             r#"
@@ -565,7 +563,6 @@ impl StorageLogsDal<'_, '_> {
                 key,
                 value,
                 operation_number,
-                tx_hash,
                 miniblock_number
             FROM
                 storage_logs
@@ -585,7 +582,6 @@ impl StorageLogsDal<'_, '_> {
                 key: H256::from_slice(&row.key),
                 value: H256::from_slice(&row.value),
                 operation_number: row.operation_number as u64,
-                tx_hash: H256::from_slice(&row.tx_hash),
                 l2_block_number: L2BlockNumber(row.miniblock_number as u32),
             })
             .collect()
@@ -745,7 +741,6 @@ mod tests {
             .await
             .unwrap();
 
-        let logs = [(H256::zero(), logs)];
         conn.storage_logs_dal()
             .insert_storage_logs(L2BlockNumber(number), &logs)
             .await
@@ -783,7 +778,7 @@ mod tests {
 
         // Add more logs and check log ordering.
         let third_log = StorageLog::new_write_log(first_key, H256::repeat_byte(3));
-        let more_logs = [(H256::repeat_byte(1), vec![third_log])];
+        let more_logs = vec![third_log];
         conn.storage_logs_dal()
             .append_storage_logs(L2BlockNumber(1), &more_logs)
             .await

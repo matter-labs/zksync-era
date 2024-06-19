@@ -8,15 +8,10 @@ use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_config::{
-    configs::{
-        DatabaseSecrets, FriWitnessGeneratorConfig, ObservabilityConfig, PostgresConfig,
-        PrometheusConfig,
-    },
-    ObjectStoreConfig,
-};
+use zksync_config::ObjectStoreConfig;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -64,12 +59,25 @@ struct Opt {
     /// Start all aggregation rounds for the witness generator.
     #[structopt(short = "a", long = "all_rounds")]
     all_rounds: bool,
+    /// Path to the configuration file.
+    #[structopt(long)]
+    config_path: Option<std::path::PathBuf>,
+    /// Path to the secrets file.
+    #[structopt(long)]
+    secrets_path: Option<std::path::PathBuf>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let opt = Opt::from_args();
+
+    let general_config = load_general_config(opt.config_path).context("general config")?;
+
+    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+
+    let observability_config = general_config
+        .observability
+        .context("observability config")?;
     let log_format: vlog::LogFormat = observability_config
         .log_format
         .parse()
@@ -100,18 +108,24 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let opt = Opt::from_args();
     let started_at = Instant::now();
     let use_push_gateway = opt.batch_size.is_some();
 
-    let object_store_config =
-        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let object_store_config = ProverObjectStoreConfig(
+        general_config
+            .prover_config
+            .context("prover config")?
+            .prover_object_store
+            .context("object store")?,
+    );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
-    let config =
-        FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env()")?;
-    let prometheus_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let config = general_config
+        .witness_generator
+        .context("witness generator config")?;
+    let prometheus_config = general_config
+        .prometheus_config
+        .context("prometheus config")?;
+    let postgres_config = general_config.postgres_config.context("postgres config")?;
     let connection_pool = ConnectionPool::<Core>::builder(
         database_secrets.master_url()?,
         postgres_config.max_connections()?,
@@ -203,58 +217,53 @@ async fn main() -> anyhow::Result<()> {
                                 .context("ObjectStoreConfig::from_env()")?,
                         )
                         .create_store()
-                        .await,
+                        .await?,
                     ),
                 };
                 let generator = BasicWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     public_blob_store,
                     connection_pool.clone(),
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::LeafAggregation => {
                 let generator = LeafAggregationWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::NodeAggregation => {
                 let generator = NodeAggregationWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::RecursionTip => {
                 let generator = RecursionTipWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::Scheduler => {
                 let generator = SchedulerWitnessGenerator::new(
                     config.clone(),
-                    &store_factory,
+                    store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                )
-                .await;
+                );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
         };

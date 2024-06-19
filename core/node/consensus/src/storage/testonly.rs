@@ -3,12 +3,49 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_contracts::BaseSystemContracts;
+use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
+use zksync_types::{
+    commitment::L1BatchWithMetadata, protocol_version::ProtocolSemanticVersion,
+    system_contracts::get_system_smart_contracts, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
+};
 
 use super::ConnectionPool;
 
+pub(crate) fn mock_genesis_params(protocol_version: ProtocolVersionId) -> GenesisParams {
+    let mut cfg = mock_genesis_config();
+    cfg.protocol_version = Some(ProtocolSemanticVersion {
+        minor: protocol_version,
+        patch: 0.into(),
+    });
+    GenesisParams::from_genesis_config(
+        cfg,
+        BaseSystemContracts::load_from_disk(),
+        get_system_smart_contracts(),
+    )
+    .unwrap()
+}
+
 impl ConnectionPool {
+    pub(crate) async fn test(
+        from_snapshot: bool,
+        protocol_version: ProtocolVersionId,
+    ) -> ConnectionPool {
+        match from_snapshot {
+            true => {
+                ConnectionPool::from_snapshot(Snapshot::make(
+                    L1BatchNumber(23),
+                    L2BlockNumber(87),
+                    &[],
+                    mock_genesis_params(protocol_version),
+                ))
+                .await
+            }
+            false => ConnectionPool::from_genesis(protocol_version).await,
+        }
+    }
+
     /// Waits for the `number` L2 block to have a certificate.
     pub async fn wait_for_certificate(
         &self,
@@ -30,6 +67,28 @@ impl ConnectionPool {
         Ok(())
     }
 
+    /// Waits for the `number` L1 batch.
+    pub async fn wait_for_batch(
+        &self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+    ) -> ctx::Result<L1BatchWithMetadata> {
+        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
+        loop {
+            if let Some(payload) = self
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .batch(ctx, number)
+                .await
+                .wrap("batch()")?
+            {
+                return Ok(payload);
+            }
+            ctx.sleep(POLL_INTERVAL).await?;
+        }
+    }
+
     /// Takes a storage snapshot at the last sealed L1 batch.
     pub(crate) async fn snapshot(&self, ctx: &ctx::Ctx) -> ctx::Result<Snapshot> {
         let mut conn = self.connection(ctx).await.wrap("connection()")?;
@@ -37,11 +96,11 @@ impl ConnectionPool {
     }
 
     /// Constructs a new db initialized with genesis state.
-    pub(crate) async fn from_genesis() -> Self {
+    pub(crate) async fn from_genesis(protocol_version: ProtocolVersionId) -> Self {
         let pool = zksync_dal::ConnectionPool::test_pool().await;
         {
             let mut storage = pool.connection().await.unwrap();
-            insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            insert_genesis_batch(&mut storage, &mock_genesis_params(protocol_version))
                 .await
                 .unwrap();
         }
