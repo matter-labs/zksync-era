@@ -1,6 +1,6 @@
 # Development guide
 
-This document covers development-related actions in zkSync.
+This document covers development-related actions in ZKsync.
 
 ## Initializing the project
 

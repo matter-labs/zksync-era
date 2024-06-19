@@ -122,7 +122,7 @@ pub enum SealResolution {
     /// tx in the next block.
     /// While it may be kinda counter-intuitive that we first execute transaction and just then
     /// decided whether we should include it into the block or not, it is required by the architecture of
-    /// zkSync Era. We may not know, for example, how much gas block will consume, because 1) smart contract
+    /// ZKsync Era. We may not know, for example, how much gas block will consume, because 1) smart contract
     /// execution is hard to predict and 2) we may have writes to the same storage slots, which will save us
     /// gas.
     ExcludeAndSeal,
@@ -286,7 +286,7 @@ mod tests {
     fn apply_tx_to_manager(tx: Transaction, manager: &mut UpdatesManager) {
         manager.extend_from_executed_transaction(
             tx,
-            create_execution_result(0, []),
+            create_execution_result([]),
             vec![],
             BlockGasCount::default(),
             ExecutionMetrics::default(),

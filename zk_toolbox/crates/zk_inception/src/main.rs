@@ -7,7 +7,9 @@ use common::{
 use config::EcosystemConfig;
 use xshell::Shell;
 
-use crate::commands::{args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands};
+use crate::commands::{
+    args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands, prover::ProverCommands,
+};
 
 pub mod accept_ownership;
 mod commands;
@@ -35,6 +37,9 @@ pub enum InceptionSubcommands {
     /// Chain related commands
     #[command(subcommand)]
     Chain(ChainCommands),
+    /// Prover related commands
+    #[command(subcommand)]
+    Prover(ProverCommands),
     /// Run server
     Server(RunServerArgs),
     /// Run containers for local development
@@ -101,6 +106,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
     match inception_args.command {
         InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(shell, args).await?,
         InceptionSubcommands::Chain(args) => commands::chain::run(shell, args).await?,
+        InceptionSubcommands::Prover(args) => commands::prover::run(shell, args).await?,
         InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
         InceptionSubcommands::Containers => commands::containers::run(shell)?,
     }

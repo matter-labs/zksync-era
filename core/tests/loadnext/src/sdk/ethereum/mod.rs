@@ -135,7 +135,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         self.eth_client.as_ref()
     }
 
-    /// Returns the zkSync contract address.
+    /// Returns the ZKsync contract address.
     pub fn contract_address(&self) -> H160 {
         self.client().contract_addr()
     }
@@ -272,7 +272,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     }
 
     /// Performs a transfer of funds from one Ethereum account to another.
-    /// Note: This operation is performed on Ethereum, and not related to zkSync directly.
+    /// Note: This operation is performed on Ethereum, and not related to ZKsync directly.
     pub async fn transfer(
         &self,
         token_address: Address,
@@ -443,7 +443,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         Ok(tx_hash)
     }
 
-    /// Performs a deposit in zkSync network.
+    /// Performs a deposit in ZKsync network.
     /// For ERC20 tokens, a deposit must be approved beforehand via the `EthereumProvider::approve_erc20_token_deposits` method.
     #[allow(clippy::too_many_arguments)]
     pub async fn deposit(

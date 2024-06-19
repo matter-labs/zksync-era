@@ -39,6 +39,7 @@ fn mock_block_details_base(number: u32, hash: Option<H256>) -> api::BlockDetails
         executed_at: None,
         l1_gas_price: 10,
         l2_fair_gas_price: 100,
+        fair_pubdata_price: None,
         base_system_contracts_hashes: Default::default(),
     }
 }
@@ -85,13 +86,12 @@ async fn rpc_data_provider_basics() {
     };
     let mut client: Box<DynClient<L2>> = Box::new(l2_parameters.mock_client());
 
-    let output = client
+    let root_hash = client
         .batch_details(L1BatchNumber(1), &last_l2_block)
         .await
         .unwrap()
         .expect("missing block");
-    assert_eq!(output.root_hash, H256::from_low_u64_be(1));
-    assert_matches!(output.source, TreeDataProviderSource::BatchDetailsRpc);
+    assert_eq!(root_hash, H256::from_low_u64_be(1));
 
     // Query a future L1 batch.
     let output = client
@@ -269,13 +269,12 @@ async fn test_using_l1_data_provider(l1_batch_timestamps: &[u64]) {
         L1DataProvider::new(Box::new(eth_params.client()), DIAMOND_PROXY_ADDRESS).unwrap();
     for i in 0..l1_batch_timestamps.len() {
         let number = L1BatchNumber(i as u32 + 1);
-        let output = provider
+        let root_hash = provider
             .batch_details(number, &get_last_l2_block(&mut storage, number).await)
             .await
             .unwrap()
             .expect("no root hash");
-        assert_eq!(output.root_hash, H256::repeat_byte(number.0 as u8));
-        assert_matches!(output.source, TreeDataProviderSource::L1CommitEvent);
+        assert_eq!(root_hash, H256::repeat_byte(number.0 as u8));
 
         let past_l1_batch = provider.past_l1_batch.unwrap();
         assert_eq!(past_l1_batch.number, number);
@@ -351,12 +350,13 @@ async fn combined_data_provider_errors() {
 
     let mut main_node_client = MockMainNodeClient::default();
     main_node_client.insert_batch(L1BatchNumber(2), H256::repeat_byte(2));
-    let mut provider = L1DataProvider::new(Box::new(eth_params.client()), DIAMOND_PROXY_ADDRESS)
-        .unwrap()
-        .with_fallback(Box::new(main_node_client));
+    let mut provider = CombinedDataProvider::new(main_node_client);
+    let l1_provider =
+        L1DataProvider::new(Box::new(eth_params.client()), DIAMOND_PROXY_ADDRESS).unwrap();
+    provider.set_l1(l1_provider);
 
     // L1 batch #1 should be obtained from L1
-    let output = provider
+    let root_hash = provider
         .batch_details(
             L1BatchNumber(1),
             &get_last_l2_block(&mut storage, L1BatchNumber(1)).await,
@@ -364,12 +364,11 @@ async fn combined_data_provider_errors() {
         .await
         .unwrap()
         .expect("no root hash");
-    assert_eq!(output.root_hash, H256::repeat_byte(1));
-    assert_matches!(output.source, TreeDataProviderSource::L1CommitEvent);
+    assert_eq!(root_hash, H256::repeat_byte(1));
     assert!(provider.l1.is_some());
 
     // L1 batch #2 should be obtained from L2
-    let output = provider
+    let root_hash = provider
         .batch_details(
             L1BatchNumber(2),
             &get_last_l2_block(&mut storage, L1BatchNumber(2)).await,
@@ -377,7 +376,6 @@ async fn combined_data_provider_errors() {
         .await
         .unwrap()
         .expect("no root hash");
-    assert_eq!(output.root_hash, H256::repeat_byte(2));
-    assert_matches!(output.source, TreeDataProviderSource::BatchDetailsRpc);
+    assert_eq!(root_hash, H256::repeat_byte(2));
     assert!(provider.l1.is_none());
 }

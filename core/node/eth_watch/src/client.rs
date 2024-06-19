@@ -57,7 +57,7 @@ impl EthHttpQueryClient {
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
         tracing::debug!(
-            "New eth client, zkSync addr: {:x}, governance addr: {:?}",
+            "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
             diamond_proxy_addr,
             governance_address
         );

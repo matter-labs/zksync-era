@@ -4,7 +4,7 @@ use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
     service::{ServiceContext, StopReceiver},
-    task::{Task, TaskId},
+    task::{TaskId, UnconstrainedTask},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -43,18 +43,18 @@ impl WiringLayer for PrometheusExporterLayer {
             prometheus_health_updater,
         });
 
-        node.add_task(task);
+        node.add_unconstrained_task(task);
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl Task for PrometheusExporterTask {
+impl UnconstrainedTask for PrometheusExporterTask {
     fn id(&self) -> TaskId {
         "prometheus_exporter".into()
     }
 
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run_unconstrained(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let prometheus_task = self.config.run(stop_receiver.0);
         self.prometheus_health_updater
             .update(HealthStatus::Ready.into());

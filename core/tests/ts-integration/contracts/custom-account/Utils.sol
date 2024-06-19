@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 /**
  * @author Matter Labs
- * @dev Common utilities used in zkSync system contracts
+ * @dev Common utilities used in ZKsync system contracts
  */
 library Utils {
     function safeCastToU128(uint256 _x) internal pure returns (uint128) {

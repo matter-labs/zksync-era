@@ -38,7 +38,7 @@ mod node_builder;
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 #[derive(Debug, Parser)]
-#[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
+#[command(author = "Matter Labs", version, about = "ZKsync operator node", long_about = None)]
 struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]

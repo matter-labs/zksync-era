@@ -74,7 +74,7 @@ mod tests {
 
         l2_block_accumulator.extend_from_executed_transaction(
             tx,
-            create_execution_result(0, []),
+            create_execution_result([]),
             BlockGasCount::default(),
             ExecutionMetrics::default(),
             vec![],

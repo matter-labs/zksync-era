@@ -3,7 +3,7 @@
 //! Most of the types are re-exported from the `web3` crate, but some of them maybe extended with
 //! new variants (enums) or optional fields (structures).
 //!
-//! These "extensions" are required to provide more zkSync-specific information while remaining Web3-compilant.
+//! These "extensions" are required to provide more ZKsync-specific information while remaining Web3-compilant.
 
 use core::{
     convert::{TryFrom, TryInto},
@@ -21,7 +21,7 @@ pub use zksync_types::{
     Address, Transaction, H160, H256, H64, U256, U64,
 };
 
-/// Token in the zkSync network
+/// Token in the ZKsync network
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Token {

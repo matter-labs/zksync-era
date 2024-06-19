@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Context;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_reorg_detector::{self, ReorgDetector};
 
 use crate::{
@@ -36,6 +37,7 @@ impl WiringLayer for ReorgDetectorCheckerLayer {
 
         // Create and insert precondition.
         context.add_precondition(Box::new(CheckerPrecondition {
+            pool: pool.clone(),
             reorg_detector: ReorgDetector::new(main_node_client, pool),
         }));
 
@@ -44,6 +46,7 @@ impl WiringLayer for ReorgDetectorCheckerLayer {
 }
 
 pub struct CheckerPrecondition {
+    pool: ConnectionPool<Core>,
     reorg_detector: ReorgDetector,
 }
 
@@ -53,7 +56,21 @@ impl Precondition for CheckerPrecondition {
         "reorg_detector_checker".into()
     }
 
-    async fn check(mut self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn check(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        // Given that this is a precondition -- i.e. something that starts before some invariants are met,
+        // we need to first ensure that there is at least one batch in the database (there may be none if
+        // either genesis or snapshot recovery has not been performed yet).
+        let earliest_batch = zksync_dal::helpers::wait_for_l1_batch(
+            &self.pool,
+            REORG_DETECTED_SLEEP_INTERVAL,
+            &mut stop_receiver.0,
+        )
+        .await?;
+        if earliest_batch.is_none() {
+            // Stop signal received.
+            return Ok(());
+        }
+
         loop {
             match self.reorg_detector.run_once(stop_receiver.0.clone()).await {
                 Ok(()) => return Ok(()),

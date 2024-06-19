@@ -48,10 +48,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             storage_logs_count + log_queries.len() + precompile_calls_count;
 
         VmExecutionLogs {
-            storage_logs: storage_logs
-                .into_iter()
-                .map(|log| log.glue_into())
-                .collect(),
+            storage_logs: storage_logs.into_iter().map(GlueInto::glue_into).collect(),
             events,
             user_l2_to_l1_logs: user_logs
                 .into_iter()
