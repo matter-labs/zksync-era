@@ -66,7 +66,7 @@ fn test_get_used_contracts() {
             contract_address: CONTRACT_DEPLOYER_ADDRESS,
             calldata: big_calldata,
             value: Default::default(),
-            factory_deps: Some(vec![vec![1; 32]]),
+            factory_deps: vec![vec![1; 32]],
         },
         1,
     );
@@ -77,7 +77,7 @@ fn test_get_used_contracts() {
 
     assert!(res2.result.is_failed());
 
-    for factory_dep in tx2.execute.factory_deps.unwrap() {
+    for factory_dep in tx2.execute.factory_deps {
         let hash = hash_bytecode(&factory_dep);
         let hash_to_u256 = h256_to_u256(hash);
         assert!(known_bytecodes_without_aa_code(&vm.vm).contains(&hash_to_u256));

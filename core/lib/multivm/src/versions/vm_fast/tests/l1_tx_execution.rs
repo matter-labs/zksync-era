@@ -179,7 +179,7 @@ fn test_l1_tx_execution_high_gas_limit() {
         Execute {
             contract_address: L1_MESSENGER_ADDRESS,
             value: 0.into(),
-            factory_deps: None,
+            factory_deps: vec![],
             calldata,
         },
         0,

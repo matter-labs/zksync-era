@@ -19,15 +19,15 @@ use zksync_types::{
         compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
+    BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
+    L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
-    glue::{log_query_from_change, storage_log_query_from_change},
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
@@ -514,15 +514,17 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .world_diff
                     .get_storage_changes_after(&start)
                     .into_iter()
-                    .map(|((address, key), change)| {
-                        storage_log_query_from_change(
-                            change.tx_number,
-                            (
-                                (address, key),
-                                (change.before.unwrap_or_default(), change.after),
-                            ),
-                            change.is_initial,
-                        )
+                    .map(|((address, key), change)| StorageLogWithPreviousValue {
+                        log: StorageLog {
+                            key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                            value: u256_to_h256(change.after),
+                            kind: if change.is_initial {
+                                StorageLogKind::InitialWrite
+                            } else {
+                                StorageLogKind::RepeatedWrite
+                            },
+                        },
+                        previous_value: u256_to_h256(change.before.unwrap_or_default()),
                     })
                     .collect(),
                 events,
@@ -598,12 +600,14 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
 
         CurrentExecutionState {
             events,
-            deduplicated_storage_log_queries: self
+            deduplicated_storage_logs: self
                 .inner
                 .world_diff
                 .get_storage_changes()
-                .map(|(key, (tx_number, before, after))| {
-                    log_query_from_change(tx_number, (key, (before.unwrap_or_default(), after)))
+                .map(|((address, key), (_, _, value))| StorageLog {
+                    key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                    value: u256_to_h256(value),
+                    kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
                 })
                 .collect(),
             used_contract_hashes: vec![],

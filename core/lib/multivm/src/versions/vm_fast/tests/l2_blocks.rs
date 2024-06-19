@@ -38,7 +38,7 @@ fn get_l1_noop() -> Transaction {
             contract_address: H160::zero(),
             calldata: vec![],
             value: U256::zero(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         received_timestamp_ms: 0,
         raw_bytes: None,

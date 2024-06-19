@@ -31,7 +31,7 @@ fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 
             contract_address: test_contract_address,
             calldata: first_tx_calldata,
             value: 0.into(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -41,7 +41,7 @@ fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 
             contract_address: test_contract_address,
             calldata: second_tx_calldata,
             value: 0.into(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );

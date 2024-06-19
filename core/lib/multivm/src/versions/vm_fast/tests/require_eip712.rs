@@ -66,7 +66,7 @@ async fn test_require_eip712() {
             contract_address: account_abstraction.address,
             calldata: encoded_input,
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -131,7 +131,7 @@ async fn test_require_eip712() {
         },
         account_abstraction.address,
         U256::from(28374938),
-        None,
+        vec![],
         Default::default(),
     );
 
@@ -143,7 +143,7 @@ async fn test_require_eip712() {
         .sign_typed_data(&domain, &transaction_request)
         .await
         .unwrap();
-    let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId::from(chain_id));
+    let encoded_tx = transaction_request.get_signed_bytes(&signature).unwrap();
 
     let (aa_txn_request, aa_hash) =
         TransactionRequest::from_bytes(&encoded_tx, L2ChainId::from(chain_id)).unwrap();
