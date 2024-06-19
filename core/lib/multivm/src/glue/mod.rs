@@ -9,8 +9,7 @@
 
 pub(crate) mod history_mode;
 pub mod tracers;
-pub(crate) mod types;
-pub(crate) use types::vm::storage_log::storage_log_from_storage_log_query;
+mod types;
 
 /// This trait is a workaround on the Rust's [orphan rule](orphan_rule).
 /// We need to convert a lot of types that come from two different versions of some crate,

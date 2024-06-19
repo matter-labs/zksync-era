@@ -232,8 +232,14 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     let storage_logs = [
         (U256::from(1), Query::Read(U256::from(0))),
         (U256::from(2), Query::InitialWrite(U256::from(1))),
-        (U256::from(3), Query::RepeatedWrite(U256::from(3))),
-        (U256::from(2), Query::RepeatedWrite(U256::from(4))),
+        (
+            U256::from(3),
+            Query::RepeatedWrite(U256::from(2), U256::from(3)),
+        ),
+        (
+            U256::from(2),
+            Query::RepeatedWrite(U256::from(1), U256::from(4)),
+        ),
     ];
     let execution_result = create_execution_result(storage_logs);
     l2_block.extend_from_executed_transaction(
@@ -248,7 +254,10 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     let tx = create_transaction(10, 100);
     let storage_logs = [
         (U256::from(4), Query::InitialWrite(U256::from(5))),
-        (U256::from(3), Query::RepeatedWrite(U256::from(6))),
+        (
+            U256::from(3),
+            Query::RepeatedWrite(U256::from(3), U256::from(6)),
+        ),
     ];
     let execution_result = create_execution_result(storage_logs);
     l2_block.extend_from_executed_transaction(

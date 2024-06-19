@@ -5,7 +5,8 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     tx::tx_execution_info::DeduplicatedWritesMetrics,
-    writes::compression::compress_with_best_strategy, StorageKey, StorageLog, StorageLogKind,
+    writes::compression::compress_with_best_strategy, StorageKey, StorageLogKind,
+    StorageLogWithPreviousValue,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -53,13 +54,13 @@ impl StorageWritesDeduplicator {
     }
 
     /// Applies storage logs to the state.
-    pub fn apply<'a, I: IntoIterator<Item = &'a StorageLog>>(&mut self, logs: I) {
+    pub fn apply<'a, I: IntoIterator<Item = &'a StorageLogWithPreviousValue>>(&mut self, logs: I) {
         self.process_storage_logs(logs);
     }
 
     /// Returns metrics as if provided storage logs are applied to the state.
     /// It's implemented in the following way: apply logs -> save current metrics -> rollback logs.
-    pub fn apply_and_rollback<'a, I: IntoIterator<Item = &'a StorageLog>>(
+    pub fn apply_and_rollback<'a, I: IntoIterator<Item = &'a StorageLogWithPreviousValue>>(
         &mut self,
         logs: I,
     ) -> DeduplicatedWritesMetrics {
@@ -70,7 +71,7 @@ impl StorageWritesDeduplicator {
     }
 
     /// Applies logs to the empty state and returns metrics.
-    pub fn apply_on_empty_state<'a, I: IntoIterator<Item = &'a StorageLog>>(
+    pub fn apply_on_empty_state<'a, I: IntoIterator<Item = &'a StorageLogWithPreviousValue>>(
         logs: I,
     ) -> DeduplicatedWritesMetrics {
         let mut deduplicator = Self::new();
@@ -81,18 +82,18 @@ impl StorageWritesDeduplicator {
     /// Processes storage logs and returns updates for `modified_keys` and `metrics` fields.
     /// Metrics can be used later to rollback the state.
     /// We don't care about `initial_values` changes as we only inserted values there and they are always valid.
-    fn process_storage_logs<'a, I: IntoIterator<Item = &'a StorageLog>>(
+    fn process_storage_logs<'a, I: IntoIterator<Item = &'a StorageLogWithPreviousValue>>(
         &mut self,
         logs: I,
     ) -> Vec<UpdateItem> {
         let mut updates = Vec::new();
-        for log in logs.into_iter().filter(|log| log.is_write()) {
-            let key = log.key;
-            let initial_value = *self.initial_values.entry(key).or_insert(log.value);
+        for log in logs.into_iter().filter(|log| log.log.is_write()) {
+            let key = log.log.key;
+            let initial_value = *self.initial_values.entry(key).or_insert(log.previous_value);
             let was_key_modified = self.modified_key_values.contains_key(&key);
-            let modified_value = (initial_value != log.value).then_some(log.value);
+            let modified_value = (initial_value != log.log.value).then_some(log.log.value);
 
-            let is_write_initial = log.kind == StorageLogKind::InitialWrite;
+            let is_write_initial = log.log.kind == StorageLogKind::InitialWrite;
             let field_to_change = if is_write_initial {
                 &mut self.metrics.initial_storage_writes
             } else {
@@ -100,7 +101,6 @@ impl StorageWritesDeduplicator {
             };
 
             let total_size = &mut self.metrics.total_updated_values_size;
-
             match (was_key_modified, modified_value) {
                 (true, None) => {
                     let value = self.modified_key_values.remove(&key).unwrap_or_else(|| {
@@ -216,7 +216,7 @@ mod tests {
     use zksync_utils::u256_to_h256;
 
     use super::*;
-    use crate::H160;
+    use crate::{StorageLog, H160};
 
     fn storage_log(
         key: U256,
@@ -224,31 +224,45 @@ mod tests {
         written_value: U256,
         rollback: bool,
         is_initial: bool,
-    ) -> StorageLog {
+    ) -> StorageLogWithPreviousValue {
         let kind = if is_initial {
             StorageLogKind::InitialWrite
         } else {
             StorageLogKind::RepeatedWrite
         };
-        StorageLog {
-            key: StorageKey::new(AccountTreeId::default(), u256_to_h256(key)),
-            value: u256_to_h256(if rollback { read_value } else { written_value }),
-            kind,
+        StorageLogWithPreviousValue {
+            log: StorageLog {
+                key: StorageKey::new(AccountTreeId::default(), u256_to_h256(key)),
+                value: u256_to_h256(if rollback { read_value } else { written_value }),
+                kind,
+            },
+            previous_value: u256_to_h256(if rollback { written_value } else { read_value }),
         }
     }
 
-    fn storage_log_with_address(address: H160, key: U256, written_value: U256) -> StorageLog {
-        StorageLog {
-            key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-            value: u256_to_h256(written_value),
-            kind: StorageLogKind::RepeatedWrite,
+    fn storage_log_with_address(
+        address: H160,
+        key: U256,
+        written_value: U256,
+    ) -> StorageLogWithPreviousValue {
+        StorageLogWithPreviousValue {
+            log: StorageLog {
+                key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                value: u256_to_h256(written_value),
+                kind: StorageLogKind::RepeatedWrite,
+            },
+            previous_value: H256::from_low_u64_le(1234),
         }
     }
 
     #[test]
     fn storage_writes_deduplicator() {
         // Each test scenario is a tuple (input, expected output, description).
-        let scenarios: Vec<(Vec<StorageLog>, DeduplicatedWritesMetrics, String)> = vec![
+        let scenarios: Vec<(
+            Vec<StorageLogWithPreviousValue>,
+            DeduplicatedWritesMetrics,
+            String,
+        )> = vec![
             (
                 vec![storage_log(
                     0u32.into(),

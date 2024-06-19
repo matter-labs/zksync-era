@@ -474,21 +474,19 @@ mod tests {
         });
 
         let mut batch_result = default_vm_batch_result();
-        batch_result
-            .final_execution_state
-            .deduplicated_storage_logs
-            .clone_from(&storage_logs);
+        batch_result.final_execution_state.deduplicated_storage_logs =
+            storage_logs.iter().map(|log| log.log).collect();
         batch_result.state_diffs = Some(
             storage_logs
                 .into_iter()
-                .filter(|&log| log.kind == StorageLogKind::InitialWrite)
+                .filter(|&log| log.log.kind == StorageLogKind::InitialWrite)
                 .map(|log| StateDiffRecord {
-                    address: *log.key.address(),
-                    key: h256_to_u256(*log.key.key()),
-                    derived_key: log.key.hashed_key().0,
+                    address: *log.log.key.address(),
+                    key: h256_to_u256(*log.log.key.key()),
+                    derived_key: log.log.key.hashed_key().0,
                     enumeration_index: 0,
-                    initial_value: U256::zero(), // TODO not sure about this one
-                    final_value: h256_to_u256(log.value),
+                    initial_value: h256_to_u256(log.previous_value),
+                    final_value: h256_to_u256(log.log.value),
                 })
                 .collect(),
         );

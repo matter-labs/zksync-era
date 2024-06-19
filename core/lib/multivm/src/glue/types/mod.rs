@@ -5,7 +5,7 @@
 //!
 //! This "glue layer" is generally not visible outside of the crate.
 
-pub(crate) mod vm;
+mod vm;
 mod zk_evm_1_3_1;
 mod zk_evm_1_3_3;
 mod zk_evm_1_4_0;

@@ -486,7 +486,8 @@ impl StorageSnapshot {
             let res = executor.execute_tx(tx).await.unwrap();
             if let TxExecutionResult::Success { tx_result, .. } = res {
                 let storage_logs = &tx_result.logs.storage_logs;
-                storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.is_write()));
+                storage_writes_deduplicator
+                    .apply(storage_logs.iter().filter(|log| log.log.is_write()));
             } else {
                 panic!("Unexpected tx execution result: {res:?}");
             };
@@ -506,7 +507,7 @@ impl StorageSnapshot {
 
         let finished_batch = executor.finish_batch().await.unwrap();
         let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
-        storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.is_write()));
+        storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log.is_write()));
         let modified_entries = storage_writes_deduplicator.into_modified_key_values();
         all_logs.extend(
             modified_entries

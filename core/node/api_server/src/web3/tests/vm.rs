@@ -11,7 +11,8 @@ use zksync_types::{
     api::{ApiStorageLog, Log},
     get_intrinsic_constants,
     transaction_request::CallRequest,
-    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogKind, U256,
+    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue,
+    U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
@@ -269,7 +270,7 @@ async fn send_raw_transaction_after_snapshot_recovery() {
 struct SendTransactionWithDetailedOutputTest;
 
 impl SendTransactionWithDetailedOutputTest {
-    fn storage_logs(&self) -> Vec<StorageLog> {
+    fn storage_logs(&self) -> Vec<StorageLogWithPreviousValue> {
         let log = StorageLog {
             key: StorageKey::new(
                 AccountTreeId::new(Address::zero()),
@@ -278,7 +279,7 @@ impl SendTransactionWithDetailedOutputTest {
             value: u256_to_h256(U256::one()),
             kind: StorageLogKind::Read,
         };
-        vec![
+        [
             StorageLog {
                 kind: StorageLogKind::Read,
                 ..log
@@ -292,6 +293,12 @@ impl SendTransactionWithDetailedOutputTest {
                 ..log
             },
         ]
+        .into_iter()
+        .map(|log| StorageLogWithPreviousValue {
+            log,
+            previous_value: u256_to_h256(U256::one()),
+        })
+        .collect()
     }
 
     fn vm_events(&self) -> Vec<VmEvent> {
@@ -365,7 +372,7 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             send_result.storage_logs,
             self.storage_logs()
                 .iter()
-                .filter(|x| x.is_write())
+                .filter(|x| x.log.is_write())
                 .map(ApiStorageLog::from)
                 .collect_vec()
         );

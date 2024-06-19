@@ -436,7 +436,7 @@ impl L2BlockSealCommand {
             self.l2_block
                 .storage_logs
                 .iter()
-                .filter(|log| log.is_write()),
+                .filter(|log| log.log.is_write()),
         );
         let deduplicated_logs = storage_writes_deduplicator.into_modified_key_values();
 

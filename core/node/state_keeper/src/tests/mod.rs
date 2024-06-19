@@ -22,7 +22,8 @@ use zksync_types::{
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::tx_execution_info::ExecutionMetrics,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogKind, Transaction, H256, U256, ZKPORTER_IS_AVAILABLE,
+    StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, H256, U256,
+    ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::u256_to_h256;
 
@@ -147,22 +148,27 @@ pub(super) fn create_execution_result(
 pub(super) enum Query {
     Read(U256),
     InitialWrite(U256),
-    RepeatedWrite(U256),
+    RepeatedWrite(U256, U256),
 }
 
 impl Query {
-    fn into_log(self, key: U256) -> StorageLog {
-        StorageLog {
-            kind: match self {
-                Self::Read(_) => StorageLogKind::Read,
-                Self::InitialWrite(_) => StorageLogKind::InitialWrite,
-                Self::RepeatedWrite(_) => StorageLogKind::RepeatedWrite,
+    fn into_log(self, key: U256) -> StorageLogWithPreviousValue {
+        StorageLogWithPreviousValue {
+            log: StorageLog {
+                kind: match self {
+                    Self::Read(_) => StorageLogKind::Read,
+                    Self::InitialWrite(_) => StorageLogKind::InitialWrite,
+                    Self::RepeatedWrite(_, _) => StorageLogKind::RepeatedWrite,
+                },
+                key: StorageKey::new(AccountTreeId::new(Address::default()), u256_to_h256(key)),
+                value: u256_to_h256(match self {
+                    Query::Read(_) => U256::zero(),
+                    Query::InitialWrite(value) | Query::RepeatedWrite(_, value) => value,
+                }),
             },
-            key: StorageKey::new(AccountTreeId::new(Address::default()), u256_to_h256(key)),
-            value: u256_to_h256(match self {
-                Query::Read(value) | Query::InitialWrite(value) | Query::RepeatedWrite(value) => {
-                    value
-                }
+            previous_value: u256_to_h256(match self {
+                Query::Read(value) | Query::RepeatedWrite(value, _) => value,
+                Query::InitialWrite(_) => U256::zero(),
             }),
         }
     }

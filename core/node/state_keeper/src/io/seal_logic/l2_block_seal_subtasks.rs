@@ -377,7 +377,7 @@ mod tests {
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
         tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
         AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
-        StorageLogKind, VmEvent,
+        StorageLogKind, StorageLogWithPreviousValue, VmEvent,
     };
     use zksync_utils::h256_to_u256;
 
@@ -418,10 +418,13 @@ mod tests {
         }];
         let storage_key = StorageKey::new(AccountTreeId::new(Address::zero()), H256::zero());
         let storage_value = H256::from_low_u64_be(1);
-        let storage_logs = vec![StorageLog {
-            key: storage_key,
-            value: storage_value,
-            kind: StorageLogKind::InitialWrite,
+        let storage_logs = vec![StorageLogWithPreviousValue {
+            log: StorageLog {
+                key: storage_key,
+                value: storage_value,
+                kind: StorageLogKind::InitialWrite,
+            },
+            previous_value: H256::zero(),
         }];
         let user_l2_to_l1_logs = vec![UserL2ToL1Log(L2ToL1Log {
             shard_id: 0,

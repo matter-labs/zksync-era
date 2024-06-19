@@ -24,6 +24,12 @@ pub struct StorageLog {
     pub value: StorageValue,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StorageLogWithPreviousValue {
+    pub log: StorageLog,
+    pub previous_value: StorageValue,
+}
+
 impl StorageLog {
     pub fn from_log_query(log: &LogQuery) -> Self {
         let key = StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
@@ -88,13 +94,19 @@ impl From<zk_evm_types::LogQuery> for StorageLog {
     }
 }
 
-impl From<&StorageLog> for ApiStorageLog {
-    fn from(storage_log: &StorageLog) -> Self {
+impl From<StorageLog> for ApiStorageLog {
+    fn from(storage_log: StorageLog) -> Self {
         Self {
             address: *storage_log.key.address(),
             key: h256_to_u256(*storage_log.key.key()),
             written_value: h256_to_u256(storage_log.value),
         }
+    }
+}
+
+impl From<&StorageLogWithPreviousValue> for ApiStorageLog {
+    fn from(log: &StorageLogWithPreviousValue) -> Self {
+        log.log.into()
     }
 }
 

@@ -198,7 +198,7 @@ impl ZksNamespaceServer for ZksNamespace {
                     .logs
                     .storage_logs
                     .iter()
-                    .filter(|x| x.is_write())
+                    .filter(|x| x.log.is_write())
                     .map(ApiStorageLog::from)
                     .collect_vec(),
                 events: result
