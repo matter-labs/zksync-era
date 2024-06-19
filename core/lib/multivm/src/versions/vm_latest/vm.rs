@@ -34,6 +34,7 @@ pub(crate) enum MultiVMSubversion {
     SmallBootloaderMemory,
     /// The final correct version of v1.5.0
     IncreasedBootloaderMemory,
+    SyncLayer,
 }
 
 impl MultiVMSubversion {
@@ -51,6 +52,7 @@ impl TryFrom<VmVersion> for MultiVMSubversion {
         match value {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
+            VmVersion::VmSyncLayer => Ok(Self::SyncLayer),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
