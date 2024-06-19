@@ -1,4 +1,4 @@
-# zkSync deeper dive bridging stuff back (a.k.a withdrawals)
+# ZKsync deeper dive bridging stuff back (a.k.a withdrawals)
 
 Assuming that you have completed [part 1](01_initialization.md) and [part 2](02_deposits.md) already, we can bridge the
 tokens back by simply calling the zksync-cli:

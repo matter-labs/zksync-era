@@ -9,7 +9,7 @@ pub struct TokenInfo {
     pub metadata: TokenMetadata,
 }
 
-/// Relevant information about tokens supported by zkSync protocol.
+/// Relevant information about tokens supported by ZKsync protocol.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct TokenMetadata {
     /// Token name (e.g. "Ethereum" or "USD Coin")

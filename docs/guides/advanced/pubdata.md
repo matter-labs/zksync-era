@@ -1,6 +1,6 @@
 # Overview
 
-Pubdata in zkSync can be divided up into 4 different categories:
+Pubdata in ZKsync can be divided up into 4 different categories:
 
 1. L2 to L1 Logs
 2. L2 to L1 Messages
@@ -15,7 +15,7 @@ array.
 > Note: When the 4844 was integrated this bytes array was moved from being part of the calldata to blob data.
 
 While the structure of the pubdata changes, we can use the same strategy to pull the relevant information. First, we
-need to filter all of the transactions to the L1 zkSync contract for only the `commitBlocks/commitBatches` transactions
+need to filter all of the transactions to the L1 ZKsync contract for only the `commitBlocks/commitBatches` transactions
 where the proposed block has been referenced by a corresponding `executeBlocks/executeBatches` call (the reason for this
 is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed
 blocks that have been executed, we then will pull the transaction input and the relevant fields, applying them in order
