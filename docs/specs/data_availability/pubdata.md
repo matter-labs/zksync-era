@@ -1,6 +1,6 @@
 # Handling pubdata in Boojum
 
-Pubdata in zkSync can be divided up into 4 different categories:
+Pubdata in ZKsync can be divided up into 4 different categories:
 
 1. L2 to L1 Logs
 2. L2 to L1 Messages
@@ -13,7 +13,7 @@ pre-Boojum system these are represented as separate fields while for boojum they
 array. Once 4844 gets integrated this bytes array will move from being part of the calldata to blob data.
 
 While the structure of the pubdata changes, the way in which one can go about pulling the information will remain the
-same. Basically, we just need to filter all of the transactions to the L1 zkSync contract for only the `commitBatches`
+same. Basically, we just need to filter all of the transactions to the L1 ZKsync contract for only the `commitBatches`
 transactions where the proposed block has been referenced by a corresponding `executeBatches` call (the reason for this
 is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed
 batches that have been executed, we then will pull the transaction input and the relevant fields, applying them in order
@@ -106,7 +106,7 @@ be
 [applied](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/contracts/L1Messenger.sol#L110):
 
 `chainedLogsHash = keccak256(chainedLogsHash, hashedLog)`. L2→L1 logs have the same 88-byte format as in the current
-version of zkSync.
+version of ZKsync.
 
 Note, that the user is charged for necessary future the computation that will be needed to calculate the final merkle
 root. It is roughly 4x higher than the cost to calculate the hash of the leaf, since the eventual tree might have be 4x
@@ -179,7 +179,7 @@ With Boojum, `factoryDeps` are included within the `totalPubdata` bytes and have
 
 ### Compressed Bytecode Publishing
 
-This part stays the same in a pre and post boojum zkSync. Unlike uncompressed bytecode which are published as part of
+This part stays the same in a pre and post boojum ZKsync. Unlike uncompressed bytecode which are published as part of
 `factoryDeps`, compressed bytecodes are published as long l2 → l1 messages which can be seen
 [here](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/contracts/Compressor.sol#L80).
 
@@ -254,7 +254,7 @@ markAsPublished(hash(_bytecode))
 
 ## Storage diff publishing
 
-zkSync is a statediff-based rollup and so publishing the correct state diffs plays an integral role in ensuring data
+ZKsync is a statediff-based rollup and so publishing the correct state diffs plays an integral role in ensuring data
 availability.
 
 ### How publishing of storage diffs worked before Boojum
@@ -287,9 +287,9 @@ These two fields would be then included into the block commitment and checked by
 
 ### Difference between initial and repeated writes
 
-zkSync publishes state changes that happened within the batch instead of transactions themselves. Meaning, that for
+ZKsync publishes state changes that happened within the batch instead of transactions themselves. Meaning, that for
 instance some storage slot `S` under account `A` has changed to value `V`, we could publish a triple of `A,S,V`. Users
-by observing all the triples could restore the state of zkSync. However, note that our tree unlike Ethereum’s one is not
+by observing all the triples could restore the state of ZKsync. However, note that our tree unlike Ethereum’s one is not
 account based (i.e. there is no first layer of depth 160 of the merkle tree corresponding to accounts and second layer
 of depth 256 of the merkle tree corresponding to users). Our tree is “flat”, i.e. a slot `S` under account `A` is just
 stored in the leaf number `H(S,A)`. Our tree is of depth 256 + 8 (the 256 is for these hashed account/key pairs and 8 is

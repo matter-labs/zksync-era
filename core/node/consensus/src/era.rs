@@ -1,5 +1,5 @@
 //! This module provides convenience functions to run consensus components in different modes
-//! as expected by the zkSync Era.
+//! as expected by the ZKsync Era.
 //!
 //! This module simply glues APIs that are already publicly exposed by the `consensus` module,
 //! so in case any custom behavior is needed, these APIs should be used directly.

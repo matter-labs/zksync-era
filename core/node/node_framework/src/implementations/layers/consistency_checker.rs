@@ -61,25 +61,19 @@ impl WiringLayer for ConsistencyCheckerLayer {
             .map_err(WiringError::internal)?;
 
         // Create and add tasks.
-        context.add_task(Box::new(ConsistencyCheckerTask {
-            consistency_checker,
-        }));
+        context.add_task(Box::new(consistency_checker));
 
         Ok(())
     }
 }
 
-pub struct ConsistencyCheckerTask {
-    consistency_checker: ConsistencyChecker,
-}
-
 #[async_trait::async_trait]
-impl Task for ConsistencyCheckerTask {
+impl Task for ConsistencyChecker {
     fn id(&self) -> TaskId {
         "consistency_checker".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.consistency_checker.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }

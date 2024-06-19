@@ -45,6 +45,7 @@ zksync_tee_verifier_input_producer.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_reorg_detector.workspace = true
 zksync_vm_runner.workspace = true
+zksync_node_db_pruner.workspace = true
 
 tracing.workspace = true
 thiserror.workspace = true

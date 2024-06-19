@@ -20,14 +20,14 @@ revealing the actual information.
 
 ### Constraint
 
-A constraint is a rule or restriction that a specific operation or set of operations must follow. zkSync uses
+A constraint is a rule or restriction that a specific operation or set of operations must follow. ZKsync uses
 constraints to verify the validity of certain operations, and in the generation of proofs. Constraints can be missing,
 causing bugs, or there could be too many constraints, leading to restricted operations.
 
 ### Constraint degree
 
 The "constraint degree" of a constraint system refers to the maximum degree of the polynomial gates in the system. In
-simpler terms, it’s the highest power of polynomial equations of the constraint system. At zkSync, we allow gates with
+simpler terms, it’s the highest power of polynomial equations of the constraint system. At ZKsync, we allow gates with
 degree 8 or lower.
 
 ### Constraint system
@@ -42,7 +42,7 @@ assignment of values to these Variables, ensuring that the rules still hold true
 
 The geometry defines the number of rows and columns in the constraint system. As part of PLONK arithmetization, the
 witness data is arranged into a grid, where each row defines a gate (or a few gates), and the columns are as long as
-needed to hold all of the witness data. At zkSync, we have ~164 base witness columns.
+needed to hold all of the witness data. At ZKsync, we have ~164 base witness columns.
 
 ### Log
 
@@ -64,9 +64,9 @@ prover to the verifier.
 
 ### Prover
 
-In our zkSync zk-rollup context, the prover is used to process a set of transactions executing smart contracts in a
+In our ZKsync zk-rollup context, the prover is used to process a set of transactions executing smart contracts in a
 succinct and efficient manner. It computes proofs that all the transactions are correct and ensures a valid transition
-from one state to another. The proof will be sent to a Verifier smart contract on Ethereum. At zkSync, we prove state
+from one state to another. The proof will be sent to a Verifier smart contract on Ethereum. At ZKsync, we prove state
 diffs of a block of transactions, in order to prove the new state root state is valid.
 
 ### Satisfiable

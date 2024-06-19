@@ -1,6 +1,6 @@
-# Test data for zkSync
+# Test data for ZKsync
 
-This folder contains the data required for various zkSync tests.
+This folder contains the data required for various ZKsync tests.
 
 Directory contains three subfolders:
 
