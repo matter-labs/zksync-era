@@ -1,9 +1,14 @@
 use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
-use zksync_types::{AccountTreeId, StorageKey, StorageValue, H256, U256};
-use zksync_utils::u256_to_h256;
+use zksync_types::{
+    api::state_override::{OverrideState, StateOverride},
+    get_code_key, get_nonce_key,
+    utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    AccountTreeId, StorageKey, StorageValue, H256, U256,
+};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
-use crate::ReadStorage;
+use crate::{OverrideStorage, ReadStorage};
 
 /// A storage view that allows to override some of the storage values.
 #[derive(Debug)]
@@ -39,21 +44,6 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
         self.overrided_account_state.insert(account, state);
     }
 
-    /// Overrides an account balance.
-    pub fn store_balance_override(&mut self, key: StorageKey, balance: U256) {
-        self.overrided_balance.insert(key, balance);
-    }
-
-    /// Overrides an account nonce.
-    pub fn store_nonce_override(&mut self, key: StorageKey, nonce: U256) {
-        self.overrided_nonce.insert(key, nonce);
-    }
-
-    /// Overrides an account code.
-    pub fn store_code_overrrided(&mut self, key: StorageKey, code: H256) {
-        self.overrided_code.insert(key, code);
-    }
-
     /// Make a Rc RefCell ptr to the storage
     pub fn to_rc_ptr(self) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(self))
@@ -72,7 +62,8 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageOverrides<S> {
         if let Some(nonce) = self.overrided_nonce.get(key) {
             return u256_to_h256(*nonce);
         }
-
+        // If the account is overridden, return the overridden value if any or zero.
+        // Otherwise, return the value from the underlying storage.
         self.overrided_account_state.get(key.account()).map_or_else(
             || self.storage_handle.read_value(key),
             |state| state.get(key.key()).copied().unwrap_or_else(H256::zero),
@@ -92,5 +83,47 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageOverrides<S> {
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         self.storage_handle.get_enumeration_index(key)
+    }
+}
+
+impl<S: ReadStorage + fmt::Debug> OverrideStorage for StorageOverrides<S> {
+    fn apply_state_override(&mut self, state_override: &StateOverride) {
+        for (account, overrides) in state_override.iter() {
+            if let Some(balance) = overrides.balance {
+                let balance_key = storage_key_for_eth_balance(account);
+                self.overrided_balance.insert(balance_key, balance);
+            }
+
+            if let Some(nonce) = overrides.nonce {
+                let nonce_key = get_nonce_key(account);
+                let full_nonce = self.read_value(&nonce_key);
+                let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
+                let new_full_nonce = nonces_to_full_nonce(nonce, deployment_nonce);
+                self.overrided_nonce.insert(nonce_key, new_full_nonce);
+            }
+
+            if let Some(code) = &overrides.code {
+                let code_key = get_code_key(account);
+                let code_hash = hash_bytecode(&code.0);
+                self.overrided_code.insert(code_key, code_hash);
+                self.store_factory_dep(code_hash, code.0.clone());
+            }
+
+            match &overrides.state {
+                Some(OverrideState::State(state)) => {
+                    self.override_account_state(AccountTreeId::new(*account), state.clone());
+                }
+                Some(OverrideState::StateDiff(state_diff)) => {
+                    for (key, value) in state_diff {
+                        let account_state = self
+                            .overrided_account_state
+                            .entry(AccountTreeId::new(*account))
+                            .or_default();
+                        account_state.insert(*key, *value);
+                    }
+                }
+                None => {}
+            }
+        }
     }
 }

@@ -956,10 +956,10 @@ describe('web3 API compatibility tests', () => {
                     value: amount.toHexString()
                 },
                 'latest',
-                //override with maximum balance
+                //override with the balance needed to send the transaction
                 {
                     [alice.address]: {
-                        balance: '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+                        balance: amount.toHexString()
                     }
                 }
             ]);
