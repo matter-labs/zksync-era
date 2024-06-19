@@ -79,10 +79,12 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 // for testnet and development purposes it is ok to deploy contracts form L1.
 export async function deployL2ThroughL1({
     includePaymaster = true,
-    localLegacyBridgeTesting
+    localLegacyBridgeTesting,
+    deploymentMode
 }: {
     includePaymaster: boolean;
     localLegacyBridgeTesting?: boolean;
+    deploymentMode: DeploymentMode
 }): Promise<void> {
     await utils.confirmAction();
 
@@ -96,10 +98,19 @@ export async function deployL2ThroughL1({
         await utils.spawn(`yarn l2-contracts build`);
     }
 
+    // The deployment of the L2 DA must be the first operation in the batch, since otherwise it wont be possible to commit it.
+    const daArgs = [
+        ...args,
+        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''
+    ]
+    await utils.spawn(
+        `yarn l2-contracts deploy-l2-da-validator-on-l2-through-l1 ${daArgs.join(' ')} | tee deployL2.log`
+    );
+
     await utils.spawn(
         `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${
             localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
-        } | tee deployL2.log`
+        } | tee -a deployL2.log`
     );
 
     if (includePaymaster) {
@@ -119,7 +130,9 @@ export async function deployL2ThroughL1({
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
-        'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR'
+        'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR',
+        'CONTRACTS_L1_DA_VALIDATOR_ADDR',
+        'CONTRACTS_L2_DA_VALIDATOR_ADDR'
     ];
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
     // erc20 bridge is now deployed as shared bridge, but we still need the config var:
@@ -175,8 +188,11 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_L1_MULTICALL3_ADDR',
         'CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
 
+        'CONTRACTS_L1_ROLLUP_DA_VALIDATOR',
+        'CONTRACTS_L1_VALIDIUM_DA_VALIDATOR',
+
         /// temporary:
-        'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR'
+        'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR',
     ];
 
     console.log('Writing to', `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`);
@@ -321,5 +337,6 @@ command
         '--local-legacy-bridge-testing',
         'used to test LegacyBridge compatibility. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
     )
+    .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
     .action(deployL2ThroughL1);
 command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);

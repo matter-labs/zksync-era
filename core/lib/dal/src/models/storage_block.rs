@@ -147,6 +147,7 @@ pub(crate) struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub state_diff_hash: Option<Vec<u8>>,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {
@@ -247,6 +248,11 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             bootloader_initial_content_commitment: batch
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
+            state_diff_hash: H256::from_slice(
+                &batch
+                    .state_diff_hash
+                    .ok_or(L1BatchMetadataError::Incomplete("state_diff_hash"))?,
+            ),
         })
     }
 }

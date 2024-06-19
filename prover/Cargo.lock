@@ -9117,6 +9117,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "futures 0.3.30",
+ "multivm",
  "serde",
  "serde_json",
  "thiserror",

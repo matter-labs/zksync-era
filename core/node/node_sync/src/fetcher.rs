@@ -1,3 +1,4 @@
+use multivm::interface::PubdataParams;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
@@ -150,7 +151,7 @@ impl IoCursorExt for IoCursor {
                 block.timestamp
             );
 
-            new_actions.push(SyncAction::OpenBatch {
+            let push = new_actions.push(SyncAction::OpenBatch {
                 params: L1BatchParams {
                     protocol_version: block.protocol_version,
                     validation_computational_gas_limit: super::VALIDATION_COMPUTATIONAL_GAS_LIMIT,
@@ -165,6 +166,7 @@ impl IoCursorExt for IoCursor {
                         timestamp: block.timestamp,
                         virtual_blocks: block.virtual_blocks,
                     },
+                    pubdata_params: PubdataParams::extract_from_env(),
                 },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,
