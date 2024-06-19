@@ -1,48 +1,39 @@
 extern crate core;
 
-use std::{
-    fs::{File, OpenOptions},
-    io::{Read, Write},
-    time::Duration,
-};
+use std::time::Duration;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::Context;
 use clap::Parser;
 use prometheus_exporter::PrometheusExporterConfig;
 use rand::rngs::OsRng;
 use reqwest::Client;
-use secp256k1::{Keypair, PublicKey};
+use secp256k1::Keypair;
 use tokio::sync::{oneshot, watch};
+use url::Url;
 use zksync_prover_config::load_general_config;
 use zksync_prover_interface::api::{
     RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, TeeProofGenerationDataRequest,
 };
-// use zksync_types::L1BatchNumber;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
-use crate::api_data_fetcher::{
-    PeriodicApiStruct, PROOF_GENERATION_DATA_ENDPOINT, REGISTER_ATTESTATION_ENDPOINT,
+use crate::{
+    api_data_fetcher::PeriodicApiStruct,
+    attestation::{get_attestation_quote, save_attestation_user_report_data},
 };
 
 mod api_data_fetcher;
+mod attestation;
 mod metrics;
 mod proof_gen_data_fetcher;
 
-// Gramine-specific device file from which the attestation quote can be read
-pub(crate) const GRAMINE_ATTESTATION_QUOTE_DEVICE_FILE: &str = "/dev/attestation/quote";
+/// The path to the TEE API endpoint that returns the next proof generation data
+pub(crate) const PROOF_GENERATION_DATA_ENDPOINT: &str = "/tee/proof_inputs";
 
-// Gramine-specific device file from which the attestation type can be read
-// pub(crate) const GRAMINE_ATTESTATION_TYPE_DEVICE_FILE: &str = "/dev/attestation/attestation_type";
+/// The path to the API endpoint that submits the proof
+pub(crate) const SUBMIT_PROOF_ENDPOINT: &str = "/tee/submit_proofs";
 
-// Gramine-specific device file. User data should be written to this file before obtaining the
-// attestation quote
-pub(crate) const GRAMINE_ATTESTATION_USER_REPORT_DATA_DEVICE_FILE: &str =
-    "/dev/attestation/user_report_data";
-
-// TODO see:
-// - prover/prover_fri_gateway/src/api_data_fetcher.rs
-// - prover/prover_fri_gateway/src/main.rs
-// for some inspiration
+/// The path to the API endpoint that registers the attestation
+pub(crate) const REGISTER_ATTESTATION_ENDPOINT: &str = "/tee/register_attestation";
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -60,22 +51,6 @@ struct Cli {
     /// The URL of the TEE prover interface API.
     #[arg(long)]
     endpoint_url: String,
-}
-
-fn save_attestation_user_report_data(pubkey: PublicKey) -> Result<()> {
-    let mut user_report_data_file = OpenOptions::new()
-        .write(true)
-        .open(GRAMINE_ATTESTATION_USER_REPORT_DATA_DEVICE_FILE)?;
-    user_report_data_file
-        .write_all(&pubkey.serialize())
-        .map_err(|err| anyhow!("Failed to save user report data: {err}"))
-}
-
-fn get_attestation_quote() -> Result<Vec<u8>> {
-    let mut quote_file = File::open(GRAMINE_ATTESTATION_QUOTE_DEVICE_FILE)?;
-    let mut quote = Vec::new();
-    quote_file.read_to_end(&mut quote)?;
-    Ok(quote)
 }
 
 /// This application is a TEE verifier (a.k.a. a prover, or worker) that interacts with three
@@ -130,10 +105,13 @@ async fn main() -> anyhow::Result<()> {
 
     // 3. Create TEE verifier input fetcher
 
+    let api_url = Url::parse(config.api_url.as_str())?;
     let proof_gen_data_fetcher = PeriodicApiStruct {
-        api_url: format!("{}/{}", config.api_url, PROOF_GENERATION_DATA_ENDPOINT),
+        api_url: api_url.join(PROOF_GENERATION_DATA_ENDPOINT)?.into(),
         poll_duration: config.api_poll_duration(),
         client: Client::new(),
+        key_pair: key_pair,
+        submit_proof_endpoint: api_url.join(SUBMIT_PROOF_ENDPOINT)?.into(),
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -177,7 +155,7 @@ async fn main() -> anyhow::Result<()> {
         pubkey: key_pair.public_key().serialize().to_vec(),
     };
     let attestation_endpoint = format!("{}{REGISTER_ATTESTATION_ENDPOINT}", opt.endpoint_url);
-    let request_status = http_client
+    let _request_status = http_client
         .post(attestation_endpoint)
         .json(&attestation_request)
         .send()

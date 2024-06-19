@@ -1,8 +1,13 @@
 use async_trait::async_trait;
+use secp256k1::Message;
 use zksync_prover_interface::{
-    api::{TeeProofGenerationDataRequest, TeeProofGenerationDataResponse},
-    inputs::TeeVerifierInput,
+    api::{
+        SubmitProofResponse, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
+        TeeProofGenerationDataResponse,
+    },
+    outputs::L1BatchTeeProofForL1,
 };
+use zksync_tee_verifier::Verifiable;
 
 use crate::api_data_fetcher::{PeriodicApi, PeriodicApiStruct};
 
@@ -27,20 +32,30 @@ impl PeriodicApi<TeeProofGenerationDataRequest> for PeriodicApiStruct {
 
     async fn handle_response(&self, _: (), response: Self::Response) {
         match response {
-            TeeProofGenerationDataResponse::Success(Some(data)) => {
-                match *data {
-                    TeeVerifierInput::V0 => {
-                        tracing::info!("Received unsupported TEE verifier input");
+            TeeProofGenerationDataResponse::Success(Some(tvi)) => {
+                let tvi = *tvi;
+                match tvi.verify() {
+                    Err(e) => {
+                        tracing::warn!("L1 batch verification failed: {e}")
                     }
-                    TeeVerifierInput::V1(data) => {
-                        tracing::info!(
-                            "Received TEE verifier input data for: {:?}",
-                            data.l1_batch_env.number
-                        );
+                    Ok(root_hash) => {
+                        let root_hash_bytes: [u8; 32] = root_hash.into();
+                        let secret_key = self.key_pair.secret_key();
+                        let msg_to_sign = Message::from_digest(root_hash_bytes);
+                        let signature = secret_key.sign_ecdsa(msg_to_sign);
+                        let request = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
+                            signature: signature.serialize_compact().into(),
+                            pubkey: self.key_pair.public_key().serialize().into(),
+                            proof: root_hash_bytes.into(),
+                        }));
+                        let _ = self
+                            .send_http_request::<SubmitTeeProofRequest, SubmitProofResponse>(
+                                request,
+                                self.submit_proof_endpoint.as_str(),
+                            );
+                        // TODO send the signature back
+                        // TODO: use _attestation_quote_bytes _verifying_key_bytes _sig_bytes
                         // TODO sign it and send back
-                    }
-                    _ => {
-                        tracing::error!("Received unsupported TEE verifier input");
                     }
                 }
             }
