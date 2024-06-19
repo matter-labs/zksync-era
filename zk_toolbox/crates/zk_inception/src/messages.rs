@@ -188,3 +188,7 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(
         "Address {address:?} doesn't have enough money to deploy contracts only {actual} ETH but expected: {expected} ETH do you want to try again?"
     )
 }
+
+/// Prover related messages
+pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
+pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
