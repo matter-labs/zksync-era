@@ -2,7 +2,7 @@ extern crate core;
 
 use std::time::Duration;
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use clap::Parser;
 use prometheus_exporter::PrometheusExporterConfig;
 use rand::rngs::OsRng;
@@ -61,6 +61,17 @@ struct Cli {
 /// 3. `/tee/register_attestation` - Registers the TEE attestation that binds a key used to sign a
 ///    root hash to the enclave where the signing process occurred. This effectively proves that the
 ///    signature was produced in a trusted execution environment.
+///
+/// Conceptually it works as follows:
+/// 1. Generate a new priv-public key pair.
+/// 2. Generate an attestation quote for the public key.
+/// 3. Register the attestation via the `/tee/register_attestation` endpoint.
+/// 4. Run a loop:
+///    a. Fetch the next batch data via the `/tee/proof_inputs` endpoint.
+///    b. Verify the batch data.
+///    c. If verification is successful, sign the root hash of the batch data with the private key.
+///    d. Submit the signature (a.k.a. proof) via the `/tee/submit_proofs/<l1_batch_number>`
+///       endpoint.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
@@ -89,11 +100,11 @@ async fn main() -> anyhow::Result<()> {
         .prover_gateway
         .context("prover gateway config")?;
 
-    // 1. Generate a new priv-public key pair
+    // Generate a new priv-public key pair
 
     let key_pair = Keypair::new_global(&mut OsRng);
 
-    // 2. Get attestation quote
+    // Get attestation quote
 
     let attestation_quote_bytes = if opt.simulation_mode {
         let attestation_quote_file = std::env::var("ATTESTATION_QUOTE_FILE").unwrap_or_default();
@@ -103,7 +114,32 @@ async fn main() -> anyhow::Result<()> {
         get_attestation_quote()?
     };
 
-    // 3. Create TEE verifier input fetcher
+    // Register attestation quote
+
+    let http_client = Client::new();
+    let attestation_request = RegisterTeeAttestationRequest {
+        attestation: attestation_quote_bytes,
+        pubkey: key_pair.public_key().serialize().to_vec(),
+    };
+    let attestation_endpoint = format!("{}{REGISTER_ATTESTATION_ENDPOINT}", opt.endpoint_url);
+    let tee_attestation_response = http_client
+        .post(attestation_endpoint)
+        .json(&attestation_request)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<RegisterTeeAttestationResponse>()
+        .await?;
+    match tee_attestation_response {
+        RegisterTeeAttestationResponse::Success => {
+            println!("Attestation quote was successfully registered")
+        }
+        RegisterTeeAttestationResponse::Error(error) => {
+            return Err(anyhow!("Registering attestation quote failed: {}", error))
+        }
+    }
+
+    // Create TEE verifier input fetcher
 
     let api_url = Url::parse(config.api_url.as_str())?;
     let proof_gen_data_fetcher = PeriodicApiStruct {
@@ -146,307 +182,6 @@ async fn main() -> anyhow::Result<()> {
     }
     stop_sender.send(true).ok();
     tasks.complete(Duration::from_secs(5)).await;
-
-    // 3. Register attestation (input needed: endpoint URL)
-
-    let http_client = Client::new();
-    let attestation_request = RegisterTeeAttestationRequest {
-        attestation: attestation_quote_bytes,
-        pubkey: key_pair.public_key().serialize().to_vec(),
-    };
-    let attestation_endpoint = format!("{}{REGISTER_ATTESTATION_ENDPOINT}", opt.endpoint_url);
-    let _request_status = http_client
-        .post(attestation_endpoint)
-        .json(&attestation_request)
-        .send()
-        .await?
-        .error_for_status()?
-        .json::<RegisterTeeAttestationResponse>()
-        .await?;
-
-    // match result {
-    //     Ok(response) => println!("Response: {}", response),
-    //     Err(error) => println!("Error: {}", error),
-    // }
-
-    // 4. In a loop until the process is interrupted:
-    //    4a. fetch input
-    //    4b. process input, generating proof
-    //    4c. submit proof
-
-    // TODO: introduce clap parser that allows to run the prover in different modes:
-    // - attestation registration with a file as an input
-    // - continuous proof inputs fetching and proof submission
-    // - proof inputs fetching and proof submission for N batches
-    // extra obligatory input parameters: endpoint's URL
-
-    // use reqwest::Error;
-    // use tokio::time::{sleep, Duration};
-
-    // #[tokio::main]
-    // async fn main() {
-    //     // Infinite loop to continuously poll the API
-    //     loop {
-    //         // Spawn a new task for each polling iteration
-    //         tokio::spawn(async {
-    //             match fetch_data().await {
-    //                 Ok(data) => {
-    //                     // Spawn a separate task for processing data
-    //                     tokio::spawn(async move {
-    //                         process_data(data).await;
-    //                     });
-    //                 }
-    //                 Err(e) => eprintln!("Error fetching data: {}", e),
-    //             }
-    //         });
-
-    //         // Sleep for some duration before the next poll
-    //         sleep(Duration::from_secs(10)).await;
-    //     }
-    // }
-
-    // // Function to fetch data from an API endpoint
-    // async fn fetch_data() -> Result<String, Error> {
-    //     let response = reqwest::get("https://api.example.com/data")
-    //         .await?
-    //         .text()
-    //         .await?;
-    //     Ok(response)
-    // }
-
-    // // Function to process the fetched data
-    // async fn process_data(data: String) {
-    //     // Simulate some data processing
-    //     println!("Processing data: {}", data);
-
-    //     // Simulate a delay in processing
-    //     sleep(Duration::from_secs(5)).await;
-
-    //     println!("Finished processing data: {}", data);
-    // }
-
-    //////////////////////////////////////////
-
-    // use reqwest::Error;
-    // use tokio::signal;
-    // use tokio::task;
-
-    // #[tokio::main]
-    // async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    //     let client = reqwest::Client::new();
-
-    //     let mut tasks = vec![];
-    //     let mut number = 1;
-
-    //     let mut termination_signal = signal::ctrl_c();
-
-    //     loop {
-    //         tokio::select! {
-    //             _ = termination_signal => {
-    //                 break;
-    //             }
-    //             else => {
-    //                 let client = client.clone();
-    //                 let task = task::spawn(async move {
-    //                     let url = format!("http://localhost/endpoint/{}", number);
-    //                     let response = client.get(&url).send().await?;
-    //                     let process_task = task::spawn(process_data(response));
-    //                     process_task.await??;
-    //                     Ok(())
-    //                 });
-    //                 tasks.push(task);
-    //                 number += 1;
-    //             }
-    //         }
-    //     }
-
-    //     for task in tasks {
-    //         let _ = task.await??;
-    //     }
-
-    //     Ok(())
-    // }
-
-    // async fn process_data(response: reqwest::Response) -> Result<(), Error> {
-    //     // Here you can process the data from the response
-    //     // This is just a placeholder
-    //     println!("Status: {}", response.status());
-    //     Ok(())
-    // }
-
-    //////
-    //     let signing_key_pem = std::env::var("ATTESTATION_QUOTE_FILE").unwrap_or(
-    //         r#"-----BEGIN PRIVATE KEY-----
-    // MIGEAgEAMBAGByqGSM49AgEGBSuBBAAKBG0wawIBAQQgtQs4yNOWyIco/AMuzlWO
-    // valpB6CxqTQCiXFe73vyneuhRANCAARXX55cR5OHwxskdsKKBBalUBgCAU+oKIl7
-    // K678gpQwmzwbZqqiuNpWxeEu+51Nh3tmPPJGTW9Y0BCNC0if7cxA
-    // -----END PRIVATE KEY-----
-    // "#
-    //         .into(),
-    //     );
-    //     let signing_key: SigningKey = SigningKey::from_pkcs8_pem(&signing_key_pem).unwrap();
-    //     let _verifying_key_bytes = signing_key.verifying_key().to_sec1_bytes();
-
-    // TEST TEST
-    // {
-    //     use k256::ecdsa::signature::Verifier;
-    //     let vkey: VerifyingKey = VerifyingKey::try_from(_verifying_key_bytes.as_ref()).unwrap();
-    //     let signature: Signature = signing_key.try_sign(&[0, 0, 0, 0]).unwrap();
-    //     let sig_bytes = signature.to_vec();
-    //     let signature: Signature = Signature::try_from(sig_bytes.as_ref()).unwrap();
-    //     let _ = vkey.verify(&[0, 0, 0, 0], &signature).unwrap();
-    // }
-    // END TEST
-
-    // let tst_tvi_json = r#"
-    //         {
-    //             "V1": {
-    //                 "prepare_basic_circuits_job": {
-    //                     "merkle_paths": [
-    //                         {
-    //                             "root_hash": [
-    //                                 199, 231, 138, 237, 215, 168, 130, 194, 198, 6, 187, 237, 77, 26, 152, 210,
-    //                                 88, 244, 103, 217, 198, 89, 54, 183, 3, 48, 12, 198, 157, 109, 17, 108
-    //                             ],
-    //                             "is_write": false,
-    //                             "first_write": false,
-    //                             "merkle_paths": [
-    //                                 [
-    //                                     14, 61, 115, 101, 43, 176, 68, 16, 107, 44, 117, 212, 243, 107, 174, 139,
-    //                                     221, 199, 237, 48, 120, 145, 101, 195, 53, 184, 23, 176, 118, 216, 58, 141
-    //                                 ]
-    //                             ],
-    //                             "leaf_hashed_key": "0xa792adc37510103905c79c23e63fc13938000f8acb1120dd8cc76d6f13a11577",
-    //                             "leaf_enumeration_index": 2,
-    //                             "value_written": [
-    //                                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    //                                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    //                             ],
-    //                             "value_read": [
-    //                                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    //                                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    //                             ]
-    //                         }
-    //                     ],
-    //                     "next_enumeration_index": 23577
-    //                 },
-    //                 "l2_blocks_execution_data": [
-    //                     {
-    //                         "number": 91,
-    //                         "timestamp": 1715693104,
-    //                         "prev_block_hash": "0x1ef787bfb1908c8a55d972375af69b74038bfb999cc4f46d5be582d945a3b2be",
-    //                         "virtual_blocks": 1,
-    //                         "txs": [
-    //                             {
-    //                                 "common_data": {
-    //                                     "L1": {
-    //                                         "sender": "0x62b13dd4f940b691a015d1b1e29cecd3cfec5d77",
-    //                                         "serialId": 208,
-    //                                         "deadlineBlock": 0,
-    //                                         "layer2TipFee": "0x0",
-    //                                         "fullFee": "0x0",
-    //                                         "maxFeePerGas": "0x10642ac0",
-    //                                         "gasLimit": "0x4c4b40",
-    //                                         "gasPerPubdataLimit": "0x320",
-    //                                         "opProcessingType": "Common",
-    //                                         "priorityQueueType": "Deque",
-    //                                         "ethHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    //                                         "ethBlock": 1727,
-    //                                         "canonicalTxHash": "0x8f53c4d042e7931cbe43889f7992a86cd9d24db76ac0ff2dc4ceb55250059a92",
-    //                                         "toMint": "0x4e28e2290f000",
-    //                                         "refundRecipient": "0x62b13dd4f940b691a015d1b1e29cecd3cfec5d77"
-    //                                     }
-    //                                 },
-    //                                 "execute": {
-    //                                     "contractAddress": "0x350822d8850e1ce8894e4bb86ed7243baaa747fc",
-    //                                     "calldata": "0xd542b16c000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001",
-    //                                     "value": "0x0",
-    //                                     "factoryDeps": [ [ 0 ] ]
-    //                                 },
-    //                                 "received_timestamp_ms": 1715693103904,
-    //                                 "raw_bytes": null
-    //                             }
-    //                         ]
-    //                     },
-    //                     {
-    //                         "number": 95,
-    //                         "timestamp": 1715693108,
-    //                         "prev_block_hash": "0x3ca40be0a54a377be77bd6ad87e376ae7ddb25090d2d32382e3c94759d1fc76d",
-    //                         "virtual_blocks": 1,
-    //                         "txs": []
-    //                     }
-    //                 ],
-    //                 "l1_batch_env": {
-    //                     "previous_batch_hash": "0xc7e78aedd7a882c2c606bbed4d1a98d258f467d9c65936b703300cc69d6d116c",
-    //                     "number": 20,
-    //                     "timestamp": 1715693104,
-    //                     "fee_input": {
-    //                         "PubdataIndependent": {
-    //                             "fair_l2_gas_price": 100000000,
-    //                             "fair_pubdata_price": 13600000000,
-    //                             "l1_gas_price": 800000000
-    //                         }
-    //                     },
-    //                     "fee_account": "0xde03a0b5963f75f1c8485b355ff6d30f3093bde7",
-    //                     "enforced_base_fee": null,
-    //                     "first_l2_block": {
-    //                         "number": 91,
-    //                         "timestamp": 1715693104,
-    //                         "prev_block_hash": "0x1ef787bfb1908c8a55d972375af69b74038bfb999cc4f46d5be582d945a3b2be",
-    //                         "max_virtual_blocks_to_create": 1
-    //                     }
-    //                 },
-    //                 "system_env": {
-    //                     "zk_porter_available": false,
-    //                     "version": "Version24",
-    //                     "base_system_smart_contracts": {
-    //                         "bootloader": {
-    //                             "code": [
-    //                                 "0x2000000000002001c00000000000200000000030100190000006003300270"
-    //                             ],
-    //                             "hash": "0x010008e742608b21bf7eb23c1a9d0602047e3618b464c9b59c0fba3b3d7ab66e"
-    //                         },
-    //                         "default_aa": {
-    //                             "code": [
-    //                                 "0x4000000610355000500000061035500060000006103550007000000610355"
-    //                             ],
-    //                             "hash": "0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32"
-    //                         }
-    //                     },
-    //                     "bootloader_gas_limit": 4294967295,
-    //                     "execution_mode": "VerifyExecute",
-    //                     "default_validation_computational_gas_limit": 4294967295,
-    //                     "chain_id": 270
-    //                 },
-    //                 "used_contracts": [
-    //                     [
-    //                         "0x010001211b0c33353cdf7a320f768e3dc40bce1326d639fcac099bba9ecd8e34",
-    //                         [ 0, 4, 0, 0 ]
-    //                     ]
-    //                 ]
-    //             }
-    //         }
-    //     "#;
-
-    // let tvi: TeeVerifierInput = serde_json::from_str(&tst_tvi_json).unwrap();
-
-    // // TODO: report error
-    // let batch_no = tvi.l1_batch_no().unwrap_or(L1BatchNumber(0));
-
-    // tracing::info!("Verifying L1 batch #{batch_no}");
-
-    // // TODO: catch panic?
-    // match tvi.verify() {
-    //     Err(e) => {
-    //         tracing::warn!("L1 batch #{batch_no} verification failed: {e}")
-    //     }
-    //     Ok(root_hash) => {
-    //         let root_hash_bytes = root_hash.as_bytes();
-    //         let signature: Signature = signing_key.try_sign(root_hash_bytes).unwrap();
-    //         let _sig_bytes = signature.to_vec();
-    //         // TODO: use _attestation_quote_bytes _verifying_key_bytes _sig_bytes
-    //     }
-    // }
 
     Ok(())
 }

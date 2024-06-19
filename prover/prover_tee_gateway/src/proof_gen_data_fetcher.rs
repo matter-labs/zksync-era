@@ -53,9 +53,6 @@ impl PeriodicApi<TeeProofGenerationDataRequest> for PeriodicApiStruct {
                                 request,
                                 self.submit_proof_endpoint.as_str(),
                             );
-                        // TODO send the signature back
-                        // TODO: use _attestation_quote_bytes _verifying_key_bytes _sig_bytes
-                        // TODO sign it and send back
                     }
                 }
             }
