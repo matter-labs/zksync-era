@@ -9364,7 +9364,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "multivm",
  "tokio",
  "tracing",
  "vise",
@@ -9373,7 +9372,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_queued_job_processor",
- "zksync_state",
  "zksync_tee_verifier",
  "zksync_types",
  "zksync_utils",
