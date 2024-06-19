@@ -5,7 +5,7 @@ use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
 use crate::{
     implementations::resources::pools::{PoolResource, ReplicaPool},
     service::{ServiceContext, StopReceiver},
-    task::{Task, TaskId},
+    task::{TaskId, UnconstrainedTask},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -23,7 +23,7 @@ impl WiringLayer for PostgresMetricsLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let pool_for_metrics = replica_pool_resource.get_singleton().await?;
-        context.add_task(Box::new(PostgresMetricsScrapingTask { pool_for_metrics }));
+        context.add_unconstrained_task(Box::new(PostgresMetricsScrapingTask { pool_for_metrics }));
 
         Ok(())
     }
@@ -35,12 +35,15 @@ struct PostgresMetricsScrapingTask {
 }
 
 #[async_trait::async_trait]
-impl Task for PostgresMetricsScrapingTask {
+impl UnconstrainedTask for PostgresMetricsScrapingTask {
     fn id(&self) -> TaskId {
         "postgres_metrics_scraping".into()
     }
 
-    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run_unconstrained(
+        self: Box<Self>,
+        mut stop_receiver: StopReceiver,
+    ) -> anyhow::Result<()> {
         tokio::select! {
             () = PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL) => {
                 tracing::warn!("Postgres metrics scraping unexpectedly stopped");
