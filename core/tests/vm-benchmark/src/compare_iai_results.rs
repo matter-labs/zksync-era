@@ -23,7 +23,7 @@ fn main() {
         .keys()
         .collect::<HashSet<_>>()
         .intersection(&iai_after.keys().collect())
-        .flat_map(|&name| {
+        .filter_map(|&name| {
             let diff = percent_difference(iai_before[name], iai_after[name]);
             if diff.abs() > 2. {
                 Some((name, format!("{:+.1}%", diff)))
@@ -32,25 +32,26 @@ fn main() {
             }
         })
         .collect::<HashMap<_, _>>();
+
     let duration_changes = opcodes_before
         .keys()
         .collect::<HashSet<_>>()
         .intersection(&opcodes_after.keys().collect())
-        .flat_map(|&name| {
+        .map(|&name| {
             let opcodes_abs_diff = (opcodes_after[name] as i64) - (opcodes_before[name] as i64);
 
-            if opcodes_abs_diff != 0 {
-                Some((
-                    name,
+            (
+                name,
+                if opcodes_abs_diff != 0 {
                     format!(
                         "{:+} ({:+.1}%)",
                         opcodes_abs_diff,
                         percent_difference(opcodes_before[name], opcodes_after[name])
-                    ),
-                ))
-            } else {
-                None
-            }
+                    )
+                } else {
+                    "0".to_string()
+                },
+            )
         })
         .collect::<HashMap<_, _>>();
 
