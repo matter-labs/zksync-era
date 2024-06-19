@@ -6,11 +6,7 @@
 //!
 //! This module is intended to be blocking.
 
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use multivm::{
@@ -21,9 +17,7 @@ use multivm::{
 };
 use tokio::runtime::Handle;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_state::{
-    PostgresStorage, ReadStorage, StorageOverrides, StoragePtr, StorageView, WriteStorage,
-};
+use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
@@ -44,7 +38,7 @@ use super::{
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
-type BoxedVm<'a> = Box<VmInstance<StorageOverrides<PostgresStorage<'a>>, HistoryDisabled>>;
+type BoxedVm<'a> = Box<VmInstance<StorageView<PostgresStorage<'a>>, HistoryDisabled>>;
 
 #[derive(Debug)]
 struct Sandbox<'a> {
@@ -265,10 +259,7 @@ impl<'a> Sandbox<'a> {
         mut self,
         tx: &Transaction,
         adjust_pubdata_price: bool,
-    ) -> (
-        BoxedVm<'a>,
-        StoragePtr<StorageOverrides<PostgresStorage<'a>>>,
-    ) {
+    ) -> (BoxedVm<'a>, StoragePtr<StorageView<PostgresStorage<'a>>>) {
         self.setup_storage_view(tx);
         let protocol_version = self.system_env.version;
         if adjust_pubdata_price {
@@ -280,16 +271,15 @@ impl<'a> Sandbox<'a> {
             );
         };
 
-        let storage_overrides: Rc<RefCell<StorageOverrides<PostgresStorage<'_>>>> =
-            StorageOverrides::new(self.storage_view).into();
+        let storage_view = self.storage_view.to_rc_ptr();
         let vm = Box::new(VmInstance::new_with_specific_version(
             self.l1_batch_env,
             self.system_env,
-            storage_overrides.clone(),
+            storage_view.clone(),
             protocol_version.into_api_vm_version(),
         ));
 
-        (vm, storage_overrides)
+        (vm, storage_view)
     }
 }
 
@@ -307,7 +297,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     block_args: BlockArgs,
     state_override: Option<StateOverride>,
     apply: impl FnOnce(
-        &mut VmInstance<StorageOverrides<PostgresStorage<'_>>, HistoryDisabled>,
+        &mut VmInstance<StorageView<PostgresStorage<'_>>, HistoryDisabled>,
         Transaction,
         ProtocolVersionId,
     ) -> T,
@@ -345,8 +335,8 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     // Apply state override
     if let Some(state_override) = state_override {
-        let mut storage_override = storage_view.as_ref().borrow_mut();
-        storage_override.apply_state_override(&state_override);
+        let mut storage_view = storage_view.as_ref().borrow_mut();
+        storage_view.apply_state_override(&state_override);
     }
 
     let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();

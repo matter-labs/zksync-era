@@ -6,9 +6,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_types::{StorageKey, StorageValue, H256};
+use zksync_types::{
+    api::state_override::{OverrideState, StateOverride},
+    get_code_key, get_nonce_key,
+    utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    AccountTreeId, StorageKey, StorageValue, H256,
+};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
-use crate::{ReadStorage, WriteStorage};
+use crate::{ReadStorage, StorageOverrides, WriteStorage};
 
 /// Metrics for [`StorageView`].
 #[derive(Debug, Default, Clone, Copy)]
@@ -42,7 +48,6 @@ pub struct StorageViewMetrics {
 /// the only shared part is the read storage keys cache.
 #[derive(Debug)]
 pub struct StorageView<S> {
-    storage_handle: S,
     // Used for caching and to get the list/count of modified keys
     modified_storage_keys: HashMap<StorageKey, StorageValue>,
     // Used purely for caching
@@ -50,6 +55,7 @@ pub struct StorageView<S> {
     // Cache for `contains_key()` checks. The cache is only valid within one L1 batch execution.
     initial_writes_cache: HashMap<StorageKey, bool>,
     metrics: StorageViewMetrics,
+    storage_overrides: StorageOverrides<S>,
 }
 
 impl<S> StorageView<S> {
@@ -85,14 +91,54 @@ where
 }
 
 impl<S: ReadStorage + fmt::Debug> StorageView<S> {
+    /// Applies the state override to the storageOverride.
+    pub fn apply_state_override(&mut self, state_override: &StateOverride) {
+        for (account, overrides) in state_override.iter() {
+            if let Some(balance) = overrides.balance {
+                let balance_key = storage_key_for_eth_balance(account);
+                self.storage_overrides
+                    .store_balance_override(balance_key, balance);
+            }
+
+            if let Some(nonce) = overrides.nonce {
+                let nonce_key = get_nonce_key(account);
+
+                let full_nonce = self.read_value(&nonce_key);
+                let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
+                let new_full_nonce = nonces_to_full_nonce(nonce, deployment_nonce);
+                self.storage_overrides
+                    .store_nonce_override(nonce_key, new_full_nonce);
+            }
+
+            if let Some(code) = &overrides.code {
+                let code_key = get_code_key(account);
+                let code_hash = hash_bytecode(&code.0);
+                self.storage_overrides
+                    .store_code_overrrided(code_key, code_hash);
+                self.storage_overrides
+                    .store_factory_dep(code_hash, code.0.clone());
+            }
+
+            match &overrides.state {
+                Some(OverrideState::State(state)) => {
+                    self.storage_overrides
+                        .override_account_state(AccountTreeId::new(*account), state.clone());
+                }
+                Some(OverrideState::StateDiff(_state_diff)) => {
+                    // TODO: Implement state diff override
+                }
+                None => {}
+            }
+        }
+    }
     /// Creates a new storage view based on the underlying storage.
     pub fn new(storage_handle: S) -> Self {
         Self {
-            storage_handle,
             modified_storage_keys: HashMap::new(),
             read_storage_keys: HashMap::new(),
             initial_writes_cache: HashMap::new(),
             metrics: StorageViewMetrics::default(),
+            storage_overrides: StorageOverrides::new(storage_handle),
         }
     }
 
@@ -104,7 +150,7 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
             .get(key)
             .or_else(|| self.read_storage_keys.get(key));
         cached_value.copied().unwrap_or_else(|| {
-            let value = self.storage_handle.read_value(key);
+            let value = self.storage_overrides.read_value(key);
             self.read_storage_keys.insert(*key, value);
             self.metrics.time_spent_on_storage_missed += started_at.elapsed();
             self.metrics.storage_invocations_missed += 1;
@@ -156,18 +202,18 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
         if let Some(&is_write_initial) = self.initial_writes_cache.get(key) {
             is_write_initial
         } else {
-            let is_write_initial = self.storage_handle.is_write_initial(key);
+            let is_write_initial = self.storage_overrides.is_write_initial(key);
             self.initial_writes_cache.insert(*key, is_write_initial);
             is_write_initial
         }
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.storage_handle.load_factory_dep(hash)
+        self.storage_overrides.load_factory_dep(hash)
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
-        self.storage_handle.get_enumeration_index(key)
+        self.storage_overrides.get_enumeration_index(key)
     }
 }
 
@@ -181,7 +227,7 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
         self.metrics.set_value_storage_invocations += 1;
         let original = self.get_value_no_log(&key);
 
-        tracing::trace!(
+        tracing::info!(
             "write value {:?} value: {:?} original value: {:?} ({:?}/{:?})",
             key.hashed_key().0,
             value,
