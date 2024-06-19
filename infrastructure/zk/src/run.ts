@@ -33,7 +33,9 @@ export async function deployERC20AndWeth({
                 { "name": "BAT",  "symbol": "BAT",  "decimals": 18 },
                 { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
             ]' ${args.join(' ')} > ./etc/tokens/${destinationFile}.json`);
-        const WETH = getTokens(destinationFile).find((token) => token.symbol === 'WETH')!;
+        const tokens = getTokens(destinationFile);
+        const WETH = tokens.find((token) => token.symbol === 'WETH')!;
+        console.log('Tokens deployed at:', tokens.map((token) => token.address).join(', \n'));
         env.modify(
             'CONTRACTS_L1_WETH_TOKEN_ADDR',
             `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`,

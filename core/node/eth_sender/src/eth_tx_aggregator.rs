@@ -63,7 +63,7 @@ pub struct EthTxAggregator {
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
 
-    /// Indicates that the nocne of the operator from DB should be ignored.
+    /// Indicates that the nonce of the operator from DB should be ignored.
     /// Two params for two operators
     ///         // FIXME: remove this hack when in production
     ignore_db_nonce_0: bool,
@@ -625,17 +625,15 @@ impl EthTxAggregator {
             } else {
                 db_nonce.max(self.base_nonce)
             }
+        } else if self.ignore_db_nonce_1 && no_unsent_txs {
+            self.ignore_db_nonce_1 = false;
+            self.base_nonce_custom_commit_sender
+                .expect("custom base nonce is expected to be initialized; qed")
         } else {
-            if self.ignore_db_nonce_1 && no_unsent_txs {
-                self.ignore_db_nonce_1 = false;
+            db_nonce.max(
                 self.base_nonce_custom_commit_sender
-                    .expect("custom base nonce is expected to be initialized; qed")
-            } else {
-                db_nonce.max(
-                    self.base_nonce_custom_commit_sender
-                        .expect("custom base nonce is expected to be initialized; qed"),
-                )
-            }
+                    .expect("custom base nonce is expected to be initialized; qed"),
+            )
         })
     }
 }

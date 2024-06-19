@@ -27,7 +27,7 @@ const CUSTOM_PAYMASTER_RATE_NUMERATOR = ethers.BigNumber.from(5);
 const TESTNET_PAYMASTER_RATE_NUMERATOR = ethers.BigNumber.from(1);
 const PAYMASTER_RATE_DENOMINATOR = ethers.BigNumber.from(1);
 
-describe.skip('Paymaster tests', () => {
+describe('Paymaster tests', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let paymaster: zksync.Contract;

@@ -1,13 +1,13 @@
 import { Command } from 'commander';
 import * as utils from 'utils';
-import * as env from './env';
-import fs from 'fs';
+// import * as env from './env';
+// import fs from 'fs';
 
 import { getDeployAccounts, getTestAccounts } from './run';
 
 import { ethers } from 'ethers';
 import { Wallet, Provider, utils as zkUtils } from 'zksync-ethers';
-import { spawn } from 'child_process';
+// import { spawn } from 'child_process';
 
 export const command = new Command('dev2').description('Management of an L2 network on top of another L2');
 

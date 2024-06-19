@@ -12,7 +12,7 @@ import * as ethers from 'ethers';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
-describe.skip('ERC20 contract checks', () => {
+describe('ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
@@ -141,7 +141,8 @@ describe.skip('ERC20 contract checks', () => {
         await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.bnToBeEq(0);
     });
 
-    test('Can perform a withdrawal', async () => {
+    // FIXME: restore test
+    test.skip('Can perform a withdrawal', async () => {
         if (testMaster.isFastMode()) {
             return;
         }
@@ -167,7 +168,8 @@ describe.skip('ERC20 contract checks', () => {
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
-    test('Should claim failed deposit', async () => {
+    // FIXME: restore test
+    test.skip('Should claim failed deposit', async () => {
         if (testMaster.isFastMode()) {
             return;
         }

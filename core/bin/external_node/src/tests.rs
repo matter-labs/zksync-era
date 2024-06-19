@@ -162,7 +162,7 @@ async fn external_node_basics(components_str: &'static str) {
         config.tree_component.api_port = Some(0);
     }
 
-    let diamond_proxy_addr = config.remote.diamond_proxy_addr;
+    let diamond_proxy_addr = config.remote.user_facing_diamond_proxy;
 
     let l2_client = MockClient::builder(L2::default())
         .method("eth_chainId", || Ok(U64::from(270)))
@@ -283,7 +283,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
         .build();
     let l2_client = Box::new(l2_client);
-    let diamond_proxy_addr = config.remote.diamond_proxy_addr;
+    let diamond_proxy_addr = config.remote.user_facing_diamond_proxy;
     let eth_client = Box::new(mock_eth_client(diamond_proxy_addr));
 
     let (env, env_handles) = TestEnvironment::new();

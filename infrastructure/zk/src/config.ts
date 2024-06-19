@@ -6,8 +6,8 @@ import * as env from './env';
 import path from 'path';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
-import * as utils from 'utils';
 import { getTestAccounts } from './run';
+import * as utils from 'utils';
 import { unpackStringSemVer } from 'utils';
 
 function loadConfigFile(configPath: string, stack: string[] = []) {
@@ -247,12 +247,11 @@ command
     });
 
 command
-    .command('prepare-l1-hyperchain [envName] [chainId] [diff]')
+    .command('prepare-l1-hyperchain [envName] [chainId]')
     .description('prepare the config for the next hyperchain deployment')
     .option('-n,--env-name', 'envName')
     .option('-c,--chain-id', 'chainId')
-    .option('-d,--diff', 'diff')
-    .action(async (envName: string, chainId: string, diff: string) => {
+    .action(async (envName: string, chainId: string) => {
         if (!utils.isNetworkLocalL1(process.env.CHAIN_ETH_NETWORK!)) {
             console.error('This command is only for local networks');
             process.exit(1);
@@ -263,7 +262,11 @@ command
         const template = fs
             .readFileSync(path.join(process.env.ZKSYNC_HOME!, templatePath))
             .toString()
-            .replace('l2-inits/dev2.init.env', `l2-inits/${envName}.init.env`);
+            .replace(
+                '"l2-inits/dev2.init.env"',
+                `"l1-inits/${process.env.ZKSYNC_ENV!}.env", "l1-inits/${process.env
+                    .ZKSYNC_ENV!}-sync-layer.env", "l2-inits/${envName}.init.env"`
+            );
 
         const configFile = `etc/env/configs/${envName}.toml`;
 

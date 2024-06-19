@@ -27,7 +27,7 @@ const syncLayerEnvVars = [
     'SYNC_LAYER_VERIFIER_ADDR',
     'SYNC_LAYER_VALIDATOR_TIMELOCK_ADDR',
 
-    'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
+    // 'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
 
     'SYNC_LAYER_L1_MULTICALL3_ADDR',
     'SYNC_LAYER_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
@@ -38,13 +38,18 @@ const syncLayerEnvVars = [
     'SYNC_LAYER_BRIDGEHUB_IMPL_ADDR',
     'SYNC_LAYER_BRIDGEHUB_PROXY_ADDR',
 
-    'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
+    // 'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
 
-    'SYNC_LAYER_L1_SHARED_BRIDGE_IMPL_ADDR',
-    'SYNC_LAYER_L1_SHARED_BRIDGE_PROXY_ADDR',
-    'SYNC_LAYER_L1_ERC20_BRIDGE_IMPL_ADDR',
-    'SYNC_LAYER_L1_ERC20_BRIDGE_PROXY_ADDR'
+    // 'SYNC_LAYER_L1_SHARED_BRIDGE_IMPL_ADDR',
+    // 'SYNC_LAYER_L1_SHARED_BRIDGE_PROXY_ADDR',
+    // 'SYNC_LAYER_L1_ERC20_BRIDGE_IMPL_ADDR',
+    // 'SYNC_LAYER_L1_ERC20_BRIDGE_PROXY_ADDR',
+    'CONTRACTS_STM_ASSET_INFO',
+
+    'SYNC_LAYER_DIAMOND_PROXY_ADDR'
 ];
+
+const USER_FACING_ENV_VARS = ['CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR', 'CONTRACTS_USER_FACING_BRIDGEHUB_PROXY_ADDR'];
 
 export async function prepareSyncLayer(): Promise<void> {
     await utils.confirmAction();
@@ -52,7 +57,7 @@ export async function prepareSyncLayer(): Promise<void> {
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const args = [privateKey ? `--private-key ${privateKey}` : ''];
     await utils.spawn(
-        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer deploy-sync-layer-contracts ${args} | tee sync-layer-prep.log`
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer deploy-sync-layer-contracts ${args} | tee sync-layer-prep.log`
     );
 
     const paramsFromEnv = [
@@ -68,7 +73,7 @@ export async function prepareSyncLayer(): Promise<void> {
         '\n' +
         paramsFromEnv;
 
-    const envFile = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
+    const envFile = `etc/env/l1-inits/${process.env.ZKSYNC_ENV!}-sync-layer.env`;
 
     console.log('Writing to', envFile);
 
@@ -81,32 +86,36 @@ export async function prepareSyncLayer(): Promise<void> {
 }
 
 async function registerSyncLayer() {
-    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer register-sync-layer`);
+    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer register-sync-layer`);
 }
 
 async function migrateToSyncLayer() {
     await utils.confirmAction();
 
     await utils.spawn(
-        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer migrate-to-sync-layer | tee sync-layer-migration.log`
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer migrate-to-sync-layer | tee sync-layer-migration.log`
     );
 
-    const migrationLog = fs.readFileSync('sync-layer-migration.log').toString();
+    const migrationLog = fs
+        .readFileSync('sync-layer-migration.log')
+        .toString()
+        .replace(/CONTRACTS/g, 'SYNC_LAYER');
 
     const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
     console.log('Writing to', envFile);
 
     // FIXME: consider creating new sync_layer_* variable.
-    updateContractsEnv(envFile, migrationLog, ['CONTRACTS_DIAMOND_PROXY_ADDR']);
+    updateContractsEnv(envFile, migrationLog, ['SYNC_LAYER_DIAMOND_PROXY_ADDR']);
+    env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.SYNC_LAYER_DIAMOND_PROXY_ADDR!, envFile, true);
 }
 
 async function prepareValidatorsOnSyncLayer() {
-    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer prepare-validators`);
+    await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer prepare-validators`);
 }
 
 async function recoverFromFailedMigrationToSyncLayer(failedTxSLHash: string) {
     await utils.spawn(
-        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts prepare-sync-layer recover-from-failed-migration --failed-tx-l2-hash ${failedTxSLHash}`
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer recover-from-failed-migration --failed-tx-l2-hash ${failedTxSLHash}`
     );
 }
 
@@ -116,6 +125,12 @@ async function updateConfigOnSyncLayer() {
     const specialParams = ['SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL', 'SYNC_LAYER_CHAIN_ID'];
 
     const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
+
+    // for (const userVar of USER_FACING_ENV_VARS) {
+    //     const originalVar = userVar.replace(/CONTRACTS_USER_FACING/g, 'CONTRACTS');
+    //     env.modify(userVar, process.env[originalVar]!, envFile, false);
+    // }
+
     for (const envVar of syncLayerEnvVars) {
         if (specialParams.includes(envVar)) {
             continue;
@@ -123,8 +138,9 @@ async function updateConfigOnSyncLayer() {
         const contractsVar = envVar.replace(/SYNC_LAYER/g, 'CONTRACTS');
         env.modify(contractsVar, process.env[envVar]!, envFile, false);
     }
+    env.modify('BRIDGE_LAYER_WEB3_URL', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
     env.modify('ETH_CLIENT_WEB3_URL', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
-    env.modify('L1_RPC_ADDRESS', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    env.modify('L1_RPC_ADDRESS', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
     env.modify('ETH_CLIENT_CHAIN_ID', process.env.SYNC_LAYER_CHAIN_ID!, envFile, false);
 
     env.modify('CHAIN_ETH_NETWORK', 'localhostL2', envFile, false);
@@ -252,7 +268,10 @@ export async function deployL2ThroughL1({
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
-        'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR'
+        'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR',
+        'CONTRACTS_L2_NATIVE_TOKEN_VAULT_IMPL_ADDR',
+        'CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR',
+        'CONTRACTS_L2_PROXY_ADMIN_ADDR'
     ];
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
     // erc20 bridge is now deployed as shared bridge, but we still need the config var:
@@ -280,6 +299,9 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_BRIDGEHUB_PROXY_ADDR',
         'CONTRACTS_BRIDGEHUB_IMPL_ADDR',
 
+        'CONTRACTS_MESSAGE_ROOT_PROXY_ADDR',
+        'CONTRACTS_MESSAGE_ROOT_IMPL_ADDR',
+
         'CONTRACTS_STATE_TRANSITION_PROXY_ADDR',
         'CONTRACTS_STATE_TRANSITION_IMPL_ADDR',
 
@@ -300,6 +322,8 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR',
         'CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_SHARED_BRIDGE_IMPL_ADDR',
+        'CONTRACTS_L1_NATIVE_TOKEN_VAULT_IMPL_ADDR',
+        'CONTRACTS_L1_NATIVE_TOKEN_VAULT_PROXY_ADDR',
         'CONTRACTS_L1_ERC20_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_ERC20_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR',
@@ -308,16 +332,17 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_L1_MULTICALL3_ADDR',
         'CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
 
+        'CONTRACTS_STM_DEPLOYMENT_TRACKER_IMPL_ADDR',
+        'CONTRACTS_STM_DEPLOYMENT_TRACKER_PROXY_ADDR',
+        'CONTRACTS_STM_ASSET_INFO',
+
         /// temporary:
         'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR'
     ];
 
-    console.log('Writing to', `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`);
-    const updatedContracts = updateContractsEnv(
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`,
-        deployLog,
-        l1EnvVars
-    );
+    const envFile = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
+    console.log('Writing to');
+    const updatedContracts = updateContractsEnv(envFile, deployLog, l1EnvVars);
 
     // Write updated contract addresses and tx hashes to the separate file
     // Currently it's used by loadtest github action to update deployment configmap.
@@ -357,19 +382,22 @@ export async function registerHyperchain({
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
-        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''
+        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : '',
+        '--use-governance'
     ];
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();
 
     const l2EnvVars = ['CHAIN_ETH_ZKSYNC_NETWORK_ID', 'CONTRACTS_DIAMOND_PROXY_ADDR', 'CONTRACTS_BASE_TOKEN_ADDR'];
-    console.log('Writing to', `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`);
+    const l2EnvFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
+    console.log('Writing to', l2EnvFile);
 
-    const updatedContracts = updateContractsEnv(
-        `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`,
-        deployLog,
-        l2EnvVars
-    );
+    const updatedContracts = updateContractsEnv(l2EnvFile, deployLog, l2EnvVars);
+
+    for (const userVar of USER_FACING_ENV_VARS) {
+        const originalVar = userVar.replace(/CONTRACTS_USER_FACING/g, 'CONTRACTS');
+        env.modify(userVar, process.env[originalVar]!, l2EnvFile, false);
+    }
 
     // Write updated contract addresses and tx hashes to the separate file
     // Currently it's used by loadtest github action to update deployment configmap.
@@ -439,7 +467,7 @@ command
 command
     .command('migrate-to-sync-layer')
     .description('prepare the network to server as a synclayer')
-    .action(async (cmd) => {
+    .action(async () => {
         await migrateToSyncLayer();
     });
 

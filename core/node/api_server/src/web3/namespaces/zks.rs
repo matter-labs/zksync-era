@@ -104,15 +104,19 @@ impl ZksNamespace {
     }
 
     pub fn get_bridgehub_contract_impl(&self) -> Option<Address> {
-        self.state.api_config.bridgehub_proxy_addr
+        self.state.api_config.user_facing_bridgehub_addr
     }
 
     pub fn get_main_contract_impl(&self) -> Address {
-        self.state.api_config.diamond_proxy_addr
+        self.state.api_config.user_facing_diamond_proxy_addr
     }
 
     pub fn get_testnet_paymaster_impl(&self) -> Option<Address> {
         self.state.api_config.l2_testnet_paymaster_addr
+    }
+
+    pub fn get_native_token_vault_proxy_addr_impl(&self) -> Option<Address> {
+        self.state.api_config.l2_native_token_vault_proxy_addr
     }
 
     pub fn get_bridge_contracts_impl(&self) -> BridgeAddresses {

@@ -20,7 +20,7 @@ const contracts = {
 const ETH_PER_CUSTOM_ACCOUNT = L2_DEFAULT_ETH_PER_ACCOUNT.div(8);
 const TRANSFER_AMOUNT = 1;
 
-describe.skip('Tests for the custom account behavior', () => {
+describe('Tests for the custom account behavior', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let customAccount: zksync.Contract;

@@ -56,7 +56,7 @@ pub struct TransactionsDal<'c, 'a> {
 }
 
 impl TransactionsDal<'_, '_> {
-    /// FIXME: remvoe this function in prod
+    /// FIXME: remove this function in prod
     pub async fn erase_l1_txs_history(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
