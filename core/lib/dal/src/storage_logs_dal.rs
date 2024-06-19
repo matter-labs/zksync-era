@@ -40,7 +40,7 @@ impl StorageLogsDal<'_, '_> {
         let logs_len = logs.len();
         let copy = CopyStatement::new(
             "COPY storage_logs(
-                hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
+                hashed_key, address, key, value, operation_number, miniblock_number,
                 created_at, updated_at
             )
             FROM STDIN WITH (DELIMITER '|')",
