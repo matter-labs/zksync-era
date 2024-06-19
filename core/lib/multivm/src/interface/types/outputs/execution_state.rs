@@ -1,7 +1,7 @@
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     zk_evm_types::LogQuery,
-    VmEvent, U256,
+    StorageLog, VmEvent, U256,
 };
 
 /// State of the VM since the start of the batch execution.
@@ -10,7 +10,7 @@ pub struct CurrentExecutionState {
     /// Events produced by the VM.
     pub events: Vec<VmEvent>,
     /// The deduplicated storage logs produced by the VM.
-    pub deduplicated_storage_log_queries: Vec<LogQuery>,
+    pub deduplicated_storage_logs: Vec<StorageLog>,
     /// Hashes of the contracts used by the VM.
     pub used_contract_hashes: Vec<U256>,
     /// L2 to L1 logs produced by the VM.

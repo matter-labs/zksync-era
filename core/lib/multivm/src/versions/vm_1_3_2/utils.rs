@@ -8,7 +8,7 @@ use zk_evm_1_3_3::{
 use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
 use zksync_state::WriteStorage;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
-use zksync_types::{Address, StorageLogQueryType, H160, MAX_L2_TX_GAS_LIMIT, U256};
+use zksync_types::{Address, StorageLogKind, H160, MAX_L2_TX_GAS_LIMIT, U256};
 use zksync_utils::h256_to_u256;
 
 use crate::vm_1_3_2::{
@@ -257,5 +257,5 @@ pub(crate) fn calculate_computational_gas_used<
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StorageLogQuery {
     pub log_query: LogQuery,
-    pub log_type: StorageLogQueryType,
+    pub log_type: StorageLogKind,
 }

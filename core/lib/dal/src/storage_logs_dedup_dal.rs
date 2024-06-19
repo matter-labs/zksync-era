@@ -7,10 +7,9 @@ use zksync_db_connection::{
     instrument::{CopyStatement, InstrumentExt},
 };
 use zksync_types::{
-    snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
-    StorageKey, H256,
+    snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLog,
+    H256,
 };
-use zksync_utils::u256_to_h256;
 
 pub use crate::models::storage_log::DbInitialWrite;
 use crate::Core;
@@ -24,7 +23,7 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn insert_protective_reads(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        read_logs: &[LogQuery],
+        read_logs: &[StorageLog],
     ) -> DalResult<()> {
         let read_logs_len = read_logs.len();
         let copy = CopyStatement::new(
@@ -40,8 +39,8 @@ impl StorageLogsDedupDal<'_, '_> {
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
         for log in read_logs.iter() {
-            let address_str = format!("\\\\x{}", hex::encode(log.address.0));
-            let key_str = format!("\\\\x{}", hex::encode(u256_to_h256(log.key).0));
+            let address_str = format!("\\\\x{}", hex::encode(log.key.address()));
+            let key_str = format!("\\\\x{}", hex::encode(log.key.key()));
             let row = format!(
                 "{}|{}|{}|{}|{}\n",
                 l1_batch_number, address_str, key_str, now, now

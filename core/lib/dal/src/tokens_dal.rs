@@ -167,7 +167,6 @@ mod tests {
             .await
             .unwrap();
 
-        let logs = [(H256::zero(), logs)];
         conn.storage_logs_dal()
             .insert_storage_logs(L2BlockNumber(number), &logs)
             .await
@@ -337,10 +336,7 @@ mod tests {
         );
         storage
             .storage_logs_dal()
-            .insert_storage_logs(
-                L2BlockNumber(1),
-                &[(H256::zero(), vec![failed_deployment_log])],
-            )
+            .insert_storage_logs(L2BlockNumber(1), &[failed_deployment_log])
             .await
             .unwrap();
 
@@ -348,10 +344,7 @@ mod tests {
             StorageLog::new_write_log(get_code_key(&test_info.l2_address), H256::repeat_byte(2));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(
-                L2BlockNumber(100),
-                &[(H256::zero(), vec![test_deployment_log])],
-            )
+            .insert_storage_logs(L2BlockNumber(100), &[test_deployment_log])
             .await
             .unwrap();
         storage
