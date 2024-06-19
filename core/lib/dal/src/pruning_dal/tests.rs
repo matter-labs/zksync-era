@@ -377,8 +377,7 @@ async fn storage_logs_pruning_works_correctly() {
         &[random_storage_log(2, 3), random_storage_log(3, 4)],
     );
     assert_l2_block_storage_logs_equal(L2BlockNumber(1), &actual_logs, &[random_storage_log(1, 1)]);
-    assert_eq!(stats.deleted_storage_logs_from_past_batches, 0);
-    assert_eq!(stats.deleted_storage_logs_from_pruned_batches, 1);
+    assert_eq!(stats.deleted_storage_logs, 1);
 
     let stats = transaction
         .pruning_dal()
@@ -402,8 +401,7 @@ async fn storage_logs_pruning_works_correctly() {
         &actual_logs,
         &[random_storage_log(5, 7)],
     );
-    assert_eq!(stats.deleted_storage_logs_from_past_batches, 1);
-    assert_eq!(stats.deleted_storage_logs_from_pruned_batches, 1);
+    assert_eq!(stats.deleted_storage_logs, 2);
 }
 
 #[tokio::test]

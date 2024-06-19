@@ -629,6 +629,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx.confirmed_at AS "executed_at?",
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
+                miniblocks.fair_pubdata_price,
                 miniblocks.bootloader_code_hash,
                 miniblocks.default_aa_code_hash,
                 miniblocks.protocol_version,
@@ -673,7 +674,8 @@ impl BlocksWeb3Dal<'_, '_> {
                 mb AS (
                     SELECT
                         l1_gas_price,
-                        l2_fair_gas_price
+                        l2_fair_gas_price,
+                        fair_pubdata_price
                     FROM
                         miniblocks
                     WHERE
@@ -695,6 +697,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx.confirmed_at AS "executed_at?",
                 mb.l1_gas_price,
                 mb.l2_fair_gas_price,
+                mb.fair_pubdata_price,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash
             FROM

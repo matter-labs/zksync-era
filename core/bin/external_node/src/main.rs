@@ -3,6 +3,7 @@ use std::{collections::HashSet, net::Ipv4Addr, str::FromStr, sync::Arc, time::Du
 use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
+use node_builder::ExternalNodeBuilder;
 use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
@@ -63,6 +64,7 @@ mod config;
 mod init;
 mod metadata;
 mod metrics;
+mod node_builder;
 #[cfg(test)]
 mod tests;
 
@@ -426,10 +428,11 @@ async fn run_api(
         .build()
         .await
         .context("failed to build a proxy_cache_updater_pool")?;
-    task_handles.push(tokio::spawn(tx_proxy.run_account_nonce_sweeper(
-        proxy_cache_updater_pool.clone(),
-        stop_receiver.clone(),
-    )));
+    task_handles.push(tokio::spawn(
+        tx_proxy
+            .account_nonce_sweeper_task(proxy_cache_updater_pool.clone())
+            .run(stop_receiver.clone()),
+    ));
 
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
@@ -716,6 +719,10 @@ struct Cli {
     external_node_config_path: Option<std::path::PathBuf>,
     /// Path to the yaml with consensus.
     consensus_path: Option<std::path::PathBuf>,
+
+    /// Run the node using the node framework.
+    #[arg(long)]
+    use_node_framework: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
@@ -811,6 +818,22 @@ async fn main() -> anyhow::Result<()> {
         .fetch_remote(main_node_client.as_ref())
         .await
         .context("failed fetching remote part of node config from main node")?;
+
+    // If the node framework is used, run the node.
+    if opt.use_node_framework {
+        // We run the node from a different thread, since the current thread is in tokio context.
+        std::thread::spawn(move || {
+            let node =
+                ExternalNodeBuilder::new(config).build(opt.components.0.into_iter().collect())?;
+            node.run()?;
+            anyhow::Ok(())
+        })
+        .join()
+        .expect("Failed to run the node")?;
+
+        return Ok(());
+    }
+
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
     }

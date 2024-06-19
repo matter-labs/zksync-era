@@ -34,6 +34,7 @@ fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         executed_at: None,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
+        fair_pubdata_price: None,
         base_system_contracts_hashes: Default::default(),
     }
 }
@@ -160,6 +161,7 @@ async fn external_node_basics(components_str: &'static str) {
         secrets_path: None,
         external_node_config_path: None,
         consensus_path: None,
+        use_node_framework: false,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
     if opt.components.0.contains(&Component::TreeApi) {
@@ -272,6 +274,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
         secrets_path: None,
         external_node_config_path: None,
         consensus_path: None,
+        use_node_framework: false,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
     if opt.components.0.contains(&Component::TreeApi) {
