@@ -272,11 +272,10 @@ impl<'a> Sandbox<'a> {
     ) {
         // Apply state override
         if let Some(state_override) = state_override {
-            // storage_view_borrow.disable_cache();
             let storage_overrides: &mut StorageOverrides<PostgresStorage> =
                 self.storage_view.storage_handle_mut();
 
-            // Apply the state override using the borrowed storage_view
+            // Apply the state override
             storage_overrides.apply_state_override(&state_override);
         }
         self.setup_storage_view(tx);
