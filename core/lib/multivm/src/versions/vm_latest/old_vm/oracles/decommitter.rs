@@ -180,8 +180,15 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
             Ok(partial_query)
         } else {
             partial_query.is_fresh = true;
-            self.decommitted_code_hashes
-                .insert(stored_hash, None, partial_query.timestamp);
+            if self
+                .decommitted_code_hashes
+                .inner()
+                .get(&stored_hash)
+                .is_none()
+            {
+                self.decommitted_code_hashes
+                    .insert(stored_hash, None, partial_query.timestamp);
+            }
 
             Ok(partial_query)
         }

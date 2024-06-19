@@ -6,7 +6,7 @@ On standard Ethereum clients, the workflow for executing blocks is the following
 2. Gather the state changes (if the transaction has not reverted), apply them to the state.
 3. Go back to step (1) if the block gas limit has not been yet exceeded.
 
-However, having such flow on zkSync (i.e. processing transaction one-by-one) would be too inefficient, since we have to
+However, having such flow on ZKsync (i.e. processing transaction one-by-one) would be too inefficient, since we have to
 run the entire proving workflow for each individual transaction. That’s why we need the _bootloader_: instead of running
 N transactions separately, we run the entire batch (set of blocks, more can be found
 [here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Batches%20%26%20L2%20blocks%20on%20zkSync.md))
@@ -19,7 +19,7 @@ unlike system contracts, the bootloader’s code is not stored anywhere on L2. T
 bootloader’s address as formal. It only exists for the sake of providing some value to `this` / `msg.sender`/etc. When
 someone calls the bootloader address (e.g. to pay fees) the EmptyContract’s code is actually invoked.
 
-Bootloader is the program that accepts an array of transactions and executes the entire zkSync batch. This section will
+Bootloader is the program that accepts an array of transactions and executes the entire ZKsync batch. This section will
 expand on its invariants and methods.
 
 ## Playground bootloader vs proved bootloader
@@ -62,12 +62,12 @@ supported:
 - Note, that unlike type 1 and type 2 transactions, `reserved0` field can be set to a non-zero value, denoting that this
   legacy transaction is EIP-155-compatible and its RLP encoding (as well as signature) should contain the `chainId` of
   the system.
-- `txType`: 1. It means that the transaction is of type 1, i.e. transactions access list. zkSync does not support access
+- `txType`: 1. It means that the transaction is of type 1, i.e. transactions access list. ZKsync does not support access
   lists in any way, so no benefits of fulfilling this list will be provided. The access list is assumed to be empty. The
   same restrictions as for type 0 are enforced, but also `reserved0` must be 0.
 - `txType`: 2. It is EIP1559 transactions. The same restrictions as for type 1 apply, but now `maxFeePerErgs` may not be
   equal to `getMaxPriorityFeePerErg`.
-- `txType`: 113. It is zkSync transaction type. This transaction type is intended for AA support. The only restriction
+- `txType`: 113. It is ZKsync transaction type. This transaction type is intended for AA support. The only restriction
   that applies to this transaction type: fields `reserved0..reserved4` must be equal to 0.
 - `txType`: 254. It is a transaction type that is used for upgrading the L2 system. This is the only type of transaction
   is allowed to start a transaction out of the name of the contracts in kernel space.
@@ -238,7 +238,7 @@ succeeded, the slot `2^19 - 1024 + i` will be marked as 1 and 0 otherwise.
 
 ## L2 transactions
 
-On zkSync, every address is a contract. Users can start transactions from their EOA accounts, because every address that
+On ZKsync, every address is a contract. Users can start transactions from their EOA accounts, because every address that
 does not have any contract deployed on it implicitly contains the code defined in the
 [DefaultAccount.sol](https://github.com/code-423n4/2023-10-zksync/blob/main/code/system-contracts/contracts/DefaultAccount.sol)
 file. Whenever anyone calls a contract that is not in kernel space (i.e. the address is ≥ 2^16) and does not have any
@@ -323,7 +323,7 @@ Also, we
 [set](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L3812)
 the fictive L2 block’s data. Then, we call the system context to ensure that it publishes the timestamp of the L2 block
 as well as L1 batch. We also reset the `txNumberInBlock` counter to avoid its state diffs from being published on L1.
-You can read more about block processing on zkSync
+You can read more about block processing on ZKsync
 [here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Batches%20&%20L2%20blocks%20on%20zkSync.md).
 
 After that, we publish the hash as well as the number of priority operations in this batch. More on it

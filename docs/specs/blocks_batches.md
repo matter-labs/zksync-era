@@ -196,7 +196,7 @@ The hash of an L2 block is
 To add a transaction hash to the current miniblock we use the `appendTransactionToCurrentL2Block`
 [function](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/contracts/SystemContext.sol#L373).
 
-Since zkSync is a state-diff based rollup, there is no way to deduce the hashes of the L2 blocks based on the
+Since ZKsync is a state-diff based rollup, there is no way to deduce the hashes of the L2 blocks based on the
 transactions’ in the batch (because there is no access to the transaction’s hashes). At the same time, in order to
 server `blockhash` method, the VM requires the knowledge of some of the previous L2 block hashes. In order to save up on
 pubdata (by making sure that the same storage slots are reused, i.e. we only have repeated writes) we

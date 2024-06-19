@@ -1,6 +1,6 @@
 //! Ethereum watcher polls the Ethereum node for the relevant events, such as priority operations (aka L1 transactions),
 //! protocol upgrades etc.
-//! New events are accepted to the zkSync network once they have the sufficient amount of L1 confirmations.
+//! New events are accepted to the ZKsync network once they have the sufficient amount of L1 confirmations.
 
 use std::time::Duration;
 
