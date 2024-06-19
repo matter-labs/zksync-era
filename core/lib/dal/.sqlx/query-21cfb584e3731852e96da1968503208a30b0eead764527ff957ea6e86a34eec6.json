@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                hashed_key,\n                address,\n                key,\n                value,\n                operation_number,\n                tx_hash,\n                miniblock_number\n            FROM\n                storage_logs\n            ORDER BY\n                miniblock_number,\n                operation_number\n            ",
+  "query": "\n            SELECT\n                hashed_key,\n                address,\n                key,\n                value,\n                operation_number,\n                miniblock_number\n            FROM\n                storage_logs\n            ORDER BY\n                miniblock_number,\n                operation_number\n            ",
   "describe": {
     "columns": [
       {
@@ -30,11 +30,6 @@
       },
       {
         "ordinal": 5,
-        "name": "tx_hash",
-        "type_info": "Bytea"
-      },
-      {
-        "ordinal": 6,
         "name": "miniblock_number",
         "type_info": "Int8"
       }
@@ -48,9 +43,8 @@
       false,
       false,
       false,
-      false,
       false
     ]
   },
-  "hash": "c75cdc655cd843a474f857e80b30685582bb37ba816a5434ee546d86ef9a8d9e"
+  "hash": "21cfb584e3731852e96da1968503208a30b0eead764527ff957ea6e86a34eec6"
 }

@@ -563,7 +563,6 @@ impl StorageLogsDal<'_, '_> {
                 key,
                 value,
                 operation_number,
-                tx_hash,
                 miniblock_number
             FROM
                 storage_logs
@@ -583,7 +582,6 @@ impl StorageLogsDal<'_, '_> {
                 key: H256::from_slice(&row.key),
                 value: H256::from_slice(&row.value),
                 operation_number: row.operation_number as u64,
-                tx_hash: H256::from_slice(&row.tx_hash),
                 l2_block_number: L2BlockNumber(row.miniblock_number as u32),
             })
             .collect()
