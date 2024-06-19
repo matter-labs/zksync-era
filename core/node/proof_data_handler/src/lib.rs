@@ -1,7 +1,11 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
-use axum::{extract::Path, routing::post, Json, Router};
+use axum::{
+    extract::{Extension, Path},
+    routing::{get, post},
+    Json, Router,
+};
 use request_processor::RequestProcessor;
 use tee_request_processor::TeeRequestProcessor;
 use tokio::sync::watch;
@@ -81,6 +85,10 @@ fn create_proof_processing_router(
                         .await
                 },
             ),
+        )
+        .route(
+            "/health",
+            get(|_: Extension<()>| async { Ok::<_, ()>("Service is up and running") }),
         );
 
     if config.tee_support {
