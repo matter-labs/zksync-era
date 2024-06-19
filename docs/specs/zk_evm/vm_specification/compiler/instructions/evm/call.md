@@ -6,7 +6,7 @@ The call type is encoded on the assembly level, so we will describe the common h
 distinctions if there are any.
 
 For more information, see the
-[zkSync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#call-staticcall-delegatecall).
+[ZKsync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#call-staticcall-delegatecall).
 
 ## [CALL](https://www.evm.codes/#f1?fork=shanghai)
 

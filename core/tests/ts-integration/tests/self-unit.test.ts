@@ -1,6 +1,6 @@
 /**
  * This file contains unit tests for the framework itself.
- * It does not receive a funced account and should not interact with the zkSync server.
+ * It does not receive a funced account and should not interact with the ZKsync server.
  */
 import { TestMaster } from '../src/index';
 import { BigNumber } from 'ethers';

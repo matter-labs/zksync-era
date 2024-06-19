@@ -1,11 +1,14 @@
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, sync::Arc};
 
 use anyhow::Context;
+use zksync_node_sync::MainNodeHealthCheck;
 use zksync_types::{url::SensitiveUrl, L2ChainId};
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::{
-    implementations::resources::main_node_client::MainNodeClientResource,
+    implementations::resources::{
+        healthcheck::AppHealthCheckResource, main_node_client::MainNodeClientResource,
+    },
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -40,9 +43,15 @@ impl WiringLayer for MainNodeClientLayer {
             .with_allowed_requests_per_second(self.rate_limit_rps)
             .build();
 
-        context.insert_resource(MainNodeClientResource(
-            Box::new(main_node_client) as Box<DynClient<L2>>
-        ))?;
+        let client = Box::new(main_node_client) as Box<DynClient<L2>>;
+        context.insert_resource(MainNodeClientResource(client.clone()))?;
+
+        // Insert healthcheck
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        app_health
+            .insert_custom_component(Arc::new(MainNodeHealthCheck::from(client)))
+            .map_err(WiringError::internal)?;
+
         Ok(())
     }
 }

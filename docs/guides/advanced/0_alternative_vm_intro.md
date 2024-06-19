@@ -4,7 +4,7 @@
 
 [Back to ToC](../../specs/README.md)
 
-The zkSync zkEVM plays a fundamentally different role in the zkStack than the EVM does in Ethereum. The EVM is used to
+The ZKsync zkEVM plays a fundamentally different role in the zkStack than the EVM does in Ethereum. The EVM is used to
 execute code in Ethereum's state transition function. This STF needs a client to implement and run it. Ethereum has a
 multi-client philosophy, there are multiple clients, and they are written in Go, Rust, and other traditional programming
 languages, all running and verifying the same STF.
@@ -68,7 +68,7 @@ For each frame, the following memory areas are allocated:
   calldata/copy the `returndata` from the calls to system contracts to not interfere with the standard Solidity memory
   alignment.
 - _Stack_. Unlike Ethereum, stack is not the primary place to get arguments for opcodes. The biggest difference between
-  stack on zkEVM and EVM is that on zkSync stack can be accessed at any location (just like memory). While users do not
+  stack on zkEVM and EVM is that on ZKsync stack can be accessed at any location (just like memory). While users do not
   pay for the growth of stack, the stack can be fully cleared at the end of the frame, so the overhead is minimal.
 - _Code_. The memory area from which the VM executes the code of the contract. The contract itself can not read the code
   page, it is only done implicitly by the VM.
@@ -115,7 +115,7 @@ copying.
 
 Some of the operations which are opcodes on Ethereum, have become calls to some of the system contracts. The most
 notable examples are `Keccak256`, `SystemContext`, etc. Note, that, if done naively, the following lines of code would
-work differently on zkSync and Ethereum:
+work differently on ZKsync and Ethereum:
 
 ```solidity
 pop(call(...))
@@ -142,7 +142,7 @@ result in `revert(0,0)`.
 - `mimic_call`. The same as a normal `call`, but it can alter the `msg.sender` field of the transaction.
 - `to_l1`. Sends a system L2→L1 log to Ethereum. The structure of this log can be seen
   [here](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/Storage.sol#L47).
-- `event`. Emits an L2 log to zkSync. Note, that L2 logs are not equivalent to Ethereum events. Each L2 log can emit 64
+- `event`. Emits an L2 log to ZKsync. Note, that L2 logs are not equivalent to Ethereum events. Each L2 log can emit 64
   bytes of data (the actual size is 88 bytes, because it includes the emitter address, etc). A single Ethereum event is
   represented with multiple `event` logs constitute. This opcode is only used by `EventWriter` system contract.
 - `precompile_call`. This is an opcode that accepts two parameters: the uint256 representing the packed parameters for
@@ -227,7 +227,7 @@ by another system contract (since Matter Labs is fully aware of system contracts
 ### Simulations via our compiler
 
 In the future, we plan to introduce our “extended” version of Solidity with more supported opcodes than the original
-one. However, right now it was beyond the capacity of the team to do, so in order to represent accessing zkSync-specific
+one. However, right now it was beyond the capacity of the team to do, so in order to represent accessing ZKsync-specific
 opcodes, we use `call` opcode with certain constant parameters that will be automatically replaced by the compiler with
 zkEVM native opcode.
 
@@ -251,7 +251,7 @@ Full list of opcode simulations can be found
 
 We also use
 [verbatim-like](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/instructions/extensions/verbatim.md)
-statements to access zkSync-specific opcodes in the bootloader.
+statements to access ZKsync-specific opcodes in the bootloader.
 
 All the usages of the simulations in our Solidity code are implemented in the
 [SystemContractHelper](https://github.com/code-423n4/2023-10-zksync/blob/main/code/system-contracts/contracts/libraries/SystemContractHelper.sol)
@@ -284,7 +284,7 @@ above substitutions to work.
 
 ## Bytecode hashes
 
-On zkSync the bytecode hashes are stored in the following format:
+On ZKsync the bytecode hashes are stored in the following format:
 
 - The 0th byte denotes the version of the format. Currently the only version that is used is “1”.
 - The 1st byte is `0` for deployed contracts’ code and `1` for the contract code
@@ -306,6 +306,6 @@ Note, that it does not have to consist of only correct opcodes. In case the VM e
 simply revert (similar to how EVM would treat them).
 
 A call to a contract with invalid bytecode can not be proven. That is why it is **essential** that no contract with
-invalid bytecode is ever deployed on zkSync. It is the job of the
+invalid bytecode is ever deployed on ZKsync. It is the job of the
 [KnownCodesStorage](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#knowncodestorage)
 to ensure that all allowed bytecodes in the system are valid.

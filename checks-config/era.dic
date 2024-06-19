@@ -135,7 +135,7 @@ boolean
 prover
 timestamp
 H160
-zkSync
+ZKsync
 AccessList
 miniblock
 member₁
@@ -212,7 +212,7 @@ EOAs
 zeroized
 cardinality
 
-// zkSync-related words
+// ZKsync-related words
 matterlabs
 zkweb
 zksync
@@ -610,7 +610,7 @@ DBs
 unexecutable
 RLP
 DAL
-zkSync's
+ZKsync's
 l2_to_l1
 PoW
 coinbase
@@ -962,6 +962,7 @@ zksync_merkle_tree
 TreeMetadata
 delegator
 decrement
+whitelisted
 Bbellman
 Sbellman
 DCMAKE

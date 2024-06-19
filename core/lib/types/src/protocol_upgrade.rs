@@ -352,7 +352,7 @@ pub struct ProtocolUpgradeTxCommonData {
     pub gas_per_pubdata_limit: U256,
     /// Block in which Ethereum transaction was included.
     pub eth_block: u64,
-    /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
+    /// Tx hash of the transaction in the ZKsync network. Calculated as the encoded transaction data hash.
     pub canonical_tx_hash: H256,
     /// The amount of ETH that should be minted with this transaction
     pub to_mint: U256,

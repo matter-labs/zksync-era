@@ -1,4 +1,4 @@
-# zkSync Era Extension Simulation (verbatim)
+# ZKsync Era Extension Simulation (verbatim)
 
 NOTES:
 

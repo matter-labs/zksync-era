@@ -1,6 +1,6 @@
 #![allow(unused)]
 use anyhow::Context as _;
-use test_casing::test_casing;
+use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::consensus::{ValidatorPublicKey, WeightedValidator};
@@ -12,26 +12,20 @@ use zksync_consensus_roles::{
 };
 use zksync_dal::CoreDal;
 use zksync_node_test_utils::Snapshot;
-use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber, ProtocolVersionId};
 
 use super::*;
 
-async fn new_pool(from_snapshot: bool) -> ConnectionPool {
-    match from_snapshot {
-        true => {
-            ConnectionPool::from_snapshot(Snapshot::make(L1BatchNumber(23), L2BlockNumber(87), &[]))
-                .await
-        }
-        false => ConnectionPool::from_genesis().await,
-    }
-}
+const VERSIONS: [ProtocolVersionId; 2] = [ProtocolVersionId::latest(), ProtocolVersionId::next()];
+const FROM_SNAPSHOT: [bool; 2] = [true, false];
 
+#[test_casing(2, VERSIONS)]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_validator_block_store() {
+async fn test_validator_block_store(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    let pool = new_pool(false).await;
+    let pool = ConnectionPool::test(false, version).await;
 
     // Fill storage with unsigned L2 blocks.
     // Fetch a suffix of blocks that we will generate (fake) certs for.
@@ -91,9 +85,9 @@ async fn test_validator_block_store() {
 // In the current implementation, consensus certificates are created asynchronously
 // for the L2 blocks constructed by the StateKeeper. This means that consensus actor
 // is effectively just back filling the consensus certificates for the L2 blocks in storage.
-#[test_casing(2, [false, true])]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_validator(from_snapshot: bool) {
+async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
@@ -102,7 +96,7 @@ async fn test_validator(from_snapshot: bool) {
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Start state keeper.");
-        let pool = new_pool(from_snapshot).await;
+        let pool = ConnectionPool::test(from_snapshot,version).await;
         let (mut sk, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run(ctx));
 
@@ -155,8 +149,9 @@ async fn test_validator(from_snapshot: bool) {
 }
 
 // Test running a validator node and 2 full nodes recovered from different snapshots.
+#[test_casing(2, VERSIONS)]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_nodes_from_various_snapshots() {
+async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
@@ -165,7 +160,7 @@ async fn test_nodes_from_various_snapshots() {
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("spawn validator");
-        let validator_pool = ConnectionPool::from_genesis().await;
+        let validator_pool = ConnectionPool::from_genesis(version).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
@@ -233,9 +228,9 @@ async fn test_nodes_from_various_snapshots() {
 // Test running a validator node and a couple of full nodes.
 // Validator is producing signed blocks and fetchers are expected to fetch
 // them directly or indirectly.
-#[test_casing(2, [false, true])]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_full_nodes(from_snapshot: bool) {
+async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
     const NODES: usize = 2;
 
     zksync_concurrency::testonly::abort_on_panic();
@@ -256,7 +251,7 @@ async fn test_full_nodes(from_snapshot: bool) {
 
     // Run validator and fetchers in parallel.
     scope::run!(ctx, |ctx, s| async {
-        let validator_pool = new_pool(from_snapshot).await;
+        let validator_pool = ConnectionPool::test(from_snapshot, version).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(async {
@@ -272,8 +267,7 @@ async fn test_full_nodes(from_snapshot: bool) {
         validator.seal_batch().await;
         validator_pool
             .wait_for_payload(ctx, validator.last_block())
-            .await
-            .unwrap();
+            .await?;
 
         tracing::info!("Run validator.");
         let (cfg, secrets) = testonly::config(&validator_cfgs[0]);
@@ -283,7 +277,7 @@ async fn test_full_nodes(from_snapshot: bool) {
         let mut node_pools = vec![];
         for (i, cfg) in node_cfgs.iter().enumerate() {
             let i = ctx::NoCopy(i);
-            let pool = new_pool(from_snapshot).await;
+            let pool = ConnectionPool::test(from_snapshot, version).await;
             let (node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
             node_pools.push(pool.clone());
             s.spawn_bg(async {
@@ -318,9 +312,9 @@ async fn test_full_nodes(from_snapshot: bool) {
 }
 
 // Test running external node (non-leader) validators.
-#[test_casing(2, [false, true])]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_en_validators(from_snapshot: bool) {
+async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
     const NODES: usize = 3;
 
     zksync_concurrency::testonly::abort_on_panic();
@@ -331,7 +325,7 @@ async fn test_en_validators(from_snapshot: bool) {
 
     // Run all nodes in parallel.
     scope::run!(ctx, |ctx, s| async {
-        let main_node_pool = new_pool(from_snapshot).await;
+        let main_node_pool = ConnectionPool::test(from_snapshot, version).await;
         let (mut main_node, runner) =
             testonly::StateKeeper::new(ctx, main_node_pool.clone()).await?;
         s.spawn_bg(async {
@@ -370,7 +364,7 @@ async fn test_en_validators(from_snapshot: bool) {
         let mut ext_node_pools = vec![];
         for (i, cfg) in cfgs[1..].iter().enumerate() {
             let i = ctx::NoCopy(i);
-            let pool = new_pool(from_snapshot).await;
+            let pool = ConnectionPool::test(from_snapshot, version).await;
             let (ext_node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
             ext_node_pools.push(pool.clone());
             s.spawn_bg(async {
@@ -404,9 +398,9 @@ async fn test_en_validators(from_snapshot: bool) {
 }
 
 // Test fetcher back filling missing certs.
-#[test_casing(2, [false, true])]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
+async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
@@ -416,7 +410,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Spawn validator.");
-        let validator_pool = new_pool(from_snapshot).await;
+        let validator_pool = ConnectionPool::test(from_snapshot, version).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx));
@@ -426,7 +420,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
         validator.seal_batch().await;
         let client = validator.connect(ctx).await?;
 
-        let node_pool = new_pool(from_snapshot).await;
+        let node_pool = ConnectionPool::test(from_snapshot, version).await;
 
         tracing::info!("Run p2p fetcher.");
         scope::run!(ctx, |ctx, s| async {
@@ -479,16 +473,16 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
     .unwrap();
 }
 
-#[test_casing(2, [false, true])]
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
-async fn test_centralized_fetcher(from_snapshot: bool) {
+async fn test_centralized_fetcher(from_snapshot: bool, version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Spawn a validator.");
-        let validator_pool = new_pool(from_snapshot).await;
+        let validator_pool = ConnectionPool::test(from_snapshot, version).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
@@ -498,7 +492,7 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
         validator.seal_batch().await;
 
         tracing::info!("Spawn a node.");
-        let node_pool = new_pool(from_snapshot).await;
+        let node_pool = ConnectionPool::test(from_snapshot, version).await;
         let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("fetcher")));
         s.spawn_bg(node.run_fetcher(ctx, validator.connect(ctx).await?));
@@ -520,14 +514,15 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
 
 /// Tests that generated L1 batch witnesses can be verified successfully.
 /// TODO: add tests for verification failures.
+#[test_casing(2, VERSIONS)]
 #[tokio::test]
-async fn test_batch_witness() {
+async fn test_batch_witness(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
 
     scope::run!(ctx, |ctx, s| async {
-        let pool = ConnectionPool::from_genesis().await;
+        let pool = ConnectionPool::from_genesis(version).await;
         let (mut node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run_real(ctx));
 

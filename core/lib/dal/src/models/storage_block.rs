@@ -269,6 +269,8 @@ pub(crate) struct StorageBlockDetails {
     pub l1_gas_price: i64,
     // L2 gas price assumed in the corresponding batch
     pub l2_fair_gas_price: i64,
+    // Cost of publishing 1 byte (in wei).
+    pub fair_pubdata_price: Option<i64>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub fee_account_address: Vec<u8>,
@@ -312,6 +314,7 @@ impl From<StorageBlockDetails> for api::BlockDetails {
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             l1_gas_price: details.l1_gas_price as u64,
             l2_fair_gas_price: details.l2_fair_gas_price as u64,
+            fair_pubdata_price: details.fair_pubdata_price.map(|x| x as u64),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 details.bootloader_code_hash,
                 details.default_aa_code_hash,
@@ -344,6 +347,7 @@ pub(crate) struct StorageL1BatchDetails {
     pub executed_at: Option<NaiveDateTime>,
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
+    pub fair_pubdata_price: Option<i64>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
 }
@@ -385,6 +389,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             l1_gas_price: details.l1_gas_price as u64,
             l2_fair_gas_price: details.l2_fair_gas_price as u64,
+            fair_pubdata_price: details.fair_pubdata_price.map(|x| x as u64),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 details.bootloader_code_hash,
                 details.default_aa_code_hash,

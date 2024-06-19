@@ -33,7 +33,7 @@ Now, let's see how many tokens we have:
 // This checks the tokens on 'L1' (reth)
 ./web3 --rpc-url http://localhost:8545 balance  0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
 
-// This checks the tokens on 'L2' (zkSync)
+// This checks the tokens on 'L2' (ZKsync)
 ./web3 --rpc-url http://localhost:3050 balance  0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
 ```
 
@@ -55,7 +55,7 @@ and now let's bridge it over to L2.
 
 ## Bridging over to L2
 
-For an easy way to bridge we'll use [zkSync CLI](https://github.com/matter-labs/zksync-cli)
+For an easy way to bridge we'll use [ZKsync CLI](https://github.com/matter-labs/zksync-cli)
 
 ```shell
 npx zksync-cli bridge deposit --chain=dockerized-node --amount 3 --pk=0x5090c024edb3bdf4ce2ebc2da96bedee925d9d77d729687e5e2d56382cf0a5a6 --to=0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd

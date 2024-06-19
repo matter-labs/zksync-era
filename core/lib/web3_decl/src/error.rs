@@ -1,4 +1,4 @@
-//! Definition of errors that can occur in the zkSync Web3 API.
+//! Definition of errors that can occur in the ZKsync Web3 API.
 
 use std::{
     collections::HashMap,
