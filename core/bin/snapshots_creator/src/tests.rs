@@ -26,15 +26,14 @@ use super::*;
 
 const TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
     version: 1,
+    l1_batch_number: None,
     storage_logs_chunk_size: 1_000_000,
     concurrent_queries_count: 10,
     object_store: None,
 };
 const SEQUENTIAL_TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
-    version: 1,
-    storage_logs_chunk_size: 1_000_000,
     concurrent_queries_count: 1,
-    object_store: None,
+    ..TEST_CONFIG
 };
 
 #[derive(Debug)]
@@ -341,6 +340,29 @@ async fn persisting_snapshot_logs() {
     assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
 }
 
+#[tokio::test]
+async fn persisting_snapshot_logs_with_specified_l1_batch() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut rng = thread_rng();
+    let object_store = MockObjectStore::arc();
+    let mut conn = pool.connection().await.unwrap();
+    let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
+
+    // L1 batch numbers are intentionally not ordered
+    for snapshot_l1_batch_number in [7, 1, 4, 6] {
+        let snapshot_l1_batch_number = L1BatchNumber(snapshot_l1_batch_number);
+        let mut config = TEST_CONFIG;
+        config.l1_batch_number = Some(snapshot_l1_batch_number);
+
+        SnapshotCreator::for_tests(object_store.clone(), pool.clone())
+            .run(config, MIN_CHUNK_COUNT)
+            .await
+            .unwrap();
+
+        assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
+    }
+}
+
 async fn assert_storage_logs(
     object_store: &dyn ObjectStore,
     snapshot_l1_batch_number: L1BatchNumber,
@@ -355,7 +377,13 @@ async fn assert_storage_logs(
         let chunk: SnapshotStorageLogsChunk = object_store.get(key).await.unwrap();
         actual_logs.extend(chunk.storage_logs);
     }
-    assert_eq!(actual_logs, expected_outputs.storage_logs);
+    let expected_logs: HashSet<_> = expected_outputs
+        .storage_logs
+        .iter()
+        .filter(|log| log.l1_batch_number_of_initial_write <= snapshot_l1_batch_number)
+        .cloned()
+        .collect();
+    assert_eq!(actual_logs, expected_logs);
 }
 
 #[tokio::test]
@@ -432,10 +460,34 @@ async fn recovery_workflow() {
     let actual_deps: HashSet<_> = factory_deps.into_iter().collect();
     assert_eq!(actual_deps, expected_outputs.deps);
 
-    // Process 2 storage log chunks, then stop.
+    // Check that the creator does nothing unless it's requested to create a new snapshot.
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .stop_after_chunk_count(2)
         .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+    let snapshot_metadata = conn
+        .snapshots_dal()
+        .get_snapshot_metadata(snapshot_l1_batch_number)
+        .await
+        .unwrap()
+        .expect("No snapshot metadata");
+    assert!(
+        snapshot_metadata
+            .storage_logs_filepaths
+            .iter()
+            .all(Option::is_none),
+        "{snapshot_metadata:?}"
+    );
+
+    // Process 2 storage log chunks, then stop.
+    let recovery_config = SnapshotsCreatorConfig {
+        l1_batch_number: Some(snapshot_l1_batch_number),
+        ..SEQUENTIAL_TEST_CONFIG
+    };
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
+        .stop_after_chunk_count(2)
+        .run(recovery_config.clone(), MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
@@ -456,7 +508,7 @@ async fn recovery_workflow() {
 
     // Process the remaining chunks.
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
-        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .run(recovery_config, MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
@@ -471,13 +523,17 @@ async fn recovery_workflow_with_varying_chunk_size() {
     let mut conn = pool.connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
+    // Specifying the snapshot L1 batch right away should work fine.
+    let snapshot_l1_batch_number = L1BatchNumber(8);
+    let mut config = SEQUENTIAL_TEST_CONFIG;
+    config.l1_batch_number = Some(snapshot_l1_batch_number);
+
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .stop_after_chunk_count(2)
-        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .run(config.clone(), MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
-    let snapshot_l1_batch_number = L1BatchNumber(8);
     let snapshot_metadata = conn
         .snapshots_dal()
         .get_snapshot_metadata(snapshot_l1_batch_number)
@@ -493,14 +549,24 @@ async fn recovery_workflow_with_varying_chunk_size() {
         2
     );
 
-    let config_with_other_size = SnapshotsCreatorConfig {
-        storage_logs_chunk_size: 1, // << should be ignored
-        ..SEQUENTIAL_TEST_CONFIG
-    };
+    config.storage_logs_chunk_size = 1;
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
-        .run(config_with_other_size, MIN_CHUNK_COUNT)
+        .run(config, MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
     assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
+}
+
+#[tokio::test]
+async fn creator_fails_if_specified_l1_batch_is_missing() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let object_store = MockObjectStore::arc();
+
+    let mut config = SEQUENTIAL_TEST_CONFIG;
+    config.l1_batch_number = Some(L1BatchNumber(20));
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
+        .run(config, MIN_CHUNK_COUNT)
+        .await
+        .unwrap_err();
 }

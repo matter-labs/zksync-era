@@ -235,21 +235,12 @@ impl SnapshotCreator {
     /// Returns `Ok(None)` if the created snapshot would coincide with `latest_snapshot`.
     async fn initialize_snapshot_progress(
         config: &SnapshotsCreatorConfig,
+        l1_batch_number: L1BatchNumber,
         min_chunk_count: u64,
-        latest_snapshot: Option<&SnapshotMetadata>,
         conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<Option<SnapshotProgress>> {
         let snapshot_version = SnapshotVersion::try_from(config.version)
             .context("invalid snapshot version specified in config")?;
-
-        // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch.
-        let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;
-        let sealed_l1_batch_number = sealed_l1_batch_number.context("No L1 batches in Postgres")?;
-        anyhow::ensure!(
-            sealed_l1_batch_number != L1BatchNumber(0),
-            "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
-        );
-        let l1_batch_number = sealed_l1_batch_number - 1;
 
         // Sanity check: the selected L1 batch should have Merkle tree data; otherwise, it could be impossible
         // to recover from the generated snapshot.
@@ -262,15 +253,6 @@ impl SnapshotCreator {
                      could be impossible. This should never happen"
                 )
             })?;
-
-        let latest_snapshot_l1_batch_number =
-            latest_snapshot.map(|snapshot| snapshot.l1_batch_number);
-        if latest_snapshot_l1_batch_number == Some(l1_batch_number) {
-            tracing::info!(
-                "Snapshot at expected L1 batch #{l1_batch_number} is already created; exiting"
-            );
-            return Ok(None);
-        }
 
         let distinct_storage_logs_keys_count = conn
             .snapshots_creator_dal()
@@ -303,25 +285,59 @@ impl SnapshotCreator {
             .master_pool
             .connection_tagged("snapshots_creator")
             .await?;
-        let latest_snapshot = master_conn
+
+        let sealed_l1_batch_number = master_conn
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await?;
+        let sealed_l1_batch_number = sealed_l1_batch_number.context("No L1 batches in Postgres")?;
+        let requested_l1_batch_number = if let Some(l1_batch_number) = config.l1_batch_number {
+            anyhow::ensure!(
+                l1_batch_number <= sealed_l1_batch_number,
+                "Requested a snapshot for L1 batch #{l1_batch_number} that doesn't exist in Postgres (latest L1 batch: {sealed_l1_batch_number})"
+            );
+            l1_batch_number
+        } else {
+            // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch.
+            anyhow::ensure!(
+                sealed_l1_batch_number != L1BatchNumber(0),
+                "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
+            );
+            sealed_l1_batch_number - 1
+        };
+
+        let existing_snapshot = master_conn
             .snapshots_dal()
-            .get_newest_snapshot_metadata()
+            .get_snapshot_metadata(requested_l1_batch_number)
             .await?;
         drop(master_conn);
 
-        let pending_snapshot = latest_snapshot
-            .as_ref()
-            .filter(|snapshot| !snapshot.is_complete());
-        if let Some(snapshot) = pending_snapshot {
-            Ok(Some(SnapshotProgress::from_existing_snapshot(snapshot)))
-        } else {
-            Self::initialize_snapshot_progress(
-                config,
-                min_chunk_count,
-                latest_snapshot.as_ref(),
-                &mut self.connect_to_replica().await?,
-            )
-            .await
+        match existing_snapshot {
+            Some(snapshot) if snapshot.is_complete() => {
+                tracing::info!("Snapshot for the requested L1 batch is complete: {snapshot:?}");
+                Ok(None)
+            }
+            Some(snapshot) if config.l1_batch_number.is_some() => {
+                Ok(Some(SnapshotProgress::from_existing_snapshot(&snapshot)))
+            }
+            Some(snapshot) => {
+                // Unless creating a snapshot for a specific L1 batch is requested, we never continue an existing snapshot, even if it's incomplete.
+                // This it to make running multiple snapshot creator instances in parallel easier to reason about.
+                tracing::warn!(
+                    "Snapshot at expected L1 batch #{requested_l1_batch_number} exists, but is incomplete: {snapshot:?}. If you need to resume creating it, \
+                     specify the L1 batch number in the snapshot creator config"
+                );
+                Ok(None)
+            }
+            None => {
+                Self::initialize_snapshot_progress(
+                    config,
+                    requested_l1_batch_number,
+                    min_chunk_count,
+                    &mut self.connect_to_replica().await?,
+                )
+                .await
+            }
         }
     }
 
