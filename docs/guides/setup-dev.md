@@ -258,8 +258,7 @@ Install `nix`. Enable the nix command and flakes.
 Install docker, rustup and use rust to install SQLx CLI like described above. If you are on NixOS, you also need to
 enable nix-ld.
 
-Go to the zksync folder and run `nix develop --impure`. After it finishes, you are in a shell that has all the
-dependencies.
+Go to the zksync folder and run `nix develop`. After it finishes, you are in a shell that has all the dependencies.
 
 ## Foundry
 
