@@ -10,7 +10,7 @@ use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     vm_trace::Call,
-    L2BlockNumber, ProtocolVersionId, StorageLogQuery, Transaction, VmEvent, H256,
+    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, VmEvent, H256,
 };
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
@@ -20,7 +20,7 @@ use crate::metrics::KEEPER_METRICS;
 pub struct L2BlockUpdates {
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub events: Vec<VmEvent>,
-    pub storage_logs: Vec<StorageLogQuery>,
+    pub storage_logs: Vec<StorageLogWithPreviousValue>,
     pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>,
     pub system_l2_to_l1_logs: Vec<SystemL2ToL1Log>,
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
@@ -202,7 +202,7 @@ mod tests {
 
         accumulator.extend_from_executed_transaction(
             tx,
-            create_execution_result(0, []),
+            create_execution_result([]),
             BlockGasCount::default(),
             ExecutionMetrics::default(),
             vec![],
