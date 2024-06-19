@@ -436,7 +436,7 @@ pub(crate) struct OptionalENConfig {
     /// may be temporarily retained for other reasons; e.g., a batch cannot be pruned until it is executed on L1,
     /// which happens roughly 24 hours after its generation on the mainnet. Thus, in practice this value can specify
     /// the retention period greater than that implicitly imposed by other criteria (e.g., 7 or 30 days).
-    /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 1 hour.
+    /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 7 days.
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
     pruning_data_retention_sec: u64,
 }
@@ -794,7 +794,7 @@ impl OptionalENConfig {
     }
 
     fn default_pruning_data_retention_sec() -> u64 {
-        3_600 // 1 hour
+        3_600 * 24 * 7 // 7 days
     }
 
     fn from_env() -> anyhow::Result<Self> {
