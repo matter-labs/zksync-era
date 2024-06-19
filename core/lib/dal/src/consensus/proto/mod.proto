@@ -13,8 +13,28 @@ message Payload {
   optional uint64 fair_pubdata_price = 11; // required since 1.4.1; gwei
   optional uint32 virtual_blocks = 6; // required
   optional bytes operator_address = 7; // required; H160
+  // Set for protocol_version < 25.
   repeated Transaction transactions = 8;
+  // Set for protocol_version >= 25.
+  repeated TransactionV25 transactions_v25 = 12;
   optional bool last_in_batch = 10; // required
+}
+
+message L1Transaction {
+  optional bytes rlp = 1; // required; RLP encoded L2CanonicalTransaction
+  repeated bytes factory_deps = 2;
+}
+
+message L2Transaction {
+  optional bytes rlp = 1; // required; RLP encoded TransactionRequest
+}
+
+message TransactionV25 {
+  // required
+  oneof t {
+    L1Transaction l1 = 1;
+    L2Transaction l2 = 2;
+  }
 }
 
 message Transaction {
