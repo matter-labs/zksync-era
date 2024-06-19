@@ -1,3 +1,4 @@
+use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
@@ -198,6 +199,8 @@ pub struct FeeModelConfigV2 {
     pub max_gas_per_batch: u64,
     /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
     pub max_pubdata_per_batch: u64,
+    // /// A constant that indicates what base token is used.
+    // pub base_token: String,
 }
 
 impl Default for FeeModelConfig {
@@ -234,15 +237,16 @@ pub struct FeeParamsV1 {
     pub l1_gas_price: u64,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FeeParamsV2 {
     pub config: FeeModelConfigV2,
     pub l1_gas_price: u64,
     pub l1_pubdata_price: u64,
-    pub base_token_ratio: Option<f64>,
+    pub base_token: &'static str,
+    pub base_token_ratio: Option<BigDecimal>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum FeeParams {
     V1(FeeParamsV1),
     V2(FeeParamsV2),

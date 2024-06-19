@@ -14,7 +14,7 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
-use zksync_base_token_adjuster::NodeBaseTokenAdjuster;
+use zksync_base_token_adjuster::MainNodeBaseTokenAdjuster;
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
@@ -296,7 +296,7 @@ pub async fn initialize_components(
         genesis_config.l1_batch_commit_data_generator_mode,
     );
 
-    let arc_base_token_adjuster = Arc::new(NodeBaseTokenAdjuster::new(
+    let arc_base_token_adjuster = Arc::new(MainNodeBaseTokenAdjuster::new(
         connection_pool.clone(),
         configs
             .base_token_adjuster

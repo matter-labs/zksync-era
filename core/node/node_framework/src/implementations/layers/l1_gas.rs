@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use zksync_base_token_adjuster::NodeBaseTokenAdjuster;
+use zksync_base_token_adjuster::MainNodeBaseTokenAdjuster;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
     BaseTokenAdjusterConfig, GasAdjusterConfig, GenesisConfig,
@@ -70,7 +70,7 @@ impl WiringLayer for SequencerL1GasLayer {
         let replica_pool = pool_resource.get().await?;
 
         let base_token_adjuster =
-            NodeBaseTokenAdjuster::new(replica_pool.clone(), self.base_token_adjuster_config);
+            MainNodeBaseTokenAdjuster::new(replica_pool.clone(), self.base_token_adjuster_config);
 
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             gas_adjuster.clone(),

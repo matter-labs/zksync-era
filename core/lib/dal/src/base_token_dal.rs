@@ -14,22 +14,25 @@ impl BaseTokenDal<'_, '_> {
         numerator: &BigDecimal,
         denominator: &BigDecimal,
         ratio_timestamp: &chrono::NaiveDateTime,
-    ) -> DalResult<()> {
-        sqlx::query!(
+    ) -> DalResult<usize> {
+        let row = sqlx::query!(
             r#"
             INSERT INTO
                 base_token_prices (numerator, denominator, ratio_timestamp)
             VALUES
                 ($1, $2, $3)
+            RETURNING
+                id
             "#,
             numerator,
             denominator,
             ratio_timestamp,
         )
         .instrument("insert_base_token_price")
-        .execute(self.storage)
+        .fetch_one(self.storage)
         .await?;
-        Ok(())
+
+        Ok(row.id as usize)
     }
 
     // TODO (PE-128): pub async fn mark_l1_update()
