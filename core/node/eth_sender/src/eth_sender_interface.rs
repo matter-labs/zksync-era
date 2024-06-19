@@ -24,11 +24,11 @@ struct GetTxResponse {
 
 #[async_trait]
 pub(super) trait EthSenderInterface: 'static + Sync + Send + fmt::Debug {
-    async fn get_tx(&mut self, idempotency_key: String) -> anyhow::Result<GetTxResponse>;
+    async fn get_tx(&mut self, id: u32) -> anyhow::Result<GetTxResponse>;
 
     async fn send_tx(
         &mut self,
-        idempotency_key: String,
+        id: u32,
         raw_tx: Vec<u8>,
         tx_type: AggregatedActionType,
         contract_address: Address,

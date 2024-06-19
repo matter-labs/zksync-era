@@ -5,8 +5,7 @@ ALTER TABLE eth_txs ADD COLUMN idempotency_key VARCHAR UNIQUE;
 
 CREATE TABLE l1_transactions
 (
-    -- uuid with some human readable prefix, acts as idempotency_key for eth-sender
-    id               VARCHAR            NOT NULL PRIMARY KEY,
+    id               SERIAL             NOT NULL PRIMARY KEY,
     raw_tx           BYTEA              NOT NULL,
     contract_address TEXT               NOT NULL,
     blob_sidecar     BYTEA,
@@ -19,7 +18,7 @@ CREATE TABLE l1_transactions
 );
 
 -- for some time, we will need to fetch both old and new transactions
-ALTER TABLE zksync.public.l1_batches ADD column l1_commit_transaction_id VARCHAR REFERENCES l1_transactions(id) ON DELETE SET NULL;
-ALTER TABLE zksync.public.l1_batches ADD column l1_prove_transaction_id VARCHAR REFERENCES l1_transactions(id) ON DELETE SET NULL;
-ALTER TABLE zksync.public.l1_batches ADD column l1_execute_transaction_id VARCHAR REFERENCES l1_transactions(id) ON DELETE SET NULL;
+ALTER TABLE zksync.public.l1_batches ADD column l1_commit_transaction_id INT REFERENCES l1_transactions(id) ON DELETE SET NULL;
+ALTER TABLE zksync.public.l1_batches ADD column l1_prove_transaction_id INT REFERENCES l1_transactions(id) ON DELETE SET NULL;
+ALTER TABLE zksync.public.l1_batches ADD column l1_execute_transaction_id INT REFERENCES l1_transactions(id) ON DELETE SET NULL;
 
