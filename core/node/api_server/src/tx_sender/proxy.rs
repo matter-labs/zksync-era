@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
-    future::Future,
     sync::Arc,
     time::Duration,
 };
@@ -282,13 +281,24 @@ impl TxProxy {
         pending_nonce
     }
 
-    pub fn run_account_nonce_sweeper(
+    pub fn account_nonce_sweeper_task(
         &self,
         pool: ConnectionPool<Core>,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> impl Future<Output = anyhow::Result<()>> {
-        let tx_cache = self.tx_cache.clone();
-        tx_cache.run_updates(pool, stop_receiver)
+    ) -> AccountNonceSweeperTask {
+        let cache = self.tx_cache.clone();
+        AccountNonceSweeperTask { cache, pool }
+    }
+}
+
+#[derive(Debug)]
+pub struct AccountNonceSweeperTask {
+    cache: TxCache,
+    pool: ConnectionPool<Core>,
+}
+
+impl AccountNonceSweeperTask {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.cache.run_updates(self.pool, stop_receiver).await
     }
 }
 
