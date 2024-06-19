@@ -1,4 +1,4 @@
-//! The network where the zkSync resides.
+//! The network where the ZKsync resides.
 //!
 
 // Built-in uses
@@ -12,7 +12,7 @@ use crate::L1ChainId;
 
 // Local uses
 
-/// Network to be used for a zkSync client.
+/// Network to be used for a ZKsync client.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Network {

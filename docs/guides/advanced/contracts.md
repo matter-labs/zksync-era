@@ -1,10 +1,10 @@
-# zkSync contracts
+# ZKsync contracts
 
-Now that we know how to bridge tokens back and forth, let's talk about running things on zkSync.
+Now that we know how to bridge tokens back and forth, let's talk about running things on ZKsync.
 
 We have a bunch of great tutorials (like this one <https://docs.zksync.io/build/tooling/hardhat/getting-started>) that
 you can follow to get the exact code & command line calls to create the contracts - so in this article, let's focus on
-how things differ between zkSync and Ethereum.
+how things differ between ZKsync and Ethereum.
 
 **Note** Before reading this article, I'd recommend doing the hardhat tutorial above.
 
@@ -23,9 +23,9 @@ the ABI, so that they can set the proper function arguments).
 All the bytecode will be run on the EVM (Ethereum Virtual Machine) - that has a stack, access to memory and storage, and
 a bunch of opcodes.
 
-## zkSync flow
+## ZKsync flow
 
-The main part (and the main cost) of the zkSync is the proving system. In order to make proof as fast as possible, we're
+The main part (and the main cost) of the ZKsync is the proving system. In order to make proof as fast as possible, we're
 running a little bit different virtual machine (zkEVM) - that has a slightly different set of opcodes, and also contains
 a bunch of registers. More details on this will be written in the future articles.
 
@@ -37,7 +37,7 @@ While having a separate compiler introduces a bunch of challenges (for example, 
 allows us to move some of the VM logic (like new contract deployment) into System contracts - which allows faster &
 cheaper modifications and increased flexibility.
 
-### zkSync system contracts
+### ZKsync system contracts
 
 Small note on system contracts: as mentioned above, we moved some of the VM logic into system contracts, which allows us
 to keep VM simpler (and with this - keep the proving system simpler).
@@ -51,15 +51,15 @@ visible - like our `ContractDeployer`
 
 ### ContractDeployer
 
-Deploying a new contract differs on Ethereum and zkSync.
+Deploying a new contract differs on Ethereum and ZKsync.
 
-While on Ethereum - you send the transaction to 0x00 address - on zkSync you have to call the special `ContractDeployer`
+While on Ethereum - you send the transaction to 0x00 address - on ZKsync you have to call the special `ContractDeployer`
 system contract.
 
 If you look on your hardhat example, you'll notice that your `deploy.ts` is actually using a `Deployer` class from the
 `hardhat-zksync-deploy` plugin.
 
-Which inside uses the zkSync's web3.js, that calls the contract deployer
+Which inside uses the ZKsync's web3.js, that calls the contract deployer
 [here](https://github.com/zksync-sdk/zksync2-js/blob/b1d11aa016d93ebba240cdeceb40e675fb948133/src/contract.ts#L76)
 
 ```typescript
@@ -71,14 +71,14 @@ override getDeployTransaction(..) {
 ```
 
 Also `ContractDeployer` adding a special prefix for all the new contract addresses. This means that contract addresses
-WILL be different on `zkSync` and Ethereum (and also leaves us the possibility of adding Ethereum addresses in the
+WILL be different on `ZKsync` and Ethereum (and also leaves us the possibility of adding Ethereum addresses in the
 future if needed).
 
 You can look for `CREATE2_PREFIX` and `CREATE_PREFIX` in the code.
 
 ### Gas costs
 
-Another part, where zkSync differs from Ethereum is gas cost. The best example for this are storage slots.
+Another part, where ZKsync differs from Ethereum is gas cost. The best example for this are storage slots.
 
 If you have two transactions that are updating the same storage slot - and they are in the same 'batch' - only the first
 one would be charged (as when we write the final storage to ethereum, we just write the final diff of what slots have
@@ -86,11 +86,11 @@ changed - so updating the same slot multiple times doesn't increase the amount o
 
 ### Account abstraction and some method calls
 
-As `zkSync` has a built-in Account Abstraction (more on this in a separate article) - you shouldn't depend on some of
+As `ZKsync` has a built-in Account Abstraction (more on this in a separate article) - you shouldn't depend on some of
 the solidity functions (like `ecrecover` - that checks the keys, or `tx.origin`) - in all the cases, the compiler will
 try to warn you.
 
 ## Summary
 
-In this article, we looked at how contract development & deployment differs on Ethereum and zkSync (looking at
+In this article, we looked at how contract development & deployment differs on Ethereum and ZKsync (looking at
 differences in VMs, compilers and system contracts).
