@@ -251,7 +251,7 @@ mod tests {
                 value: u256_to_h256(written_value),
                 kind: StorageLogKind::RepeatedWrite,
             },
-            previous_value: H256::from_low_u64_le(1234),
+            previous_value: H256::from_low_u64_be(1234),
         }
     }
 
@@ -388,42 +388,42 @@ mod tests {
             (
                 new_storage_key(1, 5),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(8),
+                    value: H256::from_low_u64_be(8),
                     size: 2,
                 },
             ),
             (
                 new_storage_key(1, 4),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(6),
+                    value: H256::from_low_u64_be(6),
                     size: 2,
                 },
             ),
             (
                 new_storage_key(2, 5),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(9),
+                    value: H256::from_low_u64_be(9),
                     size: 2,
                 },
             ),
             (
                 new_storage_key(2, 4),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(11),
+                    value: H256::from_low_u64_be(11),
                     size: 2,
                 },
             ),
             (
                 new_storage_key(3, 5),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(2),
+                    value: H256::from_low_u64_be(2),
                     size: 2,
                 },
             ),
             (
                 new_storage_key(3, 4),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(7),
+                    value: H256::from_low_u64_be(7),
                     size: 2,
                 },
             ),
@@ -447,21 +447,21 @@ mod tests {
             (
                 new_storage_key(1, 5),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(6),
+                    value: H256::from_low_u64_be(6),
                     size: 2,
                 },
             ),
             (
                 new_storage_key(2, 4),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(11),
+                    value: H256::from_low_u64_be(11),
                     size: 2,
                 },
             ),
             (
                 new_storage_key(3, 6),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(7),
+                    value: H256::from_low_u64_be(7),
                     size: 2,
                 },
             ),
@@ -485,21 +485,21 @@ mod tests {
             (
                 new_storage_key(1, 2),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(3),
+                    value: H256::from_low_u64_be(3),
                     size: 2,
                 },
             ),
             (
                 new_storage_key(1, 2),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(4),
+                    value: H256::from_low_u64_be(4),
                     size: 2,
                 },
             ),
             (
                 new_storage_key(1, 2),
                 ModifiedSlot {
-                    value: H256::from_low_u64_le(5),
+                    value: H256::from_low_u64_be(5),
                     size: 2,
                 },
             ),
@@ -519,7 +519,7 @@ mod tests {
         let expected = HashMap::from([(
             new_storage_key(0, 1),
             ModifiedSlot {
-                value: H256::from_low_u64_le(2),
+                value: H256::from_low_u64_be(2),
                 size: 2,
             },
         )]);
