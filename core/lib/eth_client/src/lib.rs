@@ -152,7 +152,7 @@ pub trait EthInterface: Sync + Send {
 ///
 /// The example use cases for this trait would be:
 ///
-/// - An operator that sends transactions and interacts with zkSync contract.
+/// - An operator that sends transactions and interacts with ZKsync contract.
 /// - A wallet implementation in the SDK that is tied to a user's account.
 ///
 /// When adding a method to this trait:

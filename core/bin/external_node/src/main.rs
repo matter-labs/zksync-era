@@ -692,7 +692,7 @@ async fn shutdown_components(
     Ok(())
 }
 
-/// External node for zkSync Era.
+/// External node for ZKsync Era.
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {

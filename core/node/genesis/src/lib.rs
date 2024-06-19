@@ -1,4 +1,4 @@
-//! This module aims to provide a genesis setup for the zkSync Era network.
+//! This module aims to provide a genesis setup for the ZKsync Era network.
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
