@@ -7,7 +7,7 @@ use std::fmt::Formatter;
 use anyhow::Context as _;
 use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, GENESIS_UPGRADE_EVENT};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
@@ -16,7 +16,7 @@ use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
-    protocol_upgrade::decode_set_chain_id_event,
+    protocol_upgrade::decode_genesis_upgrade_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
@@ -94,6 +94,22 @@ impl GenesisParams {
         base_system_contracts: BaseSystemContracts,
         system_contracts: Vec<DeployedContract>,
     ) -> Result<GenesisParams, GenesisError> {
+        println!(
+            "
+                bootloader_hash = \"{:?}\"
+                default_aa_hash = \"{:?}\"
+                GENESIS_PROTOCOL_SEMANTIC_VERSION = \"{:?}\"
+                GENESIS_BATCH_COMMITMENT = \"{:?}\"
+                GENESIS_ROOT = \"{:?}\"
+                GENESIS_ROLLUP_LEAF_INDEX = \"{:?}\" 
+            ",
+            config.bootloader_hash.unwrap(),
+            config.default_aa_hash.unwrap(),
+            config.protocol_version.unwrap(),
+            config.genesis_commitment.unwrap(),
+            config.genesis_root_hash.unwrap(),
+            config.rollup_last_leaf_index.unwrap()
+        );
         let base_system_contracts_hashes = BaseSystemContractsHashes {
             bootloader: config
                 .bootloader_hash
@@ -421,10 +437,11 @@ pub async fn save_set_chain_id_tx(
 
     let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
+
     let filter = FilterBuilder::default()
-        .address(vec![state_transition_manager_address])
+        .address(vec![diamond_proxy_address])
         .topics(
-            Some(vec![SET_CHAIN_ID_EVENT.signature()]),
+            Some(vec![GENESIS_UPGRADE_EVENT.signature()]),
             Some(vec![diamond_proxy_address.into()]),
             None,
             None,
@@ -440,7 +457,7 @@ pub async fn save_set_chain_id_tx(
         logs
     );
     let (version_id, upgrade_tx) =
-        decode_set_chain_id_event(logs.remove(0)).context("Chain id event is incorrect")?;
+        decode_genesis_upgrade_event(logs.remove(0)).context("Chain id event is incorrect")?;
 
     tracing::info!("New version id {:?}", version_id);
     storage

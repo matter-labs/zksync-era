@@ -223,7 +223,7 @@ impl ZkSyncStateKeeper {
     }
 
     /// This function is meant to be called only once during the state-keeper initialization.
-    /// It will check if we should load a protocol upgrade or a `setChainId` transaction,
+    /// It will check if we should load a protocol upgrade or a `GenesisUpgrade` transaction,
     /// perform some checks and return it.
     pub(super) async fn load_protocol_upgrade_tx(
         &mut self,
@@ -232,9 +232,9 @@ impl ZkSyncStateKeeper {
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<ProtocolUpgradeTx>, Error> {
         // After the Shared Bridge is integrated,
-        // there has to be a setChainId upgrade transaction after the chain genesis.
+        // there has to be a GenesisUpgrade upgrade transaction after the chain genesis.
         // It has to be the first transaction of the first batch.
-        // The setChainId upgrade does not bump the protocol version, but attaches an upgrade
+        // The GenesisUpgrade upgrade does not bump the protocol version, but attaches an upgrade
         // transaction to the genesis protocol version.
         let first_batch_in_shared_bridge =
             l1_batch_number == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();

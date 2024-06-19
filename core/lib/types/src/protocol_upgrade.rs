@@ -135,7 +135,7 @@ impl ProtocolUpgrade {
     }
 }
 
-pub fn decode_set_chain_id_event(
+pub fn decode_genesis_upgrade_event(
     event: Log,
 ) -> Result<(ProtocolVersionId, ProtocolUpgradeTx), ethabi::Error> {
     let tx = ethabi::decode(&[abi::L2CanonicalTransaction::schema()], &event.data.0)?;

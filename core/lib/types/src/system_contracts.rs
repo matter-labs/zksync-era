@@ -5,7 +5,7 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    EVENT_WRITER_ADDRESS, GENESIS_UPGRADE_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS,
+    EVENT_WRITER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS,
     PUBDATA_CHUNK_PUBLISHER_ADDRESS,
 };
 
@@ -171,8 +171,8 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
     ),
     (
         "",
-        "GenesisUpgrade",
-        GENESIS_UPGRADE_ADDRESS,
+        "L2GenesisUpgrade",
+        L2_GENESIS_UPGRADE_ADDRESS,
         ContractLanguage::Sol,
     ),
 ];
