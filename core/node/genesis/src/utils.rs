@@ -81,7 +81,7 @@ pub(super) fn get_deduped_log_queries(storage_logs: &[StorageLog]) -> Vec<LogQue
         .iter()
         .map(move |storage_log| {
             MultiVmLogQuery {
-                // Timestamp and tx_number in block don't matter.
+                // Timestamp and `tx_number` in block don't matter.
                 // `sort_storage_access_queries` assumes that the queries are in chronological order.
                 timestamp: MultiVMTimestamp(0),
                 tx_number_in_block: 0,
