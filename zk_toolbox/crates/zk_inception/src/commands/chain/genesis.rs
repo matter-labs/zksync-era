@@ -13,8 +13,11 @@ use xshell::Shell;
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
-    config_manipulations::{update_database_secrets, update_general_config},
+    config_manipulations::{
+        update_database_secrets, update_general_config, update_rocks_db_config,
+    },
     consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
+    defaults::MAIN_ROCKS_DB_PREFIX,
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_COMPLETED,
@@ -49,6 +52,12 @@ pub async fn genesis(
     shell.create_dir(&config.rocks_db_path)?;
 
     update_general_config(shell, config)?;
+    update_rocks_db_config(
+        shell,
+        &config.configs,
+        &config.rocks_db_path,
+        MAIN_ROCKS_DB_PREFIX,
+    )?;
     update_database_secrets(shell, config, &args.server_db, &args.prover_db)?;
 
     logger::note(

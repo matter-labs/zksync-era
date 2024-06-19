@@ -965,6 +965,7 @@ async fn run_node(
             .snapshots_recovery_enabled
             .then_some(SnapshotRecoveryConfig {
                 snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
+                object_store_config: config.optional.snapshot_recover_object_store.clone(),
             });
     ensure_storage_initialized(
         connection_pool.clone(),

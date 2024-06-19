@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use common::db::DatabaseConfig;
 use config::{
     forge_interface::{
@@ -47,11 +49,23 @@ pub(crate) fn update_l1_rpc_url_secret(
     Ok(())
 }
 
+pub(crate) fn update_rocks_db_config(
+    shell: &Shell,
+    configs: &Path,
+    rocks_db_base_path: &Path,
+    prefix: &str,
+) -> anyhow::Result<()> {
+    let mut general = GeneralConfig::read_with_base_path(shell, &configs)?;
+    general.db.state_keeper_db_path =
+        shell.create_dir(rocks_db_base_path.join(&prefix).join(ROCKS_DB_STATE_KEEPER))?;
+    general.db.merkle_tree.path =
+        shell.create_dir(rocks_db_base_path.join(&prefix).join(ROCKS_DB_TREE))?;
+    general.save_with_base_path(shell, &configs)?;
+    Ok(())
+}
+
 pub(crate) fn update_general_config(shell: &Shell, config: &ChainConfig) -> anyhow::Result<()> {
     let mut general = GeneralConfig::read_with_base_path(shell, &config.configs)?;
-    general.db.state_keeper_db_path =
-        shell.create_dir(config.rocks_db_path.join(ROCKS_DB_STATE_KEEPER))?;
-    general.db.merkle_tree.path = shell.create_dir(config.rocks_db_path.join(ROCKS_DB_TREE))?;
     if config.prover_version != ProverMode::NoProofs {
         general.eth.sender.proof_sending_mode = "ONLY_REAL_PROOFS".to_string();
     }

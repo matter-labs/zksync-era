@@ -10,6 +10,8 @@ use xshell::Shell;
 
 use crate::{
     commands::chain::args::prepare_external_node_configs::{PrepareConfigArgs, PrepareConfigFinal},
+    config_manipulations::update_rocks_db_config,
+    defaults::EN_ROCKS_DB_PREFIX,
     messages::{
         msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
     },
@@ -71,9 +73,14 @@ fn prepare_configs(
         },
         other: Default::default(),
     };
-
     secrets.save_with_base_path(shell, en_configs_path)?;
     general_en.save_with_base_path(shell, &en_configs_path)?;
+    update_rocks_db_config(
+        shell,
+        &en_configs_path,
+        &config.rocks_db_path,
+        EN_ROCKS_DB_PREFIX,
+    )?;
     en_config.save_with_base_path(shell, &en_configs_path)?;
 
     Ok(())

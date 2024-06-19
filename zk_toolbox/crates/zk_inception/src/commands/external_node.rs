@@ -3,6 +3,7 @@ use common::{
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
+    spinner::Spinner,
 };
 use config::{traits::ReadConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig};
 use xshell::Shell;
@@ -12,7 +13,8 @@ use crate::{
     consts::SERVER_MIGRATIONS,
     external_node::RunExternalNode,
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_STARTING_SERVER,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
+        MSG_INITIALIZING_DATABASES_SPINNER, MSG_STARTING_SERVER,
     },
 };
 
@@ -37,6 +39,7 @@ async fn run_external_node(
     shell: &Shell,
 ) -> anyhow::Result<()> {
     if args.reinit {
+        let spin = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
         let secrets = SecretsConfig::read_with_base_path(
             shell,
             chain_config
@@ -51,6 +54,7 @@ async fn run_external_node(
         init_db(&db_config).await?;
         let path_to_server_migration = chain_config.link_to_code.join(SERVER_MIGRATIONS);
         migrate_db(shell, path_to_server_migration, &db_config.full_url()).await?;
+        spin.finish()
     }
     let server = RunExternalNode::new(args.components.clone(), chain_config)?;
     server.run(shell, args.additional_args.clone())
