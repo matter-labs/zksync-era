@@ -246,8 +246,11 @@ impl L2BlockSealSubtask for InsertTokensSubtask {
     ) -> anyhow::Result<()> {
         let is_fictive = command.is_l2_block_fictive();
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
-        let added_tokens =
-            extract_added_tokens(command.l2_shared_bridge_addr, &command.l2_block.events);
+        let added_tokens = extract_added_tokens(
+            command.l2_native_token_vault_proxy_addr,
+            &command.l2_block.events,
+        );
+
         progress.observe(added_tokens.len());
 
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
@@ -474,6 +477,7 @@ mod tests {
             base_system_contracts_hashes: Default::default(),
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_shared_bridge_addr: Default::default(),
+            l2_native_token_vault_proxy_addr: Default::default(),
             pre_insert_txs: false,
         };
 

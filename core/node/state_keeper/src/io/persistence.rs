@@ -31,6 +31,7 @@ struct Completable<T> {
 pub struct StateKeeperPersistence {
     pool: ConnectionPool<Core>,
     l2_shared_bridge_addr: Address,
+    l2_native_token_vault_proxy_addr: Address,
     pre_insert_txs: bool,
     insert_protective_reads: bool,
     commands_sender: mpsc::Sender<Completable<L2BlockSealCommand>>,
@@ -47,6 +48,7 @@ impl StateKeeperPersistence {
     pub fn new(
         pool: ConnectionPool<Core>,
         l2_shared_bridge_addr: Address,
+        l2_native_token_vault_proxy_addr: Address,
         mut command_capacity: usize,
     ) -> (Self, L2BlockSealerTask) {
         let is_sync = command_capacity == 0;
@@ -62,6 +64,7 @@ impl StateKeeperPersistence {
         let this = Self {
             pool,
             l2_shared_bridge_addr,
+            l2_native_token_vault_proxy_addr,
             pre_insert_txs: false,
             insert_protective_reads: true,
             commands_sender,
@@ -158,8 +161,11 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
     }
 
     async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        let command =
-            updates_manager.seal_l2_block_command(self.l2_shared_bridge_addr, self.pre_insert_txs);
+        let command = updates_manager.seal_l2_block_command(
+            self.l2_shared_bridge_addr,
+            self.l2_native_token_vault_proxy_addr,
+            self.pre_insert_txs,
+        );
         self.submit_l2_block(command).await;
         Ok(())
     }
@@ -176,6 +182,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
             .seal_l1_batch(
                 self.pool.clone(),
                 self.l2_shared_bridge_addr,
+                self.l2_native_token_vault_proxy_addr,
                 self.insert_protective_reads,
             )
             .await
@@ -401,8 +408,12 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        let (persistence, l2_block_sealer) =
-            StateKeeperPersistence::new(pool.clone(), Address::default(), l2_block_sealer_capacity);
+        let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
+            pool.clone(),
+            Address::default(),
+            Address::default(),
+            l2_block_sealer_capacity,
+        );
         let mut output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(TreeWritesPersistence::new(pool.clone())));
         tokio::spawn(l2_block_sealer.run());
@@ -544,7 +555,7 @@ mod tests {
         drop(storage);
 
         let (mut persistence, l2_block_sealer) =
-            StateKeeperPersistence::new(pool.clone(), Address::default(), 1);
+            StateKeeperPersistence::new(pool.clone(), Address::default(), Address::default(), 1);
         persistence = persistence.with_tx_insertion().without_protective_reads();
         let mut output_handler = OutputHandler::new(Box::new(persistence));
         tokio::spawn(l2_block_sealer.run());
@@ -583,11 +594,12 @@ mod tests {
     async fn l2_block_sealer_handle_blocking() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let (mut persistence, mut sealer) =
-            StateKeeperPersistence::new(pool, Address::default(), 1);
+            StateKeeperPersistence::new(pool, Address::default(), Address::default(), 1);
 
         // The first command should be successfully submitted immediately.
         let mut updates_manager = create_updates_manager();
-        let seal_command = updates_manager.seal_l2_block_command(Address::default(), false);
+        let seal_command =
+            updates_manager.seal_l2_block_command(Address::default(), Address::default(), false);
         persistence.submit_l2_block(seal_command).await;
 
         // The second command should lead to blocking
@@ -595,7 +607,8 @@ mod tests {
             timestamp: 2,
             virtual_blocks: 1,
         });
-        let seal_command = updates_manager.seal_l2_block_command(Address::default(), false);
+        let seal_command =
+            updates_manager.seal_l2_block_command(Address::default(), Address::default(), false);
         {
             let submit_future = persistence.submit_l2_block(seal_command);
             futures::pin_mut!(submit_future);
@@ -623,7 +636,8 @@ mod tests {
             timestamp: 3,
             virtual_blocks: 1,
         });
-        let seal_command = updates_manager.seal_l2_block_command(Address::default(), false);
+        let seal_command =
+            updates_manager.seal_l2_block_command(Address::default(), Address::default(), false);
         persistence.submit_l2_block(seal_command).await;
         let command = sealer.commands_receiver.recv().await.unwrap();
         command.completion_sender.send(()).unwrap();
@@ -634,12 +648,16 @@ mod tests {
     async fn l2_block_sealer_handle_parallel_processing() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let (mut persistence, mut sealer) =
-            StateKeeperPersistence::new(pool, Address::default(), 5);
+            StateKeeperPersistence::new(pool, Address::default(), Address::default(), 5);
 
         // 5 L2 block sealing commands can be submitted without blocking.
         let mut updates_manager = create_updates_manager();
         for i in 1..=5 {
-            let seal_command = updates_manager.seal_l2_block_command(Address::default(), false);
+            let seal_command = updates_manager.seal_l2_block_command(
+                Address::default(),
+                Address::default(),
+                false,
+            );
             updates_manager.push_l2_block(L2BlockParams {
                 timestamp: i,
                 virtual_blocks: 1,

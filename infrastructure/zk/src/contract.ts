@@ -119,7 +119,10 @@ export async function deployL2ThroughL1({
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
-        'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR'
+        'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR',
+        'CONTRACTS_L2_NATIVE_TOKEN_VAULT_IMPL_ADDR',
+        'CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR',
+        'CONTRACTS_L2_PROXY_ADMIN_ADDR'
     ];
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
     // erc20 bridge is now deployed as shared bridge, but we still need the config var:
@@ -167,6 +170,8 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR',
         'CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_SHARED_BRIDGE_IMPL_ADDR',
+        'CONTRACTS_L1_NATIVE_TOKEN_VAULT_IMPL_ADDR',
+        'CONTRACTS_L1_NATIVE_TOKEN_VAULT_PROXY_ADDR',
         'CONTRACTS_L1_ERC20_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_ERC20_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR',
@@ -224,7 +229,8 @@ export async function registerHyperchain({
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
-        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''
+        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : '',
+        '--use-governance'
     ];
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();

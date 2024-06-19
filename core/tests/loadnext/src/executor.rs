@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
-use zksync_eth_client::{EthInterface, Options};
+use zksync_eth_client::{clients::Client, CallFunctionArgs, EthInterface, Options};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
@@ -22,6 +22,7 @@ use crate::{
         ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE},
         utils::{
             get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
+            load_contract,
         },
         web3::TransactionReceipt,
         EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
@@ -47,6 +48,8 @@ pub struct Executor {
     pool: AccountPool,
 }
 
+const L2_SHARED_BRIDGE_ABI: &str = include_str!("sdk/abi/IL2SharedBridge.json");
+
 impl Executor {
     /// Creates a new Executor entity.
     pub async fn new(
@@ -56,14 +59,18 @@ impl Executor {
         let pool = AccountPool::new(&config).await?;
 
         // derive L2 main token address
-        let l2_main_token = pool
+        let l2_native_token_vault = pool
             .master_wallet
-            .ethereum(&config.l1_rpc_address)
-            .await
-            .expect("Can't get Ethereum client")
-            .l2_token_address(config.main_token, None)
-            .await
+            .provider
+            .get_native_token_vault_proxy_addr()
+            .await?
             .unwrap();
+        let abi = load_contract(L2_SHARED_BRIDGE_ABI);
+        let query_client = Client::http(config.l2_rpc_address.parse()?)?.build();
+        let l2_main_token = CallFunctionArgs::new("l2TokenAddress", (config.main_token,))
+            .for_contract(l2_native_token_vault, &abi)
+            .call(&query_client)
+            .await?;
 
         Ok(Self {
             config,
@@ -400,6 +407,7 @@ impl Executor {
                         )
                         .await
                         .unwrap();
+
                     eth_nonce += U256::one();
                     eth_txs.push(res);
                 }
@@ -428,6 +436,19 @@ impl Executor {
                 }
             }
 
+            let balance = self
+                .pool
+                .master_wallet
+                .get_balance(BlockNumber::Latest, self.l2_main_token)
+                .await?;
+            let necessary_balance =
+                U256::from(self.erc20_transfer_amount() * self.config.accounts_amount as u128);
+
+            tracing::info!(
+                "Master account token balance on l2: {balance:?}, necessary balance \
+                for initial transfers {necessary_balance:?}"
+            );
+
             // And then we will prepare an L2 transaction to send ERC20 token (for transfers and fees).
             let mut builder = master_wallet
                 .start_transfer()
@@ -441,10 +462,8 @@ impl Executor {
                 self.l2_main_token,
                 MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             );
-
             let fee = builder.estimate_fee(Some(paymaster_params)).await?;
             builder = builder.fee(fee.clone());
-
             let paymaster_params = get_approval_based_paymaster_input(
                 paymaster_address,
                 self.l2_main_token,

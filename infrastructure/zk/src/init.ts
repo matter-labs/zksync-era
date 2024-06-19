@@ -41,12 +41,14 @@ const submoduleUpdate = async (): Promise<void> => {
 type InitSetupOptions = {
     skipEnvSetup: boolean;
     skipSubmodulesCheckout: boolean;
+    skipContractCompilation?: boolean;
     runObservability: boolean;
     deploymentMode: DeploymentMode;
 };
 const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
+    skipContractCompilation,
     runObservability,
     deploymentMode
 }: InitSetupOptions): Promise<void> => {
@@ -66,10 +68,12 @@ const initSetup = async ({
 
     await announced('Compiling JS packages', run.yarn());
 
-    await Promise.all([
-        announced('Building L1 L2 contracts', contract.build()),
-        announced('Compile L2 system contracts', compiler.compileAll())
-    ]);
+    if (!skipContractCompilation) {
+        await Promise.all([
+            announced('Building L1 L2 contracts', contract.build()),
+            announced('Compile L2 system contracts', compiler.compileAll())
+        ]);
+    }
 };
 
 const initDatabase = async (): Promise<void> => {
@@ -149,6 +153,7 @@ type InitDevCmdActionOptions = InitSetupOptions & {
 export const initDevCmdAction = async ({
     skipEnvSetup,
     skipSubmodulesCheckout,
+    skipContractCompilation,
     skipVerifier,
     skipTestTokenDeployment,
     testTokenOptions,
@@ -164,6 +169,7 @@ export const initDevCmdAction = async ({
     await initSetup({
         skipEnvSetup,
         skipSubmodulesCheckout,
+        skipContractCompilation,
         runObservability,
         deploymentMode
     });
@@ -244,6 +250,7 @@ export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
     .option('--skip-test-token-deployment')
+    .option('--skip-contract-compilation')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
