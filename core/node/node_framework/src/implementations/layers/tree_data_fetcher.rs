@@ -62,7 +62,6 @@ impl Task for TreeDataFetcher {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(stop_receiver.0).await?;
-        Ok(())
+        (*self).run(stop_receiver.0).await
     }
 }

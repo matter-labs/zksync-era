@@ -11,17 +11,17 @@ use crate::{
 
 #[derive(Debug)]
 pub struct L1BatchCommitmentModeValidationLayer {
-    duamond_proxy_addr: Address,
+    diamond_proxy_addr: Address,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
 impl L1BatchCommitmentModeValidationLayer {
     pub fn new(
-        duamond_proxy_addr: Address,
+        diamond_proxy_addr: Address,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
-            duamond_proxy_addr,
+            diamond_proxy_addr,
             l1_batch_commit_data_generator_mode,
         }
     }
@@ -36,7 +36,7 @@ impl WiringLayer for L1BatchCommitmentModeValidationLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let EthInterfaceResource(query_client) = context.get_resource().await?;
         let task = L1BatchCommitmentModeValidationTask::new(
-            self.duamond_proxy_addr,
+            self.diamond_proxy_addr,
             self.l1_batch_commit_data_generator_mode,
             query_client,
         );

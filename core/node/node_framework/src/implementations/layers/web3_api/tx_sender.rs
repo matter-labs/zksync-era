@@ -194,7 +194,7 @@ struct WhitelistedTokensForAaUpdateTask {
 #[async_trait::async_trait]
 impl Task for WhitelistedTokensForAaUpdateTask {
     fn id(&self) -> TaskId {
-        "vm_concurrency_barrier_task".into()
+        "whitelisted_tokens_for_aa_update_task".into()
     }
 
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

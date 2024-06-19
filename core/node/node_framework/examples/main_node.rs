@@ -55,6 +55,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder, ZkStackServiceError},
 };
+use zksync_state::RocksdbStorageOptions;
 
 struct MainNodeBuilder {
     node: ZkStackServiceBuilder,
@@ -160,13 +161,15 @@ impl MainNodeBuilder {
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?.save_call_traces, true);
         let db_config = DBConfig::from_env()?;
-        let state_keeper_layer = StateKeeperLayer::new(
-            db_config.state_keeper_db_path,
-            db_config
+
+        let rocksdb_options = RocksdbStorageOptions {
+            block_cache_capacity: db_config
                 .experimental
                 .state_keeper_db_block_cache_capacity(),
-            db_config.experimental.state_keeper_db_max_open_files,
-        );
+            max_open_files: db_config.experimental.state_keeper_db_max_open_files,
+        };
+        let state_keeper_layer =
+            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
         self.node
             .add_layer(persisence_layer)
             .add_layer(mempool_io_layer)

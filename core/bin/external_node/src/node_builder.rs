@@ -46,6 +46,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
+use zksync_state::RocksdbStorageOptions;
 
 use crate::{
     config::{self, ExternalNodeConfig},
@@ -157,7 +158,7 @@ impl ExternalNodeBuilder {
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
         // While optional bytecode compression may be disabled on the main node, there are batches where
-        // bytecode compression was enabled. To process these batches (and also for the case where
+        // optional bytecode compression was enabled. To process these batches (and also for the case where
         // compression will become optional on the sequencer again), EN has to allow txs without bytecode
         // compression.
         const OPTIONAL_BYTECODE_COMPRESSION: bool = true;
@@ -184,12 +185,17 @@ impl ExternalNodeBuilder {
             .contains(&Namespace::Debug);
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
-        let state_keeper_layer = StateKeeperLayer::new(
-            self.config.required.state_cache_path.clone(),
-            self.config
+
+        let rocksdb_options = RocksdbStorageOptions {
+            block_cache_capacity: self
+                .config
                 .experimental
                 .state_keeper_db_block_cache_capacity(),
-            self.config.experimental.state_keeper_db_max_open_files,
+            max_open_files: self.config.experimental.state_keeper_db_max_open_files,
+        };
+        let state_keeper_layer = StateKeeperLayer::new(
+            self.config.required.state_cache_path.clone(),
+            rocksdb_options,
         );
         self.node
             .add_layer(persistence_layer)
@@ -354,7 +360,7 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_api_caches_layer(mut self) -> anyhow::Result<Self> {
+    fn add_mempool_cache_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(MempoolCacheLayer::new(
             self.config.optional.mempool_cache_size,
             self.config.optional.mempool_cache_update_interval(),
@@ -374,12 +380,12 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
+    fn web3_api_optional_config(&self) -> Web3ServerOptionalConfig {
         // The refresh interval should be several times lower than the pruning removal delay, so that
         // soft-pruning will timely propagate to the API server.
         let pruning_info_refresh_interval = self.config.optional.pruning_removal_delay() / 5;
 
-        let optional_config = Web3ServerOptionalConfig {
+        Web3ServerOptionalConfig {
             namespaces: Some(self.config.optional.api_namespaces()),
             filters_limit: Some(self.config.optional.filters_limit),
             subscriptions_limit: Some(self.config.optional.filters_limit),
@@ -387,9 +393,13 @@ impl ExternalNodeBuilder {
             response_body_size_limit: Some(self.config.optional.max_response_body_size()),
             with_extended_tracing: self.config.optional.extended_rpc_tracing,
             pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
-            websocket_requests_per_minute_limit: None, // Not relevant for HTTP
+            websocket_requests_per_minute_limit: None, // To be set by WS server layer method if required.
             replication_lag_limit: None,               // TODO: Support replication lag limit
-        };
+        }
+    }
+
+    fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
+        let optional_config = self.web3_api_optional_config();
         self.node.add_layer(Web3ServerLayer::http(
             self.config.required.http_port,
             (&self.config).into(),
@@ -400,23 +410,10 @@ impl ExternalNodeBuilder {
     }
 
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        // The refresh interval should be several times lower than the pruning removal delay, so that
-        // soft-pruning will timely propagate to the API server.
-        let pruning_info_refresh_interval = self.config.optional.pruning_removal_delay() / 5;
-
-        let optional_config = Web3ServerOptionalConfig {
-            namespaces: Some(self.config.optional.api_namespaces()),
-            filters_limit: Some(self.config.optional.filters_limit),
-            subscriptions_limit: Some(self.config.optional.filters_limit),
-            batch_request_size_limit: Some(self.config.optional.max_batch_request_size),
-            response_body_size_limit: Some(self.config.optional.max_response_body_size()),
-            with_extended_tracing: self.config.optional.extended_rpc_tracing,
-            pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
-            websocket_requests_per_minute_limit: None, // TODO: Support websocket requests per minute limit
-            replication_lag_limit: None,               // TODO: Support replication lag limit
-        };
-        self.node.add_layer(Web3ServerLayer::http(
-            self.config.required.http_port,
+        // TODO: Support websocket requests per minute limit
+        let optional_config = self.web3_api_optional_config();
+        self.node.add_layer(Web3ServerLayer::ws(
+            self.config.required.ws_port,
             (&self.config).into(),
             optional_config,
         ));
@@ -452,7 +449,7 @@ impl ExternalNodeBuilder {
                 Component::HttpApi => {
                     self = self
                         .add_sync_state_updater_layer()?
-                        .add_api_caches_layer()?
+                        .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
                         .add_main_node_fee_params_fetcher_layer()?
                         .add_tx_sender_layer()?
@@ -461,7 +458,7 @@ impl ExternalNodeBuilder {
                 Component::WsApi => {
                     self = self
                         .add_sync_state_updater_layer()?
-                        .add_api_caches_layer()?
+                        .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
                         .add_main_node_fee_params_fetcher_layer()?
                         .add_tx_sender_layer()?

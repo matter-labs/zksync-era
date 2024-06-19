@@ -36,7 +36,7 @@ use zksync_node_framework::{
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            output_handler::OutputHandlerLayer, StateKeeperLayer,
+            output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::protective_reads::ProtectiveReadsWriterLayer,
@@ -209,13 +209,15 @@ impl MainNodeBuilder {
         let db_config = try_load_config!(self.configs.db_config);
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
-        let state_keeper_layer = StateKeeperLayer::new(
-            db_config.state_keeper_db_path,
-            db_config
+
+        let rocksdb_options = RocksdbStorageOptions {
+            block_cache_capacity: db_config
                 .experimental
                 .state_keeper_db_block_cache_capacity(),
-            db_config.experimental.state_keeper_db_max_open_files,
-        );
+            max_open_files: db_config.experimental.state_keeper_db_max_open_files,
+        };
+        let state_keeper_layer =
+            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
         self.node
             .add_layer(persistence_layer)
             .add_layer(mempool_io_layer)

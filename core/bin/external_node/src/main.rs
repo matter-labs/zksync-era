@@ -795,11 +795,11 @@ async fn main() -> anyhow::Result<()> {
     // If the node framework is used, run the node.
     if opt.use_node_framework {
         // We run the node from a different thread, since the current thread is in tokio context.
-        std::thread::spawn(move || -> anyhow::Result<()> {
+        std::thread::spawn(move || {
             let node =
                 ExternalNodeBuilder::new(config).build(opt.components.0.into_iter().collect())?;
             node.run()?;
-            Ok(())
+            anyhow::Ok(())
         })
         .join()
         .expect("Failed to run the node")?;

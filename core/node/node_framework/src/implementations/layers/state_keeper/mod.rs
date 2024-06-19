@@ -1,7 +1,7 @@
-use std::{num::NonZero, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Context;
-use zksync_state::{AsyncCatchupTask, ReadStorageFactory, RocksdbStorageOptions};
+use zksync_state::{AsyncCatchupTask, ReadStorageFactory};
 use zksync_state_keeper::{
     seal_criteria::ConditionalSealer, AsyncRocksdbCache, BatchExecutor, OutputHandler,
     StateKeeperIO, ZkSyncStateKeeper,
@@ -12,6 +12,9 @@ pub mod external_io;
 pub mod main_batch_executor;
 pub mod mempool_io;
 pub mod output_handler;
+
+// Public re-export to not require the user to directly depend on `zksync_state`.
+pub use zksync_state::RocksdbStorageOptions;
 
 use crate::{
     implementations::resources::{
@@ -34,20 +37,14 @@ use crate::{
 #[derive(Debug)]
 pub struct StateKeeperLayer {
     state_keeper_db_path: String,
-    state_keeper_db_block_cache_capacity: usize,
-    state_keeper_db_max_open_files: Option<NonZero<u32>>,
+    rocksdb_options: RocksdbStorageOptions,
 }
 
 impl StateKeeperLayer {
-    pub fn new(
-        state_keeper_db_path: String,
-        state_keeper_db_block_cache_capacity: usize,
-        state_keeper_db_max_open_files: Option<NonZero<u32>>,
-    ) -> Self {
+    pub fn new(state_keeper_db_path: String, rocksdb_options: RocksdbStorageOptions) -> Self {
         Self {
             state_keeper_db_path,
-            state_keeper_db_block_cache_capacity,
-            state_keeper_db_max_open_files,
+            rocksdb_options,
         }
     }
 }
@@ -80,14 +77,10 @@ impl WiringLayer for StateKeeperLayer {
         let sealer = context.get_resource::<ConditionalSealerResource>().await?.0;
         let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
 
-        let cache_options = RocksdbStorageOptions {
-            block_cache_capacity: self.state_keeper_db_block_cache_capacity,
-            max_open_files: self.state_keeper_db_max_open_files,
-        };
         let (storage_factory, task) = AsyncRocksdbCache::new(
             master_pool.get_custom(2).await?,
             self.state_keeper_db_path,
-            cache_options,
+            self.rocksdb_options,
         );
         context.add_task(Box::new(RocksdbCatchupTask(task)));
 
