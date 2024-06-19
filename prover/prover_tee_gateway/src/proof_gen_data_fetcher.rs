@@ -1,5 +1,8 @@
 use async_trait::async_trait;
-use zksync_prover_interface::api::{TeeProofGenerationDataRequest, TeeProofGenerationDataResponse};
+use zksync_prover_interface::{
+    api::{TeeProofGenerationDataRequest, TeeProofGenerationDataResponse},
+    inputs::TeeVerifierInput,
+};
 
 use crate::api_data_fetcher::{PeriodicApi, PeriodicApiStruct};
 
@@ -25,11 +28,21 @@ impl PeriodicApi<TeeProofGenerationDataRequest> for PeriodicApiStruct {
     async fn handle_response(&self, _: (), response: Self::Response) {
         match response {
             TeeProofGenerationDataResponse::Success(Some(data)) => {
-                tracing::info!(
-                    "Received TEE verifier input data for: {:?}",
-                    data.l1_batch_number
-                );
-                // TODO sign it and send back
+                match *data {
+                    TeeVerifierInput::V0 => {
+                        tracing::info!("Received unsupported TEE verifier input");
+                    }
+                    TeeVerifierInput::V1(data) => {
+                        tracing::info!(
+                            "Received TEE verifier input data for: {:?}",
+                            data.l1_batch_env.number
+                        );
+                        // TODO sign it and send back
+                    }
+                    _ => {
+                        tracing::error!("Received unsupported TEE verifier input");
+                    }
+                }
             }
             TeeProofGenerationDataResponse::Success(None) => {
                 tracing::info!("There are currently no pending batches to be proven");

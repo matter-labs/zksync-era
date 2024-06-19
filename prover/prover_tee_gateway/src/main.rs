@@ -32,7 +32,7 @@ mod proof_gen_data_fetcher;
 pub(crate) const GRAMINE_ATTESTATION_QUOTE_DEVICE_FILE: &str = "/dev/attestation/quote";
 
 // Gramine-specific device file from which the attestation type can be read
-pub(crate) const GRAMINE_ATTESTATION_TYPE_DEVICE_FILE: &str = "/dev/attestation/attestation_type";
+// pub(crate) const GRAMINE_ATTESTATION_TYPE_DEVICE_FILE: &str = "/dev/attestation/attestation_type";
 
 // Gramine-specific device file. User data should be written to this file before obtaining the
 // attestation quote
@@ -171,14 +171,19 @@ async fn main() -> anyhow::Result<()> {
 
     // 3. Register attestation (input needed: endpoint URL)
 
-    let result = proof_gen_data_fetcher
-        .send_http_request(
-            RegisterTeeAttestationRequest {
-                attestation: attestation_quote_bytes,
-                pubkey: key_pair.public_key().serialize().to_vec(),
-            },
-            &format!("{}{REGISTER_ATTESTATION_ENDPOINT}", opt.endpoint_url),
-        )
+    let http_client = Client::new();
+    let attestation_request = RegisterTeeAttestationRequest {
+        attestation: attestation_quote_bytes,
+        pubkey: key_pair.public_key().serialize().to_vec(),
+    };
+    let attestation_endpoint = format!("{}{REGISTER_ATTESTATION_ENDPOINT}", opt.endpoint_url);
+    let request_status = http_client
+        .post(attestation_endpoint)
+        .json(&attestation_request)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<RegisterTeeAttestationResponse>()
         .await?;
 
     // match result {

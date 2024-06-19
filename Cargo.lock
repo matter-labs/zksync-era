@@ -9130,6 +9130,7 @@ dependencies = [
  "bincode",
  "chrono",
  "circuit_sequencer_api 0.1.50",
+ "multivm",
  "serde",
  "serde_json",
  "serde_with",

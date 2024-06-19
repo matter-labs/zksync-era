@@ -16,10 +16,10 @@ use tokio::{runtime::Handle, task::JoinHandle};
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, TeeVerifierInput};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, ReadStorage};
-use zksync_tee_verifier::TeeVerifierInput;
+use zksync_tee_verifier::Verifiable;
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, L2BlockNumber, L2ChainId};
 use zksync_utils::u256_to_h256;
 
