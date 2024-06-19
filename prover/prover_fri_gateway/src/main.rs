@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
 
     let config = general_config
         .prover_gateway
-        .context("prover gateway config")?;
+        .context("prover gateway config missing")?;
 
     let postgres_config = general_config.postgres_config.context("postgres config")?;
     let pool = ConnectionPool::<Prover>::builder(

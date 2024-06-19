@@ -31,13 +31,6 @@ pub trait Verifiable {
     fn verify(self) -> anyhow::Result<ValueHash>;
 }
 
-// pub fn l1_batch_no(&self) -> Option<L1BatchNumber> {
-//     match self {
-//         TeeVerifierInput::V0 => None,
-//         TeeVerifierInput::V1(v1) => Some(v1.l1_batch_env.number),
-//     }
-// }
-
 impl Verifiable for TeeVerifierInput {
     /// Verify that the L1Batch produces the expected root hash
     /// by executing the VM and verifying the merkle paths of all

@@ -98,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
 
     let config = general_config
         .prover_gateway
-        .context("prover gateway config")?;
+        .context("TEE prover gateway config missing")?;
 
     // Generate a new priv-public key pair
 
