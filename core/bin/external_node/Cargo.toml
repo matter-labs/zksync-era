@@ -42,6 +42,7 @@ zksync_metadata_calculator.workspace = true
 zksync_node_sync.workspace = true
 zksync_node_api_server.workspace = true
 zksync_node_consensus.workspace = true
+zksync_node_framework.workspace = true
 vlog.workspace = true
 
 zksync_concurrency.workspace = true

@@ -161,14 +161,14 @@ impl Task for FetcherTask {
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async {
             s.spawn_bg(consensus::era::run_en(
-                &root_ctx,
+                ctx,
                 self.config,
                 self.pool,
                 self.sync_state,
                 self.main_node_client,
                 self.action_queue_sender,
             ));
-            ctx.wait(stop_receiver.0.wait_for(|stop| *stop)).await??;
+            let _ = stop_receiver.0.wait_for(|stop| *stop).await?;
             Ok(())
         })
         .await

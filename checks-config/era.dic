@@ -962,6 +962,7 @@ zksync_merkle_tree
 TreeMetadata
 delegator
 decrement
+whitelisted
 Bbellman
 Sbellman
 DCMAKE

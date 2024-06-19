@@ -130,16 +130,16 @@ impl ForgeScript {
         })
     }
 
-    pub async fn check_the_balance(&self, minimum_value: U256) -> anyhow::Result<bool> {
+    pub async fn get_the_balance(&self) -> anyhow::Result<Option<U256>> {
         let Some(rpc_url) = self.rpc_url() else {
-            return Ok(true);
+            return Ok(None);
         };
         let Some(private_key) = self.private_key() else {
-            return Ok(true);
+            return Ok(None);
         };
         let client = create_ethers_client(private_key, rpc_url, None)?;
         let balance = client.get_balance(client.address(), None).await?;
-        Ok(balance > minimum_value)
+        Ok(Some(balance))
     }
 }
 
