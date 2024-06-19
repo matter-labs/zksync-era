@@ -39,6 +39,7 @@ fn mock_block_details_base(number: u32, hash: Option<H256>) -> api::BlockDetails
         executed_at: None,
         l1_gas_price: 10,
         l2_fair_gas_price: 100,
+        fair_pubdata_price: None,
         base_system_contracts_hashes: Default::default(),
     }
 }
