@@ -195,7 +195,10 @@ const lightweightInitCmdAction = async (): Promise<void> => {
     await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth({ command: 'dev' }));
     await announced('Deploying L1 contracts', contract.redeployL1(false));
     // TODO: double check that it is okay to always provide rollup here.
-    await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster: true, deploymentMode: contract.DeploymentMode.Rollup }));
+    await announced(
+        'Deploying L2 contracts',
+        contract.deployL2ThroughL1({ includePaymaster: true, deploymentMode: contract.DeploymentMode.Rollup })
+    );
     await announced('Initializing governance', contract.initializeGovernance());
 };
 

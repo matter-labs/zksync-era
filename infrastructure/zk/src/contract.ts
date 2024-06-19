@@ -84,7 +84,7 @@ export async function deployL2ThroughL1({
 }: {
     includePaymaster: boolean;
     localLegacyBridgeTesting?: boolean;
-    deploymentMode: DeploymentMode
+    deploymentMode: DeploymentMode;
 }): Promise<void> {
     await utils.confirmAction();
 
@@ -99,10 +99,7 @@ export async function deployL2ThroughL1({
     }
 
     // The deployment of the L2 DA must be the first operation in the batch, since otherwise it wont be possible to commit it.
-    const daArgs = [
-        ...args,
-        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''
-    ]
+    const daArgs = [...args, deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''];
     await utils.spawn(
         `yarn l2-contracts deploy-l2-da-validator-on-l2-through-l1 ${daArgs.join(' ')} | tee deployL2.log`
     );
@@ -192,7 +189,7 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_L1_VALIDIUM_DA_VALIDATOR',
 
         /// temporary:
-        'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR',
+        'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR'
     ];
 
     console.log('Writing to', `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`);
