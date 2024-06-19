@@ -1,0 +1,34 @@
+[package]
+name = "zksync_contract_verifier_lib"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_types.workspace = true
+zksync_dal.workspace = true
+zksync_env_config.workspace = true
+zksync_config.workspace = true
+zksync_contracts.workspace = true
+zksync_queued_job_processor.workspace = true
+zksync_utils.workspace = true
+
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+thiserror.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
+ethabi.workspace = true
+vise.workspace = true
+hex.workspace = true
+serde = { workspace = true, features = ["derive"] }
+lazy_static.workspace = true
+tempfile.workspace = true
+regex.workspace = true
+tracing.workspace = true
+semver.workspace = true

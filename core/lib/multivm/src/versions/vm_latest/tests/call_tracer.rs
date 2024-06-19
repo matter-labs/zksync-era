@@ -37,7 +37,7 @@ fn test_max_depth() {
             contract_address: address,
             calldata: vec![],
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -72,7 +72,7 @@ fn test_basic_behavior() {
             contract_address: address,
             calldata: hex::decode(increment_by_6_calldata).unwrap(),
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );

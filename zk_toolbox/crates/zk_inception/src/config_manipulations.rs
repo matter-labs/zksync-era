@@ -79,6 +79,8 @@ pub fn update_l2_shared_bridge(
     let mut contracts_config = ContractsConfig::read_with_base_path(shell, &config.configs)?;
     contracts_config.bridges.shared.l2_address =
         Some(initialize_bridges_output.l2_shared_bridge_proxy);
+    contracts_config.bridges.erc20.l2_address =
+        Some(initialize_bridges_output.l2_shared_bridge_proxy);
     contracts_config.save_with_base_path(shell, &config.configs)?;
     Ok(())
 }

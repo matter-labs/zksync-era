@@ -140,7 +140,7 @@ pub struct VerificationIncomingRequest {
     pub optimizer_mode: Option<String>,
     #[serde(default)]
     pub constructor_arguments: Bytes,
-    #[serde(default)]
+    #[serde(default, alias = "enableEraVMExtensions")]
     pub is_system: bool,
     #[serde(default)]
     pub force_evmla: bool,

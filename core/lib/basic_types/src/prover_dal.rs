@@ -332,7 +332,7 @@ pub struct RecursionTipWitnessGeneratorJobInfo {
     pub error: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub number_of_final_node_jobs: Option<i32>,
+    pub number_of_final_node_jobs: i32,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
 }
@@ -381,16 +381,4 @@ pub struct ProofCompressionJobInfo {
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
     pub picked_by: Option<String>,
-}
-
-// This function corrects circuit IDs for the node witness generator.
-//
-// - Circuit IDs in the node witness generator are 2 higher than in other rounds.
-// - The `EIP4844Repack` circuit (ID 255) is an exception and is set to 18.
-pub fn correct_circuit_id(circuit_id: i16, aggregation_round: AggregationRound) -> u32 {
-    match (circuit_id, aggregation_round) {
-        (18, AggregationRound::NodeAggregation) => 255,
-        (circuit_id, AggregationRound::NodeAggregation) => (circuit_id as u32) - 2,
-        _ => circuit_id as u32,
-    }
 }
