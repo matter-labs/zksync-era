@@ -302,7 +302,7 @@ impl ContractVerificationDal<'_, '_> {
                     SELECT
                         miniblock_number,
                         tx_hash,
-                        topic2
+                        topic3
                     FROM
                         events
                     WHERE
@@ -312,7 +312,7 @@ impl ContractVerificationDal<'_, '_> {
                     LIMIT
                         1
                 ) deploy_event
-                JOIN factory_deps ON factory_deps.bytecode_hash = deploy_event.topic2
+                JOIN factory_deps ON factory_deps.bytecode_hash = deploy_event.topic3
                 LEFT JOIN transactions ON transactions.hash = deploy_event.tx_hash
             WHERE
                 deploy_event.miniblock_number <= (
