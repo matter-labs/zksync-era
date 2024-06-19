@@ -28,6 +28,7 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
+          ci_run sccache --start-server
 
       - name: Build
         run: |
@@ -75,6 +76,7 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
+          ci_run sccache --start-server
 
       - name: Initialize ecosystem
         run: |
@@ -88,7 +90,7 @@ jobs:
 
       - name: Run server
         run: |
-          ci_run zk_inception server --ignore-prerequisites &>server.log &
+          ci_run zk_inception server --ignore-prerequisites -a --use-node-framework --verbose &>server.log &
           ci_run sleep 5
 
       - name: Run integration tests
