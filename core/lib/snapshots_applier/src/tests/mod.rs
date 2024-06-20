@@ -1,5 +1,7 @@
 //! Snapshot applier tests.
 
+// FIXME: test dropping preimages for version 0 snapshot
+
 use std::{
     future,
     sync::atomic::{AtomicUsize, Ordering},

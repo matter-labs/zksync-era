@@ -69,7 +69,7 @@ impl StorageLogsDedupDal<'_, '_> {
 
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
-        for log in snapshot_storage_logs.iter() {
+        for log in snapshot_storage_logs {
             let row = format!(
                 "\\\\x{:x}|{}|{}|{}|{}\n",
                 log.key, log.enumeration_index, log.l1_batch_number_of_initial_write, now, now,

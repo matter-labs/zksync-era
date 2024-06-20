@@ -74,6 +74,47 @@ impl StorageLogsDal<'_, '_> {
         copy.send(buffer.as_bytes()).await
     }
 
+    #[deprecated(note = "Will be removed in favor of `insert_storage_logs_from_snapshot()`")]
+    pub async fn insert_storage_logs_with_preimages_from_snapshot(
+        &mut self,
+        l2_block_number: L2BlockNumber,
+        snapshot_storage_logs: &[SnapshotStorageLog<StorageKey>],
+    ) -> DalResult<()> {
+        let storage_logs_len = snapshot_storage_logs.len();
+        let copy = CopyStatement::new(
+            "COPY storage_logs(
+                hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
+                created_at, updated_at
+            )
+            FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("insert_storage_logs_from_snapshot")
+        .with_arg("l2_block_number", &l2_block_number)
+        .with_arg("storage_logs.len", &storage_logs_len)
+        .start(self.storage)
+        .await?;
+
+        let mut buffer = String::new();
+        let now = Utc::now().naive_utc().to_string();
+        for log in snapshot_storage_logs.iter() {
+            write_str!(
+                &mut buffer,
+                r"\\x{hashed_key:x}|\\x{address:x}|\\x{key:x}|\\x{value:x}|",
+                hashed_key = log.key.hashed_key(),
+                address = log.key.address(),
+                key = log.key.key(),
+                value = log.value
+            );
+            writeln_str!(
+                &mut buffer,
+                r"{}|\\x{:x}|{l2_block_number}|{now}|{now}",
+                log.enumeration_index,
+                H256::zero()
+            );
+        }
+        copy.send(buffer.as_bytes()).await
+    }
+
     pub async fn insert_storage_logs_from_snapshot(
         &mut self,
         l2_block_number: L2BlockNumber,

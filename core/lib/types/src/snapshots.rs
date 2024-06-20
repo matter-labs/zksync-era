@@ -98,6 +98,17 @@ pub struct SnapshotStorageLog<K = H256> {
     pub enumeration_index: u64,
 }
 
+impl SnapshotStorageLog<StorageKey> {
+    pub fn drop_key_preimage(self) -> SnapshotStorageLog {
+        SnapshotStorageLog {
+            key: self.key.hashed_key(),
+            value: self.value,
+            l1_batch_number_of_initial_write: self.l1_batch_number_of_initial_write,
+            enumeration_index: self.enumeration_index,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct SnapshotFactoryDependencies {
     pub factory_deps: Vec<SnapshotFactoryDependency>,
