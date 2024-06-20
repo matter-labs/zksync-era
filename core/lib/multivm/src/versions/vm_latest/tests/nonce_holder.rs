@@ -101,7 +101,7 @@ fn test_nonce_holder() {
     run_nonce_test(
         1u32,
         NonceHolderTestMode::SetValueUnderNonce,
-        Some("Previous nonce has not been used".to_string()),
+        Some("Error function_selector = 0x13595475, data = 0x13595475".to_string()),
         "Allowed to set value under non sequential value",
     );
 
