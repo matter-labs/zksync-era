@@ -331,7 +331,7 @@ impl<S: ReadStorage> Vm<S> {
                 .world_diff
                 .get_storage_state()
                 .iter()
-                .map(|(k, v)| (*k, v.1))
+                .map(|(k, v)| (*k, *v))
                 .collect(),
             self.inner.world_diff.events().into(),
         )
@@ -357,7 +357,7 @@ impl<S: ReadStorage> Vm<S> {
                     .world_diff
                     .get_storage_state()
                     .get(&(KNOWN_CODES_STORAGE_ADDRESS, h256_to_u256(hash)))
-                    .map(|x| !x.1.is_zero())
+                    .map(|x| !x.is_zero())
                     .unwrap_or_else(|| self.world.storage.borrow_mut().is_bytecode_known(&hash))
             })
         };
@@ -380,7 +380,7 @@ impl<S: ReadStorage> Vm<S> {
         let mut storage = self.world.storage.borrow_mut();
 
         self.inner.world_diff.get_storage_changes().map(
-            move |((address, key), (_, initial_value, final_value))| {
+            move |((address, key), (initial_value, final_value))| {
                 let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
                 StateDiffRecord {
                     address,
@@ -598,7 +598,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                 .inner
                 .world_diff
                 .get_storage_changes()
-                .map(|((address, key), (_, _, value))| StorageLog {
+                .map(|((address, key), (_, value))| StorageLog {
                     key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
                     value: u256_to_h256(value),
                     kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
