@@ -2,9 +2,8 @@ use config::EcosystemConfig;
 use xshell::Shell;
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
-use crate::commands::chain;
-
 use super::args::init::ProverInitArgs;
+use crate::commands::chain;
 
 const PROVER_STORE_MAX_RETRIES: u16 = 10;
 
