@@ -27,6 +27,8 @@ pub enum BlockNumber {
     Finalized,
     /// Latest sealed block
     Latest,
+    /// Last block that was committed on L1
+    L1Committed,
     /// Earliest block (genesis)
     Earliest,
     /// Latest block (may be the block that is currently open).
@@ -51,6 +53,7 @@ impl Serialize for BlockNumber {
             BlockNumber::Committed => serializer.serialize_str("committed"),
             BlockNumber::Finalized => serializer.serialize_str("finalized"),
             BlockNumber::Latest => serializer.serialize_str("latest"),
+            BlockNumber::L1Committed => serializer.serialize_str("l1_committed"),
             BlockNumber::Earliest => serializer.serialize_str("earliest"),
             BlockNumber::Pending => serializer.serialize_str("pending"),
         }
@@ -73,6 +76,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "committed" => BlockNumber::Committed,
                     "finalized" => BlockNumber::Finalized,
                     "latest" => BlockNumber::Latest,
+                    "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
                     "pending" => BlockNumber::Pending,
                     num => {
