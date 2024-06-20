@@ -115,6 +115,13 @@ impl VmRunner {
             .await
             .context("failed finishing L1 batch in executor")?;
         updates_manager.finish_batch(finished_batch);
+
+        let storage_view_cache = batch_executor
+            .storage_view_cache()
+            .await
+            .context("Failed getting storage view cache")?;
+        updates_manager.update_storage_view_cache(storage_view_cache);
+
         latency.observe();
         output_handler
             .handle_l1_batch(Arc::new(updates_manager))

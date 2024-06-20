@@ -36,9 +36,7 @@ use zksync_prover_fri_types::{
     AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_prover_interface::inputs::{
-    BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob, WitnessGeneratorData,
-};
+use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, WitnessInputData};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
@@ -277,7 +275,7 @@ async fn process_basic_circuits_job(
     connection_pool: ConnectionPool<Core>,
     started_at: Instant,
     block_number: L1BatchNumber,
-    job: WitnessGeneratorData,
+    job: WitnessInputData,
     eip_4844_blobs: Eip4844Blobs,
 ) -> BasicCircuitArtifacts {
     let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
@@ -407,7 +405,7 @@ async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
     connection_pool: ConnectionPool<Core>,
-    input: WitnessGeneratorData,
+    input: WitnessInputData,
     eip_4844_blobs: Eip4844Blobs,
 ) -> (
     Vec<(u8, String)>,
@@ -419,19 +417,26 @@ async fn generate_witness(
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
 ) {
-    let bootloader_contents =
-        expand_bootloader_contents(&input.initial_heap_content, input.protocol_version);
+    let bootloader_contents = expand_bootloader_contents(
+        &input.vm_run_data.initial_heap_content,
+        input.vm_run_data.protocol_version,
+    );
 
     let mut tree = PrecalculatedMerklePathsProvider::new(
-        input.merkle_paths_input,
-        input.previous_batch_with_metadata.metadata.root_hash.0,
+        input.vm_run_data.merkle_paths_input,
+        input
+            .vm_run_data
+            .previous_batch_with_metadata
+            .metadata
+            .root_hash
+            .0,
     );
     let geometry_config = get_geometry_config();
     let mut hasher = DefaultHasher::new();
     geometry_config.hash(&mut hasher);
     tracing::info!(
         "generating witness for block {} using geometry config hash: {}",
-        input.l1_batch_header.number.0,
+        input.vm_run_data.l1_batch_header.number.0,
         hasher.finish()
     );
 
@@ -442,14 +447,15 @@ async fn generate_witness(
     let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
 
     let make_circuits = tokio::task::spawn_blocking(move || {
-        let storage_view = StorageView::new(input.witness_storage_memory).to_rc_ptr();
+        let storage_view = StorageView::new(input.vm_run_data.witness_block_state).to_rc_ptr();
 
         let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
             VmStorageOracle::new(storage_view.clone());
         let storage_oracle = StorageOracle::new(
             vm_storage_oracle,
-            input.storage_refunds,
+            input.vm_run_data.storage_refunds,
             input
+                .vm_run_data
                 .pubdata_costs
                 .expect("pubdata costs should be present"),
         );
@@ -462,13 +468,13 @@ async fn generate_witness(
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
             Address::zero(),
             BOOTLOADER_ADDRESS,
-            input.bootloader_code,
+            input.vm_run_data.bootloader_code,
             bootloader_contents,
             false,
-            input.default_account_code_hash,
+            input.vm_run_data.default_account_code_hash,
             // NOTE: this will be evm_simulator_code_hash in future releases
-            input.default_account_code_hash,
-            input.used_bytecodes,
+            input.vm_run_data.default_account_code_hash,
+            input.vm_run_data.used_bytecodes,
             Vec::default(),
             MAX_CYCLES_FOR_TX as usize,
             geometry_config,

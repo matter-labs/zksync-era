@@ -3,6 +3,7 @@ use multivm::{
     utils::get_batch_base_fee,
 };
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_state::StorageViewCache;
 use zksync_types::{
     block::BlockGasCount, fee_model::BatchFeeInput,
     storage_writes_deduplicator::StorageWritesDeduplicator,
@@ -35,6 +36,7 @@ pub struct UpdatesManager {
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
+    pub storage_view_cache: StorageViewCache,
     pub l1_batch: L1BatchUpdates,
     pub l2_block: L2BlockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
@@ -151,6 +153,10 @@ impl UpdatesManager {
         self.l1_batch.finished = Some(finished_batch);
 
         latency.observe();
+    }
+
+    pub fn update_storage_view_cache(&mut self, storage_view_cache: StorageViewCache) {
+        self.storage_view_cache = storage_view_cache;
     }
 
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously

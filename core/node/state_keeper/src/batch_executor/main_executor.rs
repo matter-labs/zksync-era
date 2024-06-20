@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -18,7 +18,7 @@ use tokio::{
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
 use zksync_state::{ReadStorage, ReadStorageFactory, StorageView, WriteStorage};
-use zksync_types::{vm_trace::Call, Transaction};
+use zksync_types::{vm_trace::Call, StorageKey, StorageValue, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
@@ -140,6 +140,11 @@ impl CommandReceiver {
                     EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::SetValue]
                         .observe(metrics.time_spent_on_set_value);
                     return;
+                }
+                Command::StorageViewCache(resp) => {
+                    if resp.send((**storage_view).cache()).is_err() {
+                        break;
+                    }
                 }
             }
         }

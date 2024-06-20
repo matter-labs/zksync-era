@@ -3,9 +3,10 @@ use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
+pub use zksync_state::WitnessStorage;
 use zksync_types::{
-    block::L1BatchHeader, commitment::L1BatchWithMetadata, L1BatchNumber, ProtocolVersionId, H256,
-    U256,
+    block::L1BatchHeader, commitment::L1BatchWithMetadata, witness_block_state::WitnessBlockState,
+    L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
 const HASH_LEN: usize = H256::len_bytes();
@@ -135,19 +136,7 @@ impl PrepareBasicCircuitsJob {
     }
 }
 
-/// Enriched `PrepareBasicCircuitsJob`. All the other fields are taken from the `l1_batches` table.
-#[derive(Debug, Clone)]
-pub struct BasicCircuitWitnessGeneratorInput {
-    pub block_number: L1BatchNumber,
-    pub previous_block_hash: H256,
-    pub previous_block_timestamp: u64,
-    pub block_timestamp: u64,
-    pub used_bytecodes_hashes: Vec<U256>,
-    pub initial_heap_content: Vec<(usize, U256)>,
-    pub merkle_paths_input: PrepareBasicCircuitsJob,
-}
-
-pub struct WitnessGeneratorData {
+pub struct VMRunWitnessInputData {
     pub l1_batch_header: L1BatchHeader,
     pub previous_batch_with_metadata: L1BatchWithMetadata,
     pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
@@ -158,8 +147,24 @@ pub struct WitnessGeneratorData {
     pub default_account_code_hash: U256,
     pub storage_refunds: Vec<u32>,
     pub pubdata_costs: Option<Vec<i32>>,
-    pub witness_storage_memory: (),
-    pub merkle_paths_input: PrepareBasicCircuitsJob,
+    pub witness_block_state: WitnessBlockState,
+}
+
+pub struct WitnessInputData {
+    pub vm_run_data: VMRunWitnessInputData,
+    pub merkle_paths: PrepareBasicCircuitsJob,
+}
+
+impl StoredObject for WitnessInputData {
+    const BUCKET: Bucket = Bucket::WitnessInput;
+
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("witness_inputs_{key}.bin")
+    }
+
+    serialize_using_bincode!();
 }
 
 #[cfg(test)]

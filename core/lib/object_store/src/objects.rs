@@ -86,7 +86,6 @@ impl StoredObject for SnapshotFactoryDependencies {
             .map_err(From::from)
     }
 }
-
 impl StoredObject for SnapshotStorageLogsChunk {
     const BUCKET: Bucket = Bucket::StorageSnapshot;
     type Key<'a> = SnapshotStorageLogsStorageKey;

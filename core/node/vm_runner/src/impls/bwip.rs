@@ -3,9 +3,12 @@ use std::{collections::HashSet, sync::Arc};
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_prover_interface::inputs::WitnessGeneratorData;
+use zksync_prover_interface::inputs::VMRunWitnessInputData;
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
-use zksync_types::{block::StorageOracleInfo, L1BatchNumber, L2ChainId, ProtocolVersionId, H256};
+use zksync_types::{
+    block::StorageOracleInfo, witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId,
+    ProtocolVersionId, H256,
+};
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
 use crate::{
@@ -198,12 +201,17 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
             pubdata_costs,
         } = connection
             .blocks_dal()
-            .get_storage_oracle_info(input.block_number)
+            .get_storage_oracle_info(block_header.number)
             .await
             .unwrap()
             .unwrap();
 
-        let result = WitnessGeneratorData {
+        let block_state = WitnessBlockState {
+            read_storage_key: updates_manager.storage_view_cache.read_storage_keys(),
+            is_write_initial: updates_manager.storage_view_cache.initial_writes(),
+        };
+
+        let result = VMRunWitnessInputData {
             l1_batch_header: block_header.clone(),
             previous_batch_with_metadata,
             used_bytecodes,
@@ -217,8 +225,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
             default_account_code_hash: account_code_hash,
             storage_refunds,
             pubdata_costs,
-            witness_storage_memory: (),
-            merkle_paths_input: (),
+            witness_block_state: block_state,
         };
 
         Ok(())

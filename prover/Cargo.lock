@@ -9388,6 +9388,7 @@ dependencies = [
  "serde_with",
  "strum",
  "zksync_object_store",
+ "zksync_state",
  "zksync_types",
 ]
 

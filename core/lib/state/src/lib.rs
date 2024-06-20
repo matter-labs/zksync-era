@@ -29,7 +29,8 @@ pub use self::{
     },
     shadow_storage::ShadowStorage,
     storage_factory::{BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbWithMemory},
-    storage_view::{StorageView, StorageViewMetrics},
+    storage_view::{StorageView, StorageViewCache, StorageViewMetrics},
+    witness::WitnessStorage,
 };
 
 mod cache;
