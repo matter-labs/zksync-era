@@ -13,7 +13,7 @@ pub(super) const MSG_L1_NETWORK_HELP: &str = "L1 Network";
 pub(super) const MSG_LINK_TO_CODE_HELP: &str = "Code link";
 pub(super) const MSG_START_CONTAINERS_HELP: &str =
     "Start reth and postgres containers after creation";
-pub(super) const MSG_ECOSYSTEM_NAME_PROMPT: &str = "How do you want to name the ecosystem?";
+pub(super) const MSG_ECOSYSTEM_NAME_PROMPT: &str = "What do you want to name the ecosystem?";
 pub(super) const MSG_REPOSITORY_ORIGIN_PROMPT: &str = "Select the origin of zksync-era repository";
 pub(super) const MSG_LINK_TO_CODE_PROMPT: &str = "Where's the code located?";
 pub(super) const MSG_L1_NETWORK_PROMPT: &str = "Select the L1 network";
@@ -65,7 +65,7 @@ pub(super) fn msg_ecosystem_initialized(chains: &str) -> String {
 }
 
 /// Ecosystem default related messages
-pub(super) const MSG_DEFAULT_CHAIN_PROMPT: &str = "What chain you want to set as default?";
+pub(super) const MSG_DEFAULT_CHAIN_PROMPT: &str = "What chain do you want to set as default?";
 
 /// Ecosystem config related messages
 pub(super) const MSG_SAVE_INITIAL_CONFIG_ATTENTION: &str =
@@ -192,3 +192,11 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
+pub(super) const MSG_PROOF_STORE_CONFIG_PROMPT: &str =
+    "Select where you would like to store the proofs";
+pub(super) const MSG_PROOF_STORE_DIR_PROMPT: &str =
+    "Provide the path where you would like to store the proofs:";
+pub(super) const MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT: &str =
+    "Provide the base URL of the GCS bucket:";
+pub(super) const MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT: &str =
+    "Provide the path to the GCS credentials file:";
