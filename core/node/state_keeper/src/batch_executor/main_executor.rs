@@ -32,6 +32,12 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct MainBatchExecutor {
     save_call_traces: bool,
+    /// Whether batch executor would allow transactions with bytecode that cannot be compressed.
+    /// For new blocks, bytecode compression is mandatory -- if bytecode compression is not supported,
+    /// the transaction will be rejected.
+    /// Note that this flag, if set to `true`, is strictly more permissive than if set to `false`. It means
+    /// that in cases where the node is expected to process any transactions processed by the sequencer
+    /// regardless of its configuration, this flag should be set to `true`.
     optional_bytecode_compression: bool,
 }
 
@@ -223,6 +229,8 @@ impl CommandReceiver {
         result
     }
 
+    /// Attempts to execute transaction with or without bytecode compression.
+    /// If compression fails, the transaction will be re-executed without compression.
     fn execute_tx_in_vm_with_optional_compression<S: WriteStorage>(
         &self,
         tx: &Transaction,
@@ -288,10 +296,8 @@ impl CommandReceiver {
         (result.1, compressed_bytecodes, trace)
     }
 
-    // Err when transaction is rejected.
-    // `Ok(TxExecutionStatus::Success)` when the transaction succeeded
-    // `Ok(TxExecutionStatus::Failure)` when the transaction failed.
-    // Note that failed transactions are considered properly processed and are included in blocks
+    /// Attempts to execute transaction with mandatory bytecode compression.
+    /// If bytecode compression fails, the transaction will be rejected.
     fn execute_tx_in_vm<S: WriteStorage>(
         &self,
         tx: &Transaction,

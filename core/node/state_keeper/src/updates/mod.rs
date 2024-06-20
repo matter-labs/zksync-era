@@ -227,7 +227,7 @@ mod tests {
         let tx = create_transaction(10, 100);
         updates_manager.extend_from_executed_transaction(
             tx,
-            create_execution_result(0, []),
+            create_execution_result([]),
             vec![],
             new_block_gas_count(),
             ExecutionMetrics::default(),

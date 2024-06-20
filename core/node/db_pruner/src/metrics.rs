@@ -15,8 +15,7 @@ pub(super) enum MetricPruneType {
 enum PrunedEntityType {
     L1Batch,
     L2Block,
-    StorageLogFromPrunedBatch,
-    StorageLogFromPastBatch,
+    StorageLog,
     Event,
     L2ToL1Log,
     CallTrace,
@@ -44,27 +43,20 @@ impl DbPrunerMetrics {
         let HardPruningStats {
             deleted_l1_batches,
             deleted_l2_blocks,
-            deleted_storage_logs_from_past_batches,
-            deleted_storage_logs_from_pruned_batches,
+            deleted_storage_logs,
             deleted_events,
             deleted_call_traces,
             deleted_l2_to_l1_logs,
         } = stats;
-        let deleted_storage_logs =
-            deleted_storage_logs_from_past_batches + deleted_storage_logs_from_pruned_batches;
         tracing::info!(
             "Performed pruning of database, deleted {deleted_l1_batches} L1 batches, {deleted_l2_blocks} L2 blocks, \
-             {deleted_storage_logs} storage logs ({deleted_storage_logs_from_pruned_batches} from pruned batches + \
-             {deleted_storage_logs_from_past_batches} from past batches), \
+             {deleted_storage_logs} storage logs, \
              {deleted_events} events, {deleted_call_traces} call traces, {deleted_l2_to_l1_logs} L2-to-L1 logs"
         );
 
         self.deleted_entities[&PrunedEntityType::L1Batch].observe(deleted_l1_batches);
         self.deleted_entities[&PrunedEntityType::L2Block].observe(deleted_l2_blocks);
-        self.deleted_entities[&PrunedEntityType::StorageLogFromPastBatch]
-            .observe(deleted_storage_logs_from_past_batches);
-        self.deleted_entities[&PrunedEntityType::StorageLogFromPrunedBatch]
-            .observe(deleted_storage_logs_from_pruned_batches);
+        self.deleted_entities[&PrunedEntityType::StorageLog].observe(deleted_storage_logs);
         self.deleted_entities[&PrunedEntityType::Event].observe(deleted_events);
         self.deleted_entities[&PrunedEntityType::L2ToL1Log].observe(deleted_l2_to_l1_logs);
         self.deleted_entities[&PrunedEntityType::CallTrace].observe(deleted_call_traces);

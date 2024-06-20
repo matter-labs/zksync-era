@@ -97,21 +97,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alloc-no-stdlib"
-version = "2.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc7bb162ec39d46ab1ca8c77bf72e890535becd1751bb45f64c597edb4c8c6b3"
-
-[[package]]
-name = "alloc-stdlib"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94fb8275041c72129eb51b7d0322c29b8387a0386127718b096429201a5d6ece"
-dependencies = [
- "alloc-no-stdlib",
-]
-
-[[package]]
 name = "allocator-api2"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -254,22 +239,6 @@ name = "assert_matches"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
-
-[[package]]
-name = "async-compression"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f658e2baef915ba0f26f1f7c42bfb8e12f532a01f449a090ded75ae7a07e9ba2"
-dependencies = [
- "brotli",
- "flate2",
- "futures-core",
- "memchr",
- "pin-project-lite",
- "tokio",
- "zstd",
- "zstd-safe",
-]
 
 [[package]]
 name = "async-lock"
@@ -741,27 +710,6 @@ dependencies = [
  "quote 1.0.33",
  "syn 2.0.38",
  "syn_derive",
-]
-
-[[package]]
-name = "brotli"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "516074a47ef4bce09577a3b379392300159ce5b1ba2e501ff1c819950066100f"
-dependencies = [
- "alloc-no-stdlib",
- "alloc-stdlib",
- "brotli-decompressor",
-]
-
-[[package]]
-name = "brotli-decompressor"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da74e2b81409b1b743f8f0c62cc6254afefb8b8e50bbfe3735550f7aeefa3448"
-dependencies = [
- "alloc-no-stdlib",
- "alloc-stdlib",
 ]
 
 [[package]]
@@ -2621,16 +2569,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hdrhistogram"
-version = "7.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f19b9f54f7c7f55e31401bb647626ce0cf0f67b0004982ce815b3ee72a02aa8"
-dependencies = [
- "byteorder",
- "num-traits",
-]
-
-[[package]]
 name = "heck"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2970,16 +2908,6 @@ version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
 dependencies = [
- "serde",
-]
-
-[[package]]
-name = "iri-string"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21859b667d66a4c1dacd9df0863b3efb65785474255face87f5bca39dd8407c0"
-dependencies = [
- "memchr",
  "serde",
 ]
 
@@ -6856,7 +6784,6 @@ checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
 dependencies = [
  "futures-core",
  "futures-util",
- "hdrhistogram",
  "indexmap 1.9.3",
  "pin-project",
  "pin-project-lite",
@@ -6875,8 +6802,6 @@ version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61c5bb1d698276a2443e5ecfabc1008bf15a36c12e6a7176e7bf089ea9131140"
 dependencies = [
- "async-compression",
- "base64 0.21.5",
  "bitflags 2.4.1",
  "bytes",
  "futures-core",
@@ -6884,19 +6809,10 @@ dependencies = [
  "http",
  "http-body",
  "http-range-header",
- "httpdate",
- "iri-string",
- "mime",
- "mime_guess",
- "percent-encoding",
  "pin-project-lite",
  "tokio",
- "tokio-util",
- "tower",
  "tower-layer",
  "tower-service",
- "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -7189,7 +7105,6 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88ad59a7560b41a70d191093a945f0b87bc1deeda46fb237479708a1d6b6cdfc"
 dependencies = [
- "getrandom",
  "serde",
 ]
 
@@ -8282,23 +8197,39 @@ name = "zksync_contract_verifier"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "chrono",
  "ctrlc",
- "ethabi",
  "futures 0.3.28",
+ "prometheus_exporter",
+ "structopt",
+ "tokio",
+ "tracing",
+ "vlog",
+ "zksync_config",
+ "zksync_contract_verifier_lib",
+ "zksync_dal",
+ "zksync_env_config",
+ "zksync_queued_job_processor",
+ "zksync_utils",
+]
+
+[[package]]
+name = "zksync_contract_verifier_lib"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ethabi",
  "hex",
  "lazy_static",
- "prometheus_exporter",
  "regex",
+ "semver",
  "serde",
  "serde_json",
- "structopt",
  "tempfile",
  "thiserror",
  "tokio",
  "tracing",
  "vise",
- "vlog",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
@@ -8326,93 +8257,13 @@ name = "zksync_core_leftovers"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "assert_matches",
- "async-trait",
- "axum",
- "backon",
- "chrono",
  "ctrlc",
- "dashmap",
- "futures 0.3.28",
- "governor",
- "hex",
- "itertools 0.10.5",
- "jsonrpsee",
- "lru",
- "multivm",
- "once_cell",
- "pin-project-lite",
- "prometheus_exporter",
- "prost 0.12.1",
- "prover_dal",
- "rand 0.8.5",
- "reqwest",
- "secrecy",
- "serde",
- "serde_json",
  "serde_yaml",
- "tempfile",
- "test-casing",
- "test-log",
- "thiserror",
- "thread_local",
  "tokio",
- "tower",
- "tower-http",
- "tracing",
- "vise",
- "vlog",
- "vm_utils",
- "zksync_circuit_breaker",
- "zksync_commitment_generator",
- "zksync_concurrency",
  "zksync_config",
- "zksync_consensus_bft",
- "zksync_consensus_crypto",
- "zksync_consensus_executor",
- "zksync_consensus_network",
- "zksync_consensus_roles",
- "zksync_consensus_storage",
- "zksync_consensus_utils",
- "zksync_contract_verification_server",
- "zksync_contracts",
  "zksync_dal",
- "zksync_db_connection",
- "zksync_eth_client",
- "zksync_eth_sender",
- "zksync_eth_signer",
- "zksync_eth_watch",
- "zksync_health_check",
- "zksync_house_keeper",
- "zksync_l1_contract_interface",
- "zksync_mempool",
- "zksync_merkle_tree",
- "zksync_metadata_calculator",
- "zksync_mini_merkle_tree",
- "zksync_node_api_server",
- "zksync_node_consensus",
- "zksync_node_fee_model",
  "zksync_node_genesis",
- "zksync_node_sync",
- "zksync_node_test_utils",
- "zksync_object_store",
- "zksync_proof_data_handler",
  "zksync_protobuf",
- "zksync_protobuf_build",
- "zksync_protobuf_config",
- "zksync_prover_interface",
- "zksync_queued_job_processor",
- "zksync_shared_metrics",
- "zksync_state",
- "zksync_state_keeper",
- "zksync_storage",
- "zksync_system_constants",
- "zksync_tee_verifier",
- "zksync_tee_verifier_input_producer",
- "zksync_test_account",
- "zksync_types",
- "zksync_utils",
- "zksync_web3_decl",
 ]
 
 [[package]]
@@ -8464,6 +8315,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_concurrency",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_contracts",
@@ -8471,6 +8323,7 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
+ "zksync_test_account",
  "zksync_types",
  "zksync_utils",
 ]
@@ -8625,6 +8478,7 @@ dependencies = [
  "zksync_node_consensus",
  "zksync_node_db_pruner",
  "zksync_node_fee_model",
+ "zksync_node_framework",
  "zksync_node_genesis",
  "zksync_node_sync",
  "zksync_object_store",
@@ -8841,6 +8695,7 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_consensus_utils",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_l1_contract_interface",
  "zksync_merkle_tree",
@@ -8935,6 +8790,7 @@ dependencies = [
  "zksync_metadata_calculator",
  "zksync_node_api_server",
  "zksync_node_consensus",
+ "zksync_node_db_pruner",
  "zksync_node_fee_model",
  "zksync_node_sync",
  "zksync_object_store",
@@ -9351,7 +9207,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "multivm",
  "tokio",
  "tracing",
  "vise",
@@ -9360,7 +9215,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_queued_job_processor",
- "zksync_state",
  "zksync_tee_verifier",
  "zksync_types",
  "zksync_utils",
@@ -9372,6 +9226,7 @@ version = "0.1.0"
 dependencies = [
  "ethabi",
  "hex",
+ "rand 0.8.5",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_system_constants",
@@ -9487,24 +9342,6 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_types",
-]
-
-[[package]]
-name = "zstd"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bffb3309596d527cfcba7dfc6ed6052f1d39dfbd7c867aa2e865e4a449c10110"
-dependencies = [
- "zstd-safe",
-]
-
-[[package]]
-name = "zstd-safe"
-version = "7.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43747c7422e2924c11144d5229878b98180ef8b06cca4ab5af37afc8a8d8ea3e"
-dependencies = [
- "zstd-sys",
 ]
 
 [[package]]
