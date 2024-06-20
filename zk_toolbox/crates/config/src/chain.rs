@@ -3,15 +3,19 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Context;
 use serde::{Deserialize, Serialize, Serializer};
 use types::{
     BaseToken, ChainId, L1BatchCommitDataGeneratorMode, L1Network, ProverMode, WalletCreation,
 };
 use xshell::Shell;
+use zksync_config::configs::GeneralConfig;
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 
 use crate::{
     consts::{
-        CONFIG_NAME, CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
+        CONFIG_NAME, CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY,
+        SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
@@ -89,6 +93,12 @@ impl ChainConfig {
 
     pub fn get_secrets_config(&self) -> anyhow::Result<SecretsConfig> {
         SecretsConfig::read(self.get_shell(), self.configs.join(SECRETS_FILE))
+    }
+
+    pub fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
+        let yaml = std::fs::read_to_string(self.configs.join(GENERAL_FILE))
+            .context("Failed to read general config")?;
+        decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
     }
 
     pub fn path_to_foundry(&self) -> PathBuf {

@@ -25,6 +25,9 @@ keywords = ["zk", "cryptography", "blockchain", "ZKStack", "ZKsync"]
 common = { path = "crates/common" }
 config = { path = "crates/config" }
 types = { path = "crates/types" }
+zksync_config = { path = "../core/lib/config" }
+zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
+zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
 
 # External dependencies
 anyhow = "1.0.82"

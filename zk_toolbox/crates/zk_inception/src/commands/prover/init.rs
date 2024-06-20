@@ -1,9 +1,49 @@
+use config::EcosystemConfig;
 use xshell::Shell;
+use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
+
+use crate::commands::chain;
 
 use super::args::init::ProverInitArgs;
 
-pub(crate) async fn run(args: ProverInitArgs, _shell: &Shell) -> anyhow::Result<()> {
+const PROVER_STORE_MAX_RETRIES: u16 = 10;
+
+pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+
+    let object_store_config = if args.proof_store_dir.is_some() {
+        ObjectStoreConfig {
+            mode: ObjectStoreMode::FileBacked {
+                file_backed_base_path: args.proof_store_dir.unwrap(),
+            },
+            max_retries: PROVER_STORE_MAX_RETRIES,
+            local_mirror_path: None,
+        }
+    } else {
+        ObjectStoreConfig {
+            mode: ObjectStoreMode::GCSWithCredentialFile {
+                bucket_base_url: args.proof_store_gcs_config.bucket_base_url.unwrap(),
+                gcs_credential_file_path: args.proof_store_gcs_config.credentials_file.unwrap(),
+            },
+            max_retries: PROVER_STORE_MAX_RETRIES,
+            local_mirror_path: None,
+        }
+    };
+
+    let chains = ecosystem_config.list_of_chains();
+    for chain in chains {
+        let chain_config = ecosystem_config
+            .load_chain(Some(chain.clone()))
+            .expect("Chain not found");
+        let mut general_config = chain_config
+            .get_general_config()
+            .expect("General config not found");
+        general_config
+            .prover_config
+            .expect("Prover config not found")
+            .prover_object_store = Some(object_store_config.clone());
+    }
 
     Ok(())
 }
