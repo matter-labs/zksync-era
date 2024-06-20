@@ -16,7 +16,6 @@ enum PrunedEntityType {
     L1Batch,
     L2Block,
     StorageLog,
-    OverwritingLog, // not really removed; just used to measure query complexity
     Event,
     L2ToL1Log,
     CallTrace,
@@ -44,7 +43,6 @@ impl DbPrunerMetrics {
         let HardPruningStats {
             deleted_l1_batches,
             deleted_l2_blocks,
-            overwriting_logs,
             deleted_storage_logs,
             deleted_events,
             deleted_call_traces,
@@ -52,13 +50,12 @@ impl DbPrunerMetrics {
         } = stats;
         tracing::info!(
             "Performed pruning of database, deleted {deleted_l1_batches} L1 batches, {deleted_l2_blocks} L2 blocks, \
-             {deleted_storage_logs} storage logs ({overwriting_logs} overwriting logs), \
+             {deleted_storage_logs} storage logs, \
              {deleted_events} events, {deleted_call_traces} call traces, {deleted_l2_to_l1_logs} L2-to-L1 logs"
         );
 
         self.deleted_entities[&PrunedEntityType::L1Batch].observe(deleted_l1_batches);
         self.deleted_entities[&PrunedEntityType::L2Block].observe(deleted_l2_blocks);
-        self.deleted_entities[&PrunedEntityType::OverwritingLog].observe(overwriting_logs);
         self.deleted_entities[&PrunedEntityType::StorageLog].observe(deleted_storage_logs);
         self.deleted_entities[&PrunedEntityType::Event].observe(deleted_events);
         self.deleted_entities[&PrunedEntityType::L2ToL1Log].observe(deleted_l2_to_l1_logs);

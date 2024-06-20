@@ -286,7 +286,7 @@ mod tests {
     fn apply_tx_to_manager(tx: Transaction, manager: &mut UpdatesManager) {
         manager.extend_from_executed_transaction(
             tx,
-            create_execution_result(0, []),
+            create_execution_result([]),
             vec![],
             BlockGasCount::default(),
             ExecutionMetrics::default(),
