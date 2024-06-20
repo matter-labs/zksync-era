@@ -228,3 +228,97 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::ProtocolVersion;
+
+    use super::*;
+    use crate::{tests::create_l1_batch_header, ConnectionPool, CoreDal};
+
+    #[tokio::test]
+    async fn proof_generation_workflow() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&create_l1_batch_header(1))
+            .await
+            .unwrap();
+
+        let unpicked_l1_batch = conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await
+            .unwrap();
+        assert_eq!(unpicked_l1_batch, None);
+
+        conn.proof_generation_dal()
+            .insert_proof_generation_details(L1BatchNumber(1), "generation_data")
+            .await
+            .unwrap();
+
+        let unpicked_l1_batch = conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await
+            .unwrap();
+        assert_eq!(unpicked_l1_batch, Some(L1BatchNumber(1)));
+
+        // Calling the method multiple times should work fine.
+        conn.proof_generation_dal()
+            .insert_proof_generation_details(L1BatchNumber(1), "generation_data")
+            .await
+            .unwrap();
+
+        let unpicked_l1_batch = conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await
+            .unwrap();
+        assert_eq!(unpicked_l1_batch, Some(L1BatchNumber(1)));
+
+        let picked_l1_batch = conn
+            .proof_generation_dal()
+            .get_next_block_to_be_proven(Duration::MAX)
+            .await
+            .unwrap();
+        assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
+        let unpicked_l1_batch = conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await
+            .unwrap();
+        assert_eq!(unpicked_l1_batch, None);
+
+        // Check that with small enough processing timeout, the L1 batch can be picked again
+        let picked_l1_batch = conn
+            .proof_generation_dal()
+            .get_next_block_to_be_proven(Duration::ZERO)
+            .await
+            .unwrap();
+        assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
+
+        conn.proof_generation_dal()
+            .save_proof_artifacts_metadata(L1BatchNumber(1), "proof")
+            .await
+            .unwrap();
+
+        let picked_l1_batch = conn
+            .proof_generation_dal()
+            .get_next_block_to_be_proven(Duration::MAX)
+            .await
+            .unwrap();
+        assert_eq!(picked_l1_batch, None);
+        let unpicked_l1_batch = conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await
+            .unwrap();
+        assert_eq!(unpicked_l1_batch, None);
+    }
+}
