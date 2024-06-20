@@ -20,7 +20,7 @@ EN_PRUNING_ENABLED: 'true'
 By default, it will keep history for 7 days. You can configure retention period using:
 
 ```yaml
-EN_PRUNING_DATA_RETENTION_SEC: "259200" # 3 days
+EN_PRUNING_DATA_RETENTION_SEC: '259200' # 3 days
 ```
 
 The data retention can be set to any value, but for mainnet values under 21h will be ignored as the batch can only be
