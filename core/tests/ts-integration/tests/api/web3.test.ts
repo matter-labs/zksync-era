@@ -1,5 +1,5 @@
 /**
- * This suite contains tests for the Web3 API compatibility and zkSync-specific extensions.
+ * This suite contains tests for the Web3 API compatibility and ZKsync-specific extensions.
  */
 import { TestMaster } from '../../src';
 import * as zksync from 'zksync-ethers';
@@ -144,7 +144,7 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should check the network version', async () => {
-        // Valid network IDs for zkSync are greater than 270.
+        // Valid network IDs for ZKsync are greater than 270.
         // This test suite may run on different envs, so we don't expect a particular ID.
         await expect(alice.provider.send('net_version', [])).resolves.toMatch(chainId.toString());
     });

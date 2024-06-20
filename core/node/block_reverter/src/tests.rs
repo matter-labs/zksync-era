@@ -100,10 +100,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
 
         storage
             .storage_logs_dal()
-            .insert_storage_logs(
-                l2_block_header.number,
-                &[(H256::zero(), vec![*storage_log])],
-            )
+            .insert_storage_logs(l2_block_header.number, &[*storage_log])
             .await
             .unwrap();
         storage

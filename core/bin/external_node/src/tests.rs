@@ -157,6 +157,7 @@ async fn external_node_basics(components_str: &'static str) {
     let opt = Cli {
         enable_consensus: false,
         components,
+        use_node_framework: false,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
     if opt.components.0.contains(&Component::TreeApi) {
@@ -265,6 +266,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     let opt = Cli {
         enable_consensus: false,
         components: "core".parse().unwrap(),
+        use_node_framework: false,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
     if opt.components.0.contains(&Component::TreeApi) {

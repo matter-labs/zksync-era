@@ -1106,11 +1106,7 @@ mod tests {
         let mut logs = gen_storage_logs(100..120, 1);
         let logs_copy = logs[0].clone();
         logs.push(logs_copy);
-        let read_logs: Vec<_> = logs[1]
-            .iter()
-            .step_by(3)
-            .map(StorageLog::to_test_log_query)
-            .collect();
+        let read_logs: Vec<_> = logs[1].iter().step_by(3).cloned().collect();
         extend_db_state(&mut storage, logs).await;
         storage
             .storage_logs_dedup_dal()

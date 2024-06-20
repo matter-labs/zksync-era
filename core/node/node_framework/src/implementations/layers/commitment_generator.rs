@@ -1,3 +1,5 @@
+use std::num::NonZero;
+
 use zksync_commitment_generator::CommitmentGenerator;
 use zksync_types::commitment::L1BatchCommitmentMode;
 
@@ -14,11 +16,20 @@ use crate::{
 #[derive(Debug)]
 pub struct CommitmentGeneratorLayer {
     mode: L1BatchCommitmentMode,
+    max_parallelism: Option<NonZero<u32>>,
 }
 
 impl CommitmentGeneratorLayer {
     pub fn new(mode: L1BatchCommitmentMode) -> Self {
-        Self { mode }
+        Self {
+            mode,
+            max_parallelism: None,
+        }
+    }
+
+    pub fn with_max_parallelism(mut self, max_parallelism: Option<NonZero<u32>>) -> Self {
+        self.max_parallelism = max_parallelism;
+        self
     }
 }
 
@@ -30,10 +41,17 @@ impl WiringLayer for CommitmentGeneratorLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let pool_size = CommitmentGenerator::default_parallelism().get();
+
+        let pool_size = self
+            .max_parallelism
+            .unwrap_or(CommitmentGenerator::default_parallelism())
+            .get();
         let main_pool = pool_resource.get_custom(pool_size).await?;
 
-        let commitment_generator = CommitmentGenerator::new(main_pool, self.mode);
+        let mut commitment_generator = CommitmentGenerator::new(main_pool, self.mode);
+        if let Some(max_parallelism) = self.max_parallelism {
+            commitment_generator.set_max_parallelism(max_parallelism);
+        }
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health

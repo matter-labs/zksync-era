@@ -12,7 +12,7 @@ use crate::{
 
 static WEIGHTS: OnceCell<[(TxType, f32); 5]> = OnceCell::new();
 
-/// Type of transaction. It doesn't copy the zkSync operation list, because
+/// Type of transaction. It doesn't copy the ZKsync operation list, because
 /// it divides some transactions in subcategories (e.g. to new account / to existing account; to self / to other; etc)/
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TxType {

@@ -55,6 +55,8 @@ url = "http://127.0.0.1:3050"
 # Here we use TOML multiline strings: newlines will be trimmed.
 log = """\
 warn,\
+zksync_node_framework=info,\
+zksync_node_consensus=info,\
 zksync_consensus_bft=info,\
 zksync_consensus_network=info,\
 zksync_consensus_storage=info,\

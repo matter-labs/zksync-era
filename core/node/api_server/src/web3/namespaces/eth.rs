@@ -840,17 +840,17 @@ impl EthNamespace {
     }
 
     pub fn uncle_count_impl(&self, _block: BlockId) -> Option<U256> {
-        // We don't have uncles in zkSync.
+        // We don't have uncles in ZKsync.
         Some(0.into())
     }
 
     pub fn hashrate_impl(&self) -> U256 {
-        // zkSync is not a PoW chain.
+        // ZKsync is not a PoW chain.
         U256::zero()
     }
 
     pub fn mining_impl(&self) -> bool {
-        // zkSync is not a PoW chain.
+        // ZKsync is not a PoW chain.
         false
     }
 

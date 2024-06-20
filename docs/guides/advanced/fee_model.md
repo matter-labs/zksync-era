@@ -182,7 +182,7 @@ meaning it cannot be less than 80M or more than 4G.
 ### Why validation is special
 
 In Ethereum, there is a fixed cost for verifying a transaction's correctness by checking its signature. However, in
-zkSync, due to Account Abstraction, we may need to execute some contract code to determine whether it's ready to accept
+ZKsync, due to Account Abstraction, we may need to execute some contract code to determine whether it's ready to accept
 the transaction. If the contract rejects the transaction, it must be dropped, and there's no one to charge for that
 process.
 
@@ -224,7 +224,7 @@ You can find this code in [get_txs_fee_in_wei][get_txs_fee_in_wei] function.
 
 ## Q&A
 
-### Is zkSync really cheaper
+### Is ZKsync really cheaper
 
 In short, yes. As seen in the table at the beginning, the regular L2 gas price is set to 0.25 Gwei, while the standard
 Ethereum price is around 60-100 Gwei. However, the cost of publishing to L1 depends on L1 prices, meaning that the
@@ -232,7 +232,7 @@ actual transaction costs will increase if the L1 gas price rises.
 
 ### Why do I hear about large refunds
 
-There are a few reasons why refunds might be 'larger' on zkSync (i.e., why we might be overestimating the fees):
+There are a few reasons why refunds might be 'larger' on ZKsync (i.e., why we might be overestimating the fees):
 
 - We must assume (pessimistically) that you'll have to pay for all the slot/storage writes. In practice, if multiple
   transactions touch the same slot, we only charge one of them.

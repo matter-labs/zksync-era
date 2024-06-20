@@ -633,7 +633,7 @@ impl Executor {
 
     /// Returns the amount of funds to be deposited on the main account in L2.
     /// Amount is chosen to be big enough to not worry about precisely calculating the remaining balances on accounts,
-    /// but also to not be close to the supported limits in zkSync.
+    /// but also to not be close to the supported limits in ZKsync.
     fn amount_to_deposit(&self) -> u128 {
         u128::MAX >> 32
     }
@@ -696,7 +696,7 @@ async fn deposit_with_attempts(
 
         tracing::info!("Deposit with tx_hash {deposit_tx_hash:?}");
 
-        // Wait for the corresponding priority operation to be committed in zkSync.
+        // Wait for the corresponding priority operation to be committed in ZKsync.
         match ethereum.wait_for_tx(deposit_tx_hash).await {
             Ok(eth_receipt) => {
                 return Ok(eth_receipt);
