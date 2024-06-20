@@ -1,19 +1,23 @@
 use anyhow::Context;
-use xshell::Shell;
-
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{ChainConfig, ContractsConfig, EcosystemConfig, forge_interface::{
-    paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
-    script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
-}, traits::{ReadConfig, SaveConfig}};
-use config::traits::SaveConfigWithBasePath;
+use config::{
+    forge_interface::{
+        paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
+        script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
+    },
+    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    ChainConfig, ContractsConfig, EcosystemConfig,
+};
+use xshell::Shell;
 
-use crate::messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER};
-use crate::utils::forge::{check_the_balance, fill_forge_private_key};
+use crate::{
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER},
+    utils::forge::{check_the_balance, fill_forge_private_key},
+};
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();

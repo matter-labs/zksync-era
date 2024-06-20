@@ -1,12 +1,11 @@
 use clap::{command, Parser, Subcommand};
-use xshell::Shell;
-
 use common::{
     check_prerequisites,
-    config::{global_config, GlobalConfig, init_global_config},
+    config::{global_config, init_global_config, GlobalConfig},
     init_prompt_theme, logger,
 };
 use config::EcosystemConfig;
+use xshell::Shell;
 
 use crate::commands::{
     args::{RunExternalNodeArgs, RunServerArgs},

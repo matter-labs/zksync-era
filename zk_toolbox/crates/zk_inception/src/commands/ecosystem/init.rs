@@ -4,20 +4,16 @@ use std::{
 };
 
 use anyhow::Context;
-use xshell::{cmd, Shell};
-
 use common::{
     cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     logger,
-    Prompt,
     spinner::Spinner,
+    Prompt,
 };
 use config::{
-    ChainConfig,
-    ContractsConfig,
-    EcosystemConfig, forge_interface::{
+    forge_interface::{
         deploy_ecosystem::{
             input::{
                 DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
@@ -25,13 +21,17 @@ use config::{
             output::{DeployErc20Output, DeployL1Output},
         },
         script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS},
-    }, GenesisConfig, traits::{
+    },
+    traits::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath,
     },
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use types::{L1Network, ProverMode, WalletCreation};
+use xshell::{cmd, Shell};
 
+use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
 use crate::{
     accept_ownership::accept_owner,
     commands::{
@@ -42,16 +42,14 @@ use crate::{
     },
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
+        msg_ecosystem_initialized, msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
+        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
         MSG_DEPLOYING_ERC20_SPINNER, MSG_DISTRIBUTING_ETH_SPINNER,
         MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
-        msg_ecosystem_initialized, msg_initializing_chain,
         MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
     },
+    utils::forge::{check_the_balance, fill_forge_private_key},
 };
-use crate::utils::forge::{check_the_balance, fill_forge_private_key};
-
-use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -72,7 +70,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         &ecosystem_config,
         &initial_deployment_config,
     )
-        .await?;
+    .await?;
 
     if final_ecosystem_args.deploy_erc20 {
         logger::info(MSG_DEPLOYING_ERC20);
@@ -88,7 +86,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             final_ecosystem_args.forge_args.clone(),
             final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         )
-            .await?;
+        .await?;
     }
 
     // If the name of chain passed then we deploy exactly this chain otherwise deploy all chains
@@ -116,7 +114,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             &chain_config,
             final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         )
-            .await?;
+        .await?;
 
         chain::init::init(
             &mut chain_init_args,
@@ -124,7 +122,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             &ecosystem_config,
             &chain_config,
         )
-            .await?;
+        .await?;
     }
 
     logger::outro(msg_ecosystem_initialized(&list_of_chains.join(",")));
@@ -159,7 +157,7 @@ pub async fn distribute_eth(
             ecosystem_config.l1_network.chain_id(),
             AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
         )
-            .await?;
+        .await?;
         spinner.finish();
     }
     Ok(())
@@ -183,7 +181,7 @@ async fn init(
         ecosystem_config,
         initial_deployment_config,
     )
-        .await?;
+    .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(contracts)
 }
@@ -239,7 +237,7 @@ async fn deploy_ecosystem(
             initial_deployment_config,
             ecosystem.l1_rpc_url.clone(),
         )
-            .await;
+        .await;
     }
 
     let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
@@ -334,7 +332,7 @@ async fn deploy_ecosystem_inner(
         &forge_args,
         l1_rpc_url.clone(),
     )
-        .await?;
+    .await?;
 
     accept_owner(
         shell,
@@ -345,7 +343,7 @@ async fn deploy_ecosystem_inner(
         &forge_args,
         l1_rpc_url.clone(),
     )
-        .await?;
+    .await?;
     Ok(contracts_config)
 }
 

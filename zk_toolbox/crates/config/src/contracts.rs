@@ -1,9 +1,15 @@
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
-use crate::{consts::CONTRACTS_FILE, forge_interface::deploy_ecosystem::output::DeployL1Output, traits::{FileConfig, FileConfigWithDefaultName}};
-use crate::forge_interface::initialize_bridges::output::InitializeBridgeOutput;
-use crate::forge_interface::register_chain::output::RegisterChainOutput;
+use crate::{
+    consts::CONTRACTS_FILE,
+    forge_interface::{
+        deploy_ecosystem::output::DeployL1Output,
+        initialize_bridges::output::InitializeBridgeOutput,
+        register_chain::output::RegisterChainOutput,
+    },
+    traits::{FileConfig, FileConfigWithDefaultName},
+};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct ContractsConfig {
@@ -63,10 +69,7 @@ impl ContractsConfig {
             .clone_from(&deploy_l1_output.contracts_config.diamond_cut_data);
     }
 
-    pub fn set_chain_contracts(
-        &mut self,
-        register_chain_output: &RegisterChainOutput,
-    ) {
+    pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
         self.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
         self.l1.governance_addr = register_chain_output.governance_addr;
     }
@@ -75,10 +78,8 @@ impl ContractsConfig {
         &mut self,
         initialize_bridges_output: &InitializeBridgeOutput,
     ) -> anyhow::Result<()> {
-        self.bridges.shared.l2_address =
-            Some(initialize_bridges_output.l2_shared_bridge_proxy);
-        self.bridges.erc20.l2_address =
-            Some(initialize_bridges_output.l2_shared_bridge_proxy);
+        self.bridges.shared.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
+        self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
         Ok(())
     }
 }

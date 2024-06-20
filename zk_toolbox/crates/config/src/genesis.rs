@@ -1,9 +1,8 @@
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
-
 use types::{ChainId, L1BatchCommitDataGeneratorMode, ProtocolSemanticVersion};
 
-use crate::{ChainConfig, consts::GENESIS_FILE, traits::FileConfigWithDefaultName};
+use crate::{consts::GENESIS_FILE, traits::FileConfigWithDefaultName, ChainConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GenesisConfig {
@@ -23,13 +22,12 @@ pub struct GenesisConfig {
 }
 
 impl GenesisConfig {
-    pub fn set_from_config(&mut self, config: &ChainConfig) {
+    pub fn set_from_chain_config(&mut self, config: &ChainConfig) {
         self.l2_chain_id = config.chain_id;
         self.l1_chain_id = config.l1_network.chain_id();
         self.l1_batch_commit_data_generator_mode = Some(config.l1_batch_commit_data_generator_mode);
     }
 }
-
 
 impl FileConfigWithDefaultName for GenesisConfig {
     const FILE_NAME: &'static str = GENESIS_FILE;

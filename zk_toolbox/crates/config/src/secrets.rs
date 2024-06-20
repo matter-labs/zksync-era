@@ -1,7 +1,6 @@
+use common::db::DatabaseConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
-
-use common::db::DatabaseConfig;
 
 use crate::{consts::SECRETS_FILE, traits::FileConfigWithDefaultName};
 
@@ -30,22 +29,19 @@ pub struct SecretsConfig {
 }
 
 impl SecretsConfig {
-    pub fn set_databases(&mut self,
-                         server_db_config: &DatabaseConfig,
-                         prover_db_config: &DatabaseConfig,
+    pub fn set_databases(
+        &mut self,
+        server_db_config: &DatabaseConfig,
+        prover_db_config: &DatabaseConfig,
     ) {
         self.database.server_url = server_db_config.full_url();
         self.database.prover_url = Some(prover_db_config.full_url());
     }
 
-    pub fn set_l1_rpc_url(
-        &mut self,
-        l1_rpc_url: String,
-    ) {
+    pub fn set_l1_rpc_url(&mut self, l1_rpc_url: String) {
         self.l1.l1_rpc_url = l1_rpc_url;
     }
 }
-
 
 impl FileConfigWithDefaultName for SecretsConfig {
     const FILE_NAME: &'static str = SECRETS_FILE;

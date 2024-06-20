@@ -1,12 +1,11 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context};
-use serde::{de::DeserializeOwned, Serialize};
-use xshell::Shell;
-
 use common::files::{
     read_json_file, read_toml_file, read_yaml_file, save_json_file, save_toml_file, save_yaml_file,
 };
+use serde::{de::DeserializeOwned, Serialize};
+use xshell::Shell;
 
 pub trait FileConfig {}
 
@@ -105,7 +104,7 @@ pub trait SaveConfigWithComment: Serialize + Sized {
 /// Saves a config file from a base path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`.
 pub trait SaveConfigWithCommentAndBasePath:
-SaveConfigWithComment + FileConfigWithDefaultName
+    SaveConfigWithComment + FileConfigWithDefaultName
 {
     fn save_with_comment_and_base_path(
         &self,

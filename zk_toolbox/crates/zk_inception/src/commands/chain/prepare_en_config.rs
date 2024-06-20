@@ -1,22 +1,20 @@
 use std::path::Path;
 
 use anyhow::Context;
-use xshell::Shell;
-
 use common::{config::global_config, logger};
 use config::{
-    ChainConfig, DatabaseSecrets, EcosystemConfig, external_node::ENConfig,
-    L1Secret, SecretsConfig, traits::SaveConfigWithBasePath,
+    external_node::ENConfig, traits::SaveConfigWithBasePath, ChainConfig, DatabaseSecrets,
+    EcosystemConfig, L1Secret, SecretsConfig,
 };
+use xshell::Shell;
 
 use crate::{
-    commands::chain::args::prepare_external_node_configs::{PrepareConfigArgs, PrepareConfigFinal}
-    ,
+    commands::chain::args::prepare_external_node_configs::{PrepareConfigArgs, PrepareConfigFinal},
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, msg_preparing_en_config_is_done, MSG_PREPARING_EN_CONFIGS,
+        msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
     },
+    utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
-use crate::utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption};
 
 pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
     logger::info(MSG_PREPARING_EN_CONFIGS);

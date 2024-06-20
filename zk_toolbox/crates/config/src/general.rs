@@ -19,10 +19,7 @@ pub struct GeneralConfig {
 }
 
 impl GeneralConfig {
-    pub fn set_rocks_db_config(
-        &mut self,
-        rocks_dbs: RocksDbs,
-    ) -> anyhow::Result<()> {
+    pub fn set_rocks_db_config(&mut self, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
         self.db.state_keeper_db_path = rocks_dbs.state_keeper;
         self.db.merkle_tree.path = rocks_dbs.merkle_tree;
         Ok(())
