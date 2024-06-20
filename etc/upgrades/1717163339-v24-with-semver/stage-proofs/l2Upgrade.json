@@ -1,0 +1,15 @@
+{
+  "systemContracts": [],
+  "defaultAA": {
+    "name": "DefaultAccount",
+    "bytecodeHashes": [
+      "0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32"
+    ]
+  },
+  "bootloader": {
+    "name": "Bootloader",
+    "bytecodeHashes": [
+      "0x010008e742608b21bf7eb23c1a9d0602047e3618b464c9b59c0fba3b3d7ab66e"
+    ]
+  }
+}
