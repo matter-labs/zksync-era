@@ -1,11 +1,11 @@
 use std::convert::TryFrom;
 
-use zk_evm_1_5_0::zk_evm_abstractions::precompiles::{ecadd, ecmul, ecpairing, modexp};
 use zk_evm_1_5_0::{
     abstractions::{Memory, PrecompileCyclesWitness, PrecompilesProcessor},
     aux_structures::{LogQuery, MemoryQuery, Timestamp},
     zk_evm_abstractions::precompiles::{
-        ecrecover, keccak256, secp256r1_verify, sha256, PrecompileAddress,
+        ecadd, ecmul, ecpairing, ecrecover, keccak256, modexp, secp256r1_verify, sha256,
+        PrecompileAddress,
     },
 };
 
