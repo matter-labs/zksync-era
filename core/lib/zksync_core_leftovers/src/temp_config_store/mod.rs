@@ -15,20 +15,14 @@ use zksync_config::{
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
-use zksync_protobuf::{repr::ProtoRepr, ProtoFmt};
-
-pub fn decode_yaml<T: ProtoFmt>(yaml: &str) -> anyhow::Result<T> {
-    let d = serde_yaml::Deserializer::from_str(yaml);
-    let this: T = zksync_protobuf::serde::deserialize(d)?;
-    Ok(this)
-}
+use zksync_protobuf::repr::ProtoRepr;
 
 pub fn decode_yaml_repr<T: ProtoRepr>(yaml: &str) -> anyhow::Result<T::Type> {
     let d = serde_yaml::Deserializer::from_str(yaml);
     let this: T = zksync_protobuf::serde::deserialize_proto_with_options(d, false)?;
     this.read()
 }
-//
+
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.
 /// All the configs are optional, since for some component combination it is not needed to pass all the configs.

@@ -205,7 +205,7 @@ jobs:
       # `sleep 5` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server --use-node-framework --components=$SERVER_COMPONENTS &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 5
 
       - name: Run contract verifier

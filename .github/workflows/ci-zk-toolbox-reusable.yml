@@ -90,7 +90,7 @@ jobs:
 
       - name: Run server
         run: |
-          ci_run zk_inception server --ignore-prerequisites -a --use-node-framework --verbose &>server.log &
+          ci_run zk_inception server --ignore-prerequisites -a --verbose &>server.log &
           ci_run sleep 5
 
       - name: Run integration tests
