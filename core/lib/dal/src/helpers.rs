@@ -40,11 +40,10 @@ pub async fn wait_for_l1_batch(
 
 #[cfg(test)]
 mod tests {
-    use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId, H256};
+    use zksync_types::ProtocolVersion;
 
     use super::*;
-    use crate::{ConnectionPool, Core, CoreDal};
+    use crate::{tests::create_l1_batch_header, ConnectionPool, Core, CoreDal};
 
     #[tokio::test]
     async fn waiting_for_l1_batch_success() {
@@ -59,15 +58,7 @@ mod tests {
                 .save_protocol_version_with_tx(&ProtocolVersion::default())
                 .await
                 .unwrap();
-            let header = L1BatchHeader::new(
-                L1BatchNumber(0),
-                100,
-                BaseSystemContractsHashes {
-                    bootloader: H256::repeat_byte(1),
-                    default_aa: H256::repeat_byte(42),
-                },
-                ProtocolVersionId::latest(),
-            );
+            let header = create_l1_batch_header(0);
             conn.blocks_dal()
                 .insert_mock_l1_batch(&header)
                 .await
