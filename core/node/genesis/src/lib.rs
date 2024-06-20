@@ -412,7 +412,6 @@ pub async fn create_genesis_l1_batch(
 pub async fn save_set_chain_id_tx(
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
-    state_transition_manager_address: Address,
     database_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
     let db_url = database_secrets.master_url()?;
@@ -421,8 +420,9 @@ pub async fn save_set_chain_id_tx(
 
     let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
+
     let filter = FilterBuilder::default()
-        .address(vec![state_transition_manager_address])
+        .address(vec![diamond_proxy_address])
         .topics(
             Some(vec![SET_CHAIN_ID_EVENT.signature()]),
             Some(vec![diamond_proxy_address.into()]),

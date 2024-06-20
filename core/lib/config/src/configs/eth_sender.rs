@@ -40,6 +40,7 @@ impl EthConfig {
                 l1_batch_min_age_before_execute_seconds: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
+                ignore_db_nonce: None,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -116,6 +117,9 @@ pub struct SenderConfig {
 
     /// The mode in which we send pubdata, either Calldata or Blobs
     pub pubdata_sending_mode: PubdataSendingMode,
+
+    /// Used to ignore db nonce check for sender and only use the RPC one.
+    pub ignore_db_nonce: Option<bool>,
 }
 
 impl SenderConfig {

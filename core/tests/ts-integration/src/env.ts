@@ -6,6 +6,7 @@ import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
+import { isNetworkLocal } from 'utils';
 
 /**
  * Attempts to connect to server.
@@ -19,7 +20,7 @@ export async function waitForServer(l2NodeUrl: string) {
     const reporter = new Reporter();
     // Server startup may take a lot of time on the staging.
     const attemptIntervalMs = 1000;
-    const maxAttempts = 20 * 60; // 20 minutes
+    const maxAttempts = 3 * 60; // 20 minutes
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
 
@@ -43,7 +44,7 @@ export async function waitForServer(l2NodeUrl: string) {
 }
 
 function getMainWalletPk(pathToHome: string, network: string): string {
-    if (network.toLowerCase() == 'localhost') {
+    if (isNetworkLocal(network)) {
         const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
         return ethers.Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/0").privateKey;
@@ -189,7 +190,11 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
 
-    const l1NodeUrl = ensureVariable(process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL, 'L1 node URL');
+    const l1NodeUrl = ensureVariable(
+        process.env.BRIDGE_LAYER_WEB3_URL || process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL,
+        'L1 node URL'
+    );
+    console.log('l1NodeUrl', l1NodeUrl);
     const wsL2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_WS_API_URL || process.env.API_WEB3_JSON_RPC_WS_URL,
         'WS L2 node URL'

@@ -20,7 +20,8 @@ use zksync_config::{
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    delete_l1_txs_history, genesis_init, initialize_components, is_genesis_needed,
+    setup_sigint_handler,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
@@ -46,6 +47,9 @@ struct Cli {
     /// Rebuild tree.
     #[arg(long)]
     rebuild_tree: bool,
+    /// FIXME: dangerous option. Should be decided within the team.
+    #[arg(long)]
+    clear_l1_txs_history: bool,
     /// Comma-separated list of components to launch.
     #[arg(
         long,
@@ -187,8 +191,8 @@ async fn main() -> anyhow::Result<()> {
         genesis_init(genesis.clone(), &database_secrets)
             .await
             .context("genesis_init")?;
-
-        if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
+        // TODO: can we remove this condition?
+        if let Some(_ecosystem_contracts) = &contracts_config.ecosystem_contracts {
             let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
             let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
                 .context("Ethereum client")?
@@ -197,7 +201,6 @@ async fn main() -> anyhow::Result<()> {
             zksync_node_genesis::save_set_chain_id_tx(
                 &query_client,
                 contracts_config.diamond_proxy_addr,
-                ecosystem_contracts.state_transition_proxy_addr,
                 &database_secrets,
             )
             .await
@@ -207,6 +210,13 @@ async fn main() -> anyhow::Result<()> {
         if opt.genesis {
             return Ok(());
         }
+    }
+
+    if opt.clear_l1_txs_history {
+        println!("Clearing L1 txs history!");
+        delete_l1_txs_history(&database_secrets).await?;
+        println!("Complete!");
+        return Ok(());
     }
 
     let components = if opt.rebuild_tree {

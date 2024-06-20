@@ -90,6 +90,9 @@ impl WiringLayer for MempoolIOLayer {
         let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
             persistence_pool.clone(),
             self.contracts_config.l2_shared_bridge_addr.unwrap(),
+            self.contracts_config
+                .l2_native_token_vault_proxy_addr
+                .unwrap(),
             self.state_keeper_config.l2_block_seal_queue_capacity,
         );
         let tree_writes_persistence = TreeWritesPersistence::new(persistence_pool);

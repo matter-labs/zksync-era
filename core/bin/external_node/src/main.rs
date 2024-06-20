@@ -221,6 +221,10 @@ async fn run_core(
             .remote
             .l2_shared_bridge_addr
             .expect("L2 shared bridge address is not set"),
+        config
+            .remote
+            .l2_native_token_vault_proxy_addr
+            .expect("L2 standard deployer address is not set"),
         config.optional.l2_block_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
@@ -314,7 +318,7 @@ async fn run_core(
     }
 
     let sk_handle = task::spawn(state_keeper.run());
-    let remote_diamond_proxy_addr = config.remote.diamond_proxy_addr;
+    let remote_diamond_proxy_addr = config.remote.user_facing_diamond_proxy;
     let diamond_proxy_addr = if let Some(addr) = config.optional.contracts_diamond_proxy_addr {
         anyhow::ensure!(
             addr == remote_diamond_proxy_addr,
@@ -626,7 +630,7 @@ async fn init_tasks(
              This is an experimental feature; do not use unless you know what you're doing"
         );
         let fetcher = TreeDataFetcher::new(main_node_client.clone(), connection_pool.clone())
-            .with_l1_data(eth_client.clone(), config.remote.diamond_proxy_addr)?;
+            .with_l1_data(eth_client.clone(), config.remote.user_facing_diamond_proxy)?;
         app_health.insert_component(fetcher.health_check())?;
         task_handles.push(tokio::spawn(fetcher.run(stop_receiver.clone())));
     }

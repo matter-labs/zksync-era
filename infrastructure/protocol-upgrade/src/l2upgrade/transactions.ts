@@ -3,7 +3,7 @@ import { ComplexUpgraderFactory, ContractDeployerFactory } from 'system-contract
 import { ForceDeployment, L2CanonicalTransaction } from '../transaction';
 import { ForceDeployUpgraderFactory } from 'l2-contracts/typechain';
 import { Command } from 'commander';
-import { getCommonDataFileName, getL2UpgradeFileName, unpackStringSemVer } from '../utils';
+import { getCommonDataFileName, getL2UpgradeFileName, unpackStringSemVer } from 'utils';
 import fs from 'fs';
 import { REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
 

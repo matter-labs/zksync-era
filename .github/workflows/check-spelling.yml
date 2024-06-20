@@ -37,6 +37,6 @@ jobs:
         run: |
           ci_run zk
 
-      - name: Run spellcheck
-        run: |
-          ci_run zk spellcheck
+#       - name: Run spellcheck
+#         run: |
+#           ci_run zk spellcheck

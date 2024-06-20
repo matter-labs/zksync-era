@@ -13,7 +13,7 @@
     "build-yul": "hardhat run scripts/compile-yul.ts"
   },
   "devDependencies": {
-    "@matterlabs/hardhat-zksync-deploy": "^0.6.5",
+    "@matterlabs/hardhat-zksync-deploy": "^0.7.0",
     "@matterlabs/hardhat-zksync-solc": "0.4.2",
     "@matterlabs/hardhat-zksync-vyper": "^1.0.0",
     "@nomiclabs/hardhat-vyper": "^3.0.5",

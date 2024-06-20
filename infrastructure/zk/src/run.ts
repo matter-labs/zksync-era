@@ -6,6 +6,9 @@ import * as path from 'path';
 import { getTokens } from './hyperchain_wizard';
 import * as env from './env';
 
+const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
+const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
+
 export async function deployERC20AndWeth({
     command,
     name,
@@ -20,7 +23,7 @@ export async function deployERC20AndWeth({
     envFile?: string;
 }) {
     if (command == 'dev') {
-        const destinationFile = envFile || 'localhost';
+        const destinationFile = envFile || process.env.CHAIN_ETH_NETWORK || 'localhost';
         const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
         const args = [privateKey ? `--private-key ${privateKey}` : ''];
         await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
@@ -30,7 +33,9 @@ export async function deployERC20AndWeth({
                 { "name": "BAT",  "symbol": "BAT",  "decimals": 18 },
                 { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
             ]' ${args.join(' ')} > ./etc/tokens/${destinationFile}.json`);
-        const WETH = getTokens(destinationFile).find((token) => token.symbol === 'WETH')!;
+        const tokens = getTokens(destinationFile);
+        const WETH = tokens.find((token) => token.symbol === 'WETH')!;
+        console.log('Tokens deployed at:', tokens.map((token) => token.address).join(', \n'));
         env.modify(
             'CONTRACTS_L1_WETH_TOKEN_ADDR',
             `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`,
@@ -73,20 +78,32 @@ export async function catLogs(exitCode?: number) {
     }
 }
 
-export async function testAccounts() {
-    const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
-    const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-    const NUM_TEST_WALLETS = 10;
+function getMnemonicAddresses(mnemonic: string, numWallet: number) {
     const baseWalletPath = "m/44'/60'/0'/0/";
     const walletKeys = [];
-    for (let i = 0; i < NUM_TEST_WALLETS; ++i) {
-        const ethWallet = Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, baseWalletPath + i);
+
+    for (let i = 0; i < numWallet; ++i) {
+        const ethWallet = Wallet.fromMnemonic(mnemonic, baseWalletPath + i);
         walletKeys.push({
             address: ethWallet.address,
             privateKey: ethWallet.privateKey
         });
     }
-    console.log(JSON.stringify(walletKeys, null, 4));
+
+    return walletKeys;
+}
+
+export async function getTestAccounts() {
+    return getMnemonicAddresses(ethTestConfig.test_mnemonic, 10);
+}
+
+export async function getDeployAccounts() {
+    return getMnemonicAddresses(ethTestConfig.mnemonic, 2);
+}
+
+export async function testAccounts() {
+    const richAccounts = await getTestAccounts();
+    console.log(JSON.stringify(richAccounts, null, 4));
 }
 
 export async function loadtest(...args: string[]) {

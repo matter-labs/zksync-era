@@ -109,6 +109,7 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
                 .context("pubdata_sending_mode")?
                 .parse(),
+            ignore_db_nonce: None,
         })
     }
 
