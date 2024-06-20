@@ -15,6 +15,10 @@ pub struct CircuitCycleStatistic {
     pub events_sorter_cycles: u32,
     pub keccak256_cycles: u32,
     pub ecrecover_cycles: u32,
+    pub ecadd_cycles: u32,
+    pub ecmul_cycles: u32,
+    pub ecpairing_cycles: u32,
+    pub modexp_cycles: u32,
     pub sha256_cycles: u32,
     pub secp256k1_verify_cycles: u32,
     pub transient_storage_checker_cycles: u32,
@@ -39,6 +43,10 @@ pub struct CircuitStatistic {
     pub events_sorter: f32,
     pub keccak256: f32,
     pub ecrecover: f32,
+    pub ecadd: f32,
+    pub ecmul: f32,
+    pub ecpairing: f32,
+    pub modexp: f32,
     pub sha256: f32,
     #[serde(default)]
     pub secp256k1_verify: f32,
@@ -59,6 +67,10 @@ impl CircuitStatistic {
             + self.events_sorter.ceil() as usize
             + self.keccak256.ceil() as usize
             + self.ecrecover.ceil() as usize
+            + self.ecadd.ceil() as usize
+            + self.ecmul.ceil() as usize
+            + self.ecpairing.ceil() as usize
+            + self.modexp.ceil() as usize
             + self.sha256.ceil() as usize
             + self.secp256k1_verify.ceil() as usize
             + self.transient_storage_checker.ceil() as usize
@@ -76,6 +88,10 @@ impl CircuitStatistic {
             + self.events_sorter
             + self.keccak256
             + self.ecrecover
+            + self.ecadd
+            + self.ecmul
+            + self.ecpairing
+            + self.modexp
             + self.sha256
             + self.secp256k1_verify
             + self.transient_storage_checker
@@ -97,6 +113,10 @@ impl Add for CircuitStatistic {
             events_sorter: self.events_sorter + other.events_sorter,
             keccak256: self.keccak256 + other.keccak256,
             ecrecover: self.ecrecover + other.ecrecover,
+            ecadd: self.ecadd + other.ecadd,
+            ecmul: self.ecmul + other.ecmul,
+            ecpairing: self.ecpairing + other.ecpairing,
+            modexp: self.modexp + other.modexp,
             sha256: self.sha256 + other.sha256,
             secp256k1_verify: self.secp256k1_verify + other.secp256k1_verify,
             transient_storage_checker: self.transient_storage_checker
