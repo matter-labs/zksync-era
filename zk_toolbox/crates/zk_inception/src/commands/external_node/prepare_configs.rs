@@ -55,7 +55,7 @@ fn prepare_configs(
         main_node_rate_limit_rps: None,
     };
     let mut general_en = general.clone();
-    general_en.update_ports(&general.ports_config().next_empty_ports_config());
+    general_en.update_ports(&general.ports_config().next_empty_ports_config())?;
     let secrets = SecretsConfig {
         database: DatabaseSecrets {
             server_url: args.db.full_url(),

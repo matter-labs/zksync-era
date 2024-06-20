@@ -9,7 +9,7 @@ use xshell::Shell;
 
 use crate::commands::{
     args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands,
-    external_node::ExternalNodeCommands,
+    external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
 pub mod accept_ownership;

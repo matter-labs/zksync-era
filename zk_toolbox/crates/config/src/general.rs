@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::{consts::GENERAL_FILE, traits::FileConfigWithDefaultName};
 
@@ -35,13 +36,31 @@ impl GeneralConfig {
         }
     }
 
-    pub fn update_ports(&mut self, ports_config: &PortsConfig) {
+    pub fn update_ports(&mut self, ports_config: &PortsConfig) -> anyhow::Result<()> {
         self.api.web3_json_rpc.http_port = ports_config.web3_json_rpc_http_port;
+        update_port_in_url(
+            &mut self.api.web3_json_rpc.http_url,
+            ports_config.web3_json_rpc_http_port,
+        )?;
         self.api.web3_json_rpc.ws_port = ports_config.web3_json_rpc_ws_port;
+        update_port_in_url(
+            &mut self.api.web3_json_rpc.ws_url,
+            ports_config.web3_json_rpc_ws_port,
+        )?;
         self.api.healthcheck.port = ports_config.healthcheck_port;
         self.api.merkle_tree.port = ports_config.merkle_tree_port;
         self.api.prometheus.listener_port = ports_config.prometheus_listener_port;
+        Ok(())
     }
+}
+
+fn update_port_in_url(http_url: &mut String, port: u16) -> anyhow::Result<()> {
+    let mut http_url_url = Url::parse(&http_url)?;
+    if let Err(()) = http_url_url.set_port(Some(port)) {
+        anyhow::bail!("Wrong url, setting port is impossible");
+    }
+    *http_url = http_url_url.as_str().to_string();
+    Ok(())
 }
 
 impl FileConfigWithDefaultName for GeneralConfig {
