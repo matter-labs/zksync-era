@@ -647,9 +647,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                 self.bootloader_state
                     .get_pubdata_information()
                     .state_diffs
-                    .iter()
-                    .cloned()
-                    .collect(),
+                    .to_vec(),
             ),
         }
     }
@@ -744,7 +742,7 @@ impl<S: ReadStorage> vm2::World for World<S> {
         self.program_cache
             .entry(hash)
             .or_insert_with(|| {
-                bytecode_to_program(&self.bytecode_cache.entry(hash).or_insert_with(|| {
+                bytecode_to_program(self.bytecode_cache.entry(hash).or_insert_with(|| {
                     self.storage
                         .borrow_mut()
                         .load_factory_dep(u256_to_h256(hash))
