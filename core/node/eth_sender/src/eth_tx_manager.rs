@@ -116,10 +116,17 @@ impl EthTxManager {
             time_in_mempool,
         )?;
 
+        let tx_history_entries_count = storage
+            .eth_sender_dal()
+            .get_txs_history_entries_count(tx.id)
+            .await
+            .unwrap();
+
         if let Some(previous_sent_tx) = previous_sent_tx {
             METRICS.transaction_resent.inc();
             tracing::info!(
-                "Resending tx {} at block {current_block} with \
+                "Resending tx {} at block {current_block}, \
+                attempt #{}, it has been in mempool {} time(s) with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
                 blob_fee_per_gas {blob_base_fee_per_gas:?}, \
@@ -129,17 +136,21 @@ impl EthTxManager {
                 blob_fee_per_gas {:?}, \
                 ",
                 tx.id,
+                tx.resend_attempts_count + 1,
+                tx_history_entries_count + 1,
                 previous_sent_tx.base_fee_per_gas,
                 previous_sent_tx.priority_fee_per_gas,
                 previous_sent_tx.blob_base_fee_per_gas
             );
         } else {
             tracing::info!(
-                "Sending tx {} at block {current_block} with \
+                "Sending tx {} at block {current_block}, \
+                attempt #{} with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
                 blob_fee_per_gas {blob_base_fee_per_gas:?}",
-                tx.id
+                tx.id,
+                tx.resend_attempts_count + 1
             );
         }
 
@@ -200,12 +211,7 @@ impl EthTxManager {
             } else {
                 TransactionType::Regular
             };
-            let tx_history_entries_count = storage
-                .eth_sender_dal()
-                .get_txs_history_entries_count(tx.id)
-                .await
-                .unwrap()
-                + 1;
+
             METRICS.resend_attempts_per_transaction[&transaction_type]
                 .observe(tx.resend_attempts_count.into());
 
@@ -223,7 +229,7 @@ impl EthTxManager {
                 );
             } else {
                 METRICS.times_landed_in_mempool_per_transaction[&transaction_type]
-                    .observe(tx_history_entries_count.into());
+                    .observe((tx_history_entries_count + 1).into());
             }
         }
         Ok(signed_tx.hash)
