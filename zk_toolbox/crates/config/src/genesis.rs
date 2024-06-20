@@ -22,7 +22,7 @@ pub struct GenesisConfig {
 }
 
 impl GenesisConfig {
-    pub fn set_from_chain_config(&mut self, config: &ChainConfig) {
+    pub fn update_from_chain_config(&mut self, config: &ChainConfig) {
         self.l2_chain_id = config.chain_id;
         self.l1_chain_id = config.l1_network.chain_id();
         self.l1_batch_commit_data_generator_mode = Some(config.l1_batch_commit_data_generator_mode);

@@ -58,7 +58,7 @@ pub async fn init(
     build_l1_contracts(shell, ecosystem_config)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
-    genesis_config.set_from_chain_config(&chain_config);
+    genesis_config.update_from_chain_config(&chain_config);
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Copy ecosystem contracts
@@ -98,7 +98,7 @@ pub async fn init(
         &mut contracts_config,
         init_args.forge_args.clone(),
     )
-    .await?;
+        .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     if init_args.deploy_paymaster {
@@ -108,7 +108,7 @@ pub async fn init(
             &mut contracts_config,
             init_args.forge_args.clone(),
         )
-        .await?;
+            .await?;
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     }
 
