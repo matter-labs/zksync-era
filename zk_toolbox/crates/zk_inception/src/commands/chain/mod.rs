@@ -4,10 +4,7 @@ use common::forge::ForgeScriptArgs;
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
-use crate::commands::chain::args::{
-    create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs,
-    prepare_external_node_configs::PrepareConfigArgs,
-};
+use crate::commands::chain::args::{create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs};
 
 pub(crate) mod args;
 mod create;
@@ -15,7 +12,6 @@ pub mod deploy_paymaster;
 pub mod genesis;
 pub(crate) mod init;
 mod initialize_bridges;
-mod prepare_en_config;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -29,7 +25,6 @@ pub enum ChainCommands {
     InitializeBridges(ForgeScriptArgs),
     /// Initialize bridges on l2
     DeployPaymaster(ForgeScriptArgs),
-    PrepareExternalNodeConfig(PrepareConfigArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -39,6 +34,5 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::Genesis(args) => genesis::run(args, shell).await,
         ChainCommands::InitializeBridges(args) => initialize_bridges::run(args, shell).await,
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
-        ChainCommands::PrepareExternalNodeConfig(args) => prepare_en_config::run(shell, args),
     }
 }

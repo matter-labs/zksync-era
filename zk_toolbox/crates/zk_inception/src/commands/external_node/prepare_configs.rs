@@ -9,7 +9,7 @@ use config::{
 use xshell::Shell;
 
 use crate::{
-    commands::chain::args::prepare_external_node_configs::{PrepareConfigArgs, PrepareConfigFinal},
+    commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
     messages::{
         msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
     },
@@ -55,11 +55,7 @@ fn prepare_configs(
         main_node_rate_limit_rps: None,
     };
     let mut general_en = general.clone();
-    general_en.api.web3_json_rpc.http_port = general_en.api.web3_json_rpc.http_port + 1000;
-    general_en.api.web3_json_rpc.ws_port = general_en.api.web3_json_rpc.ws_port + 1000;
-    general_en.api.healthcheck.port = general_en.api.healthcheck.port + 1000;
-    general_en.api.merkle_tree.port = general_en.api.merkle_tree.port + 1000;
-    general_en.api.prometheus.listener_port = general_en.api.prometheus.listener_port + 1000;
+    general_en.update_ports(&general.ports_config().next_empty_ports_config());
     let secrets = SecretsConfig {
         database: DatabaseSecrets {
             server_url: args.db.full_url(),

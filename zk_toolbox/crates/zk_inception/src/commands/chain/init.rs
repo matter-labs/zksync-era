@@ -21,7 +21,10 @@ use super::args::init::InitArgsFinal;
 use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
-        args::init::InitArgs, deploy_paymaster, genesis::genesis, initialize_bridges,
+        args::init::{InitArgs, InitArgsFinal},
+        deploy_paymaster,
+        genesis::genesis,
+        initialize_bridges,
     },
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_BUILDING_L1_CONTRACTS,
@@ -98,7 +101,7 @@ pub async fn init(
         &mut contracts_config,
         init_args.forge_args.clone(),
     )
-        .await?;
+    .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     if init_args.deploy_paymaster {
@@ -108,7 +111,7 @@ pub async fn init(
             &mut contracts_config,
             init_args.forge_args.clone(),
         )
-            .await?;
+        .await?;
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     }
 

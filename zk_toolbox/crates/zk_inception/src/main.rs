@@ -8,9 +8,8 @@ use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::{RunExternalNodeArgs, RunServerArgs},
-    chain::ChainCommands,
-    ecosystem::EcosystemCommands,
+    args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands,
+    external_node::ExternalNodeCommands,
 };
 
 pub mod accept_ownership;
@@ -45,7 +44,8 @@ pub enum InceptionSubcommands {
     /// Run server
     Server(RunServerArgs),
     // Run External Node
-    ExternalNode(RunExternalNodeArgs),
+    #[command(subcommand)]
+    ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
     Containers,
 }

@@ -24,6 +24,24 @@ impl GeneralConfig {
         self.db.merkle_tree.path = rocks_dbs.merkle_tree;
         Ok(())
     }
+
+    pub fn ports_config(&self) -> PortsConfig {
+        PortsConfig {
+            web3_json_rpc_http_port: self.api.web3_json_rpc.http_port,
+            web3_json_rpc_ws_port: self.api.web3_json_rpc.ws_port,
+            healthcheck_port: self.api.healthcheck.port,
+            merkle_tree_port: self.api.merkle_tree.port,
+            prometheus_listener_port: self.api.prometheus.listener_port,
+        }
+    }
+
+    pub fn update_ports(&mut self, ports_config: &PortsConfig) {
+        self.api.web3_json_rpc.http_port = ports_config.web3_json_rpc_http_port;
+        self.api.web3_json_rpc.ws_port = ports_config.web3_json_rpc_ws_port;
+        self.api.healthcheck.port = ports_config.healthcheck_port;
+        self.api.merkle_tree.port = ports_config.merkle_tree_port;
+        self.api.prometheus.listener_port = ports_config.prometheus_listener_port;
+    }
 }
 
 impl FileConfigWithDefaultName for GeneralConfig {
@@ -123,4 +141,24 @@ pub struct MerkleTreeApiConfig {
     pub port: u16,
     #[serde(flatten)]
     pub other: serde_json::Value,
+}
+
+pub struct PortsConfig {
+    pub web3_json_rpc_http_port: u16,
+    pub web3_json_rpc_ws_port: u16,
+    pub healthcheck_port: u16,
+    pub merkle_tree_port: u16,
+    pub prometheus_listener_port: u16,
+}
+
+impl PortsConfig {
+    pub fn next_empty_ports_config(&self) -> PortsConfig {
+        Self {
+            web3_json_rpc_http_port: self.web3_json_rpc_http_port + 100,
+            web3_json_rpc_ws_port: self.web3_json_rpc_ws_port + 100,
+            healthcheck_port: self.healthcheck_port + 100,
+            merkle_tree_port: self.merkle_tree_port + 100,
+            prometheus_listener_port: self.prometheus_listener_port + 100,
+        }
+    }
 }

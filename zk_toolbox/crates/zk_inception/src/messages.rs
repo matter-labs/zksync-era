@@ -207,3 +207,5 @@ pub(super) fn msg_preparing_en_config_is_done(path: &Path) -> String {
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
+
+pub(super) const MSG_STARTING_EN: &str = "Starting external node";
