@@ -204,9 +204,6 @@ pub struct SnapshotsApplierConfig {
     /// Maximum concurrency factor when performing concurrent operations (for now, the only such operation
     /// is recovering chunks of storage logs).
     pub max_concurrency: NonZeroUsize,
-    /// Whether to drop storage key preimages when recovering storage logs from a snapshot with version 0.
-    /// This is a temporary flag that will eventually be removed together with version 0 snapshot support.
-    pub drop_storage_key_preimages: bool,
 }
 
 impl Default for SnapshotsApplierConfig {
@@ -216,7 +213,6 @@ impl Default for SnapshotsApplierConfig {
             initial_retry_backoff: Duration::from_secs(2),
             retry_backoff_multiplier: 2.0,
             max_concurrency: NonZeroUsize::new(10).unwrap(),
-            drop_storage_key_preimages: false,
         }
     }
 }
@@ -241,6 +237,7 @@ pub struct SnapshotApplierTaskStats {
 #[derive(Debug)]
 pub struct SnapshotsApplierTask {
     snapshot_l1_batch: Option<L1BatchNumber>,
+    drop_storage_key_preimages: bool,
     config: SnapshotsApplierConfig,
     health_updater: HealthUpdater,
     connection_pool: ConnectionPool<Core>,
@@ -257,6 +254,7 @@ impl SnapshotsApplierTask {
     ) -> Self {
         Self {
             snapshot_l1_batch: None,
+            drop_storage_key_preimages: false,
             config,
             health_updater: ReactiveHealthCheck::new("snapshot_recovery").1,
             connection_pool,
@@ -268,6 +266,12 @@ impl SnapshotsApplierTask {
     /// Specifies the L1 batch to recover from. This setting is ignored if recovery is complete or resumed.
     pub fn set_snapshot_l1_batch(&mut self, number: L1BatchNumber) {
         self.snapshot_l1_batch = Some(number);
+    }
+
+    /// Enables dropping storage key preimages when recovering storage logs from a snapshot with version 0.
+    /// This is a temporary flag that will eventually be removed together with version 0 snapshot support.
+    pub fn drop_storage_key_preimages(&mut self) {
+        self.drop_storage_key_preimages = true;
     }
 
     /// Returns the health check for snapshot recovery.
@@ -289,15 +293,7 @@ impl SnapshotsApplierTask {
         let mut backoff = self.config.initial_retry_backoff;
         let mut last_error = None;
         for retry_id in 0..self.config.retry_count {
-            let result = SnapshotsApplier::load_snapshot(
-                &self.connection_pool,
-                self.main_node_client.as_ref(),
-                self.blob_store.as_ref(),
-                &self.health_updater,
-                self.snapshot_l1_batch,
-                &self.config,
-            )
-            .await;
+            let result = SnapshotsApplier::load_snapshot(&self).await;
 
             match result {
                 Ok((strategy, final_status)) => {
@@ -588,13 +584,12 @@ struct SnapshotsApplier<'a> {
 impl<'a> SnapshotsApplier<'a> {
     /// Returns final snapshot recovery status.
     async fn load_snapshot(
-        connection_pool: &'a ConnectionPool<Core>,
-        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
-        blob_store: &'a dyn ObjectStore,
-        health_updater: &'a HealthUpdater,
-        snapshot_l1_batch: Option<L1BatchNumber>,
-        config: &SnapshotsApplierConfig,
+        task: &'a SnapshotsApplierTask,
     ) -> Result<(SnapshotRecoveryStrategy, SnapshotRecoveryStatus), SnapshotsApplierError> {
+        let health_updater = &task.health_updater;
+        let connection_pool = &task.connection_pool;
+        let main_node_client = task.main_node_client.as_ref();
+
         // While the recovery is in progress, the node is healthy (no error has occurred),
         // but is affected (its usual APIs don't work).
         health_updater.update(HealthStatus::Affected.into());
@@ -607,7 +602,7 @@ impl<'a> SnapshotsApplier<'a> {
         let (strategy, applied_snapshot_status) = SnapshotRecoveryStrategy::new(
             &mut storage_transaction,
             main_node_client,
-            snapshot_l1_batch,
+            task.snapshot_l1_batch,
         )
         .await?;
         tracing::info!("Chosen snapshot recovery strategy: {strategy:?} with status: {applied_snapshot_status:?}");
@@ -620,12 +615,12 @@ impl<'a> SnapshotsApplier<'a> {
         let mut this = Self {
             connection_pool,
             main_node_client,
-            blob_store,
+            blob_store: task.blob_store.as_ref(),
             applied_snapshot_status,
             health_updater,
             snapshot_version,
-            max_concurrency: config.max_concurrency.get(),
-            drop_storage_key_preimages: config.drop_storage_key_preimages,
+            max_concurrency: task.config.max_concurrency.get(),
+            drop_storage_key_preimages: task.drop_storage_key_preimages,
             factory_deps_recovered: !created_from_scratch,
             tokens_recovered: false,
         };
