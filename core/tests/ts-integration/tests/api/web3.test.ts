@@ -1,5 +1,5 @@
 /**
- * This suite contains tests for the Web3 API compatibility and zkSync-specific extensions.
+ * This suite contains tests for the Web3 API compatibility and ZKsync-specific extensions.
  */
 import { TestMaster } from '../../src';
 import * as zksync from 'zksync-ethers';
@@ -144,7 +144,7 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should check the network version', async () => {
-        // Valid network IDs for zkSync are greater than 270.
+        // Valid network IDs for ZKsync are greater than 270.
         // This test suite may run on different envs, so we don't expect a particular ID.
         await expect(alice.provider.send('net_version', [])).resolves.toMatch(chainId.toString());
     });
@@ -690,6 +690,8 @@ describe('web3 API compatibility tests', () => {
         expect(+finalizedBlock.number!).toEqual(expect.any(Number));
         const latestBlock = await alice.provider.send('eth_getBlockByNumber', ['latest', true]);
         expect(+latestBlock.number!).toEqual(expect.any(Number));
+        const l1CommittedBlock = await alice.provider.send('eth_getBlockByNumber', ['l1_committed', true]);
+        expect(+l1CommittedBlock.number!).toEqual(expect.any(Number));
         const pendingBlock = await alice.provider.send('eth_getBlockByNumber', ['pending', true]);
         expect(pendingBlock).toEqual(null);
     });

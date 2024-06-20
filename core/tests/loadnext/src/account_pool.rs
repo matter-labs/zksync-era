@@ -77,7 +77,7 @@ pub struct TestWallet {
 }
 
 /// Pool of accounts to be used in the test.
-/// Each account is represented as `zksync::Wallet` in order to provide convenient interface of interaction with zkSync.
+/// Each account is represented as `zksync::Wallet` in order to provide convenient interface of interaction with ZKsync.
 #[derive(Debug)]
 pub struct AccountPool {
     /// Main wallet that will be used to initialize all the test wallets.
@@ -102,7 +102,7 @@ impl AccountPool {
         )?
         .for_network(l2_chain_id.into())
         .build();
-        // Perform a health check: check whether zkSync server is alive.
+        // Perform a health check: check whether ZKsync server is alive.
         let mut server_alive = false;
         for _ in 0usize..3 {
             if let Ok(Ok(_)) = timeout(Duration::from_secs(3), client.get_main_contract()).await {
@@ -111,7 +111,7 @@ impl AccountPool {
             }
         }
         if !server_alive {
-            anyhow::bail!("zkSync server does not respond. Please check RPC address and whether server is launched");
+            anyhow::bail!("ZKsync server does not respond. Please check RPC address and whether server is launched");
         }
 
         let test_contract = loadnext_contract(&config.test_contracts_path)?;

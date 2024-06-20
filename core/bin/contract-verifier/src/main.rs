@@ -112,7 +112,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
 use zksync_config::configs::DatabaseSecrets;
 
 #[derive(StructOpt)]
-#[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
+#[structopt(name = "ZKsync contract code verifier", author = "Matter Labs")]
 struct Opt {
     /// Number of jobs to process. If None, runs indefinitely.
     #[structopt(long)]
