@@ -66,8 +66,6 @@ pub struct Vm<S: ReadStorage> {
 
     pub(crate) bootloader_state: BootloaderState,
 
-    bytecode_cache: HashMap<U256, Vec<u8>>,
-
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
 
@@ -213,7 +211,8 @@ impl<S: ReadStorage> Vm<S> {
                         })
                         .map(|event| {
                             let hash = U256::from_big_endian(&event.value[..32]);
-                            self.bytecode_cache
+                            self.world
+                                .bytecode_cache
                                 .get(&hash)
                                 .expect("published unknown bytecode")
                                 .clone()
@@ -318,10 +317,7 @@ impl<S: ReadStorage> Vm<S> {
     pub(crate) fn insert_bytecodes<'a>(&mut self, bytecodes: impl IntoIterator<Item = &'a [u8]>) {
         for code in bytecodes {
             let hash = h256_to_u256(hash_bytecode(code));
-            self.world
-                .program_cache
-                .insert(hash, bytecode_to_program(code));
-            self.bytecode_cache.insert(hash, code.to_vec());
+            self.world.bytecode_cache.insert(hash, code.into());
         }
     }
 
@@ -465,7 +461,6 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
             ),
             system_env,
             batch_env,
-            bytecode_cache: HashMap::new(),
             snapshots: vec![],
         };
 
@@ -513,7 +508,6 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .inner
                     .world_diff
                     .get_storage_changes_after(&start)
-                    .into_iter()
                     .map(|((address, key), change)| StorageLogWithPreviousValue {
                         log: StorageLog {
                             key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
@@ -719,7 +713,6 @@ impl<S: ReadStorage> std::fmt::Debug for Vm<S> {
             .field("bootloader_state", &self.bootloader_state)
             .field("storage", &self.world.storage)
             .field("program_cache", &self.world.program_cache)
-            .field("bytecode_cache", &self.bytecode_cache)
             .field("batch_env", &self.batch_env)
             .field("system_env", &self.system_env)
             .field("snapshots", &self.snapshots.len())
@@ -732,7 +725,8 @@ pub(crate) struct World<S: ReadStorage> {
 
     // TODO: It would be nice to store an LRU cache elsewhere.
     // This one is cleared on change of batch unfortunately.
-    pub(crate) program_cache: HashMap<U256, Program>,
+    program_cache: HashMap<U256, Program>,
+    pub(crate) bytecode_cache: HashMap<U256, Vec<u8>>,
 }
 
 impl<S: ReadStorage> World<S> {
@@ -740,6 +734,7 @@ impl<S: ReadStorage> World<S> {
         Self {
             storage,
             program_cache,
+            bytecode_cache: Default::default(),
         }
     }
 }
@@ -749,13 +744,24 @@ impl<S: ReadStorage> vm2::World for World<S> {
         self.program_cache
             .entry(hash)
             .or_insert_with(|| {
-                let bytecode = self
-                    .storage
+                bytecode_to_program(&self.bytecode_cache.entry(hash).or_insert_with(|| {
+                    self.storage
+                        .borrow_mut()
+                        .load_factory_dep(u256_to_h256(hash))
+                        .expect("vm tried to decommit nonexistent bytecode")
+                }))
+            })
+            .clone()
+    }
+
+    fn decommit_code(&mut self, hash: U256) -> Vec<u8> {
+        self.bytecode_cache
+            .entry(hash)
+            .or_insert_with(|| {
+                self.storage
                     .borrow_mut()
                     .load_factory_dep(u256_to_h256(hash))
-                    .expect("vm tried to decommit nonexistent bytecode");
-
-                bytecode_to_program(&bytecode)
+                    .expect("vm tried to decommit nonexistent bytecode")
             })
             .clone()
     }

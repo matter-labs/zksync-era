@@ -88,7 +88,7 @@ fn test_get_used_contracts() {
 fn known_bytecodes_without_aa_code<S: ReadStorage>(vm: &Vm<S>) -> HashSet<U256> {
     let mut known_bytecodes_without_aa_code = vm
         .world
-        .program_cache
+        .bytecode_cache
         .keys()
         .cloned()
         .collect::<HashSet<_>>();
