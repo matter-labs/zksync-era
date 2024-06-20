@@ -1,6 +1,8 @@
 use std::path::Path;
 
 use anyhow::Context;
+use xshell::{cmd, Shell};
+
 use common::{
     cmd::Cmd,
     config::global_config,
@@ -8,20 +10,16 @@ use common::{
     spinner::Spinner,
 };
 use config::{
+    ChainConfig,
+    EcosystemConfig,
     forge_interface::{
         initialize_bridges::{input::InitializeBridgeInput, output::InitializeBridgeOutput},
         script_params::INITIALIZE_BRIDGES_SCRIPT_PARAMS,
-    },
-    traits::{ReadConfig, SaveConfig},
-    ChainConfig, EcosystemConfig,
+    }, traits::{ReadConfig, SaveConfig},
 };
-use xshell::{cmd, Shell};
 
-use crate::{
-    config_manipulations::update_l2_shared_bridge,
-    forge_utils::{check_the_balance, fill_forge_private_key},
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_INITIALIZING_BRIDGES_SPINNER},
-};
+use crate::messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_INITIALIZING_BRIDGES_SPINNER};
+use crate::utils::forge::{check_the_balance, fill_forge_private_key};
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();

@@ -1,21 +1,20 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
+use xshell::Shell;
+
 use common::{
     config::global_config,
-    db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
+    db::{DatabaseConfig, drop_db_if_exists, init_db, migrate_db},
     logger,
     spinner::Spinner,
 };
-use config::{ChainConfig, EcosystemConfig};
-use xshell::Shell;
+use config::{ChainConfig, EcosystemConfig, SecretsConfig};
+use config::traits::{FileConfigWithDefaultName, ReadConfigWithBasePath, SaveConfigWithBasePath};
+use types::ProverMode;
 
-use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
-    config_manipulations::{
-        update_database_secrets, update_general_config, update_rocks_db_config,
-    },
     consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
     defaults::MAIN_ROCKS_DB_PREFIX,
     messages::{
@@ -26,7 +25,10 @@ use crate::{
         MSG_STARTING_GENESIS_SPINNER,
     },
     server::{RunServer, ServerMode},
+    utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
+
+use super::args::genesis::GenesisArgsFinal;
 
 pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
@@ -47,18 +49,21 @@ pub async fn genesis(
     shell: &Shell,
     config: &ChainConfig,
 ) -> anyhow::Result<()> {
-    // Clean the rocksdb
-    shell.remove_path(&config.rocks_db_path)?;
     shell.create_dir(&config.rocks_db_path)?;
 
-    update_general_config(shell, config)?;
-    update_rocks_db_config(
-        shell,
-        &config.configs,
-        &config.rocks_db_path,
-        MAIN_ROCKS_DB_PREFIX,
-    )?;
-    update_database_secrets(shell, config, &args.server_db, &args.prover_db)?;
+    let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main).context("Failed to create rocks db path")?;
+    let mut general = config.get_general_config()?;
+    general.set_rocks_db_config(rocks_db)?;
+    if config.prover_version != ProverMode::NoProofs {
+        general.eth.sender.proof_sending_mode = "ONLY_REAL_PROOFS".to_string();
+    }
+    general.save_with_base_path(shell, &config.configs)?;
+
+    let mut secrets = config.get_secrets_config()?;
+    secrets.set_databases(
+        &args.server_db, &args.prover_db,
+    );
+    secrets.save_with_base_path(&shell, &config.configs)?;
 
     logger::note(
         MSG_SELECTED_CONFIG,
@@ -78,7 +83,7 @@ pub async fn genesis(
         config.link_to_code.clone(),
         args.dont_drop,
     )
-    .await?;
+        .await?;
     spinner.finish();
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
@@ -111,7 +116,7 @@ async fn initialize_databases(
         path_to_server_migration,
         &server_db_config.full_url(),
     )
-    .await?;
+        .await?;
 
     if global_config().verbose {
         logger::debug(MSG_INITIALIZING_PROVER_DATABASE)
@@ -128,7 +133,7 @@ async fn initialize_databases(
         path_to_prover_migration,
         &prover_db_config.full_url(),
     )
-    .await?;
+        .await?;
 
     Ok(())
 }

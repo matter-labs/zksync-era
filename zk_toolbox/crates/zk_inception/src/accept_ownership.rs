@@ -1,21 +1,20 @@
+use ethers::types::{Address, H256};
+use xshell::Shell;
+
 use common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
 };
 use config::{
+    EcosystemConfig,
     forge_interface::{
         accept_ownership::AcceptOwnershipInput, script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
     },
     traits::SaveConfig,
-    EcosystemConfig,
 };
-use ethers::types::{Address, H256};
-use xshell::Shell;
 
-use crate::{
-    forge_utils::{check_the_balance, fill_forge_private_key},
-    messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
-};
+use crate::messages::MSG_ACCEPTING_GOVERNANCE_SPINNER;
+use crate::utils::forge::{check_the_balance, fill_forge_private_key};
 
 pub async fn accept_admin(
     shell: &Shell,
@@ -44,7 +43,7 @@ pub async fn accept_admin(
         target_address,
         forge,
     )
-    .await
+        .await
 }
 
 pub async fn accept_owner(
@@ -74,7 +73,7 @@ pub async fn accept_owner(
         target_address,
         forge,
     )
-    .await
+        .await
 }
 
 async fn accept_ownership(

@@ -4,6 +4,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{consts::GENERAL_FILE, traits::FileConfigWithDefaultName};
 
+pub struct RocksDbs {
+    pub state_keeper: PathBuf,
+    pub merkle_tree: PathBuf,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GeneralConfig {
     pub db: RocksDBConfig,
@@ -11,6 +16,17 @@ pub struct GeneralConfig {
     pub api: ApiConfig,
     #[serde(flatten)]
     pub other: serde_json::Value,
+}
+
+impl GeneralConfig {
+    pub fn set_rocks_db_config(
+        &mut self,
+        rocks_dbs: RocksDbs,
+    ) -> anyhow::Result<()> {
+        self.db.state_keeper_db_path = rocks_dbs.state_keeper;
+        self.db.merkle_tree.path = rocks_dbs.merkle_tree;
+        Ok(())
+    }
 }
 
 impl FileConfigWithDefaultName for GeneralConfig {

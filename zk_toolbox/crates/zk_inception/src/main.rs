@@ -1,11 +1,12 @@
 use clap::{command, Parser, Subcommand};
+use xshell::Shell;
+
 use common::{
     check_prerequisites,
-    config::{global_config, init_global_config, GlobalConfig},
+    config::{global_config, GlobalConfig, init_global_config},
     init_prompt_theme, logger,
 };
 use config::EcosystemConfig;
-use xshell::Shell;
 
 use crate::commands::{
     args::{RunExternalNodeArgs, RunServerArgs},
@@ -15,13 +16,12 @@ use crate::commands::{
 
 pub mod accept_ownership;
 mod commands;
-mod config_manipulations;
 mod consts;
 mod defaults;
 pub mod external_node;
-pub mod forge_utils;
 mod messages;
 pub mod server;
+mod utils;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]

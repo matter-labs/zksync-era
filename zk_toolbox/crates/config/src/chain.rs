@@ -4,19 +4,20 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize, Serializer};
+use xshell::Shell;
+
 use types::{
     BaseToken, ChainId, L1BatchCommitDataGeneratorMode, L1Network, ProverMode, WalletCreation,
 };
-use xshell::Shell;
 
 use crate::{
     consts::{
         CONFIG_NAME, CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY,
         SECRETS_FILE, WALLETS_FILE,
     },
+    ContractsConfig,
     create_localhost_wallets,
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    GeneralConfig, GenesisConfig, SecretsConfig, traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath}, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -58,8 +59,8 @@ pub struct ChainConfig {
 
 impl Serialize for ChainConfig {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+        where
+            S: Serializer,
     {
         self.get_internal().serialize(serializer)
     }
@@ -107,7 +108,7 @@ impl ChainConfig {
         config.save(shell, path)
     }
 
-    pub fn save_with_base_path(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
+    pub fn save_with_base_path(self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         let config = self.get_internal();
         config.save_with_base_path(shell, path)
     }

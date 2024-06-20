@@ -1,24 +1,19 @@
 use anyhow::Context;
+use xshell::Shell;
+
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{
-    forge_interface::{
-        paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
-        script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
-    },
-    traits::{ReadConfig, SaveConfig},
-    ChainConfig, EcosystemConfig,
-};
-use xshell::Shell;
+use config::{ChainConfig, ContractsConfig, EcosystemConfig, forge_interface::{
+    paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
+    script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
+}, traits::{ReadConfig, SaveConfig}};
+use config::traits::SaveConfigWithBasePath;
 
-use crate::{
-    config_manipulations::update_paymaster,
-    forge_utils::{check_the_balance, fill_forge_private_key},
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER},
-};
+use crate::messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER};
+use crate::utils::forge::{check_the_balance, fill_forge_private_key};
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
@@ -26,12 +21,15 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ecosystem_config
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    deploy_paymaster(shell, &chain_config, args).await
+    let mut contracts = chain_config.get_contracts_config()?;
+    deploy_paymaster(shell, &chain_config, &mut contracts, args).await?;
+    contracts.save_with_base_path(shell, chain_config.configs)
 }
 
 pub async fn deploy_paymaster(
     shell: &Shell,
     chain_config: &ChainConfig,
+    contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
     let input = DeployPaymasterInput::new(chain_config)?;
@@ -63,6 +61,6 @@ pub async fn deploy_paymaster(
         DEPLOY_PAYMASTER_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
 
-    update_paymaster(shell, chain_config, &output)?;
+    contracts_config.l2.testnet_paymaster_addr = output.paymaster;
     Ok(())
 }

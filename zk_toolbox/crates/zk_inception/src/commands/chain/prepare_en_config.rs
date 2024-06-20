@@ -1,21 +1,22 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{config::global_config, logger};
-use config::{
-    external_node::ENConfig, traits::SaveConfigWithBasePath, ChainConfig, DatabaseSecrets,
-    EcosystemConfig, L1Secret, SecretsConfig,
-};
 use xshell::Shell;
 
+use common::{config::global_config, logger};
+use config::{
+    ChainConfig, DatabaseSecrets, EcosystemConfig, external_node::ENConfig,
+    L1Secret, SecretsConfig, traits::SaveConfigWithBasePath,
+};
+
 use crate::{
-    commands::chain::args::prepare_external_node_configs::{PrepareConfigArgs, PrepareConfigFinal},
-    config_manipulations::update_rocks_db_config,
-    defaults::EN_ROCKS_DB_PREFIX,
+    commands::chain::args::prepare_external_node_configs::{PrepareConfigArgs, PrepareConfigFinal}
+    ,
     messages::{
-        msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
+        MSG_CHAIN_NOT_INITIALIZED, msg_preparing_en_config_is_done, MSG_PREPARING_EN_CONFIGS,
     },
 };
+use crate::utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption};
 
 pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
     logger::info(MSG_PREPARING_EN_CONFIGS);
@@ -74,13 +75,10 @@ fn prepare_configs(
         other: Default::default(),
     };
     secrets.save_with_base_path(shell, en_configs_path)?;
+    let dirs = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::ExternalNode)?;
+    general_en.set_rocks_db_config(dirs)?;
+
     general_en.save_with_base_path(shell, &en_configs_path)?;
-    update_rocks_db_config(
-        shell,
-        &en_configs_path,
-        &config.rocks_db_path,
-        EN_ROCKS_DB_PREFIX,
-    )?;
     en_config.save_with_base_path(shell, &en_configs_path)?;
 
     Ok(())
