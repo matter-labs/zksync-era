@@ -72,6 +72,11 @@
         "ordinal": 13,
         "name": "blob_sidecar",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "resend_attempts_count",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -99,7 +104,8 @@
       true,
       false,
       true,
-      true
+      true,
+      false
     ]
   },
   "hash": "2a2680234c38904e5c19df45193a8c13d04079683e09c65f7f4e76a9987e2ab4"

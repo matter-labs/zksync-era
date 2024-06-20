@@ -71,6 +71,10 @@ impl From<(AggregatedActionType, &'static str)> for AggregationReasonLabels {
 const FEE_BUCKETS: Buckets = Buckets::values(&[
     1e7, 2e7, 5e7, 1e8, 2e8, 5e8, 1e9, 2e9, 5e9, 1e10, 2e10, 5e10, 1e11, 2e11, 5e11,
 ]);
+
+const RESEND_ATTEMPTS_BUCKETS: Buckets = Buckets::values(&[
+    1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 20.0, 30.0, 50.0,
+]);
 /// Roughly exponential buckets for gas (10k – 50M).
 const GAS_BUCKETS: Buckets =
     Buckets::values(&[1e4, 2e4, 5e4, 1e5, 2e5, 5e5, 1e6, 2e6, 5e6, 1e7, 2e7, 5e7]);
@@ -107,6 +111,18 @@ pub(super) struct EthSenderMetrics {
     pub l1_blocks_waited_in_mempool: Family<ActionTypeLabel, Histogram<u64>>,
     /// Number of L1 batches aggregated for publishing with a specific reason.
     pub block_aggregation_reason: Family<AggregationReasonLabels, Counter>,
+    /// Number times transaction landed in mempool
+    #[metrics(buckets = RESEND_ATTEMPTS_BUCKETS)]
+    pub times_landed_in_mempool_per_transaction: Family<TransactionType, Histogram<f64>>,
+    /// Number times transaction was resent, counting requests that resulted in an error
+    #[metrics(buckets = RESEND_ATTEMPTS_BUCKETS)]
+    pub resend_attempts_per_transaction: Family<TransactionType, Histogram<f64>>,
+    /// Number times transaction landed in mempool before it was finally included
+    #[metrics(buckets = RESEND_ATTEMPTS_BUCKETS)]
+    pub total_times_landed_in_mempool_per_transaction: Family<TransactionType, Histogram<f64>>,
+    /// Number times transaction was resent, counting requests that resulted in an error before txs was finally included
+    #[metrics(buckets = RESEND_ATTEMPTS_BUCKETS)]
+    pub total_resend_attempts_per_transaction: Family<TransactionType, Histogram<f64>>,
 }
 
 impl EthSenderMetrics {

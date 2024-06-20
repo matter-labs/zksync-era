@@ -29,6 +29,7 @@ pub struct StorageEthTx {
     //
     // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
     pub blob_sidecar: Option<Vec<u8>>,
+    pub resend_attempts_count: i32,
 }
 
 #[derive(Debug, Default)]
@@ -83,6 +84,7 @@ impl From<StorageEthTx> for EthTx {
             blob_sidecar: tx.blob_sidecar.map(|b| {
                 bincode::deserialize(&b).expect("EthTxBlobSidecar is encoded correctly; qed")
             }),
+            resend_attempts_count: tx.resend_attempts_count as u32,
         }
     }
 }

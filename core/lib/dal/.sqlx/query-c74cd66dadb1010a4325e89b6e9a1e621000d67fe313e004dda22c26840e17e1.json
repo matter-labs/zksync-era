@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT count(*) as \"count!\"\n            FROM\n                eth_txs_history\n            WHERE\n                eth_tx_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c74cd66dadb1010a4325e89b6e9a1e621000d67fe313e004dda22c26840e17e1"
+}
