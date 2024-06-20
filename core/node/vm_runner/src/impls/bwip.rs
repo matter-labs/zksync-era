@@ -3,6 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::VMRunWitnessInputData;
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{
@@ -27,6 +28,7 @@ impl BasicWitnessInputProducer {
     /// regulates how many batches this component can handle at the same time.
     pub async fn new(
         pool: ConnectionPool<Core>,
+        object_store: Arc<dyn ObjectStore>,
         rocksdb_path: String,
         chain_id: L2ChainId,
         window_size: u32,
@@ -34,8 +36,10 @@ impl BasicWitnessInputProducer {
         let io = BasicWitnessInputProducerIo { window_size };
         let (loader, loader_task) =
             VmRunnerStorage::new(pool.clone(), rocksdb_path, io.clone(), chain_id).await?;
-        let output_handler_factory =
-            BasicWitnessInputProducerOutputHandlerFactory { pool: pool.clone() };
+        let output_handler_factory = BasicWitnessInputProducerOutputHandlerFactory {
+            pool: pool.clone(),
+            object_store,
+        };
         let (output_handler_factory, output_handler_factory_task) =
             ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), output_handler_factory);
         let batch_processor = MainBatchExecutor::new(false, false);
@@ -79,13 +83,14 @@ pub struct BasicWitnessInputProducerTasks {
 
 #[derive(Debug, Clone)]
 pub struct BasicWitnessInputProducerIo {
+    first_processed_batch: L1BatchNumber,
     window_size: u32,
 }
 
 #[async_trait]
 impl VmRunnerIo for BasicWitnessInputProducerIo {
     fn name(&self) -> &'static str {
-        "protective_reads_writer"
+        "basic_witness_input_producer"
     }
 
     async fn latest_processed_batch(
@@ -94,7 +99,7 @@ impl VmRunnerIo for BasicWitnessInputProducerIo {
     ) -> anyhow::Result<L1BatchNumber> {
         Ok(conn
             .vm_runner_dal()
-            .get_protective_reads_latest_processed_batch()
+            .get_bwip_latest_processed_batch(self.first_processed_batch)
             .await?)
     }
 
@@ -104,7 +109,7 @@ impl VmRunnerIo for BasicWitnessInputProducerIo {
     ) -> anyhow::Result<L1BatchNumber> {
         Ok(conn
             .vm_runner_dal()
-            .get_protective_reads_last_ready_batch(self.window_size)
+            .get_bwip_last_ready_batch(self.first_processed_batch, self.window_size)
             .await?)
     }
 
@@ -115,7 +120,7 @@ impl VmRunnerIo for BasicWitnessInputProducerIo {
     ) -> anyhow::Result<()> {
         Ok(conn
             .vm_runner_dal()
-            .mark_protective_reads_batch_as_completed(l1_batch_number)
+            .mark_bwip_batch_as_completed(l1_batch_number)
             .await?)
     }
 }
@@ -123,6 +128,7 @@ impl VmRunnerIo for BasicWitnessInputProducerIo {
 #[derive(Debug)]
 struct BasicWitnessInputProducerOutputHandler {
     pool: ConnectionPool<Core>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 #[async_trait]
@@ -228,6 +234,8 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
             witness_block_state: block_state,
         };
 
+        self.object_store.put(l1_batch_number, &result).await?;
+
         Ok(())
     }
 }
@@ -235,6 +243,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 #[derive(Debug)]
 struct BasicWitnessInputProducerOutputHandlerFactory {
     pool: ConnectionPool<Core>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 #[async_trait]
@@ -245,8 +254,7 @@ impl OutputHandlerFactory for BasicWitnessInputProducerOutputHandlerFactory {
     ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
         Ok(Box::new(BasicWitnessInputProducerOutputHandler {
             pool: self.pool.clone(),
+            object_store: self.object_store.clone(),
         }))
     }
 }
-
-pub struct BasicCircuitWitnessGeneratorInput {}

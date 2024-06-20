@@ -38,7 +38,7 @@ use zksync_prover_fri_types::{
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, WitnessInputData};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_state::{PostgresStorage, StorageView};
+use zksync_state::{PostgresStorage, StorageView, WitnessStorage};
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     block::StorageOracleInfo,
@@ -447,7 +447,8 @@ async fn generate_witness(
     let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
 
     let make_circuits = tokio::task::spawn_blocking(move || {
-        let storage_view = StorageView::new(input.vm_run_data.witness_block_state).to_rc_ptr();
+        let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state);
+        let storage_view = StorageView::new(witness_storage).to_rc_ptr();
 
         let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
             VmStorageOracle::new(storage_view.clone());

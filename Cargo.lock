@@ -9312,6 +9312,7 @@ dependencies = [
  "zksync_dal",
  "zksync_node_genesis",
  "zksync_node_test_utils",
+ "zksync_object_store",
  "zksync_prover_interface",
  "zksync_state",
  "zksync_state_keeper",

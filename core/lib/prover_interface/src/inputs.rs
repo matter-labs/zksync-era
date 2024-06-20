@@ -150,6 +150,18 @@ pub struct VMRunWitnessInputData {
     pub witness_block_state: WitnessBlockState,
 }
 
+impl StoredObject for VMRunWitnessInputData {
+    const BUCKET: Bucket = Bucket::WitnessInput;
+
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("vm_run_data_{key}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
 pub struct WitnessInputData {
     pub vm_run_data: VMRunWitnessInputData,
     pub merkle_paths: PrepareBasicCircuitsJob,
