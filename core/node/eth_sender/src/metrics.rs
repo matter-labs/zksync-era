@@ -111,16 +111,16 @@ pub(super) struct EthSenderMetrics {
     pub l1_blocks_waited_in_mempool: Family<ActionTypeLabel, Histogram<u64>>,
     /// Number of L1 batches aggregated for publishing with a specific reason.
     pub block_aggregation_reason: Family<AggregationReasonLabels, Counter>,
-    /// Number times transaction landed in mempool
+    /// Number of times transaction landed in mempool so far
     #[metrics(buckets = RESEND_ATTEMPTS_BUCKETS)]
     pub times_landed_in_mempool_per_transaction: Family<TransactionType, Histogram<f64>>,
-    /// Number times transaction was resent, counting requests that resulted in an error
+    /// Number of times transaction was resent, counting requests that resulted in an error so far
     #[metrics(buckets = RESEND_ATTEMPTS_BUCKETS)]
     pub resend_attempts_per_transaction: Family<TransactionType, Histogram<f64>>,
-    /// Number times transaction landed in mempool before it was finally included
+    /// Number of times transaction landed in mempool before it was finally included
     #[metrics(buckets = RESEND_ATTEMPTS_BUCKETS)]
     pub total_times_landed_in_mempool_per_transaction: Family<TransactionType, Histogram<f64>>,
-    /// Number times transaction was resent, counting requests that resulted in an error before txs was finally included
+    /// Number of times transaction was resent, counting requests that resulted in an error before txs was finally included
     #[metrics(buckets = RESEND_ATTEMPTS_BUCKETS)]
     pub total_resend_attempts_per_transaction: Family<TransactionType, Histogram<f64>>,
 }
