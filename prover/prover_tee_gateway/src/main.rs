@@ -46,7 +46,7 @@ struct Cli {
     /// ATTESTATION_QUOTE_FILE environment variable file. To fetch a real attestation, the
     /// application must be run inside an enclave.
     #[arg(long)]
-    simulation_mode: bool,
+    simulation: bool,
 
     /// The URL of the TEE prover interface API.
     #[arg(long)]
@@ -97,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
     let _guard = builder.build();
 
     let config = general_config
-        .prover_gateway
+        .prover_tee_gateway
         .context("TEE prover gateway config missing")?;
 
     // Generate a new priv-public key pair
@@ -106,7 +106,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Get attestation quote
 
-    let attestation_quote_bytes = if opt.simulation_mode {
+    let attestation_quote_bytes = if opt.simulation {
         let attestation_quote_file = std::env::var("ATTESTATION_QUOTE_FILE").unwrap_or_default();
         std::fs::read(&attestation_quote_file).unwrap_or_default()
     } else {
@@ -121,7 +121,8 @@ async fn main() -> anyhow::Result<()> {
         attestation: attestation_quote_bytes,
         pubkey: key_pair.public_key().serialize().to_vec(),
     };
-    let attestation_endpoint = format!("{}{REGISTER_ATTESTATION_ENDPOINT}", opt.endpoint_url);
+    let attestation_endpoint =
+        Url::parse(opt.endpoint_url.as_str())?.join(REGISTER_ATTESTATION_ENDPOINT)?;
     let tee_attestation_response = http_client
         .post(attestation_endpoint)
         .json(&attestation_request)

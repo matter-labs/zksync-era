@@ -128,7 +128,7 @@ eth:
     aggregated_block_execute_deadline: 10
     timestamp_criteria_max_allowed_lag: 30
     max_eth_tx_data_size: 120000
-    aggregated_proof_sizes: [ 1,4 ]
+    aggregated_proof_sizes: [1, 4]
     max_aggregated_tx_gas: 4000000
     max_acceptable_priority_fee_in_gwei: 100000000000
     pubdata_sending_mode: BLOBS
@@ -145,7 +145,6 @@ eth:
     confirmations_for_eth_event: 0
     eth_node_poll_interval: 300
 
-
 snapshot_creator:
   object_store:
     file_backed:
@@ -153,7 +152,6 @@ snapshot_creator:
     max_retries: 10
   concurrent_queries_count: 1
   storage_logs_chunk_size: 2
-
 
 prover:
   prover_object_store:
@@ -193,6 +191,12 @@ data_handler:
   tee_support: true
 prover_gateway:
   api_url: http://127.0.0.1:3320
+  api_poll_duration_secs: 1000
+  prometheus_listener_port: 3314
+  prometheus_pushgateway_url: http://127.0.0.1:9091
+  prometheus_push_interval_ms: 100
+tee_prover_gateway:
+  api_url: http://127.0.0.1:3322
   api_poll_duration_secs: 1000
   prometheus_listener_port: 3314
   prometheus_pushgateway_url: http://127.0.0.1:9091
@@ -331,7 +335,6 @@ protective_reads_writer:
   db_path: "./db/main/protective_reads"
   window_size: 3
   first_processed_batch: 0
-
 
 core_object_store:
   file_backed:
