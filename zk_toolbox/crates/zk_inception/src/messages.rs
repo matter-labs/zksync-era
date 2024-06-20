@@ -197,6 +197,6 @@ pub(super) const MSG_PROOF_STORE_CONFIG_PROMPT: &str =
 pub(super) const MSG_PROOF_STORE_DIR_PROMPT: &str =
     "Provide the path where you would like to store the proofs:";
 pub(super) const MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT: &str =
-    "Provide the base URL of the GCS bucket:";
+    "Provide the base URL of the GCS bucket or leave empty to create a new one:";
 pub(super) const MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT: &str =
     "Provide the path to the GCS credentials file:";
