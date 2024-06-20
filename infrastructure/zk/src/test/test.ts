@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
-import * as utils from '../utils';
+import * as utils from 'utils';
 
 import * as integration from './integration';
 import * as db from '../database';

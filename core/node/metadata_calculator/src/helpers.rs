@@ -21,19 +21,21 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
-    recovery::MerkleTreeRecovery,
+    recovery::{MerkleTreeRecovery, PersistenceThreadHandle},
     Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
     TreeEntryWithProof, TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
 use zksync_types::{
-    block::L1BatchHeader, writes::TreeWrite, AccountTreeId, L1BatchNumber, StorageKey, H256,
+    block::{L1BatchHeader, L1BatchTreeData},
+    writes::TreeWrite,
+    AccountTreeId, L1BatchNumber, StorageKey, H256,
 };
 
 use super::{
     metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
     pruning::PruningHandles,
-    MetadataCalculatorConfig,
+    MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
 
 /// General information about the Merkle tree.
@@ -233,9 +235,21 @@ impl AsyncTree {
         self.as_ref().next_l1_batch_number()
     }
 
+    pub fn min_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        self.as_ref().reader().min_l1_batch_number()
+    }
+
     #[cfg(test)]
     pub fn root_hash(&self) -> H256 {
         self.as_ref().root_hash()
+    }
+
+    pub fn data_for_l1_batch(&self, l1_batch_number: L1BatchNumber) -> Option<L1BatchTreeData> {
+        let (hash, leaf_count) = self.as_ref().root_info(l1_batch_number)?;
+        Some(L1BatchTreeData {
+            hash,
+            rollup_last_leaf_index: leaf_count + 1,
+        })
     }
 
     /// Returned errors are unrecoverable; the tree must not be used after an error is returned.
@@ -279,7 +293,7 @@ impl AsyncTree {
         Ok(())
     }
 
-    pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
+    pub fn roll_back_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
         self.as_mut().roll_back_logs(last_l1_batch_to_keep)
     }
 }
@@ -408,11 +422,28 @@ impl AsyncTreeRecovery {
         db: RocksDBWrapper,
         recovered_version: u64,
         mode: MerkleTreeMode,
+        config: &MetadataCalculatorRecoveryConfig,
     ) -> anyhow::Result<Self> {
-        Ok(Self {
-            inner: Some(MerkleTreeRecovery::new(db, recovered_version)?),
+        Ok(Self::with_handle(db, recovered_version, mode, config)?.0)
+    }
+
+    // Public for testing purposes
+    pub fn with_handle(
+        db: RocksDBWrapper,
+        recovered_version: u64,
+        mode: MerkleTreeMode,
+        config: &MetadataCalculatorRecoveryConfig,
+    ) -> anyhow::Result<(Self, Option<PersistenceThreadHandle>)> {
+        let mut recovery = MerkleTreeRecovery::new(db, recovered_version)?;
+        let handle = config
+            .parallel_persistence_buffer
+            .map(|buffer_capacity| recovery.parallelize_persistence(buffer_capacity.get()))
+            .transpose()?;
+        let this = Self {
+            inner: Some(recovery),
             mode,
-        })
+        };
+        Ok((this, handle))
     }
 
     pub fn recovered_version(&self) -> u64 {
@@ -490,6 +521,14 @@ impl AsyncTreeRecovery {
         Ok(())
     }
 
+    /// Waits until all pending chunks are persisted.
+    pub async fn wait_for_persistence(self) -> anyhow::Result<()> {
+        let tree = self.inner.expect(Self::INCONSISTENT_MSG);
+        tokio::task::spawn_blocking(|| tree.wait_for_persistence())
+            .await
+            .context("panicked while waiting for pending recovery chunks to be persisted")?
+    }
+
     pub async fn finalize(self) -> anyhow::Result<AsyncTree> {
         let tree = self.inner.expect(Self::INCONSISTENT_MSG);
         let db = tokio::task::spawn_blocking(|| tree.finalize())
@@ -514,13 +553,18 @@ pub(super) enum GenericAsyncTree {
 }
 
 impl GenericAsyncTree {
-    pub async fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> anyhow::Result<Self> {
+    pub async fn new(
+        db: RocksDBWrapper,
+        config: &MetadataCalculatorConfig,
+    ) -> anyhow::Result<Self> {
+        let mode = config.mode;
+        let recovery = config.recovery.clone();
         tokio::task::spawn_blocking(move || {
             let Some(manifest) = db.manifest() else {
                 return Ok(Self::Empty { db, mode });
             };
             anyhow::Ok(if let Some(version) = manifest.recovered_version() {
-                Self::Recovering(AsyncTreeRecovery::new(db, version, mode)?)
+                Self::Recovering(AsyncTreeRecovery::new(db, version, mode, &recovery)?)
             } else {
                 Self::Ready(AsyncTree::new(db, mode)?)
             })
@@ -660,7 +704,6 @@ impl L1BatchWithLogs {
         }))
     }
 
-    #[allow(clippy::needless_pass_by_ref_mut)] // false positive
     async fn wait_for_tree_writes(
         connection: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
@@ -1044,11 +1087,7 @@ mod tests {
         let mut logs = gen_storage_logs(100..120, 1);
         let logs_copy = logs[0].clone();
         logs.push(logs_copy);
-        let read_logs: Vec<_> = logs[1]
-            .iter()
-            .step_by(3)
-            .map(StorageLog::to_test_log_query)
-            .collect();
+        let read_logs: Vec<_> = logs[1].iter().step_by(3).cloned().collect();
         extend_db_state(&mut storage, logs).await;
         storage
             .storage_logs_dedup_dal()

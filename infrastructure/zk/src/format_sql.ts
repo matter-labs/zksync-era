@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import * as utils from './utils';
+import * as utils from 'utils';
 import { format } from 'sql-formatter';
 
 function formatQuery(query: string) {

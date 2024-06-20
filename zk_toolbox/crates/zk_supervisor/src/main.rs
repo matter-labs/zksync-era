@@ -6,7 +6,10 @@ use common::{
     init_prompt_theme, logger,
 };
 use config::EcosystemConfig;
-use messages::msg_global_chain_does_not_exist;
+use messages::{
+    msg_global_chain_does_not_exist, MSG_SUBCOMMAND_DATABASE_ABOUT,
+    MSG_SUBCOMMAND_INTEGRATION_TESTS_ABOUT,
+};
 use xshell::Shell;
 
 mod commands;
@@ -24,9 +27,10 @@ struct Supervisor {
 
 #[derive(Subcommand, Debug)]
 enum SupervisorSubcommands {
-    /// Database related commands
-    #[command(subcommand)]
+    #[command(subcommand, about = MSG_SUBCOMMAND_DATABASE_ABOUT)]
     Database(DatabaseCommands),
+    #[command(about = MSG_SUBCOMMAND_INTEGRATION_TESTS_ABOUT)]
+    IntegrationTests,
 }
 
 #[derive(Parser, Debug)]
@@ -89,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
 async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
     match args.command {
         SupervisorSubcommands::Database(command) => commands::database::run(shell, command).await?,
+        SupervisorSubcommands::IntegrationTests => commands::integration_tests::run(shell)?,
     }
     Ok(())
 }

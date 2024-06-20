@@ -1,4 +1,7 @@
-use ethers::types::H160;
+use ethers::{
+    types::{H160, U256},
+    utils::format_ether,
+};
 
 /// Common messages
 pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
@@ -129,12 +132,15 @@ pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop 
 pub(super) fn msg_server_db_url_prompt(chain_name: &str) -> String {
     format!("Please provide server database url for chain {chain_name}")
 }
+
 pub(super) fn msg_prover_db_url_prompt(chain_name: &str) -> String {
     format!("Please provide prover database url for chain {chain_name}")
 }
+
 pub(super) fn msg_prover_db_name_prompt(chain_name: &str) -> String {
     format!("Please provide prover database name for chain {chain_name}")
 }
+
 pub(super) fn msg_server_db_name_prompt(chain_name: &str) -> String {
     format!("Please provide server database name for chain {chain_name}")
 }
@@ -148,6 +154,8 @@ pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
+pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
+    "Additional arguments that can be passed through the CLI";
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
@@ -164,11 +172,23 @@ pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosys
 /// Server related messages
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
+pub(super) const MSG_BUILDING_L1_CONTRACTS: &str = "Building L1 contracts...";
 
 /// Forge utils related messages
 pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
-pub(super) fn msg_address_doesnt_have_enough_money_prompt(address: &H160) -> String {
+
+pub(super) fn msg_address_doesnt_have_enough_money_prompt(
+    address: &H160,
+    actual: U256,
+    expected: U256,
+) -> String {
+    let actual = format_ether(actual);
+    let expected = format_ether(expected);
     format!(
-        "Address {address:?} doesn't have enough money to deploy contracts do you want to continue?"
+        "Address {address:?} doesn't have enough money to deploy contracts only {actual} ETH but expected: {expected} ETH do you want to try again?"
     )
 }
+
+/// Prover related messages
+pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
+pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";

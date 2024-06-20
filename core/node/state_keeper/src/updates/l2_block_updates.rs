@@ -10,15 +10,17 @@ use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     vm_trace::Call,
-    L2BlockNumber, ProtocolVersionId, StorageLogQuery, Transaction, VmEvent, H256,
+    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, VmEvent, H256,
 };
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
+
+use crate::metrics::KEEPER_METRICS;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct L2BlockUpdates {
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub events: Vec<VmEvent>,
-    pub storage_logs: Vec<StorageLogQuery>,
+    pub storage_logs: Vec<StorageLogWithPreviousValue>,
     pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>,
     pub system_l2_to_l1_logs: Vec<SystemL2ToL1Log>,
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
@@ -104,13 +106,21 @@ impl L2BlockUpdates {
         };
 
         let revert_reason = match &tx_execution_result.result {
-            ExecutionResult::Success { .. } => None,
-            ExecutionResult::Revert { output } => Some(output.to_string()),
-            ExecutionResult::Halt { reason } => Some(reason.to_string()),
+            ExecutionResult::Success { .. } => {
+                KEEPER_METRICS.inc_succeeded_txs();
+                None
+            }
+            ExecutionResult::Revert { output } => {
+                KEEPER_METRICS.inc_reverted_txs(output);
+                Some(output.to_string())
+            }
+            ExecutionResult::Halt { .. } => {
+                unreachable!("Tx that is added to `UpdatesManager` must not have Halted status")
+            }
         };
 
         // Get transaction factory deps
-        let factory_deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
+        let factory_deps = &tx.execute.factory_deps;
         let tx_factory_deps: HashMap<_, _> = factory_deps
             .iter()
             .map(|bytecode| (hash_bytecode(bytecode), bytecode))
@@ -192,7 +202,7 @@ mod tests {
 
         accumulator.extend_from_executed_transaction(
             tx,
-            create_execution_result(0, []),
+            create_execution_result([]),
             BlockGasCount::default(),
             ExecutionMetrics::default(),
             vec![],

@@ -26,7 +26,10 @@ fn create(
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt(ecosystem_config.list_of_chains().len() as u32);
+    let args = args.fill_values_with_prompt(
+        ecosystem_config.list_of_chains().len() as u32,
+        &ecosystem_config.l1_network,
+    );
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
     logger::info(MSG_CREATING_CHAIN);

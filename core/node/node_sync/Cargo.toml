@@ -29,8 +29,10 @@ vm_utils.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
+futures.workspace = true
 tracing.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["time"] }
 thiserror.workspace = true
 

@@ -1,15 +1,14 @@
 use std::time::Duration;
 
 use anyhow::Context as _;
+use clap::Parser;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover};
 use reqwest::Client;
 use tokio::sync::{oneshot, watch};
-use zksync_config::configs::{
-    DatabaseSecrets, FriProverGatewayConfig, ObservabilityConfig, PostgresConfig,
-};
-use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
+use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -22,8 +21,15 @@ mod proof_submitter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let opt = Cli::parse();
+
+    let general_config = load_general_config(opt.config_path).context("general config")?;
+    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+
+    let observability_config = general_config
+        .observability
+        .context("observability config")?;
+
     let log_format: vlog::LogFormat = observability_config
         .log_format
         .parse()
@@ -38,10 +44,11 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let config =
-        FriProverGatewayConfig::from_env().context("FriProverGatewayConfig::from_env()")?;
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let database_secrets = DatabaseSecrets::from_env().context("PostgresConfig::from_env()")?;
+    let config = general_config
+        .prover_gateway
+        .context("prover gateway config")?;
+
+    let postgres_config = general_config.postgres_config.context("postgres config")?;
     let pool = ConnectionPool::<Prover>::builder(
         database_secrets.prover_url()?,
         postgres_config.max_connections()?,
@@ -49,19 +56,24 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection pool")?;
-    let object_store_config =
-        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let object_store_config = ProverObjectStoreConfig(
+        general_config
+            .prover_config
+            .context("prover config")?
+            .prover_object_store
+            .context("object store")?,
+    );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
 
     let proof_submitter = PeriodicApiStruct {
-        blob_store: store_factory.create_store().await,
+        blob_store: store_factory.create_store().await?,
         pool: pool.clone(),
         api_url: format!("{}{SUBMIT_PROOF_PATH}", config.api_url),
         poll_duration: config.api_poll_duration(),
         client: Client::new(),
     };
     let proof_gen_data_fetcher = PeriodicApiStruct {
-        blob_store: store_factory.create_store().await,
+        blob_store: store_factory.create_store().await?,
         pool,
         api_url: format!("{}{PROOF_GENERATION_DATA_PATH}", config.api_url),
         poll_duration: config.api_poll_duration(),
@@ -102,4 +114,13 @@ async fn main() -> anyhow::Result<()> {
     stop_sender.send(true).ok();
     tasks.complete(Duration::from_secs(5)).await;
     Ok(())
+}
+
+#[derive(Debug, Parser)]
+#[command(author = "Matter Labs", version)]
+pub(crate) struct Cli {
+    #[arg(long)]
+    pub(crate) config_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    pub(crate) secrets_path: Option<std::path::PathBuf>,
 }

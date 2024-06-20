@@ -186,7 +186,7 @@ impl ReadStorage for RocksdbWithMemory {
 }
 
 impl ReadStorage for PgOrRocksdbStorage<'_> {
-    fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
+    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
         match self {
             Self::Postgres(postgres) => postgres.read_value(key),
             Self::Rocksdb(rocksdb) => rocksdb.read_value(key),

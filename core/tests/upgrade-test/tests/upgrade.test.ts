@@ -1,4 +1,4 @@
-import * as utils from 'zk/build/utils';
+import * as utils from 'utils';
 import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
 import { BigNumber, BigNumberish, ethers } from 'ethers';

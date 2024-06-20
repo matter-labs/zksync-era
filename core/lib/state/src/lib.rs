@@ -1,4 +1,4 @@
-//! Execution of transaction in zkSync Era
+//! Execution of transaction in ZKsync Era
 
 // Linter settings.
 #![warn(missing_debug_implementations, missing_docs, bare_trait_objects)]
@@ -30,7 +30,7 @@ mod test_utils;
 
 pub use self::{
     cache::sequential_cache::SequentialCache,
-    catchup::AsyncCatchupTask,
+    catchup::{AsyncCatchupTask, RocksdbCell},
     in_memory::InMemoryStorage,
     // Note, that `test_infra` of the bootloader tests relies on this value to be exposed
     in_memory::IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID,

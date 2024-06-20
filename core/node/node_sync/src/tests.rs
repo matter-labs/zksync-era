@@ -77,10 +77,11 @@ impl MockMainNodeClient {
 
     pub fn insert_protocol_version(&mut self, version: api::ProtocolVersion) {
         self.system_contracts
-            .insert(version.base_system_contracts.bootloader, vec![]);
+            .insert(version.bootloader_code_hash.unwrap(), vec![]);
         self.system_contracts
-            .insert(version.base_system_contracts.default_aa, vec![]);
-        self.protocol_versions.insert(version.version_id, version);
+            .insert(version.default_account_code_hash.unwrap(), vec![]);
+        self.protocol_versions
+            .insert(version.minor_version.unwrap(), version);
     }
 }
 
@@ -260,7 +261,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
         .get_transaction_receipts(&[tx_hash])
         .await
         .unwrap()
-        .get(0)
+        .first()
         .cloned()
         .expect("Transaction not persisted");
     assert_eq!(
@@ -300,12 +301,10 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     let (actions_sender, action_queue) = ActionQueue::new();
     let mut client = MockMainNodeClient::default();
     let next_protocol_version = api::ProtocolVersion {
-        version_id: ProtocolVersionId::next() as u16,
+        minor_version: Some(ProtocolVersionId::next() as u16),
         timestamp: snapshot.l2_block_timestamp + 1,
-        base_system_contracts: BaseSystemContractsHashes {
-            bootloader: H256::repeat_byte(1),
-            default_aa: H256::repeat_byte(2),
-        },
+        bootloader_code_hash: Some(H256::repeat_byte(1)),
+        default_account_code_hash: Some(H256::repeat_byte(1)),
         ..api::ProtocolVersion::default()
     };
     client.insert_protocol_version(next_protocol_version.clone());
@@ -335,8 +334,16 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         next_protocol_version.timestamp
     );
     assert_eq!(
-        persisted_protocol_version.base_system_contracts_hashes,
-        next_protocol_version.base_system_contracts
+        persisted_protocol_version
+            .base_system_contracts_hashes
+            .bootloader,
+        next_protocol_version.bootloader_code_hash.unwrap()
+    );
+    assert_eq!(
+        persisted_protocol_version
+            .base_system_contracts_hashes
+            .default_aa,
+        next_protocol_version.default_account_code_hash.unwrap()
     );
 
     let l2_block = storage

@@ -11,8 +11,8 @@ use zksync_types::{
     api::{ApiStorageLog, Log},
     get_intrinsic_constants,
     transaction_request::CallRequest,
-    zk_evm_types::{LogQuery, Timestamp},
-    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogQuery, StorageLogQueryType, U256,
+    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue,
+    U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
@@ -178,14 +178,12 @@ impl SendRawTransactionTest {
             input: vec![1, 2, 3, 4].into(),
             ..api::TransactionRequest::default()
         };
-        let mut rlp = Default::default();
-        tx_request.rlp(&mut rlp, L2ChainId::default().as_u64(), None);
-        let data = rlp.out();
+        let data = tx_request.get_rlp().unwrap();
         let signed_message = PackedEthSignature::message_to_signed_bytes(&data);
         let signature = PackedEthSignature::sign_raw(&private_key, &signed_message).unwrap();
 
         let mut rlp = Default::default();
-        tx_request.rlp(&mut rlp, L2ChainId::default().as_u64(), Some(&signature));
+        tx_request.rlp(&mut rlp, Some(&signature)).unwrap();
         let data = rlp.out();
         let (_, tx_hash) =
             api::TransactionRequest::from_bytes(&data, L2ChainId::default()).unwrap();
@@ -241,10 +239,7 @@ impl HttpTest for SendRawTransactionTest {
             let mut storage = pool.connection().await?;
             storage
                 .storage_logs_dal()
-                .append_storage_logs(
-                    L2BlockNumber(0),
-                    &[(H256::zero(), vec![Self::balance_storage_log()])],
-                )
+                .append_storage_logs(L2BlockNumber(0), &[Self::balance_storage_log()])
                 .await?;
         }
 
@@ -275,40 +270,35 @@ async fn send_raw_transaction_after_snapshot_recovery() {
 struct SendTransactionWithDetailedOutputTest;
 
 impl SendTransactionWithDetailedOutputTest {
-    fn storage_logs(&self) -> Vec<StorageLogQuery> {
-        let log_query = LogQuery {
-            timestamp: Timestamp(100),
-            tx_number_in_block: 1,
-            aux_byte: 1,
-            shard_id: 2,
-            address: Address::zero(),
-            key: U256::one(),
-            read_value: U256::one(),
-            written_value: U256::one(),
-            rw_flag: false,
-            rollback: false,
-            is_service: false,
+    fn storage_logs(&self) -> Vec<StorageLogWithPreviousValue> {
+        let log = StorageLog {
+            key: StorageKey::new(
+                AccountTreeId::new(Address::zero()),
+                u256_to_h256(U256::one()),
+            ),
+            value: u256_to_h256(U256::one()),
+            kind: StorageLogKind::Read,
         };
-        vec![
-            StorageLogQuery {
-                log_query,
-                log_type: StorageLogQueryType::Read,
+        [
+            StorageLog {
+                kind: StorageLogKind::Read,
+                ..log
             },
-            StorageLogQuery {
-                log_query: LogQuery {
-                    tx_number_in_block: 2,
-                    ..log_query
-                },
-                log_type: StorageLogQueryType::InitialWrite,
+            StorageLog {
+                kind: StorageLogKind::InitialWrite,
+                ..log
             },
-            StorageLogQuery {
-                log_query: LogQuery {
-                    tx_number_in_block: 3,
-                    ..log_query
-                },
-                log_type: StorageLogQueryType::RepeatedWrite,
+            StorageLog {
+                kind: StorageLogKind::RepeatedWrite,
+                ..log
             },
         ]
+        .into_iter()
+        .map(|log| StorageLogWithPreviousValue {
+            log,
+            previous_value: u256_to_h256(U256::one()),
+        })
+        .collect()
     }
 
     fn vm_events(&self) -> Vec<VmEvent> {
@@ -358,10 +348,7 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             .storage_logs_dal()
             .append_storage_logs(
                 L2BlockNumber(0),
-                &[(
-                    H256::zero(),
-                    vec![SendRawTransactionTest::balance_storage_log()],
-                )],
+                &[SendRawTransactionTest::balance_storage_log()],
             )
             .await?;
 
@@ -385,7 +372,7 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             send_result.storage_logs,
             self.storage_logs()
                 .iter()
-                .filter(|x| x.log_type != StorageLogQueryType::Read)
+                .filter(|x| x.log.is_write())
                 .map(ApiStorageLog::from)
                 .collect_vec()
         );
@@ -611,7 +598,7 @@ impl HttpTest for EstimateGasTest {
             let mut storage = pool.connection().await?;
             storage
                 .storage_logs_dal()
-                .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![storage_log])])
+                .append_storage_logs(L2BlockNumber(0), &[storage_log])
                 .await?;
         }
         let mut call_request = CallRequest::from(l2_transaction);

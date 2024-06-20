@@ -1,4 +1,4 @@
-use zksync_dal::transactions_dal::L2TxSubmissionResult;
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, Core};
 use zksync_types::{
     api::{Transaction, TransactionDetails, TransactionId},
     fee::TransactionExecutionMetrics,
@@ -42,7 +42,11 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
 
     /// Attempts to look up the transaction by its API ID in the sink-specific storage.
     /// By default, returns `Ok(None)`.
-    async fn lookup_tx(&self, _id: TransactionId) -> Result<Option<Transaction>, Web3Error> {
+    async fn lookup_tx(
+        &self,
+        _storage: &mut Connection<'_, Core>,
+        _id: TransactionId,
+    ) -> Result<Option<Transaction>, Web3Error> {
         Ok(None)
     }
 
@@ -50,6 +54,7 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
     /// By default, returns `Ok(None)`.
     async fn lookup_tx_details(
         &self,
+        _storage: &mut Connection<'_, Core>,
         _hash: H256,
     ) -> Result<Option<TransactionDetails>, Web3Error> {
         Ok(None)

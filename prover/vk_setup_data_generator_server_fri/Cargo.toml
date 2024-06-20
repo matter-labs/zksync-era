@@ -45,6 +45,7 @@ toml_edit.workspace = true
 md5.workspace = true
 sha3.workspace = true
 hex.workspace = true
+indicatif.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

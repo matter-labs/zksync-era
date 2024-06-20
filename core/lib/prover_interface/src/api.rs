@@ -8,7 +8,12 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-use crate::{inputs::PrepareBasicCircuitsJob, outputs::L1BatchProofForL1};
+use crate::{
+    inputs::PrepareBasicCircuitsJob,
+    outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
+};
+
+// Structs for holding data returned in HTTP responses
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProofGenerationData {
@@ -20,13 +25,28 @@ pub struct ProofGenerationData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ProofGenerationDataRequest {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum ProofGenerationDataResponse {
-    Success(Option<Box<ProofGenerationData>>),
+pub enum GenericProofGenerationDataResponse<T> {
+    Success(Option<Box<T>>),
     Error(String),
 }
+
+pub type ProofGenerationDataResponse = GenericProofGenerationDataResponse<ProofGenerationData>;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SimpleResponse {
+    Success,
+    Error(String),
+}
+
+pub type SubmitProofResponse = SimpleResponse;
+pub type RegisterTeeAttestationResponse = SimpleResponse;
+
+// Structs to hold data necessary for making HTTP requests
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProofGenerationDataRequest {}
+
+pub type TeeProofGenerationDataRequest = ProofGenerationDataRequest;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
@@ -35,8 +55,11 @@ pub enum SubmitProofRequest {
     SkippedProofGeneration,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum SubmitProofResponse {
-    Success,
-    Error(String),
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct SubmitTeeProofRequest(pub Box<L1BatchTeeProofForL1>);
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct RegisterTeeAttestationRequest {
+    pub attestation: Vec<u8>,
+    pub pubkey: Vec<u8>,
 }

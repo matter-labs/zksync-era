@@ -48,7 +48,7 @@ impl ProtoRepr for proto::DatabaseSecrets {
             .transpose()
             .context("replica_url")?;
         if server_replica_url.is_none() {
-            server_replica_url = server_url.clone();
+            server_replica_url.clone_from(&server_url)
         }
         let prover_url = self
             .prover_url

@@ -72,7 +72,7 @@ fn test_code_oracle() {
                 ])
                 .unwrap(),
             value: U256::zero(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -93,7 +93,7 @@ fn test_code_oracle() {
                 ])
                 .unwrap(),
             value: U256::zero(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -155,7 +155,7 @@ fn test_code_oracle_big_bytecode() {
                 ])
                 .unwrap(),
             value: U256::zero(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );

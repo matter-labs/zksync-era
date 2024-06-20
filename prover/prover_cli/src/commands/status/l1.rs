@@ -15,6 +15,8 @@ use zksync_eth_client::{
     CallFunctionArgs,
 };
 
+use crate::helper;
+
 pub(crate) async fn run() -> anyhow::Result<()> {
     println!(" ====== L1 Status ====== ");
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env")?;
@@ -27,7 +29,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let total_batches_committed: U256 = CallFunctionArgs::new("getTotalBatchesCommitted", ())
         .for_contract(
             contracts_config.diamond_proxy_addr,
-            &zksync_contracts::hyperchain_contract(),
+            &helper::hyperchain_contract(),
         )
         .call(&query_client)
         .await?;
@@ -35,7 +37,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let total_batches_verified: U256 = CallFunctionArgs::new("getTotalBatchesVerified", ())
         .for_contract(
             contracts_config.diamond_proxy_addr,
-            &zksync_contracts::hyperchain_contract(),
+            &helper::hyperchain_contract(),
         )
         .call(&query_client)
         .await?;
@@ -74,17 +76,14 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     );
 
     let node_verification_key_hash: H256 = CallFunctionArgs::new("verificationKeyHash", ())
-        .for_contract(
-            contracts_config.verifier_addr,
-            &zksync_contracts::verifier_contract(),
-        )
+        .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
         .call(&query_client)
         .await?;
 
     let node_verifier_params: VerifierParams = CallFunctionArgs::new("getVerifierParams", ())
         .for_contract(
             contracts_config.diamond_proxy_addr,
-            &zksync_contracts::hyperchain_contract(),
+            &helper::hyperchain_contract(),
         )
         .call(&query_client)
         .await?;

@@ -4,6 +4,8 @@
 
 [vm_runner.protective_reads]
 # Path to the directory that contains RocksDB with protective reads writer cache.
-protective_reads_db_path = "./db/main/protective_reads"
+db_path = "./db/main/protective_reads"
 # Amount of batches that can be processed in parallel.
-protective_reads_window_size = 3
+window_size = 3
+# All batches before this one (inclusive) are always considered to be processed.
+first_processed_batch = 0

@@ -867,6 +867,28 @@ pub enum SyncState {
     NotSyncing,
 }
 
+// Sync info from subscription has a different key format
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct SubscriptionSyncInfo {
+    /// The block at which import began.
+    pub starting_block: U256,
+    /// The highest currently synced block.
+    pub current_block: U256,
+    /// The estimated highest block.
+    pub highest_block: U256,
+}
+
+impl From<SubscriptionSyncInfo> for SyncInfo {
+    fn from(s: SubscriptionSyncInfo) -> Self {
+        Self {
+            starting_block: s.starting_block,
+            current_block: s.current_block,
+            highest_block: s.highest_block,
+        }
+    }
+}
+
 // The `eth_syncing` method returns either `false` or an instance of the sync info object.
 // This doesn't play particularly well with the features exposed by `serde_derive`,
 // so we use the custom impls below to ensure proper behavior.
@@ -875,28 +897,6 @@ impl<'de> Deserialize<'de> for SyncState {
     where
         D: Deserializer<'de>,
     {
-        // Sync info from subscription has a different key format
-        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-        #[serde(rename_all = "PascalCase")]
-        struct SubscriptionSyncInfo {
-            /// The block at which import began.
-            pub starting_block: U256,
-            /// The highest currently synced block.
-            pub current_block: U256,
-            /// The estimated highest block.
-            pub highest_block: U256,
-        }
-
-        impl From<SubscriptionSyncInfo> for SyncInfo {
-            fn from(s: SubscriptionSyncInfo) -> Self {
-                Self {
-                    starting_block: s.starting_block,
-                    current_block: s.current_block,
-                    highest_block: s.highest_block,
-                }
-            }
-        }
-
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         struct SubscriptionSyncState {
             pub syncing: bool,

@@ -71,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
-        .await;
+        .await?;
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 

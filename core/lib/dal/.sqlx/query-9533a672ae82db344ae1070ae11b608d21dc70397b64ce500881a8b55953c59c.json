@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                tee_proof_generation_details (l1_batch_number, status, created_at, updated_at)\n            VALUES\n                ($1, 'ready_to_be_proven', NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9533a672ae82db344ae1070ae11b608d21dc70397b64ce500881a8b55953c59c"
+}

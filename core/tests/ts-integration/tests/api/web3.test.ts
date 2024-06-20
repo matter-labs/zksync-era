@@ -1,5 +1,5 @@
 /**
- * This suite contains tests for the Web3 API compatibility and zkSync-specific extensions.
+ * This suite contains tests for the Web3 API compatibility and ZKsync-specific extensions.
  */
 import { TestMaster } from '../../src';
 import * as zksync from 'zksync-ethers';
@@ -18,7 +18,9 @@ const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
 
 const contracts = {
     counter: getTestContract('Counter'),
-    events: getTestContract('Emitter')
+    events: getTestContract('Emitter'),
+    outer: getTestContract('Outer'),
+    inner: getTestContract('Inner')
 };
 
 describe('web3 API compatibility tests', () => {
@@ -142,7 +144,7 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should check the network version', async () => {
-        // Valid network IDs for zkSync are greater than 270.
+        // Valid network IDs for ZKsync are greater than 270.
         // This test suite may run on different envs, so we don't expect a particular ID.
         await expect(alice.provider.send('net_version', [])).resolves.toMatch(chainId.toString());
     });
@@ -688,6 +690,8 @@ describe('web3 API compatibility tests', () => {
         expect(+finalizedBlock.number!).toEqual(expect.any(Number));
         const latestBlock = await alice.provider.send('eth_getBlockByNumber', ['latest', true]);
         expect(+latestBlock.number!).toEqual(expect.any(Number));
+        const l1CommittedBlock = await alice.provider.send('eth_getBlockByNumber', ['l1_committed', true]);
+        expect(+l1CommittedBlock.number!).toEqual(expect.any(Number));
         const pendingBlock = await alice.provider.send('eth_getBlockByNumber', ['pending', true]);
         expect(pendingBlock).toEqual(null);
     });
@@ -833,7 +837,10 @@ describe('web3 API compatibility tests', () => {
         };
         let expectedProtocolVersion = {
             version_id: expect.any(Number),
+            minorVersion: expect.any(Number),
             base_system_contracts: expectedSysContractsHashes,
+            bootloaderCodeHash: expect.stringMatching(HEX_VALUE_REGEX),
+            defaultAccountCodeHash: expect.stringMatching(HEX_VALUE_REGEX),
             verification_keys_hashes: {
                 params: {
                     recursion_circuits_set_vks_hash: expect.stringMatching(HEX_VALUE_REGEX),
@@ -847,7 +854,7 @@ describe('web3 API compatibility tests', () => {
         expect(latestProtocolVersion).toMatchObject(expectedProtocolVersion);
 
         const exactProtocolVersion = await alice.provider.send('zks_getProtocolVersion', [
-            latestProtocolVersion.version_id
+            latestProtocolVersion.minorVersion
         ]);
         expect(exactProtocolVersion).toMatchObject(expectedProtocolVersion);
     });
@@ -927,6 +934,29 @@ describe('web3 API compatibility tests', () => {
         });
         expect(signerAddr).toEqual(alice.address);
         expect(txFromApi.v! <= 1).toEqual(true);
+    });
+
+    // We want to be sure that correct(outer) contract address is return in the transaction receipt,
+    // when there is a contract that initializa another contract in the constructor
+    test('Should check inner-outer contract address in the receipt of the deploy tx', async () => {
+        const deploymentNonce = await alice.getDeploymentNonce();
+        const expectedAddress = zksync.utils.createAddress(alice.address, deploymentNonce);
+
+        const expectedBytecode = contracts.outer.bytecode;
+
+        let innerContractBytecode = contracts.inner.bytecode;
+        let outerContractOverrides = {
+            customData: {
+                factoryDeps: [innerContractBytecode]
+            }
+        };
+        const outerContract = await deployContract(alice, contracts.outer, [1], undefined, outerContractOverrides);
+        let receipt = await outerContract.deployTransaction.wait();
+
+        const deployedBytecode = await alice.provider.getCode(receipt.contractAddress);
+
+        expect(expectedAddress).toEqual(receipt.contractAddress);
+        expect(expectedBytecode).toEqual(deployedBytecode);
     });
 
     afterAll(async () => {

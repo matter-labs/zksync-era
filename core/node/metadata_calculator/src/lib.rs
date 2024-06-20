@@ -2,7 +2,7 @@
 //! stores them in the DB.
 
 use std::{
-    num::NonZeroU32,
+    num::{NonZeroU32, NonZeroUsize},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -45,12 +45,18 @@ pub struct MetadataCalculatorRecoveryConfig {
     /// **Important.** This value cannot be changed in the middle of tree recovery (i.e., if a node is stopped in the middle
     /// of recovery and then restarted with a different config).
     pub desired_chunk_size: u64,
+    /// Buffer capacity for parallel persistence operations. Should be reasonably small since larger buffer means more RAM usage;
+    /// buffer elements are persisted tree chunks. OTOH, small buffer can lead to persistence parallelization being inefficient.
+    ///
+    /// If set to `None`, parallel persistence will be disabled.
+    pub parallel_persistence_buffer: Option<NonZeroUsize>,
 }
 
 impl Default for MetadataCalculatorRecoveryConfig {
     fn default() -> Self {
         Self {
             desired_chunk_size: 200_000,
+            parallel_persistence_buffer: NonZeroUsize::new(4),
         }
     }
 }
@@ -208,10 +214,10 @@ impl MetadataCalculator {
             started_at.elapsed()
         );
 
-        GenericAsyncTree::new(db, self.config.mode).await
+        GenericAsyncTree::new(db, &self.config).await
     }
 
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let tree = self.create_tree().await?;
         let tree = tree
             .ensure_ready(
@@ -225,13 +231,19 @@ impl MetadataCalculator {
         let Some(mut tree) = tree else {
             return Ok(()); // recovery was aborted because a stop signal was received
         };
-
+        // Set a tree reader before the tree is fully initialized to not wait for the first L1 batch to appear in Postgres.
         let tree_reader = tree.reader();
-        let tree_info = tree_reader.clone().info().await;
+        self.tree_reader.send_replace(Some(tree_reader));
+
+        tree.ensure_consistency(&self.delayer, &self.pool, &mut stop_receiver)
+            .await?;
         if !self.pruning_handles_sender.is_closed() {
+            // Unlike tree reader, we shouldn't initialize pruning (as a task modifying the tree) before the tree is guaranteed
+            // to be consistent with Postgres.
             self.pruning_handles_sender.send(tree.pruner()).ok();
         }
-        self.tree_reader.send_replace(Some(tree_reader));
+
+        let tree_info = tree.reader().info().await;
         tracing::info!("Merkle tree is initialized and ready to process L1 batches: {tree_info:?}");
         self.health_updater
             .update(MerkleTreeHealth::MainLoop(tree_info).into());

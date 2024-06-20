@@ -3,6 +3,7 @@ use std::{collections::HashSet, net::Ipv4Addr, str::FromStr, sync::Arc, time::Du
 use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
+use node_builder::ExternalNodeBuilder;
 use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
@@ -35,9 +36,11 @@ use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 use zksync_node_sync::{
     batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-    tree_data_fetcher::TreeDataFetcher, ActionQueue, SyncState,
+    tree_data_fetcher::TreeDataFetcher, validate_chain_ids_task::ValidateChainIdsTask, ActionQueue,
+    MainNodeHealthCheck, SyncState,
 };
 use zksync_reorg_detector::ReorgDetector;
+use zksync_shared_metrics::rustc::RUST_METRICS;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
     seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
@@ -54,16 +57,14 @@ use zksync_web3_decl::{
 
 use crate::{
     config::ExternalNodeConfig,
-    helpers::{MainNodeHealthCheck, ValidateChainIdsTask},
-    init::ensure_storage_initialized,
-    metrics::RUST_METRICS,
+    init::{ensure_storage_initialized, SnapshotRecoveryConfig},
 };
 
 mod config;
-mod helpers;
 mod init;
 mod metadata;
 mod metrics;
+mod node_builder;
 #[cfg(test)]
 mod tests;
 
@@ -140,6 +141,9 @@ async fn run_tree(
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
         recovery: MetadataCalculatorRecoveryConfig {
             desired_chunk_size: config.experimental.snapshots_recovery_tree_chunk_size,
+            parallel_persistence_buffer: config
+                .experimental
+                .snapshots_recovery_tree_parallel_persistence_buffer,
         },
     };
 
@@ -424,10 +428,11 @@ async fn run_api(
         .build()
         .await
         .context("failed to build a proxy_cache_updater_pool")?;
-    task_handles.push(tokio::spawn(tx_proxy.run_account_nonce_sweeper(
-        proxy_cache_updater_pool.clone(),
-        stop_receiver.clone(),
-    )));
+    task_handles.push(tokio::spawn(
+        tx_proxy
+            .account_nonce_sweeper_task(proxy_cache_updater_pool.clone())
+            .run(stop_receiver.clone()),
+    ));
 
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
@@ -484,10 +489,9 @@ async fn run_api(
         .build(
             fee_params_fetcher,
             Arc::new(vm_concurrency_limiter),
-            ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
+            ApiContracts::load_from_disk().await?, // TODO (BFT-138): Allow to dynamically reload API contracts
             storage_caches,
-        )
-        .await;
+        );
 
     let mempool_cache = MempoolCache::new(config.optional.mempool_cache_size);
     let mempool_cache_update_task = mempool_cache.update_task(
@@ -688,7 +692,7 @@ async fn shutdown_components(
     Ok(())
 }
 
-/// External node for zkSync Era.
+/// External node for ZKsync Era.
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
@@ -700,6 +704,10 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(long, default_value = "all")]
     components: ComponentsToRun,
+
+    /// Run the node using the node framework.
+    #[arg(long)]
+    use_node_framework: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
@@ -783,6 +791,22 @@ async fn main() -> anyhow::Result<()> {
         .fetch_remote(main_node_client.as_ref())
         .await
         .context("failed fetching remote part of node config from main node")?;
+
+    // If the node framework is used, run the node.
+    if opt.use_node_framework {
+        // We run the node from a different thread, since the current thread is in tokio context.
+        std::thread::spawn(move || {
+            let node =
+                ExternalNodeBuilder::new(config).build(opt.components.0.into_iter().collect())?;
+            node.run()?;
+            anyhow::Ok(())
+        })
+        .join()
+        .expect("Failed to run the node")?;
+
+        return Ok(());
+    }
+
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
     }
@@ -908,12 +932,19 @@ async fn run_node(
     task_handles.extend(prometheus_task);
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
+    let recovery_config =
+        config
+            .optional
+            .snapshots_recovery_enabled
+            .then_some(SnapshotRecoveryConfig {
+                snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
+            });
     ensure_storage_initialized(
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
         config.required.l2_chain_id,
-        config.optional.snapshots_recovery_enabled,
+        recovery_config,
     )
     .await?;
     let sigint_receiver = env.setup_sigint_handler();

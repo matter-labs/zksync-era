@@ -6,9 +6,13 @@ use std::collections::HashMap;
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
+use indicatif::{ProgressBar, ProgressStyle};
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
-    compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
+    compute_setups::{
+        basic_vk_count, generate_base_layer_vks, generate_recursive_layer_vks,
+        recursive_layer_vk_count,
+    },
     data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
     proof_wrapper_utils::{
         check_trusted_setup_file_existace, get_wrapper_setup_and_vk_from_scheduler_vk,
@@ -30,20 +34,45 @@ mod commitment_generator;
 #[cfg(test)]
 mod tests;
 
-fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
+/// Generates new verification keys, and stores them in `keystore`.
+/// Jobs describe how many generators can run in parallel (each one is around 30 GB).
+/// If quiet is true, it doesn't display any progress bar.
+fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result<()> {
     // Start by checking the trusted setup existence.
     // This is used at the last step, but we want to fail early if user didn't configure everything
     // correctly.
     check_trusted_setup_file_existace();
 
+    let progress_bar = if quiet {
+        None
+    } else {
+        let count = basic_vk_count() + recursive_layer_vk_count() + 1;
+        let progress_bar = ProgressBar::new(count as u64);
+        progress_bar.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})")
+        .progress_chars("#>-"));
+        Some(progress_bar)
+    };
+
+    let pb = std::sync::Arc::new(std::sync::Mutex::new(progress_bar));
+
     let mut in_memory_source = InMemoryDataSource::new();
     tracing::info!("Generating verification keys for Base layer.");
-    generate_base_layer_vks_and_proofs(&mut in_memory_source)
-        .map_err(|err| anyhow::anyhow!("Failed generating base vk's: {err}"))?;
+
+    generate_base_layer_vks(&mut in_memory_source, Some(jobs), || {
+        if let Some(p) = pb.lock().unwrap().as_ref() {
+            p.inc(1)
+        }
+    })
+    .map_err(|err| anyhow::anyhow!("Failed generating base vk's: {err}"))?;
 
     tracing::info!("Generating verification keys for Recursive layer.");
-    generate_recursive_layer_vks_and_proofs(&mut in_memory_source)
-        .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
+    generate_recursive_layer_vks(&mut in_memory_source, Some(jobs), || {
+        if let Some(p) = pb.lock().unwrap().as_ref() {
+            p.inc(1)
+        }
+    })
+    .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
 
     tracing::info!("Saving keys & hints");
 
@@ -62,6 +91,10 @@ fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
     keystore
         .save_snark_verification_key(vk)
         .context("save_snark_vk")?;
+
+    if let Some(p) = pb.lock().unwrap().as_ref() {
+        p.inc(1)
+    }
 
     // Let's also update the commitments file.
     keystore.save_commitments(&generate_commitments(keystore)?)
@@ -121,6 +154,12 @@ enum Command {
     GenerateVerificationKeys {
         #[arg(long)]
         path: Option<String>,
+        /// Number of generators to run in parallel - each one consumes around 30 GB of RAM.
+        #[arg(short, long, default_value_t = 1)]
+        jobs: usize,
+        /// If true - disables progress bar.
+        #[arg(long)]
+        quiet: bool,
     },
     /// Generates setup keys (used by the CPU prover).
     #[command(name = "generate-sk")]
@@ -208,13 +247,13 @@ fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     match opt.command {
-        Command::GenerateVerificationKeys { path } => {
+        Command::GenerateVerificationKeys { path, jobs, quiet } => {
             let keystore = keystore_from_optional_path(path, None);
             tracing::info!(
                 "Generating verification keys and storing them inside {:?}",
                 keystore.get_base_path()
             );
-            generate_vks(&keystore).context("generate_vks()")
+            generate_vks(&keystore, jobs, quiet).context("generate_vks()")
         }
         Command::UpdateCommitments { dryrun, path } => {
             let keystore = keystore_from_optional_path(path, None);

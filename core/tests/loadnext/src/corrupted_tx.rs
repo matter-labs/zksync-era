@@ -6,7 +6,7 @@ use zksync_types::{
 
 use crate::{command::IncorrectnessModifier, sdk::signer::Signer};
 
-/// Trait that exists solely to extend the signed zkSync transaction interface, providing the ability
+/// Trait that exists solely to extend the signed ZKsync transaction interface, providing the ability
 /// to modify transaction in a way that will make it invalid.
 ///
 /// Loadtest is expected to simulate the user behavior, and it's not that uncommon of users to send incorrect

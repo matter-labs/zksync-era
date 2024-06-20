@@ -25,8 +25,8 @@ use zksync_node_api_server::{
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
-    api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address, L1ChainId,
-    L2ChainId, ETHEREUM_ADDRESS,
+    api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address,
+    L1BatchNumber, L1ChainId, L2ChainId, ETHEREUM_ADDRESS,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -647,7 +647,7 @@ pub(crate) struct RequiredENConfig {
     /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L1 network.
     pub l1_chain_id: L1ChainId,
-    /// L2 chain ID (e.g., 270 for zkSync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
+    /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
 
@@ -746,6 +746,8 @@ pub(crate) struct ExperimentalENConfig {
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
 
     // Snapshot recovery
+    /// L1 batch number of the snapshot to use during recovery. Specifying this parameter is mostly useful for testing.
+    pub snapshots_recovery_l1_batch: Option<L1BatchNumber>,
     /// Approximate chunk size (measured in the number of entries) to recover in a single iteration.
     /// Reasonable values are order of 100,000 (meaning an iteration takes several seconds).
     ///
@@ -753,6 +755,12 @@ pub(crate) struct ExperimentalENConfig {
     /// of recovery and then restarted with a different config).
     #[serde(default = "ExperimentalENConfig::default_snapshots_recovery_tree_chunk_size")]
     pub snapshots_recovery_tree_chunk_size: u64,
+    /// Buffer capacity for parallel persistence operations. Should be reasonably small since larger buffer means more RAM usage;
+    /// buffer elements are persisted tree chunks. OTOH, small buffer can lead to persistence parallelization being inefficient.
+    ///
+    /// If not set, parallel persistence will be disabled.
+    #[serde(default)] // Temporarily use a conservative option (sequential recovery) as default
+    pub snapshots_recovery_tree_parallel_persistence_buffer: Option<NonZeroUsize>,
 
     // Commitment generator
     /// Maximum degree of parallelism during commitment generation, i.e., the maximum number of L1 batches being processed in parallel.
@@ -775,7 +783,9 @@ impl ExperimentalENConfig {
             state_keeper_db_block_cache_capacity_mb:
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
+            snapshots_recovery_l1_batch: None,
             snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
+            snapshots_recovery_tree_parallel_persistence_buffer: None,
             commitment_generator_max_parallelism: None,
         }
     }
@@ -807,21 +817,11 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>>
     ))
 }
 
-/// Configuration for snapshot recovery. Loaded optionally, only if snapshot recovery is enabled.
-#[derive(Debug)]
-pub(crate) struct SnapshotsRecoveryConfig {
-    pub snapshots_object_store: ObjectStoreConfig,
-}
-
-impl SnapshotsRecoveryConfig {
-    pub fn new() -> anyhow::Result<Self> {
-        let snapshots_object_store = envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
-            .from_env::<ObjectStoreConfig>()
-            .context("failed loading snapshot object store config from env variables")?;
-        Ok(Self {
-            snapshots_object_store,
-        })
-    }
+/// Configuration for snapshot recovery. Should be loaded optionally, only if snapshot recovery is enabled.
+pub(crate) fn snapshot_recovery_object_store_config() -> anyhow::Result<ObjectStoreConfig> {
+    envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
+        .from_env::<ObjectStoreConfig>()
+        .context("failed loading snapshot object store config from env variables")
 }
 
 #[derive(Debug, Deserialize)]

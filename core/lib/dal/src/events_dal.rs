@@ -84,7 +84,7 @@ impl EventsDal<'_, '_> {
                 write_str!(
                     &mut buffer,
                     r"\\x{topic0:x}|\\x{topic1:x}|\\x{topic2:x}|\\x{topic3:x}|",
-                    topic0 = EventTopic(event.indexed_topics.get(0)),
+                    topic0 = EventTopic(event.indexed_topics.first()),
                     topic1 = EventTopic(event.indexed_topics.get(1)),
                     topic2 = EventTopic(event.indexed_topics.get(2)),
                     topic3 = EventTopic(event.indexed_topics.get(3))
@@ -454,7 +454,7 @@ mod tests {
             tx_index_in_l2_block: 0,
             tx_initiator_address: Address::default(),
         };
-        let first_events = vec![create_vm_event(0, 0), create_vm_event(1, 4)];
+        let first_events = [create_vm_event(0, 0), create_vm_event(1, 4)];
         let second_location = IncludedTxLocation {
             tx_hash: H256([2; 32]),
             tx_index_in_l2_block: 1,

@@ -14,7 +14,7 @@ pub use self::{
     output_handler::{OutputHandler, StateKeeperOutputHandler},
     persistence::{L2BlockSealerTask, StateKeeperPersistence, TreeWritesPersistence},
 };
-use super::seal_criteria::IoSealCriteria;
+use super::seal_criteria::{IoSealCriteria, UnexecutableReason};
 
 pub mod common;
 pub(crate) mod mempool;
@@ -136,7 +136,7 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// Marks the transaction as "not executed", so it can be retrieved from the IO again.
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()>;
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.
-    async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()>;
+    async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()>;
 
     /// Loads base system contracts with the specified version.
     async fn load_base_system_contracts(

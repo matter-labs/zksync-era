@@ -103,7 +103,7 @@ fn test_vm_loadnext_rollbacks() {
             }
             .to_bytes(),
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -121,7 +121,7 @@ fn test_vm_loadnext_rollbacks() {
             }
             .to_bytes(),
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );

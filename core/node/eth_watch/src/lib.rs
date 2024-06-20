@@ -1,6 +1,6 @@
 //! Ethereum watcher polls the Ethereum node for the relevant events, such as priority operations (aka L1 transactions),
 //! protocol upgrades etc.
-//! New events are accepted to the zkSync network once they have the sufficient amount of L1 confirmations.
+//! New events are accepted to the ZKsync network once they have the sufficient amount of L1 confirmations.
 
 use std::time::Duration;
 
@@ -184,7 +184,7 @@ impl EthWatch {
             let relevant_topic = processor.relevant_topic();
             let processor_events = events
                 .iter()
-                .filter(|event| event.topics.get(0) == Some(&relevant_topic))
+                .filter(|event| event.topics.first() == Some(&relevant_topic))
                 .cloned()
                 .collect();
             processor

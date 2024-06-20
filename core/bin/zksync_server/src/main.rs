@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::str::FromStr;
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -20,14 +20,12 @@ use zksync_config::{
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    genesis_init, is_genesis_needed,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
 use zksync_eth_client::clients::Client;
-use zksync_storage::RocksDB;
-use zksync_utils::wait_for_tasks::ManagedTasks;
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -38,7 +36,7 @@ mod node_builder;
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 #[derive(Debug, Parser)]
-#[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
+#[command(author = "Matter Labs", version, about = "ZKsync operator node", long_about = None)]
 struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
@@ -67,7 +65,8 @@ struct Cli {
     /// Path to the yaml with genesis. If set, it will be used instead of env vars.
     #[arg(long)]
     genesis_path: Option<std::path::PathBuf>,
-    /// Run the node using the node framework.
+    /// Used to enable node framework.
+    /// Now the node framework is used by default and this argument is left for backward compatibility.
     #[arg(long)]
     use_node_framework: bool,
 }
@@ -88,8 +87,7 @@ impl FromStr for ComponentsToRun {
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     // Load env config and use it if file config is not provided
@@ -181,32 +179,10 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
-
-    if opt.genesis || is_genesis_needed(&database_secrets).await {
-        genesis_init(genesis.clone(), &database_secrets)
-            .await
-            .context("genesis_init")?;
-
-        if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
-            let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
-            let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
-                .context("Ethereum client")?
-                .for_network(genesis.l1_chain_id.into())
-                .build();
-            zksync_node_genesis::save_set_chain_id_tx(
-                &query_client,
-                contracts_config.diamond_proxy_addr,
-                ecosystem_contracts.state_transition_proxy_addr,
-                &database_secrets,
-            )
-            .await
-            .context("Failed to save SetChainId upgrade transaction")?;
-        }
-
-        if opt.genesis {
-            return Ok(());
-        }
+    run_genesis_if_needed(opt.genesis, &genesis, &contracts_config, &secrets)?;
+    if opt.genesis {
+        // If genesis is requested, we don't need to run the node.
+        return Ok(());
     }
 
     let components = if opt.rebuild_tree {
@@ -215,67 +191,53 @@ async fn main() -> anyhow::Result<()> {
         opt.components.0
     };
 
-    // If the node framework is used, run the node.
-    if opt.use_node_framework {
-        // We run the node from a different thread, since the current thread is in tokio context.
-        std::thread::spawn(move || -> anyhow::Result<()> {
-            let node = MainNodeBuilder::new(
-                configs,
-                wallets,
-                genesis,
-                contracts_config,
-                secrets,
-                consensus,
-            )
-            .build(components)?;
-            node.run()?;
-            Ok(())
-        })
-        .join()
-        .expect("Failed to run the node")?;
-
-        return Ok(());
-    }
-
-    // Run core actors.
-    let sigint_receiver = setup_sigint_handler();
-    let (core_task_handles, stop_sender, health_check_handle) = initialize_components(
-        &configs,
-        &wallets,
-        &genesis,
-        &contracts_config,
-        &components,
-        &secrets,
+    let node = MainNodeBuilder::new(
+        configs,
+        wallets,
+        genesis,
+        contracts_config,
+        secrets,
         consensus,
     )
-    .await
-    .context("Unable to start Core actors")?;
-
-    tracing::info!("Running {} core task handlers", core_task_handles.len());
-
-    let mut tasks = ManagedTasks::new(core_task_handles);
-    tokio::select! {
-        _ = tasks.wait_single() => {},
-        _ = sigint_receiver => {
-            tracing::info!("Stop signal received, shutting down");
-        },
-    }
-
-    stop_sender.send(true).ok();
-    tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
-        .await
-        .context("error waiting for RocksDB instances to drop")?;
-    let complete_timeout =
-        if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
-            // Increase timeout because of complicated graceful shutdown procedure for API servers.
-            Duration::from_secs(30)
-        } else {
-            Duration::from_secs(5)
-        };
-    tasks.complete(complete_timeout).await;
-    health_check_handle.stop().await;
-    tracing::info!("Stopped");
+    .build(components)?;
+    node.run()?;
     Ok(())
+}
+
+fn run_genesis_if_needed(
+    force_genesis: bool,
+    genesis: &GenesisConfig,
+    contracts_config: &ContractsConfig,
+    secrets: &Secrets,
+) -> anyhow::Result<()> {
+    let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    tokio_runtime.block_on(async move {
+        let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
+        if force_genesis || is_genesis_needed(&database_secrets).await {
+            genesis_init(genesis.clone(), &database_secrets)
+                .await
+                .context("genesis_init")?;
+
+            if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
+                let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
+                let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
+                    .context("Ethereum client")?
+                    .for_network(genesis.l1_chain_id.into())
+                    .build();
+                zksync_node_genesis::save_set_chain_id_tx(
+                    &query_client,
+                    contracts_config.diamond_proxy_addr,
+                    ecosystem_contracts.state_transition_proxy_addr,
+                    &database_secrets,
+                )
+                .await
+                .context("Failed to save SetChainId upgrade transaction")?;
+            }
+        }
+        Ok(())
+    })
 }
 
 fn load_env_config() -> anyhow::Result<TempConfigStore> {
@@ -304,9 +266,9 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         eth_sender_config: EthConfig::from_env().ok(),
         eth_watch_config: EthWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
-        object_store_config: ObjectStoreConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
+        core_object_store: ObjectStoreConfig::from_env().ok(),
     })
 }

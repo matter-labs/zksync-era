@@ -166,6 +166,12 @@ impl ZkSyncTree {
         self.tree.latest_root_hash()
     }
 
+    /// Returns the root hash and leaf count at the specified L1 batch.
+    pub fn root_info(&self, l1_batch_number: L1BatchNumber) -> Option<(ValueHash, u64)> {
+        let root = self.tree.root(l1_batch_number.0.into())?;
+        Some((root.hash(&Blake2Hasher), root.leaf_count()))
+    }
+
     /// Checks whether this tree is empty.
     pub fn is_empty(&self) -> bool {
         let Some(version) = self.tree.latest_version() else {

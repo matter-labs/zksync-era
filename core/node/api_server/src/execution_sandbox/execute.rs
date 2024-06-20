@@ -117,11 +117,7 @@ impl TransactionExecutor {
             return mock_executor.execute_tx(&tx, &block_args);
         }
 
-        let total_factory_deps = tx
-            .execute
-            .factory_deps
-            .as_ref()
-            .map_or(0, |deps| deps.len() as u16);
+        let total_factory_deps = tx.execute.factory_deps.len() as u16;
 
         let (published_bytecodes, execution_result) = tokio::task::spawn_blocking(move || {
             let span = span!(Level::DEBUG, "execute_in_sandbox").entered();

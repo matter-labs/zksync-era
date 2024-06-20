@@ -5,7 +5,8 @@ use zksync_contracts::{governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
-    ethabi::{encode, Hash, Token},
+    abi, ethabi,
+    ethabi::{Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
@@ -137,11 +138,11 @@ impl EthClient for MockEthClient {
 }
 
 fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
-    L1Tx {
+    let tx = L1Tx {
         execute: Execute {
             contract_address: Address::repeat_byte(0x11),
             calldata: vec![1, 2, 3],
-            factory_deps: None,
+            factory_deps: vec![],
             value: U256::zero(),
         },
         common_data: L1TxCommonData {
@@ -157,18 +158,22 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
             to_mint: Default::default(),
             priority_queue_type: PriorityQueueType::Deque,
             op_processing_type: OpProcessingType::Common,
-            canonical_tx_hash: H256::from_low_u64_le(serial_id),
+            canonical_tx_hash: H256::default(),
         },
         received_timestamp_ms: 0,
-    }
+    };
+    // Convert to abi::Transaction and back, so that canonical_tx_hash is computed.
+    let tx =
+        Transaction::try_from(abi::Transaction::try_from(Transaction::from(tx)).unwrap()).unwrap();
+    tx.try_into().unwrap()
 }
 
 fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
-    ProtocolUpgradeTx {
+    let tx = ProtocolUpgradeTx {
         execute: Execute {
             contract_address: Address::repeat_byte(0x11),
             calldata: vec![1, 2, 3],
-            factory_deps: None,
+            factory_deps: vec![],
             value: U256::zero(),
         },
         common_data: ProtocolUpgradeTxCommonData {
@@ -180,10 +185,15 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
             gas_per_pubdata_limit: 1u32.into(),
             refund_recipient: Address::zero(),
             to_mint: Default::default(),
-            canonical_tx_hash: H256::from_low_u64_be(id as u64),
+            canonical_tx_hash: H256::zero(),
         },
         received_timestamp_ms: 0,
-    }
+    };
+    // Convert to abi::Transaction and back, so that canonical_tx_hash is computed.
+    Transaction::try_from(abi::Transaction::try_from(Transaction::from(tx)).unwrap())
+        .unwrap()
+        .try_into()
+        .unwrap()
 }
 
 async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch, MockEthClient) {
@@ -275,6 +285,7 @@ async fn test_gap_in_governance_upgrades() {
 
 #[tokio::test]
 async fn test_normal_operation_governance_upgrades() {
+    zksync_concurrency::testonly::abort_on_panic();
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
 
@@ -406,6 +417,7 @@ async fn test_gap_between_batches() {
 
 #[tokio::test]
 async fn test_overlapping_batches() {
+    zksync_concurrency::testonly::abort_on_panic();
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
     let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
@@ -456,39 +468,27 @@ async fn get_all_db_txs(storage: &mut Connection<'_, Core>) -> Vec<Transaction> 
 }
 
 fn tx_into_log(tx: L1Tx) -> Log {
-    let eth_block = tx.eth_block().0.into();
+    let tx = abi::Transaction::try_from(Transaction::from(tx)).unwrap();
+    let abi::Transaction::L1 {
+        tx,
+        factory_deps,
+        eth_block,
+        ..
+    } = tx
+    else {
+        unreachable!()
+    };
 
-    let tx_data_token = Token::Tuple(vec![
-        Token::Uint(0xff.into()),
-        Token::Address(tx.common_data.sender),
-        Token::Address(tx.execute.contract_address),
-        Token::Uint(tx.common_data.gas_limit),
-        Token::Uint(tx.common_data.gas_per_pubdata_limit),
-        Token::Uint(tx.common_data.max_fee_per_gas),
-        Token::Uint(U256::zero()),
-        Token::Address(Address::zero()),
-        Token::Uint(tx.common_data.serial_id.0.into()),
-        Token::Uint(tx.execute.value),
-        Token::FixedArray(vec![
-            Token::Uint(U256::zero()),
-            Token::Uint(U256::zero()),
-            Token::Uint(U256::zero()),
-            Token::Uint(U256::zero()),
-        ]),
-        Token::Bytes(tx.execute.calldata),
-        Token::Bytes(Vec::new()),
-        Token::Array(Vec::new()),
-        Token::Bytes(Vec::new()),
-        Token::Bytes(Vec::new()),
-    ]);
-
-    let data = encode(&[
-        Token::Uint(tx.common_data.serial_id.0.into()),
-        Token::FixedBytes(H256::random().0.to_vec()),
-        Token::Uint(u64::MAX.into()),
-        tx_data_token,
-        Token::Array(Vec::new()),
-    ]);
+    let data = ethabi::encode(
+        &abi::NewPriorityRequest {
+            tx_id: tx.nonce,
+            tx_hash: tx.hash().into(),
+            expiration_timestamp: u64::MAX,
+            transaction: tx,
+            factory_deps,
+        }
+        .encode(),
+    );
 
     Log {
         address: Address::repeat_byte(0x1),
@@ -498,8 +498,8 @@ fn tx_into_log(tx: L1Tx) -> Log {
             .signature()],
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
-        block_number: Some(eth_block),
-        transaction_hash: Some(H256::random()),
+        block_number: Some(eth_block.into()),
+        transaction_hash: Some(H256::default()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),
         transaction_log_index: Some(0u64.into()),
@@ -517,7 +517,7 @@ fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     let diamond_upgrade_calldata = execute_upgrade_selector
         .iter()
         .copied()
-        .chain(encode(&[diamond_cut]))
+        .chain(ethabi::encode(&[diamond_cut]))
         .collect();
     let governance_call = Token::Tuple(vec![
         Token::Address(Default::default()),
@@ -529,7 +529,7 @@ fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         Token::FixedBytes(vec![0u8; 32]),
         Token::FixedBytes(vec![0u8; 32]),
     ]);
-    let final_data = encode(&[Token::FixedBytes(vec![0u8; 32]), governance_operation]);
+    let final_data = ethabi::encode(&[Token::FixedBytes(vec![0u8; 32]), governance_operation]);
 
     Log {
         address: Address::repeat_byte(0x1),
@@ -553,114 +553,39 @@ fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
 }
 
 fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
-    let tx_data_token = if let Some(tx) = upgrade.tx {
-        Token::Tuple(vec![
-            Token::Uint(0xfe.into()),
-            Token::Address(tx.common_data.sender),
-            Token::Address(tx.execute.contract_address),
-            Token::Uint(tx.common_data.gas_limit),
-            Token::Uint(tx.common_data.gas_per_pubdata_limit),
-            Token::Uint(tx.common_data.max_fee_per_gas),
-            Token::Uint(U256::zero()),
-            Token::Address(Address::zero()),
-            Token::Uint((tx.common_data.upgrade_id as u16).into()),
-            Token::Uint(tx.execute.value),
-            Token::FixedArray(vec![
-                Token::Uint(U256::zero()),
-                Token::Uint(U256::zero()),
-                Token::Uint(U256::zero()),
-                Token::Uint(U256::zero()),
-            ]),
-            Token::Bytes(tx.execute.calldata),
-            Token::Bytes(Vec::new()),
-            Token::Array(Vec::new()),
-            Token::Bytes(Vec::new()),
-            Token::Bytes(Vec::new()),
-        ])
-    } else {
-        Token::Tuple(vec![
-            Token::Uint(0.into()),
-            Token::Address(Default::default()),
-            Token::Address(Default::default()),
-            Token::Uint(Default::default()),
-            Token::Uint(Default::default()),
-            Token::Uint(Default::default()),
-            Token::Uint(Default::default()),
-            Token::Address(Default::default()),
-            Token::Uint(Default::default()),
-            Token::Uint(Default::default()),
-            Token::FixedArray(vec![
-                Token::Uint(Default::default()),
-                Token::Uint(Default::default()),
-                Token::Uint(Default::default()),
-                Token::Uint(Default::default()),
-            ]),
-            Token::Bytes(Default::default()),
-            Token::Bytes(Default::default()),
-            Token::Array(Default::default()),
-            Token::Bytes(Default::default()),
-            Token::Bytes(Default::default()),
-        ])
+    let abi::Transaction::L1 {
+        tx, factory_deps, ..
+    } = upgrade
+        .tx
+        .map(|tx| Transaction::from(tx).try_into().unwrap())
+        .unwrap_or(abi::Transaction::L1 {
+            tx: Default::default(),
+            factory_deps: vec![],
+            eth_block: 0,
+        })
+    else {
+        unreachable!()
     };
-
-    let upgrade_token = Token::Tuple(vec![
-        tx_data_token,
-        Token::Array(Vec::new()),
-        Token::FixedBytes(
-            upgrade
-                .bootloader_code_hash
-                .unwrap_or_default()
-                .as_bytes()
-                .to_vec(),
-        ),
-        Token::FixedBytes(
-            upgrade
-                .default_account_code_hash
-                .unwrap_or_default()
-                .as_bytes()
-                .to_vec(),
-        ),
-        Token::Address(upgrade.verifier_address.unwrap_or_default()),
-        Token::Tuple(vec![
-            Token::FixedBytes(
-                upgrade
-                    .verifier_params
-                    .unwrap_or_default()
-                    .recursion_node_level_vk_hash
-                    .as_bytes()
-                    .to_vec(),
-            ),
-            Token::FixedBytes(
-                upgrade
-                    .verifier_params
-                    .unwrap_or_default()
-                    .recursion_leaf_level_vk_hash
-                    .as_bytes()
-                    .to_vec(),
-            ),
-            Token::FixedBytes(
-                upgrade
-                    .verifier_params
-                    .unwrap_or_default()
-                    .recursion_circuits_set_vks_hash
-                    .as_bytes()
-                    .to_vec(),
-            ),
-        ]),
-        Token::Bytes(Default::default()),
-        Token::Bytes(Default::default()),
-        Token::Uint(upgrade.timestamp.into()),
-        Token::Uint(upgrade.version.pack()),
-        Token::Address(Default::default()),
-    ]);
-
+    let upgrade_token = abi::ProposedUpgrade {
+        l2_protocol_upgrade_tx: tx,
+        factory_deps,
+        bootloader_hash: upgrade.bootloader_code_hash.unwrap_or_default().into(),
+        default_account_hash: upgrade.default_account_code_hash.unwrap_or_default().into(),
+        verifier: upgrade.verifier_address.unwrap_or_default(),
+        verifier_params: upgrade.verifier_params.unwrap_or_default().into(),
+        l1_contracts_upgrade_calldata: vec![],
+        post_upgrade_calldata: vec![],
+        upgrade_timestamp: upgrade.timestamp.into(),
+        new_protocol_version: upgrade.version.pack(),
+    }
+    .encode();
     Token::Tuple(vec![
         Token::Array(vec![]),
         Token::Address(Default::default()),
         Token::Bytes(
             vec![0u8; 4]
                 .into_iter()
-                .chain(encode(&[upgrade_token]))
+                .chain(ethabi::encode(&[upgrade_token]))
                 .collect(),
         ),
     ])

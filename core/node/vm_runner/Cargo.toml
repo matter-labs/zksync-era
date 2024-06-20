@@ -26,6 +26,7 @@ async-trait.workspace = true
 once_cell.workspace = true
 tracing.workspace = true
 dashmap.workspace = true
+vise.workspace = true
 
 [dev-dependencies]
 zksync_node_test_utils.workspace = true

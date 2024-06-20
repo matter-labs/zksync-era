@@ -17,12 +17,18 @@ impl From<io::Error> for ObjectStoreError {
     }
 }
 
+/// [`ObjectStore`] implementation storing objects as files in a local filesystem. Mostly useful for local testing.
 #[derive(Debug)]
-pub(crate) struct FileBackedObjectStore {
+pub struct FileBackedObjectStore {
     base_dir: String,
 }
 
 impl FileBackedObjectStore {
+    /// Creates a new file-backed store with its root at the specified path.
+    ///
+    /// # Errors
+    ///
+    /// Propagates I/O errors.
     pub async fn new(base_dir: String) -> Result<Self, ObjectStoreError> {
         for bucket in &[
             Bucket::ProverJobs,

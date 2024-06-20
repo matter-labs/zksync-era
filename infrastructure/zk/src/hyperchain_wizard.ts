@@ -13,7 +13,7 @@ import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
-import { announced } from './utils';
+import { announced } from 'utils';
 import { DeploymentMode } from './contract';
 
 const title = chalk.blueBright;
@@ -49,7 +49,12 @@ export interface BasePromptOptions {
 async function initHyperchain(envName: string, runObservability: boolean, validiumMode: boolean) {
     await announced('Initializing hyperchain creation', setupConfiguration(envName, runObservability));
     let deploymentMode = validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
-    await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true, runObservability, deploymentMode });
+    await init.initHyperCmdAction({
+        skipSetupCompletely: false,
+        bumpChainId: true,
+        runObservability,
+        deploymentMode
+    });
 
     // TODO: EVM:577 fix hyperchain wizard
     env.mergeInitToEnv();

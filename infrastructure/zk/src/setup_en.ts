@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { set as setEnv } from './env';
 import { setup as setupDb } from './database';
-import * as utils from './utils';
+import * as utils from 'utils';
 
 enum Environment {
     Mainnet = 'mainnet',

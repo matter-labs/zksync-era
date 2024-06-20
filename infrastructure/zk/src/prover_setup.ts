@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 import fs from 'fs';
 import enquirer from 'enquirer';
 import { BasePromptOptions } from './hyperchain_wizard';

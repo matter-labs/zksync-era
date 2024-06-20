@@ -1,14 +1,9 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::Path,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Json,
-};
+use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, Core, CoreDal, SqlxError};
-use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
     SubmitProofRequest, SubmitProofResponse,
@@ -20,44 +15,14 @@ use zksync_types::{
     L1BatchNumber, H256,
 };
 
+use crate::errors::RequestProcessorError;
+
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
-}
-
-pub(crate) enum RequestProcessorError {
-    ObjectStore(ObjectStoreError),
-    Sqlx(SqlxError),
-}
-
-impl IntoResponse for RequestProcessorError {
-    fn into_response(self) -> Response {
-        let (status_code, message) = match self {
-            RequestProcessorError::ObjectStore(err) => {
-                tracing::error!("GCS error: {:?}", err);
-                (
-                    StatusCode::BAD_GATEWAY,
-                    "Failed fetching/saving from GCS".to_owned(),
-                )
-            }
-            RequestProcessorError::Sqlx(err) => {
-                tracing::error!("Sqlx error: {:?}", err);
-                match err {
-                    SqlxError::RowNotFound => {
-                        (StatusCode::NOT_FOUND, "Non existing L1 batch".to_owned())
-                    }
-                    _ => (
-                        StatusCode::BAD_GATEWAY,
-                        "Failed fetching/saving from db".to_owned(),
-                    ),
-                }
-            }
-        };
-        (status_code, message).into_response()
-    }
 }
 
 impl RequestProcessor {
@@ -88,7 +53,8 @@ impl RequestProcessor {
             .unwrap()
             .proof_generation_dal()
             .get_next_block_to_be_proven(self.config.proof_generation_timeout())
-            .await;
+            .await
+            .map_err(RequestProcessorError::Dal)?;
 
         let l1_batch_number = match l1_batch_number_result {
             Some(number) => number,
@@ -110,7 +76,7 @@ impl RequestProcessor {
             .get_l1_batch_header(l1_batch_number)
             .await
             .unwrap()
-            .expect(&format!("Missing header for {}", l1_batch_number));
+            .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
         let minor_version = header.protocol_version.unwrap();
         let protocol_version = self
@@ -122,9 +88,9 @@ impl RequestProcessor {
             .get_protocol_version_with_latest_patch(minor_version)
             .await
             .unwrap()
-            .expect(&format!(
-                "Missing l1 verifier info for protocol version {minor_version}",
-            ));
+            .unwrap_or_else(|| {
+                panic!("Missing l1 verifier info for protocol version {minor_version}")
+            });
 
         let batch_header = self
             .pool
@@ -250,7 +216,7 @@ impl RequestProcessor {
                     .proof_generation_dal()
                     .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
                     .await
-                    .map_err(RequestProcessorError::Sqlx)?;
+                    .map_err(RequestProcessorError::Dal)?;
             }
             SubmitProofRequest::SkippedProofGeneration => {
                 self.pool
@@ -260,7 +226,7 @@ impl RequestProcessor {
                     .proof_generation_dal()
                     .mark_proof_generation_job_as_skipped(l1_batch_number)
                     .await
-                    .map_err(RequestProcessorError::Sqlx)?;
+                    .map_err(RequestProcessorError::Dal)?;
             }
         }
 

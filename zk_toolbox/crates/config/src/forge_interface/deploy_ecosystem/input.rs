@@ -82,6 +82,13 @@ impl Default for Erc20DeploymentConfig {
                     mint: 10000000000,
                 },
                 Erc20DeploymentTokensConfig {
+                    name: String::from("WBTC"),
+                    symbol: String::from("WBTC"),
+                    decimals: 8,
+                    implementation: String::from("TestnetERC20Token.sol"),
+                    mint: 10000000000,
+                },
+                Erc20DeploymentTokensConfig {
                     name: String::from("Wrapped Ether"),
                     symbol: String::from("WETH"),
                     decimals: 18,

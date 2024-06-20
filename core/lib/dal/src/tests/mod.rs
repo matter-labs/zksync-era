@@ -3,7 +3,7 @@ use std::time::Duration;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
-    block::{L2BlockHasher, L2BlockHeader},
+    block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
@@ -50,6 +50,17 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         gas_limit: 0,
     }
 }
+pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {
+    L1BatchHeader::new(
+        L1BatchNumber(number),
+        100,
+        BaseSystemContractsHashes {
+            bootloader: H256::repeat_byte(1),
+            default_aa: H256::repeat_byte(42),
+        },
+        ProtocolVersionId::latest(),
+    )
+}
 
 pub(crate) fn mock_l2_transaction() -> L2Tx {
     let fee = Fee {
@@ -66,7 +77,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
         Default::default(),
         L2ChainId::from(270),
         &K256PrivateKey::random(),
-        None,
+        vec![],
         Default::default(),
     )
     .unwrap();
@@ -98,7 +109,7 @@ pub(crate) fn mock_l1_execute() -> L1Tx {
         contract_address: H160::random(),
         value: Default::default(),
         calldata: vec![],
-        factory_deps: None,
+        factory_deps: vec![],
     };
 
     L1Tx {
@@ -126,7 +137,7 @@ pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
         contract_address: H160::random(),
         value: Default::default(),
         calldata: vec![],
-        factory_deps: None,
+        factory_deps: vec![],
     };
 
     ProtocolUpgradeTx {

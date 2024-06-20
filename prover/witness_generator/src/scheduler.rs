@@ -8,7 +8,7 @@ use zkevm_test_harness::zkevm_circuits::recursion::{
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -61,15 +61,15 @@ pub struct SchedulerWitnessGenerator {
 }
 
 impl SchedulerWitnessGenerator {
-    pub async fn new(
+    pub fn new(
         config: FriWitnessGeneratorConfig,
-        store_factory: &ObjectStoreFactory,
+        object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             config,
-            object_store: store_factory.create_store().await,
+            object_store,
             prover_connection_pool,
             protocol_version,
         }

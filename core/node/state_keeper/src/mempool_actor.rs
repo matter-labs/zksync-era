@@ -192,7 +192,7 @@ mod tests {
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![nonce_log])])
+            .insert_storage_logs(L2BlockNumber(0), &[nonce_log])
             .await
             .unwrap();
 
@@ -352,7 +352,7 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .storage_logs_dal()
-            .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![nonce_log])])
+            .append_storage_logs(L2BlockNumber(0), &[nonce_log])
             .await
             .unwrap();
         storage

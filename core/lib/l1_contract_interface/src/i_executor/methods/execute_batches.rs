@@ -13,7 +13,7 @@ impl Tokenize for &ExecuteBatches {
         vec![Token::Array(
             self.l1_batches
                 .iter()
-                .map(|batch| StoredBatchInfo(batch).into_token())
+                .map(|batch| StoredBatchInfo::from(batch).into_token())
                 .collect(),
         )]
     }

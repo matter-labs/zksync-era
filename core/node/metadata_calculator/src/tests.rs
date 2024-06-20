@@ -5,6 +5,7 @@ use std::{future::Future, ops, panic, path::Path, sync::Arc, time::Duration};
 use assert_matches::assert_matches;
 use itertools::Itertools;
 use tempfile::TempDir;
+use test_casing::{test_casing, Product};
 use tokio::sync::{mpsc, watch};
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
@@ -15,12 +16,12 @@ use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::{MockObjectStore, ObjectStore};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_storage::RocksDB;
 use zksync_types::{
-    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, StorageKey,
-    StorageLog, H256,
+    block::{L1BatchHeader, L1BatchTreeData},
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
 
@@ -28,7 +29,9 @@ use super::{
     helpers::L1BatchWithLogs, GenericAsyncTree, MetadataCalculator, MetadataCalculatorConfig,
     MetadataCalculatorRecoveryConfig,
 };
+use crate::helpers::{AsyncTree, Delayer};
 
+const POLL_INTERVAL: Duration = Duration::from_millis(50);
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
 
 async fn run_with_timeout<T, F>(timeout: Duration, action: F) -> T
@@ -47,7 +50,7 @@ pub(super) fn mock_config(db_path: &Path) -> MetadataCalculatorConfig {
         db_path: db_path.to_str().unwrap().to_owned(),
         max_open_files: None,
         mode: MerkleTreeMode::Full,
-        delay_interval: Duration::from_millis(100),
+        delay_interval: POLL_INTERVAL,
         max_l1_batches_per_iter: 10,
         multi_get_chunk_size: 500,
         block_cache_capacity: 0,
@@ -72,6 +75,150 @@ async fn genesis_creation() {
         panic!("Unexpected tree state: {tree:?}");
     };
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
+}
+
+#[tokio::test]
+async fn low_level_genesis_creation() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    insert_genesis_batch(
+        &mut pool.connection().await.unwrap(),
+        &GenesisParams::mock(),
+    )
+    .await
+    .unwrap();
+    reset_db_state(&pool, 1).await;
+
+    let db = RocksDB::new(temp_dir.path()).unwrap();
+    let mut tree = AsyncTree::new(db.into(), MerkleTreeMode::Lightweight).unwrap();
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    tree.ensure_consistency(&Delayer::new(POLL_INTERVAL), &pool, &mut stop_receiver)
+        .await
+        .unwrap();
+
+    assert!(!tree.is_empty());
+    assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
+}
+
+#[test_casing(8, Product(([1, 4, 7, 9], [false, true])))]
+#[tokio::test]
+async fn tree_truncation_on_l1_batch_divergence(
+    last_common_l1_batch: u32,
+    overwrite_tree_data: bool,
+) {
+    const INITIAL_BATCH_COUNT: usize = 10;
+
+    assert!((last_common_l1_batch as usize) < INITIAL_BATCH_COUNT);
+    let last_common_l1_batch = L1BatchNumber(last_common_l1_batch);
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    reset_db_state(&pool, INITIAL_BATCH_COUNT).await;
+    run_calculator(calculator).await;
+
+    let mut storage = pool.connection().await.unwrap();
+    remove_l1_batches(&mut storage, last_common_l1_batch).await;
+    // Extend the state with new L1 batches.
+    let logs = gen_storage_logs(100..200, 5);
+    extend_db_state(&mut storage, logs).await;
+
+    if overwrite_tree_data {
+        for number in (last_common_l1_batch.0 + 1)..(last_common_l1_batch.0 + 6) {
+            let new_tree_data = L1BatchTreeData {
+                hash: H256::from_low_u64_be(number.into()),
+                rollup_last_leaf_index: 200, // doesn't matter
+            };
+            storage
+                .blocks_dal()
+                .save_l1_batch_tree_data(L1BatchNumber(number), &new_tree_data)
+                .await
+                .unwrap();
+        }
+    }
+
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let tree = calculator.create_tree().await.unwrap();
+    let GenericAsyncTree::Ready(mut tree) = tree else {
+        panic!("Unexpected tree state: {tree:?}");
+    };
+    assert_eq!(
+        tree.next_l1_batch_number(),
+        L1BatchNumber(INITIAL_BATCH_COUNT as u32 + 1)
+    );
+
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    tree.ensure_consistency(&Delayer::new(POLL_INTERVAL), &pool, &mut stop_receiver)
+        .await
+        .unwrap();
+    assert_eq!(tree.next_l1_batch_number(), last_common_l1_batch + 1);
+}
+
+#[test_casing(4, [1, 4, 6, 7])]
+#[tokio::test]
+async fn tree_truncation_on_l1_batch_divergence_in_pruned_tree(retained_l1_batch: u32) {
+    const INITIAL_BATCH_COUNT: usize = 10;
+    const LAST_COMMON_L1_BATCH: L1BatchNumber = L1BatchNumber(6);
+
+    let retained_l1_batch = L1BatchNumber(retained_l1_batch);
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    reset_db_state(&pool, INITIAL_BATCH_COUNT).await;
+    run_calculator(calculator).await;
+
+    let mut storage = pool.connection().await.unwrap();
+    remove_l1_batches(&mut storage, LAST_COMMON_L1_BATCH).await;
+    // Extend the state with new L1 batches.
+    let logs = gen_storage_logs(100..200, 5);
+    extend_db_state(&mut storage, logs).await;
+
+    for number in (LAST_COMMON_L1_BATCH.0 + 1)..(LAST_COMMON_L1_BATCH.0 + 6) {
+        let new_tree_data = L1BatchTreeData {
+            hash: H256::from_low_u64_be(number.into()),
+            rollup_last_leaf_index: 200, // doesn't matter
+        };
+        storage
+            .blocks_dal()
+            .save_l1_batch_tree_data(L1BatchNumber(number), &new_tree_data)
+            .await
+            .unwrap();
+    }
+
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let tree = calculator.create_tree().await.unwrap();
+    let GenericAsyncTree::Ready(mut tree) = tree else {
+        panic!("Unexpected tree state: {tree:?}");
+    };
+
+    let reader = tree.reader();
+    let (mut pruner, pruner_handle) = tree.pruner();
+    pruner.set_poll_interval(POLL_INTERVAL);
+    tokio::task::spawn_blocking(|| pruner.run());
+    pruner_handle
+        .set_target_retained_version(retained_l1_batch.0.into())
+        .unwrap();
+    // Wait until the tree is pruned
+    while reader.clone().info().await.min_l1_batch_number < Some(retained_l1_batch) {
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
+
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    let consistency_result = tree
+        .ensure_consistency(&Delayer::new(POLL_INTERVAL), &pool, &mut stop_receiver)
+        .await;
+
+    if retained_l1_batch <= LAST_COMMON_L1_BATCH {
+        consistency_result.unwrap();
+        assert_eq!(tree.next_l1_batch_number(), LAST_COMMON_L1_BATCH + 1);
+    } else {
+        let err = consistency_result.unwrap_err();
+        assert!(
+            format!("{err:#}").contains("diverging min L1 batch"),
+            "{err:#}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -214,6 +361,46 @@ async fn multi_l1_batch_workflow() {
 }
 
 #[tokio::test]
+async fn error_on_pruned_next_l1_batch() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    reset_db_state(&pool, 1).await;
+    run_calculator(calculator).await;
+
+    // Add some new blocks to the storage and mock their partial pruning.
+    let mut storage = pool.connection().await.unwrap();
+    let new_logs = gen_storage_logs(100..200, 10);
+    extend_db_state(&mut storage, new_logs).await;
+    storage
+        .pruning_dal()
+        .soft_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .await
+        .unwrap();
+    storage
+        .pruning_dal()
+        .hard_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .await
+        .unwrap();
+    // Sanity check: there should be no pruned batch headers.
+    let next_l1_batch_header = storage
+        .blocks_dal()
+        .get_l1_batch_header(L1BatchNumber(2))
+        .await
+        .unwrap();
+    assert!(next_l1_batch_header.is_none());
+
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = calculator.run(stop_receiver).await.unwrap_err();
+    let err = format!("{err:#}");
+    assert!(
+        err.contains("L1 batch #2, next to be processed by the tree, is pruned"),
+        "{err}"
+    );
+}
+
+#[tokio::test]
 async fn running_metadata_calculator_with_additional_blocks() {
     let pool = ConnectionPool::<Core>::test_pool().await;
 
@@ -279,7 +466,7 @@ async fn shutting_down_calculator() {
 
     let (stop_sx, stop_rx) = watch::channel(false);
     let calculator_task = tokio::spawn(calculator.run(stop_rx));
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(POLL_INTERVAL).await;
     stop_sx.send_replace(true);
     run_with_timeout(RUN_TIMEOUT, calculator_task)
         .await
@@ -342,7 +529,7 @@ async fn test_postgres_backup_recovery(
         insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
         txn.commit().await.unwrap();
         if sleep_between_batches {
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(POLL_INTERVAL).await;
         }
     }
     drop(storage);
@@ -384,13 +571,16 @@ pub(crate) async fn setup_calculator(
     db_path: &Path,
     pool: ConnectionPool<Core>,
 ) -> (MetadataCalculator, Arc<dyn ObjectStore>) {
-    let store_factory = ObjectStoreFactory::mock();
-    let store = store_factory.create_store().await;
+    let store = MockObjectStore::arc();
     let (merkle_tree_config, operation_manager) = create_config(db_path, MerkleTreeMode::Full);
-    let calculator =
-        setup_calculator_with_options(&merkle_tree_config, &operation_manager, pool, Some(store))
-            .await;
-    (calculator, store_factory.create_store().await)
+    let calculator = setup_calculator_with_options(
+        &merkle_tree_config,
+        &operation_manager,
+        pool,
+        Some(store.clone()),
+    )
+    .await;
+    (calculator, store)
 }
 
 async fn setup_lightweight_calculator(
@@ -532,7 +722,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .storage_logs_dal()
-            .insert_storage_logs(l2_block_number, &[(H256::zero(), batch_logs)])
+            .insert_storage_logs(l2_block_number, &batch_logs)
             .await
             .unwrap();
         storage
@@ -637,6 +827,23 @@ async fn remove_l1_batches(
         batch_headers.push(header.unwrap());
     }
 
+    let (_, last_l2_block_to_keep) = storage
+        .blocks_dal()
+        .get_l2_block_range_of_l1_batch(last_l1_batch_to_keep)
+        .await
+        .unwrap()
+        .expect("L1 batch has no blocks");
+
+    storage
+        .storage_logs_dal()
+        .roll_back_storage_logs(last_l2_block_to_keep)
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .delete_l2_blocks(last_l2_block_to_keep)
+        .await
+        .unwrap();
     storage
         .blocks_dal()
         .delete_l1_batches(last_l1_batch_to_keep)
@@ -736,4 +943,30 @@ async fn deduplication_works_as_expected() {
     for key in no_op_hashed_keys.iter().step_by(2) {
         assert_eq!(initial_writes[key].0, L1BatchNumber(4));
     }
+}
+
+#[test_casing(3, [3, 5, 8])]
+#[tokio::test]
+async fn l1_batch_divergence_entire_workflow(last_common_l1_batch: u32) {
+    const INITIAL_BATCH_COUNT: usize = 10;
+
+    assert!((last_common_l1_batch as usize) < INITIAL_BATCH_COUNT);
+    let last_common_l1_batch = L1BatchNumber(last_common_l1_batch);
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    reset_db_state(&pool, INITIAL_BATCH_COUNT).await;
+    run_calculator(calculator).await;
+
+    let mut storage = pool.connection().await.unwrap();
+    remove_l1_batches(&mut storage, last_common_l1_batch).await;
+    // Extend the state with new L1 batches.
+    let logs = gen_storage_logs(100..200, 5);
+    extend_db_state(&mut storage, logs).await;
+    let expected_root_hash = expected_tree_hash(&pool).await;
+
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let final_root_hash = run_calculator(calculator).await;
+    assert_eq!(final_root_hash, expected_root_hash);
 }
