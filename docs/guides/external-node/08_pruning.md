@@ -1,6 +1,6 @@
 # Pruning
 
-It is possible to configure ZKSync Node to periodically remove all data from batches older than a configurable
+It is possible to configure ZKsync Node to periodically remove all data from batches older than a configurable
 threshold. Data is pruned both from Postgres and from tree (RocksDB).
 
 > [!NOTE]
