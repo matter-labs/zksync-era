@@ -1,4 +1,3 @@
-use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
@@ -158,10 +157,10 @@ pub struct PubdataIndependentBatchFeeModelInput {
 }
 
 /// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
-/// - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
+/// - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
 /// Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
 /// processing the batch on L1.
-/// - `V2`, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
+/// - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
 /// The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 /// processing the batch on L1.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -199,8 +198,6 @@ pub struct FeeModelConfigV2 {
     pub max_gas_per_batch: u64,
     /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
     pub max_pubdata_per_batch: u64,
-    // /// A constant that indicates what base token is used.
-    // pub base_token: String,
 }
 
 impl Default for FeeModelConfig {
@@ -237,16 +234,14 @@ pub struct FeeParamsV1 {
     pub l1_gas_price: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FeeParamsV2 {
     pub config: FeeModelConfigV2,
     pub l1_gas_price: u64,
     pub l1_pubdata_price: u64,
-    pub base_token: &'static str,
-    pub base_token_ratio: Option<BigDecimal>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum FeeParams {
     V1(FeeParamsV1),
     V2(FeeParamsV2),

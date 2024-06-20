@@ -1,22 +1,23 @@
+use anyhow::Context as _;
+use async_trait::async_trait;
+use chrono::Utc;
+use std::ops::Div;
 use std::{
     fmt::Debug,
     time::{Duration, Instant},
 };
-use std::ops::Div;
-use anyhow::Context as _;
-
-use chrono::{DateTime, Utc};
 use tokio::sync::watch;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
 use zksync_types::base_token_price::BaseTokenAPIPrice;
 
+#[async_trait]
 pub trait BaseTokenAdjuster: Debug + Send + Sync {
     /// Returns the last ratio cached by the adjuster and ensure it's still usable.
-    fn get_last_ratio_and_check_usability(&self) -> anyhow::Result<BigDecimal>;
+    async fn get_last_ratio_and_check_usability<'a>(&'a self) -> BigDecimal;
 
     /// Return configured symbol of the base token.
-    fn get_base_token(&self) -> String;
+    fn get_base_token(&self) -> &str;
 }
 
 #[derive(Debug)]
@@ -28,7 +29,7 @@ pub struct MainNodeBaseTokenAdjuster {
 
 impl MainNodeBaseTokenAdjuster {
     pub fn new(pool: ConnectionPool<Core>, config: BaseTokenAdjusterConfig) -> Self {
-        Self { pool, config}
+        Self { pool, config }
     }
 
     /// Main loop for the base token adjuster.
@@ -44,16 +45,14 @@ impl MainNodeBaseTokenAdjuster {
             let start_time = Instant::now();
 
             match self.fetch_new_ratio().await {
-                Ok(new_ratio) => {
-                    match self.persist_ratio(&new_ratio, &pool).await {
-                        Ok(id) => {
-                            if let Err(err) = self.maybe_update_l1(&new_ratio, id).await {
-                                tracing::error!("Error updating L1 ratio: {:?}", err);
-                            }
+                Ok(new_ratio) => match self.persist_ratio(&new_ratio, &pool).await {
+                    Ok(id) => {
+                        if let Err(err) = self.maybe_update_l1(&new_ratio, id).await {
+                            tracing::error!("Error updating L1 ratio: {:?}", err);
                         }
-                        Err(err) => tracing::error!("Error persisting ratio: {:?}", err),
                     }
-                }
+                    Err(err) => tracing::error!("Error persisting ratio: {:?}", err),
+                },
                 Err(err) => tracing::error!("Error fetching new ratio: {:?}", err),
             }
 
@@ -80,12 +79,14 @@ impl MainNodeBaseTokenAdjuster {
         &self,
         api_price: &BaseTokenAPIPrice,
         pool: &ConnectionPool<Core>,
-    ) -> anyhow::Result<(usize)> {
-        let mut conn = pool.connection_tagged("base_token_adjuster")
+    ) -> anyhow::Result<usize> {
+        let mut conn = pool
+            .connection_tagged("base_token_adjuster")
             .await
             .context("Failed to obtain connection to the database")?;
 
-        let id = conn.base_token_dal()
+        let id = conn
+            .base_token_dal()
             .insert_token_price(
                 &api_price.numerator,
                 &api_price.denominator,
@@ -98,7 +99,11 @@ impl MainNodeBaseTokenAdjuster {
     }
 
     // TODO (PE-128): Complete L1 update flow.
-    async fn maybe_update_l1(&self, _new_ratio: &BaseTokenAPIPrice, _id: usize) -> anyhow::Result<()> {
+    async fn maybe_update_l1(
+        &self,
+        _new_ratio: &BaseTokenAPIPrice,
+        _id: usize,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -115,28 +120,35 @@ impl MainNodeBaseTokenAdjuster {
     }
 }
 
+#[async_trait]
 impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
     // TODO (PE-129): Implement latest ratio usability logic.
-    async fn get_last_ratio_and_check_usability(&self) -> anyhow::Result<BigDecimal> {
-        let mut conn = self.pool.connection_tagged("base_token_adjuster")
+    async fn get_last_ratio_and_check_usability<'a>(&'a self) -> BigDecimal {
+        let mut conn = self
+            .pool
+            .connection_tagged("base_token_adjuster")
             .await
-            .context("Failed to obtain connection to the database")?;
+            .expect("Failed to obtain connection to the database");
 
-        let last_storage_ratio = conn.base_token_dal()
+        let last_storage_ratio = conn
+            .base_token_dal()
             .get_latest_price()
-            .await?;
+            .await
+            .expect("Failed to get latest base token price");
         drop(conn);
 
-        let last_ratio = last_storage_ratio.numerator.div(&last_storage_ratio.denominator);
+        let last_ratio = last_storage_ratio
+            .numerator
+            .div(&last_storage_ratio.denominator);
 
-        Ok(last_ratio)
+        last_ratio
     }
 
     /// Return configured symbol of the base token. If not configured, return "ETH".
-    fn get_base_token(&self) -> String {
-        match self.config.base_token.clone() {
-            Some(token) => token,
-            None => "ETH".to_string(),
+    fn get_base_token(&self) -> &str {
+        match &self.config.base_token {
+            Some(base_token) => base_token.as_str(),
+            None => "ETH",
         }
     }
 }

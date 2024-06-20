@@ -22,3 +22,4 @@ anyhow.workspace = true
 tracing.workspace = true
 chrono.workspace = true
 rand.workspace = true
+async-trait.workspace = true
