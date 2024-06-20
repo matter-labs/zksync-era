@@ -323,6 +323,7 @@ impl MainNodeBuilder {
             contracts_config,
             network_config.zksync_network_id,
             genesis_config.l1_batch_commit_data_generator_mode,
+            genesis_config.l1_chain_id,
         ));
         self.node
             .add_layer(EthTxManagerLayer::new(eth_sender_config));

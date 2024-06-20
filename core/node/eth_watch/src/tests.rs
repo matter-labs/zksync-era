@@ -11,7 +11,7 @@ use zksync_types::{
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
     web3::{BlockNumber, Log},
-    Address, Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
+    Address, Execute, L1ChainId, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
     ProtocolVersionId, Transaction, H256, U256,
 };
 
@@ -135,6 +135,10 @@ impl EthClient for MockEthClient {
     async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
+
+    fn get_chain_id(&self) -> L1ChainId {
+        L1ChainId(9)
+    }
 }
 
 fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
@@ -180,10 +184,7 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
             upgrade_id: id,
             sender: [1u8; 20].into(),
             eth_block,
-            gas_limit: Default::default(),
-            max_fee_per_gas: Default::default(),
             gas_per_pubdata_limit: 1u32.into(),
-            refund_recipient: Address::zero(),
             to_mint: Default::default(),
             canonical_tx_hash: H256::zero(),
         },

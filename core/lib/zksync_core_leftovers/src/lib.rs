@@ -643,6 +643,7 @@ pub async fn initialize_components(
             contracts_config.l1_multicall3_addr,
             diamond_proxy_addr,
             l2_chain_id,
+            l1_chain_id,
             operator_blobs_address,
         )
         .await;

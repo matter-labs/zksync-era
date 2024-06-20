@@ -10,7 +10,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     ethabi::Contract, protocol_version::ProtocolSemanticVersion,
-    web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
+    web3::BlockNumber as Web3BlockNumber, Address, L1BlockNumber, PriorityOpId,
 };
 
 pub use self::client::EthHttpQueryClient;
@@ -104,7 +104,7 @@ impl EthWatch {
 
         let last_processed_ethereum_block = match storage
             .transactions_dal()
-            .get_last_processed_l1_block()
+            .get_last_processed_l1_block(client.get_chain_id())
             .await?
         {
             // There are some priority ops processed - start from the last processed eth block
@@ -192,6 +192,16 @@ impl EthWatch {
                 .await?;
         }
         self.last_processed_ethereum_block = to_block;
+
+        storage
+            .transactions_dal()
+            .save_last_processed_l1_block(
+                self.client.get_chain_id(),
+                L1BlockNumber(self.last_processed_ethereum_block as u32),
+            )
+            .await
+            .map_err(|err| EventProcessorError::Internal(err.into()))?;
+
         Ok(())
     }
 }

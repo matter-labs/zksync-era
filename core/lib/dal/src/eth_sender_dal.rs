@@ -6,7 +6,8 @@ use zksync_db_connection::{connection::Connection, interpolate_query, match_quer
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
-    Address, L1BatchNumber, H256, U256,
+    network::Network,
+    Address, L1BatchNumber, L1ChainId, H256, U256,
 };
 
 use crate::{
@@ -185,6 +186,7 @@ impl EthSenderDal<'_, '_> {
         predicted_gas_cost: u32,
         from_address: Option<Address>,
         blob_sidecar: Option<EthTxBlobSidecar>,
+        chain_id: L1ChainId,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
@@ -200,10 +202,11 @@ impl EthSenderDal<'_, '_> {
                     created_at,
                     updated_at,
                     from_addr,
-                    blob_sidecar
+                    blob_sidecar,
+                    chain_id
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7)
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8)
             RETURNING
                 *
             "#,
@@ -215,6 +218,7 @@ impl EthSenderDal<'_, '_> {
             from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
+            chain_id.0 as i64,
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -545,14 +549,20 @@ impl EthSenderDal<'_, '_> {
     ///   operator address which is not the "main" one. For example, a separate custom operator
     ///   sends the blob transactions. For such a case this should be `Some`. For requesting the
     ///   none of the main operator this parameter should be set to `None`.
+    /// * `chain_id`: the chain id for which the nonce should be returned
     pub async fn get_next_nonce(
         &mut self,
         from_address: Option<Address>,
+        chain_id: L1ChainId,
     ) -> sqlx::Result<Option<u64>> {
         struct NonceRow {
             nonce: i64,
         }
 
+        // We assume that the `eth_txs` table may have `chain_id` column as null only in case the network is an L1
+        // network that was used before the chain id was introduced.
+        // That's why if the chain id is known we should also allow it to be 0.
+        let is_known_l1 = Network::from_chain_id(chain_id).is_known_l1_network();
         let query = match_query_as!(
             NonceRow,
             [
@@ -560,9 +570,11 @@ impl EthSenderDal<'_, '_> {
                 _, // WHERE condition
                 " ORDER BY id DESC LIMIT 1"
             ],
-            match (from_address) {
-                Some(address) => ("from_addr = $1::bytea"; address.as_bytes()),
-                None => ("from_addr IS NULL";),
+            match ((from_address, is_known_l1)) {
+                (Some(address), true) => ("from_addr = $1::bytea AND (chain_id = $2 OR chain_id is NULL)"; address.as_bytes(), chain_id.0 as i64),
+                (Some(address), false) => ("from_addr = $1::bytea AND chain_id = $2"; address.as_bytes(), chain_id.0 as i64),
+                (None, true) => ("from_addr IS NULL AND (chain_id = $1 OR chain_id is NULL)"; chain_id.0 as i64),
+                (None, false) => ("from_addr IS NULL AND chain_id = $1"; chain_id.0 as i64),
             }
         );
 

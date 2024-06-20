@@ -18,6 +18,9 @@ pub struct StorageEthTx {
     pub confirmed_eth_tx_history_id: Option<i32>,
     pub gas_used: Option<i64>,
     pub predicted_gas_cost: i64,
+    // Chain id of the chain where the transaction was sent. Can be None for the old transactions.
+    // If `None`, it must be some sort of L1.
+    pub chain_id: Option<i64>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     // TODO (SMA-1614): remove the field

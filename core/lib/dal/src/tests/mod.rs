@@ -119,7 +119,6 @@ pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
         gas_per_pubdata_limit: 100.into(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),
-        eth_block: 1,
     };
 
     let execute = Execute {
@@ -264,10 +263,7 @@ async fn remove_stuck_txs() {
     // Stuck L1 tx. We should never ever remove L1 tx
     let mut tx = mock_l1_execute();
     tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
-    transactions_dal
-        .insert_transaction_l1(&tx, L1BlockNumber(1))
-        .await
-        .unwrap();
+    transactions_dal.insert_transaction_l1(&tx).await.unwrap();
 
     // Old executed tx
     let mut executed_tx = mock_l2_transaction();

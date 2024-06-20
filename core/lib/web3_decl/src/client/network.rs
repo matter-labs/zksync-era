@@ -32,6 +32,14 @@ impl From<L1ChainId> for L1 {
     }
 }
 
+impl TryFrom<L1> for L1ChainId {
+    type Error = ();
+
+    fn try_from(value: L1) -> Result<Self, Self::Error> {
+        value.0.ok_or(())
+    }
+}
+
 /// L2 network.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct L2(Option<L2ChainId>);

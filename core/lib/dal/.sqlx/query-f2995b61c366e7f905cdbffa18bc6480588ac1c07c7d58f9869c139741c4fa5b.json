@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                eth_watcher_state (chain_id, last_seen_block_number)\n            VALUES\n                ($1, $2)\n            ON CONFLICT (chain_id) DO\n            UPDATE\n            SET\n                last_seen_block_number = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f2995b61c366e7f905cdbffa18bc6480588ac1c07c7d58f9869c139741c4fa5b"
+}

@@ -9,7 +9,7 @@ use zksync_eth_client::{
 use zksync_types::{
     ethabi::Contract,
     web3::{BlockId, BlockNumber, FilterBuilder, Log},
-    Address, H256,
+    Address, L1ChainId, H256,
 };
 
 /// L1 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
@@ -29,6 +29,8 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         -> Result<H256, ContractCallError>;
     /// Sets list of topics to return events for.
     fn set_topics(&mut self, topics: Vec<H256>);
+
+    fn get_chain_id(&self) -> L1ChainId;
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -46,6 +48,7 @@ pub struct EthHttpQueryClient {
     state_transition_manager_address: Option<Address>,
     verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
+    chain_id: L1ChainId,
 }
 
 impl EthHttpQueryClient {
@@ -61,6 +64,13 @@ impl EthHttpQueryClient {
             diamond_proxy_addr,
             governance_address
         );
+
+        let chain_id = client
+            .network()
+            .try_into()
+            .ok()
+            .expect("Failed to retrieve chain ID from client");
+
         Self {
             client: client.for_component("watch"),
             topics: Vec::new(),
@@ -69,6 +79,7 @@ impl EthHttpQueryClient {
             governance_address,
             verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
+            chain_id,
         }
     }
 
@@ -208,5 +219,9 @@ impl EthClient for EthHttpQueryClient {
 
     fn set_topics(&mut self, topics: Vec<H256>) {
         self.topics = topics;
+    }
+
+    fn get_chain_id(&self) -> L1ChainId {
+        self.chain_id
     }
 }
