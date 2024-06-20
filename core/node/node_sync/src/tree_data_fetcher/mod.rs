@@ -22,6 +22,7 @@ use self::{
     metrics::{ProcessingStage, TreeDataFetcherMetrics, METRICS},
     provider::{L1DataProvider, MissingData, TreeDataProvider},
 };
+use crate::tree_data_fetcher::provider::CombinedDataProvider;
 
 mod metrics;
 mod provider;
@@ -30,7 +31,7 @@ mod tests;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum TreeDataFetcherError {
-    #[error("error fetching data from main node")]
+    #[error("error fetching data")]
     Rpc(#[from] EnrichedClientError),
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
@@ -95,7 +96,7 @@ enum StepOutcome {
 /// by Consistency checker.
 #[derive(Debug)]
 pub struct TreeDataFetcher {
-    data_provider: Box<dyn TreeDataProvider>,
+    data_provider: CombinedDataProvider,
     // Used in the Info metric
     diamond_proxy_address: Option<Address>,
     pool: ConnectionPool<Core>,
@@ -112,7 +113,7 @@ impl TreeDataFetcher {
     /// Creates a new fetcher connected to the main node.
     pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
         Self {
-            data_provider: Box::new(client.for_component("tree_data_fetcher")),
+            data_provider: CombinedDataProvider::new(client.for_component("tree_data_fetcher")),
             diamond_proxy_address: None,
             pool,
             metrics: &METRICS,
@@ -140,7 +141,7 @@ impl TreeDataFetcher {
             eth_client.for_component("tree_data_fetcher"),
             diamond_proxy_address,
         )?;
-        self.data_provider = Box::new(l1_provider.with_fallback(self.data_provider));
+        self.data_provider.set_l1(l1_provider);
         self.diamond_proxy_address = Some(diamond_proxy_address);
         Ok(self)
     }
@@ -212,14 +213,11 @@ impl TreeDataFetcher {
             .await?;
         stage_latency.observe();
         let root_hash = match root_hash_result {
-            Ok(output) => {
+            Ok(root_hash) => {
                 tracing::debug!(
-                    "Received root hash for L1 batch #{l1_batch_to_fetch} from {source:?}: {root_hash:?}",
-                    source = output.source,
-                    root_hash = output.root_hash
+                    "Received root hash for L1 batch #{l1_batch_to_fetch}: {root_hash:?}"
                 );
-                self.metrics.root_hash_sources[&output.source].inc();
-                output.root_hash
+                root_hash
             }
             Err(MissingData::Batch) => {
                 let err = anyhow::anyhow!(

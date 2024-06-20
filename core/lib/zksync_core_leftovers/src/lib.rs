@@ -78,7 +78,7 @@ use zksync_web3_decl::client::{Client, DynClient, L1};
 
 pub mod temp_config_store;
 
-/// Inserts the initial information about zkSync tokens into the database.
+/// Inserts the initial information about ZKsync tokens into the database.
 pub async fn genesis_init(
     genesis_config: GenesisConfig,
     database_secrets: &DatabaseSecrets,

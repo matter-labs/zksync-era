@@ -3,7 +3,7 @@
 The EVM CREATE instructions are handled similarly.
 
 For more information, see the
-[zkSync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#create-create2).
+[ZKsync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#create-create2).
 
 ## [CREATE](https://www.evm.codes/#f0?fork=shanghai)
 

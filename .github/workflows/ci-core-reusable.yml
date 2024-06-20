@@ -53,6 +53,7 @@ jobs:
       - name: Init
         run: |
           ci_run zk
+          ci_run run_retried rustup show
           ci_run zk run yarn
           ci_run zk db setup
           ci_run zk compiler all
@@ -192,6 +193,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
+          ci_run run_retried rustup show
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
@@ -333,6 +335,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
+          ci_run run_retried rustup show
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
             ci_run zk config compile
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then

@@ -93,7 +93,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
     }
 }
 
-/// Block unified identifier in terms of zkSync
+/// Block unified identifier in terms of ZKsync
 ///
 /// This is an utility structure that cannot be (de)serialized, it has to be created manually.
 /// The reason is because Web3 API provides multiple methods for referring block either by hash or number,
@@ -765,6 +765,8 @@ pub struct BlockDetailsBase {
     pub executed_at: Option<DateTime<Utc>>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    // Cost of publishing one byte (in wei).
+    pub fair_pubdata_price: Option<u64>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
 }
 
