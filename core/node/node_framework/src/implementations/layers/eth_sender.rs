@@ -18,6 +18,21 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `eth_txs` managing
+///
+/// Responsible for initialization and running [`EthTxManager`] component, that manages sending
+/// of `eth_txs`(such as `CommitBlocks`, `PublishProofBlocksOnchain` or `ExecuteBlock` ) to L1.
+///
+/// ## Requests resources
+/// - [`PoolResource`] for [`MasterPool`]
+/// - [`PoolResource`] for [`ReplicaPool`]
+/// - [`BoundEthInterfaceResource`]
+/// - [`BoundEthInterfaceForBlobsResource`]
+/// - [`L1TxParamsResource`]
+/// - [`CircuitBreakersResource`] (to add new circuit breaker)
+///
+/// ## Adds tasks
+/// - [`EthTxManagerTask`] (as [`Task`])
 #[derive(Debug)]
 pub struct EthTxManagerLayer {
     eth_sender_config: EthConfig,
@@ -78,6 +93,22 @@ impl WiringLayer for EthTxManagerLayer {
     }
 }
 
+/// Wiring layer for aggregating l1 batches into `eth_txs`
+///
+/// Responsible for initialization and running of [`EthTxAggregator`], that aggregates L1 batches
+/// into `eth_txs`(such as `CommitBlocks`, `PublishProofBlocksOnchain` or `ExecuteBlock`).
+/// These `eth_txs` will be used as a queue for generating signed txs and will be sent later on L1.
+///
+/// ## Requests resources
+/// - [`PoolResource`] for [`MasterPool`]
+/// - [`PoolResource`] for [`ReplicaPool`]
+/// - [`BoundEthInterfaceResource`]
+/// - [`BoundEthInterfaceForBlobsResource`]
+/// - [`ObjectStoreResource`]
+/// - [`CircuitBreakersResource`] (to add new circuit breaker)
+///
+/// ## Adds tasks
+/// - [`EthTxAggregatorTask`] (as [`Task`])
 #[derive(Debug)]
 pub struct EthTxAggregatorLayer {
     eth_sender_config: EthConfig,
