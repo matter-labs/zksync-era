@@ -17,7 +17,6 @@ use config::{
 };
 use xshell::{cmd, Shell};
 
-use super::args::init::InitArgsFinal;
 use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
