@@ -47,10 +47,6 @@ struct Cli {
     /// application must be run inside an enclave.
     #[arg(long)]
     simulation: bool,
-
-    /// The URL of the TEE prover interface API.
-    #[arg(long)]
-    endpoint_url: String,
 }
 
 /// This application is a TEE verifier (a.k.a. a prover, or worker) that interacts with three
@@ -121,8 +117,8 @@ async fn main() -> anyhow::Result<()> {
         attestation: attestation_quote_bytes,
         pubkey: key_pair.public_key().serialize().to_vec(),
     };
-    let attestation_endpoint =
-        Url::parse(opt.endpoint_url.as_str())?.join(REGISTER_ATTESTATION_ENDPOINT)?;
+    let api_url = Url::parse(config.api_url.as_str())?;
+    let attestation_endpoint = api_url.join(REGISTER_ATTESTATION_ENDPOINT)?;
     let tee_attestation_response = http_client
         .post(attestation_endpoint)
         .json(&attestation_request)
@@ -142,7 +138,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Create TEE verifier input fetcher
 
-    let api_url = Url::parse(config.api_url.as_str())?;
     let proof_gen_data_fetcher = PeriodicApiStruct {
         api_url: api_url.join(PROOF_GENERATION_DATA_ENDPOINT)?.into(),
         poll_duration: config.api_poll_duration(),
