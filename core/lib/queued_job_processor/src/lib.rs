@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Context as _;
 pub use async_trait::async_trait;
-use tokio::{sync::watch, task::JoinHandle, time::sleep};
+use tokio::{sync::watch, task::JoinHandle};
 use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
@@ -57,7 +57,7 @@ pub trait JobProcessor: Sync + Send {
     /// To process a batch, pass `Some(batch_size)`.
     async fn run(
         self,
-        stop_receiver: watch::Receiver<bool>,
+        mut stop_receiver: watch::Receiver<bool>,
         mut iterations_left: Option<usize>,
     ) -> anyhow::Result<()>
     where
@@ -86,7 +86,7 @@ pub trait JobProcessor: Sync + Send {
                 );
                 let task = self.process_job(&job_id, job, started_at).await;
 
-                self.wait_for_task(job_id, started_at, task)
+                self.wait_for_task(job_id, started_at, task, &mut stop_receiver)
                     .await
                     .context("wait_for_task")?;
             } else if iterations_left.is_some() {
@@ -94,7 +94,10 @@ pub trait JobProcessor: Sync + Send {
                 return Ok(());
             } else {
                 tracing::trace!("Backing off for {} ms", backoff);
-                sleep(Duration::from_millis(backoff)).await;
+                // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+                tokio::time::timeout(Duration::from_millis(backoff), stop_receiver.changed())
+                    .await
+                    .ok();
                 backoff = (backoff * Self::BACKOFF_MULTIPLIER).min(Self::MAX_BACKOFF_MS);
             }
         }
@@ -108,6 +111,7 @@ pub trait JobProcessor: Sync + Send {
         job_id: Self::JobId,
         started_at: Instant,
         task: JoinHandle<anyhow::Result<Self::JobArtifacts>>,
+        stop_receiver: &mut watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let attempts = self.get_job_attempts(&job_id).await?;
         let max_attempts = self.max_attempts();
@@ -130,7 +134,17 @@ pub trait JobProcessor: Sync + Send {
             if task.is_finished() {
                 break task.await;
             }
-            sleep(Duration::from_millis(Self::POLLING_INTERVAL_MS)).await;
+            if tokio::time::timeout(
+                Duration::from_millis(Self::POLLING_INTERVAL_MS),
+                stop_receiver.changed(),
+            )
+            .await
+            .is_err()
+            {
+                // Stop signal received, return early.
+                // Exit will be processed/reported by the main loop.
+                return Ok(());
+            }
         };
         let error_message = match result {
             Ok(Ok(data)) => {
