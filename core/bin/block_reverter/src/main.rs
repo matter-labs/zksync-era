@@ -92,7 +92,9 @@ async fn main() -> anyhow::Result<()> {
         .parse()
         .context("Invalid log format")?;
 
-    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new()
+        .with_log_format(log_format)
+        .disable_default_logs(); // It's a CLI application, so we only need to show logs that were actually requested.
     if let Some(sentry_url) = observability_config.sentry_url {
         builder = builder
             .with_sentry_url(&sentry_url)
