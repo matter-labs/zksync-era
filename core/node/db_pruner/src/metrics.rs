@@ -5,7 +5,8 @@ use zksync_dal::pruning_dal::HardPruningStats;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "prune_type", rename_all = "snake_case")]
-pub(super) enum MetricPruneType {
+pub(super) enum PruneType {
+    NoOp,
     Soft,
     Hard,
 }
@@ -30,7 +31,7 @@ const ENTITY_COUNT_BUCKETS: Buckets = Buckets::values(&[
 pub(super) struct DbPrunerMetrics {
     /// Total latency of pruning chunk of L1 batches.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
-    pub pruning_chunk_duration: Family<MetricPruneType, Histogram<Duration>>,
+    pub pruning_chunk_duration: Family<PruneType, Histogram<Duration>>,
     /// Number of not-pruned L1 batches.
     pub not_pruned_l1_batches_count: Gauge<u64>,
     /// Number of entities deleted during a single hard pruning iteration, grouped by entity type.
