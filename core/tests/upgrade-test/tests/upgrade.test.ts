@@ -5,7 +5,7 @@ import * as ethers from 'ethers';
 import { expect } from 'chai';
 import fs from 'fs';
 import { BytesLike } from '@ethersproject/bytes';
-import { IZkSyncStateTransition } from 'zksync-ethers/build/typechain';
+import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
 const L1_DEFAULT_UPGRADE_ABI = new ethers.Interface(
@@ -35,7 +35,7 @@ describe('Upgrade test', function () {
     let tester: Tester;
     let alice: zksync.Wallet;
     let govWallet: ethers.Wallet;
-    let mainContract: IZkSyncStateTransition;
+    let mainContract: IZkSyncHyperchain;
     let governanceContract: ethers.Contract;
     let bootloaderHash: string;
     let scheduleTransparentOperation: string;
