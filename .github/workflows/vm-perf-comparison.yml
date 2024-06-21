@@ -46,7 +46,7 @@ jobs:
         run: |
           ci_run zk
           ci_run zk compiler system-contracts
-          ci_run cargo bench --package vm_benchmark --bench iai | tee base-iai
+          ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
           ci_run cargo run --package vm-benchmark --release --bin instruction-counts | tee base-opcodes || touch base-opcodes
           ci_run yarn workspace system-contracts clean
 

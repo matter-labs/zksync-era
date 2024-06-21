@@ -3,6 +3,7 @@ name = "zksync_vm_benchmark_harness"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 
 [dependencies]
 zksync_multivm.workspace = true
