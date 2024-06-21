@@ -1,6 +1,7 @@
 use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
+use bigdecimal::{BigDecimal, ToPrimitive};
 use zksync_base_token_adjuster::BaseTokenAdjuster;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
@@ -26,7 +27,7 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
         l1_gas_price_scale_factor: f64,
         l1_pubdata_price_scale_factor: f64,
     ) -> anyhow::Result<BatchFeeInput> {
-        let params = self.get_fee_model_params();
+        let params = self.get_fee_model_params().await?;
 
         Ok(match params {
             FeeParams::V1(params) => BatchFeeInput::L1Pegged(compute_batch_fee_model_input_v1(
@@ -43,8 +44,8 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
         })
     }
 
-    /// Returns the fee model parameters.
-    fn get_fee_model_params(&self) -> FeeParams;
+    /// Returns the fee model parameters using the denomination of the base token used (WEI for ETH).
+    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams>;
 }
 
 impl dyn BatchFeeModelInputProvider {
@@ -64,18 +65,36 @@ pub struct MainNodeFeeInputProvider {
     config: FeeModelConfig,
 }
 
+#[async_trait::async_trait]
 impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
-    fn get_fee_model_params(&self) -> FeeParams {
+    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
         match self.config {
-            FeeModelConfig::V1(config) => FeeParams::V1(FeeParamsV1 {
+            FeeModelConfig::V1(config) => Ok(FeeParams::V1(FeeParamsV1 {
                 config,
                 l1_gas_price: self.provider.estimate_effective_gas_price(),
-            }),
-            FeeModelConfig::V2(config) => FeeParams::V2(FeeParamsV2 {
-                config,
-                l1_gas_price: self.provider.estimate_effective_gas_price(),
-                l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
-            }),
+            })),
+            FeeModelConfig::V2(config) => {
+                let params = FeeParamsV2 {
+                    config,
+                    l1_gas_price: self.provider.estimate_effective_gas_price(),
+                    l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
+                };
+
+                let base_token = self.base_token_adjuster.get_base_token();
+                match base_token {
+                    "ETH" => Ok(FeeParams::V2(params)),
+                    _ => {
+                        let base_token_conversion_ratio = self
+                            .base_token_adjuster
+                            .get_last_ratio_and_check_usability()
+                            .await;
+                        Ok(FeeParams::V2(convert_to_base_token(
+                            params,
+                            base_token_conversion_ratio,
+                        )))
+                    }
+                }
+            }
         }
     }
 }
@@ -91,6 +110,52 @@ impl MainNodeFeeInputProvider {
             base_token_adjuster,
             config,
         }
+    }
+}
+
+fn convert_to_base_token(
+    params: FeeParamsV2,
+    base_token_conversion_ratio: BigDecimal,
+) -> FeeParamsV2 {
+    let FeeParamsV2 {
+        config,
+        l1_gas_price,
+        l1_pubdata_price,
+    } = params;
+
+    let convert_price = |price_in_wei: u64, eth_to_base_token_ratio: &BigDecimal| -> u64 {
+        let converted_price_bd = BigDecimal::from(price_in_wei) * eth_to_base_token_ratio;
+        match converted_price_bd.to_u64() {
+            Some(converted_price) => converted_price,
+            None => {
+                if converted_price_bd > BigDecimal::from(u64::MAX) {
+                    tracing::warn!(
+                        "Conversion to base token price failed: converted price is too large: {}",
+                        converted_price_bd
+                    );
+                } else {
+                    tracing::error!(
+                        "Conversion to base token price failed: converted price is not a valid u64: {}",
+                        converted_price_bd
+                    );
+                }
+                u64::MAX
+            }
+        }
+    };
+
+    let l1_gas_price_converted = convert_price(l1_gas_price, &base_token_conversion_ratio);
+    let l1_pubdata_price_converted = convert_price(l1_pubdata_price, &base_token_conversion_ratio);
+    let minimal_l2_gas_price_converted =
+        convert_price(config.minimal_l2_gas_price, &base_token_conversion_ratio);
+
+    FeeParamsV2 {
+        config: FeeModelConfigV2 {
+            minimal_l2_gas_price: minimal_l2_gas_price_converted,
+            ..config
+        },
+        l1_gas_price: l1_gas_price_converted,
+        l1_pubdata_price: l1_pubdata_price_converted,
     }
 }
 
@@ -140,8 +205,8 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
     }
 
     /// Returns the fee model parameters.
-    fn get_fee_model_params(&self) -> FeeParams {
-        self.inner.get_fee_model_params()
+    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
+        self.inner.get_fee_model_params().await
     }
 }
 
@@ -237,9 +302,10 @@ impl Default for MockBatchFeeParamsProvider {
     }
 }
 
+#[async_trait::async_trait]
 impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
-    fn get_fee_model_params(&self) -> FeeParams {
-        self.0
+    async fn get_fee_model_params<'a>(&'a self) -> anyhow::Result<FeeParams> {
+        Ok(self.0)
     }
 }
 

@@ -1,11 +1,12 @@
+use std::{
+    fmt::Debug,
+    ops::Div,
+    time::{Duration, Instant},
+};
+
 use anyhow::Context as _;
 use async_trait::async_trait;
 use chrono::Utc;
-use std::ops::Div;
-use std::{
-    fmt::Debug,
-    time::{Duration, Instant},
-};
 use tokio::sync::watch;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};

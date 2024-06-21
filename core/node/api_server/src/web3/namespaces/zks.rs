@@ -450,12 +450,14 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_fee_params_impl(&self) -> FeeParams {
-        self.state
+    pub async fn get_fee_params_impl(&self) -> Result<FeeParams, Web3Error> {
+        Ok(self
+            .state
             .tx_sender
             .0
             .batch_fee_input_provider
             .get_fee_model_params()
+            .await?)
     }
 
     pub async fn get_protocol_version_impl(
