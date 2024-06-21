@@ -12,3 +12,8 @@ message DB {
   optional uint64 processing_delay_ms = 4;
   optional bool include_indices_and_filters_in_block_cache = 5;
 }
+
+// Experimental part of the Snapshot recovery configuration.
+message SnapshotRecovery {
+  optional uint64 tree_recovery_parallel_persistence_buffer = 1;
+}

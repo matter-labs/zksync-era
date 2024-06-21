@@ -10,26 +10,6 @@ use zksync_protobuf::ProtoRepr;
 
 use crate::{proto::snapshot_recovery as proto, read_optional_repr};
 
-impl ProtoRepr for proto::Tree {
-    type Type = TreeRecoveryConfig;
-
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            chunk_size: self.chunk_size,
-            parallel_persistence_buffer: self
-                .parallel_persistence_buffer
-                .and_then(|a| NonZeroUsize::new(a as usize)),
-        })
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            chunk_size: this.chunk_size,
-            parallel_persistence_buffer: this.parallel_persistence_buffer.map(|a| a.get() as u64),
-        }
-    }
-}
-
 impl ProtoRepr for proto::Postgres {
     type Type = PostgresRecoveryConfig;
 
@@ -52,11 +32,29 @@ impl ProtoRepr for proto::SnapshotRecovery {
     type Type = SnapshotRecoveryConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
+        let tree = self
+            .tree
+            .as_ref()
+            .map(|tree| {
+                let chunk_size = tree.chunk_size;
+                let parallel_persistence_buffer = self
+                    .experimental
+                    .as_ref()
+                    .and_then(|a| {
+                        a.tree_recovery_parallel_persistence_buffer
+                            .map(|a| NonZeroUsize::new(a as usize))
+                    })
+                    .flatten();
+                TreeRecoveryConfig {
+                    chunk_size,
+                    parallel_persistence_buffer,
+                }
+            })
+            .unwrap_or_default();
+
         Ok(Self::Type {
             enabled: self.enabled.unwrap_or_default(),
-            tree: read_optional_repr(&self.tree)
-                .context("tree")?
-                .unwrap_or_default(),
+            tree,
             postgres: read_optional_repr(&self.postgres)
                 .context("postgres")?
                 .unwrap_or_default(),
@@ -65,10 +63,20 @@ impl ProtoRepr for proto::SnapshotRecovery {
     }
 
     fn build(this: &Self::Type) -> Self {
-        let tree = if this.tree == TreeRecoveryConfig::default() {
-            None
+        let (tree, experimental) = if this.tree == TreeRecoveryConfig::default() {
+            (None, None)
         } else {
-            Some(this.tree.clone())
+            (
+                Some(proto::Tree {
+                    chunk_size: this.tree.chunk_size,
+                }),
+                Some(crate::proto::experimental::SnapshotRecovery {
+                    tree_recovery_parallel_persistence_buffer: this
+                        .tree
+                        .parallel_persistence_buffer
+                        .map(|a| a.get() as u64),
+                }),
+            )
         };
         let postgres = if this.postgres == PostgresRecoveryConfig::default() {
             None
@@ -78,7 +86,8 @@ impl ProtoRepr for proto::SnapshotRecovery {
         Self {
             enabled: Some(this.enabled),
             postgres: postgres.as_ref().map(ProtoRepr::build),
-            tree: tree.as_ref().map(ProtoRepr::build),
+            tree,
+            experimental,
             l1_batch: this.l1_batch.map(|a| a.0),
         }
     }
