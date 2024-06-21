@@ -182,6 +182,7 @@ impl ZkStackService {
                 ))
             }
         };
+        tracing::info!("One of the task has exited, shutting down the node");
 
         let remaining_tasks_with_timeout: Vec<_> = remaining
             .into_iter()

@@ -106,7 +106,11 @@ impl<'a> ServiceContext<'a> {
         name: &'static str,
         hook: impl ShutdownHookFn,
     ) -> &mut Self {
-        tracing::info!("Layer {} has added a new shutdown hook", self.layer);
+        tracing::info!(
+            "Layer {} has added a new shutdown hook: {}",
+            self.layer,
+            name
+        );
         self.service
             .runnables
             .shutdown_hooks
