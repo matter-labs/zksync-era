@@ -33,7 +33,7 @@ mod wallets;
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
-use zksync_protobuf::ProtoRepr;
+use zksync_protobuf::{repr::encode, serde::serialize_proto, ProtoRepr};
 use zksync_types::{H160, H256};
 
 fn parse_h256(bytes: &str) -> anyhow::Result<H256> {
@@ -56,4 +56,11 @@ pub fn decode_yaml_repr<T: ProtoRepr>(
     let d = serde_yaml::Deserializer::from_str(&yaml);
     let this: T = zksync_protobuf::serde::deserialize_proto_with_options(d, deny_unknown_fields)?;
     this.read()
+}
+
+pub fn encode_yaml_repr<T: ProtoRepr>(value: &T::Type) -> anyhow::Result<Vec<u8>> {
+    let mut buffer = vec![];
+    let mut s = serde_yaml::Serializer::new(&mut buffer);
+    serialize_proto(&encode::<T>(value), &mut s)?;
+    Ok(buffer)
 }

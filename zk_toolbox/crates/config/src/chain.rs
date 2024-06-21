@@ -9,7 +9,7 @@ use types::{
 };
 use xshell::Shell;
 use zksync_config::configs::GeneralConfig;
-use zksync_protobuf_config::decode_yaml_repr;
+use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 use crate::{
     consts::{
@@ -99,6 +99,15 @@ impl ChainConfig {
             &self.configs.join(GENERAL_FILE),
             false,
         )
+    }
+
+    pub fn save_general_config(&self, general_config: &GeneralConfig) -> anyhow::Result<()> {
+        let path = self.configs.join(GENERAL_FILE);
+        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
+            general_config,
+        )?;
+        self.get_shell().write_file(&path, bytes)?;
+        Ok(())
     }
 
     pub fn path_to_foundry(&self) -> PathBuf {
