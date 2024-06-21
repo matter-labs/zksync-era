@@ -7127,6 +7127,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "vm-benchmark"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "iai",
+ "metrics-exporter-prometheus",
+ "tokio",
+ "vise",
+ "zksync_vm_benchmark_harness",
+]
+
+[[package]]
 name = "walkdir"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9247,18 +9259,6 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "zksync_vm_benchmark"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "iai",
- "metrics-exporter-prometheus",
- "tokio",
- "vise",
- "zksync_vm_benchmark_harness",
 ]
 
 [[package]]

@@ -35,6 +35,6 @@ jobs:
 
       - name: run benchmarks
         run: |
-          ci_run cargo bench --package zksync_vm_benchmark --bench diy_benchmark
-          ci_run cargo bench --package zksync_vm_benchmarkk --bench iai | tee iai-result
-          ci_run cargo run --package zksync_vm_benchmark --bin iai_results_to_prometheus --release < iai-result
+          ci_run cargo bench --package vm-benchmark --bench diy_benchmark
+          ci_run cargo bench --package vm-benchmarkk --bench iai | tee iai-result
+          ci_run cargo run --package vm-benchmark --bin iai_results_to_prometheus --release < iai-result
