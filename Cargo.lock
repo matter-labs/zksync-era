@@ -7023,9 +7023,9 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "iai",
- "prometheus_exporter",
  "tokio",
  "vise",
+ "zksync_prometheus_exporter",
  "zksync_vm_benchmark_harness",
 ]
 
@@ -8731,8 +8731,6 @@ name = "zksync_prometheus_exporter"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "metrics",
- "metrics-exporter-prometheus",
  "tokio",
  "vise",
  "vise-exporter",

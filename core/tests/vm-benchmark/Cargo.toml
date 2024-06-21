@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 zksync_vm_benchmark_harness.workspace = true
-metrics-exporter-prometheus.workspace = true
+zksync_prometheus_exporter.workspace = true
 vise.workspace = true
 tokio.workspace = true
 
