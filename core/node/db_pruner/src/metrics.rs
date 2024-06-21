@@ -1,7 +1,11 @@
 use std::time::Duration;
 
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit};
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit,
+};
 use zksync_dal::pruning_dal::HardPruningStats;
+
+use crate::prune_conditions::PruneCondition;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "prune_type", rename_all = "snake_case")]
@@ -22,6 +26,20 @@ enum PrunedEntityType {
     CallTrace,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub(crate) enum ConditionOutcome {
+    Success,
+    Fail,
+    Error,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct ConditionOutcomeLabels {
+    condition: &'static str,
+    outcome: ConditionOutcome,
+}
+
 const ENTITY_COUNT_BUCKETS: Buckets = Buckets::values(&[
     1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0,
     20_000.0, 50_000.0, 100_000.0,
@@ -38,6 +56,8 @@ pub(super) struct DbPrunerMetrics {
     /// Number of entities deleted during a single hard pruning iteration, grouped by entity type.
     #[metrics(buckets = ENTITY_COUNT_BUCKETS)]
     deleted_entities: Family<PrunedEntityType, Histogram<u64>>,
+    /// Number of times a certain condition has resulted in a specific outcome (succeeded, failed, or errored).
+    condition_outcomes: Family<ConditionOutcomeLabels, Counter>,
 }
 
 impl DbPrunerMetrics {
@@ -62,6 +82,14 @@ impl DbPrunerMetrics {
         self.deleted_entities[&PrunedEntityType::Event].observe(deleted_events);
         self.deleted_entities[&PrunedEntityType::L2ToL1Log].observe(deleted_l2_to_l1_logs);
         self.deleted_entities[&PrunedEntityType::CallTrace].observe(deleted_call_traces);
+    }
+
+    pub fn observe_condition(&self, condition: &dyn PruneCondition, outcome: ConditionOutcome) {
+        let labels = ConditionOutcomeLabels {
+            condition: condition.metric_label(),
+            outcome,
+        };
+        self.condition_outcomes[&labels].inc();
     }
 }
 

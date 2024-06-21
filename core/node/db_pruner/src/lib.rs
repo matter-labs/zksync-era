@@ -13,7 +13,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use self::{
-    metrics::{PruneType, METRICS},
+    metrics::{ConditionOutcome, PruneType, METRICS},
     prune_conditions::{
         ConsistencyCheckerProcessedBatch, L1BatchExistsCondition, L1BatchOlderThanPruneCondition,
         NextL1BatchHasMetadataCondition, NextL1BatchWasExecutedCondition, PruneCondition,
@@ -131,15 +131,24 @@ impl DbPruner {
         let mut errored_conditions = vec![];
 
         for condition in &self.prune_conditions {
-            match condition.is_batch_prunable(l1_batch_number).await {
-                Ok(true) => successful_conditions.push(condition.to_string()),
-                Ok(false) => failed_conditions.push(condition.to_string()),
+            let outcome = match condition.is_batch_prunable(l1_batch_number).await {
+                Ok(true) => {
+                    successful_conditions.push(condition.to_string());
+                    ConditionOutcome::Success
+                }
+                Ok(false) => {
+                    failed_conditions.push(condition.to_string());
+                    ConditionOutcome::Fail
+                }
                 Err(error) => {
                     errored_conditions.push(condition.to_string());
                     tracing::warn!("Pruning condition '{condition}' resulted in an error: {error}");
+                    ConditionOutcome::Error
                 }
-            }
+            };
+            METRICS.observe_condition(condition.as_ref(), outcome);
         }
+
         let result = failed_conditions.is_empty() && errored_conditions.is_empty();
         if !result {
             tracing::debug!(
