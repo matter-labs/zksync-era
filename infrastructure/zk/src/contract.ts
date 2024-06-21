@@ -46,7 +46,8 @@ const syncLayerEnvVars = [
     // 'SYNC_LAYER_L1_ERC20_BRIDGE_PROXY_ADDR',
     'CONTRACTS_STM_ASSET_INFO',
 
-    'SYNC_LAYER_DIAMOND_PROXY_ADDR'
+    'SYNC_LAYER_DIAMOND_PROXY_ADDR',
+    'SYNC_LAYER_L1_RELAYED_SL_DA_VALIDATOR'
 ];
 
 const USER_FACING_ENV_VARS = ['CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR', 'CONTRACTS_USER_FACING_BRIDGEHUB_PROXY_ADDR'];
@@ -96,6 +97,7 @@ async function migrateToSyncLayer() {
         `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer migrate-to-sync-layer | tee sync-layer-migration.log`
     );
 
+    // TODO: potentially switch `ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS` for local testing
     const migrationLog = fs
         .readFileSync('sync-layer-migration.log')
         .toString()
@@ -147,6 +149,7 @@ async function updateConfigOnSyncLayer() {
 
     env.modify(`ETH_SENDER_SENDER_IGNORE_DB_NONCE`, 'true', envFile, false);
     env.modify('CONTRACTS_BASE_NETWORK_ZKSYNC', 'true', envFile, false);
+    env.modify('ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS', '4294967295', envFile, false);
 
     // FIXME: while logically incorrect, it is temporarily needed to make the synclayer start
     fs.copyFileSync(
