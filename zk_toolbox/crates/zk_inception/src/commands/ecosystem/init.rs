@@ -314,7 +314,7 @@ async fn deploy_ecosystem_inner(
 
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    // forge.run(shell)?;
     spinner.finish();
 
     let script_output = DeployL1Output::read(
