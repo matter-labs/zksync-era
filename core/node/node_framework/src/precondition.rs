@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use tokio::sync::Barrier;
 
@@ -29,5 +29,13 @@ impl dyn Precondition {
                 Ok(())
             }
         }
+    }
+}
+
+impl fmt::Debug for dyn Precondition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Precondition")
+            .field("name", &self.id())
+            .finish()
     }
 }

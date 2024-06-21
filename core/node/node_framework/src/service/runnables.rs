@@ -7,10 +7,49 @@ use tokio::sync::Barrier;
 use super::StopReceiver;
 use crate::{
     precondition::Precondition,
-    task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
+    task::{OneshotTask, Task, TaskId, UnconstrainedOneshotTask, UnconstrainedTask},
 };
 
-pub type ShutdownHook = Box<dyn FnOnce() -> BoxFuture<'static, ()> + Send + Sync + 'static>;
+/// Alias for a shutdown hook function type.
+pub trait ShutdownHookFn:
+    FnOnce() -> BoxFuture<'static, anyhow::Result<()>> + Send + Sync + 'static
+{
+}
+
+impl<T> ShutdownHookFn for T where
+    T: FnOnce() -> BoxFuture<'static, anyhow::Result<()>> + Send + Sync + 'static
+{
+}
+
+pub struct ShutdownHook {
+    id: TaskId,
+    hook: Box<dyn ShutdownHookFn>,
+}
+
+impl ShutdownHook {
+    pub fn new(id: impl Into<TaskId>, hook: impl ShutdownHookFn) -> Self {
+        Self {
+            id: id.into(),
+            hook: Box::new(hook),
+        }
+    }
+
+    pub fn id(&self) -> &TaskId {
+        &self.id
+    }
+
+    pub async fn invoke(self) -> anyhow::Result<()> {
+        (self.hook)().await
+    }
+}
+
+impl fmt::Debug for ShutdownHook {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ShutdownHook")
+            .field("name", &self.id)
+            .finish()
+    }
+}
 
 /// A collection of different flavors of tasks.
 #[derive(Default)]
@@ -31,23 +70,16 @@ pub(super) struct Runnables {
 
 impl fmt::Debug for Runnables {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Macro that iterates over a `Vec`, invokes `.id()` method and collects the results into a `Vec<String>`.
-        // Returns a reference to created `Vec` to satisfy the `.field` method signature.
-        macro_rules! ids {
-            ($vec:expr) => {
-                &$vec.iter().map(|x| x.id()).collect::<Vec<_>>()
-            };
-        }
-
         f.debug_struct("Runnables")
-            .field("preconditions", ids!(self.preconditions))
-            .field("tasks", ids!(self.tasks))
-            .field("oneshot_tasks", ids!(self.oneshot_tasks))
-            .field("unconstrained_tasks", ids!(self.unconstrained_tasks))
+            .field("preconditions", &self.preconditions)
+            .field("tasks", &self.tasks)
+            .field("oneshot_tasks", &self.oneshot_tasks)
+            .field("unconstrained_tasks", &self.unconstrained_tasks)
             .field(
                 "unconstrained_oneshot_tasks",
-                ids!(self.unconstrained_oneshot_tasks),
+                &self.unconstrained_oneshot_tasks,
             )
+            .field("shutdown_hooks", &self.shutdown_hooks)
             .finish()
     }
 }

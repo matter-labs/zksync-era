@@ -118,34 +118,29 @@ impl WiringLayer for MetadataCalculatorLayer {
             metadata_calculator.tree_reader(),
         )))?;
 
-        let metadata_calculator_task = Box::new(MetadataCalculatorTask {
-            metadata_calculator,
+        context.add_task(Box::new(metadata_calculator));
+
+        context.add_shutdown_hook("rocksdb_terminaton", || {
+            Box::pin(async {
+                // Wait for all the instances of RocksDB to be destroyed.
+                tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+                    .await
+                    .context("failed terminating RocksDB instances")
+            })
         });
-        context.add_task(metadata_calculator_task);
 
         Ok(())
     }
 }
 
-#[derive(Debug)]
-pub struct MetadataCalculatorTask {
-    metadata_calculator: MetadataCalculator,
-}
-
 #[async_trait::async_trait]
-impl Task for MetadataCalculatorTask {
+impl Task for MetadataCalculator {
     fn id(&self) -> TaskId {
         "metadata_calculator".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let result = self.metadata_calculator.run(stop_receiver.0).await;
-
-        // Wait for all the instances of RocksDB to be destroyed.
-        tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
-            .await
-            .context("failed terminating RocksDB instances")?;
-        result
+        (*self).run(stop_receiver.0).await
     }
 }
 

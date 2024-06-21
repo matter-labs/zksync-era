@@ -8,7 +8,7 @@ use crate::{
     wiring_layer::WiringError,
 };
 
-use super::runnables::ShutdownHook;
+use super::runnables::{ShutdownHook, ShutdownHookFn};
 
 /// An interface to the service's resources provided to the tasks during initialization.
 /// Provides the ability to fetch required resources, and also gives access to the Tokio runtime handle.
@@ -101,9 +101,16 @@ impl<'a> ServiceContext<'a> {
     /// May be used to perform cleanup tasks.
     ///
     /// All the collected shutdown hooks will be invoked sequentially after all the node tasks are stopped.
-    pub fn add_shutdown_hook(&mut self, hook: ShutdownHook) -> &mut Self {
+    pub fn add_shutdown_hook(
+        &mut self,
+        name: &'static str,
+        hook: impl ShutdownHookFn,
+    ) -> &mut Self {
         tracing::info!("Layer {} has added a new shutdown hook", self.layer);
-        self.service.runnables.shutdown_hooks.push(hook);
+        self.service
+            .runnables
+            .shutdown_hooks
+            .push(ShutdownHook::new(name, hook));
         self
     }
 
