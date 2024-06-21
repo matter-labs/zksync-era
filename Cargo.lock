@@ -8640,7 +8640,6 @@ dependencies = [
  "serde",
  "serde_json",
  "strum",
- "strum_macros",
  "test-casing",
  "thiserror",
  "thread_local",

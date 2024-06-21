@@ -339,7 +339,8 @@ snapshot_recovery:
     max_concurrency: 10
   tree:
     chunk_size: 200000
-    parallel_persistence_buffer: 1
+  experimental:
+    tree_recovery_parallel_persistence_buffer: 1
 pruning:
   enabled: true
   chunk_size: 10
