@@ -188,7 +188,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
 
     pub(crate) fn with_rollup_pubdata_params(mut self, fixed_address: Option<Address>) -> Self {
         // We choose some random address to put the L2 DA validator to.
-        let l2_da_validator_address = fixed_address.unwrap_or_else(|| Address::random());
+        let l2_da_validator_address = fixed_address.unwrap_or_else(Address::random);
 
         let bytecode = l2_rollup_da_validator_bytecode();
 

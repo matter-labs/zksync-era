@@ -638,7 +638,7 @@ impl L1BatchCommitment {
             compressed_state_diffs,
             zkporter_is_available: self.meta_parameters.zkporter_is_available,
             aux_commitments: self.aux_commitments(),
-            state_diff_hash: state_diff_hash,
+            state_diff_hash,
             compressed_initial_writes,
             compressed_repeated_writes,
         }

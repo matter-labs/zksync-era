@@ -132,7 +132,7 @@ pub(crate) fn get_encoded_pubdata(
         ValidiumPubdataBuilder::new().build_pubdata(pubdata_information, l2_version)
     };
 
-    let pubdata = if l2_version {
+    if l2_version {
         ethabi::encode(&[
             ethabi::Token::Address(pubdata_params.l2_da_validator_address),
             ethabi::Token::Bytes(pubdata_bytes),
@@ -140,9 +140,7 @@ pub(crate) fn get_encoded_pubdata(
         .to_vec()
     } else {
         pubdata_bytes
-    };
-
-    pubdata
+    }
 }
 
 pub(crate) fn apply_pubdata_to_memory(
@@ -158,7 +156,8 @@ pub(crate) fn apply_pubdata_to_memory(
     let pubdata = get_encoded_pubdata(pubdata_information, pubdata_params, true);
 
     assert!(
-        pubdata.len() / 32 <= OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS - 1,
+        // Note that unlike the previous version, the difference is `1`, since now it also includes the offset
+        pubdata.len() / 32 < OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
         "The encoded pubdata is too big"
     );
 

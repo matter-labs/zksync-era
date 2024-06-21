@@ -205,6 +205,3 @@ pub(crate) const TX_MEMORY_OVERHEAD_GAS: u32 = 10;
 pub(crate) const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 pub const MAX_BLOBS_PER_BATCH: usize = 6;
 pub const MAX_VM_PUBDATA_PER_BATCH: usize = MAX_BLOBS_PER_BATCH * ZK_SYNC_BYTES_PER_BLOB;
-
-pub(crate) const L2_DA_VALIDATOR_OUTPUT_HASH_KEY: usize = 13;
-pub(crate) const USED_L2_DA_VALIDATOR_ADDRESS_KEY: usize = 14;

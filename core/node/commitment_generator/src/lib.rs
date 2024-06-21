@@ -484,7 +484,6 @@ fn pubdata_to_blob_linear_hashes(blobs_required: usize, mut pubdata_input: Vec<u
 
     pubdata_input
         .chunks(ZK_SYNC_BYTES_PER_BLOB)
-        .into_iter()
         .enumerate()
         .for_each(|(i, chunk)| {
             result[i] = H256(keccak256(chunk));

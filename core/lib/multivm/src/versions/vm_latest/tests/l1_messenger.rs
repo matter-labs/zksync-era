@@ -6,10 +6,7 @@ use zksync_utils::{address_to_h256, u256_to_h256};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
-        constants::{
-            L2_DA_VALIDATOR_OUTPUT_HASH_KEY, USED_L2_DA_VALIDATOR_ADDRESS_KEY,
-            ZK_SYNC_BYTES_PER_BLOB,
-        },
+        constants::ZK_SYNC_BYTES_PER_BLOB,
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
             utils::read_test_contract,
@@ -22,6 +19,17 @@ use crate::{
     },
 };
 
+pub(crate) const L2_DA_VALIDATOR_OUTPUT_HASH_KEY: usize = 13;
+pub(crate) const USED_L2_DA_VALIDATOR_ADDRESS_KEY: usize = 14;
+
+pub(crate) fn encoded_uncompressed_state_diffs(input: &PubdataInput) -> Vec<u8> {
+    let mut result = vec![];
+    for state_diff in input.state_diffs.iter() {
+        result.extend(state_diff.encode_padded());
+    }
+    result
+}
+
 pub fn compose_header_for_l1_commit_rollup(input: PubdataInput) -> Vec<u8> {
     // The preimage under the hash `l2DAValidatorOutputHash` is expected to be in the following format:
     // - First 32 bytes are the hash of the uncompressed state diff.
@@ -31,7 +39,7 @@ pub fn compose_header_for_l1_commit_rollup(input: PubdataInput) -> Vec<u8> {
 
     let mut full_header = vec![];
 
-    let uncompressed_state_diffs = input.encoded_uncompressed_state_diffs();
+    let uncompressed_state_diffs = encoded_uncompressed_state_diffs(&input);
     let uncompressed_state_diffs_hash = keccak256(&uncompressed_state_diffs);
     full_header.extend(uncompressed_state_diffs_hash);
 
@@ -50,7 +58,6 @@ pub fn compose_header_for_l1_commit_rollup(input: PubdataInput) -> Vec<u8> {
 
     full_pubdata
         .chunks(ZK_SYNC_BYTES_PER_BLOB)
-        .into_iter()
         .for_each(|chunk| {
             full_header.extend(keccak256(chunk));
         });

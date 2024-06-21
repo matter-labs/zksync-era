@@ -12,16 +12,6 @@ pub(crate) struct PubdataInput {
     pub(crate) state_diffs: Vec<StateDiffRecord>,
 }
 
-impl PubdataInput {
-    pub(crate) fn encoded_uncompressed_state_diffs(&self) -> Vec<u8> {
-        let mut result = vec![];
-        for state_diff in self.state_diffs.iter() {
-            result.extend(state_diff.encode_padded());
-        }
-        result
-    }
-}
-
 pub trait PubdataBuilder {
     // when `l2_version` is true it will return the data to be sent to the L1_MESSENGER
     // otherwise it returns the array of bytes to be sent to L1 inside the operator input.
@@ -105,7 +95,7 @@ impl ValidiumPubdataBuilder {
 }
 
 impl PubdataBuilder for ValidiumPubdataBuilder {
-    fn build_pubdata(&self, input: PubdataInput, l2_version: bool) -> Vec<u8> {
+    fn build_pubdata(&self, _: PubdataInput, _: bool) -> Vec<u8> {
         todo!()
     }
 }

@@ -151,7 +151,7 @@ impl IoCursorExt for IoCursor {
                 block.timestamp
             );
 
-            let push = new_actions.push(SyncAction::OpenBatch {
+            new_actions.push(SyncAction::OpenBatch {
                 params: L1BatchParams {
                     protocol_version: block.protocol_version,
                     validation_computational_gas_limit: super::VALIDATION_COMPUTATIONAL_GAS_LIMIT,

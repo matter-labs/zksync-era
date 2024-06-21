@@ -259,7 +259,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
                             // We also append 0s to show that we do not reuse previously published blobs.
                             blob_commitment
                                 .into_iter()
-                                .chain(H256::zero().0.into_iter())
+                                .chain(H256::zero().0)
                                 .collect::<Vec<u8>>()
                         })
                         .collect();
@@ -302,7 +302,6 @@ fn compose_header_for_l1_commit_rollup(state_diff_hash: H256, pubdata: Vec<u8>) 
 
     full_pubdata
         .chunks(ZK_SYNC_BYTES_PER_BLOB)
-        .into_iter()
         .for_each(|chunk| {
             full_header.extend(keccak256(chunk));
         });
