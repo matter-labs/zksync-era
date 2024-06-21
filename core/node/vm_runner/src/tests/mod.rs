@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops, str::FromStr, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use rand::{prelude::SliceRandom, Rng};
 use tokio::sync::RwLock;
-use zksync_contracts::{l2_rollup_da_validator_bytecode, BaseSystemContractsHashes};
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,

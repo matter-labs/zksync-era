@@ -1,7 +1,6 @@
 use zksync_types::{
     event::L1MessengerL2ToL1Log,
     writes::{compress_state_diffs, StateDiffRecord},
-    Address,
 };
 
 /// Struct based on which the pubdata blob is formed
