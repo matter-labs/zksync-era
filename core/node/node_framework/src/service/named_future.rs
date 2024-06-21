@@ -13,9 +13,9 @@ pin_project! {
     }
 }
 
-impl<T, F> NamedFuture<F>
+impl<F> NamedFuture<F>
 where
-    F: Future<Output = T>,
+    F: Future,
 {
     /// Creates a new future with the name tag attached.
     pub fn new(inner: F, name: TaskId) -> Self {
@@ -31,18 +31,19 @@ where
     }
 }
 
-impl<T, F> Future for NamedFuture<F>
+impl<F> Future for NamedFuture<F>
 where
-    F: Future<Output = T>,
+    F: Future,
 {
-    type Output = T;
+    type Output = F::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
-        self.project().inner.poll(cx)
+        tracing::info_span!("NamedFuture", name = %self.name)
+            .in_scope(|| self.project().inner.poll(cx))
     }
 }
 
-impl<T> fmt::Debug for NamedFuture<T> {
+impl<F> fmt::Debug for NamedFuture<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("NamedFuture")
             .field("name", &self.name)

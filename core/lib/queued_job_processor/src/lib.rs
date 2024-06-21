@@ -139,7 +139,7 @@ pub trait JobProcessor: Sync + Send {
                 stop_receiver.changed(),
             )
             .await
-            .is_err()
+            .is_ok()
             {
                 // Stop signal received, return early.
                 // Exit will be processed/reported by the main loop.

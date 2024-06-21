@@ -12,6 +12,7 @@ pub use self::{context::ServiceContext, error::ZkStackServiceError, stop_receive
 use crate::{
     resource::{ResourceId, StoredResource},
     service::runnables::TaskReprs,
+    task::TaskId,
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -180,20 +181,7 @@ impl ZkStackService {
         // We will also collect the errors from the remaining tasks, hence a vector.
         let mut errors = Vec::new();
         let task_name = tasks_names.swap_remove(resolved_idx);
-        match resolved {
-            Ok(Ok(())) => {
-                tracing::info!("Task {task_name} finished");
-            }
-            Ok(Err(err)) => {
-                tracing::error!("Task {task_name} failed: {err}");
-                errors.push(TaskError::TaskFailed(task_name, err));
-            }
-            Err(panic_err) => {
-                let panic_msg = try_extract_panic_message(panic_err);
-                tracing::error!("Task {task_name}: {panic_msg}");
-                errors.push(TaskError::TaskPanicked(task_name, panic_msg));
-            }
-        };
+        handle_task_exit(resolved, task_name, &mut errors);
         tracing::info!("One of the task has exited, shutting down the node");
 
         // Collect names for remaining tasks for reporting purposes.
@@ -211,22 +199,10 @@ impl ZkStackService {
             .block_on(futures::future::join_all(remaining_tasks_with_timeout));
 
         // Report the results of the remaining tasks.
-        for (name, result) in remaining_tasks_names
-            .into_iter()
-            .zip(execution_results.into_iter())
-        {
+        for (name, result) in remaining_tasks_names.into_iter().zip(execution_results) {
             match result {
-                Ok(Ok(Ok(()))) => {
-                    tracing::info!("Task {name} finished");
-                }
-                Ok(Ok(Err(err))) => {
-                    tracing::error!("Task {name} failed: {err}");
-                    errors.push(TaskError::TaskFailed(name, err));
-                }
-                Ok(Err(err)) => {
-                    let panic_msg = try_extract_panic_message(err);
-                    tracing::error!("Task {name} panicked: {panic_msg}");
-                    errors.push(TaskError::TaskPanicked(name, panic_msg));
+                Ok(resolved) => {
+                    handle_task_exit(resolved, name, &mut errors);
                 }
                 Err(_) => {
                     tracing::error!("Task {name} timed out");
@@ -263,6 +239,27 @@ impl ZkStackService {
             Err(ZkStackServiceError::Task(errors))
         }
     }
+}
+
+fn handle_task_exit(
+    task_result: Result<anyhow::Result<()>, tokio::task::JoinError>,
+    task_name: TaskId,
+    errors: &mut Vec<TaskError>,
+) {
+    match task_result {
+        Ok(Ok(())) => {
+            tracing::info!("Task {task_name} finished");
+        }
+        Ok(Err(err)) => {
+            tracing::error!("Task {task_name} failed: {err}");
+            errors.push(TaskError::TaskFailed(task_name, err));
+        }
+        Err(panic_err) => {
+            let panic_msg = try_extract_panic_message(panic_err);
+            tracing::error!("Task {task_name} panicked: {panic_msg}");
+            errors.push(TaskError::TaskPanicked(task_name, panic_msg));
+        }
+    };
 }
 
 fn oneshot_runner_task(
