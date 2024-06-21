@@ -1,5 +1,6 @@
-use pin_project_lite::pin_project;
 use std::{future::Future, pin::Pin, task};
+
+use pin_project_lite::pin_project;
 
 use crate::task::TaskId;
 
