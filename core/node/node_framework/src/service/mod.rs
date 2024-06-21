@@ -1,7 +1,8 @@
 use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context;
-use futures::{future::BoxFuture, FutureExt};
+use futures::FutureExt;
+use runnables::NamedBoxFuture;
 use tokio::{runtime::Runtime, sync::watch};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
@@ -15,6 +16,7 @@ use crate::{
 
 mod context;
 mod error;
+mod named_future;
 mod runnables;
 mod stop_receiver;
 #[cfg(test)]
@@ -160,48 +162,80 @@ impl ZkStackService {
         let rt_handle = self.runtime.handle().clone();
         let join_handles: Vec<_> = long_running_tasks
             .into_iter()
-            .map(|task| rt_handle.spawn(task).fuse())
+            .map(|task| {
+                let name = task.name().to_string();
+                NamedBoxFuture::new(rt_handle.spawn(task.into_inner()).fuse().boxed(), name)
+            })
             .collect();
 
+        // Collect names for remaining tasks for reporting purposes.
+        let tasks_names = join_handles
+            .iter()
+            .map(|task| task.name().to_string())
+            .collect::<Vec<_>>();
+
         // Run the tasks until one of them exits.
-        let (resolved, _, remaining) = self
+        let (resolved, resolved_idx, remaining) = self
             .runtime
             .block_on(futures::future::select_all(join_handles));
         // Extract the result and report it to logs early, before waiting for any other task to shutdown.
         let result = match resolved {
-            Ok(Ok(())) => Ok(()),
+            Ok(Ok(())) => {
+                tracing::info!("Task {} finished", tasks_names[resolved_idx]);
+                Ok(())
+            }
             Ok(Err(err)) => {
-                tracing::error!("Task failed: {err}");
+                tracing::error!("Task {} failed: {err}", tasks_names[resolved_idx]);
                 Err(err).context("Task failed")
             }
             Err(panic_err) => {
                 let panic_msg = try_extract_panic_message(panic_err);
-                tracing::error!("One of the tasks panicked: {panic_msg}");
+                tracing::error!("Task {}: {panic_msg}", tasks_names[resolved_idx]);
                 Err(anyhow::format_err!(
-                    "One of the tasks panicked: {panic_msg}"
+                    "Task {} panicked: {panic_msg}",
+                    tasks_names[resolved_idx]
                 ))
             }
         };
         tracing::info!("One of the task has exited, shutting down the node");
 
+        // Collect names for remaining tasks for reporting purposes.
+        // We have to re-collect, becuase `select_all` does not guarantes the order of returned remaining futures.
+        let remaining_tasks_names = remaining
+            .iter()
+            .map(|task| task.name().to_string())
+            .collect::<Vec<_>>();
         let remaining_tasks_with_timeout: Vec<_> = remaining
             .into_iter()
             .map(|task| async { tokio::time::timeout(TASK_SHUTDOWN_TIMEOUT, task).await })
             .collect();
 
         // Send stop signal to remaining tasks and wait for them to finish.
-        // Given that we are shutting down, we do not really care about returned values.
         self.stop_sender.send(true).ok();
         let execution_results = self
             .runtime
             .block_on(futures::future::join_all(remaining_tasks_with_timeout));
-        let execution_timeouts_count = execution_results.iter().filter(|&r| r.is_err()).count();
-        if execution_timeouts_count > 0 {
-            tracing::error!(
-                "{execution_timeouts_count} tasks didn't finish in {TASK_SHUTDOWN_TIMEOUT:?} and were dropped"
-            );
-        } else {
-            tracing::info!("Remaining tasks finished without reaching timeouts");
+
+        // Report the results of the remaining tasks.
+        for (name, result) in remaining_tasks_names
+            .into_iter()
+            .zip(execution_results.into_iter())
+        {
+            match result {
+                Ok(Ok(Ok(()))) => {
+                    tracing::info!("Task {name} finished");
+                }
+                Ok(Ok(Err(err))) => {
+                    tracing::error!("Task {name} failed: {err}");
+                }
+                Ok(Err(err)) => {
+                    let panic_msg = try_extract_panic_message(err);
+                    tracing::error!("Task {name} panicked: {panic_msg}");
+                }
+                Err(_) => {
+                    tracing::error!("Task {name} timed out");
+                }
+            }
         }
 
         // Run shutdown hooks sequentially.
@@ -231,22 +265,25 @@ impl ZkStackService {
 }
 
 fn oneshot_runner_task(
-    oneshot_tasks: Vec<BoxFuture<'static, anyhow::Result<()>>>,
+    oneshot_tasks: Vec<NamedBoxFuture<anyhow::Result<()>>>,
     mut stop_receiver: StopReceiver,
     only_oneshot_tasks: bool,
-) -> BoxFuture<'static, anyhow::Result<()>> {
-    Box::pin(async move {
+) -> NamedBoxFuture<anyhow::Result<()>> {
+    let future = async move {
         let oneshot_tasks = oneshot_tasks.into_iter().map(|fut| async move {
             // Spawn each oneshot task as a separate tokio task.
             // This way we can handle the cases when such a task panics and propagate the message
             // to the service.
             let handle = tokio::runtime::Handle::current();
+            let name = fut.name().to_string();
             match handle.spawn(fut).await {
                 Ok(Ok(())) => Ok(()),
-                Ok(Err(err)) => Err(err),
+                Ok(Err(err)) => Err(err).with_context(|| format!("Oneshot task {name} failed")),
                 Err(panic_err) => {
                     let panic_msg = try_extract_panic_message(panic_err);
-                    Err(anyhow::format_err!("Oneshot task panicked: {panic_msg}"))
+                    Err(anyhow::format_err!(
+                        "Oneshot task {name} panicked: {panic_msg}"
+                    ))
                 }
             }
         });
@@ -267,5 +304,7 @@ fn oneshot_runner_task(
         // Note that we don't have to `select` on the stop signal explicitly:
         // Each prerequisite is given a stop signal, and if everyone respects it, this future
         // will still resolve once the stop signal is received.
-    })
+    };
+
+    NamedBoxFuture::new(future.boxed(), "Oneshot runner".to_string())
 }

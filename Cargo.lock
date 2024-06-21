@@ -8765,6 +8765,7 @@ dependencies = [
  "async-trait",
  "ctrlc",
  "futures 0.3.28",
+ "pin-project-lite",
  "prometheus_exporter",
  "prover_dal",
  "thiserror",
