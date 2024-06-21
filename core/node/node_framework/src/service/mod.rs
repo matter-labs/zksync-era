@@ -197,7 +197,7 @@ impl ZkStackService {
             .block_on(futures::future::join_all(remaining_tasks_with_timeout));
         let execution_timeouts_count = execution_results.iter().filter(|&r| r.is_err()).count();
         if execution_timeouts_count > 0 {
-            tracing::warn!(
+            tracing::error!(
                 "{execution_timeouts_count} tasks didn't finish in {TASK_SHUTDOWN_TIMEOUT:?} and were dropped"
             );
         } else {
@@ -219,7 +219,7 @@ impl ZkStackService {
                     // We still have to invoke all the remaining hooks, so we don't return early.
                 }
                 Err(_) => {
-                    tracing::error!("One of the shutdown hooks timed out");
+                    tracing::error!("Shutdown hook {name} timed out");
                 }
             }
         }
