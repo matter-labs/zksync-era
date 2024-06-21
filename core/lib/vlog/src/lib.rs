@@ -139,6 +139,7 @@ pub struct OpenTelemetryOptions {
 /// Currently capable of configuring logging output and sentry integration.
 #[derive(Debug, Default)]
 pub struct ObservabilityBuilder {
+    disable_default_logs: bool,
     log_format: LogFormat,
     log_directives: Option<String>,
     sentry_url: Option<Dsn>,
@@ -173,6 +174,14 @@ impl ObservabilityBuilder {
 
     pub fn with_log_directives(mut self, log_level: String) -> Self {
         self.log_directives = Some(log_level);
+        self
+    }
+
+    /// Disables logs enabled by default.
+    /// May be used, for example, in interactive CLI applications, where the user may want to fully control
+    /// the verbosity.
+    pub fn disable_default_logs(mut self) -> Self {
+        self.disable_default_logs = true;
         self
     }
 
@@ -256,8 +265,8 @@ impl ObservabilityBuilder {
 
     /// Builds a filter for the logs.
     ///
-    /// Uses `zksync=info` as a default which is then merged with user-defined directives.
-    /// Provided directives can extend/override the default value.
+    /// Unless `disable_default_logs` was set, uses `zksync=info` as a default which is then merged
+    /// with user-defined directives. Provided directives can extend/override the default value.
     ///
     /// The provided default convers all the crates with a name starting with `zksync` (per `tracing`
     /// [documentation][1]), which is a good enough default for any project.
@@ -267,7 +276,11 @@ impl ObservabilityBuilder {
     ///
     /// [1]: https://docs.rs/tracing-subscriber/0.3.18/tracing_subscriber/filter/targets/struct.Targets.html#filtering-with-targets
     fn build_filter(&self) -> EnvFilter {
-        let mut directives = "zksync=info,".to_string();
+        let mut directives = if self.disable_default_logs {
+            "".to_string()
+        } else {
+            "zksync=info,".to_string()
+        };
         if let Some(log_directives) = &self.log_directives {
             directives.push_str(log_directives);
         } else if let Ok(env_directives) = std::env::var(EnvFilter::DEFAULT_ENV) {
