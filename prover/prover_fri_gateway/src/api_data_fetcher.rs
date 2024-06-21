@@ -68,7 +68,7 @@ impl PeriodicApiStruct {
             if let Some((job_id, request)) = self.get_next_request().await {
                 match self.send_request(job_id, request).await {
                     Ok(response) => {
-                        self.handle_response(job_id, response).await;
+                        self.handle_response(job_id, response).await; // TODO no error handling here :(
                     }
                     Err(err) => {
                         METRICS.http_error[&Self::SERVICE_NAME].inc();

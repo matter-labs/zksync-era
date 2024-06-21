@@ -21,11 +21,11 @@ use zksync_prover_interface::inputs::{
     PrepareBasicCircuitsJob, StorageLogMetadata, TeeVerifierInput, V1TeeVerifierInput,
 };
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
-use zksync_types::{block::L2BlockExecutionData, StorageLog, H256};
+use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, H256};
 use zksync_utils::bytecode::hash_bytecode;
 
 pub trait Verifiable {
-    fn verify(self) -> anyhow::Result<ValueHash>;
+    fn verify(self) -> anyhow::Result<(ValueHash, L1BatchNumber)>;
 }
 
 impl Verifiable for TeeVerifierInput {
@@ -37,7 +37,7 @@ impl Verifiable for TeeVerifierInput {
     ///
     /// Returns a verbose error of the failure, because any error is
     /// not actionable.
-    fn verify(self) -> anyhow::Result<ValueHash> {
+    fn verify(self) -> anyhow::Result<(ValueHash, L1BatchNumber)> {
         let TeeVerifierInput::V1(V1TeeVerifierInput {
             prepare_basic_circuits_job,
             l2_blocks_execution_data,
@@ -70,6 +70,7 @@ impl Verifiable for TeeVerifierInput {
 
         let storage_view = Rc::new(RefCell::new(StorageView::new(&raw_storage)));
 
+        let batch_number = l1_batch_env.number;
         let vm = VmInstance::new(l1_batch_env, system_env, storage_view);
 
         let vm_out = execute_vm(l2_blocks_execution_data, vm)?;
@@ -81,7 +82,7 @@ impl Verifiable for TeeVerifierInput {
             .verify_proofs(&Blake2Hasher, old_root_hash, &instructions)
             .context("Failed to verify_proofs {l1_batch_number} correctly!")?;
 
-        Ok(block_output_with_proofs.root_hash().unwrap())
+        Ok((block_output_with_proofs.root_hash().unwrap(), batch_number))
     }
 }
 

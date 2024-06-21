@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use secp256k1::Message;
+use url::Url;
 use zksync_prover_interface::{
     api::{
         SubmitProofResponse, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
@@ -38,8 +39,9 @@ impl PeriodicApi<TeeProofGenerationDataRequest> for PeriodicApiStruct {
                     Err(e) => {
                         tracing::warn!("L1 batch verification failed: {e}")
                     }
-                    Ok(root_hash) => {
-                        let root_hash_bytes: [u8; 32] = root_hash.into();
+                    Ok(verification_result) => {
+                        let root_hash_bytes: [u8; 32] = verification_result.0.into();
+                        let batch_number = verification_result.1;
                         let secret_key = self.key_pair.secret_key();
                         let msg_to_sign = Message::from_digest(root_hash_bytes);
                         let signature = secret_key.sign_ecdsa(msg_to_sign);
@@ -48,11 +50,16 @@ impl PeriodicApi<TeeProofGenerationDataRequest> for PeriodicApiStruct {
                             pubkey: self.key_pair.public_key().serialize().into(),
                             proof: root_hash_bytes.into(),
                         }));
+                        let submit_proof_endpoint = Url::parse(self.submit_proof_endpoint.as_str())
+                            .unwrap()
+                            .join(batch_number.to_string().as_str())
+                            .unwrap(); // TODO remove unwrap()
                         let _ = self
                             .send_http_request::<SubmitTeeProofRequest, SubmitProofResponse>(
                                 request,
-                                self.submit_proof_endpoint.as_str(),
-                            );
+                                submit_proof_endpoint.to_string().as_str(),
+                            )
+                            .await;
                     }
                 }
             }
