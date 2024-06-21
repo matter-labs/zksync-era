@@ -1,5 +1,6 @@
 // Ecosystem related messages
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
+
 pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &str) -> String {
     format!("Chain with name {chain} doesnt exist, please choose one of: {available_chains}")
 }
@@ -10,12 +11,15 @@ pub(super) const MSG_SUBCOMMAND_INTEGRATION_TESTS_ABOUT: &str = "Run integration
 
 // Database related messages
 pub(super) const MSG_NO_DATABASES_SELECTED: &str = "No databases selected";
+
 pub(super) fn msg_database_info(gerund_verb: &str) -> String {
     format!("{gerund_verb} databases")
 }
+
 pub(super) fn msg_database_success(past_verb: &str) -> String {
     format!("Databases {past_verb} successfully")
 }
+
 pub(super) fn msg_database_loading(gerund_verb: &str, dal: &str) -> String {
     format!("{gerund_verb} database for dal {dal}...")
 }
@@ -57,13 +61,24 @@ pub(super) const MSG_DATABASE_NEW_MIGRATION_DB_PROMPT: &str =
     "What database do you want to create a new migration for?";
 pub(super) const MSG_DATABASE_NEW_MIGRATION_NAME_PROMPT: &str =
     "How do you want to name the migration?";
+
 pub(super) fn msg_database_new_migration_loading(dal: &str) -> String {
     format!("Creating new database migration for dal {}...", dal)
 }
+
 pub(super) const MSG_DATABASE_NEW_MIGRATION_SUCCESS: &str = "Migration created successfully";
 
 // Integration tests related messages
-pub(super) const MSG_INTEGRATION_TESTS_RUN_INFO: &str = "Running integration tests";
+
+pub(super) fn msg_integration_tests_run(external_node: bool) -> String {
+    let base = "Running integration tests";
+    if external_node {
+        format!("{} for external node", base)
+    } else {
+        format!("{} for main server", base)
+    }
+}
+
 pub(super) const MSG_INTEGRATION_TESTS_RUN_SUCCESS: &str = "Integration tests ran successfully";
 pub(super) const MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES: &str =
     "Building repository dependencies...";
