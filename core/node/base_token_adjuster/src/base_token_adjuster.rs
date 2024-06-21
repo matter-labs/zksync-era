@@ -65,8 +65,8 @@ impl MainNodeBaseTokenAdjuster {
     // TODO (PE-135): Use real API client to fetch new ratio through self.PriceAPIClient & mock for tests.
     //  For now, these hard coded values are also hard coded in the integration tests.
     async fn fetch_new_ratio(&self) -> anyhow::Result<BaseTokenAPIPrice> {
-        let new_numerator = BigDecimal::from(1);
-        let new_denominator = BigDecimal::from(100);
+        let new_numerator = BigDecimal::from(100000);
+        let new_denominator = BigDecimal::from(1);
         let ratio_timestamp = Utc::now();
 
         Ok(BaseTokenAPIPrice {
@@ -151,5 +151,32 @@ impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
             Some(base_token) => base_token.as_str(),
             None => "ETH",
         }
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct MockBaseTokenAdjuster {
+    last_ratio: BigDecimal,
+    base_token: String,
+}
+
+impl MockBaseTokenAdjuster {
+    pub fn new(last_ratio: BigDecimal, base_token: String) -> Self {
+        Self {
+            last_ratio,
+            base_token,
+        }
+    }
+}
+
+#[async_trait]
+impl BaseTokenAdjuster for MockBaseTokenAdjuster {
+    async fn get_last_ratio_and_check_usability(&self) -> BigDecimal {
+        self.last_ratio.clone()
+    }
+
+    fn get_base_token(&self) -> &str {
+        &self.base_token
     }
 }

@@ -2,6 +2,7 @@
 
 use std::{
     collections::VecDeque,
+    fmt::Debug,
     ops::RangeInclusive,
     sync::{Arc, RwLock},
 };
@@ -19,6 +20,11 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
+pub trait L1GasAdjuster: Debug + Send + Sync {
+    fn estimate_effective_gas_price(&self) -> u64;
+    fn estimate_effective_pubdata_price(&self) -> u64;
+}
+
 /// This component keeps track of the median `base_fee` from the last `max_base_fee_samples` blocks
 /// and of the median `blob_base_fee` from the last `max_blob_base_fee_sample` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
@@ -33,6 +39,54 @@ pub struct GasAdjuster {
     pubdata_sending_mode: PubdataSendingMode,
     eth_client: Box<DynClient<L1>>,
     commitment_mode: L1BatchCommitmentMode,
+}
+
+impl L1GasAdjuster for GasAdjuster {
+    fn estimate_effective_gas_price(&self) -> u64 {
+        if let Some(price) = self.config.internal_enforced_l1_gas_price {
+            return price;
+        }
+
+        let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
+
+        let calculated_price =
+            (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
+
+        // Bound the price if it's too high.
+        self.bound_gas_price(calculated_price)
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        if let Some(price) = self.config.internal_enforced_pubdata_price {
+            return price;
+        }
+
+        match self.pubdata_sending_mode {
+            PubdataSendingMode::Blobs => {
+                const BLOB_GAS_PER_BYTE: u64 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.
+
+                let blob_base_fee_median = self.blob_base_fee_statistics.median();
+
+                // Check if blob base fee overflows `u64` before converting. Can happen only in very extreme cases.
+                if blob_base_fee_median > U256::from(u64::MAX) {
+                    let max_allowed = self.config.max_blob_base_fee();
+                    tracing::error!("Blob base fee is too high: {blob_base_fee_median}, using max allowed: {max_allowed}");
+                    return max_allowed;
+                }
+                METRICS
+                    .median_blob_base_fee
+                    .set(blob_base_fee_median.as_u64());
+                let calculated_price = blob_base_fee_median.as_u64() as f64
+                    * BLOB_GAS_PER_BYTE as f64
+                    * self.config.internal_pubdata_pricing_multiplier;
+
+                self.bound_blob_base_fee(calculated_price)
+            }
+            PubdataSendingMode::Calldata => {
+                self.estimate_effective_gas_price() * self.pubdata_byte_gas()
+            }
+        }
+    }
 }
 
 impl GasAdjuster {
@@ -153,54 +207,6 @@ impl GasAdjuster {
             tokio::time::sleep(self.config.poll_period()).await;
         }
         Ok(())
-    }
-
-    /// Returns the sum of base and priority fee, in wei, not considering time in mempool.
-    /// Can be used to get an estimate of current gas price.
-    pub(crate) fn estimate_effective_gas_price(&self) -> u64 {
-        if let Some(price) = self.config.internal_enforced_l1_gas_price {
-            return price;
-        }
-
-        let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
-
-        let calculated_price =
-            (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
-
-        // Bound the price if it's too high.
-        self.bound_gas_price(calculated_price)
-    }
-
-    pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
-        if let Some(price) = self.config.internal_enforced_pubdata_price {
-            return price;
-        }
-
-        match self.pubdata_sending_mode {
-            PubdataSendingMode::Blobs => {
-                const BLOB_GAS_PER_BYTE: u64 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.
-
-                let blob_base_fee_median = self.blob_base_fee_statistics.median();
-
-                // Check if blob base fee overflows `u64` before converting. Can happen only in very extreme cases.
-                if blob_base_fee_median > U256::from(u64::MAX) {
-                    let max_allowed = self.config.max_blob_base_fee();
-                    tracing::error!("Blob base fee is too high: {blob_base_fee_median}, using max allowed: {max_allowed}");
-                    return max_allowed;
-                }
-                METRICS
-                    .median_blob_base_fee
-                    .set(blob_base_fee_median.as_u64());
-                let calculated_price = blob_base_fee_median.as_u64() as f64
-                    * BLOB_GAS_PER_BYTE as f64
-                    * self.config.internal_pubdata_pricing_multiplier;
-
-                self.bound_blob_base_fee(calculated_price)
-            }
-            PubdataSendingMode::Calldata => {
-                self.estimate_effective_gas_price() * self.pubdata_byte_gas()
-            }
-        }
     }
 
     fn pubdata_byte_gas(&self) -> u64 {
@@ -413,5 +419,31 @@ impl<T: Ord + Copy + Default> GasStatistics<T> {
 
     pub fn last_processed_block(&self) -> usize {
         self.0.read().unwrap().last_processed_block
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct MockGasAdjuster {
+    pub effective_l1_gas_price: u64,
+    pub effective_l1_pubdata_price: u64,
+}
+
+impl L1GasAdjuster for MockGasAdjuster {
+    fn estimate_effective_gas_price(&self) -> u64 {
+        self.effective_l1_gas_price
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.effective_l1_pubdata_price
+    }
+}
+
+impl MockGasAdjuster {
+    pub fn new(effective_l1_gas_price: u64, effective_l1_pubdata_price: u64) -> Self {
+        Self {
+            effective_l1_gas_price,
+            effective_l1_pubdata_price,
+        }
     }
 }

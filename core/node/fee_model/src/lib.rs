@@ -13,7 +13,7 @@ use zksync_types::{
 };
 use zksync_utils::ceil_div_u256;
 
-use crate::l1_gas_price::GasAdjuster;
+use crate::l1_gas_price::L1GasAdjuster;
 
 pub mod l1_gas_price;
 
@@ -60,7 +60,7 @@ impl dyn BatchFeeModelInputProvider {
 /// it from other node.
 #[derive(Debug)]
 pub struct MainNodeFeeInputProvider {
-    provider: Arc<GasAdjuster>,
+    provider: Arc<dyn L1GasAdjuster>,
     base_token_adjuster: Arc<dyn BaseTokenAdjuster>,
     config: FeeModelConfig,
 }
@@ -101,7 +101,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 
 impl MainNodeFeeInputProvider {
     pub fn new(
-        provider: Arc<GasAdjuster>,
+        provider: Arc<dyn L1GasAdjuster>,
         base_token_adjuster: Arc<dyn BaseTokenAdjuster>,
         config: FeeModelConfig,
     ) -> Self {
@@ -311,7 +311,12 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 
 #[cfg(test)]
 mod tests {
+    use bigdecimal::FromPrimitive;
+    use test_casing::test_casing;
+    use zksync_base_token_adjuster::MockBaseTokenAdjuster;
+
     use super::*;
+    use crate::l1_gas_price::MockGasAdjuster;
 
     // To test that overflow never happens, we'll use giant L1 gas price, i.e.
     // almost realistic very large value of 100k gwei. Since it is so large, we'll also
@@ -320,6 +325,12 @@ mod tests {
 
     // As a small small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: u64 = 1;
+
+    // Conversion ratio for ETH to base token (1ETH = 200K BaseToken)
+    const ETH_TO_BASE_TOKEN: u64 = 200000;
+
+    // Conversion ratio for ETH to ETH (1ETH = 1ETH)
+    const ETH_TO_ETH: u64 = 1;
 
     #[test]
     fn test_compute_batch_fee_model_input_v2_giant_numbers() {
@@ -533,5 +544,65 @@ mod tests {
             base_input.fair_pubdata_price > base_input_larger_max_pubdata.fair_pubdata_price,
             "Max pubdata increase lowers pubdata price"
         );
+    }
+
+    #[test_casing(2, [("ETH", ETH_TO_ETH),("ZK", ETH_TO_BASE_TOKEN)])]
+    #[tokio::test]
+    async fn test_get_fee_model_params(base_token: &str, conversion_ratio: u64) {
+        let conversion_ratio_bd = BigDecimal::from_u64(conversion_ratio).unwrap();
+        let in_effective_l1_gas_price = 10_000_000_000; // 10 gwei
+        let in_effective_l1_pubdata_price = 20_000_000; // 0.002 gwei
+        let in_minimal_l2_gas_price = 25_000_000; // 0.025 gwei
+
+        let gas_adjuster = Arc::new(MockGasAdjuster::new(
+            in_effective_l1_gas_price,
+            in_effective_l1_pubdata_price,
+        ));
+
+        let base_token_adjuster = Arc::new(MockBaseTokenAdjuster::new(
+            conversion_ratio_bd.clone(),
+            base_token.to_string(),
+        ));
+
+        let config = FeeModelConfig::V2(FeeModelConfigV2 {
+            minimal_l2_gas_price: in_minimal_l2_gas_price,
+            compute_overhead_part: 1.0,
+            pubdata_overhead_part: 1.0,
+            batch_overhead_l1_gas: 1_000_000,
+            max_gas_per_batch: 50_000_000,
+            max_pubdata_per_batch: 100_000,
+        });
+
+        let fee_provider = MainNodeFeeInputProvider::new(
+            gas_adjuster.clone(),
+            base_token_adjuster.clone(),
+            config,
+        );
+
+        let fee_params = fee_provider.get_fee_model_params().await.unwrap();
+
+        let expected_l1_gas_price = (BigDecimal::from(in_effective_l1_gas_price)
+            * conversion_ratio_bd.clone())
+        .to_u64()
+        .unwrap();
+        let expected_l1_pubdata_price = (BigDecimal::from(in_effective_l1_pubdata_price)
+            * conversion_ratio_bd.clone())
+        .to_u64()
+        .unwrap();
+        let expected_minimal_l2_gas_price = (BigDecimal::from(in_minimal_l2_gas_price)
+            * conversion_ratio_bd)
+            .to_u64()
+            .unwrap();
+
+        if let FeeParams::V2(params) = fee_params {
+            assert_eq!(params.l1_gas_price, expected_l1_gas_price);
+            assert_eq!(params.l1_pubdata_price, expected_l1_pubdata_price);
+            assert_eq!(
+                params.config.minimal_l2_gas_price,
+                expected_minimal_l2_gas_price
+            );
+        } else {
+            panic!("Expected FeeParams::V2");
+        }
     }
 }
