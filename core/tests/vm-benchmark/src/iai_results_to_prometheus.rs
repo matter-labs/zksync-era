@@ -1,13 +1,13 @@
 use std::io::BufReader;
 
 use vise::{Gauge, LabeledFamily, Metrics};
-use vm_benchmark::parse_iai::IaiResult;
+use zksync_vm_benchmark::parse_iai::IaiResult;
 
 fn main() {
     let results: Vec<IaiResult> =
-        vm_benchmark::parse_iai::parse_iai(BufReader::new(std::io::stdin())).collect();
+        zksync_vm_benchmark::parse_iai::parse_iai(BufReader::new(std::io::stdin())).collect();
 
-    vm_benchmark::with_prometheus::with_prometheus(|| {
+    zksync_vm_benchmark::with_prometheus::with_prometheus(|| {
         for r in results {
             VM_CACHEGRIND_METRICS.instructions[&r.name.clone()].set(r.instructions as f64);
             VM_CACHEGRIND_METRICS.l1_accesses[&r.name.clone()].set(r.l1_accesses as f64);

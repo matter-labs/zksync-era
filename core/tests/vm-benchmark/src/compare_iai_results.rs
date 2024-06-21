@@ -4,7 +4,7 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-use vm_benchmark::parse_iai::parse_iai;
+use zksync_vm_benchmark::parse_iai::parse_iai;
 
 fn main() {
     let [iai_before, iai_after, opcodes_before, opcodes_after] = std::env::args()

@@ -32,7 +32,7 @@ fn main() {
     }
 
     if option_env!("PUSH_VM_BENCHMARKS_TO_PROMETHEUS").is_some() {
-        vm_benchmark::with_prometheus::with_prometheus(|| {
+        zksync_vm_benchmark::with_prometheus::with_prometheus(|| {
             for (name, timings) in results {
                 for (i, timing) in timings.into_iter().enumerate() {
                     VM_BENCHMARK_METRICS.timing[&(name.clone(), i.to_string())].set(timing);
