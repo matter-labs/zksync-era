@@ -138,6 +138,7 @@ impl ZkStackService {
         let TaskReprs {
             mut long_running_tasks,
             oneshot_tasks,
+            shutdown_hooks,
         } = self
             .runnables
             .prepare_tasks(task_barrier.clone(), stop_receiver.clone());
@@ -166,11 +167,16 @@ impl ZkStackService {
         let (resolved, _, remaining) = self
             .runtime
             .block_on(futures::future::select_all(join_handles));
+        // Extract the result and report it to logs early, before waiting for any other task to shutdown.
         let result = match resolved {
             Ok(Ok(())) => Ok(()),
-            Ok(Err(err)) => Err(err).context("Task failed"),
+            Ok(Err(err)) => {
+                tracing::error!("Task failed: {err}");
+                Err(err).context("Task failed")
+            }
             Err(panic_err) => {
                 let panic_msg = try_extract_panic_message(panic_err);
+                tracing::error!("One of the tasks panicked: {panic_msg}");
                 Err(anyhow::format_err!(
                     "One of the tasks panicked: {panic_msg}"
                 ))
@@ -195,6 +201,18 @@ impl ZkStackService {
             );
         } else {
             tracing::info!("Remaining tasks finished without reaching timeouts");
+        }
+
+        // Run shutdown hooks sequentially.
+        for hook in shutdown_hooks {
+            // Limit each shutdown hook to the same timeout as the tasks.
+            let hook_with_timeout = tokio::time::timeout(TASK_SHUTDOWN_TIMEOUT, hook());
+            match self.runtime.block_on(hook_with_timeout) {
+                Ok(()) => {}
+                Err(_) => {
+                    tracing::error!("One of the shutdown hooks timed out");
+                }
+            }
         }
 
         tracing::info!("Exiting the service");

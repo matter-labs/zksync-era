@@ -10,6 +10,8 @@ use crate::{
     task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
 };
 
+pub type ShutdownHook = Box<dyn FnOnce() -> BoxFuture<'static, ()> + Send + Sync + 'static>;
+
 /// A collection of different flavors of tasks.
 #[derive(Default)]
 pub(super) struct Runnables {
@@ -23,6 +25,8 @@ pub(super) struct Runnables {
     pub(super) unconstrained_tasks: Vec<Box<dyn UnconstrainedTask>>,
     /// Unconstrained oneshot tasks added to the service.
     pub(super) unconstrained_oneshot_tasks: Vec<Box<dyn UnconstrainedOneshotTask>>,
+    /// List of hooks to be invoked after node shutdown.
+    pub(super) shutdown_hooks: Vec<ShutdownHook>,
 }
 
 impl fmt::Debug for Runnables {
@@ -52,6 +56,7 @@ impl fmt::Debug for Runnables {
 pub(super) struct TaskReprs {
     pub(super) long_running_tasks: Vec<BoxFuture<'static, anyhow::Result<()>>>,
     pub(super) oneshot_tasks: Vec<BoxFuture<'static, anyhow::Result<()>>>,
+    pub(super) shutdown_hooks: Vec<ShutdownHook>,
 }
 
 impl fmt::Debug for TaskReprs {
@@ -59,6 +64,7 @@ impl fmt::Debug for TaskReprs {
         f.debug_struct("TaskReprs")
             .field("long_running_tasks", &self.long_running_tasks.len())
             .field("oneshot_tasks", &self.oneshot_tasks.len())
+            .field("shutdown_hooks", &self.shutdown_hooks.len())
             .finish()
     }
 }
@@ -118,6 +124,7 @@ impl Runnables {
         TaskReprs {
             long_running_tasks,
             oneshot_tasks,
+            shutdown_hooks: self.shutdown_hooks,
         }
     }
 
