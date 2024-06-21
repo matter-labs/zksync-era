@@ -59,6 +59,7 @@ impl ProtoRepr for proto::SnapshotRecovery {
                 .context("postgres")?
                 .unwrap_or_default(),
             l1_batch: self.l1_batch.map(L1BatchNumber),
+            object_store: read_optional_repr(&self.object_store).context("object store")?,
         })
     }
 
@@ -89,6 +90,7 @@ impl ProtoRepr for proto::SnapshotRecovery {
             tree,
             experimental,
             l1_batch: this.l1_batch.map(|a| a.0),
+            object_store: this.object_store.as_ref().map(ProtoRepr::build),
         }
     }
 }

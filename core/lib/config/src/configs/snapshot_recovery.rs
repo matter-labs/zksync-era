@@ -3,6 +3,8 @@ use std::num::NonZeroUsize;
 use serde::Deserialize;
 use zksync_basic_types::L1BatchNumber;
 
+use crate::ObjectStoreConfig;
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
 pub struct TreeRecoveryConfig {
     /// Approximate chunk size (measured in the number of entries) to recover in a single iteration.
@@ -38,4 +40,5 @@ pub struct SnapshotRecoveryConfig {
     pub l1_batch: Option<L1BatchNumber>,
     pub tree: TreeRecoveryConfig,
     pub postgres: PostgresRecoveryConfig,
+    pub object_store: Option<ObjectStoreConfig>,
 }
