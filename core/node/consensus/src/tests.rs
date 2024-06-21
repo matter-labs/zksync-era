@@ -1,7 +1,6 @@
 #![allow(unused)]
 use anyhow::Context as _;
 use test_casing::test_casing;
-use testonly::rollup_da_verifier_deployment_tx;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::consensus::{ValidatorPublicKey, WeightedValidator};

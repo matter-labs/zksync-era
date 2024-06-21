@@ -203,7 +203,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
         self
     }
 
-    pub(crate) fn with_validium_pubdata_params(mut self) -> Self {
+    pub(crate) fn with_validium_pubdata_params(self) -> Self {
         todo!()
     }
 

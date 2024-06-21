@@ -1,11 +1,8 @@
 use ethabi::Token;
 use zksync_contracts::{load_contract, read_bytecode};
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
-use zksync_types::{
-    utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, Execute, StorageLogQuery, U256,
-};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_types::{utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, U256};
+use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},

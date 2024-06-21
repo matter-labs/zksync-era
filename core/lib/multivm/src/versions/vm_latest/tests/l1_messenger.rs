@@ -1,12 +1,6 @@
 use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
-use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
-use zksync_types::{
-    get_code_key, get_known_code_key, get_nonce_key,
-    system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
-    web3::keccak256,
-    AccountTreeId, Execute, L1_MESSENGER_ADDRESS, U256,
-};
+use zksync_types::{web3::keccak256, Execute, L1_MESSENGER_ADDRESS, U256};
 use zksync_utils::{address_to_h256, u256_to_h256};
 
 use crate::{
@@ -17,15 +11,13 @@ use crate::{
             ZK_SYNC_BYTES_PER_BLOB,
         },
         tests::{
-            l1_messenger,
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{get_balance, read_test_contract, verify_required_storage},
+            utils::read_test_contract,
         },
         types::internals::{
             pubdata::{PubdataBuilder, RollupPubdataBuilder},
             PubdataInput,
         },
-        utils::fee::get_batch_base_fee,
         HistoryEnabled,
     },
 };

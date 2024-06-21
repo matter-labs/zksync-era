@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::HashMap, ops, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use rand::{prelude::SliceRandom, Rng};
@@ -14,13 +14,13 @@ use zksync_test_account::Account;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, L2BlockHasher},
     fee::{Fee, TransactionExecutionMetrics},
-    get_code_key, get_intrinsic_constants, get_known_code_key,
+    get_intrinsic_constants,
     l2::L2Tx,
     utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
     StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_utils::u256_to_h256;
 
 use super::{OutputHandlerFactory, VmRunnerIo};
 

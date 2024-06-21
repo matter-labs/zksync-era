@@ -13,18 +13,14 @@ pub use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
-    KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY,
-    ZKPORTER_IS_AVAILABLE,
+    KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::{
     blob::num_blobs_required,
     block::{L1BatchHeader, L1BatchTreeData},
-    l2_to_l1_log::{
-        l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes, L2ToL1Log, SystemL2ToL1Log,
-        UserL2ToL1Log,
-    },
+    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     web3::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
