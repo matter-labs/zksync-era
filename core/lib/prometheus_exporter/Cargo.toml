@@ -11,9 +11,6 @@ categories.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-metrics.workspace = true
-metrics-exporter-prometheus.workspace = true
 tokio.workspace = true
 vise.workspace = true
-
-vise-exporter = { workspace = true, features = ["legacy"] }
+vise-exporter.workspace = true

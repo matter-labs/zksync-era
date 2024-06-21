@@ -125,8 +125,6 @@ jsonrpsee = { version = "0.21.0", default-features = false }
 lazy_static = "1.4"
 leb128 = "0.2.5"
 lru = { version = "0.12.1", default-features = false }
-metrics = "0.21"
-metrics-exporter-prometheus = "0.12"
 mini-moka = "0.10.0"
 num = "0.4.0"
 num_cpus = "1.13"
