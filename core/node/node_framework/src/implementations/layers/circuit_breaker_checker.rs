@@ -8,6 +8,17 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for circuit breaker checker
+///
+/// Expects other layers to insert different components' circuit breakers into
+/// [`zksync_circuit_breaker::CircuitBreakers`] collection using [`CircuitBreakersResource`].
+/// The added task periodically runs checks for all inserted circuit breakers.
+///
+/// ## Adds resources
+/// - [`CircuitBreakersResource`]
+///
+/// ## Adds tasks
+/// - [`CircuitBreakerCheckerTask`] (as [`UnconstrainedTask`])
 #[derive(Debug)]
 pub struct CircuitBreakerCheckerLayer(pub CircuitBreakerConfig);
 
