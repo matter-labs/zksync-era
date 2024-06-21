@@ -105,6 +105,8 @@ impl BatchExecutor for MockBatchExecutor {
                         resp.send(default_vm_batch_result()).unwrap();
                         break;
                     }
+                    // todo: add test
+                    Command::StorageViewCache(_) => (),
                 }
             }
             anyhow::Ok(())

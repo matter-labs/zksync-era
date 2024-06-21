@@ -1,5 +1,5 @@
 ALTER TABLE proof_generation_details
- ADD COLUMN IF NOT EXISTS vm_run_data_blob_url DEFAULT NULL;
+ ADD COLUMN IF NOT EXISTS vm_run_data_blob_url TEXT DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS vm_runner_bwip
 (

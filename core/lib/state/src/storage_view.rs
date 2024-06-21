@@ -49,7 +49,7 @@ pub struct StorageView<S> {
     metrics: StorageViewMetrics,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct StorageViewCache {
     // Used purely for caching
     read_storage_keys: HashMap<StorageKey, StorageValue>,

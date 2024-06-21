@@ -230,7 +230,7 @@ impl BatchExecutorHandle {
         Ok(finished_batch)
     }
 
-    pub async fn storage_view_cache(mut self) -> anyhow::Result<StorageViewCache> {
+    pub async fn storage_view_cache(&mut self) -> anyhow::Result<StorageViewCache> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands

@@ -2,6 +2,7 @@ use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
+
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 pub use zksync_state::WitnessStorage;
 use zksync_types::{
@@ -136,6 +137,7 @@ impl PrepareBasicCircuitsJob {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VMRunWitnessInputData {
     pub l1_batch_header: L1BatchHeader,
     pub previous_batch_with_metadata: L1BatchWithMetadata,
@@ -162,6 +164,7 @@ impl StoredObject for VMRunWitnessInputData {
     serialize_using_bincode!();
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WitnessInputData {
     pub vm_run_data: VMRunWitnessInputData,
     pub merkle_paths: PrepareBasicCircuitsJob,

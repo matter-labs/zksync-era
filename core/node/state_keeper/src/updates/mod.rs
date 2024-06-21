@@ -61,6 +61,7 @@ impl UpdatesManager {
                 protocol_version,
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
+            storage_view_cache: StorageViewCache::default(),
         }
     }
 

@@ -148,7 +148,7 @@ impl CommandReceiver {
                     return;
                 }
                 Command::StorageViewCache(resp) => {
-                    if resp.send((**storage_view).cache()).is_err() {
+                    if resp.send((*storage_view).borrow().cache()).is_err() {
                         break;
                     }
                 }

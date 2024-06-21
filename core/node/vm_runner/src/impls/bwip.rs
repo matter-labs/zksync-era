@@ -31,9 +31,13 @@ impl BasicWitnessInputProducer {
         object_store: Arc<dyn ObjectStore>,
         rocksdb_path: String,
         chain_id: L2ChainId,
+        first_processed_batch: L1BatchNumber,
         window_size: u32,
     ) -> anyhow::Result<(Self, BasicWitnessInputProducerTasks)> {
-        let io = BasicWitnessInputProducerIo { window_size };
+        let io = BasicWitnessInputProducerIo {
+            first_processed_batch,
+            window_size,
+        };
         let (loader, loader_task) =
             VmRunnerStorage::new(pool.clone(), rocksdb_path, io.clone(), chain_id).await?;
         let output_handler_factory = BasicWitnessInputProducerOutputHandlerFactory {
