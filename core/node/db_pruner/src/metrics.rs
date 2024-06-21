@@ -24,6 +24,7 @@ enum PrunedEntityType {
 
 const ENTITY_COUNT_BUCKETS: Buckets = Buckets::values(&[
     1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0,
+    20_000.0, 50_000.0, 100_000.0,
 ]);
 
 #[derive(Debug, Metrics)]
