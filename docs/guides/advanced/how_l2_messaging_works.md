@@ -1,6 +1,6 @@
 # How L2 to L1 messaging works
 
-In this article, we will explore the workings of Layer 2 (L2) to Layer 1 (L1) messaging in zkSync Era.
+In this article, we will explore the workings of Layer 2 (L2) to Layer 1 (L1) messaging in ZKsync Era.
 
 If you're uncertain about why messaging is necessary in the first place, please refer to our [user
 documentation][user_docs].

@@ -2366,7 +2366,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::{ConnectionPool, Core, CoreDal};
+    use crate::{tests::create_l1_batch_header, ConnectionPool, Core, CoreDal};
 
     async fn save_mock_eth_tx(action_type: AggregatedActionType, conn: &mut Connection<'_, Core>) {
         conn.eth_sender_dal()
@@ -2376,15 +2376,7 @@ mod tests {
     }
 
     fn mock_l1_batch_header() -> L1BatchHeader {
-        let mut header = L1BatchHeader::new(
-            L1BatchNumber(1),
-            100,
-            BaseSystemContractsHashes {
-                bootloader: H256::repeat_byte(1),
-                default_aa: H256::repeat_byte(42),
-            },
-            ProtocolVersionId::latest(),
-        );
+        let mut header = create_l1_batch_header(1);
         header.l1_tx_count = 3;
         header.l2_tx_count = 5;
         header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
