@@ -9045,6 +9045,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "multivm",
  "secrecy",
  "tempfile",
  "tracing",
@@ -9057,6 +9058,7 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_consensus_utils",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_l1_contract_interface",
  "zksync_merkle_tree",

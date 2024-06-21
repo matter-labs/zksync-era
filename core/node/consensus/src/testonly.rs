@@ -2,6 +2,7 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use multivm::interface::{PubdataParams, PubdataType};
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_config::{
@@ -15,6 +16,7 @@ use zksync_config::{
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::validator;
+use zksync_contracts::l2_rollup_da_validator_bytecode;
 use zksync_dal::{CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_metadata_calculator::{
@@ -34,16 +36,18 @@ use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::{
-        fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
-        MockBatchExecutor,
+        fund, l1_transaction, l2_transaction, setup_contract,
+        test_batch_executor::MockReadStorageFactory, MockBatchExecutor,
     },
     AsyncRocksdbCache, MainBatchExecutor, OutputHandler, StateKeeperPersistence,
     TreeWritesPersistence, ZkSyncStateKeeper,
 };
-use zksync_test_account::Account;
+use zksync_test_account::{Account, TxType};
 use zksync_types::{
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
+    utils::deployed_address_create,
+    Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId,
+    ProtocolVersionId, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256,
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 

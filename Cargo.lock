@@ -8830,6 +8830,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "hex",
+ "multivm",
  "rand 0.8.5",
  "secrecy",
  "tempfile",
@@ -8845,6 +8847,7 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_consensus_utils",
+ "zksync_contracts",
  "zksync_dal",
  "zksync_l1_contract_interface",
  "zksync_merkle_tree",

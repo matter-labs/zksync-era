@@ -186,9 +186,9 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
         self
     }
 
-    pub(crate) fn with_rollup_pubdata_params(mut self) -> Self {
+    pub(crate) fn with_rollup_pubdata_params(mut self, fixed_address: Option<Address>) -> Self {
         // We choose some random address to put the L2 DA validator to.
-        let l2_da_validator_address = Address::random();
+        let l2_da_validator_address = fixed_address.unwrap_or_else(|| Address::random());
 
         let bytecode = l2_rollup_da_validator_bytecode();
 
@@ -197,7 +197,10 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
             pubdata_type: PubdataType::Rollup,
         });
 
-        self.with_custom_contracts(vec![(bytecode, l2_da_validator_address, false)])
+        self.custom_contracts
+            .push((bytecode, l2_da_validator_address, false));
+
+        self
     }
 
     pub(crate) fn with_validium_pubdata_params(mut self) -> Self {
@@ -245,7 +248,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
 
     pub(crate) fn build(mut self) -> VmTester<H> {
         if self.pubdata_params.is_none() {
-            self = self.with_rollup_pubdata_params();
+            self = self.with_rollup_pubdata_params(None);
         }
         self.system_env.pubdata_params = self.pubdata_params.unwrap();
 

@@ -43,6 +43,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
                 timestamp,
                 virtual_blocks: 1,
             },
+            pubdata_params: Default::default(),
         },
         number: L1BatchNumber(number),
         first_l2_block_number: L2BlockNumber(first_l2_block_number),
