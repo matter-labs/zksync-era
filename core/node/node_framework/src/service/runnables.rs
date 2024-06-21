@@ -171,7 +171,7 @@ impl Runnables {
             let name = task.id();
             let stop_receiver = stop_receiver.clone();
             let task_future = Box::pin(task.run_unconstrained(stop_receiver));
-            tasks.push(NamedFuture::new(task_future, name.to_string()));
+            tasks.push(NamedFuture::new(task_future, name));
         }
     }
 
@@ -186,7 +186,7 @@ impl Runnables {
             let stop_receiver = stop_receiver.clone();
             let task_barrier = task_barrier.clone();
             let task_future = Box::pin(task.run_with_barrier(stop_receiver, task_barrier));
-            tasks.push(NamedFuture::new(task_future, name.to_string()));
+            tasks.push(NamedFuture::new(task_future, name));
         }
     }
 
@@ -202,7 +202,7 @@ impl Runnables {
             let task_barrier = task_barrier.clone();
             let task_future =
                 Box::pin(precondition.check_with_barrier(stop_receiver, task_barrier));
-            oneshot_tasks.push(NamedFuture::new(task_future, name.to_string()));
+            oneshot_tasks.push(NamedFuture::new(task_future, name));
         }
     }
 
@@ -218,7 +218,7 @@ impl Runnables {
             let task_barrier = task_barrier.clone();
             let task_future =
                 Box::pin(oneshot_task.run_oneshot_with_barrier(stop_receiver, task_barrier));
-            oneshot_tasks.push(NamedFuture::new(task_future, name.to_string()));
+            oneshot_tasks.push(NamedFuture::new(task_future, name));
         }
     }
 
@@ -232,7 +232,7 @@ impl Runnables {
             let stop_receiver = stop_receiver.clone();
             let task_future =
                 Box::pin(unconstrained_oneshot_task.run_unconstrained_oneshot(stop_receiver));
-            oneshot_tasks.push(NamedFuture::new(task_future, name.to_string()));
+            oneshot_tasks.push(NamedFuture::new(task_future, name));
         }
     }
 }

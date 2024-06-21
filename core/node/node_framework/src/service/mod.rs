@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context;
+use error::TaskError;
 use futures::FutureExt;
 use runnables::NamedBoxFuture;
 use tokio::{runtime::Runtime, sync::watch};
@@ -163,48 +164,41 @@ impl ZkStackService {
         let join_handles: Vec<_> = long_running_tasks
             .into_iter()
             .map(|task| {
-                let name = task.name().to_string();
+                let name = task.id();
                 NamedBoxFuture::new(rt_handle.spawn(task.into_inner()).fuse().boxed(), name)
             })
             .collect();
 
         // Collect names for remaining tasks for reporting purposes.
-        let tasks_names = join_handles
-            .iter()
-            .map(|task| task.name().to_string())
-            .collect::<Vec<_>>();
+        let mut tasks_names: Vec<_> = join_handles.iter().map(|task| task.id()).collect();
 
         // Run the tasks until one of them exits.
         let (resolved, resolved_idx, remaining) = self
             .runtime
             .block_on(futures::future::select_all(join_handles));
         // Extract the result and report it to logs early, before waiting for any other task to shutdown.
-        let result = match resolved {
+        // We will also collect the errors from the remaining tasks, hence a vector.
+        let mut errors = Vec::new();
+        let task_name = tasks_names.swap_remove(resolved_idx);
+        match resolved {
             Ok(Ok(())) => {
-                tracing::info!("Task {} finished", tasks_names[resolved_idx]);
-                Ok(())
+                tracing::info!("Task {task_name} finished");
             }
             Ok(Err(err)) => {
-                tracing::error!("Task {} failed: {err}", tasks_names[resolved_idx]);
-                Err(err).context("Task failed")
+                tracing::error!("Task {task_name} failed: {err}");
+                errors.push(TaskError::TaskFailed(task_name, err));
             }
             Err(panic_err) => {
                 let panic_msg = try_extract_panic_message(panic_err);
-                tracing::error!("Task {}: {panic_msg}", tasks_names[resolved_idx]);
-                Err(anyhow::format_err!(
-                    "Task {} panicked: {panic_msg}",
-                    tasks_names[resolved_idx]
-                ))
+                tracing::error!("Task {task_name}: {panic_msg}");
+                errors.push(TaskError::TaskPanicked(task_name, panic_msg));
             }
         };
         tracing::info!("One of the task has exited, shutting down the node");
 
         // Collect names for remaining tasks for reporting purposes.
         // We have to re-collect, becuase `select_all` does not guarantes the order of returned remaining futures.
-        let remaining_tasks_names = remaining
-            .iter()
-            .map(|task| task.name().to_string())
-            .collect::<Vec<_>>();
+        let remaining_tasks_names: Vec<_> = remaining.iter().map(|task| task.id()).collect();
         let remaining_tasks_with_timeout: Vec<_> = remaining
             .into_iter()
             .map(|task| async { tokio::time::timeout(TASK_SHUTDOWN_TIMEOUT, task).await })
@@ -227,13 +221,16 @@ impl ZkStackService {
                 }
                 Ok(Ok(Err(err))) => {
                     tracing::error!("Task {name} failed: {err}");
+                    errors.push(TaskError::TaskFailed(name, err));
                 }
                 Ok(Err(err)) => {
                     let panic_msg = try_extract_panic_message(err);
                     tracing::error!("Task {name} panicked: {panic_msg}");
+                    errors.push(TaskError::TaskPanicked(name, panic_msg));
                 }
                 Err(_) => {
                     tracing::error!("Task {name} timed out");
+                    errors.push(TaskError::TaskShutdownTimedOut(name));
                 }
             }
         }
@@ -250,17 +247,21 @@ impl ZkStackService {
                 }
                 Ok(Err(err)) => {
                     tracing::error!("Shutdown hook {name} failed: {err}");
-                    // We still have to invoke all the remaining hooks, so we don't return early.
+                    errors.push(TaskError::ShutdownHookFailed(name, err));
                 }
                 Err(_) => {
                     tracing::error!("Shutdown hook {name} timed out");
+                    errors.push(TaskError::ShutdownHookTimedOut(name));
                 }
             }
         }
 
         tracing::info!("Exiting the service");
-        result?;
-        Ok(())
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ZkStackServiceError::Task(errors))
+        }
     }
 }
 
@@ -275,7 +276,7 @@ fn oneshot_runner_task(
             // This way we can handle the cases when such a task panics and propagate the message
             // to the service.
             let handle = tokio::runtime::Handle::current();
-            let name = fut.name().to_string();
+            let name = fut.id().to_string();
             match handle.spawn(fut).await {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(err)) => Err(err).with_context(|| format!("Oneshot task {name} failed")),
@@ -306,5 +307,5 @@ fn oneshot_runner_task(
         // will still resolve once the stop signal is received.
     };
 
-    NamedBoxFuture::new(future.boxed(), "Oneshot runner".to_string())
+    NamedBoxFuture::new(future.boxed(), "oneshot_runner".into())
 }

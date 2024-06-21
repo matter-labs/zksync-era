@@ -1,13 +1,15 @@
 use pin_project_lite::pin_project;
 use std::{future::Future, pin::Pin, task};
 
+use crate::task::TaskId;
+
 pin_project! {
     /// Implements a future with the name tag attached.
     #[derive(Debug)]
     pub struct NamedFuture<F> {
         #[pin]
         inner: F,
-        name: String,
+        name: TaskId,
     }
 }
 
@@ -16,12 +18,12 @@ where
     F: Future<Output = T>,
 {
     /// Creates a new future with the name tag attached.
-    pub fn new(inner: F, name: String) -> Self {
+    pub fn new(inner: F, name: TaskId) -> Self {
         Self { inner, name }
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
+    pub fn id(&self) -> TaskId {
+        self.name.clone()
     }
 
     pub fn into_inner(self) -> F {
