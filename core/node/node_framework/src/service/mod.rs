@@ -208,7 +208,8 @@ impl ZkStackService {
         for hook in shutdown_hooks {
             let name = hook.id().clone();
             // Limit each shutdown hook to the same timeout as the tasks.
-            let hook_with_timeout = tokio::time::timeout(TASK_SHUTDOWN_TIMEOUT, hook.invoke());
+            let hook_with_timeout =
+                async move { tokio::time::timeout(TASK_SHUTDOWN_TIMEOUT, hook.invoke()).await };
             match self.runtime.block_on(hook_with_timeout) {
                 Ok(Ok(())) => {
                     tracing::info!("Shutdown hook {name} completed");

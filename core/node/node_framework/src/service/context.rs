@@ -1,5 +1,6 @@
 use std::any::type_name;
 
+use super::runnables::{ShutdownHook, ShutdownHookFn};
 use crate::{
     precondition::Precondition,
     resource::{Resource, ResourceId, StoredResource},
@@ -7,8 +8,6 @@ use crate::{
     task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
     wiring_layer::WiringError,
 };
-
-use super::runnables::{ShutdownHook, ShutdownHookFn};
 
 /// An interface to the service's resources provided to the tasks during initialization.
 /// Provides the ability to fetch required resources, and also gives access to the Tokio runtime handle.
