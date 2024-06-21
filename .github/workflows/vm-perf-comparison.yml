@@ -46,8 +46,8 @@ jobs:
         run: |
           ci_run zk
           ci_run zk compiler system-contracts
-          ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
-          ci_run cargo run --package vm-benchmark --release --bin instruction-counts | tee base-opcodes || touch base-opcodes
+          ci_run cargo bench --package zksync_vm_benchmark --bench iai | tee base-iai
+          ci_run cargo run --package zksync_vm_benchmark --release --bin instruction-counts | tee base-opcodes || touch base-opcodes
           ci_run yarn workspace system-contracts clean
 
       - name: checkout PR
@@ -58,12 +58,12 @@ jobs:
         run: |
           ci_run zk
           ci_run zk compiler system-contracts
-          ci_run cargo bench --package vm-benchmark --bench iai | tee pr-iai
-          ci_run cargo run --package vm-benchmark --release --bin instruction-counts | tee pr-opcodes || touch pr-opcodes
+          ci_run cargo bench --package zksync_vm_benchmark --bench iai | tee pr-iai
+          ci_run cargo run --package zksync_vm_benchmark --release --bin instruction-counts | tee pr-opcodes || touch pr-opcodes
 
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "speedup<<$EOF" >> $GITHUB_OUTPUT
-          ci_run cargo run --package vm-benchmark --release --bin compare_iai_results base-iai pr-iai base-opcodes pr-opcodes >> $GITHUB_OUTPUT
+          ci_run cargo run --package zksync_vm_benchmark --release --bin compare_iai_results base-iai pr-iai base-opcodes pr-opcodes >> $GITHUB_OUTPUT
           echo "$EOF" >> $GITHUB_OUTPUT
         id: comparison
 
