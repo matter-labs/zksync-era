@@ -4,7 +4,6 @@ use xshell::Shell;
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::args::init::ProverInitArgs;
-use crate::commands::chain;
 
 const PROVER_STORE_MAX_RETRIES: u16 = 10;
 
@@ -31,21 +30,18 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         }
     };
 
-    let chains = ecosystem_config.list_of_chains();
-    for chain in chains {
-        let chain_config = ecosystem_config
-            .load_chain(Some(chain.clone()))
-            .expect("Chain not found");
-        let mut general_config = chain_config
-            .get_general_config()
-            .expect("General config not found");
-        let mut prover_config = general_config
-            .prover_config
-            .expect("Prover config not found");
-        prover_config.prover_object_store = Some(object_store_config.clone());
-        general_config.prover_config = Some(prover_config);
-        logger::info(format!("{:?}", general_config));
-    }
+    let chain_config = ecosystem_config
+        .load_chain(Some(ecosystem_config.default_chain.clone()))
+        .expect("Chain not found");
+    let mut general_config = chain_config
+        .get_general_config()
+        .expect("General config not found");
+    let mut prover_config = general_config
+        .prover_config
+        .expect("Prover config not found");
+    prover_config.prover_object_store = Some(object_store_config.clone());
+    general_config.prover_config = Some(prover_config);
+    logger::info(format!("{:?}", general_config));
 
     Ok(())
 }
