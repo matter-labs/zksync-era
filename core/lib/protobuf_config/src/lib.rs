@@ -13,7 +13,7 @@ mod contracts;
 mod database;
 mod eth;
 mod experimental;
-mod general;
+pub mod general;
 mod genesis;
 mod house_keeper;
 mod object_store;
@@ -30,8 +30,9 @@ mod utils;
 mod vm_runner;
 mod wallets;
 
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
+use anyhow::Context;
 use zksync_protobuf::ProtoRepr;
 use zksync_types::{H160, H256};
 
@@ -45,4 +46,14 @@ fn parse_h160(bytes: &str) -> anyhow::Result<H160> {
 
 pub fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> anyhow::Result<Option<P::Type>> {
     field.as_ref().map(|x| x.read()).transpose()
+}
+
+pub fn decode_yaml_repr<T: ProtoRepr>(
+    path: &PathBuf,
+    deny_unknown_fields: bool,
+) -> anyhow::Result<T::Type> {
+    let yaml = std::fs::read_to_string(path).with_context(|| path.display().to_string())?;
+    let d = serde_yaml::Deserializer::from_str(&yaml);
+    let this: T = zksync_protobuf::serde::deserialize_proto_with_options(d, deny_unknown_fields)?;
+    this.read()
 }

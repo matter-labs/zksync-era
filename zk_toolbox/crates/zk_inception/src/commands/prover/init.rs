@@ -1,3 +1,4 @@
+use common::logger;
 use config::EcosystemConfig;
 use xshell::Shell;
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
@@ -38,10 +39,12 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         let mut general_config = chain_config
             .get_general_config()
             .expect("General config not found");
-        general_config
+        let mut prover_config = general_config
             .prover_config
-            .expect("Prover config not found")
-            .prover_object_store = Some(object_store_config.clone());
+            .expect("Prover config not found");
+        prover_config.prover_object_store = Some(object_store_config.clone());
+        general_config.prover_config = Some(prover_config);
+        logger::info(format!("{:?}", general_config));
     }
 
     Ok(())

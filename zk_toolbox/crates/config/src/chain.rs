@@ -3,14 +3,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Context;
 use serde::{Deserialize, Serialize, Serializer};
 use types::{
     BaseToken, ChainId, L1BatchCommitDataGeneratorMode, L1Network, ProverMode, WalletCreation,
 };
 use xshell::Shell;
 use zksync_config::configs::GeneralConfig;
-use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
+use zksync_protobuf_config::decode_yaml_repr;
 
 use crate::{
     consts::{
@@ -96,9 +95,10 @@ impl ChainConfig {
     }
 
     pub fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
-        let yaml = std::fs::read_to_string(self.configs.join(GENERAL_FILE))
-            .context("Failed to read general config")?;
-        decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+        decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
+            &self.configs.join(GENERAL_FILE),
+            false,
+        )
     }
 
     pub fn path_to_foundry(&self) -> PathBuf {
