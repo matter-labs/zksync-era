@@ -1,5 +1,5 @@
 [package]
-name = "vlog"
+name = "zksync_vlog"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true

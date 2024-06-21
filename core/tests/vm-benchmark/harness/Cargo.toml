@@ -1,11 +1,11 @@
 [package]
-name = "vm-benchmark-harness"
+name = "zksync_vm_benchmark_harness"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-multivm.workspace = true
+zksync_multivm.workspace = true
 zksync_types.workspace = true
 zksync_state.workspace = true
 zksync_utils.workspace = true
