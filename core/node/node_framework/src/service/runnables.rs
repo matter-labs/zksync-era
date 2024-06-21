@@ -6,52 +6,11 @@ use tokio::sync::Barrier;
 use super::{named_future::NamedFuture, StopReceiver};
 use crate::{
     precondition::Precondition,
-    task::{OneshotTask, Task, TaskId, UnconstrainedOneshotTask, UnconstrainedTask},
+    task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
 };
 
 /// Alias for futures with the name assigned.
 pub type NamedBoxFuture<T> = NamedFuture<BoxFuture<'static, T>>;
-
-/// Alias for a shutdown hook function type.
-pub trait ShutdownHookFn:
-    FnOnce() -> BoxFuture<'static, anyhow::Result<()>> + Send + Sync + 'static
-{
-}
-
-impl<T> ShutdownHookFn for T where
-    T: FnOnce() -> BoxFuture<'static, anyhow::Result<()>> + Send + Sync + 'static
-{
-}
-
-pub struct ShutdownHook {
-    id: TaskId,
-    hook: Box<dyn ShutdownHookFn>,
-}
-
-impl ShutdownHook {
-    pub fn new(id: impl Into<TaskId>, hook: impl ShutdownHookFn) -> Self {
-        Self {
-            id: id.into(),
-            hook: Box::new(hook),
-        }
-    }
-
-    pub fn id(&self) -> &TaskId {
-        &self.id
-    }
-
-    pub async fn invoke(self) -> anyhow::Result<()> {
-        (self.hook)().await
-    }
-}
-
-impl fmt::Debug for ShutdownHook {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ShutdownHook")
-            .field("name", &self.id)
-            .finish()
-    }
-}
 
 /// A collection of different flavors of tasks.
 #[derive(Default)]
@@ -67,7 +26,7 @@ pub(super) struct Runnables {
     /// Unconstrained oneshot tasks added to the service.
     pub(super) unconstrained_oneshot_tasks: Vec<Box<dyn UnconstrainedOneshotTask>>,
     /// List of hooks to be invoked after node shutdown.
-    pub(super) shutdown_hooks: Vec<ShutdownHook>,
+    pub(super) shutdown_hooks: Vec<NamedBoxFuture<anyhow::Result<()>>>,
 }
 
 impl fmt::Debug for Runnables {
@@ -90,7 +49,7 @@ impl fmt::Debug for Runnables {
 pub(super) struct TaskReprs {
     pub(super) long_running_tasks: Vec<NamedBoxFuture<anyhow::Result<()>>>,
     pub(super) oneshot_tasks: Vec<NamedBoxFuture<anyhow::Result<()>>>,
-    pub(super) shutdown_hooks: Vec<ShutdownHook>,
+    pub(super) shutdown_hooks: Vec<NamedBoxFuture<anyhow::Result<()>>>,
 }
 
 impl fmt::Debug for TaskReprs {

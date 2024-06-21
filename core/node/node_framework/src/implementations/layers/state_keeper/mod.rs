@@ -92,13 +92,11 @@ impl WiringLayer for StateKeeperLayer {
             storage_factory: Arc::new(storage_factory),
         }));
 
-        context.add_shutdown_hook("rocksdb_terminaton", || {
-            Box::pin(async {
-                // Wait for all the instances of RocksDB to be destroyed.
-                tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
-                    .await
-                    .context("failed terminating RocksDB instances")
-            })
+        context.add_shutdown_hook("rocksdb_terminaton", async {
+            // Wait for all the instances of RocksDB to be destroyed.
+            tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+                .await
+                .context("failed terminating RocksDB instances")
         });
         Ok(())
     }

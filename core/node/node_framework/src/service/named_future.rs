@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, task};
+use std::{fmt, future::Future, pin::Pin, task};
 
 use pin_project_lite::pin_project;
 
@@ -6,7 +6,6 @@ use crate::task::TaskId;
 
 pin_project! {
     /// Implements a future with the name tag attached.
-    #[derive(Debug)]
     pub struct NamedFuture<F> {
         #[pin]
         inner: F,
@@ -40,5 +39,13 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         self.project().inner.poll(cx)
+    }
+}
+
+impl<T> fmt::Debug for NamedFuture<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NamedFuture")
+            .field("name", &self.name)
+            .finish_non_exhaustive()
     }
 }

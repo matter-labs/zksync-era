@@ -1,10 +1,11 @@
-use std::any::type_name;
+use std::{any::type_name, future::Future};
 
-use super::runnables::{ShutdownHook, ShutdownHookFn};
+use futures::FutureExt as _;
+
 use crate::{
     precondition::Precondition,
     resource::{Resource, ResourceId, StoredResource},
-    service::ZkStackService,
+    service::{named_future::NamedFuture, ZkStackService},
     task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
     wiring_layer::WiringError,
 };
@@ -96,14 +97,15 @@ impl<'a> ServiceContext<'a> {
         self
     }
 
-    /// Adds a function to be invoked after node shutdown.
+    /// Adds a future to be invoked after node shutdown.
     /// May be used to perform cleanup tasks.
     ///
-    /// All the collected shutdown hooks will be invoked sequentially after all the node tasks are stopped.
+    /// The future is guaranteed to only be polled after all the node tasks are stopped or timed out.
+    /// All the futures will be awaited sequentially.
     pub fn add_shutdown_hook(
         &mut self,
         name: &'static str,
-        hook: impl ShutdownHookFn,
+        hook: impl Future<Output = anyhow::Result<()>> + Send + 'static,
     ) -> &mut Self {
         tracing::info!(
             "Layer {} has added a new shutdown hook: {}",
@@ -113,7 +115,7 @@ impl<'a> ServiceContext<'a> {
         self.service
             .runnables
             .shutdown_hooks
-            .push(ShutdownHook::new(name, hook));
+            .push(NamedFuture::new(hook.boxed(), name.into()));
         self
     }
 
