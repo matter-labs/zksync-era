@@ -91,6 +91,8 @@ pub(super) const MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP: &str = "Base token nominat
 pub(super) const MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP: &str = "Base token denominator";
 pub(super) const MSG_SET_AS_DEFAULT_HELP: &str = "Set as default chain";
 pub(super) const MSG_CHAIN_NAME_PROMPT: &str = "What do you want to name the chain?";
+pub(super) const MSG_CHAIN_NAME_INVALID_ERR: &str =
+    "Invalid chain name: cannot contain spaces or `-`";
 pub(super) const MSG_CHAIN_ID_PROMPT: &str = "What's the chain id?";
 pub(super) const MSG_WALLET_CREATION_PROMPT: &str = "Select how do you want to create the wallet";
 pub(super) const MSG_PROVER_VERSION_PROMPT: &str = "Select the prover mode";

@@ -1,7 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use clap::Parser;
-use common::{slugify, Prompt, PromptConfirm, PromptSelect};
+use common::{logger, slugify, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
@@ -13,12 +13,13 @@ use crate::{
         MSG_BASE_TOKEN_ADDRESS_HELP, MSG_BASE_TOKEN_ADDRESS_PROMPT,
         MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP, MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT,
         MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP, MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT,
-        MSG_BASE_TOKEN_SELECTION_PROMPT, MSG_CHAIN_ID_PROMPT, MSG_CHAIN_NAME_PROMPT,
-        MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT, MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP,
-        MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR, MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR,
-        MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT, MSG_SET_AS_DEFAULT_HELP,
-        MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP, MSG_WALLET_CREATION_PROMPT,
-        MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
+        MSG_BASE_TOKEN_SELECTION_PROMPT, MSG_CHAIN_ID_PROMPT, MSG_CHAIN_NAME_INVALID_ERR,
+        MSG_CHAIN_NAME_PROMPT, MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT,
+        MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP, MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR,
+        MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR, MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT,
+        MSG_SET_AS_DEFAULT_HELP, MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP,
+        MSG_WALLET_CREATION_PROMPT, MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR,
+        MSG_WALLET_PATH_PROMPT,
     },
 };
 
@@ -55,6 +56,10 @@ impl ChainCreateArgs {
         let mut chain_name = self
             .chain_name
             .unwrap_or_else(|| Prompt::new(MSG_CHAIN_NAME_PROMPT).ask());
+        while !has_valid_chain_name(&chain_name) {
+            logger::error(MSG_CHAIN_NAME_INVALID_ERR);
+            chain_name = Prompt::new(MSG_CHAIN_NAME_PROMPT).ask();
+        }
         chain_name = slugify(&chain_name);
 
         let chain_id = self.chain_id.unwrap_or_else(|| {
@@ -144,6 +149,11 @@ impl ChainCreateArgs {
             set_as_default,
         }
     }
+}
+
+fn has_valid_chain_name(name: &str) -> bool {
+    let forbidden_chars = ['-', ' '];
+    !name.is_empty() && !name.chars().any(|c| forbidden_chars.contains(&c))
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
