@@ -672,6 +672,13 @@ impl BlocksDal<'_, '_> {
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
         );
 
+        let logs = self
+            .storage
+            .blocks_web3_dal()
+            .get_l2_to_l1_logs_by_number::<UserL2ToL1Log>(header.number)
+            .await?;
+        assert_eq!(logs, header.l2_to_l1_logs);
+
         let mut transaction = self.storage.start_transaction().await?;
         instrumentation
             .with(query)
