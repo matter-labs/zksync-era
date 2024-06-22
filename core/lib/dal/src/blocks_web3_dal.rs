@@ -19,6 +19,7 @@ use crate::{
             ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
             LEGACY_BLOCK_GAS_LIMIT,
         },
+        storage_event::StorageL2ToL1Log,
         storage_transaction::CallTrace,
     },
     Core,
@@ -420,32 +421,44 @@ impl BlocksWeb3Dal<'_, '_> {
         Ok(hash)
     }
 
-    pub async fn get_l2_to_l1_logs(
+    pub async fn get_l2_to_l1_logs_by_number<L>(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> DalResult<Vec<L2ToL1Log>> {
-        let raw_logs = sqlx::query!(
+    ) -> DalResult<Vec<L>>
+    where
+        L: From<StorageL2ToL1Log>,
+    {
+        let rows = sqlx::query_as!(
+            StorageL2ToL1Log,
             r#"
             SELECT
-                l2_to_l1_logs
+                miniblock_number,
+                log_index_in_miniblock,
+                NULL::bytea AS "block_hash",
+                log_index_in_tx,
+                tx_hash,
+                l1_batch_number,
+                shard_id,
+                is_service,
+                tx_index_in_miniblock,
+                tx_index_in_l1_batch,
+                sender,
+                key,
+                value
             FROM
-                l1_batches
+                l2_to_l1_logs
+                JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
             WHERE
-                number = $1
+                l1_batch_number = $1
             "#,
             i64::from(l1_batch_number.0)
         )
-        .instrument("get_l2_to_l1_logs")
+        .instrument("get_l2_to_l1_logs_by_number")
         .with_arg("l1_batch_number", &l1_batch_number)
-        .fetch_optional(self.storage)
-        .await?
-        .map(|row| row.l2_to_l1_logs)
-        .unwrap_or_default();
+        .fetch_all(self.storage)
+        .await?;
 
-        Ok(raw_logs
-            .into_iter()
-            .map(|bytes| L2ToL1Log::from_slice(&bytes))
-            .collect())
+        Ok(rows.into_iter().map(L::from).collect())
     }
 
     pub async fn get_l1_batch_number_of_l2_block(

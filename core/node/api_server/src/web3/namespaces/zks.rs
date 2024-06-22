@@ -271,7 +271,7 @@ impl ZksNamespace {
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         let all_l1_logs_in_batch = storage
             .blocks_web3_dal()
-            .get_l2_to_l1_logs(l1_batch_number)
+            .get_l2_to_l1_logs_by_number::<L2ToL1Log>(l1_batch_number)
             .await
             .map_err(DalError::generalize)?;
 
