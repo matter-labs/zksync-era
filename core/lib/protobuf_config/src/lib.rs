@@ -13,7 +13,7 @@ mod contracts;
 mod database;
 mod eth;
 mod experimental;
-pub mod general;
+mod general;
 mod genesis;
 mod house_keeper;
 mod object_store;
