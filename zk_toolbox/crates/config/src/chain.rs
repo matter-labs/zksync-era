@@ -106,7 +106,8 @@ impl ChainConfig {
         let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
             general_config,
         )?;
-        self.get_shell().write_file(&path, bytes)?;
+        self.get_shell()
+            .write_file(&path, String::from_utf8(bytes)?)?;
         Ok(())
     }
 
