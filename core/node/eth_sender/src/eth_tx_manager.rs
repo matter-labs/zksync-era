@@ -190,12 +190,13 @@ impl EthTxManager {
                 blob_base_fee_per_gas,
                 signed_tx.hash,
                 signed_tx.raw_tx.as_ref(),
+                current_block.0,
             )
             .await
             .unwrap()
         {
             if let Err(error) = self
-                .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, current_block)
+                .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx)
                 .await
             {
                 tracing::warn!(
@@ -216,17 +217,9 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         tx_history_id: u32,
         raw_tx: RawTransactionBytes,
-        current_block: L1BlockNumber,
     ) -> Result<(), EthSenderError> {
         match self.l1_interface.send_raw_tx(raw_tx).await {
-            Ok(_) => {
-                storage
-                    .eth_sender_dal()
-                    .set_sent_at_block(tx_history_id, current_block.0)
-                    .await
-                    .unwrap();
-                Ok(())
-            }
+            Ok(_) => Ok(()),
             Err(error) => {
                 // In transient errors, server may have received the transaction
                 // we don't want to loose record about it in case that happens
@@ -401,16 +394,22 @@ impl EthTxManager {
 
                 self.apply_tx_status(storage, &eth_tx, tx_status, l1_block_numbers.finalized)
                     .await;
-            } else if let Err(error) = self
-                .send_raw_transaction(
-                    storage,
-                    tx.id,
-                    RawTransactionBytes::new_unchecked(tx.signed_raw_tx.clone()),
-                    l1_block_numbers.latest,
-                )
-                .await
-            {
-                tracing::warn!("Error sending transaction {tx:?}: {error}");
+            } else {
+                storage
+                    .eth_sender_dal()
+                    .set_sent_at_block(tx.id, l1_block_numbers.latest.0)
+                    .await
+                    .unwrap();
+                if let Err(error) = self
+                    .send_raw_transaction(
+                        storage,
+                        tx.id,
+                        RawTransactionBytes::new_unchecked(tx.signed_raw_tx.clone()),
+                    )
+                    .await
+                {
+                    tracing::warn!("Error sending transaction {tx:?}: {error}");
+                }
             }
         }
     }

@@ -1,4 +1,4 @@
-# zkSync External Node
+# ZKsync External Node
 
 This application is a read replica that can sync from the main node and serve the state locally.
 

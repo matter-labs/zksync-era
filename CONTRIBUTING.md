@@ -40,7 +40,7 @@ We aim to make it as easy as possible to contribute to the mission. This is stil
 and suggestions here too. Some resources to help:
 
 1. [In-repo docs aimed at developers](docs)
-2. [zkSync Era docs!](https://era.zksync.io/docs/)
+2. [ZKsync Era docs!](https://docs.zksync.io)
 3. Company links can be found in the [repositories' readme](README.md)
 
 ## Code of Conduct
@@ -52,8 +52,6 @@ Be polite and respectful.
 **Q**: I have a small contribution that's not getting traction/being merged?
 
 **A**: Due to capacity, contributions that are simple renames of variables or stylistic/minor text improvements, one-off
-typo fix will not be merged. If you do find any typos or grammar errors, the preferred avenue is to improve the existing
-spellchecker. Given you have no technical prowess to do so, please create an issue. Please note that issues will be
-resolved on a best effort basis.
+typo fix will not be merged.
 
 ### Thank you

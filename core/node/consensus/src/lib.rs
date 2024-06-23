@@ -11,6 +11,10 @@ use zksync_consensus_storage::BlockStore;
 
 use crate::storage::{ConnectionPool, Store};
 
+// Currently `batch` module is only used in tests,
+// but will be used in production once batch syncing is implemented in consensus.
+#[allow(unused)]
+mod batch;
 mod config;
 mod en;
 pub mod era;

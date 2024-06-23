@@ -122,7 +122,7 @@ pub enum SealResolution {
     /// tx in the next block.
     /// While it may be kinda counter-intuitive that we first execute transaction and just then
     /// decided whether we should include it into the block or not, it is required by the architecture of
-    /// zkSync Era. We may not know, for example, how much gas block will consume, because 1) smart contract
+    /// ZKsync Era. We may not know, for example, how much gas block will consume, because 1) smart contract
     /// execution is hard to predict and 2) we may have writes to the same storage slots, which will save us
     /// gas.
     ExcludeAndSeal,
@@ -243,7 +243,7 @@ impl IoSealCriteria for TimeoutSealer {
             millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
 
         if should_seal_timeout {
-            AGGREGATION_METRICS.inc_criterion(RULE_NAME);
+            AGGREGATION_METRICS.l1_batch_reason_inc_criterion(RULE_NAME);
             tracing::debug!(
                 "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
                  commit deadline: {block_commit_deadline_ms}ms",
@@ -286,7 +286,7 @@ mod tests {
     fn apply_tx_to_manager(tx: Transaction, manager: &mut UpdatesManager) {
         manager.extend_from_executed_transaction(
             tx,
-            create_execution_result(0, []),
+            create_execution_result([]),
             vec![],
             BlockGasCount::default(),
             ExecutionMetrics::default(),

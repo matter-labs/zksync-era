@@ -31,7 +31,6 @@
         "@types/tabtab": "^3.0.1",
         "hardhat": "=2.22.2",
         "typescript": "^4.3.5",
-        "cspell": "^8.3.2",
         "sql-formatter": "^13.1.0"
     }
 }

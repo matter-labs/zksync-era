@@ -51,23 +51,6 @@ impl FriProofCompressorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn skip_proof_compression_job(&mut self, block_number: L1BatchNumber) {
-        sqlx::query!(
-            r#"
-            INSERT INTO
-                proof_compression_jobs_fri (l1_batch_number, status, created_at, updated_at)
-            VALUES
-                ($1, $2, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO NOTHING
-            "#,
-            i64::from(block_number.0),
-            ProofCompressionJobStatus::Skipped.to_string(),
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
     pub async fn get_next_proof_compression_job(
         &mut self,
         picked_by: &str,
@@ -177,10 +160,14 @@ impl FriProofCompressorDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $3
+                AND status != $4
+                AND status != $5
             "#,
             ProofCompressionJobStatus::Failed.to_string(),
             error,
-            i64::from(block_number.0)
+            i64::from(block_number.0),
+            ProofCompressionJobStatus::Successful.to_string(),
+            ProofCompressionJobStatus::SentToServer.to_string(),
         )
         .execute(self.storage.conn())
         .await

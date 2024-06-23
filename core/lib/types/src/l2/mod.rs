@@ -15,8 +15,8 @@ use crate::{
     transaction_request::PaymasterParams,
     tx::Execute,
     web3::Bytes,
-    Address, EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData, L2ChainId,
-    Nonce, PackedEthSignature, StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
+    Address, EIP712TypedStructure, ExecuteTransactionCommon, InputData, L2ChainId, Nonce,
+    PackedEthSignature, StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
     EIP_712_TX_TYPE, H256, LEGACY_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
     U256, U64,
 };
@@ -31,7 +31,7 @@ pub enum TransactionType {
     LegacyTransaction = 0,
     EIP2930Transaction = 1,
     EIP1559Transaction = 2,
-    // EIP 712 transaction with additional fields specified for zkSync
+    // EIP 712 transaction with additional fields specified for ZKsync
     EIP712Transaction = EIP_712_TX_TYPE as u32,
     PriorityOpTransaction = PRIORITY_OPERATION_L2_TX_TYPE as u32,
     ProtocolUpgradeTransaction = PROTOCOL_UPGRADE_TX_TYPE as u32,
@@ -159,7 +159,7 @@ impl L2Tx {
         fee: Fee,
         initiator_address: Address,
         value: U256,
-        factory_deps: Option<Vec<Vec<u8>>>,
+        factory_deps: Vec<Vec<u8>>,
         paymaster_params: PaymasterParams,
     ) -> Self {
         Self {
@@ -192,11 +192,11 @@ impl L2Tx {
         value: U256,
         chain_id: L2ChainId,
         private_key: &K256PrivateKey,
-        factory_deps: Option<Vec<Vec<u8>>>,
+        factory_deps: Vec<Vec<u8>>,
         paymaster_params: PaymasterParams,
     ) -> Result<Self, SignError> {
         let initiator_address = private_key.address();
-        let mut res = Self::new(
+        let tx = Self::new(
             contract_address,
             calldata,
             nonce,
@@ -206,10 +206,19 @@ impl L2Tx {
             factory_deps,
             paymaster_params,
         );
-
-        let data = res.get_signed_bytes(chain_id);
-        res.set_signature(PackedEthSignature::sign_raw(private_key, &data).context("sign_raw")?);
-        Ok(res)
+        // We do a whole dance to reconstruct missing data: RLP encoding, hash and signature.
+        let mut req: TransactionRequest = tx.into();
+        req.chain_id = Some(chain_id.as_u64());
+        let data = req
+            .get_default_signed_message()
+            .context("get_default_signed_message()")?;
+        let sig = PackedEthSignature::sign_raw(private_key, &data).context("sign_raw")?;
+        let raw = req.get_signed_bytes(&sig).context("get_signed_bytes")?;
+        let (req, hash) =
+            TransactionRequest::from_bytes_unverified(&raw).context("from_bytes_unverified()")?;
+        let mut tx = L2Tx::from_request_unverified(req).context("from_request_unverified()")?;
+        tx.set_input(raw, hash);
+        Ok(tx)
     }
 
     /// Returns the hash of the transaction.
@@ -237,18 +246,10 @@ impl L2Tx {
     }
 
     pub fn get_signed_bytes(&self, chain_id: L2ChainId) -> H256 {
-        let mut tx: TransactionRequest = self.clone().into();
-        tx.chain_id = Some(chain_id.as_u64());
-        if tx.is_eip712_tx() {
-            PackedEthSignature::typed_data_to_signed_bytes(&Eip712Domain::new(chain_id), &tx)
-        } else {
-            // It is ok to unwrap, because the `chain_id` is set.
-            let mut data = tx.get_rlp().unwrap();
-            if let Some(tx_type) = tx.transaction_type {
-                data.insert(0, tx_type.as_u32() as u8);
-            }
-            PackedEthSignature::message_to_signed_bytes(&data)
-        }
+        let mut req: TransactionRequest = self.clone().into();
+        req.chain_id = Some(chain_id.as_u64());
+        // It is ok to unwrap, because the `chain_id` is set.
+        req.get_default_signed_message().unwrap()
     }
 
     pub fn set_signature(&mut self, signature: PackedEthSignature) {
@@ -266,7 +267,7 @@ impl L2Tx {
     pub fn abi_encoding_len(&self) -> usize {
         let data_len = self.execute.calldata.len();
         let signature_len = self.common_data.signature.len();
-        let factory_deps_len = self.execute.factory_deps_length();
+        let factory_deps_len = self.execute.factory_deps.len();
         let paymaster_input_len = self.common_data.paymaster_params.paymaster_input.len();
 
         encoding_len(
@@ -289,9 +290,8 @@ impl L2Tx {
     pub fn factory_deps_len(&self) -> u32 {
         self.execute
             .factory_deps
-            .as_ref()
-            .map(|deps| deps.iter().fold(0u32, |len, item| len + item.len() as u32))
-            .unwrap_or_default()
+            .iter()
+            .fold(0u32, |len, item| len + item.len() as u32)
     }
 }
 
@@ -486,7 +486,7 @@ mod tests {
                 contract_address: Default::default(),
                 calldata: vec![],
                 value: U256::zero(),
-                factory_deps: None,
+                factory_deps: vec![],
             },
             common_data: L2TxCommonData {
                 nonce: Nonce(0),

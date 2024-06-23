@@ -158,6 +158,7 @@ fn mock_block_details(number: u32, stage: L1BatchStage) -> api::BlockDetails {
                 .then(|| Utc.timestamp_opt(300, 0).unwrap()),
             l1_gas_price: 1,
             l2_fair_gas_price: 2,
+            fair_pubdata_price: None,
             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         },
         operator_address: Address::zero(),

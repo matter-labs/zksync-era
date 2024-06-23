@@ -10,7 +10,7 @@ implemented.
 
 If you want to know more about ZK Chains, check this
 [blog post](https://blog.matter-labs.io/introduction-to-hyperchains-fdb33414ead7), or go through
-[our docs](https://era.zksync.io/docs/reference/concepts/hyperscaling.html).
+[our docs](https://docs.zksync.io/zk-stack/concepts/zk-chains).
 
 ### High-level design
 

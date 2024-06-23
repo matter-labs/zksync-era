@@ -1,5 +1,41 @@
 # Changelog
 
+## [15.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.5.0...prover-v15.0.0) (2024-06-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* updated boojum and nightly rust compiler ([#2126](https://github.com/matter-labs/zksync-era/issues/2126))
+
+### Features
+
+* added debug_proof to prover_cli ([#2052](https://github.com/matter-labs/zksync-era/issues/2052)) ([b1ad01b](https://github.com/matter-labs/zksync-era/commit/b1ad01b50392a0ee241c2263ac22bb3258fae2d7))
+* faster & cleaner VK generation ([#2084](https://github.com/matter-labs/zksync-era/issues/2084)) ([89c8cac](https://github.com/matter-labs/zksync-era/commit/89c8cac6a747b3e05529218091b90ceb8e520c7a))
+* **node:** Move some stuff around ([#2151](https://github.com/matter-labs/zksync-era/issues/2151)) ([bad5a6c](https://github.com/matter-labs/zksync-era/commit/bad5a6c0ec2e166235418a2796b6ccf6f8b3b05f))
+* **object-store:** Allow caching object store objects locally ([#2153](https://github.com/matter-labs/zksync-era/issues/2153)) ([6c6e65c](https://github.com/matter-labs/zksync-era/commit/6c6e65ce646bcb4ed9ba8b2dd6be676bb6e66324))
+* **proof_data_handler:** add new endpoints to the TEE prover interface API ([#1993](https://github.com/matter-labs/zksync-era/issues/1993)) ([eca98cc](https://github.com/matter-labs/zksync-era/commit/eca98cceeb74a979040279caaf1d05d1fdf1b90c))
+* **prover:** Add file based config for fri prover gateway ([#2150](https://github.com/matter-labs/zksync-era/issues/2150)) ([81ffc6a](https://github.com/matter-labs/zksync-era/commit/81ffc6a753fb72747c01ddc8a37211bf6a8a1a27))
+* **prover:** file based configs for witness generator ([#2161](https://github.com/matter-labs/zksync-era/issues/2161)) ([24b8f93](https://github.com/matter-labs/zksync-era/commit/24b8f93fbcc537792a7615f34bce8b6702a55ccd))
+* support debugging of recursive circuits in prover_cli ([#2217](https://github.com/matter-labs/zksync-era/issues/2217)) ([7d2e12d](https://github.com/matter-labs/zksync-era/commit/7d2e12d80db072be1952102183648b95a48834c6))
+* updated boojum and nightly rust compiler ([#2126](https://github.com/matter-labs/zksync-era/issues/2126)) ([9e39f13](https://github.com/matter-labs/zksync-era/commit/9e39f13c29788e66645ea57f623555c4b36b8aff))
+* verification of L1Batch witness (BFT-471) - attempt 2 ([#2232](https://github.com/matter-labs/zksync-era/issues/2232)) ([dbcf3c6](https://github.com/matter-labs/zksync-era/commit/dbcf3c6d02a6bfb9197bf4278f296632b0fd7d66))
+* verification of L1Batch witness (BFT-471) ([#2019](https://github.com/matter-labs/zksync-era/issues/2019)) ([6cc5455](https://github.com/matter-labs/zksync-era/commit/6cc54555972804be4cd2ca118f0e425c490fbfca))
+
+
+### Bug Fixes
+
+* **config:** Split object stores ([#2187](https://github.com/matter-labs/zksync-era/issues/2187)) ([9bcdabc](https://github.com/matter-labs/zksync-era/commit/9bcdabcaa8462ae19da1688052a7a78fa4108298))
+* **prover_cli:** Fix delete command ([#2119](https://github.com/matter-labs/zksync-era/issues/2119)) ([214f981](https://github.com/matter-labs/zksync-era/commit/214f981880ca1ea879e805f8fc392f5c422be08d))
+* **prover_cli:** Fix the issues with `home` path ([#2104](https://github.com/matter-labs/zksync-era/issues/2104)) ([1e18af2](https://github.com/matter-labs/zksync-era/commit/1e18af20d082065f269c6cad65bee99363e2d770))
+* **prover:** config ([#2165](https://github.com/matter-labs/zksync-era/issues/2165)) ([e5daf8e](https://github.com/matter-labs/zksync-era/commit/e5daf8e8358eff65963d6a1b2294d0bd1fccab89))
+* **prover:** Disallow state changes from successful ([#2233](https://github.com/matter-labs/zksync-era/issues/2233)) ([2488a76](https://github.com/matter-labs/zksync-era/commit/2488a767a362ea3b40a348ae9822bed77d4b8de9))
+* Treat 502s and 503s as transient for GCS OS ([#2202](https://github.com/matter-labs/zksync-era/issues/2202)) ([0a12c52](https://github.com/matter-labs/zksync-era/commit/0a12c5224b0b6b6d937311e6d6d81c26b03b1d9d))
+
+
+### Reverts
+
+* verification of L1Batch witness (BFT-471) ([#2230](https://github.com/matter-labs/zksync-era/issues/2230)) ([227e101](https://github.com/matter-labs/zksync-era/commit/227e10180396fbb54a2e99cab775f13bc93745f3))
+
 ## [14.5.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.4.0...prover-v14.5.0) (2024-06-04)
 
 

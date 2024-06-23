@@ -8,15 +8,13 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
-use once_cell::sync::OnceCell;
 use tokio::sync::{watch, RwLock};
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{
-    AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorage,
-    RocksdbStorageBuilder, RocksdbStorageOptions, RocksdbWithMemory, StateKeeperColumnFamily,
+    AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbCell,
+    RocksdbStorage, RocksdbStorageBuilder, RocksdbWithMemory,
 };
-use zksync_storage::RocksDB;
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
 
 use crate::{metrics::METRICS, VmRunnerIo};
@@ -233,7 +231,7 @@ pub struct StorageSyncTask<Io: VmRunnerIo> {
     pool: ConnectionPool<Core>,
     l1_batch_params_provider: L1BatchParamsProvider,
     chain_id: L2ChainId,
-    rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
+    rocksdb_cell: RocksdbCell,
     io: Io,
     state: Arc<RwLock<State>>,
     catchup_task: AsyncCatchupTask,
@@ -251,15 +249,10 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
-        let rocksdb_cell = Arc::new(OnceCell::new());
-        let catchup_task = AsyncCatchupTask::new(
-            pool.clone(),
-            rocksdb_path,
-            RocksdbStorageOptions::default(),
-            rocksdb_cell.clone(),
-            Some(io.latest_processed_batch(&mut conn).await?),
-        );
+        let target_l1_batch_number = io.latest_processed_batch(&mut conn).await?;
         drop(conn);
+
+        let (catchup_task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), rocksdb_path);
         Ok(Self {
             pool,
             l1_batch_params_provider,
@@ -267,7 +260,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             rocksdb_cell,
             io,
             state,
-            catchup_task,
+            catchup_task: catchup_task.with_target_l1_batch_number(target_l1_batch_number),
         })
     }
 
@@ -286,9 +279,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
         self.catchup_task.run(stop_receiver.clone()).await?;
-        let rocksdb = self.rocksdb_cell.get().ok_or_else(|| {
-            anyhow::anyhow!("Expected RocksDB to be initialized by `AsyncCatchupTask`")
-        })?;
+        let rocksdb = self.rocksdb_cell.wait().await?;
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("`StorageSyncTask` was interrupted");

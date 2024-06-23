@@ -26,7 +26,6 @@ use zksync_web3_decl::{
 use super::*;
 use crate::web3::metrics::SubscriptionType;
 
-#[allow(clippy::needless_pass_by_ref_mut)] // false positive
 async fn wait_for_subscription(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
@@ -49,7 +48,6 @@ async fn wait_for_subscription(
         .expect("Timed out waiting for subscription")
 }
 
-#[allow(clippy::needless_pass_by_ref_mut)] // false positive
 async fn wait_for_notifiers(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_types: &[SubscriptionType],
@@ -74,7 +72,6 @@ async fn wait_for_notifiers(
     wait_future.await.expect("Timed out waiting for notifier");
 }
 
-#[allow(clippy::needless_pass_by_ref_mut)] // false positive
 async fn wait_for_notifier_l2_block(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,

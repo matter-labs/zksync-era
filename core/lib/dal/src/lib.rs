@@ -1,4 +1,4 @@
-//! Data access layer (DAL) for zkSync Era.
+//! Data access layer (DAL) for ZKsync Era.
 
 // Linter settings.
 #![warn(clippy::cast_lossless)]

@@ -8,15 +8,10 @@ use zksync_system_constants::{
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_types::{
-    api,
-    fee::Fee,
-    l1::{OpProcessingType, PriorityQueueType},
-    l2::L2Tx,
-    utils::deployed_address_create,
-    Address, Execute, ExecuteTransactionCommon, K256PrivateKey, L1TxCommonData, L2ChainId, Nonce,
-    PriorityOpId, Transaction, H256, U256,
+    abi, fee::Fee, l2::L2Tx, utils::deployed_address_create, Address, Execute, K256PrivateKey,
+    L2ChainId, Nonce, Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
+use zksync_utils::{address_to_u256, bytecode::hash_bytecode, h256_to_u256};
 
 pub const L1_TEST_GAS_PER_PUBDATA_BYTE: u32 = 800;
 const BASE_FEE: u64 = 2_000_000_000;
@@ -55,6 +50,10 @@ impl Account {
         Self::new(K256PrivateKey::random())
     }
 
+    pub fn random_using(rng: &mut impl rand::Rng) -> Self {
+        Self::new(K256PrivateKey::random_using(rng))
+    }
+
     pub fn get_l2_tx_for_execute(&mut self, execute: Execute, fee: Option<Fee>) -> Transaction {
         let tx = self.get_l2_tx_for_execute_with_nonce(execute, fee, self.nonce);
         self.nonce += 1;
@@ -73,28 +72,22 @@ impl Account {
             value,
             factory_deps,
         } = execute;
-        let mut tx = L2Tx::new_signed(
+        L2Tx::new_signed(
             contract_address,
             calldata,
             nonce,
-            fee.unwrap_or_else(|| self.default_fee()),
+            fee.unwrap_or_else(Self::default_fee),
             value,
             L2ChainId::default(),
             &self.private_key,
             factory_deps,
             Default::default(),
         )
-        .expect("should create a signed execute transaction");
-
-        // Set the real transaction hash, which is necessary for transaction execution in VM to function properly.
-        let mut tx_request = api::TransactionRequest::from(tx.clone());
-        tx_request.chain_id = Some(L2ChainId::default().as_u64());
-        let tx_hash = tx_request.get_tx_hash().unwrap();
-        tx.set_input(H256::random().0.to_vec(), tx_hash);
-        tx.into()
+        .expect("should create a signed execute transaction")
+        .into()
     }
 
-    fn default_fee(&self) -> Fee {
+    pub fn default_fee() -> Fee {
         Fee {
             gas_limit: U256::from(2000000000u32),
             max_fee_per_gas: U256::from(BASE_FEE),
@@ -138,7 +131,7 @@ impl Account {
         let execute = Execute {
             contract_address: CONTRACT_DEPLOYER_ADDRESS,
             calldata,
-            factory_deps: Some(factory_deps),
+            factory_deps,
             value: U256::zero(),
         };
 
@@ -160,27 +153,42 @@ impl Account {
     pub fn get_l1_tx(&self, execute: Execute, serial_id: u64) -> Transaction {
         let max_fee_per_gas = U256::from(0u32);
         let gas_limit = U256::from(20_000_000);
-
-        Transaction {
-            common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
-                sender: self.address,
+        let factory_deps = execute.factory_deps;
+        abi::Transaction::L1 {
+            tx: abi::L2CanonicalTransaction {
+                tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
+                from: address_to_u256(&self.address),
+                to: address_to_u256(&execute.contract_address),
                 gas_limit,
-                gas_per_pubdata_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
-                to_mint: gas_limit * max_fee_per_gas + execute.value,
-                serial_id: PriorityOpId(serial_id),
+                gas_per_pubdata_byte_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
                 max_fee_per_gas,
-                canonical_tx_hash: H256::from_low_u64_be(serial_id),
-                layer_2_tip_fee: Default::default(),
-                op_processing_type: OpProcessingType::Common,
-                priority_queue_type: PriorityQueueType::Deque,
-                eth_block: 0,
-                refund_recipient: self.address,
-                full_fee: Default::default(),
-            }),
-            execute,
-            received_timestamp_ms: 0,
-            raw_bytes: None,
+                max_priority_fee_per_gas: 0.into(),
+                paymaster: 0.into(),
+                nonce: serial_id.into(),
+                value: execute.value,
+                reserved: [
+                    // `to_mint`
+                    gas_limit * max_fee_per_gas + execute.value,
+                    // `refund_recipient`
+                    address_to_u256(&self.address),
+                    0.into(),
+                    0.into(),
+                ],
+                data: execute.calldata,
+                signature: vec![],
+                factory_deps: factory_deps
+                    .iter()
+                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .collect(),
+                paymaster_input: vec![],
+                reserved_dynamic: vec![],
+            }
+            .into(),
+            factory_deps,
+            eth_block: 0,
         }
+        .try_into()
+        .unwrap()
     }
 
     pub fn get_test_contract_transaction(
@@ -211,7 +219,7 @@ impl Account {
             contract_address: address,
             calldata,
             value: value.unwrap_or_default(),
-            factory_deps: None,
+            factory_deps: vec![],
         };
         match tx_type {
             TxType::L2 => self.get_l2_tx_for_execute(execute, None),
@@ -230,7 +238,7 @@ impl Account {
             contract_address: address,
             calldata,
             value: U256::zero(),
-            factory_deps: None,
+            factory_deps: vec![],
         };
 
         match tx_type {

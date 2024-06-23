@@ -103,6 +103,7 @@ impl TreeUpdater {
         for l1_batch_number in l1_batch_numbers {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
             let Some(current_l1_batch_data) = l1_batch_data else {
+                Self::ensure_not_pruned(storage, l1_batch_number).await?;
                 return Ok(l1_batch_number);
             };
             total_logs += current_l1_batch_data.storage_logs.len();
@@ -144,8 +145,7 @@ impl TreeUpdater {
                 storage
                     .tee_verifier_input_producer_dal()
                     .create_tee_verifier_input_producer_job(l1_batch_number)
-                    .await
-                    .expect("failed to create tee_verifier_input_producer job");
+                    .await?;
                 // Save the proof generation details to Postgres
                 storage
                     .proof_generation_dal()
@@ -165,6 +165,20 @@ impl TreeUpdater {
         MetadataCalculator::update_metrics(&updated_headers, total_logs, start);
 
         Ok(last_l1_batch_number + 1)
+    }
+
+    /// Checks whether the requested L1 batch was pruned. Right now, the tree cannot recover from this situation,
+    /// so we exit with an error if this happens.
+    async fn ensure_not_pruned(
+        storage: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        let pruning_info = storage.pruning_dal().get_pruning_info().await?;
+        anyhow::ensure!(
+            Some(l1_batch_number) > pruning_info.last_soft_pruned_l1_batch,
+            "L1 batch #{l1_batch_number}, next to be processed by the tree, is pruned; the tree cannot continue operating"
+        );
+        Ok(())
     }
 
     async fn step(

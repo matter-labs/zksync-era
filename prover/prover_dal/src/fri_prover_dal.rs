@@ -3,10 +3,9 @@ use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple, JobIdentifiers},
-    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
     prover_dal::{
-        correct_circuit_id, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo,
-        ProverJobStatus, StuckJobs,
+        FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
     },
     L1BatchNumber,
 };
@@ -211,6 +210,7 @@ impl FriProverDal<'_, '_> {
                     updated_at = NOW()
                 WHERE
                     id = $2
+                    AND status != 'successful'
                 "#,
                 error,
                 i64::from(id)
@@ -520,26 +520,10 @@ impl FriProverDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 id = $2
+                AND status != 'successful'
             "#,
             status,
             i64::from(id)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-    pub async fn save_successful_sent_proof(&mut self, l1_batch_number: L1BatchNumber) {
-        sqlx::query!(
-            r#"
-            UPDATE prover_jobs_fri
-            SET
-                status = 'sent_to_server',
-                updated_at = NOW()
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::from(l1_batch_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -674,8 +658,7 @@ impl FriProverDal<'_, '_> {
         .map(|row| ProverJobFriInfo {
             id: row.id as u32,
             l1_batch_number,
-            // It is necessary to correct the circuit IDs due to the discrepancy between different aggregation rounds.
-            circuit_id: correct_circuit_id(row.circuit_id, aggregation_round),
+            circuit_id: row.circuit_id as u32,
             circuit_blob_url: row.circuit_blob_url.clone(),
             aggregation_round,
             sequence_number: row.sequence_number as u32,
@@ -696,29 +679,6 @@ impl FriProverDal<'_, '_> {
             picked_by: row.picked_by.clone(),
         })
         .collect()
-    }
-
-    pub async fn protocol_version_for_job(&mut self, job_id: u32) -> ProtocolSemanticVersion {
-        let result = sqlx::query!(
-            r#"
-            SELECT
-                protocol_version,
-                protocol_version_patch
-            FROM
-                prover_jobs_fri
-            WHERE
-                id = $1
-            "#,
-            job_id as i32
-        )
-        .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
-
-        ProtocolSemanticVersion::new(
-            ProtocolVersionId::try_from(result.protocol_version.unwrap() as u16).unwrap(),
-            VersionPatch(result.protocol_version_patch as u32),
-        )
     }
 
     pub async fn delete_prover_jobs_fri_batch_data(

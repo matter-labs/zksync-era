@@ -39,6 +39,7 @@ members = [
     "core/lib/basic_types",
     "core/lib/config",
     "core/lib/constants",
+    "core/lib/contract_verifier",
     "core/lib/contracts",
     "core/lib/crypto",
     "core/lib/circuit_breaker",
@@ -214,6 +215,7 @@ zksync = { path = "sdk/zksync-rs" }
 zksync_basic_types = { path = "core/lib/basic_types" }
 zksync_circuit_breaker = { path = "core/lib/circuit_breaker" }
 zksync_config = { path = "core/lib/config" }
+zksync_contract_verifier_lib = { path = "core/lib/contract_verifier" }
 zksync_contracts = { path = "core/lib/contracts" }
 zksync_core_leftovers = { path = "core/lib/zksync_core_leftovers" }
 zksync_crypto = { path = "core/lib/crypto" }

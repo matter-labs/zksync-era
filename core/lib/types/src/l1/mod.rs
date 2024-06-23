@@ -1,4 +1,4 @@
-//! Definition of zkSync network priority operations: operations initiated from the L1.
+//! Definition of ZKsync network priority operations: operations initiated from the L1.
 
 use std::convert::TryFrom;
 
@@ -119,7 +119,7 @@ pub struct L1TxCommonData {
     pub op_processing_type: OpProcessingType,
     /// Priority operations queue type.
     pub priority_queue_type: PriorityQueueType,
-    /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
+    /// Tx hash of the transaction in the ZKsync network. Calculated as the encoded transaction data hash.
     pub canonical_tx_hash: H256,
     /// The amount of ETH that should be minted with this transaction
     pub to_mint: U256,
@@ -266,7 +266,7 @@ impl L1Tx {
 
 impl From<L1Tx> for abi::NewPriorityRequest {
     fn from(t: L1Tx) -> Self {
-        let factory_deps = t.execute.factory_deps.unwrap_or_default();
+        let factory_deps = t.execute.factory_deps;
         Self {
             tx_id: t.common_data.serial_id.0.into(),
             tx_hash: t.common_data.canonical_tx_hash.to_fixed_bytes(),
@@ -347,7 +347,7 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
         let execute = Execute {
             contract_address: u256_to_account_address(&req.transaction.to),
             calldata: req.transaction.data,
-            factory_deps: Some(req.factory_deps),
+            factory_deps: req.factory_deps,
             value: req.transaction.value,
         };
         Ok(Self {
