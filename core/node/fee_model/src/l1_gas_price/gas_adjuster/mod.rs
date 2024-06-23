@@ -334,6 +334,36 @@ impl L1TxParamsProvider for GasAdjuster {
     fn get_priority_fee(&self) -> u64 {
         self.config.default_priority_fee_per_gas
     }
+
+    fn are_gas_fees_acceptable_to_send_blob_transaction(&self, time_in_mempool: u32) -> bool {
+        let a = self.config.pricing_formula_parameter_a;
+        let b = self.config.pricing_formula_parameter_b;
+
+        let scale_factor = a * b.powf(time_in_mempool as f64);
+
+        let median_blob_base_fee = self.blob_base_fee_statistics.median().as_u64() as f64;
+        let last_blob_base_fee = self.blob_base_fee_statistics.last_added_value().as_u64() as f64;
+        let max_acceptable_blob_base_fee = median_blob_base_fee * scale_factor;
+
+        let median_base_fee = self.blob_base_fee_statistics.median().as_u64() as f64;
+        let last_base_fee = self.blob_base_fee_statistics.last_added_value().as_u64() as f64;
+        let max_acceptable_base_fee = median_base_fee * scale_factor;
+
+        let result = last_base_fee <= max_acceptable_blob_base_fee
+            && last_blob_base_fee <= max_acceptable_base_fee;
+        if !result {
+            tracing::info!(
+                "Gas prices are too high to send blob transaction, \
+            last_base_fee: {last_base_fee}, \
+            max_acceptable_base_fee: {max_acceptable_base_fee}, \
+            last_blob_base_fee: {last_blob_base_fee}, \
+            max_acceptable_blob_base_fee: {max_acceptable_blob_base_fee},\
+            time_in_mempool: {time_in_mempool}"
+            )
+        }
+
+        result
+    }
 }
 
 /// Helper structure responsible for collecting the data about recent transactions,

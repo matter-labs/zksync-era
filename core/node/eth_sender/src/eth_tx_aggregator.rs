@@ -565,6 +565,7 @@ impl EthTxAggregator {
             .unwrap();
         let eth_tx_predicted_gas = agg_l1_batch_base_cost(op_type) + predicted_gas_for_batches;
 
+        let latest_block = (*self.eth_client).as_ref().block_number().await?.as_u32();
         let eth_tx = transaction
             .eth_sender_dal()
             .save_eth_tx(
@@ -575,6 +576,7 @@ impl EthTxAggregator {
                 eth_tx_predicted_gas,
                 sender_addr,
                 encoded_aggregated_op.sidecar,
+                latest_block,
             )
             .await
             .unwrap();

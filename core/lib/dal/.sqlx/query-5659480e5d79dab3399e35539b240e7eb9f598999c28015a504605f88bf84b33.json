@@ -72,6 +72,11 @@
         "ordinal": 13,
         "name": "blob_sidecar",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at_block",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -93,7 +98,8 @@
       true,
       false,
       true,
-      true
+      true,
+      false
     ]
   },
   "hash": "5659480e5d79dab3399e35539b240e7eb9f598999c28015a504605f88bf84b33"
