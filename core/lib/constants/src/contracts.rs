@@ -153,8 +153,8 @@ pub const SHARED_BRIDGE_ETHER_TOKEN_ADDRESS: Address = H160([
 /// an "initial upgrade" transaction overrides it with the correct value.
 pub const DEFAULT_ERA_CHAIN_ID: u32 = 270;
 
-/// Value of the base token contract if ETH is used
-pub const L1_ETH_BASE_TOKEN: Address = H160([
+/// Value of the l1 contract address if ETH is used as base token
+pub const L1_ETH_CONTRACT_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x01,
 ]);

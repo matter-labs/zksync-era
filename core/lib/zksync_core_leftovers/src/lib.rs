@@ -73,7 +73,7 @@ use zksync_state_keeper::{
     AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler, StateKeeperPersistence,
     TreeWritesPersistence,
 };
-use zksync_system_constants::L1_ETH_BASE_TOKEN;
+use zksync_system_constants::L1_ETH_CONTRACT_ADDRESS;
 use zksync_tee_verifier_input_producer::TeeVerifierInputProducer;
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 use zksync_web3_decl::client::{Client, DynClient, L1};
@@ -301,7 +301,7 @@ pub async fn initialize_components(
     // check if the base token is ETH, if not, we need to use the real adjuster
     // otherwise, this is not needed
     if let Some(base_token_addr) = contracts_config.base_token_addr {
-        if base_token_addr != L1_ETH_BASE_TOKEN {
+        if base_token_addr != L1_ETH_CONTRACT_ADDRESS {
             arc_base_token_adjuster = Some(Arc::new(MainNodeBaseTokenAdjuster::new(
                 connection_pool.clone(),
                 configs
@@ -806,7 +806,7 @@ pub async fn initialize_components(
     }
 
     if let Some(base_token_addr) = contracts_config.base_token_addr {
-        if base_token_addr != L1_ETH_BASE_TOKEN {
+        if base_token_addr != L1_ETH_CONTRACT_ADDRESS {
             if components.contains(&Component::BaseTokenAdjuster) {
                 // the native token is not ETH, we need the base token adjuster
                 tracing::info!("initializing base token adjuster");

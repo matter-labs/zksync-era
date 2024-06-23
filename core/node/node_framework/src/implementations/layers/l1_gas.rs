@@ -7,7 +7,7 @@ use zksync_config::{
     BaseTokenAdjusterConfig, ContractsConfig, GasAdjusterConfig, GenesisConfig,
 };
 use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
-use zksync_types::{fee_model::FeeModelConfig, Address, L1_ETH_BASE_TOKEN};
+use zksync_types::{fee_model::FeeModelConfig, Address, L1_ETH_CONTRACT_ADDRESS};
 
 use crate::{
     implementations::resources::{
@@ -77,7 +77,7 @@ impl WiringLayer for SequencerL1GasLayer {
         // check if the base token is ETH, if not, we need to use the real adjuster
         // otherwise, this is not needed
         if let Some(base_token_addr) = self.contracts_config.base_token_addr {
-            if base_token_addr != L1_ETH_BASE_TOKEN {
+            if base_token_addr != L1_ETH_CONTRACT_ADDRESS {
                 let main_node_base_token_adjuster = MainNodeBaseTokenAdjuster::new(
                     replica_pool.clone(),
                     self.base_token_adjuster_config,
