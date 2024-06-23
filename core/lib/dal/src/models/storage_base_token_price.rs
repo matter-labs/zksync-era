@@ -9,8 +9,8 @@ pub struct StorageBaseTokenPrice {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub ratio_timestamp: NaiveDateTime,
-    pub numerator: BigDecimal,
-    pub denominator: BigDecimal,
+    pub base_token_price: BigDecimal,
+    pub eth_price: BigDecimal,
     pub used_in_l1: bool,
 }
 
@@ -19,8 +19,8 @@ impl From<StorageBaseTokenPrice> for BaseTokenPrice {
         BaseTokenPrice {
             id: row.id,
             ratio_timestamp: row.ratio_timestamp.and_utc(),
-            numerator: row.numerator,
-            denominator: row.denominator,
+            base_token_price: row.base_token_price,
+            eth_price: row.eth_price,
             used_in_l1: row.used_in_l1,
         }
     }

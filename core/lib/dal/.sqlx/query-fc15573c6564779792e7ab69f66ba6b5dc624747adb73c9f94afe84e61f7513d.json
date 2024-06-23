@@ -25,12 +25,12 @@
       },
       {
         "ordinal": 4,
-        "name": "numerator",
+        "name": "base_token_price",
         "type_info": "Numeric"
       },
       {
         "ordinal": 5,
-        "name": "denominator",
+        "name": "eth_price",
         "type_info": "Numeric"
       },
       {

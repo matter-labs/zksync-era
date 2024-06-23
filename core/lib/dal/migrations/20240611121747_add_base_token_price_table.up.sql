@@ -4,8 +4,8 @@ CREATE TABLE base_token_prices (
     updated_at TIMESTAMP NOT NULL,
 
     ratio_timestamp TIMESTAMP NOT NULL,
-    numerator NUMERIC NOT NULL,
-    denominator NUMERIC NOT NULL,
+    base_token_price NUMERIC NOT NULL,
+    eth_price NUMERIC NOT NULL,
 
     used_in_l1 BOOLEAN NOT NULL DEFAULT FALSE
 );

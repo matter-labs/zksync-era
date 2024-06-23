@@ -6,23 +6,27 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use bigdecimal::{BigDecimal, ToPrimitive};
 use chrono::Utc;
 use tokio::sync::watch;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
-use zksync_dal::{BigDecimal, ConnectionPool, Core, CoreDal};
-use zksync_types::base_token_price::BaseTokenAPIPrice;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_types::{
+    base_token_price::BaseTokenAPIPrice,
+    fee_model::{FeeModelConfigV2, FeeParams, FeeParamsV2},
+};
 
 #[async_trait]
 pub trait BaseTokenAdjuster: Debug + Send + Sync {
     /// Returns the last ratio cached by the adjuster and ensure it's still usable.
-    async fn get_last_ratio_and_check_usability<'a>(&'a self) -> BigDecimal;
+    async fn maybe_convert_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams>;
 
     /// Return configured symbol of the base token.
     fn get_base_token(&self) -> &str;
 }
 
 #[derive(Debug)]
-/// BaseTokenAdjuster implementation for the main node (not the External Node).
+/// BaseTokenAdjuster implementation for the main node (not the External Node). TODO (PE-137): impl APIBaseTokenAdjuster
 pub struct MainNodeBaseTokenAdjuster {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
@@ -65,13 +69,13 @@ impl MainNodeBaseTokenAdjuster {
     // TODO (PE-135): Use real API client to fetch new ratio through self.PriceAPIClient & mock for tests.
     //  For now, these hard coded values are also hard coded in the integration tests.
     async fn fetch_new_ratio(&self) -> anyhow::Result<BaseTokenAPIPrice> {
-        let new_numerator = BigDecimal::from(100000);
-        let new_denominator = BigDecimal::from(1);
+        let new_base_token_price = BigDecimal::from(1);
+        let new_eth_price = BigDecimal::from(100000);
         let ratio_timestamp = Utc::now();
 
         Ok(BaseTokenAPIPrice {
-            numerator: new_numerator,
-            denominator: new_denominator,
+            base_token_price: new_base_token_price,
+            eth_price: new_eth_price,
             ratio_timestamp,
         })
     }
@@ -89,8 +93,8 @@ impl MainNodeBaseTokenAdjuster {
         let id = conn
             .base_token_dal()
             .insert_token_price(
-                &api_price.numerator,
-                &api_price.denominator,
+                &api_price.base_token_price,
+                &api_price.eth_price,
                 &api_price.ratio_timestamp.naive_utc(),
             )
             .await?;
@@ -124,25 +128,35 @@ impl MainNodeBaseTokenAdjuster {
 #[async_trait]
 impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
     // TODO (PE-129): Implement latest ratio usability logic.
-    async fn get_last_ratio_and_check_usability<'a>(&'a self) -> BigDecimal {
+    async fn maybe_convert_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams> {
         let mut conn = self
             .pool
             .connection_tagged("base_token_adjuster")
             .await
             .expect("Failed to obtain connection to the database");
 
-        let last_storage_ratio = conn
+        let last_storage_price = conn
             .base_token_dal()
             .get_latest_price()
             .await
             .expect("Failed to get latest base token price");
         drop(conn);
 
-        let last_ratio = last_storage_ratio
-            .numerator
-            .div(&last_storage_ratio.denominator);
+        let last_ratio = last_storage_price
+            .base_token_price
+            .div(&last_storage_price.eth_price);
 
-        last_ratio
+        let base_token = self.get_base_token();
+        match base_token {
+            "ETH" => Ok(params),
+            _ => {
+                if let FeeParams::V2(params_v2) = params {
+                    Ok(FeeParams::V2(convert_to_base_token(params_v2, last_ratio)))
+                } else {
+                    panic!("Custom base token is not supported for V1 fee model")
+                }
+            }
+        }
     }
 
     /// Return configured symbol of the base token. If not configured, return "ETH".
@@ -151,6 +165,49 @@ impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
             Some(base_token) => base_token.as_str(),
             None => "ETH",
         }
+    }
+}
+
+/// Converts the fee parameters to the base token using the latest ratio fetched from the DB.
+fn convert_to_base_token(params: FeeParamsV2, base_token_to_eth: BigDecimal) -> FeeParamsV2 {
+    let FeeParamsV2 {
+        config,
+        l1_gas_price,
+        l1_pubdata_price,
+    } = params;
+
+    let convert_price = |price_in_wei: u64| -> u64 {
+        let converted_price_bd = BigDecimal::from(price_in_wei) * base_token_to_eth.clone();
+        match converted_price_bd.to_u64() {
+            Some(converted_price) => converted_price,
+            None => {
+                if converted_price_bd > BigDecimal::from(u64::MAX) {
+                    tracing::warn!(
+                        "Conversion to base token price failed: converted price is too large: {}",
+                        converted_price_bd
+                    );
+                } else {
+                    tracing::error!(
+                        "Conversion to base token price failed: converted price is not a valid u64: {}",
+                        converted_price_bd
+                    );
+                }
+                u64::MAX
+            }
+        }
+    };
+
+    let l1_gas_price_converted = convert_price(l1_gas_price);
+    let l1_pubdata_price_converted = convert_price(l1_pubdata_price);
+    let minimal_l2_gas_price_converted = convert_price(config.minimal_l2_gas_price);
+
+    FeeParamsV2 {
+        config: FeeModelConfigV2 {
+            minimal_l2_gas_price: minimal_l2_gas_price_converted,
+            ..config
+        },
+        l1_gas_price: l1_gas_price_converted,
+        l1_pubdata_price: l1_pubdata_price_converted,
     }
 }
 
@@ -172,11 +229,171 @@ impl MockBaseTokenAdjuster {
 
 #[async_trait]
 impl BaseTokenAdjuster for MockBaseTokenAdjuster {
-    async fn get_last_ratio_and_check_usability(&self) -> BigDecimal {
-        self.last_ratio.clone()
+    async fn maybe_convert_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams> {
+        // LOG THE PARAMS
+        tracing::info!("Params: {:?}", params);
+        match self.get_base_token() {
+            "ETH" => Ok(params),
+            _ => {
+                if let FeeParams::V2(params_v2) = params {
+                    Ok(FeeParams::V2(convert_to_base_token(
+                        params_v2,
+                        self.last_ratio.clone(),
+                    )))
+                } else {
+                    panic!("Custom base token is not supported for V1 fee model")
+                }
+            }
+        }
     }
 
     fn get_base_token(&self) -> &str {
         &self.base_token
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use bigdecimal::BigDecimal;
+    use zksync_types::fee_model::{FeeModelConfigV2, FeeParamsV2};
+
+    use super::*;
+
+    #[test]
+    fn test_convert_to_base_token() {
+        let base_fee_model_config = FeeModelConfigV2 {
+            minimal_l2_gas_price: 0,
+            // All the below are unaffected by this flow.
+            compute_overhead_part: 1.0,
+            pubdata_overhead_part: 1.0,
+            batch_overhead_l1_gas: 1,
+            max_gas_per_batch: 1,
+            max_pubdata_per_batch: 1,
+        };
+
+        struct TestCase {
+            name: &'static str,
+            base_token_to_eth: BigDecimal,
+            input_minimal_l2_gas_price: u64,
+            input_l1_gas_price: u64,
+            input_l1_pubdata_price: u64,
+            expected_minimal_l2_gas_price: u64,
+            expected_l1_gas_price: u64,
+            expected_l1_pubdata_price: u64,
+        }
+
+        let test_cases = vec![
+            TestCase {
+                name: "1 ETH = 2 BaseToken",
+                base_token_to_eth: BigDecimal::from(2),
+                input_minimal_l2_gas_price: 1000,
+                input_l1_gas_price: 2000,
+                input_l1_pubdata_price: 3000,
+                expected_minimal_l2_gas_price: 2000,
+                expected_l1_gas_price: 4000,
+                expected_l1_pubdata_price: 6000,
+            },
+            TestCase {
+                name: "1 ETH = 0.5 BaseToken",
+                base_token_to_eth: BigDecimal::from_str("0.5").unwrap(),
+                input_minimal_l2_gas_price: 1000,
+                input_l1_gas_price: 2000,
+                input_l1_pubdata_price: 3000,
+                expected_minimal_l2_gas_price: 500,
+                expected_l1_gas_price: 1000,
+                expected_l1_pubdata_price: 1500,
+            },
+            TestCase {
+                name: "1 ETH = 1 BaseToken",
+                base_token_to_eth: BigDecimal::from(1),
+                input_minimal_l2_gas_price: 1000,
+                input_l1_gas_price: 2000,
+                input_l1_pubdata_price: 3000,
+                expected_minimal_l2_gas_price: 1000,
+                expected_l1_gas_price: 2000,
+                expected_l1_pubdata_price: 3000,
+            },
+            TestCase {
+                name: "Small conversion - 1 ETH - 1_000_000 BaseToken",
+                base_token_to_eth: BigDecimal::from_str("0.000001").unwrap(),
+                input_minimal_l2_gas_price: 1_000_000,
+                input_l1_gas_price: 2_000_000,
+                input_l1_pubdata_price: 3_000_000,
+                expected_minimal_l2_gas_price: 1,
+                expected_l1_gas_price: 2,
+                expected_l1_pubdata_price: 3,
+            },
+            TestCase {
+                name: "Large conversion - 1 ETH = 0.000001 BaseToken",
+                base_token_to_eth: BigDecimal::from_str("1000000").unwrap(),
+                input_minimal_l2_gas_price: 1,
+                input_l1_gas_price: 2,
+                input_l1_pubdata_price: 3,
+                expected_minimal_l2_gas_price: 1_000_000,
+                expected_l1_gas_price: 2_000_000,
+                expected_l1_pubdata_price: 3_000_000,
+            },
+            TestCase {
+                name: "Fractional conversion ratio",
+                base_token_to_eth: BigDecimal::from_str("1.123456789").unwrap(),
+                input_minimal_l2_gas_price: 1000,
+                input_l1_gas_price: 2000,
+                input_l1_pubdata_price: 3000,
+                expected_minimal_l2_gas_price: 1123,
+                expected_l1_gas_price: 2246,
+                expected_l1_pubdata_price: 3370,
+            },
+            TestCase {
+                name: "Zero conversion ratio",
+                base_token_to_eth: BigDecimal::from(0),
+                input_minimal_l2_gas_price: 1000,
+                input_l1_gas_price: 2000,
+                input_l1_pubdata_price: 3000,
+                expected_minimal_l2_gas_price: 0,
+                expected_l1_gas_price: 0,
+                expected_l1_pubdata_price: 0,
+            },
+            TestCase {
+                name: "Conversion ratio too large so clamp down to u64::MAX",
+                base_token_to_eth: BigDecimal::from(u64::MAX),
+                input_minimal_l2_gas_price: 2,
+                input_l1_gas_price: 2,
+                input_l1_pubdata_price: 2,
+                expected_minimal_l2_gas_price: u64::MAX,
+                expected_l1_gas_price: u64::MAX,
+                expected_l1_pubdata_price: u64::MAX,
+            },
+        ];
+
+        for case in test_cases {
+            let input_params = FeeParamsV2 {
+                config: FeeModelConfigV2 {
+                    minimal_l2_gas_price: case.input_minimal_l2_gas_price,
+                    ..base_fee_model_config
+                },
+                l1_gas_price: case.input_l1_gas_price,
+                l1_pubdata_price: case.input_l1_pubdata_price,
+            };
+
+            let result = convert_to_base_token(input_params, case.base_token_to_eth.clone());
+
+            assert_eq!(
+                result.config.minimal_l2_gas_price, case.expected_minimal_l2_gas_price,
+                "Test case '{}' failed: minimal_l2_gas_price mismatch",
+                case.name
+            );
+            assert_eq!(
+                result.l1_gas_price, case.expected_l1_gas_price,
+                "Test case '{}' failed: l1_gas_price mismatch",
+                case.name
+            );
+            assert_eq!(
+                result.l1_pubdata_price, case.expected_l1_pubdata_price,
+                "Test case '{}' failed: l1_pubdata_price mismatch",
+                case.name
+            );
+        }
     }
 }

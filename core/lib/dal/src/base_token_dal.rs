@@ -11,21 +11,21 @@ pub struct BaseTokenDal<'a, 'c> {
 impl BaseTokenDal<'_, '_> {
     pub async fn insert_token_price(
         &mut self,
-        numerator: &BigDecimal,
-        denominator: &BigDecimal,
+        base_token_price: &BigDecimal,
+        eth_price: &BigDecimal,
         ratio_timestamp: &chrono::NaiveDateTime,
     ) -> DalResult<usize> {
         let row = sqlx::query!(
             r#"
             INSERT INTO
-                base_token_prices (numerator, denominator, ratio_timestamp)
+                base_token_prices (base_token_price, eth_price, ratio_timestamp, created_at, updated_at)
             VALUES
-                ($1, $2, $3)
+                ($1, $2, $3, NOW(), NOW())
             RETURNING
                 id
             "#,
-            numerator,
-            denominator,
+            base_token_price,
+            eth_price,
             ratio_timestamp,
         )
         .instrument("insert_base_token_price")

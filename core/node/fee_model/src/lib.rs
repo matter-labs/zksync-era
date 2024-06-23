@@ -1,7 +1,7 @@
 use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
-use bigdecimal::{BigDecimal, ToPrimitive};
+use async_trait::async_trait;
 use zksync_base_token_adjuster::BaseTokenAdjuster;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
@@ -18,7 +18,7 @@ use crate::l1_gas_price::L1GasAdjuster;
 pub mod l1_gas_price;
 
 /// Trait responsible for providing fee info for a batch
-#[async_trait::async_trait]
+#[async_trait]
 pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     /// Returns the batch fee with scaling applied. This may be used to account for the fact that the L1 gas and pubdata prices may fluctuate, esp.
     /// in API methods that should return values that are valid for some period of time after the estimation was done.
@@ -45,7 +45,17 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     }
 
     /// Returns the fee model parameters using the denomination of the base token used (WEI for ETH).
-    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams>;
+    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
+        let unconverted_params = self.get_fee_model_params().await?;
+        self.maybe_convert_params_to_base_token(unconverted_params)
+            .await
+    }
+
+    /// Converts the fee model parameters to the base token denomination.
+    async fn maybe_convert_params_to_base_token(
+        &self,
+        params: FeeParams,
+    ) -> anyhow::Result<FeeParams>;
 }
 
 impl dyn BatchFeeModelInputProvider {
@@ -55,9 +65,9 @@ impl dyn BatchFeeModelInputProvider {
     }
 }
 
-/// The struct that represents the batch fee input provider to be used in the main node of the server, i.e.
-/// it explicitly gets the L1 gas price from the provider and uses it to calculate the batch fee input instead of getting
-/// it from other node.
+/// The struct that represents the batch fee input provider to be used in the main node of the server.
+/// This struct gets the L1 gas price directly from the provider rather than from another node, as is the
+/// case with the external node.
 #[derive(Debug)]
 pub struct MainNodeFeeInputProvider {
     provider: Arc<dyn L1GasAdjuster>,
@@ -65,37 +75,31 @@ pub struct MainNodeFeeInputProvider {
     config: FeeModelConfig,
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
     async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
-        match self.config {
-            FeeModelConfig::V1(config) => Ok(FeeParams::V1(FeeParamsV1 {
+        let params = match self.config {
+            FeeModelConfig::V1(config) => FeeParams::V1(FeeParamsV1 {
                 config,
                 l1_gas_price: self.provider.estimate_effective_gas_price(),
-            })),
-            FeeModelConfig::V2(config) => {
-                let params = FeeParamsV2 {
-                    config,
-                    l1_gas_price: self.provider.estimate_effective_gas_price(),
-                    l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
-                };
+            }),
+            FeeModelConfig::V2(config) => FeeParams::V2(FeeParamsV2 {
+                config,
+                l1_gas_price: self.provider.estimate_effective_gas_price(),
+                l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
+            }),
+        };
 
-                let base_token = self.base_token_adjuster.get_base_token();
-                match base_token {
-                    "ETH" => Ok(FeeParams::V2(params)),
-                    _ => {
-                        let base_token_conversion_ratio = self
-                            .base_token_adjuster
-                            .get_last_ratio_and_check_usability()
-                            .await;
-                        Ok(FeeParams::V2(convert_to_base_token(
-                            params,
-                            base_token_conversion_ratio,
-                        )))
-                    }
-                }
-            }
-        }
+        self.maybe_convert_params_to_base_token(params).await
+    }
+
+    async fn maybe_convert_params_to_base_token(
+        &self,
+        params: FeeParams,
+    ) -> anyhow::Result<FeeParams> {
+        self.base_token_adjuster
+            .maybe_convert_to_base_token(params)
+            .await
     }
 }
 
@@ -110,52 +114,6 @@ impl MainNodeFeeInputProvider {
             base_token_adjuster,
             config,
         }
-    }
-}
-
-fn convert_to_base_token(
-    params: FeeParamsV2,
-    base_token_conversion_ratio: BigDecimal,
-) -> FeeParamsV2 {
-    let FeeParamsV2 {
-        config,
-        l1_gas_price,
-        l1_pubdata_price,
-    } = params;
-
-    let convert_price = |price_in_wei: u64, eth_to_base_token_ratio: &BigDecimal| -> u64 {
-        let converted_price_bd = BigDecimal::from(price_in_wei) * eth_to_base_token_ratio;
-        match converted_price_bd.to_u64() {
-            Some(converted_price) => converted_price,
-            None => {
-                if converted_price_bd > BigDecimal::from(u64::MAX) {
-                    tracing::warn!(
-                        "Conversion to base token price failed: converted price is too large: {}",
-                        converted_price_bd
-                    );
-                } else {
-                    tracing::error!(
-                        "Conversion to base token price failed: converted price is not a valid u64: {}",
-                        converted_price_bd
-                    );
-                }
-                u64::MAX
-            }
-        }
-    };
-
-    let l1_gas_price_converted = convert_price(l1_gas_price, &base_token_conversion_ratio);
-    let l1_pubdata_price_converted = convert_price(l1_pubdata_price, &base_token_conversion_ratio);
-    let minimal_l2_gas_price_converted =
-        convert_price(config.minimal_l2_gas_price, &base_token_conversion_ratio);
-
-    FeeParamsV2 {
-        config: FeeModelConfigV2 {
-            minimal_l2_gas_price: minimal_l2_gas_price_converted,
-            ..config
-        },
-        l1_gas_price: l1_gas_price_converted,
-        l1_pubdata_price: l1_pubdata_price_converted,
     }
 }
 
@@ -179,7 +137,7 @@ impl ApiFeeInputProvider {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl BatchFeeModelInputProvider for ApiFeeInputProvider {
     async fn get_batch_fee_input_scaled(
         &self,
@@ -207,6 +165,13 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
     /// Returns the fee model parameters.
     async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
         self.inner.get_fee_model_params().await
+    }
+
+    async fn maybe_convert_params_to_base_token(
+        &self,
+        params: FeeParams,
+    ) -> anyhow::Result<FeeParams> {
+        self.inner.maybe_convert_params_to_base_token(params).await
     }
 }
 
@@ -302,17 +267,25 @@ impl Default for MockBatchFeeParamsProvider {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
-    async fn get_fee_model_params<'a>(&'a self) -> anyhow::Result<FeeParams> {
+    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
         Ok(self.0)
+    }
+
+    async fn maybe_convert_params_to_base_token(
+        &self,
+        params: FeeParams,
+    ) -> anyhow::Result<FeeParams> {
+        Ok(params)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use bigdecimal::FromPrimitive;
-    use test_casing::test_casing;
+    // use bigdecimal::{BigDecimal, ToPrimitive};
+    use bigdecimal::BigDecimal;
+    // use test_casing::test_casing;
     use zksync_base_token_adjuster::MockBaseTokenAdjuster;
 
     use super::*;
@@ -325,12 +298,6 @@ mod tests {
 
     // As a small small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: u64 = 1;
-
-    // Conversion ratio for ETH to base token (1ETH = 200K BaseToken)
-    const ETH_TO_BASE_TOKEN: u64 = 200000;
-
-    // Conversion ratio for ETH to ETH (1ETH = 1ETH)
-    const ETH_TO_ETH: u64 = 1;
 
     #[test]
     fn test_compute_batch_fee_model_input_v2_giant_numbers() {
@@ -414,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_batch_fee_model_input_v2_only_compute_overhead() {
+    fn test_compute_baxtch_fee_model_input_v2_only_compute_overhead() {
         // Here we use sensible config, but when only compute is used to close the batch
         let config = FeeModelConfigV2 {
             minimal_l2_gas_price: 100_000_000_000,
@@ -546,63 +513,93 @@ mod tests {
         );
     }
 
-    #[test_casing(2, [("ETH", ETH_TO_ETH),("ZK", ETH_TO_BASE_TOKEN)])]
     #[tokio::test]
-    async fn test_get_fee_model_params(base_token: &str, conversion_ratio: u64) {
-        let conversion_ratio_bd = BigDecimal::from_u64(conversion_ratio).unwrap();
-        let in_effective_l1_gas_price = 10_000_000_000; // 10 gwei
-        let in_effective_l1_pubdata_price = 20_000_000; // 0.002 gwei
-        let in_minimal_l2_gas_price = 25_000_000; // 0.025 gwei
+    async fn test_get_fee_model_params() {
+        struct TestCase {
+            name: &'static str,
+            base_token: String,
+            base_token_to_eth: BigDecimal,
+            effective_l1_gas_price: u64,
+            effective_l1_pubdata_price: u64,
+            minimal_l2_gas_price: u64,
+            expected_l1_gas_price: u64,
+            expected_l1_pubdata_price: u64,
+            expected_minimal_l2_gas_price: u64,
+        }
 
-        let gas_adjuster = Arc::new(MockGasAdjuster::new(
-            in_effective_l1_gas_price,
-            in_effective_l1_pubdata_price,
-        ));
+        let test_cases = vec![
+            TestCase {
+                name: "Convert to a custom base token",
+                base_token: "ZK".to_string(),
+                base_token_to_eth: BigDecimal::from(200000),
+                effective_l1_gas_price: 10_000_000_000, // 10 gwei
+                effective_l1_pubdata_price: 20_000_000, // 0.02 gwei
+                minimal_l2_gas_price: 25_000_000,       // 0.025 gwei
+                expected_l1_gas_price: 2_000_000_000_000_000,
+                expected_l1_pubdata_price: 4_000_000_000_000,
+                expected_minimal_l2_gas_price: 5_000_000_000_000,
+            },
+            TestCase {
+                name: "ETH as base token (no conversion)",
+                base_token: "ETH".to_string(),
+                base_token_to_eth: BigDecimal::from(1),
+                effective_l1_gas_price: 15_000_000_000, // 15 gwei
+                effective_l1_pubdata_price: 30_000_000, // 0.03 gwei
+                minimal_l2_gas_price: 40_000_000,       // 0.04 gwei
+                expected_l1_gas_price: 15_000_000_000,
+                expected_l1_pubdata_price: 30_000_000,
+                expected_minimal_l2_gas_price: 40_000_000,
+            },
+        ];
 
-        let base_token_adjuster = Arc::new(MockBaseTokenAdjuster::new(
-            conversion_ratio_bd.clone(),
-            base_token.to_string(),
-        ));
+        for case in test_cases {
+            let gas_adjuster = Arc::new(MockGasAdjuster::new(
+                case.effective_l1_gas_price,
+                case.effective_l1_pubdata_price,
+            ));
 
-        let config = FeeModelConfig::V2(FeeModelConfigV2 {
-            minimal_l2_gas_price: in_minimal_l2_gas_price,
-            compute_overhead_part: 1.0,
-            pubdata_overhead_part: 1.0,
-            batch_overhead_l1_gas: 1_000_000,
-            max_gas_per_batch: 50_000_000,
-            max_pubdata_per_batch: 100_000,
-        });
+            let base_token_adjuster = Arc::new(MockBaseTokenAdjuster::new(
+                case.base_token_to_eth.clone(),
+                case.base_token.clone(),
+            ));
 
-        let fee_provider = MainNodeFeeInputProvider::new(
-            gas_adjuster.clone(),
-            base_token_adjuster.clone(),
-            config,
-        );
+            let config = FeeModelConfig::V2(FeeModelConfigV2 {
+                minimal_l2_gas_price: case.minimal_l2_gas_price,
+                // The below values don't matter for this test.
+                compute_overhead_part: 1.0,
+                pubdata_overhead_part: 1.0,
+                batch_overhead_l1_gas: 1,
+                max_gas_per_batch: 1,
+                max_pubdata_per_batch: 1,
+            });
 
-        let fee_params = fee_provider.get_fee_model_params().await.unwrap();
-
-        let expected_l1_gas_price = (BigDecimal::from(in_effective_l1_gas_price)
-            * conversion_ratio_bd.clone())
-        .to_u64()
-        .unwrap();
-        let expected_l1_pubdata_price = (BigDecimal::from(in_effective_l1_pubdata_price)
-            * conversion_ratio_bd.clone())
-        .to_u64()
-        .unwrap();
-        let expected_minimal_l2_gas_price = (BigDecimal::from(in_minimal_l2_gas_price)
-            * conversion_ratio_bd)
-            .to_u64()
-            .unwrap();
-
-        if let FeeParams::V2(params) = fee_params {
-            assert_eq!(params.l1_gas_price, expected_l1_gas_price);
-            assert_eq!(params.l1_pubdata_price, expected_l1_pubdata_price);
-            assert_eq!(
-                params.config.minimal_l2_gas_price,
-                expected_minimal_l2_gas_price
+            let fee_provider = MainNodeFeeInputProvider::new(
+                gas_adjuster.clone(),
+                base_token_adjuster.clone(),
+                config,
             );
-        } else {
-            panic!("Expected FeeParams::V2");
+
+            let fee_params = fee_provider.get_fee_model_params().await.unwrap();
+
+            if let FeeParams::V2(params) = fee_params {
+                assert_eq!(
+                    params.l1_gas_price, case.expected_l1_gas_price,
+                    "Test case '{}' failed: l1_gas_price mismatch",
+                    case.name
+                );
+                assert_eq!(
+                    params.l1_pubdata_price, case.expected_l1_pubdata_price,
+                    "Test case '{}' failed: l1_pubdata_price mismatch",
+                    case.name
+                );
+                assert_eq!(
+                    params.config.minimal_l2_gas_price, case.expected_minimal_l2_gas_price,
+                    "Test case '{}' failed: minimal_l2_gas_price mismatch",
+                    case.name
+                );
+            } else {
+                panic!("Expected FeeParams::V2 for test case '{}'", case.name);
+            }
         }
     }
 }

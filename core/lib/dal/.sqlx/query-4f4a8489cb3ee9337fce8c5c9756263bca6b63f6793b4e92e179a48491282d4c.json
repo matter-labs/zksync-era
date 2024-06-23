@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                base_token_prices (base_token_price, eth_price, ratio_timestamp, created_at, updated_at)\n            VALUES\n                ($1, $2, $3, NOW(), NOW())\n            RETURNING\n                id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Numeric",
+        "Numeric",
+        "Timestamp"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4f4a8489cb3ee9337fce8c5c9756263bca6b63f6793b4e92e179a48491282d4c"
+}
