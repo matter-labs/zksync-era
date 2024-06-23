@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use zksync_base_token_adjuster::MainNodeBaseTokenAdjuster;
+use zksync_base_token_adjuster::{BaseTokenAdjuster, MainNodeBaseTokenAdjuster};
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
-    BaseTokenAdjusterConfig, GasAdjusterConfig, GenesisConfig,
+    BaseTokenAdjusterConfig, ContractsConfig, GasAdjusterConfig, GenesisConfig,
 };
 use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
-use zksync_types::fee_model::FeeModelConfig;
+use zksync_types::{fee_model::FeeModelConfig, Address, L1_ETH_BASE_TOKEN};
 
 use crate::{
     implementations::resources::{
@@ -28,6 +28,7 @@ pub struct SequencerL1GasLayer {
     pubdata_sending_mode: PubdataSendingMode,
     state_keeper_config: StateKeeperConfig,
     base_token_adjuster_config: BaseTokenAdjusterConfig,
+    contracts_config: ContractsConfig,
 }
 
 impl SequencerL1GasLayer {
@@ -37,6 +38,7 @@ impl SequencerL1GasLayer {
         state_keeper_config: StateKeeperConfig,
         pubdata_sending_mode: PubdataSendingMode,
         base_token_adjuster_config: BaseTokenAdjusterConfig,
+        contracts_config: ContractsConfig,
     ) -> Self {
         Self {
             gas_adjuster_config,
@@ -44,6 +46,7 @@ impl SequencerL1GasLayer {
             pubdata_sending_mode,
             state_keeper_config,
             base_token_adjuster_config,
+            contracts_config,
         }
     }
 }
@@ -69,12 +72,23 @@ impl WiringLayer for SequencerL1GasLayer {
         let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = pool_resource.get().await?;
 
-        let base_token_adjuster =
-            MainNodeBaseTokenAdjuster::new(replica_pool.clone(), self.base_token_adjuster_config);
+        let mut base_token_adjuster: Option<Arc<dyn BaseTokenAdjuster>> = None;
+
+        // check if the base token is ETH, if not, we need to use the real adjuster
+        // otherwise, this is not needed
+        if let Some(base_token_addr) = self.contracts_config.base_token_addr {
+            if base_token_addr != L1_ETH_BASE_TOKEN {
+                let main_node_base_token_adjuster = MainNodeBaseTokenAdjuster::new(
+                    replica_pool.clone(),
+                    self.base_token_adjuster_config,
+                );
+                base_token_adjuster = Some(Arc::new(main_node_base_token_adjuster))
+            }
+        }
 
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             gas_adjuster.clone(),
-            Arc::new(base_token_adjuster),
+            base_token_adjuster,
             FeeModelConfig::from_state_keeper_config(&self.state_keeper_config),
         ));
         context.insert_resource(FeeInputResource(batch_fee_input_provider))?;

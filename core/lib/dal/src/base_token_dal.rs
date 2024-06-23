@@ -18,9 +18,9 @@ impl BaseTokenDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             INSERT INTO
-                base_token_prices (numerator, denominator, ratio_timestamp)
+                base_token_prices (numerator, denominator, ratio_timestamp, created_at, updated_at)
             VALUES
-                ($1, $2, $3)
+                ($1, $2, $3, NOW(), NOW())
             RETURNING
                 id
             "#,

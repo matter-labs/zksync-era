@@ -53,7 +53,7 @@ impl Task for BaseTokenAdjusterTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let mut adjuster =
+        let adjuster =
             zksync_base_token_adjuster::MainNodeBaseTokenAdjuster::new(self.main_pool, self.config);
 
         adjuster.run(stop_receiver.0).await

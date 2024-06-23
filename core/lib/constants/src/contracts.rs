@@ -152,3 +152,9 @@ pub const SHARED_BRIDGE_ETHER_TOKEN_ADDRESS: Address = H160([
 /// Default `ERA_CHAIN_ID`. All hyperchains start with this chain id and later on during their registration
 /// an "initial upgrade" transaction overrides it with the correct value.
 pub const DEFAULT_ERA_CHAIN_ID: u32 = 270;
+
+/// Value of the base token contract if ETH is used
+pub const L1_ETH_BASE_TOKEN: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x01,
+]);

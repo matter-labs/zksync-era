@@ -1,3 +1,4 @@
 __imports__ = [ "base", "l1-inits/.init.env", "l2-inits/dev.init.env" ]
 
 ETH_SENDER_SENDER_PUBDATA_SENDING_MODE = "Blobs"
+CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"

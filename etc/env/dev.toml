@@ -1,6 +1,7 @@
 [_metadata]
 base = [
     'base/api.toml',
+    'base/base_token_adjuster.toml',
     'base/chain.toml',
     'base/contract_verifier.toml',
     'base/contracts.toml',

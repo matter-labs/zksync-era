@@ -16,9 +16,6 @@ use zksync_types::base_token_price::BaseTokenAPIPrice;
 pub trait BaseTokenAdjuster: Debug + Send + Sync {
     /// Returns the last ratio cached by the adjuster and ensure it's still usable.
     async fn get_last_ratio_and_check_usability<'a>(&'a self) -> BigDecimal;
-
-    /// Return configured symbol of the base token.
-    fn get_base_token(&self) -> &str;
 }
 
 #[derive(Debug)]
@@ -35,7 +32,7 @@ impl MainNodeBaseTokenAdjuster {
 
     /// Main loop for the base token adjuster.
     /// Orchestrates fetching new ratio, persisting it, and updating L1.
-    pub async fn run(&mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let pool = self.pool.clone();
         loop {
             if *stop_receiver.borrow() {
@@ -48,8 +45,10 @@ impl MainNodeBaseTokenAdjuster {
             match self.fetch_new_ratio().await {
                 Ok(new_ratio) => match self.persist_ratio(&new_ratio, &pool).await {
                     Ok(id) => {
-                        if let Err(err) = self.maybe_update_l1(&new_ratio, id).await {
-                            tracing::error!("Error updating L1 ratio: {:?}", err);
+                        if self.should_update_l1_ratio() {
+                            if let Err(err) = self.update_l1_ratio(&new_ratio, id).await {
+                                tracing::error!("Error updating L1 ratio: {:?}", err);
+                            }
                         }
                     }
                     Err(err) => tracing::error!("Error persisting ratio: {:?}", err),
@@ -100,7 +99,10 @@ impl MainNodeBaseTokenAdjuster {
     }
 
     // TODO (PE-128): Complete L1 update flow.
-    async fn maybe_update_l1(
+    fn should_update_l1_ratio(&self) -> bool {
+        false
+    }
+    async fn update_l1_ratio(
         &self,
         _new_ratio: &BaseTokenAPIPrice,
         _id: usize,
@@ -144,14 +146,6 @@ impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
 
         last_ratio
     }
-
-    /// Return configured symbol of the base token. If not configured, return "ETH".
-    fn get_base_token(&self) -> &str {
-        match &self.config.base_token {
-            Some(base_token) => base_token.as_str(),
-            None => "ETH",
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -174,9 +168,5 @@ impl MockBaseTokenAdjuster {
 impl BaseTokenAdjuster for MockBaseTokenAdjuster {
     async fn get_last_ratio_and_check_usability(&self) -> BigDecimal {
         self.last_ratio.clone()
-    }
-
-    fn get_base_token(&self) -> &str {
-        &self.base_token
     }
 }

@@ -14,7 +14,7 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
-use zksync_base_token_adjuster::MainNodeBaseTokenAdjuster;
+use zksync_base_token_adjuster::{BaseTokenAdjuster, MainNodeBaseTokenAdjuster};
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
@@ -73,6 +73,7 @@ use zksync_state_keeper::{
     AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler, StateKeeperPersistence,
     TreeWritesPersistence,
 };
+use zksync_system_constants::L1_ETH_BASE_TOKEN;
 use zksync_tee_verifier_input_producer::TeeVerifierInputProducer;
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 use zksync_web3_decl::client::{Client, DynClient, L1};
@@ -296,13 +297,20 @@ pub async fn initialize_components(
         genesis_config.l1_batch_commit_data_generator_mode,
     );
 
-    let arc_base_token_adjuster = Arc::new(MainNodeBaseTokenAdjuster::new(
-        connection_pool.clone(),
-        configs
-            .base_token_adjuster
-            .clone()
-            .context("base_token_adjuster")?,
-    ));
+    let mut arc_base_token_adjuster: Option<Arc<dyn BaseTokenAdjuster>> = None;
+    // check if the base token is ETH, if not, we need to use the real adjuster
+    // otherwise, this is not needed
+    if let Some(base_token_addr) = contracts_config.base_token_addr {
+        if base_token_addr != L1_ETH_BASE_TOKEN {
+            arc_base_token_adjuster = Some(Arc::new(MainNodeBaseTokenAdjuster::new(
+                connection_pool.clone(),
+                configs
+                    .base_token_adjuster
+                    .clone()
+                    .context("base_token_adjuster")?,
+            )));
+        }
+    }
 
     let (stop_sender, stop_receiver) = watch::channel(false);
 
@@ -795,6 +803,28 @@ pub async fn initialize_components(
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
         ));
+    }
+
+    if let Some(base_token_addr) = contracts_config.base_token_addr {
+        if base_token_addr != L1_ETH_BASE_TOKEN {
+            if components.contains(&Component::BaseTokenAdjuster) {
+                // the native token is not ETH, we need the base token adjuster
+                tracing::info!("initializing base token adjuster");
+                let base_token_adjuster_component = MainNodeBaseTokenAdjuster::new(
+                    connection_pool.clone(),
+                    configs
+                        .base_token_adjuster
+                        .clone()
+                        .context("base_token_adjuster")?,
+                );
+
+                task_futures.push(tokio::spawn(
+                    base_token_adjuster_component.run(stop_receiver.clone()),
+                ));
+            } else {
+                tracing::warn!("you may have forgotten to run the base token adjuster?");
+            }
+        }
     }
 
     // Run healthcheck server for all components.

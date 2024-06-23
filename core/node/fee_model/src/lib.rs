@@ -61,7 +61,7 @@ impl dyn BatchFeeModelInputProvider {
 #[derive(Debug)]
 pub struct MainNodeFeeInputProvider {
     provider: Arc<dyn L1GasAdjuster>,
-    base_token_adjuster: Arc<dyn BaseTokenAdjuster>,
+    base_token_adjuster: Option<Arc<dyn BaseTokenAdjuster>>,
     config: FeeModelConfig,
 }
 
@@ -80,19 +80,16 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
                     l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
                 };
 
-                let base_token = self.base_token_adjuster.get_base_token();
-                match base_token {
-                    "ETH" => Ok(FeeParams::V2(params)),
-                    _ => {
-                        let base_token_conversion_ratio = self
-                            .base_token_adjuster
-                            .get_last_ratio_and_check_usability()
-                            .await;
-                        Ok(FeeParams::V2(convert_to_base_token(
-                            params,
-                            base_token_conversion_ratio,
-                        )))
-                    }
+                if let Some(ref base_token_adjuster_value) = self.base_token_adjuster {
+                    let base_token_conversion_ratio = base_token_adjuster_value
+                        .get_last_ratio_and_check_usability()
+                        .await;
+                    Ok(FeeParams::V2(convert_to_base_token(
+                        params,
+                        base_token_conversion_ratio,
+                    )))
+                } else {
+                    Ok(FeeParams::V2(params))
                 }
             }
         }
@@ -102,7 +99,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 impl MainNodeFeeInputProvider {
     pub fn new(
         provider: Arc<dyn L1GasAdjuster>,
-        base_token_adjuster: Arc<dyn BaseTokenAdjuster>,
+        base_token_adjuster: Option<Arc<dyn BaseTokenAdjuster>>,
         config: FeeModelConfig,
     ) -> Self {
         Self {

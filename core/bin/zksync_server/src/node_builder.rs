@@ -146,6 +146,7 @@ impl MainNodeBuilder {
             state_keeper_config,
             try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
             base_token_adjuster_config,
+            self.contracts_config.clone(),
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
