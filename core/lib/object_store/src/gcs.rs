@@ -87,13 +87,24 @@ impl From<AuthError> for ObjectStoreError {
     fn from(err: AuthError) -> Self {
         let is_transient = matches!(
             &err,
-            AuthError::HttpError(err) if err.is_timeout() || err.is_connect() || has_transient_io_source(err) || upstream_unavailable(err)
+            AuthError::HttpError(err) if is_transient_http_error(err)
         );
         Self::Initialization {
             source: err.into(),
             is_transient,
         }
     }
+}
+
+fn is_transient_http_error(err: &reqwest::Error) -> bool {
+    err.is_timeout()
+        || err.is_connect()
+        // Not all request errors are logically transient, but a significant part of them are (e.g.,
+        // `hyper` protocol-level errors), and it's safer to consider an error transient.
+        || err.is_request()
+        || has_transient_io_source(err)
+        || err.status() == Some(StatusCode::BAD_GATEWAY)
+        || err.status() == Some(StatusCode::SERVICE_UNAVAILABLE)
 }
 
 fn has_transient_io_source(mut err: &(dyn StdError + 'static)) -> bool {
@@ -111,11 +122,6 @@ fn has_transient_io_source(mut err: &(dyn StdError + 'static)) -> bool {
     }
 }
 
-fn upstream_unavailable(err: &reqwest::Error) -> bool {
-    err.status() == Some(StatusCode::BAD_GATEWAY)
-        || err.status() == Some(StatusCode::SERVICE_UNAVAILABLE)
-}
-
 impl From<HttpError> for ObjectStoreError {
     fn from(err: HttpError) -> Self {
         let is_not_found = match &err {
@@ -131,7 +137,7 @@ impl From<HttpError> for ObjectStoreError {
         } else {
             let is_transient = matches!(
                 &err,
-                HttpError::HttpClient(err) if err.is_timeout() || err.is_connect() || has_transient_io_source(err) || upstream_unavailable(err)
+                HttpError::HttpClient(err) if is_transient_http_error(err)
             );
             ObjectStoreError::Other {
                 is_transient,

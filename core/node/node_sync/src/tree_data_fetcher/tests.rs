@@ -16,11 +16,7 @@ use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, StorageLog, H256};
 use zksync_web3_decl::jsonrpsee::core::ClientError;
 
-use super::{
-    metrics::StepOutcomeLabel,
-    provider::{TreeDataProviderOutput, TreeDataProviderResult, TreeDataProviderSource},
-    *,
-};
+use super::{metrics::StepOutcomeLabel, provider::TreeDataProviderResult, *};
 
 #[derive(Debug, Default)]
 pub(super) struct MockMainNodeClient {
@@ -48,10 +44,7 @@ impl TreeDataProvider for MockMainNodeClient {
         Ok(self
             .batch_details_responses
             .get(&number)
-            .map(|&root_hash| TreeDataProviderOutput {
-                root_hash,
-                source: TreeDataProviderSource::BatchDetailsRpc,
-            })
+            .copied()
             .ok_or(MissingData::Batch))
     }
 }
@@ -122,7 +115,7 @@ impl FetcherHarness {
         let (updates_sender, updates_receiver) = mpsc::unbounded_channel();
         let metrics = &*Box::leak(Box::<TreeDataFetcherMetrics>::default());
         let fetcher = TreeDataFetcher {
-            data_provider: Box::new(client),
+            data_provider: CombinedDataProvider::new(client),
             diamond_proxy_address: None,
             pool: pool.clone(),
             metrics,
@@ -324,10 +317,7 @@ impl TreeDataProvider for SlowMainNode {
         }
         let request_count = self.request_count.fetch_add(1, Ordering::Relaxed);
         Ok(if request_count >= self.compute_root_hash_after {
-            Ok(TreeDataProviderOutput {
-                root_hash: H256::repeat_byte(1),
-                source: TreeDataProviderSource::BatchDetailsRpc,
-            })
+            Ok(H256::repeat_byte(1))
         } else {
             Err(MissingData::RootHash)
         })

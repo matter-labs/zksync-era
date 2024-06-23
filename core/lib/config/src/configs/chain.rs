@@ -9,11 +9,11 @@ use zksync_basic_types::{
 pub struct NetworkConfig {
     /// Name of the used Ethereum network, e.g. `localhost` or `rinkeby`.
     pub network: Network,
-    /// Name of current zkSync network
+    /// Name of current ZKsync network
     /// Used for Sentry environment
     pub zksync_network: String,
-    /// ID of current zkSync network treated as ETH network ID.
-    /// Used to distinguish zkSync from other Web3-capable networks.
+    /// ID of current ZKsync network treated as ETH network ID.
+    /// Used to distinguish ZKsync from other Web3-capable networks.
     pub zksync_network_id: L2ChainId,
 }
 
@@ -29,10 +29,10 @@ impl NetworkConfig {
 }
 
 /// An enum that represents the version of the fee model to use.
-///  - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
+///  - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
 ///  Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
 ///  processing the batch on L1.
-///  - `V2`, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
+///  - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
 ///  The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 ///  processing the batch on L1.
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]

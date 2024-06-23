@@ -3,7 +3,9 @@ use std::time::Duration;
 
 use strum::{Display, EnumString};
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::Instrumented,
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
 use zksync_types::L1BatchNumber;
@@ -110,13 +112,13 @@ impl ProofGenerationDal<'_, '_> {
         Ok(())
     }
 
+    /// The caller should ensure that `l1_batch_number` exists in the database.
     pub async fn insert_proof_generation_details(
         &mut self,
-        block_number: L1BatchNumber,
+        l1_batch_number: L1BatchNumber,
         proof_gen_data_blob_url: &str,
     ) -> DalResult<()> {
-        let l1_batch_number = i64::from(block_number.0);
-        let query = sqlx::query!(
+        let result = sqlx::query!(
             r#"
             INSERT INTO
                 proof_generation_details (l1_batch_number, status, proof_gen_data_blob_url, created_at, updated_at)
@@ -124,25 +126,22 @@ impl ProofGenerationDal<'_, '_> {
                 ($1, 'ready_to_be_proven', $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            l1_batch_number,
+             i64::from(l1_batch_number.0),
             proof_gen_data_blob_url,
-        );
-        let instrumentation = Instrumented::new("insert_proof_generation_details")
-            .with_arg("l1_batch_number", &l1_batch_number)
-            .with_arg("proof_gen_data_blob_url", &proof_gen_data_blob_url);
-        let result = instrumentation
-            .clone()
-            .with(query)
-            .execute(self.storage)
-            .await?;
-        if result.rows_affected() == 0 {
-            let err = instrumentation.constraint_error(anyhow::anyhow!(
-                "Cannot save proof_blob_url for a batch number {} that does not exist",
-                l1_batch_number
-            ));
-            return Err(err);
-        }
+        )
+        .instrument("insert_proof_generation_details")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .with_arg("proof_gen_data_blob_url", &proof_gen_data_blob_url)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
 
+        if result.rows_affected() == 0 {
+            // Not an error: we may call `insert_proof_generation_details()` from multiple full trees instantiated
+            // for the same node. Unlike tree data, we don't particularly care about correspondence of `proof_gen_data_blob_url` across calls,
+            // so just log this fact and carry on.
+            tracing::debug!("L1 batch #{l1_batch_number}: proof generation data wasn't updated as it's already present");
+        }
         Ok(())
     }
 
@@ -227,5 +226,99 @@ impl ProofGenerationDal<'_, '_> {
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::ProtocolVersion;
+
+    use super::*;
+    use crate::{tests::create_l1_batch_header, ConnectionPool, CoreDal};
+
+    #[tokio::test]
+    async fn proof_generation_workflow() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&create_l1_batch_header(1))
+            .await
+            .unwrap();
+
+        let unpicked_l1_batch = conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await
+            .unwrap();
+        assert_eq!(unpicked_l1_batch, None);
+
+        conn.proof_generation_dal()
+            .insert_proof_generation_details(L1BatchNumber(1), "generation_data")
+            .await
+            .unwrap();
+
+        let unpicked_l1_batch = conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await
+            .unwrap();
+        assert_eq!(unpicked_l1_batch, Some(L1BatchNumber(1)));
+
+        // Calling the method multiple times should work fine.
+        conn.proof_generation_dal()
+            .insert_proof_generation_details(L1BatchNumber(1), "generation_data")
+            .await
+            .unwrap();
+
+        let unpicked_l1_batch = conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await
+            .unwrap();
+        assert_eq!(unpicked_l1_batch, Some(L1BatchNumber(1)));
+
+        let picked_l1_batch = conn
+            .proof_generation_dal()
+            .get_next_block_to_be_proven(Duration::MAX)
+            .await
+            .unwrap();
+        assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
+        let unpicked_l1_batch = conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await
+            .unwrap();
+        assert_eq!(unpicked_l1_batch, None);
+
+        // Check that with small enough processing timeout, the L1 batch can be picked again
+        let picked_l1_batch = conn
+            .proof_generation_dal()
+            .get_next_block_to_be_proven(Duration::ZERO)
+            .await
+            .unwrap();
+        assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
+
+        conn.proof_generation_dal()
+            .save_proof_artifacts_metadata(L1BatchNumber(1), "proof")
+            .await
+            .unwrap();
+
+        let picked_l1_batch = conn
+            .proof_generation_dal()
+            .get_next_block_to_be_proven(Duration::MAX)
+            .await
+            .unwrap();
+        assert_eq!(picked_l1_batch, None);
+        let unpicked_l1_batch = conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await
+            .unwrap();
+        assert_eq!(unpicked_l1_batch, None);
     }
 }

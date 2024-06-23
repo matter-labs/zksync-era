@@ -123,42 +123,47 @@ impl DataAvailabilityDispatcher {
             .await?;
         drop(conn);
 
-        if let Some(blob_info) = blob_info {
-            let inclusion_data = self
-                .client
-                .get_inclusion_data(blob_info.blob_id.as_str())
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed to get inclusion data for blob_id: {}, batch_number: {}",
-                        blob_info.blob_id, blob_info.l1_batch_number
-                    )
-                })?;
+        let Some(blob_info) = blob_info else {
+            return Ok(());
+        };
 
-            let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
-            if let Some(inclusion_data) = inclusion_data {
-                conn.data_availability_dal()
-                    .save_l1_batch_inclusion_data(
-                        L1BatchNumber(blob_info.l1_batch_number.0),
-                        inclusion_data.data.as_slice(),
-                    )
-                    .await?;
-                drop(conn);
+        let inclusion_data = self
+            .client
+            .get_inclusion_data(blob_info.blob_id.as_str())
+            .await
+            .with_context(|| {
+                format!(
+                    "failed to get inclusion data for blob_id: {}, batch_number: {}",
+                    blob_info.blob_id, blob_info.l1_batch_number
+                )
+            })?;
 
-                let inclusion_latency = Utc::now().signed_duration_since(blob_info.sent_at);
-                if let Ok(latency) = inclusion_latency.to_std() {
-                    METRICS.inclusion_latency.observe(latency);
-                }
-                METRICS
-                    .last_included_l1_batch
-                    .set(blob_info.l1_batch_number.0 as usize);
+        let Some(inclusion_data) = inclusion_data else {
+            return Ok(());
+        };
 
-                tracing::info!(
-                    "Received an inclusion data for a batch_number: {}, inclusion_latency_seconds: {}",
-                    blob_info.l1_batch_number, inclusion_latency.num_seconds()
-                );
-            }
+        let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
+        conn.data_availability_dal()
+            .save_l1_batch_inclusion_data(
+                L1BatchNumber(blob_info.l1_batch_number.0),
+                inclusion_data.data.as_slice(),
+            )
+            .await?;
+        drop(conn);
+
+        let inclusion_latency = Utc::now().signed_duration_since(blob_info.sent_at);
+        if let Ok(latency) = inclusion_latency.to_std() {
+            METRICS.inclusion_latency.observe(latency);
         }
+        METRICS
+            .last_included_l1_batch
+            .set(blob_info.l1_batch_number.0 as usize);
+
+        tracing::info!(
+            "Received an inclusion data for a batch_number: {}, inclusion_latency_seconds: {}",
+            blob_info.l1_batch_number,
+            inclusion_latency.num_seconds()
+        );
 
         Ok(())
     }

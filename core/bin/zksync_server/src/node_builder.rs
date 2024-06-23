@@ -31,18 +31,20 @@ use zksync_node_framework::{
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
+        l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
+        postgres_metrics::PostgresMetricsLayer,
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            StateKeeperLayer,
+            output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::protective_reads::ProtectiveReadsWriterLayer,
@@ -119,6 +121,11 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PostgresMetricsLayer);
+        Ok(self)
+    }
+
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.configs.eth);
         let wallets = try_load_config!(self.wallets.eth_sender);
@@ -163,6 +170,15 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
+        let layer = L1BatchCommitmentModeValidationLayer::new(
+            self.contracts_config.diamond_proxy_addr,
+            self.genesis_config.l1_batch_commit_data_generator_mode,
+        );
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     fn add_metadata_calculator_layer(mut self, with_tree_api: bool) -> anyhow::Result<Self> {
         let merkle_tree_env_config = try_load_config!(self.configs.db_config).merkle_tree;
         let operations_manager_env_config =
@@ -181,19 +197,37 @@ impl MainNodeBuilder {
     }
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
+        // Bytecode compression is currently mandatory for the transactions processed by the sequencer.
+        const OPTIONAL_BYTECODE_COMPRESSION: bool = false;
+
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
+        let persistence_layer = OutputHandlerLayer::new(
+            self.contracts_config
+                .l2_shared_bridge_addr
+                .context("L2 shared bridge address")?,
+            sk_config.l2_block_seal_queue_capacity,
+        );
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
-            self.contracts_config.clone(),
             sk_config.clone(),
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
         );
         let db_config = try_load_config!(self.configs.db_config);
-        let main_node_batch_executor_builder_layer = MainBatchExecutorLayer::new(sk_config);
-        let state_keeper_layer = StateKeeperLayer::new(db_config);
+        let main_node_batch_executor_builder_layer =
+            MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
+
+        let rocksdb_options = RocksdbStorageOptions {
+            block_cache_capacity: db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity(),
+            max_open_files: db_config.experimental.state_keeper_db_max_open_files,
+        };
+        let state_keeper_layer =
+            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
         self.node
+            .add_layer(persistence_layer)
             .add_layer(mempool_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);
@@ -316,6 +350,7 @@ impl MainNodeBuilder {
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
             replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
+            ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
@@ -459,7 +494,8 @@ impl MainNodeBuilder {
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
-            .add_sequencer_l1_gas_layer()?;
+            .add_sequencer_l1_gas_layer()?
+            .add_l1_batch_commitment_mode_validation_layer()?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
@@ -519,7 +555,9 @@ impl MainNodeBuilder {
                     self = self.add_tee_verifier_input_producer_layer()?;
                 }
                 Component::Housekeeper => {
-                    self = self.add_house_keeper_layer()?;
+                    self = self
+                        .add_house_keeper_layer()?
+                        .add_postgres_metrics_layer()?;
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;

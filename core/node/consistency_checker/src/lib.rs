@@ -304,9 +304,9 @@ pub fn detect_da(
 
 #[derive(Debug)]
 pub struct ConsistencyChecker {
-    /// ABI of the zkSync contract
+    /// ABI of the ZKsync contract
     contract: ethabi::Contract,
-    /// Address of the zkSync diamond proxy on L1
+    /// Address of the ZKsync diamond proxy on L1
     diamond_proxy_addr: Option<Address>,
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
@@ -384,7 +384,7 @@ impl ConsistencyChecker {
             let event = self
                 .contract
                 .event("BlockCommit")
-                .context("`BlockCommit` event not found for zkSync L1 contract")
+                .context("`BlockCommit` event not found for ZKsync L1 contract")
                 .map_err(CheckError::Internal)?;
 
             let committed_batch_numbers_by_logs =

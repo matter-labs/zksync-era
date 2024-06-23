@@ -1,4 +1,4 @@
-# zkSync Era housekeeper
+# ZKsync Era housekeeper
 
 This crate contains functionality for performing “administrative” work to keep the system flowing. It does:
 

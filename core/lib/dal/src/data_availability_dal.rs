@@ -143,8 +143,8 @@ impl DataAvailabilityDal<'_, '_> {
 
             if matched != 1 {
                 let err = instrumentation.constraint_error(anyhow::anyhow!(
-                        "Error storing DA inclusion data. DA data for L1 batch #{number} does not match the one provided before"
-                    ));
+                    "Error storing DA inclusion data. DA data for L1 batch #{number} does not match the one provided before"
+                ));
                 return Err(err);
             }
         }
