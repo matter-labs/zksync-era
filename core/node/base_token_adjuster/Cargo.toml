@@ -11,9 +11,7 @@ categories.workspace = true
 
 
 [dependencies]
-vise.workspace = true
 zksync_dal.workspace = true
-zksync_utils.workspace = true
 zksync_config.workspace = true
 zksync_types.workspace = true
 bigdecimal.workspace = true

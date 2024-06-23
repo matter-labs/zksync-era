@@ -8,7 +8,8 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use bigdecimal::{BigDecimal, ToPrimitive};
 use chrono::Utc;
-use tokio::sync::watch;
+use rand::Rng;
+use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
@@ -25,7 +26,7 @@ pub trait BaseTokenAdjuster: Debug + Send + Sync {
     fn get_base_token(&self) -> &str;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// BaseTokenAdjuster implementation for the main node (not the External Node). TODO (PE-137): impl APIBaseTokenAdjuster
 pub struct MainNodeBaseTokenAdjuster {
     pool: ConnectionPool<Core>,
@@ -112,6 +113,47 @@ impl MainNodeBaseTokenAdjuster {
         Ok(())
     }
 
+    async fn retry_get_latest_price(&self) -> anyhow::Result<BigDecimal> {
+        let mut retry_delay = 1; // seconds
+        let max_retries = 5;
+        let mut attempts = 1;
+
+        loop {
+            let mut conn = self
+                .pool
+                .connection_tagged("base_token_adjuster")
+                .await
+                .expect("Failed to obtain connection to the database");
+
+            let result = conn.base_token_dal().get_latest_price().await;
+
+            drop(conn);
+
+            if let Ok(last_storage_price) = result {
+                return Ok(last_storage_price
+                    .base_token_price
+                    .div(&last_storage_price.eth_price));
+            } else {
+                if attempts >= max_retries {
+                    break;
+                }
+                let sleep_duration = Duration::from_secs(retry_delay)
+                    .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
+                tracing::warn!(
+                    "Attempt {}/{} failed to get latest base token price, retrying in {} seconds...",
+                    attempts, max_retries, sleep_duration.as_secs()
+                );
+                sleep(sleep_duration).await;
+                retry_delay *= 2;
+                attempts += 1;
+            }
+        }
+        anyhow::bail!(
+            "Failed to get latest base token price after {} attempts",
+            max_retries
+        );
+    }
+
     // Sleep for the remaining duration of the polling period
     async fn sleep_until_next_fetch(&self, start_time: Instant) {
         let elapsed_time = start_time.elapsed();
@@ -129,33 +171,22 @@ impl MainNodeBaseTokenAdjuster {
 impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
     // TODO (PE-129): Implement latest ratio usability logic.
     async fn maybe_convert_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams> {
-        let mut conn = self
-            .pool
-            .connection_tagged("base_token_adjuster")
-            .await
-            .expect("Failed to obtain connection to the database");
-
-        let last_storage_price = conn
-            .base_token_dal()
-            .get_latest_price()
-            .await
-            .expect("Failed to get latest base token price");
-        drop(conn);
-
-        let last_ratio = last_storage_price
-            .base_token_price
-            .div(&last_storage_price.eth_price);
-
         let base_token = self.get_base_token();
-        match base_token {
-            "ETH" => Ok(params),
-            _ => {
-                if let FeeParams::V2(params_v2) = params {
-                    Ok(FeeParams::V2(convert_to_base_token(params_v2, last_ratio)))
-                } else {
-                    panic!("Custom base token is not supported for V1 fee model")
-                }
-            }
+
+        if base_token == "ETH" {
+            return Ok(params);
+        }
+
+        // Retries are necessary for the initial setup, where prices may not yet be persisted.
+        let latest_ratio = self.retry_get_latest_price().await?;
+
+        if let FeeParams::V2(params_v2) = params {
+            Ok(FeeParams::V2(convert_to_base_token(
+                params_v2,
+                latest_ratio,
+            )))
+        } else {
+            panic!("Custom base token is not supported for V1 fee model")
         }
     }
 
@@ -223,6 +254,15 @@ impl MockBaseTokenAdjuster {
         Self {
             last_ratio,
             base_token,
+        }
+    }
+}
+
+impl Default for MockBaseTokenAdjuster {
+    fn default() -> Self {
+        Self {
+            last_ratio: BigDecimal::from(1),
+            base_token: "ETH".to_string(),
         }
     }
 }

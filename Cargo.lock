@@ -7897,11 +7897,9 @@ dependencies = [
  "rand 0.8.5",
  "tokio",
  "tracing",
- "vise",
  "zksync_config",
  "zksync_dal",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -8512,7 +8510,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "serde",
- "tracing",
  "zksync_config",
  "zksync_types",
 ]
