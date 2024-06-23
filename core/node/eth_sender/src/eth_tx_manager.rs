@@ -96,7 +96,6 @@ impl EthTxManager {
         &mut self,
         storage: &mut Connection<'_, Core>,
         tx: &EthTx,
-        time_in_mempool: u32,
         current_block: L1BlockNumber,
     ) -> Result<H256, EthSenderError> {
         let previous_sent_tx = storage
@@ -113,7 +112,7 @@ impl EthTxManager {
         } = self.fees_oracle.calculate_fees(
             &previous_sent_tx,
             has_blob_sidecar,
-            time_in_mempool,
+            current_block.0 - tx.created_at_block,
         )?;
 
         if let Some(previous_sent_tx) = previous_sent_tx {
@@ -241,7 +240,7 @@ impl EthTxManager {
         &mut self,
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
-    ) -> Result<Option<(EthTx, u32)>, EthSenderError> {
+    ) -> Result<Option<EthTx>, EthSenderError> {
         METRICS.track_block_numbers(&l1_block_numbers);
         let operator_nonce = self
             .l1_interface
@@ -284,7 +283,7 @@ impl EthTxManager {
         l1_block_numbers: L1BlockNumbers,
         operator_nonce: OperatorNonce,
         operator_address: Option<Address>,
-    ) -> Result<Option<(EthTx, u32)>, EthSenderError> {
+    ) -> Result<Option<EthTx>, EthSenderError> {
         let inflight_txs = storage.eth_sender_dal().get_inflight_txs().await.unwrap();
         METRICS.number_of_inflight_txs.set(inflight_txs.len());
 
@@ -325,10 +324,7 @@ impl EthTxManager {
                 if first_sent_at_block == Some(l1_block_numbers.latest.0) {
                     continue;
                 }
-                return Ok(Some((
-                    tx,
-                    first_sent_at_block.unwrap_or(l1_block_numbers.latest.0),
-                )));
+                return Ok(Some(tx));
             }
 
             // If on finalized block sender's nonce was > tx.nonce,
@@ -575,7 +571,16 @@ impl EthTxManager {
                 .unwrap();
 
             for tx in new_eth_tx {
-                let _ = self.send_eth_tx(storage, &tx, 0, current_block).await;
+                if !self.fees_oracle.gas_prices_allow_sending_transaction(
+                    tx.blob_sidecar.is_some(),
+                    current_block.0 - tx.created_at_block,
+                ) {
+                    // we send transactions in order, so if we can't send one tx, we can't send any.
+                    tracing::info!("Skipping sending of {}, which waited {} blocks to be sent so far, fees are too high", tx.id, current_block.0 - tx.created_at_block);
+                    break;
+                }
+
+                let _ = self.send_eth_tx(storage, &tx, current_block).await;
             }
         }
     }
@@ -596,18 +601,15 @@ impl EthTxManager {
             return Ok(previous_block);
         }
 
-        if let Some((tx, sent_at_block)) = self
+        if let Some(tx) = self
             .monitor_inflight_transactions(storage, l1_block_numbers)
             .await?
         {
-            // New gas price depends on the time this tx spent in mempool.
-            let time_in_mempool = l1_block_numbers.latest.0 - sent_at_block;
-
             // We don't want to return early in case resend does not succeed -
             // the error is logged anyway, but early returns will prevent
             // sending new operations.
             let _ = self
-                .send_eth_tx(storage, &tx, time_in_mempool, l1_block_numbers.latest)
+                .send_eth_tx(storage, &tx, l1_block_numbers.latest)
                 .await;
         }
 

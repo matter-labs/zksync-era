@@ -185,6 +185,7 @@ impl EthSenderDal<'_, '_> {
         predicted_gas_cost: u32,
         from_address: Option<Address>,
         blob_sidecar: Option<EthTxBlobSidecar>,
+        latest_block: u32,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
@@ -200,10 +201,11 @@ impl EthSenderDal<'_, '_> {
                     created_at,
                     updated_at,
                     from_addr,
-                    blob_sidecar
+                    blob_sidecar,
+                    created_at_block
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7)
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8)
             RETURNING
                 *
             "#,
@@ -215,6 +217,7 @@ impl EthSenderDal<'_, '_> {
             from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
+            latest_block as i32,
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -423,8 +426,8 @@ impl EthSenderDal<'_, '_> {
 
             // Insert general tx descriptor.
             let eth_tx_id = sqlx::query_scalar!(
-                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) \
-                VALUES ('\\x00', 0, $1, '', 0, now(), now()) \
+                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at, created_at_block) \
+                VALUES ('\\x00', 0, $1, '', 0, now(), now(), 0) \
                 RETURNING id",
                 tx_type.to_string()
             )

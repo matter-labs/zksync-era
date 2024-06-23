@@ -27,4 +27,7 @@ pub trait L1TxParamsProvider: fmt::Debug + 'static + Send + Sync {
 
     /// Returns a lower bound for the `base_fee` value for the next L1 block.
     fn get_next_block_minimal_base_fee(&self) -> u64;
+
+    /// Returns true if current blob fees are within acceptable limits.
+    fn are_gas_fees_acceptable_to_send_blob_transaction(&self, time_in_mempool: u32) -> bool;
 }

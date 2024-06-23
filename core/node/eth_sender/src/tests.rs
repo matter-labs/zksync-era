@@ -307,7 +307,6 @@ async fn confirm_many(
             .send_eth_tx(
                 &mut tester.conn.connection().await.unwrap(),
                 &tx,
-                0,
                 tester.get_block_numbers().await.latest,
             )
             .await?;
@@ -412,7 +411,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
 
     let hash = tester
         .manager
-        .send_eth_tx(&mut tester.conn.connection().await.unwrap(), &tx, 0, block)
+        .send_eth_tx(&mut tester.conn.connection().await.unwrap(), &tx, block)
         .await?;
 
     // check that we sent something and stored it in the db
@@ -448,7 +447,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     tester.gas_adjuster.keep_updated().await?;
     let block_numbers = tester.get_block_numbers().await;
 
-    let (to_resend, _) = tester
+    let to_resend = tester
         .manager
         .monitor_inflight_transactions(&mut tester.conn.connection().await.unwrap(), block_numbers)
         .await?
@@ -459,7 +458,6 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
         .send_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &to_resend,
-            1,
             block_numbers.latest,
         )
         .await?;
@@ -488,7 +486,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     assert_eq!(resent_tx.nonce, 0.into());
     assert_eq!(
         resent_tx.max_fee_per_gas.unwrap() - resent_tx.max_priority_fee_per_gas.unwrap(),
-        30.into() // `5 * 3 * 2^1`
+        60.into() // `5 * 3 * 2^2`
     );
 
     Ok(())
@@ -544,7 +542,6 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
         .send_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &tx,
-            0,
             tester.get_block_numbers().await.latest,
         )
         .await
@@ -646,7 +643,6 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
             .send_eth_tx(
                 &mut tester.conn.connection().await.unwrap(),
                 &tx,
-                0,
                 tester.get_block_numbers().await.latest,
             )
             .await
@@ -667,7 +663,7 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
         .gateway
         .execute_tx(hashes[1], true, EthSenderTester::WAIT_CONFIRMATIONS - 1);
 
-    let (to_resend, _) = tester
+    let to_resend = tester
         .manager
         .monitor_inflight_transactions(
             &mut tester.conn.connection().await.unwrap(),
@@ -744,7 +740,6 @@ async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
         .send_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &tx,
-            0,
             tester.get_block_numbers().await.latest,
         )
         .await
@@ -1224,7 +1219,6 @@ async fn send_operation(
         .send_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &tx,
-            0,
             tester.get_block_numbers().await.latest,
         )
         .await

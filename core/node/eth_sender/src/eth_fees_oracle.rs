@@ -24,6 +24,12 @@ pub(crate) trait EthFeesOracle: 'static + Sync + Send + fmt::Debug {
         has_blob_sidecar: bool,
         time_in_mempool: u32,
     ) -> Result<EthFees, EthSenderError>;
+
+    fn gas_prices_allow_sending_transaction(
+        &self,
+        has_blob_sidecar: bool,
+        time_in_mempool: u32,
+    ) -> bool;
 }
 
 #[derive(Debug)]
@@ -145,5 +151,20 @@ impl EthFeesOracle for GasAdjusterFeesOracle {
         } else {
             self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool)
         }
+    }
+
+    fn gas_prices_allow_sending_transaction(
+        &self,
+        has_blob_sidecar: bool,
+        time_in_mempool: u32,
+    ) -> bool {
+        // Only blob transactions need to be delayed when prices are too high,
+        // as prices need to be doubled on resend. For 'regular' txs we can just send them
+        // and rely on mempool
+        if !has_blob_sidecar {
+            return true;
+        }
+        self.gas_adjuster
+            .are_gas_fees_acceptable_to_send_blob_transaction(time_in_mempool)
     }
 }
