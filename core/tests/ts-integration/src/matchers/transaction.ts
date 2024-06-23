@@ -3,7 +3,7 @@ import { MatcherModifier } from '../modifiers';
 import * as zksync from 'zksync-ethers';
 import { AugmentedTransactionResponse } from '../retry-provider';
 
-// This file contains implementation of matchers for zkSync/ethereum transaction.
+// This file contains implementation of matchers for ZKsync/ethereum transaction.
 // For actual doc-comments, see `typings/jest.d.ts` file.
 
 export async function toBeAccepted(

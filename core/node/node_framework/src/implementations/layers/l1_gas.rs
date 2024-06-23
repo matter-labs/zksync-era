@@ -84,7 +84,17 @@ impl Task for GasAdjusterTask {
         "gas_adjuster".into()
     }
 
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        // Gas adjuster layer is added to provide a resource for anyone to use, but it comes with
+        // a support task. If nobody has used the resource, we don't need to run the support task.
+        if Arc::strong_count(&self.gas_adjuster) == 1 {
+            tracing::info!(
+                "Gas adjuster is not used by any other task, not running the support task"
+            );
+            stop_receiver.0.changed().await?;
+            return Ok(());
+        }
+
         self.gas_adjuster.run(stop_receiver.0).await
     }
 }

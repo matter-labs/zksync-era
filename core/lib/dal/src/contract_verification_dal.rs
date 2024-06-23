@@ -12,8 +12,10 @@ use zksync_types::{
         DeployContractCalldata, VerificationIncomingRequest, VerificationInfo, VerificationRequest,
         VerificationRequestStatus,
     },
-    get_code_key, Address, CONTRACT_DEPLOYER_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
+    event::DEPLOY_EVENT_SIGNATURE,
+    Address, CONTRACT_DEPLOYER_ADDRESS,
 };
+use zksync_utils::address_to_h256;
 
 use crate::{models::storage_verification_request::StorageVerificationRequest, Core};
 
@@ -288,7 +290,7 @@ impl ContractVerificationDal<'_, '_> {
         &mut self,
         address: Address,
     ) -> anyhow::Result<Option<(Vec<u8>, DeployContractCalldata)>> {
-        let hashed_key = get_code_key(&address).hashed_key();
+        let address_h256 = address_to_h256(&address);
         let Some(row) = sqlx::query!(
             r#"
             SELECT
@@ -298,24 +300,31 @@ impl ContractVerificationDal<'_, '_> {
             FROM
                 (
                     SELECT
-                        *
+                        miniblock_number,
+                        tx_hash,
+                        topic3
                     FROM
-                        storage_logs
+                        events
                     WHERE
-                        storage_logs.hashed_key = $1
-                    ORDER BY
-                        miniblock_number DESC,
-                        operation_number DESC
+                        address = $1
+                        AND topic1 = $2
+                        AND topic4 = $3
                     LIMIT
                         1
-                ) storage_logs
-                JOIN factory_deps ON factory_deps.bytecode_hash = storage_logs.value
-                LEFT JOIN transactions ON transactions.hash = storage_logs.tx_hash
+                ) deploy_event
+                JOIN factory_deps ON factory_deps.bytecode_hash = deploy_event.topic3
+                LEFT JOIN transactions ON transactions.hash = deploy_event.tx_hash
             WHERE
-                storage_logs.value != $2
+                deploy_event.miniblock_number <= (
+                    SELECT
+                        MAX(number)
+                    FROM
+                        miniblocks
+                )
             "#,
-            hashed_key.as_bytes(),
-            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
+            CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
+            DEPLOY_EVENT_SIGNATURE.as_bytes(),
+            address_h256.as_bytes(),
         )
         .fetch_optional(self.storage.conn())
         .await?

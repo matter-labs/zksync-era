@@ -138,6 +138,23 @@ impl ValidateChainIdsTask {
         }
     }
 
+    /// Runs the task once, exiting either when all the checks are performed or when the stop signal is received.
+    pub async fn run_once(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let eth_client_check = Self::check_eth_client(self.eth_client, self.l1_chain_id);
+        let main_node_l1_check =
+            Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.l1_chain_id);
+        let main_node_l2_check =
+            Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id);
+        let joined_futures =
+            futures::future::try_join3(eth_client_check, main_node_l1_check, main_node_l2_check)
+                .fuse();
+        tokio::select! {
+            res = joined_futures => res.map(drop),
+            _ = stop_receiver.changed() =>  Ok(()),
+        }
+    }
+
+    /// Runs the task until the stop signal is received.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         // Since check futures are fused, they are safe to poll after getting resolved; they will never resolve again,
         // so we'll just wait for another check or a stop signal.
