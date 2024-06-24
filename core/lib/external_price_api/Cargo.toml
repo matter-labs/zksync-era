@@ -11,8 +11,19 @@ categories.workspace = true
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
-async-trait = "0.1.74"
+async-trait.workspace = true
 anyhow.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true
+reqwest.workspace = true
+url.workspace = true
+serde_json.workspace = true
+num.workspace = true
+bigdecimal.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+
+
+[dev-dependencies]
+httpmock = "0.7.0"
