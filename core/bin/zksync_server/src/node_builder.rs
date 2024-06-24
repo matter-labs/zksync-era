@@ -2,7 +2,6 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::Context;
-use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{
     configs::{consensus::ConsensusConfig, wallets::Wallets, GeneralConfig, Secrets},
     ContractsConfig, GenesisConfig,
@@ -50,6 +49,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
+use zksync_prometheus_exporter::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.

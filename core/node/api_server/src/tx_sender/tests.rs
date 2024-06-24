@@ -1,7 +1,7 @@
 //! Tests for the transaction sender.
 
 use assert_matches::assert_matches;
-use multivm::interface::ExecutionResult;
+use zksync_multivm::interface::ExecutionResult;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};

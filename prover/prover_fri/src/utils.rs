@@ -2,10 +2,10 @@
 
 use std::{sync::Arc, time::Instant};
 
-use prover_dal::{Connection, Prover, ProverDal};
 use tokio::sync::Mutex;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
