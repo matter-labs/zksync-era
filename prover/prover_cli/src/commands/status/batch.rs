@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use clap::Args as ClapArgs;
 use colored::*;
-use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
+use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     prover_dal::{

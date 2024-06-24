@@ -3,9 +3,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use multivm::interface::VmExecutionResultAndLogs;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_mempool::{L2TxFilter, MempoolInfo, MempoolStore};
+use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::{
     block::BlockGasCount, tx::ExecutionMetrics, Address, Nonce, PriorityOpId, Transaction,
 };

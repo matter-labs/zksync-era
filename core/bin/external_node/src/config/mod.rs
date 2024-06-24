@@ -541,7 +541,7 @@ impl OptionalENConfig {
     }
 
     fn default_pruning_data_retention_sec() -> u64 {
-        3_600 // 1 hour
+        3_600 * 24 * 7 // 7 days
     }
 
     fn from_env() -> anyhow::Result<Self> {
