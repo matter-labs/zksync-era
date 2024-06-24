@@ -154,7 +154,7 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
             .get_protective_reads_for_l1_batch(updates_manager.l1_batch.number)
             .await?;
 
-        if written_protective_reads.len() > 0 {
+        if !written_protective_reads.is_empty() {
             tracing::debug!(
                 l1_batch_number = %updates_manager.l1_batch.number,
                 "Protective reads have already been written, validating"
