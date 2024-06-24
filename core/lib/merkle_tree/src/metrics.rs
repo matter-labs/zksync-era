@@ -309,6 +309,21 @@ enum Bound {
     End,
 }
 
+const LARGE_NODE_COUNT_BUCKETS: Buckets = Buckets::values(&[
+    1_000.0,
+    2_000.0,
+    5_000.0,
+    10_000.0,
+    20_000.0,
+    50_000.0,
+    100_000.0,
+    200_000.0,
+    500_000.0,
+    1_000_000.0,
+    2_000_000.0,
+    5_000_000.0,
+]);
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "merkle_tree_pruning")]
 struct PruningMetrics {
@@ -316,7 +331,7 @@ struct PruningMetrics {
     /// may not remove all stale keys to this version if there are too many.
     target_retained_version: Gauge<u64>,
     /// Number of pruned node keys on a specific pruning iteration.
-    #[metrics(buckets = NODE_COUNT_BUCKETS)]
+    #[metrics(buckets = LARGE_NODE_COUNT_BUCKETS)]
     key_count: Histogram<usize>,
     /// Lower and upper boundaries on the new stale key versions deleted
     /// during a pruning iteration. The lower boundary is inclusive, the upper one is exclusive.
@@ -368,26 +383,11 @@ pub(crate) enum RecoveryStage {
     ParallelPersistence,
 }
 
-const CHUNK_SIZE_BUCKETS: Buckets = Buckets::values(&[
-    1_000.0,
-    2_000.0,
-    5_000.0,
-    10_000.0,
-    20_000.0,
-    50_000.0,
-    100_000.0,
-    200_000.0,
-    500_000.0,
-    1_000_000.0,
-    2_000_000.0,
-    5_000_000.0,
-]);
-
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "merkle_tree_recovery")]
 pub(crate) struct RecoveryMetrics {
     /// Number of entries in a recovered chunk.
-    #[metrics(buckets = CHUNK_SIZE_BUCKETS)]
+    #[metrics(buckets = LARGE_NODE_COUNT_BUCKETS)]
     pub chunk_size: Histogram<usize>,
     /// Latency of a specific stage of recovery for a single chunk.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]

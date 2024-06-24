@@ -9,14 +9,14 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use multivm::{
+use tokio::runtime::Handle;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
     utils::adjust_pubdata_price_for_tx,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
-use tokio::runtime::Handle;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_state::{
     OverrideStorage, PostgresStorage, ReadStorage, StorageOverrides, StoragePtr, StorageView,
     WriteStorage,

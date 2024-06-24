@@ -1,13 +1,13 @@
 pub mod storage;
 
 use anyhow::{anyhow, Context};
-use multivm::{
+use tokio::runtime::Handle;
+use zksync_dal::{Connection, Core};
+use zksync_multivm::{
     interface::{VmInterface, VmInterfaceHistoryEnabled},
     vm_latest::HistoryEnabled,
     VmInstance,
 };
-use tokio::runtime::Handle;
-use zksync_dal::{Connection, Core};
 use zksync_state::{PostgresStorage, StorageOverrides, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 

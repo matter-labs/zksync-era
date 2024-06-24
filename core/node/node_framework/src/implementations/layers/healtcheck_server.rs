@@ -11,17 +11,17 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Builder for a health check server.
+/// Wiring layer for health check server
 ///
-/// Spawned task collects all the health checks added by different tasks to the
-/// corresponding resource collection and spawns an HTTP server exposing them.
+/// Expects other layers to insert different components' health checks
+/// into [`AppHealthCheck`] aggregating heath using [`AppHealthCheckResource`].
+/// The added task spawns a health check server that only exposes the state provided by other tasks.
 ///
-/// This layer expects other tasks to add health checks to the `ResourceCollection<HealthCheckResource>`.
+/// ## Adds resources
+/// - [`AppHealthCheckResource`]
 ///
-/// ## Effects
-///
-/// - Resolves `ResourceCollection<HealthCheckResource>`.
-/// - Adds `healthcheck_server` to the node.
+/// ## Adds tasks
+/// - [`HealthCheckTask`] (as [`UnconstrainedTask`])
 #[derive(Debug)]
 pub struct HealthCheckLayer(pub HealthCheckConfig);
 
@@ -39,7 +39,6 @@ impl WiringLayer for HealthCheckLayer {
             app_health_check,
         };
 
-        // Healthcheck server only exposes the state provided by other tasks, and also it has to start as soon as possible.
         node.add_unconstrained_task(Box::new(task));
         Ok(())
     }

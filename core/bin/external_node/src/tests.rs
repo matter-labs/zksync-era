@@ -34,6 +34,7 @@ fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         executed_at: None,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
+        fair_pubdata_price: None,
         base_system_contracts_hashes: Default::default(),
     }
 }
@@ -132,7 +133,7 @@ fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
 #[tokio::test]
 #[tracing::instrument] // Add args to the test logs
 async fn external_node_basics(components_str: &'static str) {
-    let _guard = vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let temp_dir = tempfile::TempDir::new().unwrap();
 
     // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
@@ -156,6 +157,7 @@ async fn external_node_basics(components_str: &'static str) {
     let opt = Cli {
         enable_consensus: false,
         components,
+        use_node_framework: false,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
     if opt.components.0.contains(&Component::TreeApi) {
@@ -250,7 +252,7 @@ async fn external_node_basics(components_str: &'static str) {
 
 #[tokio::test]
 async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
-    let _guard = vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let temp_dir = tempfile::TempDir::new().unwrap();
 
     let connection_pool = ConnectionPool::test_pool().await;
@@ -264,6 +266,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     let opt = Cli {
         enable_consensus: false,
         components: "core".parse().unwrap(),
+        use_node_framework: false,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
     if opt.components.0.contains(&Component::TreeApi) {

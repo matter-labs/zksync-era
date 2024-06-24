@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
 use anyhow::Context as _;
-use multivm::{
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_multivm::{
     interface::{ExecutionResult, VmExecutionMode, VmInterface},
     tracers::{
         validator::{self, ValidationTracer, ValidationTracerParams},
@@ -10,7 +11,6 @@ use multivm::{
     vm_latest::HistoryDisabled,
     MultiVMTracer,
 };
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{l2::L2Tx, Address, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 
 use super::{

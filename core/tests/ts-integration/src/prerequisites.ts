@@ -1,17 +1,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-// All zkSync test suites are expected to be named `*.test.ts`.
+// All ZKsync test suites are expected to be named `*.test.ts`.
 const TEST_SUITE_MARKER = 'test.ts';
 
 // Files that are excluded from the integration test suited (e.g. unit tests for the framework itself).
 const EXCLUDED_FILES = ['self-unit.test.ts'];
 
 /**
- * Gets all the files that contain zkSync integration test suites.
+ * Gets all the files that contain ZKsync integration test suites.
  * Used to provide each test suite a funded wallet.
  *
- * @returns list of filenames that correspond to zkSync integration test suites.
+ * @returns list of filenames that correspond to ZKsync integration test suites.
  */
 export function lookupPrerequisites(): string[] {
     const files = loadFilesRecursively(`${__dirname}/../tests/`);

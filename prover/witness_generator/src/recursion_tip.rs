@@ -9,7 +9,6 @@ use circuit_definitions::{
     },
     recursion_layer_proof_config,
 };
-use prover_dal::{Prover, ProverDal};
 use zkevm_test_harness::{
     boojum::{
         field::{
@@ -39,6 +38,7 @@ use zkevm_test_harness::{
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{Prover, ProverDal};
 use zksync_prover_fri_types::{
     get_current_pod_name,
     keys::{ClosedFormInputKey, FriCircuitKey},

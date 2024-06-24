@@ -16,11 +16,11 @@ unlike 4844 which supports just 6 per block.
 
 ## Technical Approach
 
-The approach spans both L2 system contracts and L1 zkSync contracts (namely `Executor.sol`). When a batch is sealed on
+The approach spans both L2 system contracts and L1 ZKsync contracts (namely `Executor.sol`). When a batch is sealed on
 L2 we will chunk it into blob-sized pieces (4096 elements \* 31 bytes per what is required by our circuits), take the
 hash of each chunk, and send them to L1 via system logs. Within `Executor.sol` , when we are dealing with blob-based
 commitments, we verify that the blob contains the correct data with the point evaluation precompile. If the batch
-utilizes calldata instead, the processing should remain the same as in a pre-4844 zkSync. Regardless of if pubdata is in
+utilizes calldata instead, the processing should remain the same as in a pre-4844 ZKsync. Regardless of if pubdata is in
 calldata or blobs are used, the batch’s commitment changes as we include new data within the auxiliary output.
 
 Given that this is the first step to a longer-term solution, and the restrictions of proto-danksharding that get lifted

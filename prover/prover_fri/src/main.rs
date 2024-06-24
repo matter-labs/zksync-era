@@ -3,21 +3,18 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
+use clap::Parser;
 use local_ip_address::local_ip;
-use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::{
     sync::{oneshot, watch::Receiver, Notify},
     task::JoinHandle,
 };
-use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, DatabaseSecrets, FriProverConfig, ObservabilityConfig,
-};
-use zksync_env_config::{
-    object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
-    FromEnv,
-};
+use zksync_config::configs::{DatabaseSecrets, FriProverConfig};
+use zksync_env_config::FromEnv;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prometheus_exporter::PrometheusExporterConfig;
+use zksync_prover_config::{load_database_secrets, load_general_config};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
@@ -58,14 +55,20 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
+    let opt = Cli::parse();
+
+    let general_config = load_general_config(opt.config_path).context("general config")?;
+    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+
+    let observability_config = general_config
+        .observability
+        .context("observability config")?;
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
 
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)
@@ -91,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
+    let prover_config = general_config.prover_config.context("fri_prover config")?;
     let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
@@ -104,23 +107,28 @@ async fn main() -> anyhow::Result<()> {
     .context("Error setting Ctrl+C handler")?;
 
     let (stop_sender, stop_receiver) = tokio::sync::watch::channel(false);
-    let object_store_config =
-        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
-    let object_store_factory = ObjectStoreFactory::new(object_store_config.0);
-    let public_object_store_config =
-        PublicObjectStoreConfig::from_env().context("PublicObjectStoreConfig::from_env()")?;
+    let prover_object_store_config = prover_config
+        .prover_object_store
+        .clone()
+        .context("prover object store config")?;
+    let object_store_factory = ObjectStoreFactory::new(prover_object_store_config);
+    let public_object_store_config = prover_config
+        .public_object_store
+        .clone()
+        .context("public object store config")?;
     let public_blob_store = match prover_config.shall_save_to_public_bucket {
         false => None,
         true => Some(
-            ObjectStoreFactory::new(public_object_store_config.0)
+            ObjectStoreFactory::new(public_object_store_config)
                 .create_store()
                 .await?,
         ),
     };
     let specialized_group_id = prover_config.specialized_group_id;
 
-    let circuit_ids_for_round_to_be_proven = FriProverGroupConfig::from_env()
-        .context("FriProverGroupConfig::from_env()")?
+    let circuit_ids_for_round_to_be_proven = general_config
+        .prover_group_config
+        .context("prover group config")?
         .get_circuit_ids_for_group_id(specialized_group_id)
         .unwrap_or_default();
     let circuit_ids_for_round_to_be_proven =
@@ -131,7 +139,6 @@ async fn main() -> anyhow::Result<()> {
         specialized_group_id,
         circuit_ids_for_round_to_be_proven.clone()
     );
-    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets")?;
 
     // There are 2 threads using the connection pool:
     // 1. The prover thread, which is used to update the prover job status.
@@ -301,4 +308,13 @@ async fn get_prover_tasks(
     }
 
     Ok(tasks)
+}
+
+#[derive(Debug, Parser)]
+#[command(author = "Matter Labs", version)]
+pub(crate) struct Cli {
+    #[arg(long)]
+    pub(crate) config_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    pub(crate) secrets_path: Option<std::path::PathBuf>,
 }

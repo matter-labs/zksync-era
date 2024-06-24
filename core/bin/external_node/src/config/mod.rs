@@ -541,7 +541,7 @@ impl OptionalENConfig {
     }
 
     fn default_pruning_data_retention_sec() -> u64 {
-        3_600 // 1 hour
+        3_600 * 24 * 7 // 7 days
     }
 
     fn from_env() -> anyhow::Result<Self> {
@@ -647,7 +647,7 @@ pub(crate) struct RequiredENConfig {
     /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L1 network.
     pub l1_chain_id: L1ChainId,
-    /// L2 chain ID (e.g., 270 for zkSync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
+    /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
 
