@@ -33,6 +33,7 @@ message StateKeeper {
   optional bool save_call_traces = 22; // required
   optional uint64 max_circuits_per_batch = 27; // required
   optional uint64 miniblock_max_payload_size = 28; // required
+  optional bool protective_reads_persistence_enabled = 29; // optional
   reserved 23; reserved "virtual_blocks_interval";
   reserved 24; reserved "virtual_blocks_per_miniblock";
   reserved 26; reserved "enum_index_migration_chunk_size";

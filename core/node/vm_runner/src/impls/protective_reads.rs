@@ -139,7 +139,7 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
             .finished
             .as_ref()
             .context("L1 batch is not actually finished")?;
-        let (_, protective_reads): (Vec<StorageLog>, Vec<StorageLog>) = finished_batch
+        let (_, computed_protective_reads): (Vec<StorageLog>, Vec<StorageLog>) = finished_batch
             .final_execution_state
             .deduplicated_storage_logs
             .iter()
@@ -149,30 +149,48 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
             .pool
             .connection_tagged("protective_reads_writer")
             .await?;
-        let mut expected_protective_reads = connection
+        let mut written_protective_reads = connection
             .storage_logs_dedup_dal()
             .get_protective_reads_for_l1_batch(updates_manager.l1_batch.number)
             .await?;
 
-        for protective_read in protective_reads {
-            let address = protective_read.key.address();
-            let key = protective_read.key.key();
-            if !expected_protective_reads.remove(&protective_read.key) {
+        if written_protective_reads.len() > 0 {
+            tracing::debug!(
+                l1_batch_number = %updates_manager.l1_batch.number,
+                "Protective reads have already been written, validating"
+            );
+            for protective_read in computed_protective_reads {
+                let address = protective_read.key.address();
+                let key = protective_read.key.key();
+                if !written_protective_reads.remove(&protective_read.key) {
+                    tracing::error!(
+                        l1_batch_number = %updates_manager.l1_batch.number,
+                        address = %address,
+                        key = %key,
+                        "VM runner produced a protective read that did not happen in state keeper"
+                    );
+                }
+            }
+            for remaining_read in written_protective_reads {
                 tracing::error!(
                     l1_batch_number = %updates_manager.l1_batch.number,
-                    address = %address,
-                    key = %key,
-                    "VM runner produced a protective read that did not happen in state keeper"
+                    address = %remaining_read.address(),
+                    key = %remaining_read.key(),
+                    "State keeper produced a protective read that did not happen in VM runner"
                 );
             }
-        }
-        for remaining_read in expected_protective_reads {
-            tracing::error!(
+        } else {
+            tracing::debug!(
                 l1_batch_number = %updates_manager.l1_batch.number,
-                address = %remaining_read.address(),
-                key = %remaining_read.key(),
-                "State keeper produced a protective read that did not happen in VM runner"
+                "Protective reads have not been written, writing"
             );
+            connection
+                .storage_logs_dedup_dal()
+                .insert_protective_reads(
+                    updates_manager.l1_batch.number,
+                    &computed_protective_reads,
+                )
+                .await?;
         }
 
         Ok(())
