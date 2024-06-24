@@ -4,5 +4,4 @@ package zksync.config.base_token_adjuster;
 
 message BaseTokenAdjuster {
   optional uint64 price_polling_interval_ms = 1;
-  optional string base_token = 2;
 }

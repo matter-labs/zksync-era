@@ -88,7 +88,7 @@ pub enum Component {
     CommitmentGenerator,
     /// VM runner-based component that saves protective reads to Postgres.
     VmRunnerProtectiveReads,
-    /// A component to handle anything related to a chain's custom base token.
+    /// A component that handle the base token exchange rate conversion (non ETH chain).
     BaseTokenAdjuster,
 }
 

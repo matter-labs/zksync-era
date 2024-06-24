@@ -4,10 +4,10 @@ use anyhow::Context;
 use zksync_base_token_adjuster::MainNodeBaseTokenAdjuster;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
-    BaseTokenAdjusterConfig, GasAdjusterConfig, GenesisConfig,
+    BaseTokenAdjusterConfig, ContractsConfig, GasAdjusterConfig, GenesisConfig,
 };
 use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
-use zksync_types::fee_model::FeeModelConfig;
+use zksync_types::{fee_model::FeeModelConfig, L1_ETH_CONTRACT_ADDRESS};
 
 use crate::{
     implementations::resources::{
@@ -28,6 +28,7 @@ pub struct SequencerL1GasLayer {
     pubdata_sending_mode: PubdataSendingMode,
     state_keeper_config: StateKeeperConfig,
     base_token_adjuster_config: BaseTokenAdjusterConfig,
+    contracts_config: ContractsConfig,
 }
 
 impl SequencerL1GasLayer {
@@ -37,6 +38,7 @@ impl SequencerL1GasLayer {
         state_keeper_config: StateKeeperConfig,
         pubdata_sending_mode: PubdataSendingMode,
         base_token_adjuster_config: BaseTokenAdjusterConfig,
+        contracts_config: ContractsConfig,
     ) -> Self {
         Self {
             gas_adjuster_config,
@@ -44,6 +46,7 @@ impl SequencerL1GasLayer {
             pubdata_sending_mode,
             state_keeper_config,
             base_token_adjuster_config,
+            contracts_config,
         }
     }
 }
@@ -69,8 +72,18 @@ impl WiringLayer for SequencerL1GasLayer {
         let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = pool_resource.get().await?;
 
-        let base_token_adjuster =
-            MainNodeBaseTokenAdjuster::new(replica_pool.clone(), self.base_token_adjuster_config);
+        let mut is_eth = true;
+        if let Some(base_token_addr) = self.contracts_config.base_token_addr {
+            if base_token_addr != L1_ETH_CONTRACT_ADDRESS {
+                is_eth = false;
+            }
+        }
+
+        let base_token_adjuster = MainNodeBaseTokenAdjuster::new(
+            replica_pool.clone(),
+            self.base_token_adjuster_config,
+            is_eth,
+        );
 
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             gas_adjuster.clone(),

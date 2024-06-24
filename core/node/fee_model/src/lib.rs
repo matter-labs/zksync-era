@@ -47,15 +47,11 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     /// Returns the fee model parameters using the denomination of the base token used (WEI for ETH).
     async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
         let unconverted_params = self.get_fee_model_params().await?;
-        self.maybe_convert_params_to_base_token(unconverted_params)
-            .await
+        self.adjust_params_to_base_token(unconverted_params).await
     }
 
     /// Converts the fee model parameters to the base token denomination.
-    async fn maybe_convert_params_to_base_token(
-        &self,
-        params: FeeParams,
-    ) -> anyhow::Result<FeeParams>;
+    async fn adjust_params_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams>;
 }
 
 impl dyn BatchFeeModelInputProvider {
@@ -90,16 +86,11 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
             }),
         };
 
-        self.maybe_convert_params_to_base_token(params).await
+        self.adjust_params_to_base_token(params).await
     }
 
-    async fn maybe_convert_params_to_base_token(
-        &self,
-        params: FeeParams,
-    ) -> anyhow::Result<FeeParams> {
-        self.base_token_adjuster
-            .maybe_convert_to_base_token(params)
-            .await
+    async fn adjust_params_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams> {
+        self.base_token_adjuster.convert_to_base_token(params).await
     }
 }
 
@@ -167,11 +158,8 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
         self.inner.get_fee_model_params().await
     }
 
-    async fn maybe_convert_params_to_base_token(
-        &self,
-        params: FeeParams,
-    ) -> anyhow::Result<FeeParams> {
-        self.inner.maybe_convert_params_to_base_token(params).await
+    async fn adjust_params_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams> {
+        self.inner.adjust_params_to_base_token(params).await
     }
 }
 
@@ -273,10 +261,7 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
         Ok(self.0)
     }
 
-    async fn maybe_convert_params_to_base_token(
-        &self,
-        params: FeeParams,
-    ) -> anyhow::Result<FeeParams> {
+    async fn adjust_params_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams> {
         Ok(params)
     }
 }
@@ -296,7 +281,7 @@ mod tests {
     // use it for the L1 pubdata price.
     const GIANT_L1_GAS_PRICE: u64 = 100_000_000_000_000;
 
-    // As a small small L2 gas price we'll use the value of 1 wei.
+    // As a small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: u64 = 1;
 
     #[test]
@@ -517,7 +502,7 @@ mod tests {
     async fn test_get_fee_model_params() {
         struct TestCase {
             name: &'static str,
-            base_token: String,
+            is_eth: bool,
             base_token_to_eth: BigDecimal,
             effective_l1_gas_price: u64,
             effective_l1_pubdata_price: u64,
@@ -530,7 +515,7 @@ mod tests {
         let test_cases = vec![
             TestCase {
                 name: "Convert to a custom base token",
-                base_token: "ZK".to_string(),
+                is_eth: false,
                 base_token_to_eth: BigDecimal::from(200000),
                 effective_l1_gas_price: 10_000_000_000, // 10 gwei
                 effective_l1_pubdata_price: 20_000_000, // 0.02 gwei
@@ -541,7 +526,7 @@ mod tests {
             },
             TestCase {
                 name: "ETH as base token (no conversion)",
-                base_token: "ETH".to_string(),
+                is_eth: true,
                 base_token_to_eth: BigDecimal::from(1),
                 effective_l1_gas_price: 15_000_000_000, // 15 gwei
                 effective_l1_pubdata_price: 30_000_000, // 0.03 gwei
@@ -560,7 +545,7 @@ mod tests {
 
             let base_token_adjuster = Arc::new(MockBaseTokenAdjuster::new(
                 case.base_token_to_eth.clone(),
-                case.base_token.clone(),
+                case.is_eth.clone(),
             ));
 
             let config = FeeModelConfig::V2(FeeModelConfigV2 {

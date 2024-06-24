@@ -1,0 +1,2 @@
+[base_token_adjuster]
+price_polling_interval_ms=30000

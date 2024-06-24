@@ -77,10 +77,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
         Ok(*self.main_node_fee_params.read().unwrap())
     }
 
-    async fn maybe_convert_params_to_base_token(
-        &self,
-        _params: FeeParams,
-    ) -> anyhow::Result<FeeParams> {
+    async fn adjust_params_to_base_token(&self, _params: FeeParams) -> anyhow::Result<FeeParams> {
         Ok(_params)
     }
 }
