@@ -146,7 +146,7 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
     /// Returns the fee model parameters.
     async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
         self.inner.get_fee_model_params().await
-        // TODO: QQQQ: convert for API as well
+        // TODO(PE-137): impl APIBaseTokenAdjuster and use it in the ApiFeeInputProvider.
     }
 }
 
