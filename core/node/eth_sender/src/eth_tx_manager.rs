@@ -68,7 +68,7 @@ impl EthTxManager {
         &self,
         storage: &mut Connection<'_, Core>,
         op: &EthTx,
-    ) -> Option<ExecutedTxStatus> {
+    ) -> Result<Option<ExecutedTxStatus>, EthSenderError> {
         // Checking history items, starting from most recently sent.
         for history_item in storage
             .eth_sender_dal()
@@ -80,16 +80,19 @@ impl EthTxManager {
             // because if we do and get an `Err`, we won't finish the for loop,
             // which means we might miss the transaction that actually succeeded.
             match self.l1_interface.get_tx_status(history_item.tx_hash).await {
-                Ok(Some(s)) => return Some(s),
+                Ok(Some(s)) => return Ok(Some(s)),
                 Ok(_) => continue,
-                Err(err) => tracing::warn!(
-                    "Can't check transaction {:?}: {:?}",
-                    history_item.tx_hash,
-                    err
-                ),
+                Err(err) => {
+                    tracing::warn!(
+                        "Can't check transaction {:?}: {:?}",
+                        history_item.tx_hash,
+                        err
+                    );
+                    return Err(err.into());
+                }
             }
         }
-        None
+        Ok(None)
     }
 
     pub(crate) async fn send_eth_tx(
@@ -253,29 +256,27 @@ impl EthTxManager {
             .await?;
         let blobs_operator_address = self.l1_interface.get_blobs_operator_account();
 
-        if let Some(res) = self
-            .monitor_inflight_transactions_inner(storage, l1_block_numbers, operator_nonce, None)
-            .await?
-        {
-            return Ok(Some(res));
-        };
-
         if let Some(blobs_operator_nonce) = blobs_operator_nonce {
             // need to check if both nonce and address are `Some`
             if blobs_operator_address.is_none() {
                 panic!("blobs_operator_address has to be set its nonce is known; qed");
             }
-            Ok(self
+            if let Some(res) = self
                 .monitor_inflight_transactions_inner(
                     storage,
                     l1_block_numbers,
                     blobs_operator_nonce,
                     blobs_operator_address,
                 )
-                .await?)
-        } else {
-            Ok(None)
+                .await?
+            {
+                return Ok(Some(res));
+            }
         }
+
+        Ok(self
+            .monitor_inflight_transactions_inner(storage, l1_block_numbers, operator_nonce, None)
+            .await?)
     }
 
     async fn monitor_inflight_transactions_inner(
@@ -347,11 +348,11 @@ impl EthTxManager {
             );
 
             match self.check_all_sending_attempts(storage, &tx).await {
-                Some(tx_status) => {
+                Ok(Some(tx_status)) => {
                     self.apply_tx_status(storage, &tx, tx_status, l1_block_numbers.finalized)
                         .await;
                 }
-                None => {
+                Ok(None) => {
                     // The nonce has increased but we did not find the receipt.
                     // This is an error because such a big re-org may cause transactions that were
                     // previously recorded as confirmed to become pending again and we have to
@@ -360,6 +361,13 @@ impl EthTxManager {
                         "Possible block reorgs: finalized nonce increase detected, but no tx receipt found for tx {:?}",
                         &tx
                     );
+                }
+                Err(err) => {
+                    // An error here means that we weren't able to check status of one of the txs
+                    // we can't continue to avoid situations with out-of-order confirmed txs
+                    // (for instance Execute tx confirmed before PublishProof tx) as this would make
+                    // our API return inconsistent block info
+                    return Err(err);
                 }
             }
         }
