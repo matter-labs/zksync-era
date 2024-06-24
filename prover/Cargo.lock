@@ -736,6 +736,35 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
+dependencies = [
+ "arrayvec 0.7.4",
+ "bincode",
+ "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "const_format",
+ "convert_case",
+ "crossbeam 0.7.3",
+ "crypto-bigint 0.5.5",
+ "cs_derive 0.1.0",
+ "derivative",
+ "ethereum-types",
+ "firestorm",
+ "itertools 0.10.5",
+ "lazy_static",
+ "num-modular",
+ "num_cpus",
+ "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git)",
+ "rand 0.8.5",
+ "rayon",
+ "serde",
+ "sha2 0.10.8",
+ "sha3 0.10.6",
+ "smallvec",
+ "unroll",
+]
+
+[[package]]
+name = "boojum"
+version = "0.2.0"
 source = "git+https://github.com/matter-labs/era-boojum?branch=main#4bcb11f0610302110ae8109af01d5b652191b2f6"
 dependencies = [
  "arrayvec 0.7.4",
@@ -769,7 +798,7 @@ name = "boojum-cuda"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#edf04233ea0edb6febe2f7b8cb2c8607ebf8ec96"
 dependencies = [
- "boojum",
+ "boojum 0.2.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "cmake",
  "cudart",
  "cudart-sys",
@@ -1023,7 +1052,7 @@ name = "circuit_definitions"
 version = "1.5.0"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
- "circuit_encodings 0.1.50",
+ "circuit_encodings 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "crossbeam 0.8.4",
  "derivative",
  "seq-macro",
@@ -1067,12 +1096,22 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "derivative",
  "serde",
  "zk_evm 1.5.0",
  "zkevm_circuits 1.5.0",
+]
+
+[[package]]
+name = "circuit_encodings"
+version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
+dependencies = [
+ "derivative",
+ "serde",
+ "zk_evm 1.5.0 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0)",
+ "zkevm_circuits 1.5.0 (git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0)",
 ]
 
 [[package]]
@@ -1129,10 +1168,21 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
  "circuit_encodings 0.1.50",
+ "derivative",
+ "rayon",
+ "serde",
+]
+
+[[package]]
+name = "circuit_sequencer_api"
+version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
+dependencies = [
+ "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
+ "circuit_encodings 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "derivative",
  "rayon",
  "serde",
@@ -1573,6 +1623,16 @@ checksum = "b584a330336237c1eecd3e94266efb216c56ed91225d634cb2991c5f3fd1aeab"
 dependencies = [
  "generic-array",
  "subtle",
+]
+
+[[package]]
+name = "cs_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2 1.0.85",
+ "quote 1.0.36",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -2325,7 +2385,7 @@ dependencies = [
  "blake2 0.9.2",
  "blake2-rfc_bellman_edition",
  "blake2s_simd",
- "boojum",
+ "boojum 0.2.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "byteorder",
  "derivative",
  "digest 0.9.0",
@@ -3444,9 +3504,8 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
 dependencies = [
- "boojum",
+ "boojum 0.2.0",
  "derivative",
  "hex",
  "once_cell",
@@ -3455,6 +3514,22 @@ dependencies = [
  "serde_json",
  "serde_with",
  "zkevm_circuits 1.5.0",
+]
+
+[[package]]
+name = "kzg"
+version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e6fa3cbf2c9c898c3b93046162951d42d5454d5b"
+dependencies = [
+ "boojum 0.2.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "derivative",
+ "hex",
+ "once_cell",
+ "rayon",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "zkevm_circuits 1.5.0 (git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0)",
 ]
 
 [[package]]
@@ -6143,7 +6218,7 @@ source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.5.0#e7767
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "boojum",
+ "boojum 0.2.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "boojum-cuda",
  "circuit_definitions 1.5.0",
  "cudart",
@@ -8082,7 +8157,6 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#0c5cdca00cca4fa0a8c49147a11048c24f8a4b12"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8091,6 +8165,20 @@ dependencies = [
  "serde_json",
  "static_assertions",
  "zk_evm_abstractions 1.5.0",
+]
+
+[[package]]
+name = "zk_evm"
+version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#0c5cdca00cca4fa0a8c49147a11048c24f8a4b12"
+dependencies = [
+ "anyhow",
+ "lazy_static",
+ "num",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "zk_evm_abstractions 1.5.0 (git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.0)",
 ]
 
 [[package]]
@@ -8120,13 +8208,24 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.0#e464b2cf2b146d883be80e7d690c752bf670ff05"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
  "zkevm_opcode_defs 1.5.0",
+]
+
+[[package]]
+name = "zk_evm_abstractions"
+version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.0#e464b2cf2b146d883be80e7d690c752bf670ff05"
+dependencies = [
+ "anyhow",
+ "num_enum 0.6.1",
+ "serde",
+ "static_assertions",
+ "zkevm_opcode_defs 1.5.0 (git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0)",
 ]
 
 [[package]]
@@ -8164,7 +8263,7 @@ dependencies = [
  "smallvec",
  "structopt",
  "thiserror",
- "zkevm_opcode_defs 1.5.0",
+ "zkevm_opcode_defs 1.5.0 (git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0)",
 ]
 
 [[package]]
@@ -8174,7 +8273,7 @@ source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=main#
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
- "boojum",
+ "boojum 0.2.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
  "hex",
@@ -8195,7 +8294,7 @@ source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
- "boojum",
+ "boojum 0.2.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
  "hex",
@@ -8216,7 +8315,7 @@ source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
- "boojum",
+ "boojum 0.2.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
  "hex",
@@ -8233,10 +8332,31 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
+dependencies = [
+ "arrayvec 0.7.4",
+ "bincode",
+ "boojum 0.2.0",
+ "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "derivative",
+ "hex",
+ "itertools 0.10.5",
+ "lazy_static",
+ "rand 0.4.6",
+ "rand 0.8.5",
+ "seq-macro",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "zkevm_opcode_defs 1.5.0",
+]
+
+[[package]]
+name = "zkevm_circuits"
+version = "1.5.0"
 source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#b7a86c739e8a8f88e788e90893c6e7496f6d7dfc"
 dependencies = [
  "arrayvec 0.7.4",
- "boojum",
+ "boojum 0.2.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
  "hex",
@@ -8246,7 +8366,7 @@ dependencies = [
  "seq-macro",
  "serde",
  "smallvec",
- "zkevm_opcode_defs 1.5.0",
+ "zkevm_opcode_defs 1.5.0 (git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0)",
 ]
 
 [[package]]
@@ -8284,6 +8404,22 @@ dependencies = [
  "ethereum-types",
  "k256 0.13.3",
  "lazy_static",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+]
+
+[[package]]
+name = "zkevm_opcode_defs"
+version = "1.5.0"
+dependencies = [
+ "bitflags 2.5.0",
+ "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ethereum-types",
+ "k256 0.13.3",
+ "lazy_static",
+ "p256",
+ "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git)",
+ "serde",
  "sha2 0.10.8",
  "sha3 0.10.8",
 ]
@@ -8362,14 +8498,14 @@ source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v
 dependencies = [
  "bincode",
  "circuit_definitions 1.5.0",
- "circuit_sequencer_api 0.1.50",
+ "circuit_sequencer_api 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "codegen 0.2.0",
  "crossbeam 0.8.4",
  "curl",
  "derivative",
  "env_logger 0.11.3",
  "hex",
- "kzg",
+ "kzg 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "lazy_static",
  "rand 0.4.6",
  "rayon",
@@ -8919,7 +9055,7 @@ version = "0.1.0"
 dependencies = [
  "codegen 0.1.0",
  "hex",
- "kzg",
+ "kzg 0.1.50",
  "once_cell",
  "sha2 0.10.8",
  "sha3 0.10.8",
@@ -9187,7 +9323,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_sequencer_api 0.1.50",
+ "circuit_sequencer_api 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "ctrlc",
  "futures 0.3.30",
  "prometheus_exporter",
