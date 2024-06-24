@@ -44,11 +44,7 @@ impl CoinGeckoPriceAPIClient {
             .await?
             .json::<PriceResponse>()
             .await?;
-        match response
-            .prices
-            .get(&token_address.to_string())
-            .and_then(|price| price.get(vs_currency))
-        {
+        match response.get_price(&token_address.to_string(), &String::from(vs_currency)) {
             Some(&price) => Ok(price),
             None => Err(anyhow::anyhow!(
                 "Price not found for token: {}",
@@ -77,11 +73,7 @@ impl CoinGeckoPriceAPIClient {
             .await?
             .json::<PriceResponse>()
             .await?;
-        match response
-            .prices
-            .get(&token_id)
-            .and_then(|price| price.get(vs_currency))
-        {
+        match response.get_price(&token_id, &String::from(vs_currency)) {
             Some(&price) => Ok(price),
             None => Err(anyhow::anyhow!("Price not found for token: {}", token_id)),
         }
@@ -109,6 +101,14 @@ impl PriceAPIClient for CoinGeckoPriceAPIClient {
 struct PriceResponse {
     #[serde(flatten)]
     pub(crate) prices: HashMap<String, HashMap<String, f64>>,
+}
+
+impl PriceResponse {
+    fn get_price(self: &Self, address: &String, currency: &String) -> Option<&f64> {
+        self.prices
+            .get(address)
+            .and_then(|price| price.get(currency))
+    }
 }
 
 #[cfg(test)]
