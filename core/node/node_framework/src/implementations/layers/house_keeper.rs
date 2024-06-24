@@ -1,10 +1,7 @@
-use std::time::Duration;
-
 use zksync_config::configs::{
     fri_prover_group::FriProverGroupConfig, house_keeper::HouseKeeperConfig,
     FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
 };
-use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
 use zksync_house_keeper::{
     blocks_state_reporter::L1BatchMetricsReporter,
     periodic_job::PeriodicJob,
@@ -22,8 +19,6 @@ use crate::{
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
-
-const SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
 pub struct HouseKeeperLayer {
@@ -67,9 +62,6 @@ impl WiringLayer for HouseKeeperLayer {
         let prover_pool = prover_pool_resource.get().await?;
 
         // initialize and add tasks
-        let pool_for_metrics = replica_pool_resource.get_singleton().await?;
-        context.add_task(Box::new(PostgresMetricsScrapingTask { pool_for_metrics }));
-
         let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
             self.house_keeper_config
                 .l1_batch_metrics_reporting_interval_ms,
@@ -168,30 +160,6 @@ impl WiringLayer for HouseKeeperLayer {
             fri_proof_compressor_retry_manager,
         }));
 
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-struct PostgresMetricsScrapingTask {
-    pool_for_metrics: ConnectionPool<Core>,
-}
-
-#[async_trait::async_trait]
-impl Task for PostgresMetricsScrapingTask {
-    fn id(&self) -> TaskId {
-        "postgres_metrics_scraping".into()
-    }
-
-    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        tokio::select! {
-            () = PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL) => {
-                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
-            }
-            _ = stop_receiver.0.changed() => {
-                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
-            }
-        }
         Ok(())
     }
 }

@@ -49,5 +49,9 @@ strum = { workspace = true, features = ["derive"] }
 tracing.workspace = true
 chrono = { workspace = true, features = ["serde"] }
 
+[dev-dependencies]
+zksync_test_account.workspace = true
+zksync_concurrency.workspace = true
+
 [build-dependencies]
 zksync_protobuf_build.workspace = true

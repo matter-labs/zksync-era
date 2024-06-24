@@ -361,6 +361,46 @@ async fn multi_l1_batch_workflow() {
 }
 
 #[tokio::test]
+async fn error_on_pruned_next_l1_batch() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    reset_db_state(&pool, 1).await;
+    run_calculator(calculator).await;
+
+    // Add some new blocks to the storage and mock their partial pruning.
+    let mut storage = pool.connection().await.unwrap();
+    let new_logs = gen_storage_logs(100..200, 10);
+    extend_db_state(&mut storage, new_logs).await;
+    storage
+        .pruning_dal()
+        .soft_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .await
+        .unwrap();
+    storage
+        .pruning_dal()
+        .hard_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .await
+        .unwrap();
+    // Sanity check: there should be no pruned batch headers.
+    let next_l1_batch_header = storage
+        .blocks_dal()
+        .get_l1_batch_header(L1BatchNumber(2))
+        .await
+        .unwrap();
+    assert!(next_l1_batch_header.is_none());
+
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = calculator.run(stop_receiver).await.unwrap_err();
+    let err = format!("{err:#}");
+    assert!(
+        err.contains("L1 batch #2, next to be processed by the tree, is pruned"),
+        "{err}"
+    );
+}
+
+#[tokio::test]
 async fn running_metadata_calculator_with_additional_blocks() {
     let pool = ConnectionPool::<Core>::test_pool().await;
 
@@ -682,7 +722,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .storage_logs_dal()
-            .insert_storage_logs(l2_block_number, &[(H256::zero(), batch_logs)])
+            .insert_storage_logs(l2_block_number, &batch_logs)
             .await
             .unwrap();
         storage

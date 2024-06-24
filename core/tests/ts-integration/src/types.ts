@@ -66,7 +66,7 @@ export interface TestEnvironment {
      */
     mainWalletPK: string;
     /**
-     * URL of zkSync node's HTTP Web3 API.
+     * URL of ZKsync node's HTTP Web3 API.
      */
     l2NodeUrl: string;
     /**
@@ -74,11 +74,11 @@ export interface TestEnvironment {
      */
     l1NodeUrl: string;
     /**
-     * URL of zkSync node's WS Web3 API.
+     * URL of ZKsync node's WS Web3 API.
      */
     wsL2NodeUrl: string;
     /**
-     * URL of zkSync node's contract verification API.
+     * URL of ZKsync node's contract verification API.
      */
     contractVerificationUrl: string;
     /**

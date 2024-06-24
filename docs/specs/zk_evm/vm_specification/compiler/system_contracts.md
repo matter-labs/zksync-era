@@ -7,7 +7,7 @@ special handling, see
 
 ## Types of System Contracts
 
-There are several types of System Contracts from the perspective of how they are handled by the zkSync Era compilers:
+There are several types of System Contracts from the perspective of how they are handled by the ZKsync Era compilers:
 
 1. [Environmental data storage](#environmental-data-storage).
 2. [KECCAK256 hash function](#keccak256-hash-function).
@@ -46,14 +46,14 @@ For reference, see
 Handling of this function is similar to [Environmental Data Storage](#environmental-data-storage) with one difference:
 
 Since EVM also uses heap to store the calldata for `KECCAK256`, the required memory chunk is allocated by the IR
-generator, and zkSync Era compiler does not need to use [the auxiliary heap](#auxiliary-heap).
+generator, and ZKsync Era compiler does not need to use [the auxiliary heap](#auxiliary-heap).
 
 For reference, see
 [the LLVM IR codegen source code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/context/function/llvm_runtime.rs).
 
 ### Contract Deployer
 
-See [handling CREATE][docs-create] and [dependency code substitution instructions][docs-data] on zkSync Era
+See [handling CREATE][docs-create] and [dependency code substitution instructions][docs-data] on ZKsync Era
 documentation.
 
 For reference, see LLVM IR codegen for
@@ -85,7 +85,7 @@ For reference, see
 
 ### Simulator of Immutables
 
-See [handling immutables][docs-immutable] on zkSync Era documentation.
+See [handling immutables][docs-immutable] on ZKsync Era documentation.
 
 For reference, see LLVM IR codegen for
 [instructions for immutables](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/immutable.rs)

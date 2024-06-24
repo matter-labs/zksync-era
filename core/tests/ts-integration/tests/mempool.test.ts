@@ -137,7 +137,7 @@ describe('Tests for the mempool behavior', () => {
 });
 
 /**
- * Sends a valid zkSync transaction with a certain nonce.
+ * Sends a valid ZKsync transaction with a certain nonce.
  * What transaction does is assumed to be not important besides the fact that it should be accepted.
  *
  * @param wallet Wallet to send transaction from.

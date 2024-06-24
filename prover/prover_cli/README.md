@@ -1,6 +1,6 @@
 # Prover CLI
 
-CLI tool for performing maintenance of a zkSync Prover
+CLI tool for performing maintenance of a ZKsync Prover
 
 ## Installation
 
