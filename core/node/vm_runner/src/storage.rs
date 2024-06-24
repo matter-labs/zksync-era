@@ -7,15 +7,15 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
 use tokio::sync::{watch, RwLock};
-use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
 use zksync_state::{
     AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbCell,
     RocksdbStorage, RocksdbStorageBuilder, RocksdbWithMemory,
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use crate::{metrics::METRICS, VmRunnerIo};
 

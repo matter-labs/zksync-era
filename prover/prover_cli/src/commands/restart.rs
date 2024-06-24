@@ -1,10 +1,10 @@
 use anyhow::Context;
 use clap::Args as ClapArgs;
-use prover_dal::{
-    fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
-};
 use zksync_config::configs::DatabaseSecrets;
 use zksync_env_config::FromEnv;
+use zksync_prover_dal::{
+    fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
+};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 #[derive(ClapArgs)]

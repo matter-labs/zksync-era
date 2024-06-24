@@ -52,8 +52,6 @@ Be polite and respectful.
 **Q**: I have a small contribution that's not getting traction/being merged?
 
 **A**: Due to capacity, contributions that are simple renames of variables or stylistic/minor text improvements, one-off
-typo fix will not be merged. If you do find any typos or grammar errors, the preferred avenue is to improve the existing
-spellchecker. Given you have no technical prowess to do so, please create an issue. Please note that issues will be
-resolved on a best effort basis.
+typo fix will not be merged.
 
 ### Thank you

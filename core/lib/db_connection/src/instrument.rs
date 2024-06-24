@@ -200,6 +200,21 @@ impl<'a> InstrumentedData<'a> {
         }
     }
 
+    fn observe_error(&self, err: &dyn fmt::Display) {
+        let InstrumentedData {
+            name,
+            location,
+            args,
+            ..
+        } = self;
+        tracing::warn!(
+            "Query {name}{args} called at {file}:{line} has resulted in error: {err}",
+            file = location.file(),
+            line = location.line()
+        );
+        REQUEST_METRICS.request_error[name].inc();
+    }
+
     async fn fetch<R>(
         self,
         connection_tags: Option<&ConnectionTags>,
@@ -295,32 +310,40 @@ impl<'a> Instrumented<'a, ()> {
         }
     }
 
-    /// Wraps a provided argument validation error.
+    /// Wraps a provided argument validation error. It is assumed that the returned error
+    /// will be returned as an error cause (e.g., it is logged as an error and observed using metrics).
+    #[must_use]
     pub fn arg_error<E>(&self, arg_name: &str, err: E) -> DalError
     where
         E: Into<anyhow::Error>,
     {
         let err: anyhow::Error = err.into();
         let err = err.context(format!("failed validating query argument `{arg_name}`"));
-        DalRequestError::new(
+        let err = DalRequestError::new(
             sqlx::Error::Decode(err.into()),
             self.data.name,
             self.data.location,
         )
-        .with_args(self.data.args.to_owned())
-        .into()
+        .with_args(self.data.args.to_owned());
+
+        self.data.observe_error(&err);
+        err.into()
     }
 
-    /// Wraps a provided application-level data constraint error.
+    /// Wraps a provided application-level data constraint error. It is assumed that the returned error
+    /// will be returned as an error cause (e.g., it is logged as an error and observed using metrics).
+    #[must_use]
     pub fn constraint_error(&self, err: anyhow::Error) -> DalError {
         let err = err.context("application-level data constraint violation");
-        DalRequestError::new(
+        let err = DalRequestError::new(
             sqlx::Error::Decode(err.into()),
             self.data.name,
             self.data.location,
         )
-        .with_args(self.data.args.to_owned())
-        .into()
+        .with_args(self.data.args.to_owned());
+
+        self.data.observe_error(&err);
+        err.into()
     }
 
     pub fn with<Q>(self, query: Q) -> Instrumented<'a, Q> {
@@ -475,7 +498,7 @@ mod tests {
     #[tokio::test]
     async fn instrumenting_erroneous_query() {
         let pool = ConnectionPool::<InternalMarker>::test_pool().await;
-        // Add `vlog::init()` here to debug this test
+        // Add `zksync_vlog::init()` here to debug this test
 
         let mut conn = pool.connection().await.unwrap();
         sqlx::query("WHAT")
@@ -491,7 +514,7 @@ mod tests {
     #[tokio::test]
     async fn instrumenting_slow_query() {
         let pool = ConnectionPool::<InternalMarker>::test_pool().await;
-        // Add `vlog::init()` here to debug this test
+        // Add `zksync_vlog::init()` here to debug this test
 
         let mut conn = pool.connection().await.unwrap();
         sqlx::query("SELECT pg_sleep(1.5)")

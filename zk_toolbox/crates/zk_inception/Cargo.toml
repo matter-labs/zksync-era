@@ -31,3 +31,4 @@ strum.workspace = true
 toml.workspace = true
 url.workspace = true
 thiserror.workspace = true
+slugify-rs.workspace = true

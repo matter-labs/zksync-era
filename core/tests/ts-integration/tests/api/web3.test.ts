@@ -690,6 +690,8 @@ describe('web3 API compatibility tests', () => {
         expect(+finalizedBlock.number!).toEqual(expect.any(Number));
         const latestBlock = await alice.provider.send('eth_getBlockByNumber', ['latest', true]);
         expect(+latestBlock.number!).toEqual(expect.any(Number));
+        const l1CommittedBlock = await alice.provider.send('eth_getBlockByNumber', ['l1_committed', true]);
+        expect(+l1CommittedBlock.number!).toEqual(expect.any(Number));
         const pendingBlock = await alice.provider.send('eth_getBlockByNumber', ['pending', true]);
         expect(pendingBlock).toEqual(null);
     });

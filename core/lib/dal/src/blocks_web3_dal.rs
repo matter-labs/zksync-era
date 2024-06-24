@@ -271,6 +271,24 @@ impl BlocksWeb3Dal<'_, '_> {
                 api::BlockId::Number(api::BlockNumber::Latest | api::BlockNumber::Committed) => (
                     "SELECT MAX(number) AS number FROM miniblocks";
                 ),
+                api::BlockId::Number(api::BlockNumber::L1Committed) => (
+                    "
+                    SELECT COALESCE(
+                        (
+                            SELECT MAX(number) FROM miniblocks
+                            WHERE l1_batch_number = (
+                                SELECT number FROM l1_batches
+                                JOIN eth_txs ON
+                                    l1_batches.eth_commit_tx_id = eth_txs.id
+                                WHERE
+                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                ORDER BY number DESC LIMIT 1
+                            )
+                        ),
+                        0
+                    ) AS number
+                    ";
+                ),
                 api::BlockId::Number(api::BlockNumber::Finalized) => (
                     "
                     SELECT COALESCE(
@@ -733,6 +751,7 @@ impl BlocksWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
+        aggregated_operations::AggregatedActionType,
         block::{L2BlockHasher, L2BlockHeader},
         fee::TransactionExecutionMetrics,
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
@@ -741,8 +760,8 @@ mod tests {
     use super::*;
     use crate::{
         tests::{
-            create_l2_block_header, create_snapshot_recovery, mock_execution_result,
-            mock_l2_transaction,
+            create_l1_batch_header, create_l2_block_header, create_snapshot_recovery,
+            mock_execution_result, mock_l2_transaction,
         },
         ConnectionPool, Core, CoreDal,
     };
@@ -900,6 +919,79 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(l2_block_number, Some(L2BlockNumber(43)));
+    }
+
+    #[tokio::test]
+    async fn resolving_l1_committed_block_id() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let l2_block_header = create_l2_block_header(1);
+        conn.blocks_dal()
+            .insert_l2_block(&l2_block_header)
+            .await
+            .unwrap();
+
+        let l1_batch_header = create_l1_batch_header(0);
+
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&l1_batch_header)
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
+            .await
+            .unwrap();
+
+        let resolved_l2_block_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::L1Committed))
+            .await
+            .unwrap();
+        assert_eq!(resolved_l2_block_number, Some(L2BlockNumber(0)));
+
+        let mocked_commit_eth_tx = conn
+            .eth_sender_dal()
+            .save_eth_tx(
+                0,
+                vec![],
+                AggregatedActionType::Commit,
+                Address::default(),
+                0,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        let tx_hash = H256::random();
+        conn.eth_sender_dal()
+            .insert_tx_history(mocked_commit_eth_tx.id, 0, 0, None, tx_hash, &[], 0)
+            .await
+            .unwrap();
+        conn.eth_sender_dal()
+            .confirm_tx(tx_hash, U256::zero())
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .set_eth_tx_id(
+                l1_batch_header.number..=l1_batch_header.number,
+                mocked_commit_eth_tx.id,
+                AggregatedActionType::Commit,
+            )
+            .await
+            .unwrap();
+
+        let resolved_l2_block_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::L1Committed))
+            .await
+            .unwrap();
+
+        assert_eq!(resolved_l2_block_number, Some(l2_block_header.number));
     }
 
     #[tokio::test]
