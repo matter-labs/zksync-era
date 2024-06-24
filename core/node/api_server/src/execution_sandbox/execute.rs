@@ -1,13 +1,13 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
 use anyhow::Context as _;
-use multivm::{
+use tracing::{span, Level};
+use zksync_dal::{ConnectionPool, Core};
+use zksync_multivm::{
     interface::{TxExecutionMode, VmExecutionResultAndLogs, VmInterface},
     tracers::StorageInvocations,
     MultiVMTracer,
 };
-use tracing::{span, Level};
-use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{
     fee::TransactionExecutionMetrics, l2::L2Tx, transaction_request::CallOverrides,
     ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,

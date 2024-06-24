@@ -1,5 +1,5 @@
 use iai::black_box;
-use vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
+use zksync_vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
 
 fn run_bytecode(path: &str) {
     let test_contract = std::fs::read(path).expect("failed to read file");

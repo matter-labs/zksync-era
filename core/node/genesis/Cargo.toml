@@ -10,7 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-multivm.workspace = true
+zksync_multivm.workspace = true
 vise.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
