@@ -77,7 +77,7 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 
-    pub async fn save_proof_artifacts_metadata(
+    pub async fn save_proof_merkle_paths_artifacts_metadata(
         &mut self,
         batch_number: L1BatchNumber,
         proof_blob_url: &str,
@@ -98,6 +98,44 @@ impl ProofGenerationDal<'_, '_> {
         );
         let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
             .with_arg("proof_blob_url", &proof_blob_url)
+            .with_arg("l1_batch_number", &batch_number);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Cannot save proof_blob_url for a batch number {} that does not exist",
+                batch_number
+            ));
+            return Err(err);
+        }
+
+        Ok(())
+    }
+
+    pub async fn save_vm_runner_artifacts_metadata(
+        &mut self,
+        batch_number: L1BatchNumber,
+        vm_run_data_blob_url: &str,
+    ) -> DalResult<()> {
+        let batch_number = i64::from(batch_number.0);
+        let query = sqlx::query!(
+            r#"
+            UPDATE proof_generation_details
+            SET
+                status = 'generated',
+                vm_run_data_blob_url = $1,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $2
+            "#,
+            vm_run_data_blob_url,
+            batch_number
+        );
+        let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
+            .with_arg("vm_run_data_blob_url", &vm_run_data_blob_url)
             .with_arg("l1_batch_number", &batch_number);
         let result = instrumentation
             .clone()

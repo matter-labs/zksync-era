@@ -17,14 +17,14 @@ use crate::{
     OutputHandlerFactory, VmRunner, VmRunnerIo, VmRunnerStorage,
 };
 
-/// A standalone component that writes protective reads asynchronously to state keeper.
+/// A standalone component that writes witness input data asynchronously to state keeper.
 #[derive(Debug)]
 pub struct BasicWitnessInputProducer {
     vm_runner: VmRunner,
 }
 
 impl BasicWitnessInputProducer {
-    /// Create a new protective reads writer from the provided DB parameters and window size which
+    /// Create a new BWIP from the provided DB parameters and window size which
     /// regulates how many batches this component can handle at the same time.
     pub async fn new(
         pool: ConnectionPool<Core>,
@@ -63,7 +63,7 @@ impl BasicWitnessInputProducer {
         ))
     }
 
-    /// Continuously loads new available batches and writes the corresponding protective reads
+    /// Continuously loads new available batches and writes the corresponding data
     /// produced by that batch.
     ///
     /// # Errors
@@ -74,7 +74,7 @@ impl BasicWitnessInputProducer {
     }
 }
 
-/// A collections of tasks that need to be run in order for protective reads writer to work as
+/// A collections of tasks that need to be run in order for BWIP to work as
 /// intended.
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerTasks {
@@ -238,7 +238,23 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
             witness_block_state: block_state,
         };
 
-        self.object_store.put(l1_batch_number, &result).await?;
+        let blob_url = self.object_store.put(l1_batch_number, &result).await?;
+        self.pool
+            .connection()
+            .await
+            .unwrap()
+            .vm_runner_dal()
+            .mark_bwip_batch_as_completed(l1_batch_number)
+            .await
+            .unwrap();
+        self.pool
+            .connection()
+            .await
+            .unwrap()
+            .proof_generation_dal()
+            .save_vm_runner_artifacts_metadata(l1_batch_number, &blob_url)
+            .await
+            .unwrap();
 
         Ok(())
     }

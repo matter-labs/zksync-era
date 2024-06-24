@@ -7,6 +7,7 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        vm_runner::BasicWitnessInputProducerConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
@@ -55,6 +56,7 @@ pub struct TempConfigStore {
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub basic_witness_input_producer_config: Option<BasicWitnessInputProducerConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
 }
 
@@ -82,6 +84,7 @@ impl TempConfigStore {
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
+            basic_witness_input_producer_config: self.basic_witness_input_producer_config.clone(),
             core_object_store: self.core_object_store.clone(),
         }
     }

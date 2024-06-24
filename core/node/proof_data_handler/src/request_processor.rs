@@ -9,7 +9,7 @@ use zksync_prover_interface::{
         ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
         SubmitProofRequest, SubmitProofResponse,
     },
-    inputs::{PrepareBasicCircuitsJob, VMRunWitnessInputData, WitnessInputData},
+    inputs::WitnessInputData,
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
@@ -227,7 +227,7 @@ impl RequestProcessor {
                 }
                 storage
                     .proof_generation_dal()
-                    .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
+                    .save_proof_merkle_paths_artifacts_metadata(l1_batch_number, &blob_url)
                     .await
                     .map_err(RequestProcessorError::Dal)?;
             }

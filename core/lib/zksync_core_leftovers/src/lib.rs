@@ -88,6 +88,8 @@ pub enum Component {
     CommitmentGenerator,
     /// VM runner-based component that saves protective reads to Postgres.
     VmRunnerProtectiveReads,
+    /// VM runner-based component that saves VM execution data for basic witness generation.
+    VmRunnerBwip,
 }
 
 #[derive(Debug)]
@@ -127,6 +129,7 @@ impl FromStr for Components {
             "vm_runner_protective_reads" => {
                 Ok(Components(vec![Component::VmRunnerProtectiveReads]))
             }
+            "vm_runner_bwip" => Ok(Components(vec![Component::VmRunnerBwip])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }

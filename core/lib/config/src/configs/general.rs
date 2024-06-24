@@ -3,7 +3,7 @@ use crate::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        vm_runner::ProtectiveReadsWriterConfig,
+        vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig,
@@ -35,5 +35,6 @@ pub struct GeneralConfig {
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub basic_witness_input_producer_config: Option<BasicWitnessInputProducerConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
 }
