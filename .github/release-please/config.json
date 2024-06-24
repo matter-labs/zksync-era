@@ -14,7 +14,8 @@
             "type": "generic",
             "path": "bin/external_node/Cargo.toml"
           }
-        ]
+        ],
+        "release-as": "24.8.0"
       },
       "prover": {
         "release-type": "simple",

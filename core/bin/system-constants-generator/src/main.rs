@@ -1,7 +1,8 @@
 use std::fs;
 
 use codegen::{Block, Scope};
-use multivm::{
+use serde::{Deserialize, Serialize};
+use zksync_multivm::{
     utils::{get_bootloader_encoding_space, get_bootloader_max_txs_in_batch},
     vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
     zk_evm_latest::zkevm_opcode_defs::{
@@ -12,7 +13,6 @@ use multivm::{
         system_params::MAX_TX_ERGS_LIMIT,
     },
 };
-use serde::{Deserialize, Serialize};
 use zksync_types::{
     IntrinsicSystemGasConstants, ProtocolVersionId, GUARANTEED_PUBDATA_IN_TX,
     L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,

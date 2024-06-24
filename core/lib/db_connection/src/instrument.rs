@@ -498,7 +498,7 @@ mod tests {
     #[tokio::test]
     async fn instrumenting_erroneous_query() {
         let pool = ConnectionPool::<InternalMarker>::test_pool().await;
-        // Add `vlog::init()` here to debug this test
+        // Add `zksync_vlog::init()` here to debug this test
 
         let mut conn = pool.connection().await.unwrap();
         sqlx::query("WHAT")
@@ -514,7 +514,7 @@ mod tests {
     #[tokio::test]
     async fn instrumenting_slow_query() {
         let pool = ConnectionPool::<InternalMarker>::test_pool().await;
-        // Add `vlog::init()` here to debug this test
+        // Add `zksync_vlog::init()` here to debug this test
 
         let mut conn = pool.connection().await.unwrap();
         sqlx::query("SELECT pg_sleep(1.5)")

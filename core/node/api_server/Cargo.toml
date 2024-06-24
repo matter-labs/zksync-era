@@ -26,7 +26,7 @@ zksync_web3_decl = { workspace = true, features = ["server"] }
 zksync_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_mini_merkle_tree.workspace = true
-multivm.workspace = true
+zksync_multivm.workspace = true
 vise.workspace = true
 
 anyhow.workspace = true

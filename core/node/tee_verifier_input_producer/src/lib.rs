@@ -12,7 +12,6 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::task::JoinHandle;
-use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
@@ -20,6 +19,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_tee_verifier::TeeVerifierInput;
 use zksync_types::{L1BatchNumber, L2ChainId};
 use zksync_utils::u256_to_h256;
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use self::metrics::METRICS;
 

@@ -1,4 +1,4 @@
-use multivm::utils::gas_bootloader_batch_tip_overhead;
+use zksync_multivm::utils::gas_bootloader_batch_tip_overhead;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{

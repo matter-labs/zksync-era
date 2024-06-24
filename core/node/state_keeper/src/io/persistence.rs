@@ -351,8 +351,8 @@ mod tests {
 
     use assert_matches::assert_matches;
     use futures::FutureExt;
-    use multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_dal::CoreDal;
+    use zksync_multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
         api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics,

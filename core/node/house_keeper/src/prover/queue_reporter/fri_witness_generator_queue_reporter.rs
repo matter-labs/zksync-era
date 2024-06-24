@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
+use zksync_prover_dal::{Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::JobCountStatistics,

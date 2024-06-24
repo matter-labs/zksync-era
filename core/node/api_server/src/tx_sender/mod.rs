@@ -3,19 +3,19 @@
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use multivm::{
+use tokio::sync::RwLock;
+use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
+use zksync_contracts::BaseSystemContracts;
+use zksync_dal::{
+    transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
+};
+use zksync_multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_eth_call_gas_limit, get_max_batch_gas_limit,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-};
-use tokio::sync::RwLock;
-use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
-use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{
-    transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
 use zksync_state::PostgresStorageCaches;
