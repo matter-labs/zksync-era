@@ -91,6 +91,7 @@ state_keeper:
   validation_computational_gas_limit: 300000
   save_call_traces: true
   max_circuits_per_batch: 24100
+  protective_reads_persistence_enabled: true
 mempool:
   delay_interval: 100
   sync_interval_ms: 10
