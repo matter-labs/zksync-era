@@ -67,6 +67,22 @@ enum Transport {
     Ws,
 }
 
+/// Wiring layer for Web3 JSON RPC server.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<ReplicaPool>`
+/// - `TxSenderResource`
+/// - `SyncStateResource` (optional)
+/// - `TreeApiClientResource` (optional)
+/// - `MempoolCacheResource`
+/// - `CircuitBreakersResource` (adds a circuit breaker)
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `Web3ApiTask` -- wrapper for all the tasks spawned by the API.
+/// - `ApiTaskGarbageCollector` -- maintenance task that manages API tasks.
 #[derive(Debug)]
 pub struct Web3ServerLayer {
     transport: Transport,
