@@ -180,15 +180,15 @@ circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", git = "https:
 circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
 # circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
 # circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "dl-precompiles" }
-# circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", git = "https://github.com/distributed-lab/era-zkevm_test_harness.git", branch = "feature/ec-and-modexp-precompiles" }
-circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", path = "./../era-zkevm_test_harness/circuit_sequencer_api"}
+circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", git = "https://github.com/distributed-lab/era-zkevm_test_harness.git", branch = "feature/ec-and-modexp-precompiles" }
+# circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", path = "./../era-zkevm_test_harness/circuit_sequencer_api"}
 
 crypto_codegen = { package = "codegen", git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }
 
 # kzg = { package = "kzg", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
 # kzg = { package = "kzg", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "dl-precompiles" }
-# kzg = { package = "kzg", git = "https://github.com/distributed-lab/era-zkevm_test_harness.git", branch = "feature/ec-and-modexp-precompiles" }
-kzg = { package = "kzg", path = "./../era-zkevm_test_harness/kzg" }
+kzg = { package = "kzg", git = "https://github.com/distributed-lab/era-zkevm_test_harness.git", branch = "feature/ec-and-modexp-precompiles" }
+# kzg = { package = "kzg", path = "./../era-zkevm_test_harness/kzg" }
 
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
 vise-exporter = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
@@ -200,8 +200,8 @@ zk_evm_1_4_0 = { package = "zk_evm", git = "https://github.com/matter-labs/era-z
 zk_evm_1_4_1 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
 # zk_evm_1_5_0 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.5.0" }
 # zk_evm_1_5_0 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "dl-precompiles" }
-# zk_evm_1_5_0 = { package = "zk_evm", git = "https://github.com/distributed-lab/era-zk_evm.git", branch = "feature/ec-and-modexp-precompiles" }
-zk_evm_1_5_0 = { package = "zk_evm", path = "./../era-zk_evm" }
+zk_evm_1_5_0 = { package = "zk_evm", git = "https://github.com/distributed-lab/era-zk_evm.git", branch = "feature/ec-and-modexp-precompiles" }
+# zk_evm_1_5_0 = { package = "zk_evm", path = "./../era-zk_evm" }
 
 zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3e6f101ee4124308c4c974caaa259d524549b0c6" }
 zksync_consensus_bft = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3e6f101ee4124308c4c974caaa259d524549b0c6" }
