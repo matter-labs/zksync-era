@@ -63,7 +63,7 @@ api:
     estimate_gas_scale_factor: 1.2
     estimate_gas_acceptable_overestimation: 1000
     max_tx_size: 1000000
-    api_namespaces: [ eth,net,web3,zks,pubsub ]
+    api_namespaces: [ eth,net,web3,zks,pubsub,debug ]
     max_response_body_size_overrides:
       - method: eth_getTransactionReceipt # no size specified, meaning no size limit
       - method: zks_getProof
