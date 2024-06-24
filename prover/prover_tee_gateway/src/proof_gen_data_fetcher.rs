@@ -50,10 +50,13 @@ impl PeriodicApi<TeeProofGenerationDataRequest> for PeriodicApiStruct {
                             pubkey: self.key_pair.public_key().serialize().into(),
                             proof: root_hash_bytes.into(),
                         }));
-                        let submit_proof_endpoint = Url::parse(self.submit_proof_endpoint.as_str())
+                        // TODO(patrick) add better error handling
+                        let mut submit_proof_endpoint =
+                            Url::parse(self.submit_proof_endpoint.as_str()).unwrap();
+                        submit_proof_endpoint
+                            .path_segments_mut()
                             .unwrap()
-                            .join(batch_number.to_string().as_str())
-                            .unwrap(); // TODO remove unwrap()
+                            .push(batch_number.to_string().as_str());
                         let _ = self
                             .send_http_request::<SubmitTeeProofRequest, SubmitProofResponse>(
                                 request,
