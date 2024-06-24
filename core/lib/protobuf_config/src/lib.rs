@@ -61,6 +61,6 @@ pub fn decode_yaml_repr<T: ProtoRepr>(
 pub fn encode_yaml_repr<T: ProtoRepr>(value: &T::Type) -> anyhow::Result<Vec<u8>> {
     let mut buffer = vec![];
     let mut s = serde_yaml::Serializer::new(&mut buffer);
-    serialize_proto(&T::build(&value), &mut s)?;
+    serialize_proto(&T::build(value), &mut s)?;
     Ok(buffer)
 }
