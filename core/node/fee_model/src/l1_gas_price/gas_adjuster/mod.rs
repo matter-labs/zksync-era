@@ -335,6 +335,10 @@ impl L1TxParamsProvider for GasAdjuster {
         self.config.default_priority_fee_per_gas
     }
 
+    // The idea is that when we finally decide to send blob tx, we want to offer gas fees high
+    // enough to "almost be certain" that the transaction gets included. To never have to double
+    // the gas prices as then we have very little control how much we pay in the end. This strategy
+    // works as no matter if we double or triple such price, we pay the same block base fees.
     fn get_blob_tx_base_fee(&self) -> u64 {
         self.base_fee_statistics.last_added_value() * 2
     }
