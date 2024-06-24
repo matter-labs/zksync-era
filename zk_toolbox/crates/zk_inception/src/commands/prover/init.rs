@@ -1,9 +1,9 @@
-use common::logger;
+use common::{cmd::Cmd, logger};
 use config::EcosystemConfig;
-use xshell::Shell;
+use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
-use super::args::init::ProverInitArgs;
+use super::args::init::{ProofStorageGCSCreateBucket, ProverInitArgs, ProverInitArgsFinal};
 use crate::messages::{
     MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
     MSG_PROVER_INITIALIZED,
@@ -15,23 +15,23 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let args = args.fill_values_with_prompt();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let object_store_config = if args.proof_store_dir.is_some() {
-        ObjectStoreConfig {
+    let object_store_config = match args {
+        ProverInitArgsFinal::FileBacked(config) => ObjectStoreConfig {
             mode: ObjectStoreMode::FileBacked {
-                file_backed_base_path: args.proof_store_dir.unwrap(),
+                file_backed_base_path: config.proof_store_dir,
             },
             max_retries: PROVER_STORE_MAX_RETRIES,
             local_mirror_path: None,
-        }
-    } else {
-        ObjectStoreConfig {
+        },
+        ProverInitArgsFinal::GCS(config) => ObjectStoreConfig {
             mode: ObjectStoreMode::GCSWithCredentialFile {
-                bucket_base_url: args.proof_store_gcs_config.bucket_base_url.unwrap(),
-                gcs_credential_file_path: args.proof_store_gcs_config.credentials_file.unwrap(),
+                bucket_base_url: config.bucket_base_url,
+                gcs_credential_file_path: config.credentials_file,
             },
             max_retries: PROVER_STORE_MAX_RETRIES,
             local_mirror_path: None,
-        }
+        },
+        ProverInitArgsFinal::GCSCreateBucket(config) => create_gcs_bucket(shell, config)?,
     };
 
     let chain_config = ecosystem_config
@@ -49,4 +49,18 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     logger::outro(MSG_PROVER_INITIALIZED);
     Ok(())
+}
+
+fn create_gcs_bucket(
+    shell: &Shell,
+    config: ProofStorageGCSCreateBucket,
+) -> anyhow::Result<ObjectStoreConfig> {
+    let bucket_name = config.bucket_name;
+    let location = config.location;
+    let mut cmd = Cmd::new(cmd!(
+        shell,
+        "gcloud storage buckets create gs://{bucket_name} --location={location}"
+    ));
+    let _output = cmd.run_with_output()?;
+    todo!();
 }
