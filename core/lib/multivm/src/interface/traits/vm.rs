@@ -19,7 +19,7 @@
 //!     sync::Arc
 //! };
 //! use once_cell::sync::OnceCell;
-//! use multivm::{
+//! use zksync_multivm::{
 //!     interface::{L1BatchEnv, SystemEnv, VmInterface},
 //!     tracers::CallTracer ,
 //!     vm_latest::ToTracerPointer

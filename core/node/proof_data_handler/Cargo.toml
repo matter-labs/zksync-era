@@ -24,7 +24,7 @@ tracing.workspace = true
 [dev-dependencies]
 hyper.workspace = true
 chrono.workspace = true
-multivm.workspace = true
+zksync_multivm.workspace = true
 serde_json.workspace = true
 tower.workspace = true
 zksync_basic_types.workspace = true

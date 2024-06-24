@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use multivm::{
+use zksync_multivm::{
     interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::TracerExecutionStatus},
     vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
@@ -32,7 +32,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for InstructionCounter {
         &mut self,
         _state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &BootloaderState,
-        _stop_reason: multivm::interface::tracer::VmExecutionStopReason,
+        _stop_reason: zksync_multivm::interface::tracer::VmExecutionStopReason,
     ) {
         *self.output.borrow_mut() = self.count;
     }
