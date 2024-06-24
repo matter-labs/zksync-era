@@ -1,5 +1,5 @@
 [package]
-name = "prometheus_exporter"
+name = "zksync_prometheus_exporter"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true

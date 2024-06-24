@@ -1,19 +1,18 @@
 use std::ops;
 
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection::Connection;
 use zksync_types::{
-    block::L1BatchHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, AccountTreeId,
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion, ProtocolVersionId,
-    StorageKey, StorageLog, H256,
+    fee::TransactionExecutionMetrics, tx::IncludedTxLocation, AccountTreeId, Address,
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, StorageKey,
+    StorageLog, H256,
 };
 
 use super::*;
 use crate::{
     storage_logs_dal::DbStorageLog,
     tests::{
-        create_l2_block_header, create_l2_to_l1_log, mock_execution_result, mock_l2_transaction,
-        mock_vm_event,
+        create_l1_batch_header, create_l2_block_header, create_l2_to_l1_log, mock_execution_result,
+        mock_l2_transaction, mock_vm_event,
     },
     ConnectionPool, Core, CoreDal,
 };
@@ -86,15 +85,7 @@ async fn insert_events(conn: &mut Connection<'_, Core>, l2_block_number: L2Block
 }
 
 async fn insert_l1_batch(conn: &mut Connection<'_, Core>, l1_batch_number: L1BatchNumber) {
-    let mut header = L1BatchHeader::new(
-        l1_batch_number,
-        100,
-        BaseSystemContractsHashes {
-            bootloader: H256::repeat_byte(1),
-            default_aa: H256::repeat_byte(42),
-        },
-        ProtocolVersionId::latest(),
-    );
+    let mut header = create_l1_batch_header(*l1_batch_number);
     header.l1_tx_count = 3;
     header.l2_tx_count = 5;
     header.l2_to_l1_logs.push(create_l2_to_l1_log(2, 2));
@@ -281,7 +272,7 @@ async fn insert_l2_block_storage_logs(
     storage_logs: Vec<StorageLog>,
 ) {
     conn.storage_logs_dal()
-        .insert_storage_logs(l2_block_number, &[(H256::zero(), storage_logs)])
+        .insert_storage_logs(l2_block_number, &storage_logs)
         .await
         .unwrap();
 }
@@ -367,8 +358,7 @@ async fn storage_logs_pruning_works_correctly() {
         &[random_storage_log(2, 3), random_storage_log(3, 4)],
     );
     assert_l2_block_storage_logs_equal(L2BlockNumber(1), &actual_logs, &[random_storage_log(1, 1)]);
-    assert_eq!(stats.deleted_storage_logs_from_past_batches, 0);
-    assert_eq!(stats.deleted_storage_logs_from_pruned_batches, 1);
+    assert_eq!(stats.deleted_storage_logs, 1);
 
     let stats = transaction
         .pruning_dal()
@@ -392,8 +382,7 @@ async fn storage_logs_pruning_works_correctly() {
         &actual_logs,
         &[random_storage_log(5, 7)],
     );
-    assert_eq!(stats.deleted_storage_logs_from_past_batches, 1);
-    assert_eq!(stats.deleted_storage_logs_from_pruned_batches, 1);
+    assert_eq!(stats.deleted_storage_logs, 2);
 }
 
 #[tokio::test]

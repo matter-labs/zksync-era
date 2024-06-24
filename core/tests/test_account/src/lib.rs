@@ -50,6 +50,10 @@ impl Account {
         Self::new(K256PrivateKey::random())
     }
 
+    pub fn random_using(rng: &mut impl rand::Rng) -> Self {
+        Self::new(K256PrivateKey::random_using(rng))
+    }
+
     pub fn get_l2_tx_for_execute(&mut self, execute: Execute, fee: Option<Fee>) -> Transaction {
         let tx = self.get_l2_tx_for_execute_with_nonce(execute, fee, self.nonce);
         self.nonce += 1;

@@ -3,15 +3,15 @@
 
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
-use multivm::{
-    interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
-    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
-};
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_multivm::{
+    interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
+    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
+};
 use zksync_node_genesis::create_genesis_l1_batch;
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
@@ -272,7 +272,7 @@ impl Tester {
 
             storage
                 .storage_logs_dal()
-                .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![storage_log])])
+                .append_storage_logs(L2BlockNumber(0), &[storage_log])
                 .await
                 .unwrap();
             if storage
@@ -487,7 +487,7 @@ impl StorageSnapshot {
             if let TxExecutionResult::Success { tx_result, .. } = res {
                 let storage_logs = &tx_result.logs.storage_logs;
                 storage_writes_deduplicator
-                    .apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
+                    .apply(storage_logs.iter().filter(|log| log.log.is_write()));
             } else {
                 panic!("Unexpected tx execution result: {res:?}");
             };
@@ -507,12 +507,12 @@ impl StorageSnapshot {
 
         let finished_batch = executor.finish_batch().await.unwrap();
         let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
-        storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
+        storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log.is_write()));
         let modified_entries = storage_writes_deduplicator.into_modified_key_values();
         all_logs.extend(
             modified_entries
                 .into_iter()
-                .map(|(key, slot)| (key, u256_to_h256(slot.value))),
+                .map(|(key, slot)| (key, slot.value)),
         );
 
         // Compute the hash of the last (fictive) L2 block in the batch.

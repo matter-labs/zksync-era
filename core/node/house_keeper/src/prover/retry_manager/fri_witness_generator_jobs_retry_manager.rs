@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_witness_generator::WitnessGenerationTimeouts;
 use zksync_dal::ConnectionPool;
+use zksync_prover_dal::{Prover, ProverDal};
 use zksync_types::prover_dal::StuckJobs;
 
 use crate::{

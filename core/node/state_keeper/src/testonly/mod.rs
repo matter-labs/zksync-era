@@ -4,23 +4,23 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use multivm::{
+use once_cell::sync::Lazy;
+use tokio::sync::{mpsc, watch};
+use zksync_contracts::BaseSystemContracts;
+use zksync_dal::{ConnectionPool, Core, CoreDal as _};
+use zksync_multivm::{
     interface::{
         CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, Refunds, SystemEnv,
         VmExecutionResultAndLogs, VmExecutionStatistics,
     },
     vm_latest::VmExecutionLogs,
 };
-use once_cell::sync::Lazy;
-use tokio::sync::{mpsc, watch};
-use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_state::ReadStorageFactory;
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
-    L1BatchNumber, L2BlockNumber, PriorityOpId, StorageLog, Transaction, H256,
-    L2_BASE_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    L1BatchNumber, L2BlockNumber, PriorityOpId, StorageLog, Transaction, L2_BASE_TOKEN_ADDRESS,
+    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -44,7 +44,7 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
         },
         final_execution_state: CurrentExecutionState {
             events: vec![],
-            deduplicated_storage_log_queries: vec![],
+            deduplicated_storage_logs: vec![],
             used_contract_hashes: vec![],
             user_l2_to_l1_logs: vec![],
             system_logs: vec![],
@@ -130,7 +130,7 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
 
         storage
             .storage_logs_dal()
-            .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![storage_log])])
+            .append_storage_logs(L2BlockNumber(0), &[storage_log])
             .await
             .unwrap();
         if storage

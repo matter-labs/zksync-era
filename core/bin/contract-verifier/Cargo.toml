@@ -11,29 +11,18 @@ categories.workspace = true
 publish = false
 
 [dependencies]
-zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_env_config.workspace = true
 zksync_config.workspace = true
-zksync_contracts.workspace = true
+zksync_contract_verifier_lib.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_utils.workspace = true
-prometheus_exporter.workspace = true
-vlog.workspace = true
+zksync_prometheus_exporter.workspace = true
+zksync_vlog.workspace = true
 
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }
 futures.workspace = true
 ctrlc.workspace = true
-thiserror.workspace = true
-chrono.workspace = true
-serde_json.workspace = true
-ethabi.workspace = true
-vise.workspace = true
-hex.workspace = true
-serde = { workspace = true, features = ["derive"] }
 structopt.workspace = true
-lazy_static.workspace = true
-tempfile.workspace = true
-regex.workspace = true
 tracing.workspace = true

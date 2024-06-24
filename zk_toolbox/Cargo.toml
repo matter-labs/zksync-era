@@ -17,7 +17,7 @@ authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 exclude = ["./github"]
 repository = "https://github.com/matter-labs/zk_toolbox/"
 description = "ZK Toolbox is a set of tools for working with zk stack."
-keywords = ["zk", "cryptography", "blockchain", "ZKStack", "zkSync"]
+keywords = ["zk", "cryptography", "blockchain", "ZKStack", "ZKsync"]
 
 
 [workspace.dependencies]
@@ -29,6 +29,7 @@ types = { path = "crates/types" }
 # External dependencies
 anyhow = "1.0.82"
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
+slugify-rs = "0.0.3"
 cliclack = "0.2.5"
 console = "0.15.8"
 ethers = "2.0"

@@ -6,7 +6,7 @@ import {MSG_VALUE_SYSTEM_CONTRACT, MSG_VALUE_SIMULATOR_IS_SYSTEM_BIT} from "./Co
 import "./Utils.sol";
 
 // Addresses used for the compiler to be replaced with the
-// zkSync-specific opcodes during the compilation.
+// ZKsync-specific opcodes during the compilation.
 // IMPORTANT: these are just compile-time constants and are used
 // only if used in-place by Yul optimizer.
 address constant TO_L1_CALL_ADDRESS = address((1 << 16) - 1);

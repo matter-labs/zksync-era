@@ -1,12 +1,13 @@
 use std::{
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
+    time::Duration,
 };
 
 use anyhow::Context as _;
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_metadata_calculator::{
-    LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
+    LazyAsyncTreeReader, MerkleTreePruningTask, MetadataCalculator, MetadataCalculatorConfig,
 };
 use zksync_storage::RocksDB;
 
@@ -35,6 +36,7 @@ use crate::{
 pub struct MetadataCalculatorLayer {
     config: MetadataCalculatorConfig,
     tree_api_config: Option<MerkleTreeApiConfig>,
+    pruning_config: Option<Duration>,
 }
 
 impl MetadataCalculatorLayer {
@@ -42,11 +44,17 @@ impl MetadataCalculatorLayer {
         Self {
             config,
             tree_api_config: None,
+            pruning_config: None,
         }
     }
 
     pub fn with_tree_api_config(mut self, tree_api_config: MerkleTreeApiConfig) -> Self {
         self.tree_api_config = Some(tree_api_config);
+        self
+    }
+
+    pub fn with_pruning_config(mut self, pruning_config: Duration) -> Self {
+        self.pruning_config = Some(pruning_config);
         self
     }
 }
@@ -76,7 +84,7 @@ impl WiringLayer for MetadataCalculatorLayer {
             }
         };
 
-        let metadata_calculator = MetadataCalculator::new(
+        let mut metadata_calculator = MetadataCalculator::new(
             self.config,
             object_store.map(|store_resource| store_resource.0),
             main_pool,
@@ -96,6 +104,14 @@ impl WiringLayer for MetadataCalculatorLayer {
                 bind_addr,
                 tree_reader,
             }));
+        }
+
+        if let Some(pruning_removal_delay) = self.pruning_config {
+            let pruning_task = Box::new(metadata_calculator.pruning_task(pruning_removal_delay));
+            app_health
+                .insert_component(pruning_task.health_check())
+                .map_err(|err| WiringError::Internal(err.into()))?;
+            context.add_task(pruning_task);
         }
 
         context.insert_resource(TreeApiClientResource(Arc::new(
@@ -152,5 +168,16 @@ impl Task for TreeApiTask {
             .context("Cannot initialize tree reader")?
             .run_api_server(self.bind_addr, stop_receiver.0)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl Task for MerkleTreePruningTask {
+    fn id(&self) -> TaskId {
+        "merkle_tree_pruning_task".into()
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
     }
 }

@@ -1,5 +1,4 @@
 use anyhow::Context;
-use prover_dal::{Prover, ProverDal};
 use zksync_basic_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
     L1BatchNumber, H256, U256,
@@ -14,6 +13,7 @@ use zksync_eth_client::{
     clients::{Client, L1},
     CallFunctionArgs,
 };
+use zksync_prover_dal::{Prover, ProverDal};
 
 use crate::helper;
 
