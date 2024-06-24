@@ -248,7 +248,6 @@ impl BatchExecutorHandle {
             Ok(cache) => cache,
             Err(_) => return Err(self.handle.wait_for_error().await),
         };
-        self.handle.wait().await?;
         latency.observe();
         Ok(storage_view_cache)
     }
