@@ -15,27 +15,34 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     base_token_price::BaseTokenAPIPrice,
     fee_model::{FeeModelConfigV2, FeeParams, FeeParamsV2},
+    Address,
 };
 
 #[async_trait]
 pub trait BaseTokenAdjuster: Debug + Send + Sync {
     /// Returns the last ratio cached by the adjuster and ensure it's still usable.
-    async fn maybe_convert_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams>;
-
-    /// Return configured symbol of the base token.
-    fn get_base_token(&self) -> &str;
+    async fn convert(&self, params: FeeParams) -> anyhow::Result<FeeParams>;
 }
 
 #[derive(Debug, Clone)]
 /// BaseTokenAdjuster implementation for the main node (not the External Node). TODO (PE-137): impl APIBaseTokenAdjuster
 pub struct MainNodeBaseTokenAdjuster {
     pool: ConnectionPool<Core>,
+    base_token_l1_address: Option<Address>,
     config: BaseTokenAdjusterConfig,
 }
 
 impl MainNodeBaseTokenAdjuster {
-    pub fn new(pool: ConnectionPool<Core>, config: BaseTokenAdjusterConfig) -> Self {
-        Self { pool, config }
+    pub fn new(
+        pool: ConnectionPool<Core>,
+        config: BaseTokenAdjusterConfig,
+        base_token_l1_address: Option<Address>,
+    ) -> Self {
+        Self {
+            pool,
+            config,
+            base_token_l1_address,
+        }
     }
 
     /// Main loop for the base token adjuster.
@@ -51,14 +58,14 @@ impl MainNodeBaseTokenAdjuster {
             let start_time = Instant::now();
 
             match self.fetch_new_ratio().await {
-                Ok(new_ratio) => match self.persist_ratio(&new_ratio, &pool).await {
-                    Ok(id) => {
-                        if let Err(err) = self.maybe_update_l1(&new_ratio, id).await {
-                            tracing::error!("Error updating L1 ratio: {:?}", err);
+                Ok(new_ratio) => {
+                    match self.persist_ratio(&new_ratio, &pool).await {
+                        Ok(_) => {
+                            // TODO(PE-128): Update L1 ratio
                         }
+                        Err(err) => tracing::error!("Error persisting ratio: {:?}", err),
                     }
-                    Err(err) => tracing::error!("Error persisting ratio: {:?}", err),
-                },
+                }
                 Err(err) => tracing::error!("Error fetching new ratio: {:?}", err),
             }
 
@@ -102,15 +109,6 @@ impl MainNodeBaseTokenAdjuster {
         drop(conn);
 
         Ok(id)
-    }
-
-    // TODO (PE-128): Complete L1 update flow.
-    async fn maybe_update_l1(
-        &self,
-        _new_ratio: &BaseTokenAPIPrice,
-        _id: usize,
-    ) -> anyhow::Result<()> {
-        Ok(())
     }
 
     async fn retry_get_latest_price(&self) -> anyhow::Result<BigDecimal> {
@@ -165,20 +163,26 @@ impl MainNodeBaseTokenAdjuster {
 
         tokio::time::sleep(sleep_duration).await;
     }
+
+    /// If no base token L1 address is set then the base token is ETH.
+    fn is_base_token_eth(&self) -> bool {
+        self.base_token_l1_address.is_none()
+    }
 }
 
 #[async_trait]
 impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
-    // TODO (PE-129): Implement latest ratio usability logic.
-    async fn maybe_convert_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams> {
-        let base_token = self.get_base_token();
+    async fn convert(&self, params: FeeParams) -> anyhow::Result<FeeParams> {
+        let is_eth = self.is_base_token_eth();
 
-        if base_token == "ETH" {
+        if is_eth {
             return Ok(params);
         }
 
         // Retries are necessary for the initial setup, where prices may not yet be persisted.
         let latest_ratio = self.retry_get_latest_price().await?;
+
+        // TODO(PE-129): Implement latest ratio usability logic.
 
         if let FeeParams::V2(params_v2) = params {
             Ok(FeeParams::V2(convert_to_base_token(
@@ -187,14 +191,6 @@ impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
             )))
         } else {
             panic!("Custom base token is not supported for V1 fee model")
-        }
-    }
-
-    /// Return configured symbol of the base token. If not configured, return "ETH".
-    fn get_base_token(&self) -> &str {
-        match &self.config.base_token {
-            Some(base_token) => base_token.as_str(),
-            None => "ETH",
         }
     }
 }
@@ -269,10 +265,8 @@ impl Default for MockBaseTokenAdjuster {
 
 #[async_trait]
 impl BaseTokenAdjuster for MockBaseTokenAdjuster {
-    async fn maybe_convert_to_base_token(&self, params: FeeParams) -> anyhow::Result<FeeParams> {
-        // LOG THE PARAMS
-        tracing::info!("Params: {:?}", params);
-        match self.get_base_token() {
+    async fn convert(&self, params: FeeParams) -> anyhow::Result<FeeParams> {
+        match self.base_token.as_str() {
             "ETH" => Ok(params),
             _ => {
                 if let FeeParams::V2(params_v2) = params {
@@ -285,10 +279,6 @@ impl BaseTokenAdjuster for MockBaseTokenAdjuster {
                 }
             }
         }
-    }
-
-    fn get_base_token(&self) -> &str {
-        &self.base_token
     }
 }
 

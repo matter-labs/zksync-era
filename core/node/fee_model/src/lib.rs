@@ -45,17 +45,7 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     }
 
     /// Returns the fee model parameters using the denomination of the base token used (WEI for ETH).
-    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
-        let unconverted_params = self.get_fee_model_params().await?;
-        self.maybe_convert_params_to_base_token(unconverted_params)
-            .await
-    }
-
-    /// Converts the fee model parameters to the base token denomination.
-    async fn maybe_convert_params_to_base_token(
-        &self,
-        params: FeeParams,
-    ) -> anyhow::Result<FeeParams>;
+    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams>;
 }
 
 impl dyn BatchFeeModelInputProvider {
@@ -90,16 +80,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
             }),
         };
 
-        self.maybe_convert_params_to_base_token(params).await
-    }
-
-    async fn maybe_convert_params_to_base_token(
-        &self,
-        params: FeeParams,
-    ) -> anyhow::Result<FeeParams> {
-        self.base_token_adjuster
-            .maybe_convert_to_base_token(params)
-            .await
+        self.base_token_adjuster.convert(params).await
     }
 }
 
@@ -165,13 +146,7 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
     /// Returns the fee model parameters.
     async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
         self.inner.get_fee_model_params().await
-    }
-
-    async fn maybe_convert_params_to_base_token(
-        &self,
-        params: FeeParams,
-    ) -> anyhow::Result<FeeParams> {
-        self.inner.maybe_convert_params_to_base_token(params).await
+        // TODO: QQQQ: convert for API as well
     }
 }
 
@@ -271,13 +246,6 @@ impl Default for MockBatchFeeParamsProvider {
 impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
     async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
         Ok(self.0)
-    }
-
-    async fn maybe_convert_params_to_base_token(
-        &self,
-        params: FeeParams,
-    ) -> anyhow::Result<FeeParams> {
-        Ok(params)
     }
 }
 

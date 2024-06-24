@@ -8,6 +8,7 @@ use zksync_config::{
 };
 use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
 use zksync_types::fee_model::FeeModelConfig;
+use zksync_types::Address;
 
 use crate::{
     implementations::resources::{
@@ -28,6 +29,7 @@ pub struct SequencerL1GasLayer {
     pubdata_sending_mode: PubdataSendingMode,
     state_keeper_config: StateKeeperConfig,
     base_token_adjuster_config: BaseTokenAdjusterConfig,
+    base_token_l1_address: Option<Address>,
 }
 
 impl SequencerL1GasLayer {
@@ -37,6 +39,7 @@ impl SequencerL1GasLayer {
         state_keeper_config: StateKeeperConfig,
         pubdata_sending_mode: PubdataSendingMode,
         base_token_adjuster_config: BaseTokenAdjusterConfig,
+        base_token_l1_address: Option<Address>,
     ) -> Self {
         Self {
             gas_adjuster_config,
@@ -44,6 +47,7 @@ impl SequencerL1GasLayer {
             pubdata_sending_mode,
             state_keeper_config,
             base_token_adjuster_config,
+            base_token_l1_address,
         }
     }
 }
@@ -69,8 +73,11 @@ impl WiringLayer for SequencerL1GasLayer {
         let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = pool_resource.get().await?;
 
-        let base_token_adjuster =
-            MainNodeBaseTokenAdjuster::new(replica_pool.clone(), self.base_token_adjuster_config);
+        let base_token_adjuster = MainNodeBaseTokenAdjuster::new(
+            replica_pool.clone(),
+            self.base_token_adjuster_config,
+            self.base_token_l1_address,
+        );
 
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             gas_adjuster.clone(),

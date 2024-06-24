@@ -1,6 +1,7 @@
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::Core;
 use zksync_db_connection::connection_pool::ConnectionPool;
+use zksync_types::Address;
 
 use crate::{
     implementations::resources::pools::{MasterPool, PoolResource},
@@ -12,12 +13,16 @@ use crate::{
 /// A layer that wires the Base Token Adjuster task.
 #[derive(Debug)]
 pub struct BaseTokenAdjusterLayer {
+    base_token_l1_address: Option<Address>,
     config: BaseTokenAdjusterConfig,
 }
 
 impl BaseTokenAdjusterLayer {
-    pub fn new(config: BaseTokenAdjusterConfig) -> Self {
-        Self { config }
+    pub fn new(base_token_l1_address: Option<Address>, config: BaseTokenAdjusterConfig) -> Self {
+        Self {
+            base_token_l1_address,
+            config,
+        }
     }
 }
 
@@ -33,6 +38,7 @@ impl WiringLayer for BaseTokenAdjusterLayer {
 
         context.add_task(Box::new(BaseTokenAdjusterTask {
             main_pool: master_pool,
+            base_token_l1_address: self.base_token_l1_address,
             config: self.config,
         }));
 
@@ -43,6 +49,7 @@ impl WiringLayer for BaseTokenAdjusterLayer {
 #[derive(Debug)]
 struct BaseTokenAdjusterTask {
     main_pool: ConnectionPool<Core>,
+    base_token_l1_address: Option<Address>,
     config: BaseTokenAdjusterConfig,
 }
 
@@ -53,8 +60,11 @@ impl Task for BaseTokenAdjusterTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let mut adjuster =
-            zksync_base_token_adjuster::MainNodeBaseTokenAdjuster::new(self.main_pool, self.config);
+        let mut adjuster = zksync_base_token_adjuster::MainNodeBaseTokenAdjuster::new(
+            self.main_pool,
+            self.config,
+            self.base_token_l1_address,
+        );
 
         adjuster.run(stop_receiver.0).await
     }

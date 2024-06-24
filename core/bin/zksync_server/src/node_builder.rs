@@ -153,6 +153,7 @@ impl MainNodeBuilder {
             state_keeper_config,
             try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
             base_token_adjuster_config,
+            self.contracts_config.base_token_addr,
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
@@ -449,7 +450,10 @@ impl MainNodeBuilder {
 
     fn add_base_token_adjuster_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
-        self.node.add_layer(BaseTokenAdjusterLayer::new(config));
+        self.node.add_layer(BaseTokenAdjusterLayer::new(
+            self.contracts_config.base_token_addr,
+            config,
+        ));
 
         Ok(self)
     }
