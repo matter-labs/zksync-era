@@ -14,7 +14,7 @@ use crate::{
 /// Listens to operation events coming from the governance contract and saves new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct GovernanceUpgradesEventProcessor {
-    // zkSync diamond proxy
+    // ZKsync diamond proxy
     target_contract_address: Address,
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_protocol_version: ProtocolSemanticVersion,

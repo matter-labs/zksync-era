@@ -1,6 +1,9 @@
 //! Postgres pruning component.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
@@ -10,7 +13,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use self::{
-    metrics::{MetricPruneType, METRICS},
+    metrics::{ConditionOutcome, PruneType, METRICS},
     prune_conditions::{
         ConsistencyCheckerProcessedBatch, L1BatchExistsCondition, L1BatchOlderThanPruneCondition,
         NextL1BatchHasMetadataCondition, NextL1BatchWasExecutedCondition, PruneCondition,
@@ -128,15 +131,24 @@ impl DbPruner {
         let mut errored_conditions = vec![];
 
         for condition in &self.prune_conditions {
-            match condition.is_batch_prunable(l1_batch_number).await {
-                Ok(true) => successful_conditions.push(condition.to_string()),
-                Ok(false) => failed_conditions.push(condition.to_string()),
+            let outcome = match condition.is_batch_prunable(l1_batch_number).await {
+                Ok(true) => {
+                    successful_conditions.push(condition.to_string());
+                    ConditionOutcome::Success
+                }
+                Ok(false) => {
+                    failed_conditions.push(condition.to_string());
+                    ConditionOutcome::Fail
+                }
                 Err(error) => {
                     errored_conditions.push(condition.to_string());
                     tracing::warn!("Pruning condition '{condition}' resulted in an error: {error}");
+                    ConditionOutcome::Error
                 }
-            }
+            };
+            METRICS.observe_condition(condition.as_ref(), outcome);
         }
+
         let result = failed_conditions.is_empty() && errored_conditions.is_empty();
         if !result {
             tracing::debug!(
@@ -172,7 +184,7 @@ impl DbPruner {
     }
 
     async fn soft_prune(&self, storage: &mut Connection<'_, Core>) -> anyhow::Result<bool> {
-        let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Soft].start();
+        let start = Instant::now();
         let mut transaction = storage.start_transaction().await?;
 
         let mut current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
@@ -184,7 +196,7 @@ impl DbPruner {
                 + self.config.pruned_batch_chunk_size,
         );
         if !self.is_l1_batch_prunable(next_l1_batch_to_prune).await {
-            latency.observe();
+            METRICS.pruning_chunk_duration[&PruneType::NoOp].observe(start.elapsed());
             return Ok(false);
         }
 
@@ -200,7 +212,8 @@ impl DbPruner {
 
         transaction.commit().await?;
 
-        let latency = latency.observe();
+        let latency = start.elapsed();
+        METRICS.pruning_chunk_duration[&PruneType::Soft].observe(latency);
         tracing::info!(
             "Soft pruned db l1_batches up to {next_l1_batch_to_prune} and L2 blocks up to {next_l2_block_to_prune}, operation took {latency:?}",
         );
@@ -216,7 +229,7 @@ impl DbPruner {
         storage: &mut Connection<'_, Core>,
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> anyhow::Result<PruningIterationOutcome> {
-        let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Hard].start();
+        let latency = METRICS.pruning_chunk_duration[&PruneType::Hard].start();
         let mut transaction = storage.start_transaction().await?;
 
         let mut current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;

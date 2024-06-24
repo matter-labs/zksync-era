@@ -148,7 +148,7 @@ describe('Tests for L1 behavior', () => {
         const accumulatedRoot = calculateAccumulatedRoot(alice.address, message, receipt.l1BatchTxIndex!, id, proof);
         expect(accumulatedRoot).toBe(root);
 
-        // Ensure that provided proof is accepted by the main zkSync contract.
+        // Ensure that provided proof is accepted by the main ZKsync contract.
         const chainContract = await alice.getMainContract();
         const acceptedByContract = await chainContract.proveL2MessageInclusion(
             receipt.l1BatchNumber!,

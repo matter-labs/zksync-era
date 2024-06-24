@@ -1,14 +1,22 @@
-use std::{fmt, sync::Arc};
+use std::{fmt, sync::Arc, time::Duration};
 
+use tokio::sync::RwLock;
 use zksync_node_api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
     tx_sender::{ApiContracts, TxSenderBuilder, TxSenderConfig},
 };
 use zksync_state::PostgresStorageCaches;
+use zksync_types::Address;
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    jsonrpsee,
+    namespaces::EnNamespaceClient as _,
+};
 
 use crate::{
     implementations::resources::{
         fee_input::FeeInputResource,
+        main_node_client::MainNodeClientResource,
         pools::{PoolResource, ReplicaPool},
         state_keeper::ConditionalSealerResource,
         web3_api::{TxSenderResource, TxSinkResource},
@@ -31,6 +39,7 @@ pub struct TxSenderLayer {
     postgres_storage_caches_config: PostgresStorageCachesConfig,
     max_vm_concurrency: usize,
     api_contracts: ApiContracts,
+    whitelisted_tokens_for_aa_cache: bool,
 }
 
 impl TxSenderLayer {
@@ -45,7 +54,17 @@ impl TxSenderLayer {
             postgres_storage_caches_config,
             max_vm_concurrency,
             api_contracts,
+            whitelisted_tokens_for_aa_cache: false,
         }
+    }
+
+    /// Enables the task for fetching the whitelisted tokens for the AA cache from the main node.
+    /// Disabled by default.
+    ///
+    /// Requires `MainNodeClientResource` to be present.
+    pub fn with_whitelisted_tokens_for_aa_cache(mut self, value: bool) -> Self {
+        self.whitelisted_tokens_for_aa_cache = value;
+        self
     }
 }
 
@@ -96,6 +115,18 @@ impl WiringLayer for TxSenderLayer {
         if let Some(sealer) = sealer {
             tx_sender = tx_sender.with_sealer(sealer);
         }
+
+        // Add the task for updating the whitelisted tokens for the AA cache.
+        if self.whitelisted_tokens_for_aa_cache {
+            let MainNodeClientResource(main_node_client) = context.get_resource().await?;
+            let whitelisted_tokens = Arc::new(RwLock::new(Default::default()));
+            context.add_task(Box::new(WhitelistedTokensForAaUpdateTask {
+                whitelisted_tokens: whitelisted_tokens.clone(),
+                main_node_client,
+            }));
+            tx_sender = tx_sender.with_whitelisted_tokens_for_aa(whitelisted_tokens);
+        }
+
         let tx_sender = tx_sender.build(
             fee_input,
             Arc::new(vm_concurrency_limiter),
@@ -150,6 +181,43 @@ impl Task for VmConcurrencyBarrierTask {
         // ongoing requests during the shutdown.
         // We don't have to implement a timeout here either, as it'll be handled by the framework itself.
         self.barrier.wait_until_stopped().await;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct WhitelistedTokensForAaUpdateTask {
+    whitelisted_tokens: Arc<RwLock<Vec<Address>>>,
+    main_node_client: Box<DynClient<L2>>,
+}
+
+#[async_trait::async_trait]
+impl Task for WhitelistedTokensForAaUpdateTask {
+    fn id(&self) -> TaskId {
+        "whitelisted_tokens_for_aa_update_task".into()
+    }
+
+    async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        while !*stop_receiver.0.borrow_and_update() {
+            match self.main_node_client.whitelisted_tokens_for_aa().await {
+                Ok(tokens) => {
+                    *self.whitelisted_tokens.write().await = tokens;
+                }
+                Err(jsonrpsee::core::client::Error::Call(error))
+                    if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
+                {
+                    // Method is not supported by the main node, do nothing.
+                }
+                Err(err) => {
+                    tracing::error!("Failed to query `whitelisted_tokens_for_aa`, error: {err:?}");
+                }
+            }
+
+            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+            tokio::time::timeout(Duration::from_secs(30), stop_receiver.0.changed())
+                .await
+                .ok();
+        }
         Ok(())
     }
 }

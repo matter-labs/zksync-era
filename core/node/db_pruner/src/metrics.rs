@@ -1,11 +1,16 @@
 use std::time::Duration;
 
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit};
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit,
+};
 use zksync_dal::pruning_dal::HardPruningStats;
+
+use crate::prune_conditions::PruneCondition;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "prune_type", rename_all = "snake_case")]
-pub(super) enum MetricPruneType {
+pub(super) enum PruneType {
+    NoOp,
     Soft,
     Hard,
 }
@@ -15,15 +20,29 @@ pub(super) enum MetricPruneType {
 enum PrunedEntityType {
     L1Batch,
     L2Block,
-    StorageLogFromPrunedBatch,
-    StorageLogFromPastBatch,
+    StorageLog,
     Event,
     L2ToL1Log,
     CallTrace,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub(crate) enum ConditionOutcome {
+    Success,
+    Fail,
+    Error,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct ConditionOutcomeLabels {
+    condition: &'static str,
+    outcome: ConditionOutcome,
+}
+
 const ENTITY_COUNT_BUCKETS: Buckets = Buckets::values(&[
     1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0,
+    20_000.0, 50_000.0, 100_000.0,
 ]);
 
 #[derive(Debug, Metrics)]
@@ -31,12 +50,14 @@ const ENTITY_COUNT_BUCKETS: Buckets = Buckets::values(&[
 pub(super) struct DbPrunerMetrics {
     /// Total latency of pruning chunk of L1 batches.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
-    pub pruning_chunk_duration: Family<MetricPruneType, Histogram<Duration>>,
+    pub pruning_chunk_duration: Family<PruneType, Histogram<Duration>>,
     /// Number of not-pruned L1 batches.
     pub not_pruned_l1_batches_count: Gauge<u64>,
     /// Number of entities deleted during a single hard pruning iteration, grouped by entity type.
     #[metrics(buckets = ENTITY_COUNT_BUCKETS)]
     deleted_entities: Family<PrunedEntityType, Histogram<u64>>,
+    /// Number of times a certain condition has resulted in a specific outcome (succeeded, failed, or errored).
+    condition_outcomes: Family<ConditionOutcomeLabels, Counter>,
 }
 
 impl DbPrunerMetrics {
@@ -44,30 +65,31 @@ impl DbPrunerMetrics {
         let HardPruningStats {
             deleted_l1_batches,
             deleted_l2_blocks,
-            deleted_storage_logs_from_past_batches,
-            deleted_storage_logs_from_pruned_batches,
+            deleted_storage_logs,
             deleted_events,
             deleted_call_traces,
             deleted_l2_to_l1_logs,
         } = stats;
-        let deleted_storage_logs =
-            deleted_storage_logs_from_past_batches + deleted_storage_logs_from_pruned_batches;
         tracing::info!(
             "Performed pruning of database, deleted {deleted_l1_batches} L1 batches, {deleted_l2_blocks} L2 blocks, \
-             {deleted_storage_logs} storage logs ({deleted_storage_logs_from_pruned_batches} from pruned batches + \
-             {deleted_storage_logs_from_past_batches} from past batches), \
+             {deleted_storage_logs} storage logs, \
              {deleted_events} events, {deleted_call_traces} call traces, {deleted_l2_to_l1_logs} L2-to-L1 logs"
         );
 
         self.deleted_entities[&PrunedEntityType::L1Batch].observe(deleted_l1_batches);
         self.deleted_entities[&PrunedEntityType::L2Block].observe(deleted_l2_blocks);
-        self.deleted_entities[&PrunedEntityType::StorageLogFromPastBatch]
-            .observe(deleted_storage_logs_from_past_batches);
-        self.deleted_entities[&PrunedEntityType::StorageLogFromPrunedBatch]
-            .observe(deleted_storage_logs_from_pruned_batches);
+        self.deleted_entities[&PrunedEntityType::StorageLog].observe(deleted_storage_logs);
         self.deleted_entities[&PrunedEntityType::Event].observe(deleted_events);
         self.deleted_entities[&PrunedEntityType::L2ToL1Log].observe(deleted_l2_to_l1_logs);
         self.deleted_entities[&PrunedEntityType::CallTrace].observe(deleted_call_traces);
+    }
+
+    pub fn observe_condition(&self, condition: &dyn PruneCondition, outcome: ConditionOutcome) {
+        let labels = ConditionOutcomeLabels {
+            condition: condition.metric_label(),
+            outcome,
+        };
+        self.condition_outcomes[&labels].inc();
     }
 }
 

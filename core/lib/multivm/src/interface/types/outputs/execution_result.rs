@@ -3,7 +3,7 @@ use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     tx::ExecutionMetrics,
-    StorageLogQuery, Transaction, VmEvent,
+    StorageLogWithPreviousValue, Transaction, VmEvent,
 };
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 
@@ -19,7 +19,7 @@ pub struct Refunds {
 /// Events/storage logs/l2->l1 logs created within transaction execution.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct VmExecutionLogs {
-    pub storage_logs: Vec<StorageLogQuery>,
+    pub storage_logs: Vec<StorageLogWithPreviousValue>,
     pub events: Vec<VmEvent>,
     // For pre-boojum VMs, there was no distinction between user logs and system
     // logs and so all the outputted logs were treated as user_l2_to_l1_logs.

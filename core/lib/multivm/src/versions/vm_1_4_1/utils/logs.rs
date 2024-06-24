@@ -1,6 +1,6 @@
 use zk_evm_1_4_1::aux_structures::{LogQuery, Timestamp};
 use zksync_state::WriteStorage;
-use zksync_types::{l2_to_l1_log::L2ToL1Log, StorageLogQueryType, VmEvent};
+use zksync_types::{l2_to_l1_log::L2ToL1Log, StorageLogKind, VmEvent};
 
 use crate::{
     glue::GlueInto,
@@ -33,5 +33,5 @@ pub(crate) fn collect_events_and_l1_system_logs_after_timestamp<S: WriteStorage,
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct StorageLogQuery {
     pub log_query: LogQuery,
-    pub log_type: StorageLogQueryType,
+    pub log_type: StorageLogKind,
 }

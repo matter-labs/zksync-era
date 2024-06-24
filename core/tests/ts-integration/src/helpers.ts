@@ -64,7 +64,7 @@ export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.Tran
 }
 
 /**
- * Waits until a new L1 batch is created on zkSync node.
+ * Waits until a new L1 batch is created on ZKsync node.
  * This function attempts to trigger this action by sending an additional transaction,
  * however it may not be enough in some env (e.g. if some testnet is configured to utilize the block capacity).
  *

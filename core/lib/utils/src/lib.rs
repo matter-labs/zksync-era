@@ -1,4 +1,4 @@
-//! Various helpers used in the zkSync stack.
+//! Various helpers used in the ZKsync stack.
 
 pub mod bytecode;
 mod convert;
