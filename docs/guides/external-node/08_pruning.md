@@ -62,7 +62,7 @@ The storage requirements depend on how long you configure to retain the data, bu
 > [!NOTE]
 >
 > When pruning an existing archival node, Postgres will be unable to reclaim disk space automatically, to reclaim disk
-> space, you need to manually run `VACUUM FULL`, which requires an `ACCESS EXCLUSIVE` lock. Tou can read more about it
+> space, you need to manually run `VACUUM FULL`, which requires an `ACCESS EXCLUSIVE` lock. You can read more about it
 > in [Postgres docs](https://www.postgresql.org/docs/current/sql-vacuum.html).
 
 ## Monitoring pruning
