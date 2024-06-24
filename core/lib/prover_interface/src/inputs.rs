@@ -2,7 +2,6 @@ use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 pub use zksync_state::WitnessStorage;
 use zksync_types::{
