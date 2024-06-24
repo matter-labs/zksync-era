@@ -5,8 +5,7 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
-use zksync_types::{zk_evm_types::LogQuery, AccountTreeId, L1BatchNumber, L2ChainId, StorageKey};
-use zksync_utils::u256_to_h256;
+use zksync_types::{L1BatchNumber, L2ChainId, StorageLog};
 
 use crate::{
     storage::StorageSyncTask, ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask,
@@ -140,11 +139,11 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
             .finished
             .as_ref()
             .context("L1 batch is not actually finished")?;
-        let (_, protective_reads): (Vec<LogQuery>, Vec<LogQuery>) = finished_batch
+        let (_, protective_reads): (Vec<StorageLog>, Vec<StorageLog>) = finished_batch
             .final_execution_state
-            .deduplicated_storage_log_queries
+            .deduplicated_storage_logs
             .iter()
-            .partition(|log_query| log_query.rw_flag);
+            .partition(|log_query| log_query.is_write());
 
         let mut connection = self
             .pool
@@ -156,12 +155,12 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
             .await?;
 
         for protective_read in protective_reads {
-            let address = AccountTreeId::new(protective_read.address);
-            let key = u256_to_h256(protective_read.key);
-            if !expected_protective_reads.remove(&StorageKey::new(address, key)) {
+            let address = protective_read.key.address();
+            let key = protective_read.key.key();
+            if !expected_protective_reads.remove(&protective_read.key) {
                 tracing::error!(
                     l1_batch_number = %updates_manager.l1_batch.number,
-                    address = %protective_read.address,
+                    address = %address,
                     key = %key,
                     "VM runner produced a protective read that did not happen in state keeper"
                 );

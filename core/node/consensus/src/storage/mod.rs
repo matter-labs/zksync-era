@@ -18,7 +18,7 @@ use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber, L2BlockNumber
 use super::config;
 
 #[cfg(test)]
-mod testonly;
+pub(crate) mod testonly;
 
 /// Context-aware `zksync_dal::ConnectionPool<Core>` wrapper.
 #[derive(Debug, Clone)]

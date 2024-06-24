@@ -177,20 +177,21 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
             .decommitted_code_hashes
             .history();
         for (_, history_event) in &history[last_decommitment_history_entry_checked..] {
-            // We assume that only insertions may happen during a single VM inspection.
-            assert!(history_event.value.is_none());
-            let bytecode_len = state
-                .decommittment_processor
-                .known_bytecodes
-                .inner()
-                .get(&history_event.key)
-                .expect("Bytecode must be known at this point")
-                .len();
+            // We update cycles once per bytecode when it is actually decommitted.
+            if history_event.value.is_some() {
+                let bytecode_len = state
+                    .decommittment_processor
+                    .known_bytecodes
+                    .inner()
+                    .get(&history_event.key)
+                    .expect("Bytecode must be known at this point")
+                    .len();
 
-            // Each cycle of `CodeDecommitter` processes 2 words.
-            // If the number of words in bytecode is odd, then number of cycles must be rounded up.
-            let decommitter_cycles_used = (bytecode_len + 1) / 2;
-            self.statistics.code_decommitter_cycles += decommitter_cycles_used as u32;
+                // Each cycle of `CodeDecommitter` processes 2 words.
+                // If the number of words in bytecode is odd, then number of cycles must be rounded up.
+                let decommitter_cycles_used = (bytecode_len + 1) / 2;
+                self.statistics.code_decommitter_cycles += decommitter_cycles_used as u32;
+            }
         }
         self.last_decommitment_history_entry_checked = Some(history.len());
     }
