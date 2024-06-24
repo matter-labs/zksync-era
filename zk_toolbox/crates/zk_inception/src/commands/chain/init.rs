@@ -68,6 +68,10 @@ pub async fn init(
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
+    let mut secrets = chain_config.get_secrets_config()?;
+    secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone());
+    secrets.save_with_base_path(shell, &chain_config.configs)?;
+
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     register_chain(
         shell,
@@ -114,9 +118,6 @@ pub async fn init(
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     }
 
-    let mut secrets = chain_config.get_secrets_config()?;
-    secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone());
-    secrets.save_with_base_path(shell, &chain_config.configs)?;
     genesis(init_args.genesis_args.clone(), shell, chain_config)
         .await
         .context(MSG_GENESIS_DATABASE_ERR)?;
