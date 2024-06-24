@@ -88,7 +88,7 @@ impl EthTxManager {
                         history_item.tx_hash,
                         err
                     );
-                    return Err(err.into());
+                    return Err(err);
                 }
             }
         }
@@ -274,9 +274,8 @@ impl EthTxManager {
             }
         }
 
-        Ok(self
-            .monitor_inflight_transactions_inner(storage, l1_block_numbers, operator_nonce, None)
-            .await?)
+        self.monitor_inflight_transactions_inner(storage, l1_block_numbers, operator_nonce, None)
+            .await
     }
 
     async fn monitor_inflight_transactions_inner(
