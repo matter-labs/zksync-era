@@ -99,16 +99,10 @@ impl GenesisParams {
                 bootloader_hash = \"{:?}\"
                 default_aa_hash = \"{:?}\"
                 GENESIS_PROTOCOL_SEMANTIC_VERSION = \"{:?}\"
-                GENESIS_BATCH_COMMITMENT = \"{:?}\"
-                GENESIS_ROOT = \"{:?}\"
-                GENESIS_ROLLUP_LEAF_INDEX = \"{:?}\" 
             ",
-            config.bootloader_hash.unwrap(),
-            config.default_aa_hash.unwrap(),
+            base_system_contracts.hashes().bootloader,
+            base_system_contracts.hashes().default_aa,
             config.protocol_version.unwrap(),
-            config.genesis_commitment.unwrap(),
-            config.genesis_root_hash.unwrap(),
-            config.rollup_last_leaf_index.unwrap()
         );
         let base_system_contracts_hashes = BaseSystemContractsHashes {
             bootloader: config
@@ -306,7 +300,14 @@ pub async fn ensure_genesis_state(
         commitment,
         rollup_last_leaf_index,
     } = insert_genesis_batch(&mut transaction, genesis_params).await?;
-
+    println!(
+        "
+            GENESIS_ROOT = \"{:?}\"
+            GENESIS_BATCH_COMMITMENT = \"{:?}\"
+            GENESIS_ROLLUP_LEAF_INDEX = \"{:?}\" 
+        ",
+        root_hash, commitment, rollup_last_leaf_index
+    );
     let expected_root_hash = genesis_params
         .config
         .genesis_root_hash
@@ -428,7 +429,7 @@ pub async fn create_genesis_l1_batch(
 pub async fn save_set_chain_id_tx(
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
-    state_transition_manager_address: Address,
+    _state_transition_manager_address: Address,
     database_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
     let db_url = database_secrets.master_url()?;

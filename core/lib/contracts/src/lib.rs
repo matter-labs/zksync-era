@@ -395,7 +395,8 @@ impl BaseSystemContracts {
 
     pub fn playground_sync_layer() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_sync_layer/playground_batch.yul/playground_batch.yul.zbin",
+            "contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin",
+            // "etc/multivm_bootloaders/vm_sync_layer/playground_batch.yul/playground_batch.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -465,7 +466,8 @@ impl BaseSystemContracts {
 
     pub fn estimate_gas_sync_layer() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_sync_layer/fee_estimate.yul/fee_estimate.yul.zbin",
+            "contracts/system-contracts/bootloader/build/artifacts/fee_estimate.yul.zbin",
+            // "etc/multivm_bootloaders/vm_sync_layer/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -612,7 +614,7 @@ pub static GENESIS_UPGRADE_EVENT: Lazy<Event> = Lazy::new(|| {
       "inputs": [
         {
           "indexed": true,
-          "name": "_stateTransitionChain",
+          "name": "_hyperchain",
           "type": "address"
         },
         {
@@ -690,6 +692,11 @@ pub static GENESIS_UPGRADE_EVENT: Lazy<Event> = Lazy::new(|| {
           "indexed": true,
           "name": "_protocolVersion",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "name": "_factoryDeps",
+          "type": "bytes[]"
         }
       ],
       "name": "GenesisUpgrade",

@@ -3,8 +3,9 @@ import * as utils from 'utils';
 import * as env from './env';
 import fs from 'fs';
 
-export async function build(): Promise<void> {
-    await utils.spawn('yarn l1-contracts build');
+export async function build(zkSyncNetwork: boolean): Promise<void> {
+    const additionalParams = zkSyncNetwork ? `CONTRACTS_BASE_NETWORK_ZKSYNC=true` : '';
+    await utils.spawn(`${additionalParams} yarn l1-contracts build`);
     await utils.spawn('yarn l2-contracts build');
 }
 
@@ -292,7 +293,11 @@ command
     .description('redeploy contracts')
     .action(redeployL1);
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
-command.command('build').description('build contracts').action(build);
+command
+    .command('build')
+    .description('build contracts')
+    .option('--zkSync', 'compile for zksync network')
+    .action((cmd) => build(cmd.zkSync === true));
 
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);
 command
