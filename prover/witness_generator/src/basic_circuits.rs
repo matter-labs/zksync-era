@@ -450,7 +450,7 @@ async fn generate_witness(
         let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state);
         let storage_view = StorageView::new(witness_storage).to_rc_ptr();
 
-        let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
+        let vm_storage_oracle: VmStorageOracle<StorageView<WitnessStorage<'_>>, HistoryDisabled> =
             VmStorageOracle::new(storage_view.clone());
         let storage_oracle = StorageOracle::new(
             vm_storage_oracle,
@@ -520,12 +520,17 @@ async fn generate_witness(
     recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
 
     scheduler_witness.previous_block_meta_hash = input
+        .vm_run_data
         .previous_batch_with_metadata
         .metadata
         .meta_parameters_hash
         .0;
-    scheduler_witness.previous_block_aux_hash =
-        input.previous_batch_with_metadata.metadata.aux_data_hash.0;
+    scheduler_witness.previous_block_aux_hash = input
+        .vm_run_data
+        .previous_batch_with_metadata
+        .metadata
+        .aux_data_hash
+        .0;
 
     (
         circuit_urls,

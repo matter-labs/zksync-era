@@ -149,94 +149,14 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 
         let mut connection = self.pool.connection().await?;
 
-        let block_header = connection
-            .blocks_dal()
-            .get_l1_batch_header(l1_batch_number)
-            .await
-            .unwrap()
-            .unwrap();
-
-        let initial_heap_content = connection
-            .blocks_dal()
-            .get_initial_bootloader_heap(l1_batch_number)
-            .await
-            .unwrap()
-            .unwrap();
-
-        let account_code_hash = h256_to_u256(block_header.base_system_contracts_hashes.default_aa);
-        let account_bytecode_bytes = connection
-            .factory_deps_dal()
-            .get_sealed_factory_dep(block_header.base_system_contracts_hashes.default_aa)
-            .await
-            .expect("Failed fetching default account bytecode from DB")
-            .expect("Default account bytecode should exist");
-        let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-
-        let hashes: HashSet<H256> = block_header
-            .used_contract_hashes
-            .iter()
-            // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
-            .filter(|&&hash| {
-                hash != h256_to_u256(block_header.base_system_contracts_hashes.bootloader)
-            })
-            .map(|hash| u256_to_h256(*hash))
-            .collect();
-        let mut used_bytecodes = connection
-            .factory_deps_dal()
-            .get_factory_deps(&hashes)
-            .await;
-        if block_header
-            .used_contract_hashes
-            .contains(&account_code_hash)
-        {
-            used_bytecodes.insert(account_code_hash, account_bytecode);
-        }
-
-        assert_eq!(
-            hashes.len(),
-            used_bytecodes.len(),
-            "{} factory deps are not found in DB",
-            hashes.len() - used_bytecodes.len()
-        );
-
-        let previous_batch_with_metadata = connection
-            .blocks_dal()
-            .get_l1_batch_metadata(L1BatchNumber(block_header.number.checked_sub(1).unwrap()))
-            .await
-            .unwrap()
-            .unwrap();
-
-        let StorageOracleInfo {
-            storage_refunds,
-            pubdata_costs,
-        } = connection
-            .blocks_dal()
-            .get_storage_oracle_info(block_header.number)
-            .await
-            .unwrap()
-            .unwrap();
+        let mut result = get_database_witness_input_data(&mut connection, l1_batch_number).await;
 
         let block_state = WitnessBlockState {
             read_storage_key: updates_manager.storage_view_cache.read_storage_keys(),
             is_write_initial: updates_manager.storage_view_cache.initial_writes(),
         };
 
-        let result = VMRunWitnessInputData {
-            l1_batch_header: block_header.clone(),
-            previous_batch_with_metadata,
-            used_bytecodes,
-            initial_heap_content,
-
-            protocol_version: block_header
-                .protocol_version
-                .unwrap_or(ProtocolVersionId::last_potentially_undefined()),
-
-            bootloader_code: vec![],
-            default_account_code_hash: account_code_hash,
-            storage_refunds,
-            pubdata_costs,
-            witness_block_state: block_state,
-        };
+        result.witness_block_state = block_state;
 
         let blob_url = self.object_store.put(l1_batch_number, &result).await?;
         self.pool
@@ -257,6 +177,179 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
             .unwrap();
 
         Ok(())
+    }
+}
+
+// async fn get_updates_manager_witness_input_data(
+//     updates_manager: Arc<UpdatesManager>,
+// ) -> VMRunWitnessInputData {
+//     let block_header = connection
+//         .blocks_dal()
+//         .get_l1_batch_header(l1_batch_number)
+//         .await
+//         .unwrap()
+//         .unwrap();
+//
+//     let initial_heap_content = connection
+//         .blocks_dal()
+//         .get_initial_bootloader_heap(l1_batch_number)
+//         .await
+//         .unwrap()
+//         .unwrap();
+//
+//     let account_code_hash = h256_to_u256(block_header.base_system_contracts_hashes.default_aa);
+//     let account_bytecode_bytes = connection
+//         .factory_deps_dal()
+//         .get_sealed_factory_dep(block_header.base_system_contracts_hashes.default_aa)
+//         .await
+//         .expect("Failed fetching default account bytecode from DB")
+//         .expect("Default account bytecode should exist");
+//     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
+//
+//     let hashes: HashSet<H256> = block_header
+//         .used_contract_hashes
+//         .iter()
+//         // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
+//         .filter(|&&hash| hash != h256_to_u256(block_header.base_system_contracts_hashes.bootloader))
+//         .map(|hash| u256_to_h256(*hash))
+//         .collect();
+//     let mut used_bytecodes = connection
+//         .factory_deps_dal()
+//         .get_factory_deps(&hashes)
+//         .await;
+//     if block_header
+//         .used_contract_hashes
+//         .contains(&account_code_hash)
+//     {
+//         used_bytecodes.insert(account_code_hash, account_bytecode);
+//     }
+//
+//     assert_eq!(
+//         hashes.len(),
+//         used_bytecodes.len(),
+//         "{} factory deps are not found in DB",
+//         hashes.len() - used_bytecodes.len()
+//     );
+//
+//     let previous_batch_with_metadata = connection
+//         .blocks_dal()
+//         .get_l1_batch_metadata(L1BatchNumber(block_header.number.checked_sub(1).unwrap()))
+//         .await
+//         .unwrap()
+//         .unwrap();
+//
+//     let StorageOracleInfo {
+//         storage_refunds,
+//         pubdata_costs,
+//     } = connection
+//         .blocks_dal()
+//         .get_storage_oracle_info(block_header.number)
+//         .await
+//         .unwrap()
+//         .unwrap();
+//
+//     VMRunWitnessInputData {
+//         l1_batch_header: block_header.clone(),
+//         previous_batch_with_metadata,
+//         used_bytecodes,
+//         initial_heap_content,
+//
+//         protocol_version: block_header
+//             .protocol_version
+//             .unwrap_or(ProtocolVersionId::last_potentially_undefined()),
+//
+//         bootloader_code: vec![],
+//         default_account_code_hash: account_code_hash,
+//         storage_refunds,
+//         pubdata_costs,
+//         witness_block_state: WitnessBlockState::default(),
+//     }
+// }
+
+async fn get_database_witness_input_data(
+    connection: &mut Connection<Core>,
+    l1_batch_number: L1BatchNumber,
+) -> VMRunWitnessInputData {
+    let block_header = connection
+        .blocks_dal()
+        .get_l1_batch_header(l1_batch_number)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let initial_heap_content = connection
+        .blocks_dal()
+        .get_initial_bootloader_heap(l1_batch_number)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let account_code_hash = h256_to_u256(block_header.base_system_contracts_hashes.default_aa);
+    let account_bytecode_bytes = connection
+        .factory_deps_dal()
+        .get_sealed_factory_dep(block_header.base_system_contracts_hashes.default_aa)
+        .await
+        .expect("Failed fetching default account bytecode from DB")
+        .expect("Default account bytecode should exist");
+    let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
+
+    let hashes: HashSet<H256> = block_header
+        .used_contract_hashes
+        .iter()
+        // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
+        .filter(|&&hash| hash != h256_to_u256(block_header.base_system_contracts_hashes.bootloader))
+        .map(|hash| u256_to_h256(*hash))
+        .collect();
+    let mut used_bytecodes = connection
+        .factory_deps_dal()
+        .get_factory_deps(&hashes)
+        .await;
+    if block_header
+        .used_contract_hashes
+        .contains(&account_code_hash)
+    {
+        used_bytecodes.insert(account_code_hash, account_bytecode);
+    }
+
+    assert_eq!(
+        hashes.len(),
+        used_bytecodes.len(),
+        "{} factory deps are not found in DB",
+        hashes.len() - used_bytecodes.len()
+    );
+
+    let previous_batch_with_metadata = connection
+        .blocks_dal()
+        .get_l1_batch_metadata(L1BatchNumber(block_header.number.checked_sub(1).unwrap()))
+        .await
+        .unwrap()
+        .unwrap();
+
+    let StorageOracleInfo {
+        storage_refunds,
+        pubdata_costs,
+    } = connection
+        .blocks_dal()
+        .get_storage_oracle_info(block_header.number)
+        .await
+        .unwrap()
+        .unwrap();
+
+    VMRunWitnessInputData {
+        l1_batch_header: block_header.clone(),
+        previous_batch_with_metadata,
+        used_bytecodes,
+        initial_heap_content,
+
+        protocol_version: block_header
+            .protocol_version
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined()),
+
+        bootloader_code: vec![],
+        default_account_code_hash: account_code_hash,
+        storage_refunds,
+        pubdata_costs,
+        witness_block_state: WitnessBlockState::default(),
     }
 }
 
