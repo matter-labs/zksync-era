@@ -32,3 +32,4 @@ toml.workspace = true
 url.workspace = true
 thiserror.workspace = true
 zksync_config.workspace = true
+slugify-rs.workspace = true

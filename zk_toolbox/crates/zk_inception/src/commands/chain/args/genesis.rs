@@ -1,7 +1,8 @@
 use clap::Parser;
-use common::{db::DatabaseConfig, slugify, Prompt};
+use common::{db::DatabaseConfig, Prompt};
 use config::ChainConfig;
 use serde::{Deserialize, Serialize};
+use slugify_rs::slugify;
 use url::Url;
 
 use crate::{
@@ -48,21 +49,27 @@ impl GenesisArgs {
                     .default(DATABASE_SERVER_URL.as_str())
                     .ask()
             });
-            let server_db_name = slugify(&self.server_db_name.unwrap_or_else(|| {
-                Prompt::new(&msg_server_db_name_prompt(&chain_name))
-                    .default(&server_name)
-                    .ask()
-            }));
+            let server_db_name = slugify!(
+                &self.server_db_name.unwrap_or_else(|| {
+                    Prompt::new(&msg_server_db_name_prompt(&chain_name))
+                        .default(&server_name)
+                        .ask()
+                }),
+                separator = "_"
+            );
             let prover_db_url = self.prover_db_url.unwrap_or_else(|| {
                 Prompt::new(&msg_prover_db_url_prompt(&chain_name))
                     .default(DATABASE_PROVER_URL.as_str())
                     .ask()
             });
-            let prover_db_name = slugify(&self.prover_db_name.unwrap_or_else(|| {
-                Prompt::new(&msg_prover_db_name_prompt(&chain_name))
-                    .default(&prover_name)
-                    .ask()
-            }));
+            let prover_db_name = slugify!(
+                &self.prover_db_name.unwrap_or_else(|| {
+                    Prompt::new(&msg_prover_db_name_prompt(&chain_name))
+                        .default(&prover_name)
+                        .ask()
+                }),
+                separator = "_"
+            );
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(server_db_url, server_db_name),
                 prover_db: DatabaseConfig::new(prover_db_url, prover_db_name),
