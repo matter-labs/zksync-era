@@ -145,8 +145,7 @@ impl TreeUpdater {
                 storage
                     .tee_verifier_input_producer_dal()
                     .create_tee_verifier_input_producer_job(l1_batch_number)
-                    .await
-                    .expect("failed to create tee_verifier_input_producer job");
+                    .await?;
                 // Save the proof generation details to Postgres
                 storage
                     .proof_generation_dal()
