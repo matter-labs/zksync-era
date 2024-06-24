@@ -18,8 +18,6 @@ pub struct TeeProofGenerationDal<'a, 'c> {
 
 #[derive(Debug, EnumString, Display)]
 enum TeeProofGenerationJobStatus {
-    #[strum(serialize = "ready_to_be_proven")]
-    ReadyToBeProven,
     #[strum(serialize = "picked_by_prover")]
     PickedByProver,
     #[strum(serialize = "generated")]
@@ -40,6 +38,7 @@ impl TeeProofGenerationDal<'_, '_> {
         processing_timeout: Duration,
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
+        // todo: deprecate ready to be proven
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE tee_proof_generation_details
@@ -138,9 +137,9 @@ impl TeeProofGenerationDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                tee_proof_generation_details (l1_batch_number, status, created_at, updated_at)
+                tee_proof_generation_details (l1_batch_number, created_at, updated_at)
             VALUES
-                ($1, 'ready_to_be_proven', NOW(), NOW())
+                ($1, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             block_number,
@@ -164,7 +163,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
             WHERE
                 inputs.status = 'Successful'
-                AND proofs.status = 'ready_to_be_proven'
+                AND proofs.status NOT IN ('picked_by_prover', 'generated')
             ORDER BY
                 proofs.l1_batch_number ASC
             LIMIT

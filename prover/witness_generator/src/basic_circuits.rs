@@ -78,7 +78,7 @@ struct BlobUrls {
 #[derive(Clone)]
 pub struct BasicWitnessGeneratorJob {
     block_number: L1BatchNumber,
-    job: PrepareBasicCircuitsJob,
+    job: WitnessInputData,
     eip_4844_blobs: Eip4844Blobs,
 }
 
@@ -423,7 +423,7 @@ async fn generate_witness(
     );
 
     let mut tree = PrecalculatedMerklePathsProvider::new(
-        input.vm_run_data.merkle_paths_input,
+        input.merkle_paths,
         input
             .vm_run_data
             .previous_batch_with_metadata

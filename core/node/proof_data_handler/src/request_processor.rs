@@ -4,9 +4,12 @@ use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::api::{
-    ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
-    SubmitProofRequest, SubmitProofResponse,
+use zksync_prover_interface::{
+    api::{
+        ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
+        SubmitProofRequest, SubmitProofResponse,
+    },
+    inputs::{PrepareBasicCircuitsJob, VMRunWitnessInputData, WitnessInputData},
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
@@ -61,11 +64,21 @@ impl RequestProcessor {
             None => return Ok(Json(ProofGenerationDataResponse::Success(None))), // no batches pending to be proven
         };
 
-        let blob = self
+        let vm_run_data = self
             .blob_store
             .get(l1_batch_number)
             .await
             .map_err(RequestProcessorError::ObjectStore)?;
+        let merkle_paths = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(RequestProcessorError::ObjectStore)?;
+
+        let blob = WitnessInputData {
+            vm_run_data,
+            merkle_paths,
+        };
 
         let header = self
             .pool

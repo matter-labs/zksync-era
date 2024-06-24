@@ -17,8 +17,6 @@ pub struct ProofGenerationDal<'a, 'c> {
 
 #[derive(Debug, EnumString, Display)]
 enum ProofGenerationJobStatus {
-    #[strum(serialize = "ready_to_be_proven")]
-    ReadyToBeProven,
     #[strum(serialize = "picked_by_prover")]
     PickedByProver,
     #[strum(serialize = "generated")]
@@ -46,8 +44,15 @@ impl ProofGenerationDal<'_, '_> {
                         l1_batch_number
                     FROM
                         proof_generation_details
+                        LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
                     WHERE
-                        status = 'ready_to_be_proven'
+                        (
+                            vm_run_data_blob_url IS NOT NULL
+                            AND proof_gen_data_blob_url IS NOT NULL
+                            AND l1_batches.merkle_root_hash IS NOT NULL
+                            AND l1_batches.aux_data_hash IS NOT NULL
+                            AND l1_batches.meta_parameters_hash IS NOT NULL
+                        )
                         OR (
                             status = 'picked_by_prover'
                             AND prover_taken_at < NOW() - $1::INTERVAL
@@ -119,9 +124,9 @@ impl ProofGenerationDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                proof_generation_details (l1_batch_number, status, proof_gen_data_blob_url, created_at, updated_at)
+                proof_generation_details (l1_batch_number, proof_gen_data_blob_url, created_at, updated_at)
             VALUES
-                ($1, 'ready_to_be_proven', $2, NOW(), NOW())
+                ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             l1_batch_number,
@@ -191,7 +196,7 @@ impl ProofGenerationDal<'_, '_> {
             FROM
                 proof_generation_details
             WHERE
-                status = 'ready_to_be_proven'
+                status NOT IN ('picked_by_prover', 'generated')
             ORDER BY
                 l1_batch_number ASC
             LIMIT

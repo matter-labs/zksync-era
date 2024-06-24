@@ -9,7 +9,7 @@ use zksync_types::{
 };
 
 use crate::{
-    inputs::PrepareBasicCircuitsJob,
+    inputs::{PrepareBasicCircuitsJob, WitnessInputData},
     outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
 };
 
@@ -18,7 +18,7 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
-    pub data: PrepareBasicCircuitsJob,
+    pub data: WitnessInputData,
     pub protocol_version: ProtocolSemanticVersion,
     pub l1_verifier_config: L1VerifierConfig,
     pub eip_4844_blobs: Eip4844Blobs,
