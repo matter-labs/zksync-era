@@ -430,6 +430,8 @@ impl BlocksWeb3Dal<'_, '_> {
                 JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
             WHERE
                 l1_batch_number = $1
+            ORDER BY
+                (tx_index_in_l1_batch, log_index_in_tx)
             "#,
             i64::from(l1_batch_number.0)
         )
