@@ -184,14 +184,16 @@ async fn run_tree(
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();
-        let stop_receiver = stop_receiver.clone();
+        let mut stop_receiver = stop_receiver.clone();
         task_futures.push(tokio::spawn(async move {
-            tree_reader
-                .wait()
-                .await
-                .context("Cannot initialize tree reader")?
-                .run_api_server(address, stop_receiver)
-                .await
+            if let Some(reader) = tree_reader.wait().await {
+                reader.run_api_server(address, stop_receiver).await
+            } else {
+                // Tree is dropped before initialized, e.g. because the node is getting shut down.
+                // We don't want to treat this as an error since it could mask the real shutdown cause in logs etc.
+                stop_receiver.changed().await?;
+                Ok(())
+            }
         }));
     }
 
