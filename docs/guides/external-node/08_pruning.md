@@ -2,7 +2,7 @@
 
 It is possible to configure a ZKsync node to periodically prune all data from L1 batches older than a configurable
 threshold. Data is pruned both from Postgres and from tree (RocksDB). Pruning happens continuously (i.e., does not
-require stopping the node) in the background during normal node operation. It generally does not significantly influence
+require stopping the node) in the background during normal node operation. It is designed to not significantly impact
 node performance.
 
 Types of pruned data in Postgres include:
@@ -20,7 +20,7 @@ will return an error mentioning the first retained block or L1 batch if queried 
 
 Pruning and [snapshot recovery](07_snapshots_recovery.md) are independent features. Pruning works both for archival
 nodes restored from a Postgres dump, and nodes recovered from a snapshot. Conversely, a node recovered from a snapshot
-may have pruning disabled; this would mean that it would retain data starting from the snapshot indefinitely (but not
+may have pruning disabled; this would mean that it retains all data starting from the snapshot indefinitely (but not
 earlier data, see [snapshot recovery limitations](07_snapshots_recovery.md#current-limitations)).
 
 A rough guide whether to choose the recovery option and/or pruning is as follows:
@@ -31,7 +31,7 @@ A rough guide whether to choose the recovery option and/or pruning is as follows
   disabled.
 - If you need a node with significant data retention (order of months), the best option right now is using a Postgres
   dump. You may enable pruning for such a node, but beware that full pruning may take significant amount of time (order
-  of weeks or months). In the future, we will be offering pre-pruned DB snapshots with a few months of data.
+  of weeks or months). In the future, we intend to offer pre-pruned Postgres dumps with a few months of data.
 
 ## Configuration
 
@@ -41,7 +41,8 @@ You can enable pruning by setting the environment variable
 EN_PRUNING_ENABLED: 'true'
 ```
 
-By default, the node will keep L1 batch data for 7 days. You can configure the retention period using:
+By default, the node will keep L1 batch data for 7 days determined by the batch timestamp (always equal to the timestamp
+of the first block in the batch). You can configure the retention period using:
 
 ```yaml
 EN_PRUNING_DATA_RETENTION_SEC: '259200' # 3 days
@@ -61,7 +62,7 @@ The storage requirements depend on how long you configure to retain the data, bu
 
 > [!NOTE]
 >
-> When pruning an existing archival node, Postgres will be unable to reclaim disk space automatically, to reclaim disk
+> When pruning an existing archival node, Postgres will be unable to reclaim disk space automatically. To reclaim disk
 > space, you need to manually run `VACUUM FULL`, which requires an `ACCESS EXCLUSIVE` lock. You can read more about it
 > in [Postgres docs](https://www.postgresql.org/docs/current/sql-vacuum.html).
 
