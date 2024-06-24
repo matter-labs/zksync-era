@@ -133,7 +133,7 @@ fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
 #[tokio::test]
 #[tracing::instrument] // Add args to the test logs
 async fn external_node_basics(components_str: &'static str) {
-    let _guard = vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let temp_dir = tempfile::TempDir::new().unwrap();
 
     // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
@@ -252,7 +252,7 @@ async fn external_node_basics(components_str: &'static str) {
 
 #[tokio::test]
 async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
-    let _guard = vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let temp_dir = tempfile::TempDir::new().unwrap();
 
     let connection_pool = ConnectionPool::test_pool().await;

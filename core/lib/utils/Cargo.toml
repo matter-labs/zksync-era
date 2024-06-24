@@ -12,7 +12,7 @@ categories.workspace = true
 [dependencies]
 zksync_basic_types.workspace = true
 zk_evm.workspace = true
-vlog.workspace = true
+zksync_vlog.workspace = true
 
 bigdecimal.workspace = true
 num = { workspace = true, features = ["serde"] }

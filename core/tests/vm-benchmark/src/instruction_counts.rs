@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
+use zksync_vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
 
 fn main() {
     // using source file location because this is just a script, the binary isn't meant to be reused

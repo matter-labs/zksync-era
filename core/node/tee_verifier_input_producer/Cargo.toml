@@ -17,7 +17,7 @@ zksync_queued_job_processor.workspace = true
 zksync_tee_verifier.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
-vm_utils.workspace = true
+zksync_vm_utils.workspace = true
 vise.workspace = true
 
 anyhow.workspace = true

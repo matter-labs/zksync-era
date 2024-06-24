@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Args as ClapArgs;
 use dialoguer::{theme::ColorfulTheme, Input};
-use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
+use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::L1BatchNumber;
 
 use crate::cli::ProverCLIConfig;

@@ -13,12 +13,12 @@ use std::{
 };
 
 use async_trait::async_trait;
-use multivm::{
+use tokio::sync::{mpsc, watch, watch::Receiver};
+use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::{
     interface::{ExecutionResult, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
-use tokio::sync::{mpsc, watch, watch::Receiver};
-use zksync_contracts::BaseSystemContracts;
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory};
 use zksync_types::{
@@ -271,7 +271,7 @@ pub(crate) fn successful_exec_with_metrics(
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec() -> TxExecutionResult {
     TxExecutionResult::RejectedByVm {
-        reason: multivm::interface::Halt::InnerTxError,
+        reason: zksync_multivm::interface::Halt::InnerTxError,
     }
 }
 
