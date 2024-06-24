@@ -3,12 +3,11 @@ use config::EcosystemConfig;
 use xshell::Shell;
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
+use super::args::init::ProverInitArgs;
 use crate::messages::{
     MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
     MSG_PROVER_INITIALIZED,
 };
-
-use super::args::init::ProverInitArgs;
 
 const PROVER_STORE_MAX_RETRIES: u16 = 10;
 
