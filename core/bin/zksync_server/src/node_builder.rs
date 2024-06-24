@@ -199,7 +199,8 @@ impl MainNodeBuilder {
                 .l2_shared_bridge_addr
                 .context("L2 shared bridge address")?,
             sk_config.l2_block_seal_queue_capacity,
-        );
+        )
+        .with_protective_reads_persistence_enabled(sk_config.protective_reads_persistence_enabled);
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
