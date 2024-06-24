@@ -1,6 +1,12 @@
+use common::logger;
 use config::EcosystemConfig;
 use xshell::Shell;
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
+
+use crate::messages::{
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
+    MSG_PROVER_INITIALIZED,
+};
 
 use super::args::init::ProverInitArgs;
 
@@ -31,16 +37,17 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     let chain_config = ecosystem_config
         .load_chain(Some(ecosystem_config.default_chain.clone()))
-        .expect("Chain not found");
+        .expect(MSG_CHAIN_NOT_FOUND_ERR);
     let mut general_config = chain_config
         .get_general_config()
-        .expect("General config not found");
+        .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
     let mut prover_config = general_config
         .prover_config
-        .expect("Prover config not found");
+        .expect(MSG_PROVER_CONFIG_NOT_FOUND_ERR);
     prover_config.prover_object_store = Some(object_store_config.clone());
     general_config.prover_config = Some(prover_config);
-
     chain_config.save_general_config(&general_config)?;
+
+    logger::outro(MSG_PROVER_INITIALIZED);
     Ok(())
 }

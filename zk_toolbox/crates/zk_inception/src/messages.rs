@@ -200,3 +200,6 @@ pub(super) const MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT: &str =
     "Provide the base URL of the GCS bucket, or leave empty to create a new one:";
 pub(super) const MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT: &str =
     "Provide the path to the GCS credentials file:";
+pub(super) const MSG_GENERAL_CONFIG_NOT_FOUND_ERR: &str = "General config not found";
+pub(super) const MSG_PROVER_CONFIG_NOT_FOUND_ERR: &str = "Prover config not found";
+pub(super) const MSG_PROVER_INITIALIZED: &str = "Prover has been initialized successfully";
