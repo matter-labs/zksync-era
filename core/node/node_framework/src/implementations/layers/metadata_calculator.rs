@@ -167,6 +167,7 @@ impl Task for TreeApiTask {
         } else {
             // Tree is dropped before initialized, e.g. because the node is getting shut down.
             // We don't want to treat this as an error since it could mask the real shutdown cause in logs etc.
+            tracing::warn!("Tree is dropped before initialized, not starting the tree API server");
             stop_receiver.0.changed().await?;
             Ok(())
         }
