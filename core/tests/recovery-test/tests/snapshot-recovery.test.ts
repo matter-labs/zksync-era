@@ -175,9 +175,6 @@ describe('snapshot recovery', () => {
                         l2BlockNumber
                     );
                     expect(snapshotValue).to.equal(valueOnBlockchain);
-                } else {
-                    // TODO: requires adding a method like `zks_resolveStorageAt(hashedKey)` returning
-                    //   { address, key, enumerationIndex }
                 }
             }
             console.log(`Checked random ${sampledCount} logs in the chunk`);
