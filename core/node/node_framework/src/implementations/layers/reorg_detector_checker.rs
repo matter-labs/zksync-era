@@ -17,8 +17,17 @@ use crate::{
 
 const REORG_DETECTED_SLEEP_INTERVAL: Duration = Duration::from_secs(1);
 
-/// The layer is responsible for integrating reorg checking into the system.
-/// When a reorg is detected, the system will not start running until it is fixed.
+/// Wiring layer for [`ReorgDetector`] checker.
+/// This layer is responsible for detecting reorgs and preventing the node from starting if it occurs.
+///
+/// ## Requests resources
+///
+/// - `MainNodeClientResource`
+/// - `PoolResource<MasterPool>`
+///
+/// ## Adds preconditions
+///
+/// - `CheckerPrecondition`
 #[derive(Debug)]
 pub struct ReorgDetectorCheckerLayer;
 
