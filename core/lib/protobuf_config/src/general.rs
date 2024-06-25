@@ -43,6 +43,11 @@ impl ProtoRepr for proto::GeneralConfig {
                 .context("core_object_store")?,
             base_token_adjuster: read_optional_repr(&self.base_token_adjuster)
                 .context("base_token_adjuster")?,
+            commitment_generator: read_optional_repr(&self.commitment_generator)
+                .context("commitment_generator")?,
+            pruning: read_optional_repr(&self.pruning).context("pruning")?,
+            snapshot_recovery: read_optional_repr(&self.snapshot_recovery)
+                .context("snapshot_recovery")?,
         })
     }
 
@@ -78,6 +83,9 @@ impl ProtoRepr for proto::GeneralConfig {
                 .protective_reads_writer_config
                 .as_ref()
                 .map(ProtoRepr::build),
+            commitment_generator: this.commitment_generator.as_ref().map(ProtoRepr::build),
+            snapshot_recovery: this.snapshot_recovery.as_ref().map(ProtoRepr::build),
+            pruning: this.pruning.as_ref().map(ProtoRepr::build),
             core_object_store: this.core_object_store.as_ref().map(ProtoRepr::build),
             base_token_adjuster: this.base_token_adjuster.as_ref().map(ProtoRepr::build),
         }

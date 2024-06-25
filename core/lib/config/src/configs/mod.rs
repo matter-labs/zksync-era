@@ -2,6 +2,7 @@
 pub use self::{
     api::ApiConfig,
     base_token_adjuster::BaseTokenAdjusterConfig,
+    commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, EcosystemContracts},
     database::{DBConfig, PostgresConfig},
@@ -18,7 +19,9 @@ pub use self::{
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
+    pruning::PruningConfig,
     secrets::{DatabaseSecrets, L1Secrets, Secrets},
+    snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
     vm_runner::ProtectiveReadsWriterConfig,
@@ -27,10 +30,12 @@ pub use self::{
 pub mod api;
 pub mod base_token_adjuster;
 pub mod chain;
+mod commitment_generator;
 pub mod consensus;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod database;
+pub mod en_config;
 pub mod eth_sender;
 pub mod eth_watch;
 mod experimental;
@@ -46,7 +51,9 @@ pub mod house_keeper;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
+pub mod pruning;
 pub mod secrets;
+pub mod snapshot_recovery;
 pub mod snapshots_creator;
 pub mod utils;
 pub mod vm_runner;

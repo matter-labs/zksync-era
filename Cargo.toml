@@ -52,7 +52,6 @@ members = [
     "core/lib/merkle_tree",
     "core/lib/mini_merkle_tree",
     "core/lib/object_store",
-    "core/lib/prometheus_exporter",
     "core/lib/prover_interface",
     "core/lib/queued_job_processor",
     "core/lib/state",
@@ -127,8 +126,6 @@ jsonrpsee = { version = "0.21.0", default-features = false }
 lazy_static = "1.4"
 leb128 = "0.2.5"
 lru = { version = "0.12.1", default-features = false }
-metrics = "0.21"
-metrics-exporter-prometheus = "0.12"
 mini-moka = "0.10.0"
 num = "0.4.0"
 num_cpus = "1.13"
@@ -206,7 +203,6 @@ zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-la
 
 # "Local" dependencies
 zksync_multivm = { path = "core/lib/multivm" }
-zksync_prometheus_exporter = { path = "core/lib/prometheus_exporter" }
 zksync_prover_dal = { path = "prover/prover_dal" }
 zksync_vlog = { path = "core/lib/vlog" }
 zksync_vm_utils = { path = "core/lib/vm_utils" }

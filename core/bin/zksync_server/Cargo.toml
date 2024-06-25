@@ -38,7 +38,6 @@ futures.workspace = true
 zksync_node_framework.workspace = true
 zksync_metadata_calculator.workspace = true
 zksync_node_api_server.workspace = true
-zksync_prometheus_exporter.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true

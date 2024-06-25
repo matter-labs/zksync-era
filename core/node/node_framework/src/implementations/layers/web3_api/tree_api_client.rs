@@ -10,10 +10,18 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Layer that inserts the `TreeApiHttpClient` into the `ServiceContext` resources, if there is no
+/// Wiring layer that provides the `TreeApiHttpClient` into the `ServiceContext` resources, if there is no
 /// other client already inserted.
 ///
-/// In case a client is already provided in the contest, the layer does nothing.
+/// In case a client is already provided in the context, this layer does nothing.
+///
+/// ## Requests resources
+///
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds resources
+///
+/// - `TreeApiClientResource` (if no such resource already exists)
 #[derive(Debug)]
 pub struct TreeApiClientLayer {
     url: Option<String>,

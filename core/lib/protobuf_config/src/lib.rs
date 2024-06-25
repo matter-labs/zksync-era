@@ -8,10 +8,12 @@ mod api;
 mod base_token_adjuster;
 mod chain;
 mod circuit_breaker;
+mod commitment_generator;
 mod consensus;
 mod contract_verifier;
 mod contracts;
 mod database;
+mod en;
 mod eth;
 mod experimental;
 mod general;
@@ -22,8 +24,11 @@ mod observability;
 mod proof_data_handler;
 pub mod proto;
 mod prover;
+mod pruning;
 mod secrets;
 mod snapshots_creator;
+
+mod snapshot_recovery;
 pub mod testonly;
 #[cfg(test)]
 mod tests;

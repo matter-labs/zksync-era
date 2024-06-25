@@ -21,6 +21,21 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for sequencer L1 gas interfaces.
+/// Adds several resources that depend on L1 gas price.
+///
+/// ## Requests resources
+///
+/// - `EthInterfaceResource`
+///
+/// ## Adds resources
+///
+/// - `FeeInputResource`
+/// - `L1TxParamsResource`
+///
+/// ## Adds tasks
+///
+/// - `GasAdjusterTask` (only runs if someone uses the resourced listed above).
 #[derive(Debug)]
 pub struct SequencerL1GasLayer {
     gas_adjuster_config: GasAdjusterConfig,
