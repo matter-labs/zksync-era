@@ -256,26 +256,32 @@ impl EthTxManager {
             .await?;
         let blobs_operator_address = self.l1_interface.get_blobs_operator_account();
 
+        // We have to resend non-blob transactions first, otherwise in case of a temporary
+        // spike in activity, all Execute and PublishProof would need to wait until all commit txs
+        // are sent, which may take some time. We treat them as if they had higher priority.
+        if let Some(res) = self
+            .monitor_inflight_transactions_inner(storage, l1_block_numbers, operator_nonce, None)
+            .await?
+        {
+            return Ok(Some(res));
+        };
+
         if let Some(blobs_operator_nonce) = blobs_operator_nonce {
             // need to check if both nonce and address are `Some`
             if blobs_operator_address.is_none() {
                 panic!("blobs_operator_address has to be set its nonce is known; qed");
             }
-            if let Some(res) = self
+            Ok(self
                 .monitor_inflight_transactions_inner(
                     storage,
                     l1_block_numbers,
                     blobs_operator_nonce,
                     blobs_operator_address,
                 )
-                .await?
-            {
-                return Ok(Some(res));
-            }
+                .await?)
+        } else {
+            Ok(None)
         }
-
-        self.monitor_inflight_transactions_inner(storage, l1_block_numbers, operator_nonce, None)
-            .await
     }
 
     async fn monitor_inflight_transactions_inner(
