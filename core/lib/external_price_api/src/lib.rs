@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, str::FromStr};
+use std::{collections::HashMap, fmt::Debug, str::FromStr, string::ToString};
 
 use async_trait::async_trait;
 use bigdecimal::BigDecimal;
@@ -17,8 +17,11 @@ pub trait PriceAPIClient: Sync + Send + Debug {
 #[derive(Debug)]
 pub struct CoinGeckoPriceAPIClient {
     base_url: Url,
+    api_key: Option<String>,
     client: reqwest::Client,
 }
+
+const CG_AUTH_HEADER: &str = "x-cg-pro-api-key";
 
 impl CoinGeckoPriceAPIClient {
     async fn get_token_price_by_address(
@@ -37,12 +40,16 @@ impl CoinGeckoPriceAPIClient {
             )
             .expect("failed to join URL path");
 
-        let response = self
-            .client
-            .get(token_price_url)
+        let mut builder = self.client.get(token_price_url);
+
+        if let Some(x) = &self.api_key {
+            builder = builder.header(CG_AUTH_HEADER, x);
+        }
+
+        let response = builder
             .send()
             .await?
-            .json::<PriceResponse>()
+            .json::<CoinGeckoPriceResponse>()
             .await?;
         match response.get_price(&token_address.to_string(), &String::from(vs_currency)) {
             Some(&price) => Ok(price),
@@ -66,12 +73,16 @@ impl CoinGeckoPriceAPIClient {
             )
             .expect("failed to join URL path");
 
-        let response = self
-            .client
-            .get(token_price_url)
+        let mut builder = self.client.get(token_price_url);
+
+        if let Some(x) = &self.api_key {
+            builder = builder.header(CG_AUTH_HEADER, x)
+        }
+
+        let response = builder
             .send()
             .await?
-            .json::<PriceResponse>()
+            .json::<CoinGeckoPriceResponse>()
             .await?;
         match response.get_price(&token_id, &String::from(vs_currency)) {
             Some(&price) => Ok(price),
@@ -79,8 +90,12 @@ impl CoinGeckoPriceAPIClient {
         }
     }
 
-    pub fn new(base_url: Url, client: reqwest::Client) -> Self {
-        Self { base_url, client }
+    pub fn new(base_url: Url, api_key: Option<String>, client: reqwest::Client) -> Self {
+        Self {
+            base_url,
+            api_key,
+            client,
+        }
     }
 }
 
@@ -98,12 +113,12 @@ impl PriceAPIClient for CoinGeckoPriceAPIClient {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PriceResponse {
+struct CoinGeckoPriceResponse {
     #[serde(flatten)]
     pub(crate) prices: HashMap<String, HashMap<String, f64>>,
 }
 
-impl PriceResponse {
+impl CoinGeckoPriceResponse {
     fn get_price(self: &Self, address: &String, currency: &String) -> Option<&f64> {
         self.prices
             .get(address)
@@ -121,14 +136,19 @@ mod tests {
     use url::Url;
     use zksync_types::{base_token_price::BaseTokenAPIPrice, Address};
 
-    use crate::{CoinGeckoPriceAPIClient, PriceAPIClient};
+    use crate::{CoinGeckoPriceAPIClient, PriceAPIClient, CG_AUTH_HEADER};
 
     const TIME_TOLERANCE_MS: i64 = 100;
 
-    fn add_mock_by_id(server: &MockServer, id: String, price: f64) {
-        server.mock(|when, then| {
+    fn add_mock_by_id(server: &MockServer, id: String, price: f64, api_key: Option<String>) {
+        server.mock(|mut when, then| {
+            when = when
+                .method(httpmock::Method::GET)
+                .path("/api/v3/simple/price");
+            if let Some(x) = api_key {
+                when = when.header(CG_AUTH_HEADER, x);
+            }
             when.method(httpmock::Method::GET)
-                .path("/api/v3/simple/price")
                 .query_param("ids", &id)
                 .query_param("vs_currencies", "usd");
             then.status(200)
@@ -136,11 +156,20 @@ mod tests {
         });
     }
 
-    fn add_mock_by_address(server: &MockServer, address: Address, price: f64) {
-        server.mock(|when, then| {
-            when.method(httpmock::Method::GET)
-                .path("/api/v3/simple/token_price/ethereum")
-                .query_param("contract_addresses", address.to_string())
+    fn add_mock_by_address(
+        server: &MockServer,
+        address: Address,
+        price: f64,
+        api_key: Option<String>,
+    ) {
+        server.mock(|mut when, then| {
+            when = when
+                .method(httpmock::Method::GET)
+                .path("/api/v3/simple/token_price/ethereum");
+            if let Some(x) = api_key {
+                when = when.header(CG_AUTH_HEADER, x);
+            }
+            when.query_param("contract_addresses", address.to_string())
                 .query_param("vs_currencies", "usd");
             then.status(200)
                 .body(format!("{{\"{}\":{{\"usd\":{}}}}}", address, price));
@@ -151,16 +180,24 @@ mod tests {
         Url::from_str(server.url("").as_str()).unwrap()
     }
 
-    #[tokio::test]
-    async fn test_happy_day() {
+    async fn test_happy_day(api_key: Option<String>) {
         let server = MockServer::start();
         let address = Address::from_str("0x1f9840a85d5af5bf1d1762f925bdaddc4201f984").unwrap();
         let base_token_price = 198.9;
         let eth_price = 3000.0;
-        add_mock_by_address(&server, address, base_token_price);
-        add_mock_by_id(&server, String::from("ethereum"), eth_price);
+        add_mock_by_address(&server, address, base_token_price, api_key.clone());
+        add_mock_by_id(
+            &server,
+            String::from("ethereum"),
+            eth_price,
+            api_key.clone(),
+        );
 
-        let cg_client = CoinGeckoPriceAPIClient::new(server_url(&server), reqwest::Client::new());
+        let cg_client = CoinGeckoPriceAPIClient::new(
+            server_url(&server),
+            api_key.clone(),
+            reqwest::Client::new(),
+        );
         let api_price = cg_client.fetch_price(address).await.unwrap();
 
         assert_eq!(
@@ -175,12 +212,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_happy_day_with_api_key() {
+        test_happy_day(Some("test".to_string())).await
+    }
+
+    #[tokio::test]
+    async fn test_happy_day_no_api_key() {
+        test_happy_day(None).await
+    }
+
+    #[tokio::test]
     async fn test_no_eth_price() {
         let server = MockServer::start();
         let address = Address::from_str("0x1f9840a85d5af5bf1d1762f925bdaddc4201f984").unwrap();
-        add_mock_by_address(&server, address, 198.9);
+        add_mock_by_address(&server, address, 198.9, None);
 
-        let cg_client = CoinGeckoPriceAPIClient::new(server_url(&server), reqwest::Client::new());
+        let cg_client =
+            CoinGeckoPriceAPIClient::new(server_url(&server), None, reqwest::Client::new());
         let api_price = cg_client.fetch_price(address).await;
 
         assert!(api_price.is_err());
@@ -190,9 +238,10 @@ mod tests {
     async fn test_no_base_token_price() {
         let server = MockServer::start();
         let address = Address::from_str("0x1f9840a85d5af5bf1d1762f925bdaddc4201f984").unwrap();
-        add_mock_by_id(&server, String::from("ethereum"), 29.5);
+        add_mock_by_id(&server, String::from("ethereum"), 29.5, None);
 
-        let cg_client = CoinGeckoPriceAPIClient::new(server_url(&server), reqwest::Client::new());
+        let cg_client =
+            CoinGeckoPriceAPIClient::new(server_url(&server), None, reqwest::Client::new());
         let api_price = cg_client.fetch_price(address).await;
 
         assert!(api_price.is_err());
