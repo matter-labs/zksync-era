@@ -192,3 +192,7 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
+
+pub fn msg_run_prover_component_prompt(component: &str) -> String {
+    format!("Do you want to run the {}?", component)
+}
