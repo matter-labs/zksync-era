@@ -175,7 +175,7 @@ pub fn decode_genesis_upgrade_event(
                 .block_number
                 .expect("Event block number is missing")
                 .as_u64(),
-            factory_deps: factory_deps,
+            factory_deps,
         })
         .unwrap()
         .try_into()
