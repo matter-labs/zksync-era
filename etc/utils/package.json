@@ -10,10 +10,6 @@
     },
     "dependencies": {
         "chalk": "^4.0.0",
-        "uuid": "^9.0.1",
         "yaml": "^2.4.2"
-    },
-    "devDependencies": {
-        "@types/uuid": "^9.0.8"
     }
 }
