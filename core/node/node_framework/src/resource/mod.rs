@@ -9,8 +9,33 @@ mod unique;
 /// Typically, the type that implements this trait also should implement `Clone`
 /// since the same resource may be requested by several tasks and thus it would be an additional
 /// bound on most methods that work with [`Resource`].
+///
+/// # Example
+///
+/// ```
+/// # use zksync_node_framework::resource::Resource;
+/// # use std::sync::Arc;
+///
+/// /// An abstract interface you want to share.
+/// /// Normally you want the interface to be thread-safe.
+/// trait MyInterface: 'static + Send + Sync {
+///    fn do_something(&self);
+/// }
+///
+/// /// Resource wrapper.
+/// #[derive(Clone)]
+/// struct MyResource(Arc<dyn MyInterface>);
+///
+/// impl Resource for MyResource {
+///    fn name() -> String {
+///       // It is a helpful practice to follow a structured naming pattern for resource names.
+///       // For example, you can use a certain prefix for all resources related to a some component, e.g. `api`.
+///       "common/my_resource".to_string()
+///    }
+/// }
+/// ```
 pub trait Resource: 'static + Send + Sync + std::any::Any {
-    /// Invoked after wiring phase of the service is done.
+    /// Invoked after the wiring phase of the service is done.
     /// Can be used to perform additional resource preparation, knowing that the resource
     /// is guaranteed to be requested by all the tasks that need it.
     fn on_resource_wired(&mut self) {}

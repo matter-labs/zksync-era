@@ -8,8 +8,10 @@ use crate::{
     wiring_layer::WiringError,
 };
 
-/// An interface to the service's resources provided to the tasks during initialization.
-/// Provides the ability to fetch required resources, and also gives access to the Tokio runtime handle.
+/// An interface to the service provided to the tasks during initialization.
+/// This the main point of interaction between with the service.
+///
+/// The context provides access to the runtime, resources, and allows adding new tasks.
 #[derive(Debug)]
 pub struct ServiceContext<'a> {
     layer: &'a str,
@@ -17,16 +19,26 @@ pub struct ServiceContext<'a> {
 }
 
 impl<'a> ServiceContext<'a> {
+    /// Instantiates a new context.
+    /// The context keeps information about the layer that created it for reporting purposes.
     pub(super) fn new(layer: &'a str, service: &'a mut ZkStackService) -> Self {
         Self { layer, service }
     }
 
     /// Provides access to the runtime used by the service.
+    ///
     /// Can be used to spawn additional tasks within the same runtime.
     /// If some tasks stores the handle to spawn additional tasks, it is expected to do all the required
     /// cleanup.
     ///
-    /// In most cases, however, it is recommended to use [`add_task`] method instead.
+    /// In most cases, however, it is recommended to use [`add_task`](ServiceContext::add_task) or its alternative
+    /// instead.
+    ///
+    /// ## Note
+    ///
+    /// While `tokio::spawn` and `tokio::spawn_blocking` will work as well, using the runtime handle
+    /// from the context is still a recommended way to get access to runtime, as it tracks the access
+    /// to the runtimes by layers.
     pub fn runtime_handle(&self) -> &tokio::runtime::Handle {
         tracing::info!(
             "Layer {} has requested access to the Tokio runtime",
@@ -36,6 +48,7 @@ impl<'a> ServiceContext<'a> {
     }
 
     /// Adds a task to the service.
+    ///
     /// Added tasks will be launched after the wiring process will be finished and all the preconditions
     /// are met.
     pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
@@ -45,6 +58,7 @@ impl<'a> ServiceContext<'a> {
     }
 
     /// Adds an unconstrained task to the service.
+    ///
     /// Unconstrained tasks will be launched immediately after the wiring process is finished.
     pub fn add_unconstrained_task(&mut self, task: Box<dyn UnconstrainedTask>) -> &mut Self {
         tracing::info!(
@@ -57,6 +71,8 @@ impl<'a> ServiceContext<'a> {
     }
 
     /// Adds a precondition to the service.
+    ///
+    /// All the added tasks and oneshot tasks will only be able to run after all the preconditions are checked.
     pub fn add_precondition(&mut self, precondition: Box<dyn Precondition>) -> &mut Self {
         tracing::info!(
             "Layer {} has added a new precondition: {}",
@@ -68,6 +84,10 @@ impl<'a> ServiceContext<'a> {
     }
 
     /// Adds an oneshot task to the service.
+    ///
+    /// Oneshot tasks will be launched after the wiring process will be finished and all the preconditions
+    /// are met.
+    /// Unlike regular tasks, oneshot tasks are allowed to exit without causing the service to stop.
     pub fn add_oneshot_task(&mut self, task: Box<dyn OneshotTask>) -> &mut Self {
         tracing::info!(
             "Layer {} has added a new oneshot task: {}",
@@ -79,6 +99,9 @@ impl<'a> ServiceContext<'a> {
     }
 
     /// Adds an unconstrained oneshot task to the service.
+    ///
+    /// Unconstrained oneshot tasks will be launched immediately after the wiring process is finished.
+    /// Unlike regular tasks, oneshot tasks are allowed to exit without causing the service to stop.
     pub fn add_unconstrained_oneshot_task(
         &mut self,
         task: Box<dyn UnconstrainedOneshotTask>,
@@ -95,14 +118,16 @@ impl<'a> ServiceContext<'a> {
         self
     }
 
-    /// Attempts to retrieve the resource with the specified name.
-    /// Internally the resources are stored as [`std::any::Any`], and this method does the downcasting
-    /// on behalf of the caller.
+    /// Attempts to retrieve the resource of the specified type.
     ///
     /// ## Panics
     ///
-    /// Panics if the resource with the specified name exists, but is not of the requested type.
+    /// Panics if the resource with the specified [`ResourceId`] exists, but is not of the requested type.
     pub async fn get_resource<T: Resource + Clone>(&mut self) -> Result<T, WiringError> {
+        // Implementation details:
+        // Internally the resources are stored as [`std::any::Any`], and this method does the downcasting
+        // on behalf of the caller.
+
         #[allow(clippy::borrowed_box)]
         let downcast_clone = |resource: &Box<dyn StoredResource>| {
             resource
@@ -173,7 +198,7 @@ impl<'a> ServiceContext<'a> {
     }
 
     /// Adds a resource to the service.
-    /// If the resource with the same name is already provided, the method will return an error.
+    /// If the resource with the same type is already provided, the method will return an error.
     pub fn insert_resource<T: Resource>(&mut self, resource: T) -> Result<(), WiringError> {
         let id = ResourceId::of::<T>();
         if self.service.resources.contains_key(&id) {

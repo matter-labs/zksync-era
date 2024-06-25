@@ -1,5 +1,6 @@
 use crate::wiring_layer::WiringError;
 
+/// An error that can occur during the service lifecycle.
 #[derive(Debug, thiserror::Error)]
 pub enum ZkStackServiceError {
     #[error("Detected a Tokio Runtime. ZkStackService manages its own runtime and does not support nested runtimes")]

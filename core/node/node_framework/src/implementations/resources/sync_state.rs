@@ -7,6 +7,6 @@ pub struct SyncStateResource(pub SyncState);
 
 impl Resource for SyncStateResource {
     fn name() -> String {
-        "sync_state".into()
+        "common/sync_state".into()
     }
 }
