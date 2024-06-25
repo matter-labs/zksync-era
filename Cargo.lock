@@ -3309,7 +3309,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_eth_client",
  "zksync_eth_signer",
- "zksync_prometheus_exporter",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
@@ -5764,7 +5763,6 @@ dependencies = [
  "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_types",
  "zksync_vlog",
 ]
@@ -7025,7 +7023,7 @@ dependencies = [
  "iai",
  "tokio",
  "vise",
- "zksync_prometheus_exporter",
+ "zksync_vlog",
  "zksync_vm_benchmark_harness",
 ]
 
@@ -7997,7 +7995,6 @@ dependencies = [
  "zksync_contract_verifier_lib",
  "zksync_dal",
  "zksync_env_config",
- "zksync_prometheus_exporter",
  "zksync_queued_job_processor",
  "zksync_utils",
  "zksync_vlog",
@@ -8271,7 +8268,6 @@ dependencies = [
  "zksync_node_genesis",
  "zksync_node_sync",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_protobuf_config",
  "zksync_reorg_detector",
  "zksync_shared_metrics",
@@ -8615,7 +8611,6 @@ dependencies = [
  "zksync_node_fee_model",
  "zksync_node_sync",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
  "zksync_prover_dal",
@@ -8724,16 +8719,6 @@ dependencies = [
  "zksync_config",
  "zksync_protobuf",
  "zksync_types",
-]
-
-[[package]]
-name = "zksync_prometheus_exporter"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "tokio",
- "vise",
- "vise-exporter",
 ]
 
 [[package]]
@@ -8895,7 +8880,6 @@ dependencies = [
  "zksync_node_api_server",
  "zksync_node_framework",
  "zksync_node_genesis",
- "zksync_prometheus_exporter",
  "zksync_protobuf_config",
  "zksync_storage",
  "zksync_types",
@@ -9138,6 +9122,7 @@ dependencies = [
 name = "zksync_vlog"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -9145,9 +9130,12 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "vise",
+ "vise-exporter",
 ]
 
 [[package]]

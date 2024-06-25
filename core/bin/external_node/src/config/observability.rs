@@ -2,8 +2,7 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_prometheus_exporter::PrometheusExporterConfig;
-use zksync_vlog::LogFormat;
+use zksync_vlog::{prometheus::PrometheusExporterConfig, LogFormat};
 
 use super::{ConfigurationSource, Environment};
 

@@ -1,5 +1,5 @@
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_prometheus_exporter::PrometheusExporterConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,

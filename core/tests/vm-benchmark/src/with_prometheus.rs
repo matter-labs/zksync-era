@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use tokio::sync::watch;
-use zksync_prometheus_exporter::PrometheusExporterConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 pub fn with_prometheus<F: FnOnce()>(f: F) {
     tokio::runtime::Runtime::new()

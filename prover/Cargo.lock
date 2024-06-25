@@ -8067,16 +8067,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_prometheus_exporter"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "tokio",
- "vise",
- "vise-exporter",
-]
-
-[[package]]
 name = "zksync_proof_fri_compressor"
 version = "0.1.0"
 dependencies = [
@@ -8100,7 +8090,6 @@ dependencies = [
  "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_interface",
@@ -8208,7 +8197,6 @@ dependencies = [
  "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
@@ -8237,7 +8225,6 @@ dependencies = [
  "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_interface",
@@ -8408,6 +8395,7 @@ dependencies = [
 name = "zksync_vlog"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -8415,9 +8403,12 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "vise",
+ "vise-exporter",
 ]
 
 [[package]]
@@ -8469,7 +8460,6 @@ dependencies = [
  "zksync_env_config",
  "zksync_multivm",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_protobuf_config",
  "zksync_prover_config",
  "zksync_prover_dal",
@@ -8503,7 +8493,6 @@ dependencies = [
  "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",

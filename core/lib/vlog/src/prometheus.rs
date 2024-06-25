@@ -1,3 +1,5 @@
+//! Prometheus-related functionality, such as [`PrometheusExporterConfig`].
+
 use std::{net::Ipv4Addr, time::Duration};
 
 use anyhow::Context as _;
