@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                *\n            FROM\n                base_token_ratios\n            ORDER BY\n                created_at DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 2,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 3,
+        "name": "ratio_timestamp",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 4,
+        "name": "numerator",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "denominator",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 6,
+        "name": "used_in_l1",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "643bf0ed5168d96e35bb42a5e1ac7cb0460a87fdbe5bf0e474b2711d7fc5d765"
+}
