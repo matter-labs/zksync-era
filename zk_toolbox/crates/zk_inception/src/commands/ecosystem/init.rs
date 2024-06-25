@@ -170,7 +170,7 @@ async fn init(
     initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
+    // install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
@@ -353,6 +353,6 @@ fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Resu
 }
 
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Cmd::new(cmd!(shell, "yarn sc build")).run()
+    let _dir_guard = shell.push_dir(link_to_code.join("contracts/system-contracts"));
+    Cmd::new(cmd!(shell, "forge build --zksync")).run()
 }
