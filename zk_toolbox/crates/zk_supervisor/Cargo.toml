@@ -21,4 +21,4 @@ strum_macros.workspace = true
 tokio.workspace = true
 url.workspace = true
 xshell.workspace = true
-serde = { version = "1.0.197", features = ["derive"] }
+serde.workspace = true

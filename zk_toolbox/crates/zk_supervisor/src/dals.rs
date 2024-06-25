@@ -4,7 +4,7 @@ use config::{EcosystemConfig, SecretsConfig};
 use url::Url;
 use xshell::Shell;
 
-use crate::messages::MSG_CHAIN_NOT_FOUND_ERR;
+use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_PROVER_URL_MUST_BE_PRESENTED};
 
 const CORE_DAL_PATH: &str = "core/lib/dal";
 const PROVER_DAL_PATH: &str = "prover/prover_dal";
@@ -49,7 +49,7 @@ pub fn get_prover_dal(shell: &Shell) -> anyhow::Result<Dal> {
         url: secrets
             .database
             .prover_url
-            .context("Prover url must be presented")?
+            .context(MSG_PROVER_URL_MUST_BE_PRESENTED)?
             .clone(),
     })
 }

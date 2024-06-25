@@ -19,8 +19,8 @@ use crate::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_COMPLETED,
         MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
-        MSG_INITIALIZING_SERVER_DATABASE, MSG_SELECTED_CONFIG, MSG_STARTING_GENESIS,
-        MSG_STARTING_GENESIS_SPINNER,
+        MSG_INITIALIZING_SERVER_DATABASE, MSG_RECREATE_ROCKS_DB_ERRROR, MSG_SELECTED_CONFIG,
+        MSG_STARTING_GENESIS, MSG_STARTING_GENESIS_SPINNER,
     },
     server::{RunServer, ServerMode},
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
@@ -48,7 +48,7 @@ pub async fn genesis(
     shell.create_dir(&config.rocks_db_path)?;
 
     let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
-        .context("Failed to create rocks db path")?;
+        .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
     let mut general = config.get_general_config()?;
     general.set_rocks_db_config(rocks_db)?;
     if config.prover_version != ProverMode::NoProofs {

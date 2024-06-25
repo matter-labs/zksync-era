@@ -367,7 +367,6 @@ function loadConfig(pathToHome: string, chainName: string, config: string, mode:
         suffixPath = path.join('external_node', suffixPath);
     }
     configPath = path.join(configPath, suffixPath);
-    console.log(configPath);
     if (!fs.existsSync(configPath)) {
         return [];
     }
