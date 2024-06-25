@@ -577,7 +577,7 @@ impl OptionalENConfig {
             ),
             merkle_tree_block_cache_size_mb: load_config_or_default!(
                 general_config.db_config,
-                experimental.state_keeper_db_block_cache_capacity_mb,
+                merkle_tree.block_cache_size_mb,
                 default_merkle_tree_block_cache_size_mb
             ),
             merkle_tree_memtable_capacity_mb: load_config_or_default!(
@@ -637,8 +637,8 @@ impl OptionalENConfig {
             protective_reads_persistence_enabled: general_config
                 .db_config
                 .as_ref()
-                .map(|a| a.experimental.reads_persistence_enabled)
-                .unwrap_or_default(),
+                .map(|a| a.experimental.protective_reads_persistence_enabled)
+                .unwrap_or(true),
             merkle_tree_processing_delay_ms: load_config_or_default!(
                 general_config.db_config,
                 experimental.processing_delay_ms,
@@ -936,7 +936,10 @@ impl RequiredENConfig {
             .api_config
             .as_ref()
             .context("Api config is required")?;
-        let db_config = general.db_config.as_ref().context("Database config")?;
+        let db_config = general
+            .db_config
+            .as_ref()
+            .context("Database config is required")?;
         Ok(RequiredENConfig {
             l1_chain_id: en_config.l1_chain_id,
             l2_chain_id: en_config.l2_chain_id,

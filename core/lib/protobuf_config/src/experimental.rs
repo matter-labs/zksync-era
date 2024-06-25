@@ -21,7 +21,9 @@ impl ProtoRepr for proto::Db {
                 .map(|count| NonZeroU32::new(count).context("cannot be 0"))
                 .transpose()
                 .context("state_keeper_db_max_open_files")?,
-            reads_persistence_enabled: self.reads_persistence_enabled.unwrap_or_default(),
+            protective_reads_persistence_enabled: self
+                .reads_persistence_enabled
+                .unwrap_or_default(),
             processing_delay_ms: self.processing_delay_ms.unwrap_or_default(),
             include_indices_and_filters_in_block_cache: self
                 .include_indices_and_filters_in_block_cache
@@ -39,7 +41,7 @@ impl ProtoRepr for proto::Db {
             state_keeper_db_max_open_files: this
                 .state_keeper_db_max_open_files
                 .map(NonZeroU32::get),
-            reads_persistence_enabled: Some(this.reads_persistence_enabled),
+            reads_persistence_enabled: Some(this.protective_reads_persistence_enabled),
             processing_delay_ms: Some(this.processing_delay_ms),
             include_indices_and_filters_in_block_cache: Some(
                 this.include_indices_and_filters_in_block_cache,

@@ -284,7 +284,7 @@ impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
         configs::ExperimentalDBConfig {
             state_keeper_db_block_cache_capacity_mb: self.sample(rng),
             state_keeper_db_max_open_files: self.sample(rng),
-            reads_persistence_enabled: self.sample(rng),
+            protective_reads_persistence_enabled: self.sample(rng),
             processing_delay_ms: self.sample(rng),
             include_indices_and_filters_in_block_cache: self.sample(rng),
         }

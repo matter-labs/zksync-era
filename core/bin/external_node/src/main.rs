@@ -714,7 +714,7 @@ struct Cli {
     /// Path to the yaml with secrets. If set, it will be used instead of env vars.
     #[arg(long, requires = "config_path", requires = "external_node_config_path")]
     secrets_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with genesis. If set, it will be used instead of env vars.
+    /// Path to the yaml with external node specific configuration. If set, it will be used instead of env vars.
     #[arg(long, requires = "config_path", requires = "secrets_path")]
     external_node_config_path: Option<std::path::PathBuf>,
     /// Path to the yaml with consensus.
