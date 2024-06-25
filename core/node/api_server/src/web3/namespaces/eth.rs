@@ -695,6 +695,8 @@ impl EthNamespace {
             base_fee_per_gas,
             gas_used_ratio,
             reward,
+            base_fee_per_blob_gas: vec![],
+            blob_gas_used_ratio: vec![],
         })
     }
 
