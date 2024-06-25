@@ -49,7 +49,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_prometheus_exporter::PrometheusExporterConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
