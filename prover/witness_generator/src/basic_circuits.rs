@@ -424,19 +424,14 @@ async fn generate_witness(
 
     let mut tree = PrecalculatedMerklePathsProvider::new(
         input.merkle_paths,
-        input
-            .vm_run_data
-            .previous_batch_with_metadata
-            .metadata
-            .root_hash
-            .0,
+        input.vm_run_data.previous_root_hash.0,
     );
     let geometry_config = get_geometry_config();
     let mut hasher = DefaultHasher::new();
     geometry_config.hash(&mut hasher);
     tracing::info!(
         "generating witness for block {} using geometry config hash: {}",
-        input.vm_run_data.l1_batch_header.number.0,
+        input.vm_run_data.l1_batch_number.0
         hasher.finish()
     );
 
@@ -519,18 +514,8 @@ async fn generate_witness(
 
     recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
 
-    scheduler_witness.previous_block_meta_hash = input
-        .vm_run_data
-        .previous_batch_with_metadata
-        .metadata
-        .meta_parameters_hash
-        .0;
-    scheduler_witness.previous_block_aux_hash = input
-        .vm_run_data
-        .previous_batch_with_metadata
-        .metadata
-        .aux_data_hash
-        .0;
+    scheduler_witness.previous_block_meta_hash = input.vm_run_data.previous_meta_hash.0;
+    scheduler_witness.previous_block_aux_hash = input.vm_run_data.previous_aux_hash.0;
 
     (
         circuit_urls,

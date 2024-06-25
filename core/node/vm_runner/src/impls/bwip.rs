@@ -149,7 +149,19 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 
         let mut connection = self.pool.connection().await?;
 
-        let mut result = get_database_witness_input_data(&mut connection, l1_batch_number).await;
+        let db_result = get_database_witness_input_data(&mut connection, l1_batch_number).await;
+        let mut result =
+            get_updates_manager_witness_input_data(updates_manager.clone(), &mut connection).await;
+
+        // todo: update this assert
+        assert_eq!(db_result, result);
+
+        let previous_batch_with_metadata = connection
+            .blocks_dal()
+            .get_l1_batch_metadata(L1BatchNumber(l1_batch_number.checked_sub(1).unwrap()))
+            .await
+            .unwrap()
+            .unwrap();
 
         let block_state = WitnessBlockState {
             read_storage_key: updates_manager.storage_view_cache.read_storage_keys(),
@@ -157,6 +169,9 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         };
 
         result.witness_block_state = block_state;
+        result.previous_aux_hash = previous_batch_with_metadata.metadata.aux_data_hash;
+        result.previous_meta_hash = previous_batch_with_metadata.metadata.meta_parameters_hash;
+        result.previous_root_hash = previous_batch_with_metadata.metadata.root_hash;
 
         let blob_url = self.object_store.put(l1_batch_number, &result).await?;
         self.pool
@@ -180,91 +195,85 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
     }
 }
 
-// async fn get_updates_manager_witness_input_data(
-//     updates_manager: Arc<UpdatesManager>,
-// ) -> VMRunWitnessInputData {
-//     let block_header = connection
-//         .blocks_dal()
-//         .get_l1_batch_header(l1_batch_number)
-//         .await
-//         .unwrap()
-//         .unwrap();
-//
-//     let initial_heap_content = connection
-//         .blocks_dal()
-//         .get_initial_bootloader_heap(l1_batch_number)
-//         .await
-//         .unwrap()
-//         .unwrap();
-//
-//     let account_code_hash = h256_to_u256(block_header.base_system_contracts_hashes.default_aa);
-//     let account_bytecode_bytes = connection
-//         .factory_deps_dal()
-//         .get_sealed_factory_dep(block_header.base_system_contracts_hashes.default_aa)
-//         .await
-//         .expect("Failed fetching default account bytecode from DB")
-//         .expect("Default account bytecode should exist");
-//     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-//
-//     let hashes: HashSet<H256> = block_header
-//         .used_contract_hashes
-//         .iter()
-//         // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
-//         .filter(|&&hash| hash != h256_to_u256(block_header.base_system_contracts_hashes.bootloader))
-//         .map(|hash| u256_to_h256(*hash))
-//         .collect();
-//     let mut used_bytecodes = connection
-//         .factory_deps_dal()
-//         .get_factory_deps(&hashes)
-//         .await;
-//     if block_header
-//         .used_contract_hashes
-//         .contains(&account_code_hash)
-//     {
-//         used_bytecodes.insert(account_code_hash, account_bytecode);
-//     }
-//
-//     assert_eq!(
-//         hashes.len(),
-//         used_bytecodes.len(),
-//         "{} factory deps are not found in DB",
-//         hashes.len() - used_bytecodes.len()
-//     );
-//
-//     let previous_batch_with_metadata = connection
-//         .blocks_dal()
-//         .get_l1_batch_metadata(L1BatchNumber(block_header.number.checked_sub(1).unwrap()))
-//         .await
-//         .unwrap()
-//         .unwrap();
-//
-//     let StorageOracleInfo {
-//         storage_refunds,
-//         pubdata_costs,
-//     } = connection
-//         .blocks_dal()
-//         .get_storage_oracle_info(block_header.number)
-//         .await
-//         .unwrap()
-//         .unwrap();
-//
-//     VMRunWitnessInputData {
-//         l1_batch_header: block_header.clone(),
-//         previous_batch_with_metadata,
-//         used_bytecodes,
-//         initial_heap_content,
-//
-//         protocol_version: block_header
-//             .protocol_version
-//             .unwrap_or(ProtocolVersionId::last_potentially_undefined()),
-//
-//         bootloader_code: vec![],
-//         default_account_code_hash: account_code_hash,
-//         storage_refunds,
-//         pubdata_costs,
-//         witness_block_state: WitnessBlockState::default(),
-//     }
-// }
+async fn get_updates_manager_witness_input_data(
+    updates_manager: Arc<UpdatesManager>,
+    connection: &mut Connection<Core>,
+) -> VMRunWitnessInputData {
+    let l1_batch_number = updates_manager.l1_batch.number.clone();
+    let finished_batch = updates_manager
+        .l1_batch
+        .finished
+        .clone()
+        .expect(format!("L1 batch {l1_batch_number:?} is not finished").as_str());
+
+    let block_header = connection
+        .blocks_dal()
+        .get_l1_batch_header(l1_batch_number)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let initial_heap_content = finished_batch.final_bootloader_memory.unwrap(); // might be just empty
+    let default_aa = updates_manager
+        .base_system_contract_hashes()
+        .default_aa
+        .clone();
+    let bootloader = updates_manager
+        .base_system_contract_hashes()
+        .bootloader
+        .clone();
+
+    let account_code_hash = h256_to_u256(default_aa);
+    let account_bytecode_bytes = connection
+        .factory_deps_dal()
+        .get_sealed_factory_dep(default_aa)
+        .await
+        .expect("Failed fetching default account bytecode from DB")
+        .expect("Default account bytecode should exist");
+    let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
+
+    let hashes: HashSet<H256> = finished_batch
+        .final_execution_state
+        .used_contract_hashes
+        .iter()
+        // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
+        .filter(|&&hash| hash != h256_to_u256(bootloader))
+        .map(|hash| u256_to_h256(*hash))
+        .collect();
+    let mut used_bytecodes = connection
+        .factory_deps_dal()
+        .get_factory_deps(&hashes)
+        .await;
+    if finished_batch
+        .final_execution_state
+        .used_contract_hashes
+        .contains(&account_code_hash)
+    {
+        used_bytecodes.insert(account_code_hash, account_bytecode);
+    }
+
+    let storage_refunds = finished_batch.final_execution_state.storage_refunds;
+    let pubdata_costs = Some(finished_batch.final_execution_state.pubdata_costs);
+
+    VMRunWitnessInputData {
+        l1_batch_number,
+        previous_aux_hash: H256::zero(),
+        previous_meta_hash: H256::zero(),
+        previous_root_hash: H256::zero(),
+        used_bytecodes,
+        initial_heap_content,
+
+        protocol_version: block_header
+            .protocol_version
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined()),
+
+        bootloader_code: bytes_to_chunks(bootloader.as_bytes()),
+        default_account_code_hash: account_code_hash,
+        storage_refunds,
+        pubdata_costs,
+        witness_block_state: WitnessBlockState::default(),
+    }
+}
 
 async fn get_database_witness_input_data(
     connection: &mut Connection<Core>,
@@ -318,13 +327,6 @@ async fn get_database_witness_input_data(
         hashes.len() - used_bytecodes.len()
     );
 
-    let previous_batch_with_metadata = connection
-        .blocks_dal()
-        .get_l1_batch_metadata(L1BatchNumber(block_header.number.checked_sub(1).unwrap()))
-        .await
-        .unwrap()
-        .unwrap();
-
     let StorageOracleInfo {
         storage_refunds,
         pubdata_costs,
@@ -336,8 +338,10 @@ async fn get_database_witness_input_data(
         .unwrap();
 
     VMRunWitnessInputData {
-        l1_batch_header: block_header.clone(),
-        previous_batch_with_metadata,
+        l1_batch_number: block_header.number,
+        previous_root_hash: H256::zero(),
+        previous_meta_hash: H256::zero(),
+        previous_aux_hash: H256::zero(),
         used_bytecodes,
         initial_heap_content,
 
@@ -345,7 +349,12 @@ async fn get_database_witness_input_data(
             .protocol_version
             .unwrap_or(ProtocolVersionId::last_potentially_undefined()),
 
-        bootloader_code: vec![],
+        bootloader_code: bytes_to_chunks(
+            block_header
+                .base_system_contracts_hashes
+                .bootloader
+                .as_bytes(),
+        ),
         default_account_code_hash: account_code_hash,
         storage_refunds,
         pubdata_costs,

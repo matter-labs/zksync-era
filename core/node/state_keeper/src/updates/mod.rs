@@ -69,7 +69,7 @@ impl UpdatesManager {
         self.batch_timestamp
     }
 
-    pub(crate) fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
+    pub fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
         self.base_system_contract_hashes
     }
 
