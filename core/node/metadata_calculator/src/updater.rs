@@ -5,6 +5,7 @@ use std::{ops, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
+use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{helpers::wait_for_l1_batch, Connection, ConnectionPool, Core, CoreDal};
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
@@ -189,7 +190,9 @@ impl TreeUpdater {
         mut storage: Connection<'_, Core>,
         next_l1_batch_to_process: &mut L1BatchNumber,
     ) -> anyhow::Result<()> {
-        let last_l1_batch_with_protective_reads = if self.sealed_batches_have_protective_reads {
+        let last_l1_batch_with_protective_reads = if self.tree.mode() == MerkleTreeMode::Lightweight
+            || self.sealed_batches_have_protective_reads
+        {
             let Some(last_sealed_l1_batch) = storage
                 .blocks_dal()
                 .get_sealed_l1_batch_number()
