@@ -2464,7 +2464,7 @@ dependencies = [
  "no-std-compat",
  "nonzero_ext",
  "parking_lot",
- "quanta 0.9.3",
+ "quanta",
  "rand 0.8.5",
  "smallvec",
 ]
@@ -2537,15 +2537,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 dependencies = [
  "ahash 0.7.7",
-]
-
-[[package]]
-name = "hashbrown"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33ff8ae62cd3a9102e5637afc8452c55acf3844001bd5374e0b0bd7b6616c038"
-dependencies = [
- "ahash 0.8.7",
 ]
 
 [[package]]
@@ -3318,7 +3309,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_eth_client",
  "zksync_eth_signer",
- "zksync_prometheus_exporter",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
@@ -3400,15 +3390,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mach2"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d0d1830bcd151a6fc4aea1369af235b36c1528fe976b8ff678683c9995eade8"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "match_cfg"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3482,61 +3463,6 @@ dependencies = [
  "zksync_storage",
  "zksync_types",
  "zksync_vlog",
-]
-
-[[package]]
-name = "metrics"
-version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fde3af1a009ed76a778cb84fdef9e7dbbdf5775ae3e4cc1f434a6a307f6f76c5"
-dependencies = [
- "ahash 0.8.7",
- "metrics-macros",
- "portable-atomic",
-]
-
-[[package]]
-name = "metrics-exporter-prometheus"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a4964177ddfdab1e3a2b37aec7cf320e14169abb0ed73999f558136409178d5"
-dependencies = [
- "base64 0.21.5",
- "hyper",
- "indexmap 1.9.3",
- "ipnet",
- "metrics",
- "metrics-util",
- "quanta 0.11.1",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "metrics-macros"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddece26afd34c31585c74a4db0630c376df271c285d682d1e55012197830b6df"
-dependencies = [
- "proc-macro2 1.0.69",
- "quote 1.0.33",
- "syn 2.0.38",
-]
-
-[[package]]
-name = "metrics-util"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4de2ed6e491ed114b40b732e4d1659a9d53992ebd87490c44a6ffe23739d973e"
-dependencies = [
- "crossbeam-epoch 0.9.15",
- "crossbeam-utils 0.8.16",
- "hashbrown 0.13.1",
- "metrics",
- "num_cpus",
- "quanta 0.11.1",
- "sketches-ddsketch",
 ]
 
 [[package]]
@@ -4405,12 +4331,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "portable-atomic"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b559898e0b4931ed2d3b959ab0c2da4d99cc644c4b0b1a35b4d344027f474023"
-
-[[package]]
 name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4718,22 +4638,6 @@ dependencies = [
  "once_cell",
  "raw-cpuid",
  "wasi 0.10.2+wasi-snapshot-preview1",
- "web-sys",
- "winapi",
-]
-
-[[package]]
-name = "quanta"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a17e662a7a8291a865152364c20c7abc5e60486ab2001e8ec10b24862de0b9ab"
-dependencies = [
- "crossbeam-utils 0.8.16",
- "libc",
- "mach2",
- "once_cell",
- "raw-cpuid",
- "wasi 0.11.0+wasi-snapshot-preview1",
  "web-sys",
  "winapi",
 ]
@@ -5828,12 +5732,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sketches-ddsketch"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68a406c1882ed7f29cd5e248c9848a80e7cb6ae0fea82346d2746f2f941c07e1"
-
-[[package]]
 name = "slab"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5865,7 +5763,6 @@ dependencies = [
  "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_types",
  "zksync_vlog",
 ]
@@ -7102,7 +6999,6 @@ version = "0.1.0"
 source = "git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4#a5bb80c9ce7168663114ee30e794d6dc32159ee4"
 dependencies = [
  "hyper",
- "metrics-exporter-prometheus",
  "once_cell",
  "tokio",
  "tracing",
@@ -7125,9 +7021,9 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "iai",
- "metrics-exporter-prometheus",
  "tokio",
  "vise",
+ "zksync_vlog",
  "zksync_vm_benchmark_harness",
 ]
 
@@ -8100,7 +7996,6 @@ dependencies = [
  "zksync_contract_verifier_lib",
  "zksync_dal",
  "zksync_env_config",
- "zksync_prometheus_exporter",
  "zksync_queued_job_processor",
  "zksync_utils",
  "zksync_vlog",
@@ -8374,7 +8269,6 @@ dependencies = [
  "zksync_node_genesis",
  "zksync_node_sync",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_protobuf_config",
  "zksync_reorg_detector",
  "zksync_shared_metrics",
@@ -8572,6 +8466,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "strum",
  "test-casing",
  "thiserror",
  "thread_local",
@@ -8692,6 +8587,7 @@ dependencies = [
  "async-trait",
  "ctrlc",
  "futures 0.3.28",
+ "pin-project-lite",
  "thiserror",
  "tokio",
  "tracing",
@@ -8718,7 +8614,6 @@ dependencies = [
  "zksync_node_fee_model",
  "zksync_node_sync",
  "zksync_object_store",
- "zksync_prometheus_exporter",
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
  "zksync_prover_dal",
@@ -8827,18 +8722,6 @@ dependencies = [
  "zksync_config",
  "zksync_protobuf",
  "zksync_types",
-]
-
-[[package]]
-name = "zksync_prometheus_exporter"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "metrics",
- "metrics-exporter-prometheus",
- "tokio",
- "vise",
- "vise-exporter",
 ]
 
 [[package]]
@@ -9000,7 +8883,6 @@ dependencies = [
  "zksync_node_api_server",
  "zksync_node_framework",
  "zksync_node_genesis",
- "zksync_prometheus_exporter",
  "zksync_protobuf_config",
  "zksync_storage",
  "zksync_types",
@@ -9243,6 +9125,7 @@ dependencies = [
 name = "zksync_vlog"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -9250,9 +9133,12 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "vise",
+ "vise-exporter",
 ]
 
 [[package]]

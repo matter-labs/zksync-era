@@ -14,11 +14,13 @@ use crate::{
 /// [`zksync_circuit_breaker::CircuitBreakers`] collection using [`CircuitBreakersResource`].
 /// The added task periodically runs checks for all inserted circuit breakers.
 ///
-/// ## Adds resources
-/// - [`CircuitBreakersResource`]
+/// ## Requests resources
+///
+/// - `CircuitBreakersResource`
 ///
 /// ## Adds tasks
-/// - [`CircuitBreakerCheckerTask`] (as [`UnconstrainedTask`])
+///
+/// - `CircuitBreakerCheckerTask`
 #[derive(Debug)]
 pub struct CircuitBreakerCheckerLayer(pub CircuitBreakerConfig);
 

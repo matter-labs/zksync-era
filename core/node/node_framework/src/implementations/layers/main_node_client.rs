@@ -13,6 +13,15 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for main node client.
+///
+/// ## Requests resources
+///
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds resources
+///
+/// - `MainNodeClientResource`
 #[derive(Debug)]
 pub struct MainNodeClientLayer {
     url: SensitiveUrl,

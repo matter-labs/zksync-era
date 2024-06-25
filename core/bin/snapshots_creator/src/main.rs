@@ -18,7 +18,7 @@ use zksync_config::{
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prometheus_exporter::PrometheusExporterConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::creator::SnapshotCreator;
 

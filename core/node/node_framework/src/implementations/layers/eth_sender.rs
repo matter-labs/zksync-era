@@ -24,15 +24,17 @@ use crate::{
 /// of `eth_txs`(such as `CommitBlocks`, `PublishProofBlocksOnchain` or `ExecuteBlock` ) to L1.
 ///
 /// ## Requests resources
-/// - [`PoolResource`] for [`MasterPool`]
-/// - [`PoolResource`] for [`ReplicaPool`]
-/// - [`BoundEthInterfaceResource`]
-/// - [`BoundEthInterfaceForBlobsResource`]
-/// - [`L1TxParamsResource`]
-/// - [`CircuitBreakersResource`] (to add new circuit breaker)
+///
+/// - `PoolResource<MasterPool>`
+/// - `PoolResource<ReplicaPool>`
+/// - `BoundEthInterfaceResource`
+/// - `BoundEthInterfaceForBlobsResource` (optional)
+/// - `L1TxParamsResource`
+/// - `CircuitBreakersResource` (adds a circuit breaker)
 ///
 /// ## Adds tasks
-/// - [`EthTxManagerTask`] (as [`Task`])
+///
+/// - `EthTxManager`
 #[derive(Debug)]
 pub struct EthTxManagerLayer {
     eth_sender_config: EthConfig,
@@ -79,9 +81,7 @@ impl WiringLayer for EthTxManagerLayer {
             eth_client_blobs,
         );
 
-        context.add_task(Box::new(EthTxManagerTask {
-            eth_tx_manager_actor,
-        }));
+        context.add_task(Box::new(eth_tx_manager_actor));
 
         // Insert circuit breaker.
         let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
@@ -100,15 +100,17 @@ impl WiringLayer for EthTxManagerLayer {
 /// These `eth_txs` will be used as a queue for generating signed txs and will be sent later on L1.
 ///
 /// ## Requests resources
-/// - [`PoolResource`] for [`MasterPool`]
-/// - [`PoolResource`] for [`ReplicaPool`]
-/// - [`BoundEthInterfaceResource`]
-/// - [`BoundEthInterfaceForBlobsResource`]
-/// - [`ObjectStoreResource`]
-/// - [`CircuitBreakersResource`] (to add new circuit breaker)
+///
+/// - `PoolResource<MasterPool>`
+/// - `PoolResource<ReplicaPool>`
+/// - `BoundEthInterfaceResource`
+/// - `BoundEthInterfaceForBlobsResource` (optional)
+/// - `ObjectStoreResource`
+/// - `CircuitBreakersResource` (adds a circuit breaker)
 ///
 /// ## Adds tasks
-/// - [`EthTxAggregatorTask`] (as [`Task`])
+///
+/// - `EthTxAggregator`
 #[derive(Debug)]
 pub struct EthTxAggregatorLayer {
     eth_sender_config: EthConfig,
@@ -183,9 +185,7 @@ impl WiringLayer for EthTxAggregatorLayer {
         )
         .await;
 
-        context.add_task(Box::new(EthTxAggregatorTask {
-            eth_tx_aggregator_actor,
-        }));
+        context.add_task(Box::new(eth_tx_aggregator_actor));
 
         // Insert circuit breaker.
         let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
@@ -197,34 +197,24 @@ impl WiringLayer for EthTxAggregatorLayer {
     }
 }
 
-#[derive(Debug)]
-struct EthTxAggregatorTask {
-    eth_tx_aggregator_actor: EthTxAggregator,
-}
-
 #[async_trait::async_trait]
-impl Task for EthTxAggregatorTask {
+impl Task for EthTxAggregator {
     fn id(&self) -> TaskId {
         "eth_tx_aggregator".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.eth_tx_aggregator_actor.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }
 
-#[derive(Debug)]
-struct EthTxManagerTask {
-    eth_tx_manager_actor: EthTxManager,
-}
-
 #[async_trait::async_trait]
-impl Task for EthTxManagerTask {
+impl Task for EthTxManager {
     fn id(&self) -> TaskId {
         "eth_tx_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.eth_tx_manager_actor.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }

@@ -65,4 +65,6 @@ fn verify_file_parsing() {
     decode_yaml_repr::<proto::contracts::Contracts>(&base_path.join("contracts.yaml"), true)
         .unwrap();
     decode_yaml_repr::<proto::secrets::Secrets>(&base_path.join("secrets.yaml"), true).unwrap();
+    decode_yaml_repr::<proto::en::ExternalNode>(&base_path.join("external_node.yaml"), true)
+        .unwrap();
 }

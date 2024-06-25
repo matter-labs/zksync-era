@@ -2,8 +2,8 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_prometheus_exporter::PrometheusExporterConfig;
-use zksync_vlog::LogFormat;
+use zksync_config::configs::GeneralConfig;
+use zksync_vlog::{prometheus::PrometheusExporterConfig, LogFormat};
 
 use super::{ConfigurationSource, Environment};
 
@@ -97,5 +97,39 @@ impl ObservabilityENConfig {
             tracing::info!("No sentry URL was provided");
         }
         Ok(guard)
+    }
+
+    pub(crate) fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
+        let (sentry_url, sentry_environment, log_format) =
+            if let Some(observability) = general_config.observability.as_ref() {
+                (
+                    observability.sentry_url.clone(),
+                    observability.sentry_environment.clone(),
+                    observability
+                        .log_format
+                        .parse()
+                        .context("Invalid log format")?,
+                )
+            } else {
+                (None, None, LogFormat::default())
+            };
+        let (prometheus_port, prometheus_pushgateway_url, prometheus_push_interval_ms) =
+            if let Some(prometheus) = general_config.prometheus_config.as_ref() {
+                (
+                    Some(prometheus.listener_port),
+                    Some(prometheus.pushgateway_url.clone()),
+                    prometheus.push_interval_ms.unwrap_or_default(),
+                )
+            } else {
+                (None, None, 0)
+            };
+        Ok(Self {
+            prometheus_port,
+            prometheus_pushgateway_url,
+            prometheus_push_interval_ms,
+            sentry_url,
+            sentry_environment,
+            log_format,
+        })
     }
 }
