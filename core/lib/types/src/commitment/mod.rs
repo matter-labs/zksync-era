@@ -11,6 +11,7 @@ use std::{collections::HashMap, convert::TryFrom};
 use serde::{Deserialize, Serialize};
 pub use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_crypto::hasher::Hasher;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
     KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, ZKPORTER_IS_AVAILABLE,
@@ -345,6 +346,9 @@ impl L1BatchAuxiliaryOutput {
                     Some(l2_to_l1_logs_tree_size(common_input.protocol_version)),
                 )
                 .merkle_root();
+
+                let l2_l1_logs_merkle_root = zksync_crypto::hasher::keccak::KeccakHasher::default()
+                    .compress(&l2_l1_logs_merkle_root, &H256::zero());
 
                 let common_output = L1BatchAuxiliaryCommonOutput {
                     l2_l1_logs_merkle_root,

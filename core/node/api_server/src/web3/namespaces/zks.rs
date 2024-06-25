@@ -2,6 +2,7 @@ use std::{collections::HashMap, convert::TryInto};
 
 use anyhow::Context as _;
 use multivm::interface::VmExecutionResultAndLogs;
+use zksync_crypto::hasher::Hasher;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -23,7 +24,7 @@ use zksync_types::{
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
     L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
-use zksync_utils::{address_to_h256, h256_to_u256};
+use zksync_utils::{address_to_h256, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Token, H256},
@@ -304,13 +305,37 @@ impl ZksNamespace {
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
 
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
+        let (root, mut proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
+
+        // For now it is always 0
+        let aggregated_root = H256::zero();
+        let final_root = zksync_crypto::hasher::keccak::KeccakHasher::default()
+            .compress(&root, &aggregated_root);
+        proof.push(aggregated_root);
+
+        let proof = LogLeafProof::new(l1_log_index as u32, proof).encode();
+
         Ok(Some(L2ToL1LogProof {
             proof,
-            root,
+            root: final_root,
             id: l1_log_index as u32,
         }))
+    }
+
+    async fn leaf_proof(
+        &self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        // there are two options now:
+
+        // Firstly, we need to provide a proof that the leaf belongs to the batch leaf root.
+        // Then:
+        // - If settlement layer was itself, this is it.
+        // - We need to provide a proof that this batch was part of chain_id tree of SL.
+        // - We need to provide a proof that this batch was part of the aggregated tree of SL and so part of the SL settlememt root.
+
+        Ok(None)
     }
 
     pub async fn get_l2_to_l1_log_proof_impl(
@@ -579,5 +604,98 @@ impl ZksNamespace {
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
             err.into()
         })
+    }
+}
+
+struct LeafAggProof {
+    batch_leaf_proof: Vec<H256>,
+    batch_number: u32,
+    chain_id_leaf_proof: Vec<H256>,
+    chain_id: u32,
+}
+
+impl LeafAggProof {
+    pub fn encode(self) -> (usize, Vec<H256>) {
+        todo!()
+        // let mut result = vec![];
+        // result.extend(self.batch_leaf_proof);
+        // result.extend(self.chain_id_leaf_proof);
+        // result
+    }
+}
+
+// This function may not be efficient to be called often, so need to consider refactoring
+pub fn compose_from_sl_data(
+    batch_index: u32,
+    chain_id: u32,
+    chain_roots_list: Vec<H256>,
+    batch_roots_list: Vec<H256>,
+) -> (LeafAggProof, TreeLeafProof) {
+    todo!()
+}
+
+struct TreeLeafProof {
+    leaf_proof: Vec<H256>,
+    mask: H256,
+    batch_leaf_proof: Option<LeafAggProof>,
+}
+
+impl TreeLeafProof {
+    pub fn encode(self) -> Vec<H256> {
+        const SUPPORTED_METADATA_VERSION: u8 = 0;
+
+        let log_leaf_proof_len = self.leaf_proof.len();
+
+        let (batch_leaf_proof_len, batch_leaf_proof) = if let Some(x) = self.batch_leaf_proof {
+            let (len, proof) = x.encode();
+            (len, proof)
+        } else {
+            (0, vec![])
+        };
+
+        assert!(log_leaf_proof_len < u8::MAX as usize);
+        assert!(batch_leaf_proof_len < u8::MAX as usize);
+
+        let mut metadata = [0u8; 32];
+        metadata[0] = SUPPORTED_METADATA_VERSION;
+        metadata[1] = log_leaf_proof_len as u8;
+        metadata[2] = batch_leaf_proof_len as u8;
+
+        let mut result = vec![H256(metadata)];
+
+        result.extend(self.leaf_proof);
+        result.extend(batch_leaf_proof);
+
+        result
+    }
+}
+
+struct LogLeafProof {
+    agg_proofs: Vec<TreeLeafProof>,
+}
+
+impl LogLeafProof {
+    pub fn new(leaf_index: u32, leaf_proof: Vec<H256>) -> Self {
+        let bottom_layer = TreeLeafProof {
+            leaf_proof,
+            mask: u256_to_h256(leaf_index.into()),
+            batch_leaf_proof: None,
+        };
+
+        Self {
+            agg_proofs: vec![bottom_layer],
+        }
+    }
+
+    pub fn encode(self) -> Vec<H256> {
+        let mut result = vec![];
+        for i in self.agg_proofs {
+            result.extend(i.encode());
+        }
+        result
+    }
+
+    pub fn append_aggregation_layer(&mut self) {
+        todo!()
     }
 }
