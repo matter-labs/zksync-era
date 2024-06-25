@@ -11,6 +11,17 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for chain ID validation precondition for external node.
+/// Ensures that chain IDs are consistent locally, on main node, and on L1.
+///
+/// ## Requests resources
+///
+/// - `EthInterfaceResource`
+/// - `MainNodeClientResource
+///
+/// ## Adds preconditions
+///
+/// - `ValidateChainIdsTask`
 #[derive(Debug)]
 pub struct ValidateChainIdsLayer {
     l1_chain_id: L1ChainId,

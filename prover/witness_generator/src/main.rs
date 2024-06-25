@@ -9,13 +9,13 @@ use tokio::sync::watch;
 use zksync_config::ObjectStoreConfig;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prometheus_exporter::PrometheusExporterConfig;
 use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,

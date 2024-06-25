@@ -48,6 +48,7 @@ pin-project-lite.workspace = true
 hex.workspace = true
 http.workspace = true
 tower.workspace = true
+strum = { workspace = true, features = ["derive"] }
 tower-http = { workspace = true, features = ["cors", "metrics"] }
 lru.workspace = true
 
