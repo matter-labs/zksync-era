@@ -29,7 +29,7 @@
 //! - A task that may be a driving force for some precondition to be met.
 
 use std::{
-    fmt::{Display, Formatter},
+    fmt::{self, Display, Formatter},
     ops::Deref,
     sync::Arc,
 };
@@ -117,6 +117,12 @@ impl dyn Task {
     }
 }
 
+impl fmt::Debug for dyn Task {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Task").field("name", &self.id()).finish()
+    }
+}
+
 /// A oneshot task implementation.
 /// The difference from [`Task`] is that this kind of task may exit without causing the service to shutdown.
 ///
@@ -160,6 +166,14 @@ impl dyn OneshotTask {
     }
 }
 
+impl fmt::Debug for dyn OneshotTask {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OneshotTask")
+            .field("name", &self.id())
+            .finish()
+    }
+}
+
 /// A task implementation that is not constrained by preconditions.
 ///
 /// This trait is used to define tasks that should start immediately after the wiring phase, without waiting for
@@ -176,6 +190,14 @@ pub trait UnconstrainedTask: 'static + Send {
     async fn run_unconstrained(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()>;
 }
 
+impl fmt::Debug for dyn UnconstrainedTask {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UnconstrainedTask")
+            .field("name", &self.id())
+            .finish()
+    }
+}
+
 /// An unconstrained analog of [`OneshotTask`].
 /// See [`UnconstrainedTask`] and [`OneshotTask`] for more details.
 #[async_trait::async_trait]
@@ -188,4 +210,12 @@ pub trait UnconstrainedOneshotTask: 'static + Send {
         self: Box<Self>,
         stop_receiver: StopReceiver,
     ) -> anyhow::Result<()>;
+}
+
+impl fmt::Debug for dyn UnconstrainedOneshotTask {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UnconstrainedOneshotTask")
+            .field("name", &self.id())
+            .finish()
+    }
 }

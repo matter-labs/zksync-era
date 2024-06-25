@@ -9,6 +9,16 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for a prerequisite that checks if the L1 batch commitment mode is valid
+/// against L1.
+///
+/// ## Requests resources
+///
+/// - `EthInterfaceResource`
+///
+/// ## Adds preconditions
+///
+/// - `L1BatchCommitmentModeValidationTask`
 #[derive(Debug)]
 pub struct L1BatchCommitmentModeValidationLayer {
     diamond_proxy_addr: Address,

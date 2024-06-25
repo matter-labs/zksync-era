@@ -20,6 +20,26 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `HouseKeeper` - a component responsible for managing prover jobs
+/// and auxiliary server activities.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<ReplicaPool>`
+/// - `PoolResource<ProverPool>`
+///
+/// ## Adds tasks
+///
+/// - `L1BatchMetricsReporterTask`
+/// - `FriProverJobRetryManagerTask`
+/// - `FriWitnessGeneratorJobRetryManagerTask`
+/// - `WaitingToQueuedFriWitnessJobMoverTask`
+/// - `FriProverJobArchiverTask`
+/// - `FriProverGpuArchiverTask`
+/// - `FriWitnessGeneratorStatsReporterTask`
+/// - `FriProverStatsReporterTask`
+/// - `FriProofCompressorStatsReporterTask`
+/// - `FriProofCompressorJobRetryManagerTask`
 #[derive(Debug)]
 pub struct HouseKeeperLayer {
     house_keeper_config: HouseKeeperConfig,
@@ -54,14 +74,14 @@ impl WiringLayer for HouseKeeperLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        // initialize resources
+        // Initialize resources
         let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = replica_pool_resource.get().await?;
 
         let prover_pool_resource = context.get_resource::<PoolResource<ProverPool>>().await?;
         let prover_pool = prover_pool_resource.get().await?;
 
-        // initialize and add tasks
+        // Initialize and add tasks
         let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
             self.house_keeper_config
                 .l1_batch_metrics_reporting_interval_ms,

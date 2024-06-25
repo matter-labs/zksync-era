@@ -11,12 +11,12 @@ use zksync_config::configs::{
 };
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prometheus_exporter::PrometheusExporterConfig;
 use zksync_prover_dal::ConnectionPool;
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::generator::WitnessVectorGenerator;
 

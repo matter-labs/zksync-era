@@ -11,20 +11,21 @@ use zksync_protobuf::{repr::ProtoRepr, required};
 use crate::{parse_h160, parse_h256, proto::genesis as proto};
 
 impl proto::L1BatchCommitDataGeneratorMode {
-    fn new(n: &L1BatchCommitmentMode) -> Self {
+    pub(crate) fn new(n: &L1BatchCommitmentMode) -> Self {
         match n {
             L1BatchCommitmentMode::Rollup => Self::Rollup,
             L1BatchCommitmentMode::Validium => Self::Validium,
         }
     }
 
-    fn parse(&self) -> L1BatchCommitmentMode {
+    pub(crate) fn parse(&self) -> L1BatchCommitmentMode {
         match self {
             Self::Rollup => L1BatchCommitmentMode::Rollup,
             Self::Validium => L1BatchCommitmentMode::Validium,
         }
     }
 }
+
 impl ProtoRepr for proto::Genesis {
     type Type = configs::GenesisConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {

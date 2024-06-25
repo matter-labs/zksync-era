@@ -12,6 +12,16 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for node pruning layer.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `DbPruner`
 #[derive(Debug)]
 pub struct PruningLayer {
     pruning_removal_delay: Duration,

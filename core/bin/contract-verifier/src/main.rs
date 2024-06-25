@@ -11,9 +11,9 @@ use zksync_config::{
 use zksync_contract_verifier_lib::ContractVerifier;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
-use zksync_prometheus_exporter::PrometheusExporterConfig;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::{wait_for_tasks::ManagedTasks, workspace_dir_or_current_dir};
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.connection().await.unwrap();

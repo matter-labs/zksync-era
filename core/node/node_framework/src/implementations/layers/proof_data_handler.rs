@@ -15,13 +15,16 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Builder for a proof data handler.
+/// Wiring layer for proof data handler server.
 ///
-/// ## Effects
+/// ## Requests resources
 ///
-/// - Resolves `PoolResource<MasterPool>`.
-/// - Resolves `ObjectStoreResource`.
-/// - Adds `proof_data_handler` to the node.
+/// - `PoolResource<MasterPool>`
+/// - `ObjectStoreResource`
+///
+/// ## Adds tasks
+///
+/// - `ProofDataHandlerTask`
 #[derive(Debug)]
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,

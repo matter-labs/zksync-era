@@ -13,8 +13,21 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Runs the dynamic sync state updater for `SyncState` if no `SyncState` was provided before.
-/// This layer may be used as a fallback for EN API if API server runs without the core component.
+/// Wiring layer for [`SyncState`] maintenance.
+/// If [`SyncStateResource`] is already provided by another layer, this layer does nothing.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `MainNodeClientResource`
+///
+/// ## Adds resources
+///
+/// - `SyncStateResource`
+///
+/// ## Adds tasks
+///
+/// - `SyncStateUpdater`
 #[derive(Debug)]
 pub struct SyncStateUpdaterLayer;
 

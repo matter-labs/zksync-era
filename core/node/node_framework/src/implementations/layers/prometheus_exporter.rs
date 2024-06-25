@@ -1,5 +1,5 @@
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_prometheus_exporter::PrometheusExporterConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
@@ -8,12 +8,15 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Builder for a prometheus exporter.
+/// Wiring layer for Prometheus exporter server.
 ///
-/// ## Effects
+/// ## Requests resources
 ///
-/// - Adds prometheus health check to the `ResourceCollection<HealthCheckResource>`.
-/// - Adds `prometheus_exporter` to the node.
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `PrometheusExporterTask`
 #[derive(Debug)]
 pub struct PrometheusExporterLayer(pub PrometheusExporterConfig);
 

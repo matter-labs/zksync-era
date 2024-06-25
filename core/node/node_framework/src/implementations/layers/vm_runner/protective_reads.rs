@@ -9,6 +9,17 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for protective reads writer.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+///
+/// ## Adds tasks
+///
+/// - `StorageSyncTask<ProtectiveReadsIo>`
+/// - `ConcurrentOutputHandlerFactoryTask<ProtectiveReadsIo>`
+/// - `ProtectiveReadsWriterTask`
 #[derive(Debug)]
 pub struct ProtectiveReadsWriterLayer {
     protective_reads_writer_config: ProtectiveReadsWriterConfig,

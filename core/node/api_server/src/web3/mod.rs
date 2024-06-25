@@ -86,8 +86,9 @@ enum ApiTransport {
     Http(SocketAddr),
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, strum::EnumString)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum Namespace {
     Eth,
     Net,

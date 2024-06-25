@@ -37,9 +37,9 @@ impl GasAdjusterFeesOracle {
         &self,
         previous_sent_tx: &Option<TxHistory>,
     ) -> Result<EthFees, EthSenderError> {
-        let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
-        let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
-        let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
+        let base_fee_per_gas = self.gas_adjuster.get_blob_tx_base_fee();
+        let priority_fee_per_gas = self.gas_adjuster.get_blob_tx_priority_fee();
+        let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_tx_blob_base_fee());
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             // for blob transactions on re-sending need to double all gas prices

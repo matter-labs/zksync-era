@@ -11,6 +11,20 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for main node fee params fetcher -- a fee input resource used on
+/// the external node.
+///
+/// ## Requests resources
+///
+/// - `MainNodeClientResource`
+///
+/// ## Adds resources
+///
+/// - `FeeInputResource`
+///
+/// ## Adds tasks
+///
+/// - `MainNodeFeeParamsFetcherTask`
 #[derive(Debug)]
 pub struct MainNodeFeeParamsFetcherLayer;
 

@@ -33,6 +33,25 @@ pub struct PostgresStorageCachesConfig {
     pub latest_values_cache_size: u64,
 }
 
+/// Wiring layer for the `TxSender`.
+/// Prepares the `TxSender` itself, as well as the tasks required for its maintenance.
+///
+/// ## Requests resources
+///
+/// - `TxSinkResource`
+/// - `PoolResource<ReplicaPool>`
+/// - `ConditionalSealerResource` (optional)
+/// - `FeeInputResource`
+///
+/// ## Adds resources
+///
+/// - `TxSenderResource`
+///
+/// ## Adds tasks
+///
+/// - `PostgresStorageCachesTask`
+/// - `VmConcurrencyBarrierTask`
+/// - `WhitelistedTokensForAaUpdateTask` (optional)
 #[derive(Debug)]
 pub struct TxSenderLayer {
     tx_sender_config: TxSenderConfig,

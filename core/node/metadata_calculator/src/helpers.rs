@@ -91,9 +91,10 @@ impl MerkleTreeHealthCheck {
         let weak_reader = Arc::<OnceCell<WeakAsyncTreeReader>>::default();
         let weak_reader_for_task = weak_reader.clone();
         tokio::spawn(async move {
-            weak_reader_for_task
-                .set(reader.wait().await.unwrap().downgrade())
-                .ok();
+            if let Some(reader) = reader.wait().await {
+                weak_reader_for_task.set(reader.downgrade()).ok();
+            }
+            // Otherwise, the tree is dropped before getting initialized; this is not an error in this context.
         });
 
         Self {
@@ -393,16 +394,14 @@ impl LazyAsyncTreeReader {
         self.0.borrow().clone()
     }
 
-    /// Waits until the tree is initialized and returns a reader for it.
-    pub async fn wait(mut self) -> anyhow::Result<AsyncTreeReader> {
+    /// Waits until the tree is initialized and returns a reader for it. If the tree is dropped before
+    /// getting initialized, returns `None`.
+    pub async fn wait(mut self) -> Option<AsyncTreeReader> {
         loop {
             if let Some(reader) = self.0.borrow().clone() {
-                break Ok(reader);
+                break Some(reader);
             }
-            self.0
-                .changed()
-                .await
-                .context("Tree dropped without getting ready; not resolving tree reader")?;
+            self.0.changed().await.ok()?;
         }
     }
 }

@@ -14,6 +14,16 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for [`PKSigningClient`].
+///
+/// ## Requests resources
+///
+/// - `EthInterfaceResource`
+///
+/// ## Adds resources
+///
+/// - `BoundEthInterfaceResource`
+/// - `BoundEthInterfaceForBlobsResource` (if key for blob operator is provided)
 #[derive(Debug)]
 pub struct PKSigningEthClientLayer {
     eth_sender_config: EthConfig,

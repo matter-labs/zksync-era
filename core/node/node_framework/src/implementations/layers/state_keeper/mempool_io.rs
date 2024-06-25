@@ -20,6 +20,24 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `MempoolIO`, an IO part of state keeper used by the main node.
+///
+/// ## Requests resources
+///
+/// - `FeeInputResource`
+/// - `PoolResource<MasterPool>`
+///
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds resources
+///
+/// - `StateKeeperIOResource`
+/// - `ConditionalSealerResource`
+///
+/// ## Adds tasks
+///
+/// - `MempoolFetcherTask`
+/// - `TaskTypeName2`
 #[derive(Debug)]
 pub struct MempoolIOLayer {
     zksync_network_id: L2ChainId,

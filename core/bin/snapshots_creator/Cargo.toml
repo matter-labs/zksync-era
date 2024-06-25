@@ -12,7 +12,6 @@ publish = false
 
 [dependencies]
 vise.workspace = true
-zksync_prometheus_exporter.workspace = true
 zksync_config.workspace = true
 zksync_dal.workspace = true
 zksync_env_config.workspace = true

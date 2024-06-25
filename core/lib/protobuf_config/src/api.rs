@@ -69,7 +69,11 @@ impl ProtoRepr for proto::Web3JsonRpc {
             })
             .collect::<anyhow::Result<_>>()
             .context("max_response_body_size_overrides")?;
-
+        let api_namespaces = if self.api_namespaces.is_empty() {
+            None
+        } else {
+            Some(self.api_namespaces.clone())
+        };
         Ok(Self::Type {
             http_port: required(&self.http_port)
                 .and_then(|p| Ok((*p).try_into()?))
@@ -154,6 +158,8 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .map(|(i, k)| parse_h160(k).context(i))
                 .collect::<Result<Vec<_>, _>>()
                 .context("account_pks")?,
+            extended_api_tracing: self.extended_api_tracing.unwrap_or_default(),
+            api_namespaces,
         })
     }
 
@@ -222,6 +228,8 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .iter()
                 .map(|k| format!("{:?}", k))
                 .collect(),
+            extended_api_tracing: Some(this.extended_api_tracing),
+            api_namespaces: this.api_namespaces.clone().unwrap_or_default(),
         }
     }
 }

@@ -12,6 +12,17 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for the `ConsistencyChecker` (used by the external node).
+///
+/// ## Requests resources
+///
+/// - `EthInterfaceResource`
+/// - `PoolResource<MasterPool>`
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `ConsistencyChecker`
 #[derive(Debug)]
 pub struct ConsistencyCheckerLayer {
     diamond_proxy_addr: Address,

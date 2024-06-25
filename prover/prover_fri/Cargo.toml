@@ -15,7 +15,6 @@ zksync_types.workspace = true
 zksync_prover_dal.workspace = true
 zksync_config.workspace = true
 zksync_env_config.workspace = true
-zksync_prometheus_exporter.workspace = true
 zksync_vlog.workspace = true
 zksync_object_store.workspace = true
 zksync_queued_job_processor.workspace = true

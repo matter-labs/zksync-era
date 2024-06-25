@@ -63,6 +63,7 @@ api:
     estimate_gas_scale_factor: 1.2
     estimate_gas_acceptable_overestimation: 1000
     max_tx_size: 1000000
+    api_namespaces: [ eth,net,web3,zks,pubsub ]
     max_response_body_size_overrides:
       - method: eth_getTransactionReceipt # no size specified, meaning no size limit
       - method: zks_getProof
@@ -129,7 +130,7 @@ eth:
     aggregated_block_execute_deadline: 10
     timestamp_criteria_max_allowed_lag: 30
     max_eth_tx_data_size: 120000
-    aggregated_proof_sizes: [ 1,4 ]
+    aggregated_proof_sizes: [ 1 ]
     max_aggregated_tx_gas: 4000000
     max_acceptable_priority_fee_in_gwei: 100000000000
     pubdata_sending_mode: BLOBS
@@ -332,6 +333,23 @@ protective_reads_writer:
   db_path: "./db/main/protective_reads"
   window_size: 3
   first_processed_batch: 0
+
+snapshot_recovery:
+  enabled: true
+  postgres:
+    max_concurrency: 10
+  tree:
+    chunk_size: 200000
+  experimental:
+    tree_recovery_parallel_persistence_buffer: 1
+pruning:
+  enabled: true
+  chunk_size: 10
+  removal_delay_sec: 60
+  data_retention_sec: 3600
+
+commitment_generator:
+  max_parallelism: 10
 
 
 core_object_store:

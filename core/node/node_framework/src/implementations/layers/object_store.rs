@@ -7,6 +7,11 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for object store.
+///
+/// ## Adds resources
+///
+/// - `ObjectStoreResource`
 #[derive(Debug)]
 pub struct ObjectStoreLayer {
     config: ObjectStoreConfig,

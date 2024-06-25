@@ -1,4 +1,4 @@
-//! This module contains the observability subsystem.
+//! This crate contains the observability subsystem.
 //! It is responsible for providing a centralized interface for consistent observability configuration.
 
 use std::{backtrace::Backtrace, borrow::Cow, panic::PanicInfo, str::FromStr};
@@ -27,6 +27,8 @@ use tracing_subscriber::{
     util::SubscriberInitExt,
     EnvFilter, Layer,
 };
+
+pub mod prometheus;
 
 type TracingLayer<Inner> =
     Layered<Filtered<OpenTelemetryLayer<Inner, Tracer>, EnvFilter, Inner>, Inner>;

@@ -16,6 +16,19 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `TxSink` -- an abstraction that handles outputs from `TxSender`.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+///
+/// ## Adds resources
+///
+/// - `TxSinkResource`
+///
+/// ## Adds tasks
+///
+/// - `AccountNonceSweeperTask` (only for `ProxySink`)
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum TxSinkLayer {

@@ -17,11 +17,13 @@ use crate::{
 /// into [`AppHealthCheck`] aggregating heath using [`AppHealthCheckResource`].
 /// The added task spawns a health check server that only exposes the state provided by other tasks.
 ///
-/// ## Adds resources
-/// - [`AppHealthCheckResource`]
+/// ## Requests resources
+///
+/// - `AppHealthCheckResource`
 ///
 /// ## Adds tasks
-/// - [`HealthCheckTask`] (as [`UnconstrainedTask`])
+///
+/// - `HealthCheckTask`
 #[derive(Debug)]
 pub struct HealthCheckLayer(pub HealthCheckConfig);
 

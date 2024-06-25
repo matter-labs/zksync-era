@@ -4,7 +4,7 @@ use zksync_object_store::ObjectStore;
 
 use crate::resource::Resource;
 
-/// Wrapper for the object store.
+/// A resource that provides [`ObjectStore`] to the service.
 #[derive(Debug, Clone)]
 pub struct ObjectStoreResource(pub Arc<dyn ObjectStore>);
 

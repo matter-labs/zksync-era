@@ -6,8 +6,12 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Layer that changes the handling of SIGINT signal, preventing an immediate shutdown.
+/// Wiring layer that changes the handling of SIGINT signal, preventing an immediate shutdown.
 /// Instead, it would propagate the signal to the rest of the node, allowing it to shut down gracefully.
+///
+/// ## Adds tasks
+///
+/// - `SigintHandlerTask`
 #[derive(Debug)]
 pub struct SigintHandlerLayer;
 
@@ -51,7 +55,9 @@ impl UnconstrainedTask for SigintHandlerTask {
 
         // Wait for either SIGINT or stop signal.
         tokio::select! {
-            _ = sigint_receiver => {},
+            _ = sigint_receiver => {
+                tracing::info!("Received SIGINT signal");
+            },
             _ = stop_receiver.0.changed() => {},
         };
 

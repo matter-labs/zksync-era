@@ -18,7 +18,6 @@ zksync_env_config.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_fri_utils.workspace = true
 zksync_utils.workspace = true
-zksync_prometheus_exporter.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_queued_job_processor.workspace = true
 vk_setup_data_generator_server_fri.workspace = true

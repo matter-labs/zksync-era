@@ -12,6 +12,15 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for [`TeeVerifierInputProducer`].
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+///
+/// ## Adds tasks
+///
+/// - `TeeVerifierInputProducer`
 #[derive(Debug)]
 pub struct TeeVerifierInputProducerLayer {
     l2_chain_id: L2ChainId,
@@ -40,23 +49,19 @@ impl WiringLayer for TeeVerifierInputProducerLayer {
         let tee =
             TeeVerifierInputProducer::new(pool_resource, object_store.0, self.l2_chain_id).await?;
 
-        context.add_task(Box::new(TeeVerifierInputProducerTask { tee }));
+        context.add_task(Box::new(tee));
 
         Ok(())
     }
 }
 
-pub struct TeeVerifierInputProducerTask {
-    tee: TeeVerifierInputProducer,
-}
-
 #[async_trait::async_trait]
-impl Task for TeeVerifierInputProducerTask {
+impl Task for TeeVerifierInputProducer {
     fn id(&self) -> TaskId {
         "tee_verifier_input_producer".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.tee.run(stop_receiver.0, None).await
+        (*self).run(stop_receiver.0, None).await
     }
 }

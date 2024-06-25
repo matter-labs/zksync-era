@@ -11,6 +11,15 @@ use crate::{
 
 const SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 
+/// Wiring layer for the Postgres metrics exporter.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<ReplicaPool>`
+///
+/// ## Adds tasks
+///
+/// - `PostgresMetricsScrapingTask`
 #[derive(Debug)]
 pub struct PostgresMetricsLayer;
 

@@ -18,11 +18,13 @@ use crate::{
 /// Responsible for initialization and running [`CommitmentGenerator`].
 ///
 /// ## Requests resources
-/// - [`PoolResource`] for [`MasterPool`]
-/// - [`AppHealthCheckResource`] (to add new health check)
+///
+/// - `PoolResource<MasterPool>`
+/// - `AppHealthCheckResource` (adds a health check)
 ///
 /// ## Adds tasks
-/// - [`CommitmentGeneratorTask`] (as [`Task`])
+///
+/// - `CommitmentGeneratorTask`
 #[derive(Debug)]
 pub struct CommitmentGeneratorLayer {
     mode: L1BatchCommitmentMode,

@@ -71,7 +71,6 @@ vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev
 vk_setup_data_generator_server_fri = { path = "vk_setup_data_generator_server_fri" }
 zksync_prover_config = { path = "config" }
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
-zksync_prometheus_exporter = { path = "../core/lib/prometheus_exporter" }
 zksync_vlog = { path = "../core/lib/vlog" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
 zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }

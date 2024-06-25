@@ -14,7 +14,7 @@ use loadnext::{
 };
 use tokio::sync::watch;
 use zksync_config::configs::api::PrometheusConfig;
-use zksync_prometheus_exporter::PrometheusExporterConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

@@ -11,6 +11,17 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `BatchStatusUpdater`, part of the external node.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `MainNodeClientResource`
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `BatchStatusUpdater`
 #[derive(Debug)]
 pub struct BatchStatusUpdaterLayer;
 

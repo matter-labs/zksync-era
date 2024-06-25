@@ -8,11 +8,11 @@ use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{DatabaseSecrets, FriProofCompressorConfig, ObservabilityConfig};
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prometheus_exporter::PrometheusExporterConfig;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,

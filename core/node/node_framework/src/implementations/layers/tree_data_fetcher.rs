@@ -13,6 +13,18 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for [`TreeDataFetcher`].
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `MainNodeClientResource`
+/// - `EthInterfaceResource`
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `TreeDataFetcher`
 #[derive(Debug)]
 pub struct TreeDataFetcherLayer {
     diamond_proxy_addr: Address,

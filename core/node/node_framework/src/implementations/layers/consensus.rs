@@ -24,6 +24,20 @@ pub enum Mode {
     External,
 }
 
+/// Wiring layer for consensus component.
+/// Can work in either "main" or "external" mode.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `MainNodeClientResource` (if `Mode::External`)
+/// - `SyncStateResource` (if `Mode::External`)
+/// - `ActionQueueSenderResource` (if `Mode::External`)
+///
+/// ## Adds tasks
+///
+/// - `MainNodeConsensusTask` (if `Mode::Main`)
+/// - `FetcherTask` (if `Mode::External`)
 #[derive(Debug)]
 pub struct ConsensusLayer {
     pub mode: Mode,
