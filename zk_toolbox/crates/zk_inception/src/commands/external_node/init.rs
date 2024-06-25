@@ -13,6 +13,7 @@ use crate::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
         MSG_INITIALIZING_DATABASES_SPINNER,
     },
+    utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
@@ -40,6 +41,11 @@ pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<(
         .await
         .context(MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR)?;
     init_db(&db_config).await?;
+    recreate_rocksdb_dirs(
+        shell,
+        &chain_config.rocks_db_path,
+        RocksDBDirOption::ExternalNode,
+    )?;
     let path_to_server_migration = chain_config.link_to_code.join(SERVER_MIGRATIONS);
     migrate_db(shell, path_to_server_migration, &db_config.full_url()).await?;
     spin.finish();
