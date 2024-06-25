@@ -50,8 +50,7 @@ fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
         config_path.to_str().expect("Failed to convert path to string"),
         secrets_path.to_str().expect("Failed to convert path to string")
     );
-    let mut cmd =
-        Cmd::new(cmd!(shell, "nohup sh -c {command} > /dev/null 2>&1 &")).with_force_run();
+    let mut cmd = Cmd::new(cmd!(shell, "nohup {command} > /dev/null 2>&1 &")).with_force_run();
     let out = String::from_utf8(cmd.run_with_output()?.stdout)?;
     let pid = out.split(" ").next().expect("Failed to get pid");
     logger::info(format!("Prover gateway started with pid: {}", pid));
