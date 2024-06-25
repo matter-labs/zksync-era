@@ -36,7 +36,6 @@ pub struct BlockReverterEthConfig {
     validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
     hyperchain_id: L2ChainId,
-    era_chain_id: L2ChainId,
 }
 
 impl BlockReverterEthConfig {
@@ -44,7 +43,6 @@ impl BlockReverterEthConfig {
         eth_config: &EthConfig,
         contract: &ContractsConfig,
         network_config: &NetworkConfig,
-        era_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             diamond_proxy_addr: contract.diamond_proxy_addr,
@@ -55,7 +53,6 @@ impl BlockReverterEthConfig {
                 .context("gas adjuster")?
                 .default_priority_fee_per_gas,
             hyperchain_id: network_config.zksync_network_id,
-            era_chain_id,
         })
     }
 }
@@ -484,27 +481,15 @@ impl BlockReverter {
 
         let contract = hyperchain_contract();
 
-        // It is expected that for all new chains `revertBatchesSharedBridge` can be used.
-        // For Era, we are using `revertBatches` function for backwards compatibility in case the migration
-        // to the shared bridge is not yet complete.
-        let data = if eth_config.hyperchain_id == eth_config.era_chain_id {
-            let revert_function = contract
-                .function("revertBatches")
-                .context("`revertBatches` function must be present in contract")?;
-            revert_function
-                .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
-                .context("failed encoding `revertBatches` input")?
-        } else {
-            let revert_function = contract
-                .function("revertBatchesSharedBridge")
-                .context("`revertBatchesSharedBridge` function must be present in contract")?;
-            revert_function
-                .encode_input(&[
-                    Token::Uint(eth_config.hyperchain_id.as_u64().into()),
-                    Token::Uint(last_l1_batch_to_keep.0.into()),
-                ])
-                .context("failed encoding `revertBatchesSharedBridge` input")?
-        };
+        let revert_function = contract
+            .function("revertBatchesSharedBridge")
+            .context("`revertBatchesSharedBridge` function must be present in contract")?;
+        let data = revert_function
+            .encode_input(&[
+                Token::Uint(eth_config.hyperchain_id.as_u64().into()),
+                Token::Uint(last_l1_batch_to_keep.0.into()),
+            ])
+            .context("failed encoding `revertBatchesSharedBridge` input")?;
 
         let options = Options {
             nonce: Some(nonce.into()),

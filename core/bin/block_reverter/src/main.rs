@@ -1,4 +1,4 @@
-use std::env;
+use std::path::PathBuf;
 
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
@@ -11,9 +11,14 @@ use zksync_block_reverter::{
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
 use zksync_config::{
-    configs::{chain::NetworkConfig, DatabaseSecrets, L1Secrets, ObservabilityConfig},
+    configs::{
+        chain::NetworkConfig,
+        wallets::{self, Wallets},
+        DatabaseSecrets, GeneralConfig, L1Secrets, ObservabilityConfig,
+    },
     ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
+use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
@@ -24,6 +29,18 @@ use zksync_types::{Address, L1BatchNumber};
 struct Cli {
     #[command(subcommand)]
     command: Command,
+    /// Path to yaml config. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
+    config_path: Option<PathBuf>,
+    /// Path to yaml contracts config. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
+    contracts_config_path: Option<PathBuf>,
+    /// Path to yaml secrets config. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
+    secrets_path: Option<PathBuf>,
+    /// Path to yaml wallets config. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
+    wallets_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -84,7 +101,7 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let command = Cli::parse().command;
+    let opts = Cli::parse();
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
     let log_format: zksync_vlog::LogFormat = observability_config
@@ -103,35 +120,102 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let eth_sender = EthConfig::from_env().context("EthConfig::from_env()")?;
-    let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
+    let general_config: Option<GeneralConfig> = if let Some(path) = opts.config_path {
+        let yaml = std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+        let config =
+            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+                .context("failed decoding general YAML config")?;
+        Some(config)
+    } else {
+        None
+    };
+    let wallets_config: Option<Wallets> = if let Some(path) = opts.wallets_path {
+        let yaml = std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+        let config = decode_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&yaml)
+            .context("failed decoding wallets YAML config")?;
+        Some(config)
+    } else {
+        None
+    };
+
+    let eth_sender = match &general_config {
+        Some(general_config) => general_config
+            .eth
+            .clone()
+            .context("Failed to find eth config")?,
+        None => EthConfig::from_env().context("EthConfig::from_env()")?,
+    };
+    let db_config = match &general_config {
+        Some(general_config) => general_config
+            .db_config
+            .clone()
+            .context("Failed to find eth config")?,
+        None => DBConfig::from_env().context("DBConfig::from_env()")?,
+    };
+    let contracts = match opts.contracts_config_path {
+        Some(path) => {
+            let yaml =
+                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+            decode_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&yaml)
+                .context("failed decoding contracts YAML config")?
+        }
+        None => ContractsConfig::from_env().context("ContractsConfig::from_env()")?,
+    };
+    let secrets_config = if let Some(path) = opts.secrets_path {
+        let yaml = std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+        let config = decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
+            .context("failed decoding secrets YAML config")?;
+        Some(config)
+    } else {
+        None
+    };
+
     let default_priority_fee_per_gas = eth_sender
         .gas_adjuster
         .context("gas_adjuster")?
         .default_priority_fee_per_gas;
-    let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
-    let network = NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
-    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
-    let l1_secrets = L1Secrets::from_env().context("L1Secrets::from_env()")?;
-    let postgress_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let era_chain_id = env::var("CONTRACTS_ERA_CHAIN_ID")
-        .context("`CONTRACTS_ERA_CHAIN_ID` env variable is not set")?
-        .parse()
-        .map_err(|err| {
-            anyhow::anyhow!("failed parsing `CONTRACTS_ERA_CHAIN_ID` env variable: {err}")
-        })?;
-    let config = BlockReverterEthConfig::new(&eth_sender, &contracts, &network, era_chain_id)?;
+
+    let database_secrets = match &secrets_config {
+        Some(secrets_config) => secrets_config
+            .database
+            .clone()
+            .context("Failed to find database config")?,
+        None => DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?,
+    };
+    let l1_secrets = match &secrets_config {
+        Some(secrets_config) => secrets_config
+            .l1
+            .clone()
+            .context("Failed to find l1 config")?,
+        None => L1Secrets::from_env().context("L1Secrets::from_env()")?,
+    };
+    let postgres_config = match &general_config {
+        Some(general_config) => general_config
+            .postgres_config
+            .clone()
+            .context("Failed to find postgres config")?,
+        None => PostgresConfig::from_env().context("PostgresConfig::from_env()")?,
+    };
+    let network_config = match &general_config {
+        Some(general_config) => general_config
+            .network_config
+            .clone()
+            .context("Failed to find network config")?,
+        None => NetworkConfig::from_env().context("NetworkConfig::from_env()")?,
+    };
+
+    let config = BlockReverterEthConfig::new(&eth_sender, &contracts, &network_config)?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
         database_secrets.master_url()?,
-        postgress_config.max_connections()?,
+        postgres_config.max_connections()?,
     )
     .build()
     .await
     .context("failed to build a connection pool")?;
     let mut block_reverter = BlockReverter::new(NodeRole::Main, connection_pool);
 
-    match command {
+    match opts.command {
         Command::Display {
             json,
             operator_address,
@@ -157,13 +241,22 @@ async fn main() -> anyhow::Result<()> {
             let eth_client = Client::http(l1_secrets.l1_rpc_url.clone())
                 .context("Ethereum client")?
                 .build();
-            #[allow(deprecated)]
-            let reverter_private_key = eth_sender
-                .sender
-                .context("eth_sender_config")?
-                .private_key()
-                .context("eth_sender_config.private_key")?
-                .context("eth_sender_config.private_key is not set")?;
+            let reverter_private_key = if let Some(wallets_config) = wallets_config {
+                wallets_config
+                    .eth_sender
+                    .unwrap()
+                    .operator
+                    .private_key()
+                    .to_owned()
+            } else {
+                #[allow(deprecated)]
+                eth_sender
+                    .sender
+                    .context("eth_sender_config")?
+                    .private_key()
+                    .context("eth_sender_config.private_key")?
+                    .context("eth_sender_config.private_key is not set")?
+            };
 
             let priority_fee_per_gas = priority_fee_per_gas.unwrap_or(default_priority_fee_per_gas);
             let l1_chain_id = eth_client

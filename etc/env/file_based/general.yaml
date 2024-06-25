@@ -333,8 +333,12 @@ protective_reads_writer:
   window_size: 3
   first_processed_batch: 0
 
-
 core_object_store:
   file_backed:
     file_backed_base_path: artifacts
   max_retries: 10
+
+network:
+  network: "localhost"
+  zksync_network: "localhost"
+  zksync_network_id: 271

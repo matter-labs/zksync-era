@@ -41,6 +41,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .context("protective_reads_writer")?,
             core_object_store: read_optional_repr(&self.core_object_store)
                 .context("core_object_store")?,
+            network_config: read_optional_repr(&self.network).context("network")?,
         })
     }
 
@@ -77,6 +78,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .as_ref()
                 .map(ProtoRepr::build),
             core_object_store: this.core_object_store.as_ref().map(ProtoRepr::build),
+            network: this.network_config.as_ref().map(ProtoRepr::build),
         }
     }
 }

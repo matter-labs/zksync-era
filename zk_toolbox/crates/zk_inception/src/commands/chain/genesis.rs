@@ -5,9 +5,13 @@ use common::{
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
+    server::{Server, ServerMode},
     spinner::Spinner,
 };
-use config::{ChainConfig, EcosystemConfig};
+use config::{
+    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
+    GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+};
 use xshell::Shell;
 
 use super::args::genesis::GenesisArgsFinal;
@@ -16,12 +20,11 @@ use crate::{
     config_manipulations::{update_database_secrets, update_general_config},
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
-        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_COMPLETED,
-        MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
-        MSG_INITIALIZING_SERVER_DATABASE, MSG_SELECTED_CONFIG, MSG_STARTING_GENESIS,
-        MSG_STARTING_GENESIS_SPINNER,
+        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_FAILED_TO_RUN_SERVER_ERR,
+        MSG_GENESIS_COMPLETED, MSG_INITIALIZING_DATABASES_SPINNER,
+        MSG_INITIALIZING_PROVER_DATABASE, MSG_INITIALIZING_SERVER_DATABASE, MSG_SELECTED_CONFIG,
+        MSG_STARTING_GENESIS, MSG_STARTING_GENESIS_SPINNER,
     },
-    server::{RunServer, ServerMode},
 };
 
 const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
@@ -127,6 +130,16 @@ async fn initialize_databases(
 }
 
 fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let server = RunServer::new(None, chain_config);
-    server.run(shell, ServerMode::Genesis)
+    let server = Server::new(None, chain_config.link_to_code.clone());
+    server
+        .run(
+            shell,
+            ServerMode::Genesis,
+            GenesisConfig::get_path_with_base_path(&chain_config.configs),
+            WalletsConfig::get_path_with_base_path(&chain_config.configs),
+            GeneralConfig::get_path_with_base_path(&chain_config.configs),
+            SecretsConfig::get_path_with_base_path(&chain_config.configs),
+            ContractsConfig::get_path_with_base_path(&chain_config.configs),
+        )
+        .context(MSG_FAILED_TO_RUN_SERVER_ERR)
 }

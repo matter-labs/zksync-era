@@ -156,6 +156,7 @@ pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
+pub(super) const MSG_SERVER_BUILD_HELP: &str = "Build server but don't run it";
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";

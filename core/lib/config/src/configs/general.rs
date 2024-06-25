@@ -1,6 +1,9 @@
 use crate::{
     configs::{
-        chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
+        chain::{
+            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
+            StateKeeperConfig,
+        },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         vm_runner::ProtectiveReadsWriterConfig,
@@ -36,4 +39,5 @@ pub struct GeneralConfig {
     pub observability: Option<ObservabilityConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
+    pub network_config: Option<NetworkConfig>,
 }

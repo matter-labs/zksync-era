@@ -64,6 +64,7 @@ pub(super) const MSG_DATABASE_NEW_MIGRATION_SUCCESS: &str = "Migration created s
 
 // Tests related messages
 pub(super) const MSG_TEST_INTEGRATION_ABOUT: &str = "Run integration tests";
+pub(super) const MSG_TEST_REVERT_AND_RESTART_ABOUT: &str = "Run revert tests";
 
 // Integration tests related messages
 pub(super) const MSG_TEST_INTEGRATION_RUN_INFO: &str = "Running integration tests";
@@ -71,3 +72,8 @@ pub(super) const MSG_TEST_INTEGRATION_RUN_SUCCESS: &str = "Integration tests ran
 pub(super) const MSG_TEST_INTEGRATION_BUILDING_DEPENDENCIES: &str =
     "Building repository dependencies...";
 pub(super) const MSG_TEST_INTEGRATION_BUILDING_CONTRACTS: &str = "Building test contracts...";
+
+// Revert tests related messages
+pub(super) const MSG_TEST_REVERT_AND_RESTART_RUN_INFO: &str = "Running revert and restart test";
+pub(super) const MSG_TEST_REVERT_AND_RESTART_RUN_SUCCESS: &str =
+    "Revert and restart test ran successfully";

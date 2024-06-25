@@ -3,6 +3,7 @@ use commands::{database::DatabaseCommands, test::TestCommands};
 use common::{
     check_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
+    error::log_error,
     init_prompt_theme, logger,
 };
 use config::EcosystemConfig;
@@ -66,22 +67,8 @@ async fn main() -> anyhow::Result<()> {
 
     match run_subcommand(args, &shell).await {
         Ok(_) => {}
-        Err(e) => {
-            logger::error(e.to_string());
-
-            if e.chain().count() > 1 {
-                logger::error_note(
-                    "Caused by:",
-                    &e.chain()
-                        .skip(1)
-                        .enumerate()
-                        .map(|(i, cause)| format!("  {i}: {}", cause))
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                );
-            }
-
-            logger::outro("Failed");
+        Err(error) => {
+            log_error(error);
             std::process::exit(1);
         }
     }

@@ -6,6 +6,7 @@ import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
+import { loadConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 
 /**
  * Attempts to connect to server.
@@ -59,9 +60,9 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     const pathToHome = path.join(__dirname, '../../../..');
     let ecosystem = loadEcosystem(pathToHome);
 
-    let generalConfig = loadConfig(pathToHome, chain, 'general.yaml');
-    let genesisConfig = loadConfig(pathToHome, chain, 'genesis.yaml');
-    let secretsConfig = loadConfig(pathToHome, chain, 'secrets.yaml');
+    let generalConfig = loadConfig({ pathToHome, chain, config: 'general.yaml' });
+    let genesisConfig = loadConfig({ pathToHome, chain, config: 'genesis.yaml' });
+    let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml' });
 
     const network = ecosystem.l1_network;
     let mainWalletPK = getMainWalletPk(pathToHome, network);
@@ -163,9 +164,9 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
 }
 
 export async function loadTestEnvironment(): Promise<TestEnvironment> {
-    let chain = process.env.CHAIN_NAME;
+    const { loadFromFile, chain } = shouldLoadConfigFromFile();
 
-    if (chain) {
+    if (loadFromFile) {
         return await loadTestEnvironmentFromFile(chain);
     }
     return await loadTestEnvironmentFromEnv();
@@ -340,30 +341,6 @@ function getTokensNew(pathToHome: string): Tokens {
         {
             customTags
         }
-    );
-}
-
-function loadEcosystem(pathToHome: string): any {
-    const configPath = path.join(pathToHome, '/ZkStack.yaml');
-    if (!fs.existsSync(configPath)) {
-        return [];
-    }
-    return yaml.parse(
-        fs.readFileSync(configPath, {
-            encoding: 'utf-8'
-        })
-    );
-}
-
-function loadConfig(pathToHome: string, chainName: string, config: string): any {
-    const configPath = path.join(pathToHome, `/chains/${chainName}/configs/${config}`);
-    if (!fs.existsSync(configPath)) {
-        return [];
-    }
-    return yaml.parse(
-        fs.readFileSync(configPath, {
-            encoding: 'utf-8'
-        })
     );
 }
 
