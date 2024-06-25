@@ -50,6 +50,12 @@ fn run_server(
     shell: &Shell,
 ) -> anyhow::Result<()> {
     let server = Server::new(args.components.clone(), chain_config.link_to_code.clone());
+
+    if args.build {
+        server.build(shell)?;
+        return Ok(());
+    }
+
     let mode = if args.genesis {
         ServerMode::Genesis
     } else {
