@@ -6,7 +6,6 @@
 use std::{collections::HashMap, ops};
 
 use futures::FutureExt;
-use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core};
@@ -19,6 +18,7 @@ use zksync_types::{
     block::L2BlockHasher, fee::TransactionExecutionMetrics,
     protocol_version::ProtocolSemanticVersion, L2ChainId, ProtocolVersion, ProtocolVersionId,
 };
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use super::*;
 

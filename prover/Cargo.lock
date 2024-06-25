@@ -3564,35 +3564,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
-name = "multivm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "circuit_sequencer_api 0.1.0",
- "circuit_sequencer_api 0.1.40",
- "circuit_sequencer_api 0.1.41",
- "circuit_sequencer_api 0.1.42",
- "circuit_sequencer_api 0.1.50",
- "hex",
- "itertools 0.10.5",
- "once_cell",
- "serde",
- "thiserror",
- "tracing",
- "vise",
- "zk_evm 1.3.1",
- "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
- "zk_evm 1.4.0",
- "zk_evm 1.4.1",
- "zk_evm 1.5.0",
- "zksync_contracts",
- "zksync_state",
- "zksync_system_constants",
- "zksync_types",
- "zksync_utils",
-]
-
-[[package]]
 name = "native-tls"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4439,18 +4410,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prometheus_exporter"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "metrics",
- "metrics-exporter-prometheus",
- "tokio",
- "vise",
- "vise-exporter",
-]
-
-[[package]]
 name = "proptest"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4600,7 +4559,6 @@ dependencies = [
  "colored",
  "dialoguer",
  "hex",
- "prover_dal",
  "serde_json",
  "sqlx",
  "strum",
@@ -4615,20 +4573,11 @@ dependencies = [
  "zksync_db_connection",
  "zksync_env_config",
  "zksync_eth_client",
+ "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_interface",
  "zksync_types",
  "zksync_utils",
-]
-
-[[package]]
-name = "prover_dal"
-version = "0.1.0"
-dependencies = [
- "sqlx",
- "strum",
- "zksync_basic_types",
- "zksync_db_connection",
 ]
 
 [[package]]
@@ -7044,29 +6993,13 @@ dependencies = [
  "toml_edit 0.14.4",
  "tracing",
  "tracing-subscriber",
- "vlog",
  "zkevm_test_harness 1.5.0",
  "zksync_config",
  "zksync_env_config",
  "zksync_prover_fri_types",
  "zksync_types",
  "zksync_utils",
-]
-
-[[package]]
-name = "vlog"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry-semantic-conventions",
- "sentry",
- "serde",
- "serde_json",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -8172,12 +8105,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_multivm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "circuit_sequencer_api 0.1.0",
+ "circuit_sequencer_api 0.1.40",
+ "circuit_sequencer_api 0.1.41",
+ "circuit_sequencer_api 0.1.42",
+ "circuit_sequencer_api 0.1.50",
+ "hex",
+ "itertools 0.10.5",
+ "once_cell",
+ "serde",
+ "thiserror",
+ "tracing",
+ "vise",
+ "zk_evm 1.3.1",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
+ "zk_evm 1.4.0",
+ "zk_evm 1.4.1",
+ "zk_evm 1.5.0",
+ "zksync_contracts",
+ "zksync_state",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_node_genesis"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "itertools 0.10.5",
- "multivm",
  "thiserror",
  "tokio",
  "tracing",
@@ -8187,6 +8148,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_merkle_tree",
+ "zksync_multivm",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
@@ -8216,6 +8178,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_prometheus_exporter"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "tokio",
+ "vise",
+ "vise-exporter",
+]
+
+[[package]]
 name = "zksync_proof_fri_compressor"
 version = "0.1.0"
 dependencies = [
@@ -8225,8 +8199,6 @@ dependencies = [
  "circuit_sequencer_api 0.1.50",
  "ctrlc",
  "futures 0.3.30",
- "prometheus_exporter",
- "prover_dal",
  "reqwest",
  "serde",
  "serde_json",
@@ -8235,18 +8207,20 @@ dependencies = [
  "tracing",
  "vise",
  "vk_setup_data_generator_server_fri",
- "vlog",
  "wrapper-prover",
  "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.5.0",
  "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
+ "zksync_prometheus_exporter",
+ "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_interface",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -8315,6 +8289,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_prover_dal"
+version = "0.1.0"
+dependencies = [
+ "sqlx",
+ "strum",
+ "zksync_basic_types",
+ "zksync_db_connection",
+]
+
+[[package]]
 name = "zksync_prover_fri"
 version = "0.1.0"
 dependencies = [
@@ -8325,8 +8309,6 @@ dependencies = [
  "ctrlc",
  "futures 0.3.30",
  "local-ip-address",
- "prometheus_exporter",
- "prover_dal",
  "regex",
  "reqwest",
  "serde",
@@ -8335,17 +8317,19 @@ dependencies = [
  "tracing",
  "vise",
  "vk_setup_data_generator_server_fri",
- "vlog",
  "zkevm_test_harness 1.5.0",
  "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
+ "zksync_prometheus_exporter",
  "zksync_prover_config",
+ "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -8358,21 +8342,21 @@ dependencies = [
  "ctrlc",
  "futures 0.3.30",
  "log",
- "prometheus_exporter",
- "prover_dal",
  "reqwest",
  "serde",
  "tokio",
  "tracing",
  "vise",
- "vlog",
  "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
+ "zksync_prometheus_exporter",
  "zksync_prover_config",
+ "zksync_prover_dal",
  "zksync_prover_interface",
  "zksync_types",
  "zksync_utils",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -8390,7 +8374,6 @@ name = "zksync_prover_fri_utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "prover_dal",
  "regex",
  "reqwest",
  "serde",
@@ -8398,6 +8381,7 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_object_store",
+ "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_types",
  "zksync_utils",
@@ -8529,9 +8513,25 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vlog",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zksync_basic_types",
+ "zksync_vlog",
+]
+
+[[package]]
+name = "zksync_vlog"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry-semantic-conventions",
+ "sentry",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -8566,10 +8566,7 @@ dependencies = [
  "ctrlc",
  "futures 0.3.30",
  "jemallocator",
- "multivm",
  "once_cell",
- "prometheus_exporter",
- "prover_dal",
  "rand 0.8.5",
  "serde",
  "structopt",
@@ -8578,16 +8575,18 @@ dependencies = [
  "tracing",
  "vise",
  "vk_setup_data_generator_server_fri",
- "vlog",
  "zk_evm 1.4.1",
  "zkevm_test_harness 1.5.0",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_dal",
  "zksync_env_config",
+ "zksync_multivm",
  "zksync_object_store",
+ "zksync_prometheus_exporter",
  "zksync_protobuf_config",
  "zksync_prover_config",
+ "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
  "zksync_prover_interface",
@@ -8596,6 +8595,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -8607,8 +8607,6 @@ dependencies = [
  "bincode",
  "ctrlc",
  "futures 0.3.30",
- "prometheus_exporter",
- "prover_dal",
  "queues",
  "serde",
  "structopt",
@@ -8616,15 +8614,17 @@ dependencies = [
  "tracing",
  "vise",
  "vk_setup_data_generator_server_fri",
- "vlog",
  "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
+ "zksync_prometheus_exporter",
+ "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vlog",
 ]
 
 [[package]]

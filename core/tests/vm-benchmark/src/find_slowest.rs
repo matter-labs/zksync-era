@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use vm_benchmark_harness::*;
+use zksync_vm_benchmark_harness::*;
 
 fn main() {
     let mut results = vec![];

@@ -2,7 +2,6 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::Context;
-use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{
     configs::{consensus::ConsensusConfig, wallets::Wallets, GeneralConfig, Secrets},
     ContractsConfig, GenesisConfig,
@@ -51,6 +50,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
+use zksync_prometheus_exporter::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
@@ -203,7 +203,8 @@ impl MainNodeBuilder {
                 .l2_shared_bridge_addr
                 .context("L2 shared bridge address")?,
             sk_config.l2_block_seal_queue_capacity,
-        );
+        )
+        .with_protective_reads_persistence_enabled(sk_config.protective_reads_persistence_enabled);
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
