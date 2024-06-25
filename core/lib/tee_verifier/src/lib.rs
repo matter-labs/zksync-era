@@ -7,22 +7,22 @@
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Context;
-use multivm::{
-    interface::{FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
-    vm_latest::HistoryEnabled,
-    VmInstance,
-};
 use serde::{Deserialize, Serialize};
-use vm_utils::execute_tx;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof,
+};
+use zksync_multivm::{
+    interface::{FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
+    vm_latest::HistoryEnabled,
+    VmInstance,
 };
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, H256};
 use zksync_utils::bytecode::hash_bytecode;
+use zksync_vm_utils::execute_tx;
 
 /// Version 1 of the data used as input for the TEE verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -282,9 +282,9 @@ impl StoredObject for TeeVerifierInput {
 
 #[cfg(test)]
 mod tests {
-    use multivm::interface::TxExecutionMode;
     use zksync_basic_types::U256;
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
+    use zksync_multivm::interface::TxExecutionMode;
 
     use super::*;
 

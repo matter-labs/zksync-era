@@ -1,7 +1,7 @@
-use multivm::utils::{
+use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_multivm::utils::{
     circuit_statistics_bootloader_batch_tip_overhead, get_max_batch_base_layer_circuits,
 };
-use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::ProtocolVersionId;
 
 // Local uses

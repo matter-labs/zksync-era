@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},

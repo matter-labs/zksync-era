@@ -1,11 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use prover_dal::{ConnectionPool, Prover};
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::{sync::watch, time::sleep};
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{ConnectionPool, Prover};
 
 use crate::metrics::METRICS;
 

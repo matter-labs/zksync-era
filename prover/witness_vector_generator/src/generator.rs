@@ -6,10 +6,10 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::{task::JoinHandle, time::sleep};
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::boojum::field::goldilocks::GoldilocksField, CircuitWrapper, ProverJob,
     WitnessVectorArtifacts,
