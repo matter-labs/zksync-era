@@ -11,7 +11,8 @@ use xshell::Shell;
 
 use crate::{
     consts::{
-        CONFIG_NAME, CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
+        CONFIG_NAME, CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY,
+        SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
@@ -89,6 +90,14 @@ impl ChainConfig {
 
     pub fn get_secrets_config(&self) -> anyhow::Result<SecretsConfig> {
         SecretsConfig::read(self.get_shell(), self.configs.join(SECRETS_FILE))
+    }
+
+    pub fn path_to_general_config(&self) -> PathBuf {
+        self.configs.join(GENERAL_FILE)
+    }
+
+    pub fn path_to_secrets_config(&self) -> PathBuf {
+        self.configs.join(SECRETS_FILE)
     }
 
     pub fn path_to_foundry(&self) -> PathBuf {
