@@ -1,4 +1,4 @@
-__imports__ = [ "base", "l1-inits/.init.env", "l2-inits/docker.init.env" ]
+__imports__ = [ "base", "l1-inits/.init.env", "l1-inits/docker-sync-layer.env", "l2-inits/docker.init.env" ]
 
 ETH_SENDER_SENDER_PUBDATA_SENDING_MODE = "Calldata"
 

@@ -7,6 +7,7 @@ import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
 import { scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
+import { isNetworkLocal } from 'utils';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
 // It is assumed to be enough to run a set of "normal" transactions.
@@ -77,7 +78,7 @@ export class TestContextOwner {
             this.reporter
         );
 
-        if (env.network == 'localhost') {
+        if (isNetworkLocal(env.network)) {
             // Setup small polling interval on localhost to speed up tests.
             this.l1Provider.pollingInterval = 100;
             this.l2Provider.pollingInterval = 100;
@@ -89,12 +90,12 @@ export class TestContextOwner {
 
     // Returns the required amount of L1 ETH
     requiredL1ETHPerAccount() {
-        return this.env.network === 'localhost' ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
+        return isNetworkLocal(this.env.network) ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
     }
 
     // Returns the required amount of L2 ETH
     requiredL2ETHPerAccount() {
-        return this.env.network === 'localhost' ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
+        return isNetworkLocal(this.env.network) ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
     }
 
     /**
@@ -169,6 +170,7 @@ export class TestContextOwner {
         const chainId = this.env.l2ChainId;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
+        console.log('bridgehub.address', bridgehub.address);
         const erc20Bridge = await bridgehub.sharedBridge();
         const baseToken = await bridgehub.baseToken(chainId);
 
@@ -209,7 +211,8 @@ export class TestContextOwner {
         const wallets = this.createTestWallets(suites);
         const baseTokenAddress = await this.mainSyncWallet.provider.getBaseTokenContractAddress();
         await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit, baseTokenAddress);
-        await this.cancelAllowances();
+        // FIXME: restore once ERC20 deposits are available.
+        // await this.cancelAllowances();
         await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit, baseTokenAddress);
         await this.distributeL2Tokens(wallets);
 
@@ -400,18 +403,17 @@ export class TestContextOwner {
                     // specify gas limit manually, until EVM-554 is fixed
                     l2GasLimit: 1000000
                 })
-                .then((tx) => {
+                .then(async (tx) => {
                     const amount = ethers.utils.formatEther(l2ETHAmountToDeposit);
                     this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
-                    tx.wait();
+                    await tx.wait();
                 });
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
             this.reporter.debug(
                 `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1)} for ETH deposit, new nonce: ${nonce}`
             );
             // Add this promise to the list of L1 tx promises.
-            // l1TxPromises.push(depositHandle);
-            await depositHandle;
+            l1TxPromises.push(depositHandle);
         }
         // Define values for handling ERC20 transfers/deposits.
         const erc20Token = this.env.erc20Token.l1Address;
@@ -514,6 +516,7 @@ export class TestContextOwner {
     private async distributeL2Tokens(wallets: TestWallets) {
         this.reporter.startAction(`Distributing tokens on L2`);
         let l2startNonce = await this.mainSyncWallet.getTransactionCount();
+        console.log(ethers.utils.formatEther(await this.mainSyncWallet.getBalance()));
 
         // ETH transfers.
         const l2TxPromises = await sendTransfers(

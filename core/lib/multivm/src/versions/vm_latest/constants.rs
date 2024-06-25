@@ -202,6 +202,6 @@ pub(crate) const TX_SLOT_OVERHEAD_GAS: u32 = 10_000;
 /// getting often sealed due to the memory limit being reached, the L2 fair gas price will be increased.
 pub(crate) const TX_MEMORY_OVERHEAD_GAS: u32 = 10;
 
-const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
+pub(crate) const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 pub const MAX_BLOBS_PER_BATCH: usize = 6;
 pub const MAX_VM_PUBDATA_PER_BATCH: usize = MAX_BLOBS_PER_BATCH * ZK_SYNC_BYTES_PER_BLOB;

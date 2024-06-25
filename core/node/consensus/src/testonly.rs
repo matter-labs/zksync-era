@@ -207,6 +207,7 @@ impl StateKeeper {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
                     },
+                    pubdata_params: Default::default(),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,

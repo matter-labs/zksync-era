@@ -247,6 +247,8 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l1_multicall3_addr: g.gen(),
             base_token_addr: g.gen(),
             ecosystem_contracts: self.sample(g),
+            user_facing_bridgehub_proxy_addr: g.gen(),
+            user_facing_diamond_proxy_addr: g.gen(),
             l2_native_token_vault_proxy_addr: g.gen(),
         }
     }
@@ -371,6 +373,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             l1_batch_min_age_before_execute_seconds: self.sample(rng),
             max_acceptable_priority_fee_in_gwei: self.sample(rng),
             pubdata_sending_mode: PubdataSendingMode::Calldata,
+            ignore_db_nonce: None,
         }
     }
 }

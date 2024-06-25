@@ -28,6 +28,7 @@ jobs:
       - name: Setup db
         run: |
           ci_run zk
+          ci_run run_retried rustup show
           ci_run zk db migrate
 
       - name: Lints

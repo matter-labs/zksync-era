@@ -172,6 +172,22 @@ export const announced = async (fn: string, promise: Promise<void> | void) => {
     console.log(`${successLine} ${timestampLine}`);
 };
 
+export function isNetworkLocal(network: string): boolean {
+    return isNetworkLocalL1(network) || isNetworkLocalL2(network);
+}
+
+export function isNetworkLocalL1(network: string): boolean {
+    return network == 'localhost';
+}
+
+export function isNetworkLocalL2(network: string): boolean {
+    return network == 'localhostL2';
+}
+
+export function isCurrentNetworkLocal(): boolean {
+    return process.env.CHAIN_ETH_NETWORK ? isNetworkLocal(process.env.CHAIN_ETH_NETWORK) : true;
+}
+
 export function unpackStringSemVer(semver: string): [number, number, number] {
     const [major, minor, patch] = semver.split('.');
     return [parseInt(major), parseInt(minor), parseInt(patch)];

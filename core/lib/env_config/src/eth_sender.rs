@@ -58,7 +58,6 @@ mod tests {
                     aggregated_block_execute_deadline: 4_000,
                     max_aggregated_tx_gas: 4_000_000,
                     max_eth_tx_data_size: 120_000,
-
                     timestamp_criteria_max_allowed_lag: 30,
                     max_aggregated_blocks_to_commit: 3,
                     max_aggregated_blocks_to_execute: 4,
@@ -70,6 +69,7 @@ mod tests {
                     l1_batch_min_age_before_execute_seconds: Some(1000),
                     max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                     pubdata_sending_mode: PubdataSendingMode::Calldata,
+                    ignore_db_nonce: None,
                 }),
                 gas_adjuster: Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,

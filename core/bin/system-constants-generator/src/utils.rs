@@ -230,6 +230,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         execution_mode: TxExecutionMode::VerifyExecute,
         default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::default(),
+        pubdata_params: Default::default(),
     };
 
     let eth_token_sys_contract = load_sys_contract("L2BaseToken");
@@ -313,6 +314,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         execution_mode: TxExecutionMode::VerifyExecute,
         default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::default(),
+        pubdata_params: Default::default(),
     };
 
     let mut vm: Vm<_, HistoryEnabled> =

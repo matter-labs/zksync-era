@@ -4,9 +4,14 @@ use once_cell::sync::OnceCell;
 use zksync_types::{L2ChainId, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use super::{tx::BootloaderTx, utils::apply_pubdata_to_memory};
+use super::{
+    tx::BootloaderTx,
+    utils::{apply_pubdata_to_memory, get_encoded_pubdata},
+};
 use crate::{
-    interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
+    interface::{
+        types::inputs::system_env::PubdataParams, BootloaderMemory, L2BlockEnv, TxExecutionMode,
+    },
     vm_latest::{
         bootloader_state::{
             l2_block::BootloaderL2Block,
@@ -46,6 +51,7 @@ pub struct BootloaderState {
     free_tx_offset: usize,
     /// Information about the the pubdata that will be needed to supply to the L1Messenger
     pubdata_information: OnceCell<PubdataInput>,
+    pub(crate) pubdata_params: PubdataParams,
 }
 
 impl BootloaderState {
@@ -53,6 +59,7 @@ impl BootloaderState {
         execution_mode: TxExecutionMode,
         initial_memory: BootloaderMemory,
         first_l2_block: L2BlockEnv,
+        pubdata_params: PubdataParams,
     ) -> Self {
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
         Self {
@@ -63,6 +70,7 @@ impl BootloaderState {
             execution_mode,
             free_tx_offset: 0,
             pubdata_information: Default::default(),
+            pubdata_params,
         }
     }
 
@@ -142,6 +150,17 @@ impl BootloaderState {
             .expect("Pubdata information is not set")
     }
 
+    pub(crate) fn get_encoded_pubdata(&self) -> Vec<u8> {
+        get_encoded_pubdata(
+            self.pubdata_information
+                .get()
+                .expect("Pubdata information is not set")
+                .clone(),
+            self.pubdata_params,
+            false,
+        )
+    }
+
     fn last_mut_l2_block(&mut self) -> &mut BootloaderL2Block {
         self.l2_blocks.last_mut().unwrap()
     }
@@ -179,7 +198,11 @@ impl BootloaderState {
             .into_inner()
             .expect("Empty pubdata information");
 
-        apply_pubdata_to_memory(&mut initial_memory, pubdata_information);
+        apply_pubdata_to_memory(
+            &mut initial_memory,
+            pubdata_information,
+            self.pubdata_params,
+        );
         initial_memory
     }
 

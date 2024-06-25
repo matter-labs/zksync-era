@@ -73,7 +73,7 @@ pub(crate) struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
-    pub diamond_proxy_addr: Address,
+    pub user_facing_diamond_proxy: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
@@ -87,6 +87,8 @@ pub(crate) struct RemoteENConfig {
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
+
+    pub user_facing_bridgehub: Option<Address>,
     pub l2_native_token_vault_proxy_addr: Option<Address>,
 }
 
@@ -110,10 +112,16 @@ impl RemoteENConfig {
             .rpc_context("ecosystem_contracts")
             .await
             .ok();
-        let diamond_proxy_addr = client
+        let user_facing_diamond_proxy = client
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
+
+        let user_facing_bridgehub = client
+            .get_bridgehub_contract()
+            .rpc_context("get_bridgehub_contract")
+            .await?;
+
         let base_token_addr = match client.get_base_token_l1_address().await {
             Err(ClientError::Call(err))
                 if [
@@ -156,7 +164,8 @@ impl RemoteENConfig {
             transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
-            diamond_proxy_addr,
+            user_facing_diamond_proxy,
+            user_facing_bridgehub,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
             l2_erc20_bridge_addr: l2_erc20_default_bridge,
@@ -183,7 +192,8 @@ impl RemoteENConfig {
             bridgehub_proxy_addr: None,
             state_transition_proxy_addr: None,
             transparent_proxy_admin_addr: None,
-            diamond_proxy_addr: Address::repeat_byte(1),
+            user_facing_diamond_proxy: Address::repeat_byte(1),
+            user_facing_bridgehub: None,
             l1_erc20_bridge_proxy_addr: Some(Address::repeat_byte(2)),
             l2_erc20_bridge_addr: Some(Address::repeat_byte(3)),
             l2_weth_bridge_addr: None,
@@ -943,7 +953,8 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
             state_transition_proxy_addr: config.remote.state_transition_proxy_addr,
             transparent_proxy_admin_addr: config.remote.transparent_proxy_admin_addr,
-            diamond_proxy_addr: config.remote.diamond_proxy_addr,
+            user_facing_diamond_proxy_addr: config.remote.user_facing_diamond_proxy,
+            user_facing_bridgehub_addr: config.remote.user_facing_bridgehub,
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,

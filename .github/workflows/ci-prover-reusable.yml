@@ -60,6 +60,7 @@ jobs:
       - name: Init
         run: |
           ci_run zk
+          ci_run run_retried rustup show
           ci_run zk db setup
 
       - name: Prover unit tests

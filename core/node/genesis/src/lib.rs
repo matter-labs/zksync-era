@@ -429,7 +429,6 @@ pub async fn create_genesis_l1_batch(
 pub async fn save_set_chain_id_tx(
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
-    _state_transition_manager_address: Address,
     database_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
     let db_url = database_secrets.master_url()?;
