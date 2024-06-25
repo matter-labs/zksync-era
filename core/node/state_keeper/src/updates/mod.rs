@@ -101,7 +101,7 @@ impl UpdatesManager {
         }
     }
 
-    pub(crate) fn protocol_version(&self) -> ProtocolVersionId {
+    pub fn protocol_version(&self) -> ProtocolVersionId {
         self.protocol_version
     }
 

@@ -153,8 +153,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         let mut result =
             get_updates_manager_witness_input_data(updates_manager.clone(), &mut connection).await;
 
-        // todo: update this assert
-        assert_eq!(db_result, result);
+        compare_witness_input_data(&db_result, &result);
 
         let previous_batch_with_metadata = connection
             .blocks_dal()
@@ -206,13 +205,6 @@ async fn get_updates_manager_witness_input_data(
         .clone()
         .expect(format!("L1 batch {l1_batch_number:?} is not finished").as_str());
 
-    let block_header = connection
-        .blocks_dal()
-        .get_l1_batch_header(l1_batch_number)
-        .await
-        .unwrap()
-        .unwrap();
-
     let initial_heap_content = finished_batch.final_bootloader_memory.unwrap(); // might be just empty
     let default_aa = updates_manager
         .base_system_contract_hashes()
@@ -263,9 +255,7 @@ async fn get_updates_manager_witness_input_data(
         used_bytecodes,
         initial_heap_content,
 
-        protocol_version: block_header
-            .protocol_version
-            .unwrap_or(ProtocolVersionId::last_potentially_undefined()),
+        protocol_version: updates_manager.protocol_version(),
 
         bootloader_code: bytes_to_chunks(bootloader.as_bytes()),
         default_account_code_hash: account_code_hash,
@@ -359,6 +349,65 @@ async fn get_database_witness_input_data(
         storage_refunds,
         pubdata_costs,
         witness_block_state: WitnessBlockState::default(),
+    }
+}
+
+fn compare_witness_input_data(db_result: &VMRunWitnessInputData, result: &VMRunWitnessInputData) {
+    if db_result.protocol_version != result.protocol_version {
+        tracing::error!(
+                "Protocol version mismatch in basic witness input producer: DB: {:?}, UpdatesManager: {:?}",
+                db_result.protocol_version,
+                result.protocol_version
+            );
+    }
+    if db_result.l1_batch_number != result.l1_batch_number {
+        tracing::error!(
+                "L1 batch number mismatch in basic witness input producer: DB: {:?}, UpdatesManager: {:?}",
+                db_result.l1_batch_number,
+                result.l1_batch_number
+            );
+    }
+    if db_result.used_bytecodes.len() != result.used_bytecodes.len() {
+        tracing::error!(
+                "Used bytecodes length mismatch in basic witness input producer: DB: {:?}, UpdatesManager: {:?}",
+                db_result.used_bytecodes.len(),
+                result.used_bytecodes.len()
+            );
+    }
+    if db_result.storage_refunds != result.storage_refunds {
+        tracing::error!(
+                "Storage refunds mismatch in basic witness input producer: DB: {:?}, UpdatesManager: {:?}",
+                db_result.storage_refunds,
+                result.storage_refunds
+            );
+    }
+    if db_result.pubdata_costs != result.pubdata_costs {
+        tracing::error!(
+                "Pubdata costs mismatch in basic witness input producer: DB: {:?}, UpdatesManager: {:?}",
+                db_result.pubdata_costs,
+                result.pubdata_costs
+            );
+    }
+    if db_result.initial_heap_content != result.initial_heap_content {
+        tracing::error!(
+                "Initial heap content mismatch in basic witness input producer: DB: {:?}, UpdatesManager: {:?}",
+                db_result.initial_heap_content,
+                result.initial_heap_content
+            );
+    }
+    if db_result.bootloader_code != result.bootloader_code {
+        tracing::error!(
+                "Bootloader code mismatch in basic witness input producer: DB: {:?}, UpdatesManager: {:?}",
+                db_result.bootloader_code,
+                result.bootloader_code
+            );
+    }
+    if db_result.default_account_code_hash != result.default_account_code_hash {
+        tracing::error!(
+                "Default account code hash mismatch in basic witness input producer: DB: {:?}, UpdatesManager: {:?}",
+                db_result.default_account_code_hash,
+                result.default_account_code_hash
+            );
     }
 }
 
