@@ -42,7 +42,7 @@ fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_PROVER_GATEWAY);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
-    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_prover_fri_gateway -- --config-path={config_path} --secrets-path={secrets_path} &")).with_force_run();
+    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_prover_fri_gateway & -- --config-path={config_path} --secrets-path={secrets_path}")).with_force_run();
     cmd.run()
 }
 
