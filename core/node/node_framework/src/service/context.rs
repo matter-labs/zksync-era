@@ -191,7 +191,7 @@ impl<'a> ServiceContext<'a> {
         })
     }
 
-    /// Attempts to retrieve the resource with the specified name.
+    /// Attempts to retrieve the resource of the specified type.
     /// If the resource is not available, it is created using the provided closure.
     pub async fn get_resource_or_insert_with<T: Resource + Clone, F: FnOnce() -> T>(
         &mut self,
@@ -214,18 +214,19 @@ impl<'a> ServiceContext<'a> {
         resource
     }
 
-    /// Attempts to retrieve the resource with the specified name.
+    /// Attempts to retrieve the resource of the specified type.
     /// If the resource is not available, it is created using `T::default()`.
     pub async fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
         self.get_resource_or_insert_with(T::default).await
     }
 
     /// Adds a resource to the service.
+    ///
     /// If the resource with the same type is already provided, the method will return an error.
     pub fn insert_resource<T: Resource>(&mut self, resource: T) -> Result<(), WiringError> {
         let id = ResourceId::of::<T>();
         if self.service.resources.contains_key(&id) {
-            tracing::warn!(
+            tracing::info!(
                 "Layer {} has attempted to provide resource {} of type {}, but it is already available",
                 self.layer,
                 T::name(),

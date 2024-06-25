@@ -1,5 +1,6 @@
 use crate::{task::TaskId, wiring_layer::WiringError};
 
+/// An error that can occur during the task lifecycle.
 #[derive(Debug, thiserror::Error)]
 pub enum TaskError {
     #[error("Task {0} failed: {1}")]

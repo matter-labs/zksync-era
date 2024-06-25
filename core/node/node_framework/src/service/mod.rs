@@ -3,11 +3,10 @@ use std::{collections::HashMap, time::Duration};
 use anyhow::Context;
 use error::TaskError;
 use futures::FutureExt;
-use runnables::NamedBoxFuture;
 use tokio::{runtime::Runtime, sync::watch};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
-use self::runnables::Runnables;
+use self::runnables::{NamedBoxFuture, Runnables};
 pub use self::{context::ServiceContext, error::ZkStackServiceError, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, StoredResource},
@@ -40,6 +39,7 @@ impl ZkStackServiceBuilder {
     }
 
     /// Adds a wiring layer.
+    ///
     /// During the [`run`](ZkStackService::run) call the service will invoke
     /// `wire` method of every layer in the order they were added.
     ///
@@ -58,6 +58,10 @@ impl ZkStackServiceBuilder {
         self
     }
 
+    /// Builds the service.
+    ///
+    /// In case of errors during wiring phase, will return the list of all the errors that happened, in the order
+    /// of their occurrence.
     pub fn build(&mut self) -> Result<ZkStackService, ZkStackServiceError> {
         if tokio::runtime::Handle::try_current().is_ok() {
             return Err(ZkStackServiceError::RuntimeDetected);
@@ -164,10 +168,7 @@ impl ZkStackService {
         let rt_handle = self.runtime.handle().clone();
         let join_handles: Vec<_> = long_running_tasks
             .into_iter()
-            .map(|task| {
-                let name = task.id();
-                NamedBoxFuture::new(rt_handle.spawn(task.into_inner()).fuse().boxed(), name)
-            })
+            .map(|task| task.spawn(&rt_handle).fuse())
             .collect();
 
         // Collect names for remaining tasks for reporting purposes.
