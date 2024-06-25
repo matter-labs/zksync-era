@@ -66,9 +66,8 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 > [!NOTE]
 >
 > To stop state growth, you can enable state pruning by uncommenting `EN_PRUNING_ENABLED: true` in docker compose file,
-> you can read more about pruning in [08_pruning.md](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/08_pruning.md) 
-
-
+> you can read more about pruning in
+> [08_pruning.md](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/08_pruning.md)
 
 - 32 GB of RAM and a relatively modern CPU
 - 30 GB of storage for testnet nodes
