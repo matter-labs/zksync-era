@@ -236,8 +236,7 @@ describe('ETH token checks', () => {
         );
     });
 
-    // FIXME: restore
-    test.skip('Can perform a withdrawal', async () => {
+    test('Can perform a withdrawal', async () => {
         if (!isETHBasedChain) {
             // TODO(EVM-555): Currently this test is not working for non-eth based chains.
             return;

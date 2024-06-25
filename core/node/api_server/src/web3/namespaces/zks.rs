@@ -642,7 +642,7 @@ struct TreeLeafProof {
 
 impl TreeLeafProof {
     pub fn encode(self) -> Vec<H256> {
-        const SUPPORTED_METADATA_VERSION: u8 = 0;
+        const SUPPORTED_METADATA_VERSION: u8 = 1;
 
         let log_leaf_proof_len = self.leaf_proof.len();
 

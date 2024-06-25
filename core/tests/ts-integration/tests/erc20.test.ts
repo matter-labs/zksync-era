@@ -142,7 +142,7 @@ describe('ERC20 contract checks', () => {
     });
 
     // FIXME: restore test
-    test.skip('Can perform a withdrawal', async () => {
+    test('Can perform a withdrawal', async () => {
         if (testMaster.isFastMode()) {
             return;
         }
