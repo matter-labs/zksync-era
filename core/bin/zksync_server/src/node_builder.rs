@@ -329,7 +329,14 @@ impl MainNodeBuilder {
         let circuit_breaker_config = try_load_config!(self.configs.circuit_breaker_config);
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
-        let mut namespaces = Namespace::DEFAULT.to_vec();
+        let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
+            namespaces
+                .iter()
+                .map(|a| a.parse())
+                .collect::<Result<_, _>>()?
+        } else {
+            Namespace::DEFAULT.to_vec()
+        };
         if with_debug_namespace {
             namespaces.push(Namespace::Debug)
         }
@@ -345,6 +352,7 @@ impl MainNodeBuilder {
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
             replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
+            with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::ws(

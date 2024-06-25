@@ -56,6 +56,7 @@ impl Web3ServerOptionalConfig {
             api_builder = api_builder
                 .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
         }
+        api_builder = api_builder.with_extended_tracing(self.with_extended_tracing);
         api_builder
     }
 }
