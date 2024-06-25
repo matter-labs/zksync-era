@@ -1,29 +1,33 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use multivm::{
-    interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
+    interface::{L1BatchEnv, L2BlockEnv, PubdataParams, PubdataType, SystemEnv},
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_contracts::{
+    get_loadnext_contract, l2_rollup_da_validator_bytecode,
+    test_contracts::LoadnextContractExecutionParams,
+};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::create_genesis_l1_batch;
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
-    block::L2BlockHasher, ethabi::Token, protocol_version::ProtocolSemanticVersion,
-    snapshots::SnapshotRecoveryStatus, storage_writes_deduplicator::StorageWritesDeduplicator,
+    block::L2BlockHasher, ethabi::Token, get_code_key, get_known_code_key,
+    protocol_version::ProtocolSemanticVersion, snapshots::SnapshotRecoveryStatus,
+    storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
     StorageKey, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use super::{
     read_storage_factory::{PostgresFactory, RocksdbFactory},
@@ -36,6 +40,10 @@ use crate::{
     tests::{default_l1_batch_env, default_system_env},
     AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
 };
+
+fn get_da_contract_address() -> Address {
+    Address::from_str("7726827caac94a7f9e1b160f7ea819f172f7b6f9").unwrap()
+}
 
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.
@@ -231,6 +239,10 @@ impl Tester {
         }
         system_params.default_validation_computational_gas_limit =
             self.config.validation_computational_gas_limit;
+        system_params.pubdata_params = PubdataParams {
+            l2_da_validator_address: get_da_contract_address(),
+            pubdata_type: PubdataType::Rollup,
+        };
         let mut batch_params = default_l1_batch_env(l1_batch_number.0, timestamp, self.fee_account);
         batch_params.previous_batch_hash = Some(H256::zero()); // Not important in this context.
         (batch_params, system_params)
@@ -252,6 +264,9 @@ impl Tester {
             )
             .await
             .unwrap();
+
+            // Also setting up the da for tests
+            Self::setup_da(&mut storage).await;
         }
     }
 
@@ -289,6 +304,42 @@ impl Tester {
                     .unwrap();
             }
         }
+    }
+
+    pub async fn setup_contract<'a>(
+        con: &mut Connection<'a, Core>,
+        address: Address,
+        code: Vec<u8>,
+    ) {
+        let hash: H256 = hash_bytecode(&code);
+        let known_code_key = get_known_code_key(&hash);
+        let code_key = get_code_key(&address);
+
+        let logs = vec![
+            StorageLog::new_write_log(known_code_key, H256::from_low_u64_be(1u64)),
+            StorageLog::new_write_log(code_key, hash),
+        ];
+
+        for log in logs {
+            apply_genesis_log(con, log).await;
+        }
+
+        let mut factory_deps = HashMap::new();
+        factory_deps.insert(hash, code);
+
+        con.factory_deps_dal()
+            .insert_factory_deps(L2BlockNumber(0), &factory_deps)
+            .await
+            .unwrap();
+    }
+
+    async fn setup_da<'a>(con: &mut Connection<'a, Core>) {
+        Self::setup_contract(
+            con,
+            get_da_contract_address(),
+            l2_rollup_da_validator_bytecode(),
+        )
+        .await;
     }
 
     pub(super) async fn wait_for_tasks(&mut self) {
@@ -559,5 +610,27 @@ impl StorageSnapshot {
             .await
             .unwrap();
         snapshot
+    }
+}
+
+async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageLog) {
+    storage
+        .storage_logs_dal()
+        .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![log])])
+        .await
+        .unwrap();
+
+    if storage
+        .storage_logs_dedup_dal()
+        .filter_written_slots(&[log.key.hashed_key()])
+        .await
+        .unwrap()
+        .is_empty()
+    {
+        storage
+            .storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(0), &[log.key])
+            .await
+            .unwrap();
     }
 }

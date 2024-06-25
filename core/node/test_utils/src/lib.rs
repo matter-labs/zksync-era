@@ -74,6 +74,7 @@ pub fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         events_queue_commitment: Some(H256::zero()),
         bootloader_initial_content_commitment: Some(H256::zero()),
         state_diffs_compressed: vec![],
+        state_diff_hash: H256::zero(),
     }
 }
 
@@ -92,6 +93,7 @@ pub fn l1_batch_metadata_to_commitment_artifacts(
         compressed_initial_writes: metadata.initial_writes_compressed.clone(),
         compressed_repeated_writes: metadata.repeated_writes_compressed.clone(),
         zkporter_is_available: ZKPORTER_IS_AVAILABLE,
+        state_diff_hash: metadata.state_diff_hash,
         aux_commitments: match (
             metadata.bootloader_initial_content_commitment,
             metadata.events_queue_commitment,

@@ -60,6 +60,7 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: L2ChainId::from(270),
+            pubdata_params: Default::default(),
         },
         pending_l2_blocks,
     }
@@ -74,6 +75,7 @@ pub(super) fn default_system_env() -> SystemEnv {
         execution_mode: TxExecutionMode::VerifyExecute,
         default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::from(270),
+        pubdata_params: Default::default(),
     }
 }
 

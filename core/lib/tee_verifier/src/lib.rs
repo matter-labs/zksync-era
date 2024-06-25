@@ -331,6 +331,7 @@ mod tests {
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: 0,
                 chain_id: Default::default(),
+                pubdata_params: Default::default(),
             },
             vec![(H256([1; 32]), vec![0, 1, 2, 3, 4])],
         );
