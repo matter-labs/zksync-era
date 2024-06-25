@@ -23,15 +23,23 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Builder for a metadata calculator.
+/// Wiring layer for <insert description here>
 ///
-/// ## Effects
+/// ## Requests resources
 ///
-/// - Resolves `PoolResource<MasterPool>`.
-/// - Resolves `PoolResource<ReplicaPool>`.
-/// - Resolves `ObjectStoreResource` (optional).
-/// - Adds `tree_health_check` to the `ResourceCollection<HealthCheckResource>`.
-/// - Adds `metadata_calculator` to the node.
+/// - `PoolResource<MasterPool>`
+/// - `PoolResource<ReplicaPool>`
+/// - `ObjectStoreResource` (only for `MerkleTreeMode::Full`)
+/// - `AppHealthCheckResource` (adds several health checks)
+///
+/// ## Adds resources
+///
+/// - `TreeApiClientResource`
+///
+/// ## Adds tasks
+///
+/// - `MetadataCalculatorTask`
+/// - `TreeApiTask` (if requested)
 #[derive(Debug)]
 pub struct MetadataCalculatorLayer {
     config: MetadataCalculatorConfig,
