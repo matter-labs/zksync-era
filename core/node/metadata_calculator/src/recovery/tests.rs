@@ -113,7 +113,7 @@ async fn prepare_recovery_snapshot_with_genesis(
     drop(storage);
 
     // Ensure that metadata for L1 batch #1 is present in the DB.
-    let (calculator, _) = setup_calculator(&temp_dir.path().join("init"), pool).await;
+    let (calculator, _) = setup_calculator(&temp_dir.path().join("init"), pool, true).await;
     let l1_batch_root_hash = run_calculator(calculator).await;
 
     SnapshotRecoveryStatus {
