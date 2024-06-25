@@ -2,15 +2,14 @@ use common::logger;
 use config::EcosystemConfig;
 use xshell::Shell;
 
+use super::{
+    args::run::{ProverComponent, ProverRunArgs},
+    utils::get_link_to_prover,
+};
 use crate::messages::{
     MSG_MISSING_COMPONENTS_ERR, MSG_RUNNING_COMPRESSOR, MSG_RUNNING_PROVER,
     MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_WITNESS_GENERATOR,
     MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
-};
-
-use super::{
-    args::run::{ProverComponent, ProverRunArgs},
-    utils::get_link_to_prover,
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
