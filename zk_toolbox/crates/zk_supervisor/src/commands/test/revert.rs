@@ -29,8 +29,7 @@ fn run_test(
     Spinner::new("Running test...").freeze();
 
     let mut cmd = Cmd::new(cmd!(shell, "yarn mocha tests/revert-and-restart.test.ts"))
-        .env("CHAIN_NAME", &ecosystem_config.default_chain)
-        .env("ZKSYNC_HOME", &ecosystem_config.link_to_code);
+        .env("CHAIN_NAME", &ecosystem_config.default_chain);
     if args.enable_consensus {
         cmd = cmd.env("ENABLE_CONSENSUS", "true");
     }
