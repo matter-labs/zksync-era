@@ -46,7 +46,7 @@ fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
     let secrets_path = chain.path_to_secrets_config();
     let command =
         format!(
-        "\'cargo run --release --bin zksync_prover_fri_gateway -- --config-path={} --secrets-path={}\'",
+        "cargo run --release --bin zksync_prover_fri_gateway -- --config-path={} --secrets-path={}",
         config_path.to_str().expect("Failed to convert path to string"),
         secrets_path.to_str().expect("Failed to convert path to string")
     );
