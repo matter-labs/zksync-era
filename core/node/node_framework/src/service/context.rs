@@ -1,9 +1,11 @@
-use std::any::type_name;
+use std::{any::type_name, future::Future};
+
+use futures::FutureExt as _;
 
 use crate::{
     precondition::Precondition,
     resource::{Resource, ResourceId, StoredResource},
-    service::ZkStackService,
+    service::{named_future::NamedFuture, ZkStackService},
     task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
     wiring_layer::WiringError,
 };
@@ -118,6 +120,28 @@ impl<'a> ServiceContext<'a> {
         self
     }
 
+    /// Adds a future to be invoked after node shutdown.
+    /// May be used to perform cleanup tasks.
+    ///
+    /// The future is guaranteed to only be polled after all the node tasks are stopped or timed out.
+    /// All the futures will be awaited sequentially.
+    pub fn add_shutdown_hook(
+        &mut self,
+        name: &'static str,
+        hook: impl Future<Output = anyhow::Result<()>> + Send + 'static,
+    ) -> &mut Self {
+        tracing::info!(
+            "Layer {} has added a new shutdown hook: {}",
+            self.layer,
+            name
+        );
+        self.service
+            .runnables
+            .shutdown_hooks
+            .push(NamedFuture::new(hook.boxed(), name.into()));
+        self
+    }
+
     /// Attempts to retrieve the resource of the specified type.
     ///
     /// ## Panics
@@ -127,7 +151,6 @@ impl<'a> ServiceContext<'a> {
         // Implementation details:
         // Internally the resources are stored as [`std::any::Any`], and this method does the downcasting
         // on behalf of the caller.
-
         #[allow(clippy::borrowed_box)]
         let downcast_clone = |resource: &Box<dyn StoredResource>| {
             resource

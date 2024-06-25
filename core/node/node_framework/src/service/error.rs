@@ -1,4 +1,18 @@
-use crate::wiring_layer::WiringError;
+use crate::{task::TaskId, wiring_layer::WiringError};
+
+#[derive(Debug, thiserror::Error)]
+pub enum TaskError {
+    #[error("Task {0} failed: {1}")]
+    TaskFailed(TaskId, anyhow::Error),
+    #[error("Task {0} panicked: {1}")]
+    TaskPanicked(TaskId, String),
+    #[error("Shutdown for task {0} timed out")]
+    TaskShutdownTimedOut(TaskId),
+    #[error("Shutdown hook {0} failed: {1}")]
+    ShutdownHookFailed(TaskId, anyhow::Error),
+    #[error("Shutdown hook {0} timed out")]
+    ShutdownHookTimedOut(TaskId),
+}
 
 /// An error that can occur during the service lifecycle.
 #[derive(Debug, thiserror::Error)]
@@ -9,6 +23,6 @@ pub enum ZkStackServiceError {
     NoTasks,
     #[error("One or more wiring layers failed to initialize: {0:?}")]
     Wiring(Vec<(String, WiringError)>),
-    #[error(transparent)]
-    Task(#[from] anyhow::Error),
+    #[error("One or more tasks failed: {0:?}")]
+    Task(Vec<TaskError>),
 }
