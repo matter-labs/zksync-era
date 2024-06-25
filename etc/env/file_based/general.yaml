@@ -337,8 +337,3 @@ core_object_store:
   file_backed:
     file_backed_base_path: artifacts
   max_retries: 10
-
-network:
-  network: "localhost"
-  zksync_network: "localhost"
-  zksync_network_id: 271
