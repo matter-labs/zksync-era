@@ -1,12 +1,7 @@
 use std::{any::TypeId, fmt};
 
-pub use self::{
-    lazy_resource::LazyResource, resource_collection::ResourceCollection, resource_id::ResourceId,
-    unique::Unique,
-};
+pub use self::{resource_id::ResourceId, unique::Unique};
 
-mod lazy_resource;
-mod resource_collection;
 mod resource_id;
 mod unique;
 
