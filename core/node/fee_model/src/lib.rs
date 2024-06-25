@@ -68,19 +68,18 @@ pub struct MainNodeFeeInputProvider {
 #[async_trait]
 impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
     async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
-        let params = match self.config {
-            FeeModelConfig::V1(config) => FeeParams::V1(FeeParamsV1 {
+        match self.config {
+            FeeModelConfig::V1(config) => Ok(FeeParams::V1(FeeParamsV1 {
                 config,
                 l1_gas_price: self.provider.estimate_effective_gas_price(),
-            }),
-            FeeModelConfig::V2(config) => FeeParams::V2(FeeParamsV2 {
+            })),
+            FeeModelConfig::V2(config) => Ok(FeeParams::V2(FeeParamsV2::new(
                 config,
-                l1_gas_price: self.provider.estimate_effective_gas_price(),
-                l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
-            }),
-        };
-
-        self.base_token_adjuster.convert(params).await
+                self.provider.estimate_effective_gas_price(),
+                self.provider.estimate_effective_pubdata_price(),
+                self.base_token_adjuster.get_conversion_ratio().await?,
+            ))),
+        }
     }
 }
 
@@ -171,11 +170,9 @@ fn compute_batch_fee_model_input_v2(
     l1_gas_price_scale_factor: f64,
     l1_pubdata_price_scale_factor: f64,
 ) -> PubdataIndependentBatchFeeModelInput {
-    let FeeParamsV2 {
-        config,
-        l1_gas_price,
-        l1_pubdata_price,
-    } = params;
+    let config = params.config();
+    let l1_gas_price = params.l1_gas_price();
+    let l1_pubdata_price = params.l1_pubdata_price();
 
     let FeeModelConfigV2 {
         minimal_l2_gas_price,
@@ -251,10 +248,8 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 
 #[cfg(test)]
 mod tests {
-    // use bigdecimal::{BigDecimal, ToPrimitive};
-    use bigdecimal::BigDecimal;
-    // use test_casing::test_casing;
     use zksync_base_token_adjuster::MockBaseTokenAdjuster;
+    use zksync_types::fee_model::BaseTokenConversionRatio;
 
     use super::*;
     use crate::l1_gas_price::MockGasAdjuster;
@@ -266,6 +261,11 @@ mod tests {
 
     // As a small small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: u64 = 1;
+
+    const ONE_TO_ONE_CONVERSION: BaseTokenConversionRatio = BaseTokenConversionRatio {
+        numerator: 1,
+        denominator: 1,
+    };
 
     #[test]
     fn test_compute_batch_fee_model_input_v2_giant_numbers() {
@@ -283,11 +283,12 @@ mod tests {
             max_pubdata_per_batch: 100_000,
         };
 
-        let params = FeeParamsV2 {
+        let params = FeeParamsV2::new(
             config,
-            l1_gas_price: GIANT_L1_GAS_PRICE,
-            l1_pubdata_price: GIANT_L1_GAS_PRICE,
-        };
+            GIANT_L1_GAS_PRICE,
+            GIANT_L1_GAS_PRICE,
+            ONE_TO_ONE_CONVERSION,
+        );
 
         // We'll use scale factor of 3.0
         let input = compute_batch_fee_model_input_v2(params, 3.0, 3.0);
@@ -309,11 +310,12 @@ mod tests {
             max_pubdata_per_batch: 100_000,
         };
 
-        let params = FeeParamsV2 {
+        let params = FeeParamsV2::new(
             config,
-            l1_gas_price: SMALL_L1_GAS_PRICE,
-            l1_pubdata_price: SMALL_L1_GAS_PRICE,
-        };
+            SMALL_L1_GAS_PRICE,
+            SMALL_L1_GAS_PRICE,
+            ONE_TO_ONE_CONVERSION,
+        );
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
 
@@ -334,11 +336,12 @@ mod tests {
             max_pubdata_per_batch: 100_000,
         };
 
-        let params = FeeParamsV2 {
+        let params = FeeParamsV2::new(
             config,
-            l1_gas_price: GIANT_L1_GAS_PRICE,
-            l1_pubdata_price: GIANT_L1_GAS_PRICE,
-        };
+            GIANT_L1_GAS_PRICE,
+            GIANT_L1_GAS_PRICE,
+            ONE_TO_ONE_CONVERSION,
+        );
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
@@ -360,11 +363,12 @@ mod tests {
             max_pubdata_per_batch: 100_000,
         };
 
-        let params = FeeParamsV2 {
+        let params = FeeParamsV2::new(
             config,
-            l1_gas_price: GIANT_L1_GAS_PRICE,
-            l1_pubdata_price: GIANT_L1_GAS_PRICE,
-        };
+            GIANT_L1_GAS_PRICE,
+            GIANT_L1_GAS_PRICE,
+            ONE_TO_ONE_CONVERSION,
+        );
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
@@ -386,19 +390,23 @@ mod tests {
             max_pubdata_per_batch: 100_000,
         };
 
-        let base_params = FeeParamsV2 {
-            config: base_config,
-            l1_gas_price: 1_000_000_000,
-            l1_pubdata_price: 1_000_000_000,
-        };
+        let base_params = FeeParamsV2::new(
+            base_config,
+            1_000_000_000,
+            1_000_000_000,
+            ONE_TO_ONE_CONVERSION,
+        );
 
         let base_input = compute_batch_fee_model_input_v2(base_params, 1.0, 1.0);
 
         let base_input_larger_l1_gas_price = compute_batch_fee_model_input_v2(
-            FeeParamsV2 {
-                l1_gas_price: base_params.l1_gas_price * 2,
-                ..base_params
-            },
+            FeeParamsV2::new(
+                base_config,
+                // We double the L1 gas price
+                2_000_000_000,
+                1_000_000_000,
+                ONE_TO_ONE_CONVERSION,
+            ),
             1.0,
             1.0,
         );
@@ -418,10 +426,13 @@ mod tests {
         );
 
         let base_input_larger_pubdata_price = compute_batch_fee_model_input_v2(
-            FeeParamsV2 {
-                l1_pubdata_price: base_params.l1_pubdata_price * 2,
-                ..base_params
-            },
+            FeeParamsV2::new(
+                base_config,
+                1_000_000_000,
+                // We double the L1 pubdata price
+                2_000_000_000,
+                ONE_TO_ONE_CONVERSION,
+            ),
             1.0,
             1.0,
         );
@@ -441,13 +452,15 @@ mod tests {
         );
 
         let base_input_larger_max_gas = compute_batch_fee_model_input_v2(
-            FeeParamsV2 {
-                config: FeeModelConfigV2 {
+            FeeParamsV2::new(
+                FeeModelConfigV2 {
                     max_gas_per_batch: base_config.max_gas_per_batch * 2,
                     ..base_config
                 },
-                ..base_params
-            },
+                base_params.l1_gas_price(),
+                base_params.l1_pubdata_price(),
+                ONE_TO_ONE_CONVERSION,
+            ),
             1.0,
             1.0,
         );
@@ -461,13 +474,15 @@ mod tests {
         );
 
         let base_input_larger_max_pubdata = compute_batch_fee_model_input_v2(
-            FeeParamsV2 {
-                config: FeeModelConfigV2 {
+            FeeParamsV2::new(
+                FeeModelConfigV2 {
                     max_pubdata_per_batch: base_config.max_pubdata_per_batch * 2,
                     ..base_config
                 },
-                ..base_params
-            },
+                base_params.l1_gas_price(),
+                base_params.l1_pubdata_price(),
+                ONE_TO_ONE_CONVERSION,
+            ),
             1.0,
             1.0,
         );
@@ -485,55 +500,119 @@ mod tests {
     async fn test_get_fee_model_params() {
         struct TestCase {
             name: &'static str,
-            base_token: String,
-            base_token_to_eth: BigDecimal,
-            effective_l1_gas_price: u64,
-            effective_l1_pubdata_price: u64,
-            minimal_l2_gas_price: u64,
-            expected_l1_gas_price: u64,
-            expected_l1_pubdata_price: u64,
-            expected_minimal_l2_gas_price: u64,
+            conversion_ratio: BaseTokenConversionRatio,
+            input_minimal_l2_gas_price: u64,    // Wei denomination
+            input_l1_gas_price: u64,            // Wei
+            input_l1_pubdata_price: u64,        // Wei
+            expected_minimal_l2_gas_price: u64, // BaseToken denomination
+            expected_l1_gas_price: u64,         // BaseToken
+            expected_l1_pubdata_price: u64,     // BaseToken
         }
 
         let test_cases = vec![
             TestCase {
-                name: "Convert to a custom base token",
-                base_token: "ZK".to_string(),
-                base_token_to_eth: BigDecimal::from(200000),
-                effective_l1_gas_price: 10_000_000_000, // 10 gwei
-                effective_l1_pubdata_price: 20_000_000, // 0.02 gwei
-                minimal_l2_gas_price: 25_000_000,       // 0.025 gwei
-                expected_l1_gas_price: 2_000_000_000_000_000,
-                expected_l1_pubdata_price: 4_000_000_000_000,
-                expected_minimal_l2_gas_price: 5_000_000_000_000,
+                name: "1 ETH = 2 BaseToken",
+                conversion_ratio: BaseTokenConversionRatio {
+                    numerator: 2,
+                    denominator: 1,
+                },
+                input_minimal_l2_gas_price: 1000,
+                input_l1_gas_price: 2000,
+                input_l1_pubdata_price: 3000,
+                expected_minimal_l2_gas_price: 2000,
+                expected_l1_gas_price: 4000,
+                expected_l1_pubdata_price: 6000,
             },
             TestCase {
-                name: "ETH as base token (no conversion)",
-                base_token: "ETH".to_string(),
-                base_token_to_eth: BigDecimal::from(1),
-                effective_l1_gas_price: 15_000_000_000, // 15 gwei
-                effective_l1_pubdata_price: 30_000_000, // 0.03 gwei
-                minimal_l2_gas_price: 40_000_000,       // 0.04 gwei
-                expected_l1_gas_price: 15_000_000_000,
-                expected_l1_pubdata_price: 30_000_000,
-                expected_minimal_l2_gas_price: 40_000_000,
+                name: "1 ETH = 0.5 BaseToken",
+                conversion_ratio: BaseTokenConversionRatio {
+                    numerator: 1,
+                    denominator: 2,
+                },
+                input_minimal_l2_gas_price: 1000,
+                input_l1_gas_price: 2000,
+                input_l1_pubdata_price: 3000,
+                expected_minimal_l2_gas_price: 500,
+                expected_l1_gas_price: 1000,
+                expected_l1_pubdata_price: 1500,
+            },
+            TestCase {
+                name: "1 ETH = 1 BaseToken",
+                conversion_ratio: BaseTokenConversionRatio {
+                    numerator: 1,
+                    denominator: 1,
+                },
+                input_minimal_l2_gas_price: 1000,
+                input_l1_gas_price: 2000,
+                input_l1_pubdata_price: 3000,
+                expected_minimal_l2_gas_price: 1000,
+                expected_l1_gas_price: 2000,
+                expected_l1_pubdata_price: 3000,
+            },
+            TestCase {
+                name: "Large conversion - 1 ETH = 1_000 BaseToken",
+                conversion_ratio: BaseTokenConversionRatio {
+                    numerator: 1_000_000,
+                    denominator: 1,
+                },
+                input_minimal_l2_gas_price: 1_000_000,
+                input_l1_gas_price: 2_000_000,
+                input_l1_pubdata_price: 3_000_000,
+                expected_minimal_l2_gas_price: 1_000_000_000_000,
+                expected_l1_gas_price: 2_000_000_000_000,
+                expected_l1_pubdata_price: 3_000_000_000_000,
+            },
+            TestCase {
+                name: "Small conversion - 1 ETH = 0.001 BaseToken",
+                conversion_ratio: BaseTokenConversionRatio {
+                    numerator: 1,
+                    denominator: 1_000,
+                },
+                input_minimal_l2_gas_price: 1_000_000,
+                input_l1_gas_price: 2_000_000,
+                input_l1_pubdata_price: 3_000_000,
+                expected_minimal_l2_gas_price: 1_000,
+                expected_l1_gas_price: 2_000,
+                expected_l1_pubdata_price: 3_000,
+            },
+            TestCase {
+                name: "Fractional conversion ratio 123456789",
+                conversion_ratio: BaseTokenConversionRatio {
+                    numerator: 1123456789,
+                    denominator: 1_000_000_000,
+                },
+                input_minimal_l2_gas_price: 1_000_000,
+                input_l1_gas_price: 2_000_000,
+                input_l1_pubdata_price: 3_000_000,
+                expected_minimal_l2_gas_price: 1123456,
+                expected_l1_gas_price: 2246913,
+                expected_l1_pubdata_price: 3370370,
+            },
+            TestCase {
+                name: "Conversion ratio too large so clamp down to u64::MAX",
+                conversion_ratio: BaseTokenConversionRatio {
+                    numerator: u64::MAX,
+                    denominator: 1,
+                },
+                input_minimal_l2_gas_price: 2,
+                input_l1_gas_price: 2,
+                input_l1_pubdata_price: 2,
+                expected_minimal_l2_gas_price: u64::MAX,
+                expected_l1_gas_price: u64::MAX,
+                expected_l1_pubdata_price: u64::MAX,
             },
         ];
 
         for case in test_cases {
             let gas_adjuster = Arc::new(MockGasAdjuster::new(
-                case.effective_l1_gas_price,
-                case.effective_l1_pubdata_price,
+                case.input_l1_gas_price,
+                case.input_l1_pubdata_price,
             ));
 
-            let base_token_adjuster = Arc::new(MockBaseTokenAdjuster::new(
-                case.base_token_to_eth.clone(),
-                case.base_token.clone(),
-            ));
+            let base_token_adjuster = Arc::new(MockBaseTokenAdjuster::new(case.conversion_ratio));
 
             let config = FeeModelConfig::V2(FeeModelConfigV2 {
-                minimal_l2_gas_price: case.minimal_l2_gas_price,
-                // The below values don't matter for this test.
+                minimal_l2_gas_price: case.input_minimal_l2_gas_price,
                 compute_overhead_part: 1.0,
                 pubdata_overhead_part: 1.0,
                 batch_overhead_l1_gas: 1,
@@ -551,17 +630,20 @@ mod tests {
 
             if let FeeParams::V2(params) = fee_params {
                 assert_eq!(
-                    params.l1_gas_price, case.expected_l1_gas_price,
+                    params.l1_gas_price(),
+                    case.expected_l1_gas_price,
                     "Test case '{}' failed: l1_gas_price mismatch",
                     case.name
                 );
                 assert_eq!(
-                    params.l1_pubdata_price, case.expected_l1_pubdata_price,
+                    params.l1_pubdata_price(),
+                    case.expected_l1_pubdata_price,
                     "Test case '{}' failed: l1_pubdata_price mismatch",
                     case.name
                 );
                 assert_eq!(
-                    params.config.minimal_l2_gas_price, case.expected_minimal_l2_gas_price,
+                    params.config().minimal_l2_gas_price,
+                    case.expected_minimal_l2_gas_price,
                     "Test case '{}' failed: minimal_l2_gas_price mismatch",
                     case.name
                 );

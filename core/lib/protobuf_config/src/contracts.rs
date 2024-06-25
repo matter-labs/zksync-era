@@ -95,11 +95,8 @@ impl ProtoRepr for proto::Contracts {
             l1_multicall3_addr: required(&l1.multicall3_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_multicall3_addr")?,
-            base_token_addr: l1
-                .base_token_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
+            base_token_addr: required(&l1.base_token_addr)
+                .and_then(|x| parse_h160(x))
                 .context("base_token_addr")?,
         })
     }
@@ -131,7 +128,7 @@ impl ProtoRepr for proto::Contracts {
                 validator_timelock_addr: Some(format!("{:?}", this.validator_timelock_addr)),
                 default_upgrade_addr: Some(format!("{:?}", this.default_upgrade_addr)),
                 multicall3_addr: Some(format!("{:?}", this.l1_multicall3_addr)),
-                base_token_addr: this.base_token_addr.map(|a| format!("{:?}", a)),
+                base_token_addr: Some(format!("{:?}", this.base_token_addr)),
             }),
             l2: Some(proto::L2 {
                 testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),

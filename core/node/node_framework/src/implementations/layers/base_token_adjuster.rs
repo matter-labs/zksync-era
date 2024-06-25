@@ -13,12 +13,12 @@ use crate::{
 /// A layer that wires the Base Token Adjuster task.
 #[derive(Debug)]
 pub struct BaseTokenAdjusterLayer {
-    base_token_l1_address: Option<Address>,
+    base_token_l1_address: Address,
     config: BaseTokenAdjusterConfig,
 }
 
 impl BaseTokenAdjusterLayer {
-    pub fn new(base_token_l1_address: Option<Address>, config: BaseTokenAdjusterConfig) -> Self {
+    pub fn new(base_token_l1_address: Address, config: BaseTokenAdjusterConfig) -> Self {
         Self {
             base_token_l1_address,
             config,
@@ -49,7 +49,7 @@ impl WiringLayer for BaseTokenAdjusterLayer {
 #[derive(Debug)]
 struct BaseTokenAdjusterTask {
     main_pool: ConnectionPool<Core>,
-    base_token_l1_address: Option<Address>,
+    base_token_l1_address: Address,
     config: BaseTokenAdjusterConfig,
 }
 

@@ -7792,7 +7792,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bigdecimal",
  "chrono",
  "rand 0.8.5",
  "tokio",
@@ -9235,6 +9234,7 @@ dependencies = [
  "strum",
  "thiserror",
  "tokio",
+ "tracing",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",

@@ -8485,6 +8485,7 @@ dependencies = [
  "serde_json",
  "strum",
  "thiserror",
+ "tracing",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",

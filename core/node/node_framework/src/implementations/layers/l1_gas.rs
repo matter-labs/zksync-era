@@ -28,7 +28,7 @@ pub struct SequencerL1GasLayer {
     pubdata_sending_mode: PubdataSendingMode,
     state_keeper_config: StateKeeperConfig,
     base_token_adjuster_config: BaseTokenAdjusterConfig,
-    base_token_l1_address: Option<Address>,
+    base_token_l1_address: Address,
 }
 
 impl SequencerL1GasLayer {
@@ -38,7 +38,7 @@ impl SequencerL1GasLayer {
         state_keeper_config: StateKeeperConfig,
         pubdata_sending_mode: PubdataSendingMode,
         base_token_adjuster_config: BaseTokenAdjusterConfig,
-        base_token_l1_address: Option<Address>,
+        base_token_l1_address: Address,
     ) -> Self {
         Self {
             gas_adjuster_config,

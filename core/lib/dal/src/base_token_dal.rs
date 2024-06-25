@@ -1,7 +1,8 @@
-use bigdecimal::BigDecimal;
+use bigdecimal::{BigDecimal, FromPrimitive};
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
+use zksync_types::base_token_price::BaseTokenRatio;
 
-use crate::{models::storage_base_token_price::StorageBaseTokenPrice, Core};
+use crate::{models::storage_base_token_ratio::StorageBaseTokenRatio, Core};
 
 #[derive(Debug)]
 pub struct BaseTokenDal<'a, 'c> {
@@ -9,26 +10,26 @@ pub struct BaseTokenDal<'a, 'c> {
 }
 
 impl BaseTokenDal<'_, '_> {
-    pub async fn insert_token_price(
+    pub async fn insert_token_ratio(
         &mut self,
-        base_token_price: &BigDecimal,
-        eth_price: &BigDecimal,
+        numerator: u64,
+        denominator: u64,
         ratio_timestamp: &chrono::NaiveDateTime,
     ) -> DalResult<usize> {
         let row = sqlx::query!(
             r#"
             INSERT INTO
-                base_token_prices (base_token_price, eth_price, ratio_timestamp, created_at, updated_at)
+                base_token_ratios (numerator, denominator, ratio_timestamp, created_at, updated_at)
             VALUES
                 ($1, $2, $3, NOW(), NOW())
             RETURNING
                 id
             "#,
-            base_token_price,
-            eth_price,
+            BigDecimal::from_u64(numerator),
+            BigDecimal::from_u64(denominator),
             ratio_timestamp,
         )
-        .instrument("insert_base_token_price")
+        .instrument("insert_token_ratio")
         .fetch_one(self.storage)
         .await?;
 
@@ -37,23 +38,23 @@ impl BaseTokenDal<'_, '_> {
 
     // TODO (PE-128): pub async fn mark_l1_update()
 
-    pub async fn get_latest_price(&mut self) -> DalResult<StorageBaseTokenPrice> {
+    pub async fn get_latest_ratio(&mut self) -> DalResult<BaseTokenRatio> {
         let row = sqlx::query_as!(
-            StorageBaseTokenPrice,
+            StorageBaseTokenRatio,
             r#"
             SELECT
                 *
             FROM
-                base_token_prices
+                base_token_ratios
             ORDER BY
                 created_at DESC
             LIMIT
                 1
             "#,
         )
-        .instrument("get_latest_base_token_price")
+        .instrument("get_latest_ratio")
         .fetch_one(self.storage)
         .await?;
-        Ok(row)
+        Ok(row.into())
     }
 }

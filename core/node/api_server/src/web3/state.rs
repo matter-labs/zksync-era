@@ -108,7 +108,7 @@ pub struct InternalApiConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
-    pub base_token_address: Option<Address>,
+    pub base_token_address: Address,
     pub filters_disabled: bool,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,

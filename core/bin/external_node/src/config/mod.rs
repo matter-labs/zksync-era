@@ -940,7 +940,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
-            base_token_address: Some(config.remote.base_token_addr),
+            base_token_address: config.remote.base_token_addr,
             filters_disabled: config.optional.filters_disabled,
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,

@@ -543,10 +543,7 @@ impl ZksNamespace {
     }
 
     pub fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
-        self.state
-            .api_config
-            .base_token_address
-            .ok_or(Web3Error::MethodNotImplemented)
+        Ok(self.state.api_config.base_token_address)
     }
 
     #[tracing::instrument(skip(self))]

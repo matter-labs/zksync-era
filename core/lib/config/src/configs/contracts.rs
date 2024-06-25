@@ -37,8 +37,9 @@ pub struct ContractsConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l1_multicall3_addr: Address,
     pub ecosystem_contracts: Option<EcosystemContracts>,
-    // Used for the RPC API and by the BaseTokenAdjuster. If not set, ETH is the chain's base token.
-    pub base_token_addr: Option<Address>,
+    // Used for the RPC API and by the BaseTokenAdjuster. If not set, ETH is the chain's base token
+    // and the "ETH address" is SHARED_BRIDGE_ETHER_TOKEN_ADDRESS.
+    pub base_token_addr: Address,
 }
 
 impl ContractsConfig {
@@ -57,7 +58,7 @@ impl ContractsConfig {
             l2_testnet_paymaster_addr: Some(Address::repeat_byte(0x11)),
             l1_multicall3_addr: Address::repeat_byte(0x12),
             governance_addr: Address::repeat_byte(0x13),
-            base_token_addr: Some(Address::repeat_byte(0x14)),
+            base_token_addr: Address::repeat_byte(0x14),
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
         }
     }

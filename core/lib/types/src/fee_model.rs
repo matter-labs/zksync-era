@@ -1,3 +1,4 @@
+use bigdecimal::{BigDecimal, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
@@ -236,9 +237,76 @@ pub struct FeeParamsV1 {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FeeParamsV2 {
-    pub config: FeeModelConfigV2,
-    pub l1_gas_price: u64,
-    pub l1_pubdata_price: u64,
+    config: FeeModelConfigV2,
+    l1_gas_price: u64,
+    l1_pubdata_price: u64,
+    conversion_ratio: BaseTokenConversionRatio,
+}
+
+impl FeeParamsV2 {
+    pub fn new(
+        config: FeeModelConfigV2,
+        l1_gas_price: u64,
+        l1_pubdata_price: u64,
+        conversion_ratio: BaseTokenConversionRatio,
+    ) -> Self {
+        Self {
+            config,
+            l1_gas_price,
+            l1_pubdata_price,
+            conversion_ratio,
+        }
+    }
+
+    /// Returns the fee model config with the minimal L2 gas price denominated in the chain's base token (WEI or equivalent).
+    pub fn config(&self) -> FeeModelConfigV2 {
+        FeeModelConfigV2 {
+            minimal_l2_gas_price: self.convert_to_base_token(self.config.minimal_l2_gas_price),
+            ..self.config
+        }
+    }
+
+    /// Returns the l1 gas price denominated in the chain's base token (WEI or equivalent).
+    pub fn l1_gas_price(&self) -> u64 {
+        self.convert_to_base_token(self.l1_gas_price)
+    }
+
+    /// Returns the l1 pubdata price denominated in the chain's base token (WEI or equivalent).
+    pub fn l1_pubdata_price(&self) -> u64 {
+        self.convert_to_base_token(self.l1_pubdata_price)
+    }
+
+    /// Converts the fee param to the base token.
+    fn convert_to_base_token(&self, price_in_wei: u64) -> u64 {
+        let conversion_ratio = BigDecimal::from(self.conversion_ratio.numerator)
+            / BigDecimal::from(self.conversion_ratio.denominator);
+        let converted_price_bd = BigDecimal::from(price_in_wei) * conversion_ratio;
+
+        // Match on the converted price to ensure it can be represented as a u64
+        match converted_price_bd.to_u64() {
+            Some(converted_price) => converted_price,
+            None => {
+                if converted_price_bd > BigDecimal::from(u64::MAX) {
+                    tracing::warn!(
+                        "Conversion to base token price failed: converted price is too large: {}",
+                        converted_price_bd
+                    );
+                } else {
+                    tracing::error!(
+                    "Conversion to base token price failed: converted price is not a valid u64: {}",
+                    converted_price_bd
+                );
+                }
+                u64::MAX
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct BaseTokenConversionRatio {
+    pub numerator: u64,
+    pub denominator: u64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
