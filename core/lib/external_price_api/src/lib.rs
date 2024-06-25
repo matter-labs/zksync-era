@@ -23,22 +23,26 @@ pub struct CoinGeckoPriceAPIClient {
 
 const CG_AUTH_HEADER: &str = "x-cg-pro-api-key";
 
+fn address_to_string(address: Address) -> String {
+    format!("{:#x}", address)
+}
+
 impl CoinGeckoPriceAPIClient {
     async fn get_token_price_by_address(
         self: &Self,
         token_address: Address,
     ) -> anyhow::Result<f64> {
         let vs_currency = "usd";
-        let token_price_url = self
-            .base_url
-            .join(
-                format!(
+        let token_price_url =
+            self.base_url
+                .join(
+                    format!(
                     "/api/v3/simple/token_price/ethereum?contract_addresses={}&vs_currencies={}",
-                    token_address, vs_currency
+                    address_to_string(token_address), vs_currency
                 )
-                .as_str(),
-            )
-            .expect("failed to join URL path");
+                    .as_str(),
+                )
+                .expect("failed to join URL path");
 
         let mut builder = self.client.get(token_price_url);
 
@@ -51,7 +55,10 @@ impl CoinGeckoPriceAPIClient {
             .await?
             .json::<CoinGeckoPriceResponse>()
             .await?;
-        match response.get_price(&token_address.to_string(), &String::from(vs_currency)) {
+        match response.get_price(
+            &address_to_string(token_address),
+            &String::from(vs_currency),
+        ) {
             Some(&price) => Ok(price),
             None => Err(anyhow::anyhow!(
                 "Price not found for token: {}",
@@ -158,7 +165,8 @@ mod tests {
 
     fn add_mock_by_address(
         server: &MockServer,
-        address: Address,
+        // use string explicitly to verify that conversion of the address to string works as expected
+        address: String,
         price: f64,
         api_key: Option<String>,
     ) {
@@ -169,7 +177,7 @@ mod tests {
             if let Some(x) = api_key {
                 when = when.header(CG_AUTH_HEADER, x);
             }
-            when.query_param("contract_addresses", address.to_string())
+            when.query_param("contract_addresses", &address)
                 .query_param("vs_currencies", "usd");
             then.status(200)
                 .body(format!("{{\"{}\":{{\"usd\":{}}}}}", address, price));
@@ -182,10 +190,15 @@ mod tests {
 
     async fn test_happy_day(api_key: Option<String>) {
         let server = MockServer::start();
-        let address = Address::from_str("0x1f9840a85d5af5bf1d1762f925bdaddc4201f984").unwrap();
+        let address = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984";
         let base_token_price = 198.9;
         let eth_price = 3000.0;
-        add_mock_by_address(&server, address, base_token_price, api_key.clone());
+        add_mock_by_address(
+            &server,
+            address.to_string(),
+            base_token_price,
+            api_key.clone(),
+        );
         add_mock_by_id(
             &server,
             String::from("ethereum"),
@@ -198,7 +211,10 @@ mod tests {
             api_key.clone(),
             reqwest::Client::new(),
         );
-        let api_price = cg_client.fetch_price(address).await.unwrap();
+        let api_price = cg_client
+            .fetch_price(Address::from_str(address).unwrap())
+            .await
+            .unwrap();
 
         assert_eq!(
             BaseTokenAPIPrice {
@@ -224,12 +240,14 @@ mod tests {
     #[tokio::test]
     async fn test_no_eth_price() {
         let server = MockServer::start();
-        let address = Address::from_str("0x1f9840a85d5af5bf1d1762f925bdaddc4201f984").unwrap();
-        add_mock_by_address(&server, address, 198.9, None);
+        let address = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984";
+        add_mock_by_address(&server, address.to_string(), 198.9, None);
 
         let cg_client =
             CoinGeckoPriceAPIClient::new(server_url(&server), None, reqwest::Client::new());
-        let api_price = cg_client.fetch_price(address).await;
+        let api_price = cg_client
+            .fetch_price(Address::from_str(address).unwrap())
+            .await;
 
         assert!(api_price.is_err());
     }
