@@ -2,10 +2,10 @@
 
 use std::collections::HashMap;
 
-use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_node_genesis::GenesisParams;
 use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
@@ -317,10 +317,7 @@ pub async fn recover(
         .unwrap();
     storage
         .storage_logs_dal()
-        .insert_storage_logs(
-            snapshot.l2_block.number,
-            &[(H256::zero(), snapshot.storage_logs)],
-        )
+        .insert_storage_logs(snapshot.l2_block.number, &snapshot.storage_logs)
         .await
         .unwrap();
 

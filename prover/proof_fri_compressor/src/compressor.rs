@@ -3,7 +3,6 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_sequencer_api::proof::FinalProof;
-use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::task::JoinHandle;
 #[cfg(feature = "gpu")]
 use wrapper_prover::{Bn256, GPUWrapperConfigs, WrapperProver, DEFAULT_WRAPPER_CONFIG};
@@ -23,6 +22,7 @@ use zkevm_test_harness_1_3_3::{
     witness::oracle::VmWitnessOracle,
 };
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,

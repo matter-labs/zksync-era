@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use clap::Parser;
-use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, Prover};
 use reqwest::Client;
 use tokio::sync::{oneshot, watch};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prometheus_exporter::PrometheusExporterConfig;
 use zksync_prover_config::{load_database_secrets, load_general_config};
+use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -30,12 +30,12 @@ async fn main() -> anyhow::Result<()> {
         .observability
         .context("observability config")?;
 
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
 
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)

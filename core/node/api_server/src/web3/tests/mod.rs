@@ -7,7 +7,6 @@ use std::{
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{
@@ -18,6 +17,7 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
+use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
@@ -673,7 +673,7 @@ impl HttpTest for TransactionCountTest {
             );
             storage
                 .storage_logs_dal()
-                .insert_storage_logs(l2_block_number, &[(H256::zero(), vec![nonce_log])])
+                .insert_storage_logs(l2_block_number, &[nonce_log])
                 .await?;
         }
 
@@ -887,7 +887,7 @@ impl HttpTest for AllAccountBalancesTest {
         let eth_balance_log = StorageLog::new_write_log(eth_balance_key, u256_to_h256(eth_balance));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), vec![eth_balance_log])])
+            .insert_storage_logs(L2BlockNumber(1), &[eth_balance_log])
             .await?;
         // Create a custom token, but don't set balance for it yet.
         let custom_token = TokenInfo {
@@ -913,7 +913,7 @@ impl HttpTest for AllAccountBalancesTest {
             StorageLog::new_write_log(token_balance_key, u256_to_h256(token_balance));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(2), &[(H256::zero(), vec![token_balance_log])])
+            .insert_storage_logs(L2BlockNumber(2), &[token_balance_log])
             .await?;
 
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;

@@ -35,7 +35,7 @@ foundryup --branch master
 
 ## Supported operating systems
 
-zkSync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
+ZKsync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
 
 If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to cause troubles.
 
@@ -43,7 +43,7 @@ Additionally, if you are going to use WSL 2, make sure that your project is loca
 accessing NTFS partitions from within WSL is very slow.
 
 If you're using MacOS with an ARM processor (e.g. M1/M2), make sure that you are working in the _native_ environment
-(e.g. your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with zkSync code via
+(e.g. your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with ZKsync code via
 Rosetta may cause problems that are hard to spot and debug, so make sure to check everything before you start.
 
 If you are a NixOS user or would like to have a reproducible environment, skip to the section about `nix`.

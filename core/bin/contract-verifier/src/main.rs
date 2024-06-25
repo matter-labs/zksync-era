@@ -2,7 +2,6 @@ use std::{cell::RefCell, time::Duration};
 
 use anyhow::Context as _;
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
-use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
@@ -12,6 +11,7 @@ use zksync_config::{
 use zksync_contract_verifier_lib::ContractVerifier;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
+use zksync_prometheus_exporter::PrometheusExporterConfig;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::{wait_for_tasks::ManagedTasks, workspace_dir_or_current_dir};
 
@@ -112,7 +112,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
 use zksync_config::configs::DatabaseSecrets;
 
 #[derive(StructOpt)]
-#[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
+#[structopt(name = "ZKsync contract code verifier", author = "Matter Labs")]
 struct Opt {
     /// Number of jobs to process. If None, runs indefinitely.
     #[structopt(long)]
@@ -140,11 +140,11 @@ async fn main() -> anyhow::Result<()> {
 
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)

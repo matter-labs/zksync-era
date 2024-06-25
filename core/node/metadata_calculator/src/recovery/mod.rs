@@ -279,7 +279,9 @@ impl AsyncTreeRecovery {
         let actual_root_hash = tree.root_hash().await;
         anyhow::ensure!(
             actual_root_hash == snapshot.expected_root_hash,
-            "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {:?}",
+            "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {:?}. \
+             If pruning is enabled and the tree is initialized some time after node recovery, \
+             this is caused by snapshot storage logs getting pruned; this setup is currently not supported",
             snapshot.expected_root_hash
         );
         let tree = tree.finalize().await?;

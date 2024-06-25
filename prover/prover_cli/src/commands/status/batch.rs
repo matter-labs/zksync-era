@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use clap::Args as ClapArgs;
 use colored::*;
-use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
+use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     prover_dal::{
@@ -39,7 +39,7 @@ pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<(
         if let Status::Custom(msg) = batch_data.compressor.witness_generator_jobs_status() {
             if msg.contains("Sent to server") {
                 println!("> Proof sent to server ✅");
-                return Ok(());
+                continue;
             }
         }
 
@@ -48,7 +48,7 @@ pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<(
             .witness_generator_jobs_status();
         if matches!(basic_witness_generator_status, Status::JobsNotFound) {
             println!("> No batch found. 🚫");
-            return Ok(());
+            continue;
         }
 
         if !args.verbose {

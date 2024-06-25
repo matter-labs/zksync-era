@@ -5,8 +5,8 @@ use std::{
 };
 
 use anyhow::Context as _;
-use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
+use zksync_multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use zksync_state::ReadStorageFactory;
 use zksync_types::{
     block::L2BlockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,

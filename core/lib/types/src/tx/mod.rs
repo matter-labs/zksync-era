@@ -1,6 +1,6 @@
 //! `transactions` is module that holds the essential information for every transaction.
 //!
-//! Since in zkSync Era every operation can be executed either from the contract or rollup,
+//! Since in ZKsync Era every operation can be executed either from the contract or rollup,
 //! it makes more sense to define the contents of each transaction chain-agnostic, and extent this data
 //! with metadata (such as fees and/or signatures) for L1 and L2 separately.
 

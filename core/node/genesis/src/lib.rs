@@ -1,16 +1,16 @@
-//! This module aims to provide a genesis setup for the zkSync Era network.
+//! This module aims to provide a genesis setup for the ZKsync Era network.
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
 use std::fmt::Formatter;
 
 use anyhow::Context as _;
-use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},

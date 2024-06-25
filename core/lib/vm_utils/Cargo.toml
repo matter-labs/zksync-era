@@ -1,5 +1,5 @@
 [package]
-name = "vm_utils"
+name = "zksync_vm_utils"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
@@ -10,7 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-multivm.workspace = true
+zksync_multivm.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_state.workspace = true

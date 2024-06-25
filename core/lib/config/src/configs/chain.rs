@@ -9,11 +9,11 @@ use zksync_basic_types::{
 pub struct NetworkConfig {
     /// Name of the used Ethereum network, e.g. `localhost` or `rinkeby`.
     pub network: Network,
-    /// Name of current zkSync network
+    /// Name of current ZKsync network
     /// Used for Sentry environment
     pub zksync_network: String,
-    /// ID of current zkSync network treated as ETH network ID.
-    /// Used to distinguish zkSync from other Web3-capable networks.
+    /// ID of current ZKsync network treated as ETH network ID.
+    /// Used to distinguish ZKsync from other Web3-capable networks.
     pub zksync_network_id: L2ChainId,
 }
 
@@ -29,10 +29,10 @@ impl NetworkConfig {
 }
 
 /// An enum that represents the version of the fee model to use.
-///  - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
+///  - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
 ///  Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
 ///  processing the batch on L1.
-///  - `V2`, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
+///  - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
 ///  The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 ///  processing the batch on L1.
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -120,6 +120,12 @@ pub struct StateKeeperConfig {
     /// the recursion layers' circuits.
     pub max_circuits_per_batch: usize,
 
+    /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
+    /// Protective reads can be written asynchronously in VM runner instead.
+    /// By default, set to `true` as a temporary safety measure.
+    #[serde(default = "StateKeeperConfig::default_protective_reads_persistence_enabled")]
+    pub protective_reads_persistence_enabled: bool,
+
     // Base system contract hashes, required only for generating genesis config.
     // #PLA-811
     #[deprecated(note = "Use GenesisConfig::bootloader_hash instead")]
@@ -132,6 +138,10 @@ pub struct StateKeeperConfig {
 }
 
 impl StateKeeperConfig {
+    fn default_protective_reads_persistence_enabled() -> bool {
+        true
+    }
+
     /// Creates a config object suitable for use in unit tests.
     /// Values mostly repeat the values used in the localhost environment.
     pub fn for_tests() -> Self {
@@ -163,6 +173,7 @@ impl StateKeeperConfig {
             validation_computational_gas_limit: 300000,
             save_call_traces: true,
             max_circuits_per_batch: 24100,
+            protective_reads_persistence_enabled: true,
             bootloader_hash: None,
             default_aa_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,

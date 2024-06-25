@@ -17,8 +17,8 @@ zksync_config.workspace = true
 zksync_contract_verifier_lib.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_utils.workspace = true
-prometheus_exporter.workspace = true
-vlog.workspace = true
+zksync_prometheus_exporter.workspace = true
+zksync_vlog.workspace = true
 
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }

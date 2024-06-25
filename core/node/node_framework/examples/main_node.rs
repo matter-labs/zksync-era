@@ -43,7 +43,7 @@ use zksync_node_framework::{
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            StateKeeperLayer,
+            output_handler::OutputHandlerLayer, StateKeeperLayer,
         },
         web3_api::{
             caches::MempoolCacheLayer,
@@ -55,6 +55,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder, ZkStackServiceError},
 };
+use zksync_state::RocksdbStorageOptions;
 
 struct MainNodeBuilder {
     node: ZkStackServiceBuilder,
@@ -134,9 +135,11 @@ impl MainNodeBuilder {
     fn add_metadata_calculator_layer(mut self) -> anyhow::Result<Self> {
         let merkle_tree_env_config = DBConfig::from_env()?.merkle_tree;
         let operations_manager_env_config = OperationsManagerConfig::from_env()?;
+        let state_keeper_env_config = StateKeeperConfig::from_env()?;
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
+            &state_keeper_env_config,
         );
         self.node
             .add_layer(MetadataCalculatorLayer::new(metadata_calculator_config));
@@ -145,17 +148,32 @@ impl MainNodeBuilder {
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
         let wallets = Wallets::from_env()?;
+        let contracts_config = ContractsConfig::from_env()?;
+        let sk_config = StateKeeperConfig::from_env()?;
+        let persisence_layer = OutputHandlerLayer::new(
+            contracts_config.l2_shared_bridge_addr.unwrap(),
+            sk_config.l2_block_seal_queue_capacity,
+        );
         let mempool_io_layer = MempoolIOLayer::new(
             NetworkConfig::from_env()?.zksync_network_id,
-            ContractsConfig::from_env()?,
-            StateKeeperConfig::from_env()?,
+            sk_config,
             MempoolConfig::from_env()?,
             wallets.state_keeper.context("State keeper wallets")?,
         );
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?);
-        let state_keeper_layer = StateKeeperLayer::new(DBConfig::from_env()?);
+            MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?.save_call_traces, true);
+        let db_config = DBConfig::from_env()?;
+
+        let rocksdb_options = RocksdbStorageOptions {
+            block_cache_capacity: db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity(),
+            max_open_files: db_config.experimental.state_keeper_db_max_open_files,
+        };
+        let state_keeper_layer =
+            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
         self.node
+            .add_layer(persisence_layer)
             .add_layer(mempool_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);
@@ -286,6 +304,7 @@ impl MainNodeBuilder {
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
             replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
+            ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
@@ -362,11 +381,11 @@ impl MainNodeBuilder {
 fn main() -> anyhow::Result<()> {
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
-    let _guard = vlog::ObservabilityBuilder::new()
+    let _guard = zksync_vlog::ObservabilityBuilder::new()
         .with_log_format(log_format)
         .build();
 
