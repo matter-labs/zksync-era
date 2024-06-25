@@ -10,3 +10,12 @@ pub enum EthSenderError {
     #[error("Token parsing error: {0}")]
     Parse(#[from] contract::Error),
 }
+
+impl EthSenderError {
+    pub fn is_transient(&self) -> bool {
+        match self {
+            EthSenderError::EthereumGateway(err) => err.is_transient(),
+            _ => false,
+        }
+    }
+}

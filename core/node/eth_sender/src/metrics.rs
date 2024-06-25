@@ -107,6 +107,7 @@ pub(super) struct EthSenderMetrics {
     pub l1_blocks_waited_in_mempool: Family<ActionTypeLabel, Histogram<u64>>,
     /// Number of L1 batches aggregated for publishing with a specific reason.
     pub block_aggregation_reason: Family<AggregationReasonLabels, Counter>,
+    pub l1_transient_errors: Counter,
 }
 
 impl EthSenderMetrics {
