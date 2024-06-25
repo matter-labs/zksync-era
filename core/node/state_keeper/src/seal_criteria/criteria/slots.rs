@@ -1,4 +1,4 @@
-use multivm::utils::get_bootloader_max_txs_in_batch;
+use zksync_multivm::utils::get_bootloader_max_txs_in_batch;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig};

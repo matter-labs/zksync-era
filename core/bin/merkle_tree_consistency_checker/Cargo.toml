@@ -16,7 +16,7 @@ zksync_env_config.workspace = true
 zksync_merkle_tree.workspace = true
 zksync_types.workspace = true
 zksync_storage.workspace = true
-vlog.workspace = true
+zksync_vlog.workspace = true
 
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }

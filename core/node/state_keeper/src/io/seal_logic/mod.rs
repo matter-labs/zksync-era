@@ -8,8 +8,8 @@ use std::{
 
 use anyhow::Context as _;
 use itertools::Itertools;
-use multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},

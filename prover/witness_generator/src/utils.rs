@@ -7,12 +7,12 @@ use circuit_definitions::circuit_definitions::{
     base_layer::ZkSyncBaseLayerCircuit,
     recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof},
 };
-use multivm::utils::get_used_bootloader_memory_bytes;
 use once_cell::sync::Lazy;
 use zkevm_test_harness::{
     boojum::field::goldilocks::GoldilocksField, empty_node_proof,
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
+use zksync_multivm::utils::get_used_bootloader_memory_bytes;
 use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 use zksync_prover_fri_types::{
     circuit_definitions::{

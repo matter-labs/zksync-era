@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use criterion::black_box;
 use vise::{Gauge, LabeledFamily, Metrics};
-use vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
+use zksync_vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
 
 fn main() {
     let mut results = vec![];

@@ -4,17 +4,17 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use multivm::{
+use once_cell::sync::Lazy;
+use tokio::sync::{mpsc, watch};
+use zksync_contracts::BaseSystemContracts;
+use zksync_dal::{ConnectionPool, Core, CoreDal as _};
+use zksync_multivm::{
     interface::{
         CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, Refunds, SystemEnv,
         VmExecutionResultAndLogs, VmExecutionStatistics,
     },
     vm_latest::VmExecutionLogs,
 };
-use once_cell::sync::Lazy;
-use tokio::sync::{mpsc, watch};
-use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_state::ReadStorageFactory;
 use zksync_test_account::Account;
 use zksync_types::{

@@ -3,15 +3,15 @@
 
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
-use multivm::{
-    interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
-    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
-};
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_multivm::{
+    interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
+    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
+};
 use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
 use zksync_node_test_utils::{recover, Snapshot};
 use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};

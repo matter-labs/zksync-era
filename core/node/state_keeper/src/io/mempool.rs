@@ -7,12 +7,11 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
-use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp, Address, L1BatchNumber,
@@ -20,6 +19,7 @@ use zksync_types::{
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use crate::{
     io::{
