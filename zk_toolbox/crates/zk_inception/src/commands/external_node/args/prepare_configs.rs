@@ -1,7 +1,8 @@
 use clap::Parser;
-use common::{db::DatabaseConfig, slugify, Prompt};
+use common::{db::DatabaseConfig, Prompt};
 use config::ChainConfig;
 use serde::{Deserialize, Serialize};
+use slugify_rs::slugify;
 use url::Url;
 
 use crate::{
@@ -39,11 +40,14 @@ impl PrepareConfigArgs {
                     .default(DATABASE_SERVER_URL.as_str())
                     .ask()
             });
-            let db_name = slugify(&self.db_name.unwrap_or_else(|| {
-                Prompt::new(&msg_external_node_db_name_prompt(&chain_name))
-                    .default(&db_name)
-                    .ask()
-            }));
+            let db_name = slugify!(
+                &self.db_name.unwrap_or_else(|| {
+                    Prompt::new(&msg_external_node_db_name_prompt(&chain_name))
+                        .default(&db_name)
+                        .ask()
+                }),
+                separator = "_"
+            );
             let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
                 Prompt::new(&MSG_L1_RPC_URL_PROMPT)
                     .default(&LOCAL_RPC_URL)
