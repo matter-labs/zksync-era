@@ -12,9 +12,8 @@ use zksync_block_reverter::{
 };
 use zksync_config::{
     configs::{
-        chain::NetworkConfig,
-        wallets::{self, Wallets},
-        DatabaseSecrets, GeneralConfig, L1Secrets, ObservabilityConfig,
+        chain::NetworkConfig, wallets::Wallets, DatabaseSecrets, GeneralConfig, L1Secrets,
+        ObservabilityConfig,
     },
     ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
