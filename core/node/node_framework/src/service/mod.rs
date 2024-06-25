@@ -8,10 +8,9 @@ use zksync_utils::panic_extractor::try_extract_panic_message;
 pub use self::{context::ServiceContext, error::ZkStackServiceError, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, StoredResource},
-    service::runnables::TaskReprs,
     service::{
         named_future::NamedFuture,
-        runnables::{NamedBoxFuture, Runnables},
+        runnables::{NamedBoxFuture, Runnables, TaskReprs},
     },
     task::TaskId,
     wiring_layer::{WiringError, WiringLayer},

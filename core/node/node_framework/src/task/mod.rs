@@ -7,9 +7,8 @@ use std::{
 
 use tokio::sync::Barrier;
 
-use crate::service::StopReceiver;
-
 pub use self::types::{TaskId, TaskKind};
+use crate::service::StopReceiver;
 
 mod types;
 
