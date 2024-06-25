@@ -192,6 +192,12 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
+pub(super) const MSG_MISSING_COMPONENTS_ERR: &str = "Missing components";
+pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
+pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
+pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
+pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
+pub(super) const MSG_RUNNING_COMPRESSOR: &str = "Running compressor";
 
 pub fn msg_run_prover_component_prompt(component: &str) -> String {
     format!("Do you want to run the {}?", component)
