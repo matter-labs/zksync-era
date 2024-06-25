@@ -1,16 +1,18 @@
 use std::{collections::HashMap, time::Duration};
 
-use anyhow::Context;
 use error::TaskError;
-use futures::FutureExt;
-use tokio::{runtime::Runtime, sync::watch};
+use futures::future::Fuse;
+use tokio::{runtime::Runtime, sync::watch, task::JoinHandle};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
-use self::runnables::{NamedBoxFuture, Runnables};
 pub use self::{context::ServiceContext, error::ZkStackServiceError, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, StoredResource},
     service::runnables::TaskReprs,
+    service::{
+        named_future::NamedFuture,
+        runnables::{NamedBoxFuture, Runnables},
+    },
     task::TaskId,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -79,6 +81,7 @@ impl ZkStackServiceBuilder {
             runnables: Default::default(),
             stop_sender,
             runtime,
+            errors: Vec::new(),
         })
     }
 }
@@ -98,11 +101,38 @@ pub struct ZkStackService {
     stop_sender: watch::Sender<bool>,
     /// Tokio runtime used to spawn tasks.
     runtime: Runtime,
+
+    /// Collector for the task errors met during the service execution.
+    errors: Vec<TaskError>,
 }
+
+type TaskFuture = NamedFuture<Fuse<JoinHandle<anyhow::Result<()>>>>;
 
 impl ZkStackService {
     /// Runs the system.
     pub fn run(mut self) -> Result<(), ZkStackServiceError> {
+        self.wire()?;
+
+        let TaskReprs {
+            tasks,
+            shutdown_hooks,
+        } = self.prepare_tasks();
+
+        let remaining = self.run_tasks(tasks);
+        self.shutdown_tasks(remaining);
+        self.run_shutdown_hooks(shutdown_hooks);
+
+        tracing::info!("Exiting the service");
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ZkStackServiceError::Task(self.errors))
+        }
+    }
+
+    /// Performs wiring of the service.
+    /// After invoking this method, the collected tasks will be collected in `self.runnables`.
+    fn wire(&mut self) -> Result<(), ZkStackServiceError> {
         // Initialize tasks.
         let wiring_layers = std::mem::take(&mut self.layers);
 
@@ -112,8 +142,7 @@ impl ZkStackService {
         for layer in wiring_layers {
             let name = layer.layer_name().to_string();
             // We must process wiring layers sequentially and in the same order as they were added.
-            let task_result =
-                runtime_handle.block_on(layer.wire(ServiceContext::new(&name, &mut self)));
+            let task_result = runtime_handle.block_on(layer.wire(ServiceContext::new(&name, self)));
             if let Err(err) = task_result {
                 // We don't want to bail on the first error, since it'll provide worse DevEx:
                 // People likely want to fix as much problems as they can in one go, rather than have
@@ -135,38 +164,35 @@ impl ZkStackService {
             return Err(ZkStackServiceError::NoTasks);
         }
 
-        let only_oneshot_tasks = self.runnables.is_oneshot_only();
+        // Wiring is now complete.
+        for resource in self.resources.values_mut() {
+            resource.stored_resource_wired();
+        }
+        self.resources = HashMap::default(); // Decrement reference counters for resources.
+        tracing::info!("Wiring complete");
 
+        Ok(())
+    }
+
+    /// Prepares collected tasks for running.
+    fn prepare_tasks(&mut self) -> TaskReprs {
         // Barrier that will only be lifted once all the preconditions are met.
         // It will be awaited by the tasks before they start running and by the preconditions once they are fulfilled.
         let task_barrier = self.runnables.task_barrier();
 
         // Collect long-running tasks.
         let stop_receiver = StopReceiver(self.stop_sender.subscribe());
-        let TaskReprs {
-            mut long_running_tasks,
-            oneshot_tasks,
-            shutdown_hooks,
-        } = self
-            .runnables
-            .prepare_tasks(task_barrier.clone(), stop_receiver.clone());
+        self.runnables
+            .prepare_tasks(task_barrier.clone(), stop_receiver.clone())
+    }
 
-        // Wiring is now complete.
-        for resource in self.resources.values_mut() {
-            resource.stored_resource_wired();
-        }
-        drop(self.resources); // Decrement reference counters for resources.
-        tracing::info!("Wiring complete");
-
-        // Create a system task that is cancellation-aware and will only exit on either oneshot task failure or
-        // stop signal.
-        let oneshot_runner_system_task =
-            oneshot_runner_task(oneshot_tasks, stop_receiver, only_oneshot_tasks);
-        long_running_tasks.push(oneshot_runner_system_task);
-
+    /// Spawn the provided tasks and runs them until at least one task exits, and returns the list
+    /// of remaining tasks.
+    /// Adds error, if any, to the `errors` vector.
+    fn run_tasks(&mut self, tasks: Vec<NamedBoxFuture<anyhow::Result<()>>>) -> Vec<TaskFuture> {
         // Prepare tasks for running.
         let rt_handle = self.runtime.handle().clone();
-        let join_handles: Vec<_> = long_running_tasks
+        let join_handles: Vec<_> = tasks
             .into_iter()
             .map(|task| task.spawn(&rt_handle).fuse())
             .collect();
@@ -180,10 +206,17 @@ impl ZkStackService {
             .block_on(futures::future::select_all(join_handles));
         // Extract the result and report it to logs early, before waiting for any other task to shutdown.
         // We will also collect the errors from the remaining tasks, hence a vector.
-        let mut errors = Vec::new();
         let task_name = tasks_names.swap_remove(resolved_idx);
-        handle_task_exit(resolved, task_name, &mut errors);
+        self.handle_task_exit(resolved, task_name);
         tracing::info!("One of the task has exited, shutting down the node");
+
+        remaining
+    }
+
+    /// Sends the stop signal and waits for the remaining tasks to finish.
+    fn shutdown_tasks(&mut self, remaining: Vec<TaskFuture>) {
+        // Send stop signal to remaining tasks and wait for them to finish.
+        self.stop_sender.send(true).ok();
 
         // Collect names for remaining tasks for reporting purposes.
         // We have to re-collect, becuase `select_all` does not guarantes the order of returned remaining futures.
@@ -193,8 +226,6 @@ impl ZkStackService {
             .map(|task| async { tokio::time::timeout(TASK_SHUTDOWN_TIMEOUT, task).await })
             .collect();
 
-        // Send stop signal to remaining tasks and wait for them to finish.
-        self.stop_sender.send(true).ok();
         let execution_results = self
             .runtime
             .block_on(futures::future::join_all(remaining_tasks_with_timeout));
@@ -203,15 +234,18 @@ impl ZkStackService {
         for (name, result) in remaining_tasks_names.into_iter().zip(execution_results) {
             match result {
                 Ok(resolved) => {
-                    handle_task_exit(resolved, name, &mut errors);
+                    self.handle_task_exit(resolved, name);
                 }
                 Err(_) => {
                     tracing::error!("Task {name} timed out");
-                    errors.push(TaskError::TaskShutdownTimedOut(name));
+                    self.errors.push(TaskError::TaskShutdownTimedOut(name));
                 }
             }
         }
+    }
 
+    /// Runs the provided shutdown hooks.
+    fn run_shutdown_hooks(&mut self, shutdown_hooks: Vec<NamedBoxFuture<anyhow::Result<()>>>) {
         // Run shutdown hooks sequentially.
         for hook in shutdown_hooks {
             let name = hook.id().clone();
@@ -224,86 +258,36 @@ impl ZkStackService {
                 }
                 Ok(Err(err)) => {
                     tracing::error!("Shutdown hook {name} failed: {err}");
-                    errors.push(TaskError::ShutdownHookFailed(name, err));
+                    self.errors.push(TaskError::ShutdownHookFailed(name, err));
                 }
                 Err(_) => {
                     tracing::error!("Shutdown hook {name} timed out");
-                    errors.push(TaskError::ShutdownHookTimedOut(name));
+                    self.errors.push(TaskError::ShutdownHookTimedOut(name));
                 }
             }
-        }
-
-        tracing::info!("Exiting the service");
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(ZkStackServiceError::Task(errors))
         }
     }
-}
 
-fn handle_task_exit(
-    task_result: Result<anyhow::Result<()>, tokio::task::JoinError>,
-    task_name: TaskId,
-    errors: &mut Vec<TaskError>,
-) {
-    match task_result {
-        Ok(Ok(())) => {
-            tracing::info!("Task {task_name} finished");
-        }
-        Ok(Err(err)) => {
-            tracing::error!("Task {task_name} failed: {err}");
-            errors.push(TaskError::TaskFailed(task_name, err));
-        }
-        Err(panic_err) => {
-            let panic_msg = try_extract_panic_message(panic_err);
-            tracing::error!("Task {task_name} panicked: {panic_msg}");
-            errors.push(TaskError::TaskPanicked(task_name, panic_msg));
-        }
-    };
-}
-
-fn oneshot_runner_task(
-    oneshot_tasks: Vec<NamedBoxFuture<anyhow::Result<()>>>,
-    mut stop_receiver: StopReceiver,
-    only_oneshot_tasks: bool,
-) -> NamedBoxFuture<anyhow::Result<()>> {
-    let future = async move {
-        let oneshot_tasks = oneshot_tasks.into_iter().map(|fut| async move {
-            // Spawn each oneshot task as a separate tokio task.
-            // This way we can handle the cases when such a task panics and propagate the message
-            // to the service.
-            let handle = tokio::runtime::Handle::current();
-            let name = fut.id().to_string();
-            match handle.spawn(fut).await {
-                Ok(Ok(())) => Ok(()),
-                Ok(Err(err)) => Err(err).with_context(|| format!("Oneshot task {name} failed")),
-                Err(panic_err) => {
-                    let panic_msg = try_extract_panic_message(panic_err);
-                    Err(anyhow::format_err!(
-                        "Oneshot task {name} panicked: {panic_msg}"
-                    ))
-                }
+    /// Checks the result of the task execution, logs the result, and stores the error if any.
+    fn handle_task_exit(
+        &mut self,
+        task_result: Result<anyhow::Result<()>, tokio::task::JoinError>,
+        task_name: TaskId,
+    ) {
+        match task_result {
+            Ok(Ok(())) => {
+                tracing::info!("Task {task_name} finished");
             }
-        });
-
-        match futures::future::try_join_all(oneshot_tasks).await {
-            Err(err) => Err(err),
-            Ok(_) if only_oneshot_tasks => {
-                // We only run oneshot tasks in this service, so we can exit now.
-                Ok(())
+            Ok(Err(err)) => {
+                tracing::error!("Task {task_name} failed: {err}");
+                self.errors.push(TaskError::TaskFailed(task_name, err));
             }
-            Ok(_) => {
-                // All oneshot tasks have exited and we have at least one long-running task.
-                // Simply wait for the stop signal.
-                stop_receiver.0.changed().await.ok();
-                Ok(())
+            Err(panic_err) => {
+                let panic_msg = try_extract_panic_message(panic_err);
+                tracing::error!("Task {task_name} panicked: {panic_msg}");
+                self.errors
+                    .push(TaskError::TaskPanicked(task_name, panic_msg));
             }
-        }
-        // Note that we don't have to `select` on the stop signal explicitly:
-        // Each prerequisite is given a stop signal, and if everyone respects it, this future
-        // will still resolve once the stop signal is received.
-    };
-
-    NamedBoxFuture::new(future.boxed(), "oneshot_runner".into())
+        };
+    }
 }
