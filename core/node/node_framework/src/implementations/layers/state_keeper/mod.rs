@@ -29,11 +29,20 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Requests:
+/// Wiring layer for the state keeper.
+///
+/// ## Requests resources
+///
 /// - `StateKeeperIOResource`
 /// - `BatchExecutorResource`
+/// - `OutputHandlerResource`
 /// - `ConditionalSealerResource`
+/// - `PoolResource<MasterPool>`
 ///
+/// ## Adds tasks
+///
+/// - `RocksdbCatchupTask`
+/// - `StateKeeperTask`
 #[derive(Debug)]
 pub struct StateKeeperLayer {
     state_keeper_db_path: String,

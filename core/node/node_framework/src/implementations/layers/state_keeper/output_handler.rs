@@ -17,6 +17,21 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for the state keeper output handler.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `SyncStateResource` (optional)
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds resources
+///
+/// - `OutputHandlerResource`
+///
+/// ## Adds tasks
+///
+/// - `L2BlockSealerTask`
 #[derive(Debug)]
 pub struct OutputHandlerLayer {
     l2_shared_bridge_addr: Address,

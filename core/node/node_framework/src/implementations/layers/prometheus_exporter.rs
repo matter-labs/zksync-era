@@ -8,12 +8,15 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Builder for a prometheus exporter.
+/// Wiring layer for Prometheus exporter server.
 ///
-/// ## Effects
+/// ## Requests resources
 ///
-/// - Adds prometheus health check to the `ResourceCollection<HealthCheckResource>`.
-/// - Adds `prometheus_exporter` to the node.
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `PrometheusExporterTask`
 #[derive(Debug)]
 pub struct PrometheusExporterLayer(pub PrometheusExporterConfig);
 
