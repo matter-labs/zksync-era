@@ -13,13 +13,13 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
 
-use super::PubdataTracer;
+use super::{gas_limiter::GasLimiter, PubdataTracer};
 use crate::{
     glue::GlueInto,
     interface::{
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
-        Halt, VmExecutionMode,
+        VmExecutionMode,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
@@ -28,7 +28,7 @@ use crate::{
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{
             dispatcher::TracerDispatcher,
-            utils::{computational_gas_price, print_debug_if_needed, VmHook},
+            utils::{print_debug_if_needed, VmHook},
             CircuitsTracer, RefundsTracer, ResultTracer,
         },
         types::internals::ZkSyncVmState,
@@ -42,11 +42,7 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     tx_has_been_processed: bool,
     execution_mode: VmExecutionMode,
 
-    // Amount of gas used during account validation.
-    pub(crate) computational_gas_used: u32,
-    // Maximum number of gas that we're allowed to use during account validation.
-    tx_validation_gas_limit: u32,
-    in_account_validation: bool,
+    tx_validation_gas_limiter: GasLimiter,
     final_batch_info_requested: bool,
     pub(crate) result_tracer: ResultTracer<S>,
     // This tracer is designed specifically for calculating refunds. Its separation from the custom tracer
@@ -81,9 +77,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         Self {
             tx_has_been_processed: false,
             execution_mode,
-            computational_gas_used: 0,
-            tx_validation_gas_limit: computational_gas_limit,
-            in_account_validation: false,
+            tx_validation_gas_limiter: GasLimiter::new(computational_gas_limit),
             final_batch_info_requested: false,
             subversion,
             result_tracer: ResultTracer::new(execution_mode, subversion),
@@ -99,10 +93,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
 
     pub(crate) fn tx_has_been_processed(&self) -> bool {
         self.tx_has_been_processed
-    }
-
-    pub(crate) fn validation_run_out_of_gas(&self) -> bool {
-        self.computational_gas_used > self.tx_validation_gas_limit
     }
 
     fn set_fictive_l2_block(
@@ -133,11 +123,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             }
             _ => {}
         };
-        if self.validation_run_out_of_gas() {
-            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
-                Halt::ValidationOutOfGas,
-            ));
-        }
         TracerExecutionStatus::Continue
     }
 }
@@ -204,12 +189,6 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         data: BeforeExecutionData,
         memory: &Self::SupportedMemory,
     ) {
-        if self.in_account_validation {
-            self.computational_gas_used = self
-                .computational_gas_used
-                .saturating_add(computational_gas_price(state, &data));
-        }
-
         let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
         print_debug_if_needed(
             &hook,
@@ -221,8 +200,8 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
 
         match hook {
             VmHook::TxHasEnded => self.tx_has_been_processed = true,
-            VmHook::NoValidationEntered => self.in_account_validation = false,
-            VmHook::AccountValidationEntered => self.in_account_validation = true,
+            VmHook::AccountValidationEntered => self.tx_validation_gas_limiter.start_limiting(),
+            VmHook::NoValidationEntered => self.tx_validation_gas_limiter.stop_limiting(),
             VmHook::FinalBatchInfo => self.final_batch_info_requested = true,
             _ => {}
         }
@@ -264,6 +243,8 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
+        self.tx_validation_gas_limiter.finish_cycle(state);
+
         if self.final_batch_info_requested {
             self.set_fictive_l2_block(state, bootloader_state)
         }

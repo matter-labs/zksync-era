@@ -20,7 +20,7 @@ use crate::{
         },
     },
     vm_latest::{
-        tracers::utils::{computational_gas_price, get_calldata_page_via_abi, VmHook},
+        tracers::utils::{get_calldata_page_via_abi, VmHook},
         BootloaderState, SimpleMemory, VmTracer, ZkSyncVmState,
     },
     HistoryMode,
@@ -34,12 +34,6 @@ impl<H: HistoryMode> ValidationTracer<H> {
         memory: &SimpleMemory<H::Vm1_5_0>,
         storage: StoragePtr<S>,
     ) -> ValidationRoundResult {
-        if self.computational_gas_used > self.computational_gas_limit {
-            return Err(ViolatedValidationRule::TookTooManyComputationalGas(
-                self.computational_gas_limit,
-            ));
-        }
-
         let opcode_variant = data.opcode.variant;
         match opcode_variant.opcode {
             Opcode::FarCall(_) => {
@@ -137,10 +131,6 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_5_0>>
     ) {
         // For now, we support only validations for users.
         if let ValidationTracerMode::UserTxValidation = self.validation_mode {
-            self.computational_gas_used = self
-                .computational_gas_used
-                .saturating_add(computational_gas_price(state, &data));
-
             let validation_round_result =
                 self.check_user_restrictions_vm_latest(state, data, memory, storage);
             self.process_validation_round_result(validation_round_result);
@@ -152,6 +142,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_5_0>>
             (ValidationTracerMode::NoValidation, VmHook::AccountValidationEntered) => {
                 // Account validation can be entered when there is no prior validation (i.e. "nested" validations are not allowed)
                 self.validation_mode = ValidationTracerMode::UserTxValidation;
+                self.gas_limiter.start_limiting();
             }
             (ValidationTracerMode::NoValidation, VmHook::PaymasterValidationEntered) => {
                 // Paymaster validation can be entered when there is no prior validation (i.e. "nested" validations are not allowed)
@@ -170,6 +161,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_5_0>>
             (_, VmHook::ValidationStepEndeded) => {
                 // The validation step has ended.
                 self.should_stop_execution = true;
+                self.gas_limiter.stop_limiting();
             }
             (_, _) => {
                 // The hook is not relevant to the validation tracer. Ignore.
@@ -181,9 +173,11 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_5_0>>
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::Vm1_5_0> for ValidationTracer<H> {
     fn finish_cycle(
         &mut self,
-        _state: &mut ZkSyncVmState<S, H::Vm1_5_0>,
+        state: &mut ZkSyncVmState<S, H::Vm1_5_0>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
+        self.gas_limiter.finish_cycle(state);
+
         if self.should_stop_execution {
             return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
         }

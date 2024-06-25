@@ -1,12 +1,7 @@
 use zk_evm_1_5_0::{
     aux_structures::MemoryPage,
     tracing::{BeforeExecutionData, VmLocalStateData},
-    zkevm_opcode_defs::{
-        FarCallABI, FarCallForwardPageType, FatPointer, LogOpcode, Opcode, UMAOpcode,
-    },
-};
-use zksync_system_constants::{
-    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
+    zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType, FatPointer, Opcode, UMAOpcode},
 };
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;
@@ -169,33 +164,6 @@ pub(crate) fn print_debug_if_needed<H: HistoryMode>(
         _ => return,
     };
     tracing::trace!("{log}");
-}
-
-pub(crate) fn computational_gas_price(
-    state: VmLocalStateData<'_>,
-    data: &BeforeExecutionData,
-) -> u32 {
-    // We calculate computational gas used as a raw price for opcode plus cost for precompiles.
-    // This calculation is incomplete as it misses decommitment and memory growth costs.
-    // To calculate decommitment cost we need an access to decommitter oracle which is missing in tracer now.
-    // Memory growth calculation is complex and it will require different logic for different opcodes (`FarCall`, `Ret`, `UMA`).
-    let base_price = data.opcode.inner.variant.ergs_price();
-    let precompile_price = match data.opcode.variant.opcode {
-        Opcode::Log(LogOpcode::PrecompileCall) => {
-            let address = state.vm_local_state.callstack.current.this_address;
-
-            if address == KECCAK256_PRECOMPILE_ADDRESS
-                || address == SHA256_PRECOMPILE_ADDRESS
-                || address == ECRECOVER_PRECOMPILE_ADDRESS
-            {
-                data.src1_value.value.low_u32()
-            } else {
-                0
-            }
-        }
-        _ => 0,
-    };
-    base_price + precompile_price
 }
 
 pub(crate) fn get_calldata_page_via_abi(far_call_abi: &FarCallABI, base_page: MemoryPage) -> u32 {
