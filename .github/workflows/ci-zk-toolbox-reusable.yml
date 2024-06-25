@@ -95,8 +95,57 @@ jobs:
 
       - name: Run integration tests
         run: |
-          ci_run zk_supervisor integration-tests --ignore-prerequisites --verbose
+          ci_run zk_supervisor test integration --ignore-prerequisites --verbose
 
       - name: Show server.log logs
         if: always()
         run: ci_run cat server.log || true
+
+  revert_test:
+    runs-on: [matterlabs-ci-runner]
+    needs: [build]
+
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+
+      - name: Download zk_toolbox binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: zk_toolbox
+          path: .
+
+      - name: Extract zk_toolbox binaries
+        run: |
+          tar -xvf zk_toolbox.tar -C ./bin
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+
+      - name: Start services
+        run: |
+          ci_localnet_up
+          ci_run sccache --start-server
+
+      - name: Initialize ecosystem
+        run: |
+          ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
+          --deploy-ecosystem --l1-rpc-url=http://reth:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --server-db-name=zksync_server_localhost_era \
+          --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --prover-db-name=zksync_prover_localhost_era \
+          --ignore-prerequisites --verbose
+
+      - name: Run revert-and-restart tests
+        run: |
+          ci_run zk_supervisor test revert-and-restart --ignore-prerequisites --verbose
+
+      - name: Show server.log logs
+        if: always()
+        run: ci_run cat ./core/tests/revert-test/revert.log || true
