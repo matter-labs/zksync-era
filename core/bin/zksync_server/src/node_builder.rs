@@ -2,7 +2,6 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::Context;
-use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{
     configs::{consensus::ConsensusConfig, wallets::Wallets, GeneralConfig, Secrets},
     ContractsConfig, GenesisConfig,
@@ -50,6 +49,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
@@ -175,9 +175,11 @@ impl MainNodeBuilder {
         let merkle_tree_env_config = try_load_config!(self.configs.db_config).merkle_tree;
         let operations_manager_env_config =
             try_load_config!(self.configs.operations_manager_config);
+        let state_keeper_env_config = try_load_config!(self.configs.state_keeper_config);
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
+            &state_keeper_env_config,
         );
         let mut layer = MetadataCalculatorLayer::new(metadata_calculator_config);
         if with_tree_api {
@@ -199,7 +201,8 @@ impl MainNodeBuilder {
                 .l2_shared_bridge_addr
                 .context("L2 shared bridge address")?,
             sk_config.l2_block_seal_queue_capacity,
-        );
+        )
+        .with_protective_reads_persistence_enabled(sk_config.protective_reads_persistence_enabled);
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),

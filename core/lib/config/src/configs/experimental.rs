@@ -17,7 +17,7 @@ pub struct ExperimentalDBConfig {
     /// (presumably, to participate in L1 batch proving).
     /// By default, set to `true` as a temporary safety measure.
     #[serde(default = "ExperimentalDBConfig::default_protective_reads_persistence_enabled")]
-    pub reads_persistence_enabled: bool,
+    pub protective_reads_persistence_enabled: bool,
     // Merkle tree config
     /// Processing delay between processing L1 batches in the Merkle tree.
     #[serde(default = "ExperimentalDBConfig::default_merkle_tree_processing_delay_ms")]
@@ -35,7 +35,8 @@ impl Default for ExperimentalDBConfig {
             state_keeper_db_block_cache_capacity_mb:
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
-            reads_persistence_enabled: Self::default_protective_reads_persistence_enabled(),
+            protective_reads_persistence_enabled:
+                Self::default_protective_reads_persistence_enabled(),
             processing_delay_ms: Self::default_merkle_tree_processing_delay_ms(),
             include_indices_and_filters_in_block_cache: false,
         }

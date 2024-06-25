@@ -1,10 +1,9 @@
 use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
-use prometheus_exporter::PrometheusExporterConfig;
 use serde::Deserialize;
-use vlog::LogFormat;
 use zksync_config::configs::GeneralConfig;
+use zksync_vlog::{prometheus::PrometheusExporterConfig, LogFormat};
 
 use super::{ConfigurationSource, Environment};
 
@@ -81,11 +80,11 @@ impl ObservabilityENConfig {
         }
     }
 
-    pub fn build_observability(&self) -> anyhow::Result<vlog::ObservabilityGuard> {
-        let mut builder = vlog::ObservabilityBuilder::new().with_log_format(self.log_format);
-        if let Some(log_directives) = &self.log_directives {
-            builder = builder.with_log_directives(log_directives.clone())
-        }
+    pub fn build_observability(&self) -> anyhow::Result<zksync_vlog::ObservabilityGuard> {
+        let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(self.log_format);
+        if let Some(log_directives) = self.log_directives.clone() {
+            builder = builder.with_log_directives(log_directives)
+        };
         // Some legacy deployments use `unset` as an equivalent of `None`.
         let sentry_url = self.sentry_url.as_deref().filter(|&url| url != "unset");
         if let Some(sentry_url) = sentry_url {

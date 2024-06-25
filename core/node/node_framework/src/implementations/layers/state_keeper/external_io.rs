@@ -18,6 +18,19 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `ExternalIO`, an IO part of state keeper used by the external node.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `MainNodeClientResource`
+///
+/// ## Adds resources
+///
+/// - `SyncStateResource`
+/// - `ActionQueueSenderResource`
+/// - `StateKeeperIOResource`
+/// - `ConditionalSealerResource`
 #[derive(Debug)]
 pub struct ExternalIOLayer {
     chain_id: L2ChainId,

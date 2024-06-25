@@ -28,7 +28,7 @@ pub fn decode_yaml_repr<T: ProtoRepr>(yaml: &str) -> anyhow::Result<T::Type> {
 }
 
 pub fn read_yaml_repr<T: ProtoRepr>(path_buf: PathBuf) -> anyhow::Result<T::Type> {
-    let yaml = std::fs::read_to_string(path_buf).context("failed decoding YAML config")?;
+    let yaml = std::fs::read_to_string(path_buf).context("failed reading YAML config")?;
     decode_yaml_repr::<T>(&yaml)
 }
 

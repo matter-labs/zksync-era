@@ -12,13 +12,12 @@ publish = false
 
 [dependencies]
 vise.workspace = true
-prometheus_exporter.workspace = true
 zksync_config.workspace = true
 zksync_dal.workspace = true
 zksync_env_config.workspace = true
 zksync_types.workspace = true
 zksync_object_store.workspace = true
-vlog.workspace = true
+zksync_vlog.workspace = true
 
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }

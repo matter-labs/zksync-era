@@ -135,9 +135,11 @@ impl MainNodeBuilder {
     fn add_metadata_calculator_layer(mut self) -> anyhow::Result<Self> {
         let merkle_tree_env_config = DBConfig::from_env()?.merkle_tree;
         let operations_manager_env_config = OperationsManagerConfig::from_env()?;
+        let state_keeper_env_config = StateKeeperConfig::from_env()?;
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
+            &state_keeper_env_config,
         );
         self.node
             .add_layer(MetadataCalculatorLayer::new(metadata_calculator_config));
@@ -380,11 +382,11 @@ impl MainNodeBuilder {
 fn main() -> anyhow::Result<()> {
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
-    let _guard = vlog::ObservabilityBuilder::new()
+    let _guard = zksync_vlog::ObservabilityBuilder::new()
         .with_log_format(log_format)
         .build();
 

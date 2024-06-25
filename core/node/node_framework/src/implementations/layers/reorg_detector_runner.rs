@@ -15,7 +15,18 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for [`ReorgDetector`] runner.
 /// Layer responsible for detecting reorg and reverting blocks in case it was found.
+///
+/// ## Requests resources
+///
+/// - `MainNodeClientResource`
+/// - `PoolResource<MasterPool>`
+/// - `BlockReverterResource`
+///
+/// ## Adds oneshot tasks
+///
+/// - `RunnerUnconstrainedOneshotTask`
 #[derive(Debug)]
 pub struct ReorgDetectorRunnerLayer;
 
