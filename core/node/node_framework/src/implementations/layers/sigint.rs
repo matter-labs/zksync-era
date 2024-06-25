@@ -51,7 +51,9 @@ impl UnconstrainedTask for SigintHandlerTask {
 
         // Wait for either SIGINT or stop signal.
         tokio::select! {
-            _ = sigint_receiver => {},
+            _ = sigint_receiver => {
+                tracing::info!("Received SIGINT signal");
+            },
             _ = stop_receiver.0.changed() => {},
         };
 
