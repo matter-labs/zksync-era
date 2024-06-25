@@ -1,7 +1,6 @@
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
-use zksync_types::L2ChainId;
 
 use crate::proto::chain as proto;
 
@@ -163,63 +162,6 @@ impl ProtoRepr for proto::Mempool {
             stuck_tx_timeout: Some(this.stuck_tx_timeout),
             remove_stuck_txs: Some(this.remove_stuck_txs),
             delay_interval: Some(this.delay_interval),
-        }
-    }
-}
-
-impl ProtoRepr for proto::NetworkConfig {
-    type Type = configs::chain::NetworkConfig;
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            network: required(&self.network)
-                .and_then(|x| Ok(proto::Network::try_from(*x)?))
-                .context("network")?
-                .parse(),
-            zksync_network: required(&self.zksync_network)
-                .context("zksync_network")?
-                .clone(),
-            zksync_network_id: L2ChainId::try_from(
-                *required(&self.zksync_network_id).context("zksync_network_id")?,
-            )
-            .map_err(|e| anyhow!(e))?,
-        })
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            network: Some(proto::Network::new(&this.network).into()),
-            zksync_network: Some(this.zksync_network.clone()),
-            zksync_network_id: Some(this.zksync_network_id.as_u64()),
-        }
-    }
-}
-
-impl proto::Network {
-    fn new(x: &zksync_basic_types::network::Network) -> Self {
-        use zksync_basic_types::network::Network as From;
-        match x {
-            From::Localhost => Self::Localhost,
-            From::Goerli => Self::Goerli,
-            From::Mainnet => Self::Mainnet,
-            From::Rinkeby => Self::Rinkeby,
-            From::Ropsten => Self::Ropsten,
-            From::Sepolia => Self::Sepolia,
-            From::Test => Self::Test,
-            From::Unknown => Self::Unknown,
-        }
-    }
-
-    fn parse(&self) -> zksync_basic_types::network::Network {
-        use zksync_basic_types::network::Network as To;
-        match self {
-            Self::Localhost => To::Localhost,
-            Self::Goerli => To::Goerli,
-            Self::Mainnet => To::Mainnet,
-            Self::Rinkeby => To::Rinkeby,
-            Self::Ropsten => To::Ropsten,
-            Self::Sepolia => To::Sepolia,
-            Self::Test => To::Test,
-            Self::Unknown => To::Unknown,
         }
     }
 }

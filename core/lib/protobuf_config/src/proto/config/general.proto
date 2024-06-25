@@ -39,5 +39,4 @@ message GeneralConfig {
   optional config.observability.Observability observability = 32;
   optional config.vm_runner.ProtectiveReadsWriter protective_reads_writer = 33;
   optional config.object_store.ObjectStore core_object_store = 34;
-  optional config.chain.NetworkConfig network = 35;
 }

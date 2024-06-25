@@ -15,13 +15,13 @@ use zksync_config::{
         chain::NetworkConfig, wallets::Wallets, DatabaseSecrets, GeneralConfig, L1Secrets,
         ObservabilityConfig,
     },
-    ContractsConfig, DBConfig, EthConfig, PostgresConfig,
+    ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_types::{Address, L1BatchNumber};
+use zksync_types::{network::Network, Address, L1BatchNumber};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -40,6 +40,9 @@ struct Cli {
     /// Path to yaml wallets config. If set, it will be used instead of env vars
     #[arg(long, global = true)]
     wallets_path: Option<PathBuf>,
+    /// Path to yaml genesis config. If set, it will be used instead of env vars
+    #[arg(long, global = true)]
+    genesis_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -136,6 +139,14 @@ async fn main() -> anyhow::Result<()> {
     } else {
         None
     };
+    let genesis_config: Option<GenesisConfig> = if let Some(path) = opts.genesis_path {
+        let yaml = std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+        let config = decode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&yaml)
+            .context("failed decoding genesis YAML config")?;
+        Some(config)
+    } else {
+        None
+    };
 
     let eth_sender = match &general_config {
         Some(general_config) => general_config
@@ -195,11 +206,12 @@ async fn main() -> anyhow::Result<()> {
             .context("Failed to find postgres config")?,
         None => PostgresConfig::from_env().context("PostgresConfig::from_env()")?,
     };
-    let network_config = match &general_config {
-        Some(general_config) => general_config
-            .network_config
-            .clone()
-            .context("Failed to find network config")?,
+    let network_config = match &genesis_config {
+        Some(genesis_config) => NetworkConfig {
+            network: Network::from_chain_id(genesis_config.l1_chain_id),
+            zksync_network: genesis_config.l2_chain_id.as_u64().to_string(),
+            zksync_network_id: genesis_config.l2_chain_id,
+        },
         None => NetworkConfig::from_env().context("NetworkConfig::from_env()")?,
     };
 

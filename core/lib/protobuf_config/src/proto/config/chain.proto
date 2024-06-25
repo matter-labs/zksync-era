@@ -50,20 +50,3 @@ message Mempool {
   optional bool remove_stuck_txs = 5; // required
   optional uint64 delay_interval = 6; // required; ms
 }
-
-message NetworkConfig {
-  optional Network network = 1; // required
-  optional string zksync_network = 2; // required
-  optional uint64 zksync_network_id = 3; // required
-}
-
-enum Network {
-  mainnet = 0;
-  rinkeby = 1;
-  ropsten = 2;
-  goerli = 3;
-  sepolia = 4;
-  localhost = 5;
-  unknown = 6;
-  test = 7;
-}

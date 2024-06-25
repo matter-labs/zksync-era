@@ -83,7 +83,6 @@ impl TempConfigStore {
             observability: self.observability.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
             core_object_store: self.core_object_store.clone(),
-            network_config: self.network_config.clone(),
         }
     }
 

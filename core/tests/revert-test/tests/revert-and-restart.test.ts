@@ -200,6 +200,7 @@ describe('Block reverting test', function () {
                 --contracts-config-path=${configPaths['contracts.yaml']}
                 --secrets-path=${configPaths['secrets.yaml']}
                 --wallets-path=${configPaths['wallets.yaml']}
+                --genesis-path=${configPaths['genesis.yaml']}
             `;
         }
 
