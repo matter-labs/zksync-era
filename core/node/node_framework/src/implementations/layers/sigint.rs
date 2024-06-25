@@ -6,8 +6,12 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Layer that changes the handling of SIGINT signal, preventing an immediate shutdown.
+/// Wiring layer that changes the handling of SIGINT signal, preventing an immediate shutdown.
 /// Instead, it would propagate the signal to the rest of the node, allowing it to shut down gracefully.
+///
+/// ## Adds tasks
+///
+/// - `SigintHandlerTask`
 #[derive(Debug)]
 pub struct SigintHandlerLayer;
 
