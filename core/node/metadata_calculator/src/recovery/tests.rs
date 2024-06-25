@@ -7,7 +7,7 @@ use tempfile::TempDir;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_config::configs::{
-    chain::OperationsManagerConfig,
+    chain::{OperationsManagerConfig, StateKeeperConfig},
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
 use zksync_dal::CoreDal;
@@ -306,6 +306,10 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     let calculator_config = MetadataCalculatorConfig::for_main_node(
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
+        &StateKeeperConfig {
+            protective_reads_persistence_enabled: true,
+            ..Default::default()
+        },
     );
     let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())
         .await

@@ -8,7 +8,7 @@ use tempfile::TempDir;
 use test_casing::{test_casing, Product};
 use tokio::sync::{mpsc, watch};
 use zksync_config::configs::{
-    chain::OperationsManagerConfig,
+    chain::{OperationsManagerConfig, StateKeeperConfig},
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -57,6 +57,7 @@ pub(super) fn mock_config(db_path: &Path) -> MetadataCalculatorConfig {
         include_indices_and_filters_in_block_cache: false,
         memtable_capacity: 16 << 20,            // 16 MiB
         stalled_writes_timeout: Duration::ZERO, // writes should never be stalled in tests
+        sealed_batches_have_protective_reads: true,
         recovery: MetadataCalculatorRecoveryConfig::default(),
     }
 }
@@ -458,9 +459,17 @@ async fn shutting_down_calculator() {
         create_config(temp_dir.path(), MerkleTreeMode::Lightweight);
     operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
 
-    let calculator =
-        setup_calculator_with_options(&merkle_tree_config, &operation_config, pool.clone(), None)
-            .await;
+    let calculator = setup_calculator_with_options(
+        &merkle_tree_config,
+        &operation_config,
+        &StateKeeperConfig {
+            protective_reads_persistence_enabled: true,
+            ..Default::default()
+        },
+        pool.clone(),
+        None,
+    )
+    .await;
 
     reset_db_state(&pool, 5).await;
 
@@ -576,6 +585,10 @@ pub(crate) async fn setup_calculator(
     let calculator = setup_calculator_with_options(
         &merkle_tree_config,
         &operation_manager,
+        &StateKeeperConfig {
+            protective_reads_persistence_enabled: true,
+            ..Default::default()
+        },
         pool,
         Some(store.clone()),
     )
@@ -588,7 +601,17 @@ async fn setup_lightweight_calculator(
     pool: ConnectionPool<Core>,
 ) -> MetadataCalculator {
     let (db_config, operation_config) = create_config(db_path, MerkleTreeMode::Lightweight);
-    setup_calculator_with_options(&db_config, &operation_config, pool, None).await
+    setup_calculator_with_options(
+        &db_config,
+        &operation_config,
+        &StateKeeperConfig {
+            protective_reads_persistence_enabled: true,
+            ..Default::default()
+        },
+        pool,
+        None,
+    )
+    .await
 }
 
 fn create_config(
@@ -610,6 +633,7 @@ fn create_config(
 async fn setup_calculator_with_options(
     merkle_tree_config: &MerkleTreeConfig,
     operation_config: &OperationsManagerConfig,
+    state_keeper_config: &StateKeeperConfig,
     pool: ConnectionPool<Core>,
     object_store: Option<Arc<dyn ObjectStore>>,
 ) -> MetadataCalculator {
@@ -621,8 +645,11 @@ async fn setup_calculator_with_options(
     }
     drop(storage);
 
-    let calculator_config =
-        MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
+    let calculator_config = MetadataCalculatorConfig::for_main_node(
+        merkle_tree_config,
+        operation_config,
+        state_keeper_config,
+    );
     MetadataCalculator::new(calculator_config, object_store, pool)
         .await
         .unwrap()

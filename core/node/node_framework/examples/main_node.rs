@@ -135,9 +135,11 @@ impl MainNodeBuilder {
     fn add_metadata_calculator_layer(mut self) -> anyhow::Result<Self> {
         let merkle_tree_env_config = DBConfig::from_env()?.merkle_tree;
         let operations_manager_env_config = OperationsManagerConfig::from_env()?;
+        let state_keeper_config = StateKeeperConfig::from_env()?;
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
+            &state_keeper_config,
         );
         self.node
             .add_layer(MetadataCalculatorLayer::new(metadata_calculator_config));

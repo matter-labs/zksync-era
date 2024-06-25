@@ -175,9 +175,11 @@ impl MainNodeBuilder {
         let merkle_tree_env_config = try_load_config!(self.configs.db_config).merkle_tree;
         let operations_manager_env_config =
             try_load_config!(self.configs.operations_manager_config);
+        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
+            &state_keeper_config,
         );
         let mut layer = MetadataCalculatorLayer::new(metadata_calculator_config);
         if with_tree_api {
