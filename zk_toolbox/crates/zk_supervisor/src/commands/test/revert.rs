@@ -15,17 +15,22 @@ pub fn run(shell: &Shell, args: RevertAndRestartArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_TEST_REVERT_AND_RESTART_RUN_INFO);
     Server::new(None, ecosystem_config.link_to_code.clone()).build(shell)?;
-    install_and_build_dependencies(shell)?;
+    install_and_build_dependencies(shell, &ecosystem_config)?;
     run_test(shell, &args, &ecosystem_config)?;
     logger::outro(MSG_TEST_REVERT_AND_RESTART_RUN_SUCCESS);
 
     Ok(())
 }
 
-fn install_and_build_dependencies(shell: &Shell) -> anyhow::Result<()> {
-    Spinner::new("Installing and building dependencies...").freeze();
+fn install_and_build_dependencies(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
+    let spinner = Spinner::new("Installing and building dependencies...");
     Cmd::new(cmd!(shell, "yarn install")).run()?;
     Cmd::new(cmd!(shell, "yarn utils build")).run()?;
+    spinner.finish();
     Ok(())
 }
 
