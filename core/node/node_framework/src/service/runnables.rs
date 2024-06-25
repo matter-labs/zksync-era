@@ -4,27 +4,16 @@ use futures::future::BoxFuture;
 use tokio::sync::Barrier;
 
 use super::{named_future::NamedFuture, StopReceiver};
-use crate::{
-    precondition::Precondition,
-    task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
-};
+use crate::task::{Task, TaskKind};
 
 /// Alias for futures with the name assigned.
-pub type NamedBoxFuture<T> = NamedFuture<BoxFuture<'static, T>>;
+pub(crate) type NamedBoxFuture<T> = NamedFuture<BoxFuture<'static, T>>;
 
 /// A collection of different flavors of tasks.
 #[derive(Default)]
 pub(super) struct Runnables {
-    /// Preconditions added to the service.
-    pub(super) preconditions: Vec<Box<dyn Precondition>>,
     /// Tasks added to the service.
     pub(super) tasks: Vec<Box<dyn Task>>,
-    /// Oneshot tasks added to the service.
-    pub(super) oneshot_tasks: Vec<Box<dyn OneshotTask>>,
-    /// Unconstrained tasks added to the service.
-    pub(super) unconstrained_tasks: Vec<Box<dyn UnconstrainedTask>>,
-    /// Unconstrained oneshot tasks added to the service.
-    pub(super) unconstrained_oneshot_tasks: Vec<Box<dyn UnconstrainedOneshotTask>>,
     /// List of hooks to be invoked after node shutdown.
     pub(super) shutdown_hooks: Vec<NamedBoxFuture<anyhow::Result<()>>>,
 }
@@ -32,14 +21,7 @@ pub(super) struct Runnables {
 impl fmt::Debug for Runnables {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Runnables")
-            .field("preconditions", &self.preconditions)
             .field("tasks", &self.tasks)
-            .field("oneshot_tasks", &self.oneshot_tasks)
-            .field("unconstrained_tasks", &self.unconstrained_tasks)
-            .field(
-                "unconstrained_oneshot_tasks",
-                &self.unconstrained_oneshot_tasks,
-            )
             .field("shutdown_hooks", &self.shutdown_hooks)
             .finish()
     }
@@ -68,23 +50,28 @@ impl Runnables {
     pub(super) fn is_empty(&self) -> bool {
         // We don't consider preconditions to be tasks.
         self.tasks.is_empty()
-            && self.oneshot_tasks.is_empty()
-            && self.unconstrained_tasks.is_empty()
-            && self.unconstrained_oneshot_tasks.is_empty()
     }
 
     /// Returns `true` if there are no long-running tasks in the collection.
     pub(super) fn is_oneshot_only(&self) -> bool {
-        self.tasks.is_empty() && self.unconstrained_tasks.is_empty()
+        self.tasks.iter().all(|t| t.kind().is_oneshot())
     }
 
     /// Prepares a barrier that should be shared between tasks and preconditions.
     /// The barrier is configured to wait for all the participants to be ready.
     /// Barrier does not assume the existence of unconstrained tasks.
     pub(super) fn task_barrier(&self) -> Arc<Barrier> {
-        Arc::new(Barrier::new(
-            self.tasks.len() + self.preconditions.len() + self.oneshot_tasks.len(),
-        ))
+        let barrier_size = self
+            .tasks
+            .iter()
+            .filter(|t| {
+                matches!(
+                    t.kind(),
+                    TaskKind::Precondition | TaskKind::OneshotTask | TaskKind::Task
+                )
+            })
+            .count();
+        Arc::new(Barrier::new(barrier_size))
     }
 
     /// Transforms the collection of tasks into a set of universal futures.
@@ -94,104 +81,27 @@ impl Runnables {
         stop_receiver: StopReceiver,
     ) -> TaskReprs {
         let mut long_running_tasks = Vec::new();
-        self.collect_unconstrained_tasks(&mut long_running_tasks, stop_receiver.clone());
-        self.collect_tasks(
-            &mut long_running_tasks,
-            task_barrier.clone(),
-            stop_receiver.clone(),
-        );
-
         let mut oneshot_tasks = Vec::new();
-        self.collect_preconditions(
-            &mut oneshot_tasks,
-            task_barrier.clone(),
-            stop_receiver.clone(),
-        );
-        self.collect_oneshot_tasks(
-            &mut oneshot_tasks,
-            task_barrier.clone(),
-            stop_receiver.clone(),
-        );
-        self.collect_unconstrained_oneshot_tasks(&mut oneshot_tasks, stop_receiver.clone());
+
+        for task in std::mem::take(&mut self.tasks) {
+            let name = task.id();
+            let kind = task.kind();
+            let stop_receiver = stop_receiver.clone();
+            let task_barrier = task_barrier.clone();
+            let task_future: BoxFuture<'static, _> =
+                Box::pin(task.run_internal(stop_receiver, task_barrier));
+            let named_future = NamedFuture::new(task_future, name);
+            if kind.is_oneshot() {
+                oneshot_tasks.push(named_future);
+            } else {
+                long_running_tasks.push(named_future);
+            }
+        }
 
         TaskReprs {
             long_running_tasks,
             oneshot_tasks,
             shutdown_hooks: self.shutdown_hooks,
-        }
-    }
-
-    fn collect_unconstrained_tasks(
-        &mut self,
-        tasks: &mut Vec<NamedBoxFuture<anyhow::Result<()>>>,
-        stop_receiver: StopReceiver,
-    ) {
-        for task in std::mem::take(&mut self.unconstrained_tasks) {
-            let name = task.id();
-            let stop_receiver = stop_receiver.clone();
-            let task_future = Box::pin(task.run_unconstrained(stop_receiver));
-            tasks.push(NamedFuture::new(task_future, name));
-        }
-    }
-
-    fn collect_tasks(
-        &mut self,
-        tasks: &mut Vec<NamedBoxFuture<anyhow::Result<()>>>,
-        task_barrier: Arc<Barrier>,
-        stop_receiver: StopReceiver,
-    ) {
-        for task in std::mem::take(&mut self.tasks) {
-            let name = task.id();
-            let stop_receiver = stop_receiver.clone();
-            let task_barrier = task_barrier.clone();
-            let task_future = Box::pin(task.run_with_barrier(stop_receiver, task_barrier));
-            tasks.push(NamedFuture::new(task_future, name));
-        }
-    }
-
-    fn collect_preconditions(
-        &mut self,
-        oneshot_tasks: &mut Vec<NamedBoxFuture<anyhow::Result<()>>>,
-        task_barrier: Arc<Barrier>,
-        stop_receiver: StopReceiver,
-    ) {
-        for precondition in std::mem::take(&mut self.preconditions) {
-            let name = precondition.id();
-            let stop_receiver = stop_receiver.clone();
-            let task_barrier = task_barrier.clone();
-            let task_future =
-                Box::pin(precondition.check_with_barrier(stop_receiver, task_barrier));
-            oneshot_tasks.push(NamedFuture::new(task_future, name));
-        }
-    }
-
-    fn collect_oneshot_tasks(
-        &mut self,
-        oneshot_tasks: &mut Vec<NamedBoxFuture<anyhow::Result<()>>>,
-        task_barrier: Arc<Barrier>,
-        stop_receiver: StopReceiver,
-    ) {
-        for oneshot_task in std::mem::take(&mut self.oneshot_tasks) {
-            let name = oneshot_task.id();
-            let stop_receiver = stop_receiver.clone();
-            let task_barrier = task_barrier.clone();
-            let task_future =
-                Box::pin(oneshot_task.run_oneshot_with_barrier(stop_receiver, task_barrier));
-            oneshot_tasks.push(NamedFuture::new(task_future, name));
-        }
-    }
-
-    fn collect_unconstrained_oneshot_tasks(
-        &mut self,
-        oneshot_tasks: &mut Vec<NamedBoxFuture<anyhow::Result<()>>>,
-        stop_receiver: StopReceiver,
-    ) {
-        for unconstrained_oneshot_task in std::mem::take(&mut self.unconstrained_oneshot_tasks) {
-            let name = unconstrained_oneshot_task.id();
-            let stop_receiver = stop_receiver.clone();
-            let task_future =
-                Box::pin(unconstrained_oneshot_task.run_unconstrained_oneshot(stop_receiver));
-            oneshot_tasks.push(NamedFuture::new(task_future, name));
         }
     }
 }

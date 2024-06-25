@@ -19,7 +19,6 @@
 //! - Run it.
 
 pub mod implementations;
-pub mod precondition;
 pub mod resource;
 pub mod service;
 pub mod task;

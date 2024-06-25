@@ -9,9 +9,8 @@ use crate::{
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
     },
-    precondition::Precondition,
     service::{ServiceContext, StopReceiver},
-    task::TaskId,
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -45,7 +44,7 @@ impl WiringLayer for ReorgDetectorCheckerLayer {
         let pool = pool_resource.get().await?;
 
         // Create and insert precondition.
-        context.add_precondition(Box::new(CheckerPrecondition {
+        context.add_task(Box::new(CheckerPrecondition {
             pool: pool.clone(),
             reorg_detector: ReorgDetector::new(main_node_client, pool),
         }));
@@ -60,12 +59,16 @@ pub struct CheckerPrecondition {
 }
 
 #[async_trait::async_trait]
-impl Precondition for CheckerPrecondition {
+impl Task for CheckerPrecondition {
+    fn kind(&self) -> TaskKind {
+        TaskKind::Precondition
+    }
+
     fn id(&self) -> TaskId {
         "reorg_detector_checker".into()
     }
 
-    async fn check(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         // Given that this is a precondition -- i.e. something that starts before some invariants are met,
         // we need to first ensure that there is at least one batch in the database (there may be none if
         // either genesis or snapshot recovery has not been performed yet).
