@@ -26,10 +26,11 @@ impl UnstableNamespace {
             .transactions_web3_dal()
             .get_unstable_transaction_execution_info(hash)
             .await
-            .map_err(DalError::generalize)?.map(|info| {
-            return ApiTransactionExecutionInfo {
-                execution_info: info.execution_info,
-            };
-        }))
+            .map_err(DalError::generalize)?
+            .map(|info| {
+                return ApiTransactionExecutionInfo {
+                    execution_info: info.execution_info,
+                };
+            }))
     }
 }
