@@ -4,7 +4,7 @@ use zksync_config::configs::chain::CircuitBreakerConfig;
 use crate::{
     implementations::resources::circuit_breakers::CircuitBreakersResource,
     service::{ServiceContext, StopReceiver},
-    task::{TaskId, UnconstrainedTask},
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -44,7 +44,7 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
             circuit_breaker_checker,
         };
 
-        node.add_unconstrained_task(Box::new(task));
+        node.add_task(Box::new(task));
         Ok(())
     }
 }
@@ -55,15 +55,16 @@ struct CircuitBreakerCheckerTask {
 }
 
 #[async_trait::async_trait]
-impl UnconstrainedTask for CircuitBreakerCheckerTask {
+impl Task for CircuitBreakerCheckerTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::UnconstrainedTask
+    }
+
     fn id(&self) -> TaskId {
         "circuit_breaker_checker".into()
     }
 
-    async fn run_unconstrained(
-        mut self: Box<Self>,
-        stop_receiver: StopReceiver,
-    ) -> anyhow::Result<()> {
+    async fn run(mut self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         self.circuit_breaker_checker.run(stop_receiver.0).await
     }
 }

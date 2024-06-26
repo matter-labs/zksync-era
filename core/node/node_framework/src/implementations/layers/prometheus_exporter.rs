@@ -4,7 +4,7 @@ use zksync_vlog::prometheus::PrometheusExporterConfig;
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
     service::{ServiceContext, StopReceiver},
-    task::{TaskId, UnconstrainedTask},
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -46,18 +46,22 @@ impl WiringLayer for PrometheusExporterLayer {
             prometheus_health_updater,
         });
 
-        node.add_unconstrained_task(task);
+        node.add_task(task);
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl UnconstrainedTask for PrometheusExporterTask {
+impl Task for PrometheusExporterTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::UnconstrainedTask
+    }
+
     fn id(&self) -> TaskId {
         "prometheus_exporter".into()
     }
 
-    async fn run_unconstrained(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let prometheus_task = self.config.run(stop_receiver.0);
         self.prometheus_health_updater
             .update(HealthStatus::Ready.into());

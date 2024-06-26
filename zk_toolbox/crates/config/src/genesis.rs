@@ -2,7 +2,7 @@ use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 use types::{ChainId, L1BatchCommitDataGeneratorMode, ProtocolSemanticVersion};
 
-use crate::{consts::GENESIS_FILE, traits::FileConfigWithDefaultName};
+use crate::{consts::GENESIS_FILE, traits::FileConfigWithDefaultName, ChainConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GenesisConfig {
@@ -19,6 +19,14 @@ pub struct GenesisConfig {
     pub genesis_protocol_semantic_version: ProtocolSemanticVersion,
     #[serde(flatten)]
     pub other: serde_json::Value,
+}
+
+impl GenesisConfig {
+    pub fn update_from_chain_config(&mut self, config: &ChainConfig) {
+        self.l2_chain_id = config.chain_id;
+        self.l1_chain_id = config.l1_network.chain_id();
+        self.l1_batch_commit_data_generator_mode = Some(config.l1_batch_commit_data_generator_mode);
+    }
 }
 
 impl FileConfigWithDefaultName for GenesisConfig {

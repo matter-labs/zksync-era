@@ -13,5 +13,5 @@ pub struct RunServerArgs {
     pub genesis: bool,
     #[clap(long, short)]
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = false, help = MSG_SERVER_ADDITIONAL_ARGS_HELP)]
-    additional_args: Vec<String>,
+    pub additional_args: Vec<String>,
 }
