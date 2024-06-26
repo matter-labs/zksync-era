@@ -8,9 +8,3 @@ use tokio::sync::watch;
 /// and prevent tasks from hanging by accident.
 #[derive(Debug, Clone)]
 pub struct StopReceiver(pub watch::Receiver<bool>);
-
-impl StopReceiver {
-    pub fn new(receiver: watch::Receiver<bool>) -> Self {
-        Self(receiver)
-    }
-}
