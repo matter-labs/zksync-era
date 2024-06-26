@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 
 use common::{cmd::Cmd, logger};
 use config::{ChainConfig, EcosystemConfig};
@@ -44,9 +47,23 @@ fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_PROVER_GATEWAY);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
-    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_prover_fri_gateway -- --config-path={config_path} --secrets-path={secrets_path} -- > /dev/null 2>&1 &")).with_force_run();
-    let out = String::from_utf8(cmd.run_with_output()?.stdout)?;
-    let pid = out.split(" ").next().expect("Failed to get pid");
+
+    let command_str = format!(
+        "cargo run --release --bin zksync_prover_fri_gateway -- --config-path={} --secrets-path={}",
+        config_path.to_str().unwrap(),
+        secrets_path.to_str().unwrap()
+    );
+
+    let cmd = Command::new("sh")
+        .arg("-c")
+        .arg(&command_str)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+
+    // Get the PID of the spawned process
+    let pid = cmd.id();
+
     logger::info(format!("Prover gateway started with pid: {}", pid));
     Ok(())
 }
