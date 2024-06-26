@@ -1,6 +1,7 @@
 import { background } from '.';
 
-const BASE_COMMAND = 'zk_inception server';
+// TODO: change to use `zk_inception` once migration is complete
+const BASE_COMMAND = 'zk server';
 
 export function runServerInBackground({
     components,

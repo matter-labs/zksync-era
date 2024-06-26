@@ -112,7 +112,6 @@ describe('Block reverting test', function () {
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
             baseTokenAddress = contractsConfig.l1.base_token_addr;
         }
-        this;
 
         // Create test wallets
         tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
