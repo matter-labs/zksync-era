@@ -209,7 +209,7 @@ describe('Block reverting test', function () {
         }
 
         const executedProcess = await utils.exec(
-            `RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json --operator-address ${operatorAddress} ${fileConfigFlags}`
+            `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json --operator-address ${operatorAddress} ${fileConfigFlags}`
             // ^ Switch off logs to not pollute the output JSON
         );
         const suggestedValuesOutput = executedProcess.stdout;
@@ -223,12 +223,12 @@ describe('Block reverting test', function () {
 
         console.log('Sending ETH transaction..');
         await utils.spawn(
-            `cargo run --bin block_reverter --release -- send-eth-transaction --l1-batch-number ${lastL1BatchNumber} --nonce ${nonce} --priority-fee-per-gas ${priorityFee} ${fileConfigFlags}`
+            `cd ${pathToHome} && cargo run --bin block_reverter --release -- send-eth-transaction --l1-batch-number ${lastL1BatchNumber} --nonce ${nonce} --priority-fee-per-gas ${priorityFee} ${fileConfigFlags}`
         );
 
         console.log('Rolling back DB..');
         await utils.spawn(
-            `cargo run --bin block_reverter --release -- rollback-db --l1-batch-number ${lastL1BatchNumber} --rollback-postgres --rollback-tree --rollback-sk-cache ${fileConfigFlags}`
+            `cd ${pathToHome} && cargo run --bin block_reverter --release -- rollback-db --l1-batch-number ${lastL1BatchNumber} --rollback-postgres --rollback-tree --rollback-sk-cache ${fileConfigFlags}`
         );
 
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();
