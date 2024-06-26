@@ -22,15 +22,13 @@ impl UnstableNamespace {
         hash: H256,
     ) -> Result<Option<ApiTransactionExecutionInfo>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        let foo = storage
+        Ok(storage
             .transactions_web3_dal()
             .get_unstable_transaction_execution_info(hash)
             .await
-            .map_err(DalError::generalize)?;
-
-        Ok(foo.map(|x| {
+            .map_err(DalError::generalize)?.map(|info| {
             return ApiTransactionExecutionInfo {
-                execution_info: x.execution_info,
+                execution_info: info.execution_info,
             };
         }))
     }
