@@ -28,9 +28,9 @@ impl UnstableNamespace {
             .await
             .map_err(DalError::generalize)?
             .map(|info| {
-                return ApiTransactionExecutionInfo {
+                ApiTransactionExecutionInfo {
                     execution_info: info.execution_info,
-                };
+                }
             }))
     }
 }
