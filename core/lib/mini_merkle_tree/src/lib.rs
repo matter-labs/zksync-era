@@ -361,6 +361,10 @@ where
         self.0.lock().unwrap().trim_start(count);
     }
 
+    pub fn merkle_root(&self) -> H256 {
+        self.0.lock().unwrap().merkle_root()
+    }
+
     pub fn merkle_root_and_paths_for_range(
         &self,
         range: std::ops::Range<usize>,

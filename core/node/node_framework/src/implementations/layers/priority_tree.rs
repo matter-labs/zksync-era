@@ -1,4 +1,7 @@
 use anyhow::Context;
+use zksync_dal::CoreDal;
+use zksync_mini_merkle_tree::SyncMerkleTree;
+use zksync_types::l1::L1Tx;
 
 use crate::{
     implementations::resources::{
@@ -8,9 +11,6 @@ use crate::{
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
-use zksync_dal::CoreDal;
-use zksync_mini_merkle_tree::SyncMerkleTree;
-use zksync_types::l1::L1Tx;
 
 #[derive(Debug)]
 pub struct PriorityTreeLayer {
