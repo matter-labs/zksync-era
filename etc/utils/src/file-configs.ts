@@ -112,5 +112,5 @@ export function getConfigsFolderPath({
     configsFolder?: string;
     configsFolderSuffix?: string;
 }) {
-    return path.join(pathToHome, 'chains', chain, configsFolderSuffix ?? '', configsFolder ?? 'configs');
+    return path.join(pathToHome, 'chains', chain, configsFolder ?? 'configs', configsFolderSuffix ?? '');
 }
