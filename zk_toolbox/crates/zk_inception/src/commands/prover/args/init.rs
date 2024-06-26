@@ -67,10 +67,14 @@ pub struct ProofStorageGCSCreateBucket {
 }
 
 #[derive(Debug, Clone)]
-pub enum ProverInitArgsFinal {
+pub enum ProofStorageConfig {
     FileBacked(ProofStorageFileBacked),
     GCS(ProofStorageGCS),
     GCSCreateBucket(ProofStorageGCSCreateBucket),
+}
+#[derive(Debug, Clone)]
+pub struct ProverInitArgsFinal {
+    pub proof_store: ProofStorageConfig,
 }
 
 impl ProverInitArgs {
@@ -79,6 +83,15 @@ impl ProverInitArgs {
         project_ids: Vec<String>,
         home: &str,
     ) -> ProverInitArgsFinal {
+        let proof_store = self.fill_proof_storage_values_with_prompt(project_ids, home);
+        ProverInitArgsFinal { proof_store }
+    }
+
+    fn fill_proof_storage_values_with_prompt(
+        &self,
+        project_ids: Vec<String>,
+        home: &str,
+    ) -> ProofStorageConfig {
         if self.proof_store_dir.is_some() {
             return self.handle_file_backed_config();
         }
@@ -111,16 +124,16 @@ impl ProverInitArgs {
             || self.proof_store_gcs_config.credentials_file.is_some()
     }
 
-    fn handle_file_backed_config(&self) -> ProverInitArgsFinal {
+    fn handle_file_backed_config(&self) -> ProofStorageConfig {
         let proof_store_dir = self
             .proof_store_dir
             .clone()
             .unwrap_or_else(|| Prompt::new(MSG_PROOF_STORE_DIR_PROMPT).ask());
 
-        ProverInitArgsFinal::FileBacked(ProofStorageFileBacked { proof_store_dir })
+        ProofStorageConfig::FileBacked(ProofStorageFileBacked { proof_store_dir })
     }
 
-    fn handle_gcs_config(&self, project_ids: Vec<String>, home: &str) -> ProverInitArgsFinal {
+    fn handle_gcs_config(&self, project_ids: Vec<String>, home: &str) -> ProofStorageConfig {
         if !self.partial_gcs_config_provided() {
             if PromptConfirm::new(MSG_CREATE_GCS_BUCKET_PROMPT).ask() {
                 return self.handle_create_gcs_bucket(project_ids, home);
@@ -130,11 +143,7 @@ impl ProverInitArgs {
         self.ask_gcs_config(home)
     }
 
-    fn handle_create_gcs_bucket(
-        &self,
-        project_ids: Vec<String>,
-        home: &str,
-    ) -> ProverInitArgsFinal {
+    fn handle_create_gcs_bucket(&self, project_ids: Vec<String>, home: &str) -> ProofStorageConfig {
         let project_id = self
             .create_gcs_bucket_config
             .project_id
@@ -166,7 +175,7 @@ impl ProverInitArgs {
                     .ask()
             });
 
-        ProverInitArgsFinal::GCSCreateBucket(ProofStorageGCSCreateBucket {
+        ProofStorageConfig::GCSCreateBucket(ProofStorageGCSCreateBucket {
             bucket_name,
             location,
             project_id,
@@ -174,7 +183,7 @@ impl ProverInitArgs {
         })
     }
 
-    fn ask_gcs_config(&self, home: &str) -> ProverInitArgsFinal {
+    fn ask_gcs_config(&self, home: &str) -> ProofStorageConfig {
         let bucket_base_url = self
             .clone()
             .proof_store_gcs_config
@@ -190,7 +199,7 @@ impl ProverInitArgs {
                     .ask()
             });
 
-        ProverInitArgsFinal::GCS(ProofStorageGCS {
+        ProofStorageConfig::GCS(ProofStorageGCS {
             bucket_base_url,
             credentials_file,
         })

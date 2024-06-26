@@ -7,7 +7,7 @@ use zksync_config::{
 };
 
 use super::{
-    args::init::{ProofStorageGCSCreateBucket, ProverInitArgs, ProverInitArgsFinal},
+    args::init::{ProofStorageConfig, ProofStorageGCSCreateBucket, ProverInitArgs},
     utils::get_link_to_prover,
 };
 use crate::messages::{
@@ -24,15 +24,15 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let args = args.fill_values_with_prompt(project_ids, &home);
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let object_store_config = match args {
-        ProverInitArgsFinal::FileBacked(config) => ObjectStoreConfig {
+    let object_store_config = match args.proof_store {
+        ProofStorageConfig::FileBacked(config) => ObjectStoreConfig {
             mode: ObjectStoreMode::FileBacked {
                 file_backed_base_path: config.proof_store_dir,
             },
             max_retries: PROVER_STORE_MAX_RETRIES,
             local_mirror_path: None,
         },
-        ProverInitArgsFinal::GCS(config) => ObjectStoreConfig {
+        ProofStorageConfig::GCS(config) => ObjectStoreConfig {
             mode: ObjectStoreMode::GCSWithCredentialFile {
                 bucket_base_url: config.bucket_base_url,
                 gcs_credential_file_path: config.credentials_file,
@@ -40,7 +40,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
             max_retries: PROVER_STORE_MAX_RETRIES,
             local_mirror_path: None,
         },
-        ProverInitArgsFinal::GCSCreateBucket(config) => create_gcs_bucket(shell, config)?,
+        ProofStorageConfig::GCSCreateBucket(config) => create_gcs_bucket(shell, config)?,
     };
 
     let chain_config = ecosystem_config
