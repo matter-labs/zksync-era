@@ -12,7 +12,6 @@ use messages::{
 };
 use xshell::Shell;
 
-
 mod commands;
 mod dals;
 mod messages;

@@ -49,8 +49,8 @@ impl PrepareConfigArgs {
                 separator = "_"
             );
             let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
-                Prompt::new(&MSG_L1_RPC_URL_PROMPT)
-                    .default(&LOCAL_RPC_URL)
+                Prompt::new(MSG_L1_RPC_URL_PROMPT)
+                    .default(LOCAL_RPC_URL)
                     .ask()
             });
 

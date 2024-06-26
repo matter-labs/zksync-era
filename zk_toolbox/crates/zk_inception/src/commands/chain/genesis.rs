@@ -63,7 +63,7 @@ pub async fn genesis(
 
     let mut secrets = config.get_secrets_config()?;
     secrets.set_databases(&args.server_db, &args.prover_db);
-    secrets.save_with_base_path(&shell, &config.configs)?;
+    secrets.save_with_base_path(shell, &config.configs)?;
 
     logger::note(
         MSG_SELECTED_CONFIG,
