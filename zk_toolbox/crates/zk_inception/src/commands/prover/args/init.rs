@@ -7,8 +7,9 @@ use strum_macros::EnumIter;
 use crate::messages::{
     MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT, MSG_CREATE_GCS_BUCKET_NAME_PROMTP,
     MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT, MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT,
-    MSG_CREATE_GCS_BUCKET_PROMPT, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
-    MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT, MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT,
+    MSG_CREATE_GCS_BUCKET_PROMPT, MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_PROOF_STORE_CONFIG_PROMPT,
+    MSG_PROOF_STORE_DIR_PROMPT, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT,
+    MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_SETUP_KEY_PATH_PROMPT,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
@@ -17,10 +18,13 @@ pub struct ProverInitArgs {
     pub proof_store_dir: Option<String>,
     #[clap(flatten)]
     #[serde(flatten)]
-    pub proof_store_gcs_config: ProofStoreGCSConfig,
+    pub proof_store_gcs_config: ProofStorageGCSTmp,
     #[clap(flatten)]
     #[serde(flatten)]
-    pub create_gcs_bucket_config: CreateGCSBucketConfig,
+    pub create_gcs_bucket_config: ProofStorageGCSCreateBucketTmp,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub setup_key_config: SetupKeyConfigTmp,
 }
 
 #[derive(Debug, Clone, ValueEnum, EnumIter, strum_macros::Display, PartialEq, Eq)]
@@ -30,7 +34,7 @@ enum ProofStoreConfig {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
-pub struct ProofStoreGCSConfig {
+pub struct ProofStorageGCSTmp {
     #[clap(long)]
     pub bucket_base_url: Option<String>,
     #[clap(long)]
@@ -38,13 +42,21 @@ pub struct ProofStoreGCSConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
-pub struct CreateGCSBucketConfig {
+pub struct ProofStorageGCSCreateBucketTmp {
     #[clap(long)]
     pub bucket_name: Option<String>,
     #[clap(long)]
     pub location: Option<String>,
     #[clap(long)]
     pub project_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
+pub struct SetupKeyConfigTmp {
+    #[clap(long)]
+    pub download_key: Option<bool>,
+    #[clap(long)]
+    pub setup_key_path: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -72,9 +84,17 @@ pub enum ProofStorageConfig {
     GCS(ProofStorageGCS),
     GCSCreateBucket(ProofStorageGCSCreateBucket),
 }
+
+#[derive(Debug, Clone)]
+pub struct SetupKeyConfig {
+    pub download_key: bool,
+    pub setup_key_path: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct ProverInitArgsFinal {
     pub proof_store: ProofStorageConfig,
+    pub setup_key_config: SetupKeyConfig,
 }
 
 impl ProverInitArgs {
@@ -82,9 +102,14 @@ impl ProverInitArgs {
         &self,
         project_ids: Vec<String>,
         home: &str,
+        setup_key_path: &str,
     ) -> ProverInitArgsFinal {
         let proof_store = self.fill_proof_storage_values_with_prompt(project_ids, home);
-        ProverInitArgsFinal { proof_store }
+        let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
+        ProverInitArgsFinal {
+            proof_store,
+            setup_key_config,
+        }
     }
 
     fn fill_proof_storage_values_with_prompt(
@@ -110,6 +135,28 @@ impl ProverInitArgs {
         match proof_store_config {
             ProofStoreConfig::Local => self.handle_file_backed_config(),
             ProofStoreConfig::GCS => self.handle_gcs_config(project_ids, home),
+        }
+    }
+
+    fn fill_setup_key_values_with_prompt(&self, setup_key_path: &str) -> SetupKeyConfig {
+        let download_key = self
+            .clone()
+            .setup_key_config
+            .download_key
+            .unwrap_or_else(|| PromptConfirm::new(MSG_DOWNLOAD_SETUP_KEY_PROMPT).ask());
+        let setup_key_path = self
+            .clone()
+            .setup_key_config
+            .setup_key_path
+            .unwrap_or_else(|| {
+                Prompt::new(MSG_SETUP_KEY_PATH_PROMPT)
+                    .default(setup_key_path)
+                    .ask()
+            });
+
+        SetupKeyConfig {
+            download_key,
+            setup_key_path,
         }
     }
 

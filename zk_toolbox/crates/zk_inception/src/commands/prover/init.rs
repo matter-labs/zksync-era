@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
@@ -19,10 +21,19 @@ use crate::messages::{
 const PROVER_STORE_MAX_RETRIES: u16 = 10;
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let chain_config = ecosystem_config
+        .load_chain(Some(ecosystem_config.default_chain.clone()))
+        .expect(MSG_CHAIN_NOT_FOUND_ERR);
+    let mut general_config = chain_config
+        .get_general_config()
+        .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
+
     let project_ids = get_project_ids(shell)?;
     let home = shell.var("HOME")?;
-    let args = args.fill_values_with_prompt(project_ids, &home);
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let setup_key_path = get_setup_key_path(&general_config, &ecosystem_config)?;
+
+    let args = args.fill_values_with_prompt(project_ids, &home, &setup_key_path);
 
     let object_store_config = match args.proof_store {
         ProofStorageConfig::FileBacked(config) => ObjectStoreConfig {
@@ -43,20 +54,27 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         ProofStorageConfig::GCSCreateBucket(config) => create_gcs_bucket(shell, config)?,
     };
 
-    let chain_config = ecosystem_config
-        .load_chain(Some(ecosystem_config.default_chain.clone()))
-        .expect(MSG_CHAIN_NOT_FOUND_ERR);
-    let mut general_config = chain_config
-        .get_general_config()
-        .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
+    if args.setup_key_config.download_key {
+        download_setup_key(
+            shell,
+            &general_config,
+            &args.setup_key_config.setup_key_path,
+        )?;
+    }
+
     let mut prover_config = general_config
         .prover_config
         .expect(MSG_PROVER_CONFIG_NOT_FOUND_ERR);
     prover_config.prover_object_store = Some(object_store_config.clone());
     general_config.prover_config = Some(prover_config);
-    chain_config.save_general_config(&general_config)?;
 
-    download_setup_key(shell, &general_config, &ecosystem_config)?;
+    let mut proof_compressor_config = general_config
+        .proof_compressor_config
+        .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR);
+    proof_compressor_config.universal_setup_path = args.setup_key_config.setup_key_path;
+    general_config.proof_compressor_config = Some(proof_compressor_config);
+
+    chain_config.save_general_config(&general_config)?;
 
     logger::outro(MSG_PROVER_INITIALIZED);
     Ok(())
@@ -94,7 +112,7 @@ fn create_gcs_bucket(
 fn download_setup_key(
     shell: &Shell,
     general_config: &GeneralConfig,
-    ecosystem_config: &EcosystemConfig,
+    path: &str,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_KEY_SPINNER);
     let compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
@@ -102,8 +120,6 @@ fn download_setup_key(
         .as_ref()
         .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
         .clone();
-    let link_to_prover = get_link_to_prover(ecosystem_config);
-    let path = link_to_prover.join(compressor_config.universal_setup_path);
     let url = compressor_config.universal_setup_download_url;
 
     let mut cmd = Cmd::new(cmd!(shell, "wget {url} -P {path}"));
@@ -124,4 +140,21 @@ fn get_project_ids(shell: &Shell) -> anyhow::Result<Vec<String>> {
         .collect();
 
     Ok(project_ids)
+}
+
+fn get_setup_key_path(
+    general_config: &GeneralConfig,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<String> {
+    let setup_key_path = general_config
+        .proof_compressor_config
+        .as_ref()
+        .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
+        .universal_setup_path
+        .clone();
+    let link_to_prover = get_link_to_prover(ecosystem_config);
+    let path = link_to_prover.join(setup_key_path);
+    let string = path.to_str().unwrap();
+
+    Ok(String::from(string))
 }
