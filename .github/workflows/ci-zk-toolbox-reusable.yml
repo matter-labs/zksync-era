@@ -97,10 +97,6 @@ jobs:
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose
 
-      - name: Run revert tests
-        run: |
-          ci_run zk_supervisor test revert --ignore-prerequisites --verbose
-
       - name: Run external node server
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
@@ -113,14 +109,18 @@ jobs:
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node
 
+      - name: Run revert tests
+        run: |
+          ci_run zk_supervisor test revert --ignore-prerequisites --verbose
+
       - name: Show server.log logs
         if: always()
         run: ci_run cat server.log || true
 
-      - name: Show revert.log logs
-        if: always()
-        run: ci_run cat ./core/tests/revert-test/revert.log || true
-
       - name: Show external_node.log logs
         if: always()
         run: ci_run cat external_node.log || true
+
+      - name: Show revert.log logs
+        if: always()
+        run: ci_run cat ./core/tests/revert-test/revert.log || true
