@@ -29,15 +29,16 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
         .expect(MSG_CHAIN_NOT_FOUND_ERR);
 
     let link_to_prover = get_link_to_prover(&ecosystem_config);
-    shell.change_dir(&link_to_prover);
 
     for component in args.components.expect(MSG_MISSING_COMPONENTS_ERR) {
         match component {
-            ProverComponent::Gateway => run_gateway(shell, &chain)?,
-            ProverComponent::WitnessGenerator => run_witness_generator(shell)?,
-            ProverComponent::WitnessVectorGenerator => run_witness_vector_generator(shell)?,
-            ProverComponent::Prover => run_prover(shell)?,
-            ProverComponent::Compressor => run_compressor(shell)?,
+            ProverComponent::Gateway => run_gateway(&chain, &link_to_prover)?,
+            ProverComponent::WitnessGenerator => run_witness_generator(&chain, &link_to_prover)?,
+            ProverComponent::WitnessVectorGenerator => {
+                run_witness_vector_generator(&chain, &link_to_prover)?
+            }
+            ProverComponent::Prover => run_prover(&chain, &link_to_prover)?,
+            ProverComponent::Compressor => run_compressor(&chain, &link_to_prover)?,
         }
     }
 
