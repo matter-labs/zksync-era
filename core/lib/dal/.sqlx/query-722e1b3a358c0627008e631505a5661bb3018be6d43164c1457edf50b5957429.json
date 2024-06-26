@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    SELECT\n                        l1_batch_number\n                    FROM\n                        proof_generation_details\n                        LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number\n                    WHERE\n                        (\n                            vm_run_data_blob_url IS NOT NULL\n                            AND proof_gen_data_blob_url IS NOT NULL\n                            AND status NOT IN ('picked_by_prover', 'generated')\n                        )\n                    ORDER BY\n                        l1_batch_number ASC\n                    LIMIT\n                        1\n\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "722e1b3a358c0627008e631505a5661bb3018be6d43164c1457edf50b5957429"
+}

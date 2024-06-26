@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                proof_generation_details (l1_batch_number, status, proof_gen_data_blob_url, created_at, updated_at)\n            VALUES\n                ($1, 'waiting_for_data', $2, NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ff510d87494636482d1abd05c9afd1fa6facc419ce16b8d628a0f5f78e28a0ee"
+}

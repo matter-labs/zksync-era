@@ -51,9 +51,10 @@ impl ProofGenerationDal<'_, '_> {
                         (
                             vm_run_data_blob_url IS NOT NULL
                             AND proof_gen_data_blob_url IS NOT NULL
-                            AND l1_batches.merkle_root_hash IS NOT NULL
+                            AND l1_batches.hash IS NOT NULL
                             AND l1_batches.aux_data_hash IS NOT NULL
                             AND l1_batches.meta_parameters_hash IS NOT NULL
+                            AND status NOT IN ('picked_by_prover', 'generated')
                         )
                         OR (
                             status = 'picked_by_prover'
@@ -63,8 +64,6 @@ impl ProofGenerationDal<'_, '_> {
                         l1_batch_number ASC
                     LIMIT
                         1
-                    FOR UPDATE
-                        SKIP LOCKED
                 )
             RETURNING
                 proof_generation_details.l1_batch_number
@@ -79,7 +78,7 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 
-    pub async fn save_proof_merkle_paths_artifacts_metadata(
+    pub async fn save_proof_artifacts_metadata(
         &mut self,
         batch_number: L1BatchNumber,
         proof_blob_url: &str,
@@ -127,7 +126,6 @@ impl ProofGenerationDal<'_, '_> {
             r#"
             UPDATE proof_generation_details
             SET
-                status = 'generated',
                 vm_run_data_blob_url = $1,
                 updated_at = NOW()
             WHERE
@@ -164,9 +162,9 @@ impl ProofGenerationDal<'_, '_> {
         let result = sqlx::query!(
             r#"
             INSERT INTO
-                proof_generation_details (l1_batch_number, proof_gen_data_blob_url, created_at, updated_at)
+                proof_generation_details (l1_batch_number, status, proof_gen_data_blob_url, created_at, updated_at)
             VALUES
-                ($1, $2, NOW(), NOW())
+                ($1, 'waiting_for_data', $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
              i64::from(l1_batch_number.0),
@@ -274,7 +272,9 @@ impl ProofGenerationDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::ProtocolVersion;
+    use zksync_types::{
+        block::L1BatchTreeData, commitment::L1BatchCommitmentArtifacts, ProtocolVersion, H256,
+    };
 
     use super::*;
     use crate::{tests::create_l1_batch_header, ConnectionPool, CoreDal};
@@ -317,6 +317,27 @@ mod tests {
             .insert_proof_generation_details(L1BatchNumber(1), "generation_data")
             .await
             .unwrap();
+        conn.proof_generation_dal()
+            .save_vm_runner_artifacts_metadata(L1BatchNumber(1), "vm_run")
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .save_l1_batch_tree_data(
+                L1BatchNumber(1),
+                &L1BatchTreeData {
+                    hash: H256::zero(),
+                    rollup_last_leaf_index: 123,
+                },
+            )
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .save_l1_batch_commitment_artifacts(
+                L1BatchNumber(1),
+                &L1BatchCommitmentArtifacts::default(),
+            )
+            .await
+            .unwrap();
 
         let unpicked_l1_batch = conn
             .proof_generation_dal()
@@ -347,7 +368,7 @@ mod tests {
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
 
         conn.proof_generation_dal()
-            .save_proof_merkle_paths_artifacts_metadata(L1BatchNumber(1), "proof")
+            .save_proof_artifacts_metadata(L1BatchNumber(1), "proof")
             .await
             .unwrap();
 
