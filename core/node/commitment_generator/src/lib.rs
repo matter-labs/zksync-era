@@ -294,6 +294,8 @@ impl CommitmentGenerator {
                 aux_commitments,
                 blob_commitments,
                 blob_linear_hashes,
+                // todo fetch from db
+                aggregated_root: H256::zero(),
             }
         };
 

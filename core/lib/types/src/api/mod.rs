@@ -195,6 +195,7 @@ pub struct LeafAggProof {
     pub batch_leaf_proof_mask: U256,
     pub chain_id_leaf_proof: Vec<H256>,
     pub chain_id_leaf_proof_mask: U256,
+    pub local_msg_root: H256,
 }
 
 impl LeafAggProof {

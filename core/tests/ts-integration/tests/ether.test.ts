@@ -138,13 +138,13 @@ describe.only('ETH token checks', () => {
         l2EthTokenAddressNonBase = await alice.l2TokenAddress(ETH_ADDRESS_IN_CONTRACTS);
     });
 
-    test.only('Debug', async () => {
-        await sleep(30);
+    // test.only('Debug', async () => {
+    //     await sleep(30);
 
-        await restoreChainIdMerkleTree(270, alice.ethWallet().provider);
+    //     await restoreChainIdMerkleTree(270, alice.ethWallet().provider);
 
-        return;
-    });
+    //     return;
+    // });
 
     test('Can perform a deposit', async () => {
         if (!isETHBasedChain) {
@@ -344,7 +344,7 @@ describe.only('ETH token checks', () => {
     });
 
     // FIXME
-    test.skip('Can perform a withdrawal', async () => {
+    test('Can perform a withdrawal', async () => {
         if (!isETHBasedChain) {
             // TODO(EVM-555): Currently this test is not working for non-eth based chains.
             return;

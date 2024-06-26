@@ -22,12 +22,15 @@ use zksync_types::{
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
     web3::{keccak256, Bytes},
-    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
-    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    AccountTreeId, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, ProtocolVersionId,
+    StorageKey, Transaction, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::{
+    client::{Client, L2},
     error::Web3Error,
+    namespaces::ZksNamespaceClient,
     types::{Address, Token, H256},
 };
 
@@ -315,7 +318,44 @@ impl ZksNamespace {
             .compress(&root, &aggregated_root);
         proof.push(aggregated_root);
 
-        let proof = LogLeafProof::new(l1_log_index as u32, proof).encode();
+        const EXPECTED_SYNC_LAYER_CHAIN_ID: u64 = 270;
+
+        let mut log_leaf_proof = LogLeafProof::new(l1_log_index as u32, proof);
+
+        if self.state.api_config.l1_chain_id == L1ChainId(EXPECTED_SYNC_LAYER_CHAIN_ID) {
+            // We are on top of sync layer.
+            // Maaybe there is an aggregation proof waiting
+
+            // Create a client for pinging the RPC.
+            let client: Client<L2> = Client::http(
+                std::env::var("SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL")
+                    .unwrap()
+                    .parse()
+                    .unwrap(),
+            )?
+            .for_network(L2::from(L2ChainId(self.state.api_config.l1_chain_id.0)))
+            .build();
+
+            let proof = client
+                .get_aggregated_batch_inclusion_proof(
+                    Address::from_str(
+                        &std::env::var("SYNC_LAYER_MESSAGE_ROOT_PROXY_ADDR").unwrap(),
+                    )
+                    .unwrap(),
+                    l1_batch_number,
+                    self.state.api_config.l2_chain_id.0 as u32,
+                )
+                .await
+                .unwrap_or_else(|err| {
+                    panic!("Failed reaching to the SL: {:#?}", err);
+                });
+
+            if let Some(proof) = proof {
+                println!("Found proof for my own batch :{:#?}", proof);
+            }
+        }
+
+        let proof = log_leaf_proof.encode();
 
         Ok(Some(L2ToL1LogProof {
             proof,
@@ -406,12 +446,6 @@ impl ZksNamespace {
         };
 
         return Ok(Some(l1_batch_number.as_u32()));
-
-        // let Some(l, r) = storage.blocks_dal().get_l2_block_range_of_l1_batch(L1BatchNumber(l1_batch_number.into())).await.map_err(DalError::generalize)? else {
-        //     return Ok(None)
-        // };
-
-        // return r;
     }
 
     pub async fn get_aggregated_batch_inclusion_proof_impl(
@@ -446,6 +480,17 @@ impl ZksNamespace {
             return Ok(None);
         };
         println!("hee3");
+
+        let local_msg_root = storage
+            .blocks_dal()
+            .get_l1_batch_metadata(L1BatchNumber(l1_batch_number_with_agg_batch))
+            .await
+            .map_err(DalError::generalize)?
+            .map(|metadata| metadata.metadata.l2_l1_merkle_root);
+
+        let Some(local_msg_root) = local_msg_root else {
+            return Ok(None);
+        };
 
         // FIXME: move as api config
         // Firstly, let's grab all events that correspond to batch being inserted into the chain_id tree.
@@ -573,6 +618,7 @@ impl ZksNamespace {
             batch_leaf_proof_mask: batch_leaf_proof_mask.unwrap().into(),
             chain_id_leaf_proof,
             chain_id_leaf_proof_mask: chain_id_leaf_proof_mask.into(),
+            local_msg_root,
         };
 
         println!(
