@@ -11,7 +11,7 @@ jobs:
     uses: ./.github/workflows/ci-core-lint-reusable.yml
 
   build:
-    runs-on: [ matterlabs-ci-runner ]
+    runs-on: [matterlabs-ci-runner]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -48,8 +48,8 @@ jobs:
           compression-level: 0
 
   integration_test:
-    runs-on: [ matterlabs-ci-runner ]
-    needs: [ build ]
+    runs-on: [matterlabs-ci-runner]
+    needs: [build]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
