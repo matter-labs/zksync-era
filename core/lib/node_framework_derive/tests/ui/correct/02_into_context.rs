@@ -35,4 +35,13 @@ struct SimpleStruct {
     _field_2: u16,
 }
 
+#[derive(IntoContext)]
+#[ctx(local)]
+struct Options {
+    #[resource]
+    _field: Option<u8>,
+    #[task]
+    _field_2: Option<u16>,
+}
+
 fn main() {}

@@ -181,14 +181,37 @@ impl MacroImpl {
                         ));
                     }
 
-                    actions.push(quote! {
-                        ctx.insert_resource(self.#ident)?;
-                    });
+                    let action = if let Some(_wrapped_ty) = extract_option_inner_type(&field.ty) {
+                        // Type is an option.
+                        // Only insert resource if provided.
+                        quote! {
+                            if let Some(resource) = self.#ident {
+                                ctx.insert_resource(resource)?;
+                            }
+                        }
+                    } else {
+                        quote! {
+                            ctx.insert_resource(self.#ident)?;
+                        }
+                    };
+
+                    actions.push(action);
                 }
                 ResourceOrTask::Task(_label) => {
-                    actions.push(quote! {
-                        ctx.add_task(self.#ident);
-                    });
+                    let action = if let Some(_wrapped_ty) = extract_option_inner_type(&field.ty) {
+                        // Type is an option.
+                        // Only add task if provided.
+                        quote! {
+                            if let Some(task) = self.#ident {
+                                ctx.add_task(task);
+                            }
+                        }
+                    } else {
+                        quote! {
+                            ctx.add_task(self.#ident);
+                        }
+                    };
+                    actions.push(action);
                 }
             }
         }
