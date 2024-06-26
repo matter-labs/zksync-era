@@ -15,7 +15,6 @@ use circuit_definitions::{
 use tracing::Instrument;
 use zkevm_test_harness::geometry_config::get_geometry_config;
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::{Core, CoreDal};
 use zksync_multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
@@ -36,16 +35,14 @@ use zksync_prover_fri_types::{
     AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_prover_interface::inputs::{WitnessInputData, WitnessInputMerklePaths};
+use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_state::{PostgresStorage, StorageView, WitnessStorage};
+use zksync_state::{StorageView, WitnessStorage};
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
-    block::StorageOracleInfo,
     protocol_version::ProtocolSemanticVersion,
-    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256,
+    Address, L1BatchNumber, BOOTLOADER_ADDRESS,
 };
-use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
@@ -87,7 +84,6 @@ pub struct BasicWitnessGenerator {
     config: Arc<FriWitnessGeneratorConfig>,
     object_store: Arc<dyn ObjectStore>,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
-    connection_pool: ConnectionPool<Core>,
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
 }
@@ -97,7 +93,6 @@ impl BasicWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         object_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
-        connection_pool: ConnectionPool<Core>,
         prover_connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
     ) -> Self {
@@ -105,7 +100,6 @@ impl BasicWitnessGenerator {
             config: Arc::new(config),
             object_store,
             public_blob_store,
-            connection_pool,
             prover_connection_pool,
             protocol_version,
         }
@@ -113,7 +107,6 @@ impl BasicWitnessGenerator {
 
     async fn process_job_impl(
         object_store: Arc<dyn ObjectStore>,
-        connection_pool: ConnectionPool<Core>,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> Option<BasicCircuitArtifacts> {
@@ -132,7 +125,6 @@ impl BasicWitnessGenerator {
         Some(
             process_basic_circuits_job(
                 &*object_store,
-                connection_pool,
                 started_at,
                 block_number,
                 job,
@@ -200,14 +192,11 @@ impl JobProcessor for BasicWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let object_store = Arc::clone(&self.object_store);
-        let connection_pool = self.connection_pool.clone();
         tokio::spawn(async move {
             let block_number = job.block_number;
-            Ok(
-                Self::process_job_impl(object_store, connection_pool, job, started_at)
-                    .instrument(tracing::info_span!("basic_circuit", %block_number))
-                    .await,
-            )
+            Ok(Self::process_job_impl(object_store, job, started_at)
+                .instrument(tracing::info_span!("basic_circuit", %block_number))
+                .await)
         })
     }
 
@@ -272,20 +261,13 @@ impl JobProcessor for BasicWitnessGenerator {
 #[allow(clippy::too_many_arguments)]
 async fn process_basic_circuits_job(
     object_store: &dyn ObjectStore,
-    connection_pool: ConnectionPool<Core>,
     started_at: Instant,
     block_number: L1BatchNumber,
     job: WitnessInputData,
     eip_4844_blobs: Eip4844Blobs,
 ) -> BasicCircuitArtifacts {
-    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
-        block_number,
-        object_store,
-        connection_pool,
-        job,
-        eip_4844_blobs,
-    )
-    .await;
+    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
+        generate_witness(block_number, object_store, job, eip_4844_blobs).await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
     tracing::info!(
@@ -404,7 +386,6 @@ async fn save_recursion_queue(
 async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
-    connection_pool: ConnectionPool<Core>,
     input: WitnessInputData,
     eip_4844_blobs: Eip4844Blobs,
 ) -> (
@@ -431,12 +412,9 @@ async fn generate_witness(
     geometry_config.hash(&mut hasher);
     tracing::info!(
         "generating witness for block {} using geometry config hash: {}",
-        input.vm_run_data.l1_batch_number.0
+        input.vm_run_data.l1_batch_number.0,
         hasher.finish()
     );
-
-    // The following part is CPU-heavy, so we move it to a separate thread.
-    let rt_handle = tokio::runtime::Handle::current();
 
     let (circuit_sender, mut circuit_receiver) = tokio::sync::mpsc::channel(1);
     let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
