@@ -15,7 +15,7 @@ use tokio::task::JoinHandle;
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+use zksync_prover_interface::inputs::WitnessInputMerklePaths;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_tee_verifier::TeeVerifierInput;
 use zksync_types::{L1BatchNumber, L2ChainId};
@@ -53,7 +53,7 @@ impl TeeVerifierInputProducer {
         object_store: Arc<dyn ObjectStore>,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<TeeVerifierInput> {
-        let prepare_basic_circuits_job: PrepareBasicCircuitsJob = object_store
+        let prepare_basic_circuits_job: WitnessInputMerklePaths = object_store
             .get(l1_batch_number)
             .await
             .context("failed to get PrepareBasicCircuitsJob from object store")?;

@@ -5,8 +5,7 @@ use serde_with::{serde_as, Bytes};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 pub use zksync_state::WitnessStorage;
 use zksync_types::{
-    block::L1BatchHeader, commitment::L1BatchWithMetadata, witness_block_state::WitnessBlockState,
-    L1BatchNumber, ProtocolVersionId, H256, U256,
+    witness_block_state::WitnessBlockState, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
 const HASH_LEN: usize = H256::len_bytes();
@@ -63,13 +62,13 @@ impl StorageLogMetadata {
 /// Merkle paths; if this is the case, the starting hashes are skipped and are the same
 /// as in the first path.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PrepareBasicCircuitsJob {
+pub struct WitnessInputMerklePaths {
     // Merkle paths and some auxiliary information for each read / write operation in a block.
     merkle_paths: Vec<StorageLogMetadata>,
     next_enumeration_index: u64,
 }
 
-impl StoredObject for PrepareBasicCircuitsJob {
+impl StoredObject for WitnessInputMerklePaths {
     const BUCKET: Bucket = Bucket::WitnessInput;
     type Key<'a> = L1BatchNumber;
 
@@ -80,7 +79,7 @@ impl StoredObject for PrepareBasicCircuitsJob {
     serialize_using_bincode!();
 }
 
-impl PrepareBasicCircuitsJob {
+impl WitnessInputMerklePaths {
     /// Creates a new job with the specified leaf index and no included paths.
     pub fn new(next_enumeration_index: u64) -> Self {
         Self {
@@ -168,7 +167,7 @@ impl StoredObject for VMRunWitnessInputData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WitnessInputData {
     pub vm_run_data: VMRunWitnessInputData,
-    pub merkle_paths: PrepareBasicCircuitsJob,
+    pub merkle_paths: WitnessInputMerklePaths,
 }
 
 impl StoredObject for WitnessInputData {
@@ -206,7 +205,7 @@ mod tests {
         });
         let logs: Vec<_> = logs.collect();
 
-        let mut job = PrepareBasicCircuitsJob::new(4);
+        let mut job = WitnessInputMerklePaths::new(4);
         job.reserve(logs.len());
         for log in &logs {
             job.push_merkle_path(log.clone());

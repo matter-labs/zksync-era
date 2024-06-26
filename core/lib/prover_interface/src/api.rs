@@ -9,7 +9,7 @@ use zksync_types::{
 };
 
 use crate::{
-    inputs::{PrepareBasicCircuitsJob, WitnessInputData},
+    inputs::WitnessInputData,
     outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
 };
 

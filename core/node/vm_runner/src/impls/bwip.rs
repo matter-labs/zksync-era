@@ -147,15 +147,21 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
     ) -> anyhow::Result<()> {
         let l1_batch_number = updates_manager.l1_batch.number;
 
-        let mut connection = self.pool.connection().await?;
-
-        let db_result = get_database_witness_input_data(&mut connection, l1_batch_number).await;
-        let mut result =
-            get_updates_manager_witness_input_data(updates_manager.clone(), &mut connection).await;
+        let db_result =
+            get_database_witness_input_data(&mut self.pool.connection().await?, l1_batch_number)
+                .await;
+        let mut result = get_updates_manager_witness_input_data(
+            &mut self.pool.connection().await?,
+            updates_manager.clone(),
+        )
+        .await;
 
         compare_witness_input_data(&db_result, &result);
 
-        let previous_batch_with_metadata = connection
+        let previous_batch_with_metadata = self
+            .pool
+            .connection()
+            .await?
             .blocks_dal()
             .get_l1_batch_metadata(L1BatchNumber(l1_batch_number.checked_sub(1).unwrap()))
             .await
@@ -195,8 +201,8 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 }
 
 async fn get_updates_manager_witness_input_data(
+    connection: &mut Connection<'_, Core>,
     updates_manager: Arc<UpdatesManager>,
-    connection: &mut Connection<Core>,
 ) -> VMRunWitnessInputData {
     let l1_batch_number = updates_manager.l1_batch.number.clone();
     let finished_batch = updates_manager
@@ -266,7 +272,7 @@ async fn get_updates_manager_witness_input_data(
 }
 
 async fn get_database_witness_input_data(
-    connection: &mut Connection<Core>,
+    connection: &mut Connection<'_, Core>,
     l1_batch_number: L1BatchNumber,
 ) -> VMRunWitnessInputData {
     let block_header = connection

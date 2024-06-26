@@ -36,7 +36,7 @@ use zksync_prover_fri_types::{
     AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, WitnessInputData};
+use zksync_prover_interface::inputs::{WitnessInputData, WitnessInputMerklePaths};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView, WitnessStorage};
 use zksync_types::{

@@ -19,7 +19,7 @@ use zksync_merkle_tree::{
     BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof,
 };
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
-use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
+use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePaths};
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, H256};
 use zksync_utils::bytecode::hash_bytecode;
@@ -27,7 +27,7 @@ use zksync_utils::bytecode::hash_bytecode;
 /// Version 1 of the data used as input for the TEE verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct V1TeeVerifierInput {
-    prepare_basic_circuits_job: PrepareBasicCircuitsJob,
+    prepare_basic_circuits_job: WitnessInputMerklePaths,
     l2_blocks_execution_data: Vec<L2BlockExecutionData>,
     l1_batch_env: L1BatchEnv,
     system_env: SystemEnv,
@@ -46,7 +46,7 @@ pub enum TeeVerifierInput {
 
 impl TeeVerifierInput {
     pub fn new(
-        prepare_basic_circuits_job: PrepareBasicCircuitsJob,
+        prepare_basic_circuits_job: WitnessInputMerklePaths,
         l2_blocks_execution_data: Vec<L2BlockExecutionData>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -118,7 +118,7 @@ impl TeeVerifierInput {
 
     /// Sets the initial storage values and returns `BlockOutputWithProofs`
     fn get_bowp_and_set_initial_values(
-        prepare_basic_circuits_job: PrepareBasicCircuitsJob,
+        prepare_basic_circuits_job: WitnessInputMerklePaths,
         raw_storage: &mut InMemoryStorage,
     ) -> BlockOutputWithProofs {
         let logs = prepare_basic_circuits_job
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn test_v1_serialization() {
         let tvi = TeeVerifierInput::new(
-            PrepareBasicCircuitsJob::new(0),
+            WitnessInputMerklePaths::new(0),
             vec![],
             L1BatchEnv {
                 previous_batch_hash: Some(H256([1; 32])),

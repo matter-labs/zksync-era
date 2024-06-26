@@ -790,7 +790,7 @@ mod tests {
     use tempfile::TempDir;
     use zksync_dal::{ConnectionPool, Core};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-    use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+    use zksync_prover_interface::inputs::WitnessInputMerklePaths;
     use zksync_types::{writes::TreeWrite, StorageKey, StorageLog};
 
     use super::*;
@@ -1019,7 +1019,7 @@ mod tests {
         );
     }
 
-    fn assert_equivalent_witnesses(lhs: PrepareBasicCircuitsJob, rhs: PrepareBasicCircuitsJob) {
+    fn assert_equivalent_witnesses(lhs: WitnessInputMerklePaths, rhs: WitnessInputMerklePaths) {
         assert_eq!(lhs.next_enumeration_index(), rhs.next_enumeration_index());
         let lhs_paths = lhs.into_merkle_paths();
         let rhs_paths = rhs.into_merkle_paths();
