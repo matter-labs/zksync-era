@@ -3,11 +3,11 @@ use zksync_types::l1::L1Tx;
 
 use crate::resource::Resource;
 
-/// Wrapper for the l1 tx params provider.
+/// Wrapper for the `PriorityMerkleTree` provider.
 #[derive(Debug, Clone)]
-pub struct PriorityMerkleTreeResource(pub SyncMerkleTree<L1Tx>);
+pub struct PriorityTreeResource(pub SyncMerkleTree<L1Tx>);
 
-impl Resource for PriorityMerkleTreeResource {
+impl Resource for PriorityTreeResource {
     fn name() -> String {
         "priority_merkle_tree".into()
     }

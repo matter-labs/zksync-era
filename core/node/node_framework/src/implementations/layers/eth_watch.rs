@@ -11,7 +11,7 @@ use crate::{
     implementations::resources::{
         eth_interface::EthInterfaceResource,
         pools::{MasterPool, PoolResource},
-        priority_merkle_tree::PriorityMerkleTreeResource,
+        priority_merkle_tree::PriorityTreeResource,
     },
     service::{ServiceContext, StopReceiver},
     task::{Task, TaskId},
@@ -44,10 +44,7 @@ impl WiringLayer for EthWatchLayer {
         let main_pool = pool_resource.get().await.unwrap();
 
         let client = context.get_resource::<EthInterfaceResource>().await?.0;
-        let priority_merkle_tree = context
-            .get_resource::<PriorityMerkleTreeResource>()
-            .await?
-            .0;
+        let priority_merkle_tree = context.get_resource::<PriorityTreeResource>().await?.0;
 
         let eth_client = EthHttpQueryClient::new(
             client,

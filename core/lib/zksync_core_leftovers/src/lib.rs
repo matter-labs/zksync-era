@@ -577,7 +577,7 @@ pub async fn initialize_components(
             .context("eth_config")?
             .sender
             .context("sender")?
-            .priority_op_start_index
+            .priority_tree_start_index
             .unwrap_or(0);
         let priority_op_hashes = connection_pool
             .connection()

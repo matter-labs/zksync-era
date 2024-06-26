@@ -193,7 +193,9 @@ impl Aggregator {
                     let count = batch.header.l1_tx_count as usize;
                     let (_, left, right) = self
                         .priority_merkle_tree
-                        .merkle_root_and_paths_for_range(count);
+                        .merkle_root_and_paths_for_range(0..count); // FIXME: indexes are wrong if
+                                                                    // we're not trimming right
+                                                                    // away
                     let hashes = self.priority_merkle_tree.hashes_prefix(count);
                     self.priority_merkle_tree.trim_start(count); // TODO: trim only after tx
                                                                  // succeeds?

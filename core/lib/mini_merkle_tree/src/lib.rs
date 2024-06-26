@@ -194,14 +194,23 @@ where
     /// Panics if `length` is 0 or greater than the number of leaves in the tree.
     pub fn merkle_root_and_paths_for_range(
         &self,
-        length: usize,
+        range: std::ops::Range<usize>,
     ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
-        assert!(length > 0, "range must not be empty");
-        assert!(length <= self.hashes.len(), "not enough leaves in the tree");
+        assert!(range.start < range.end, "invalid range");
+        assert!(
+            range.end - 1 <= self.hashes.len(),
+            "range index out of bounds"
+        );
         let mut right_path = vec![];
-        let root_hash =
-            self.compute_merkle_root_and_path(length - 1, Some(&mut right_path), Some(Side::Right));
-        (root_hash, self.cache.clone(), right_path)
+        let mut left_path = vec![];
+        // TODO: refactor, instead of calling this twice
+        self.compute_merkle_root_and_path(range.start, Some(&mut left_path), Some(Side::Left));
+        let root_hash = self.compute_merkle_root_and_path(
+            range.end - 1,
+            Some(&mut right_path),
+            Some(Side::Right),
+        );
+        (root_hash, left_path, right_path)
     }
 
     /// Adds a raw hash to the tree (replaces leftmost empty leaf).
@@ -354,12 +363,12 @@ where
 
     pub fn merkle_root_and_paths_for_range(
         &self,
-        length: usize,
+        range: std::ops::Range<usize>,
     ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
         self.0
             .lock()
             .unwrap()
-            .merkle_root_and_paths_for_range(length)
+            .merkle_root_and_paths_for_range(range)
     }
 
     pub fn hashes_prefix(&self, count: usize) -> Vec<H256> {
