@@ -27,10 +27,8 @@ impl UnstableNamespace {
             .get_unstable_transaction_execution_info(hash)
             .await
             .map_err(DalError::generalize)?
-            .map(|info| {
-                ApiTransactionExecutionInfo {
-                    execution_info: info.execution_info,
-                }
+            .map(|info| ApiTransactionExecutionInfo {
+                execution_info: info.execution_info,
             }))
     }
 }
