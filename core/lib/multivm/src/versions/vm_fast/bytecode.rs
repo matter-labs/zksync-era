@@ -1,7 +1,10 @@
 use itertools::Itertools;
 use zksync_state::ReadStorage;
 use zksync_types::H256;
-use zksync_utils::bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo};
+use zksync_utils::{
+    bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo},
+    h256_to_u256,
+};
 
 use super::Vm;
 
@@ -12,11 +15,18 @@ impl<S: ReadStorage> Vm<S> {
             .get_last_tx_compressed_bytecodes()
             .iter()
             .any(|info| {
-                !self
+                let hash_bytecode = hash_bytecode(&info.original);
+                let is_bytecode_known = self
                     .world
                     .storage
                     .borrow_mut()
-                    .is_bytecode_known(&hash_bytecode(&info.original))
+                    .is_bytecode_known(&hash_bytecode);
+
+                let is_bytecode_known_cache = self
+                    .world
+                    .bytecode_cache
+                    .contains_key(&h256_to_u256(hash_bytecode));
+                !(is_bytecode_known || is_bytecode_known_cache)
             })
     }
 }

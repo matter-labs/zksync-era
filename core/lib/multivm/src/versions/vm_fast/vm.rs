@@ -113,9 +113,19 @@ impl<S: ReadStorage> Vm<S> {
 
             use Hook::*;
             match Hook::from_u32(hook) {
-                AccountValidationEntered => self.run_account_validation(),
+                AccountValidationEntered => {
+                    /*
+                    if self.run_account_validation().is_err() {
+                        break ExecutionResult::Halt {
+                            reason: Halt::ValidationOutOfGas,
+                        };
+                    }
+                    */
+                }
                 AccountValidationExited => {
+                    /*
                     panic!("must enter account validation before exiting");
+                    */
                 }
                 TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
@@ -248,7 +258,7 @@ impl<S: ReadStorage> Vm<S> {
         (result, refund)
     }
 
-    fn run_account_validation(&mut self) {
+    fn run_account_validation(&mut self) -> Result<(), ()> {
         loop {
             match self.inner.resume_with_additional_gas_limit(
                 self.suspended_at,
@@ -257,7 +267,7 @@ impl<S: ReadStorage> Vm<S> {
             ) {
                 None => {
                     // Used too much gas
-                    todo!()
+                    return Err(());
                 }
                 Some((
                     validation_gas_left,
@@ -272,7 +282,7 @@ impl<S: ReadStorage> Vm<S> {
                     let hook = Hook::from_u32(hook);
                     match hook {
                         Hook::AccountValidationExited => {
-                            break;
+                            return Ok(());
                         }
                         Hook::DebugLog => {}
                         _ => {
@@ -738,6 +748,20 @@ impl<S: ReadStorage> World<S> {
 }
 
 impl<S: ReadStorage> vm2::World for World<S> {
+    fn decommit_code(&mut self, hash: U256) -> Vec<u8> {
+        self.decommit(hash)
+            .code_page()
+            .as_ref()
+            .iter()
+            .map(|u| {
+                let mut buffer = [0u8; 32];
+                u.to_big_endian(&mut buffer);
+                buffer
+            })
+            .flatten()
+            .collect()
+    }
+
     fn decommit(&mut self, hash: U256) -> Program {
         self.program_cache
             .entry(hash)
@@ -752,6 +776,7 @@ impl<S: ReadStorage> vm2::World for World<S> {
             .clone()
     }
 
+    /*
     fn decommit_code(&mut self, hash: U256) -> Vec<u8> {
         self.bytecode_cache
             .entry(hash)
@@ -763,6 +788,7 @@ impl<S: ReadStorage> vm2::World for World<S> {
             })
             .clone()
     }
+    */
 
     fn read_storage(&mut self, contract: zksync_types::H160, key: U256) -> Option<U256> {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
