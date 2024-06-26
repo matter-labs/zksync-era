@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use xshell::{cmd, Shell};
 
 use crate::messages::{
-    msg_integration_tests_run, MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES,
-    MSG_INTEGRATION_TESTS_RUN_SUCCESS, MSG_NTEGRATION_TESTS_BUILDING_CONTRACTS,
+    msg_integration_tests_run, MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS,
+    MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -64,7 +64,7 @@ fn build_repository(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow
 }
 
 fn build_test_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let spinner = Spinner::new(MSG_NTEGRATION_TESTS_BUILDING_CONTRACTS);
+    let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS);
 
     Cmd::new(cmd!(shell, "yarn build")).run()?;
     Cmd::new(cmd!(shell, "yarn build-yul")).run()?;

@@ -88,7 +88,7 @@ pub(super) fn msg_integration_tests_run(external_node: bool) -> String {
 pub(super) const MSG_INTEGRATION_TESTS_RUN_SUCCESS: &str = "Integration tests ran successfully";
 pub(super) const MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES: &str =
     "Building repository dependencies...";
-pub(super) const MSG_NTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test contracts...";
+pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test contracts...";
 
 // Revert tests related messages
 pub(super) const MSG_TEST_REVERT_AND_RESTART_RUN_INFO: &str = "Running revert and restart test";
