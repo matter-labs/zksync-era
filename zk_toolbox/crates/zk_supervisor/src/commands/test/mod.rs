@@ -1,4 +1,4 @@
-use args::{integration::IntegrationArgs, revert_and_restart::RevertArgs};
+use args::{integration::IntegrationArgs, revert::RevertArgs};
 use clap::Subcommand;
 use xshell::Shell;
 

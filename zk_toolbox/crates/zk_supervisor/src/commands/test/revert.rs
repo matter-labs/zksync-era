@@ -2,7 +2,7 @@ use common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
-use super::args::revert_and_restart::RevertArgs;
+use super::args::revert::RevertArgs;
 use crate::messages::{MSG_REVERT_TEST_RUN_INFO, MSG_REVERT_TEST_RUN_SUCCESS};
 
 const REVERT_TESTS_PATH: &str = "core/tests/revert-test";
