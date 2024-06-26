@@ -19,7 +19,8 @@ use crate::messages::{
 const PROVER_STORE_MAX_RETRIES: u16 = 10;
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt();
+    let project_ids = get_project_ids(shell)?;
+    let args = args.fill_values_with_prompt(project_ids);
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let object_store_config = match args {
@@ -108,4 +109,18 @@ fn download_setup_key(
     cmd.run()?;
     spinner.finish();
     Ok(())
+}
+
+fn get_project_ids(shell: &Shell) -> anyhow::Result<Vec<String>> {
+    let mut cmd = Cmd::new(cmd!(
+        shell,
+        "gcloud projects list --format='value(projectId)'"
+    ));
+    let output = cmd.run_with_output()?;
+    let project_ids: Vec<String> = String::from_utf8(output.stdout)?
+        .lines()
+        .map(|line| line.to_string())
+        .collect();
+
+    Ok(project_ids)
 }

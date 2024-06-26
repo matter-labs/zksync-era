@@ -5569,6 +5569,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "vise-exporter"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4#a5bb80c9ce7168663114ee30e794d6dc32159ee4"
+dependencies = [
+ "hyper",
+ "once_cell",
+ "tokio",
+ "tracing",
+ "vise",
+]
+
+[[package]]
 name = "vise-macros"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4#a5bb80c9ce7168663114ee30e794d6dc32159ee4"
@@ -6331,6 +6343,7 @@ dependencies = [
 name = "zksync_vlog"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -6338,9 +6351,12 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "vise",
+ "vise-exporter",
 ]
 
 [[package]]

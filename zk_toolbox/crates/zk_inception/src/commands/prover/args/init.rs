@@ -6,8 +6,8 @@ use strum_macros::EnumIter;
 
 use crate::messages::{
     MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT, MSG_CREATE_GCS_BUCKET_NAME_PROMTP,
-    MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
-    MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
+    MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT, MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT,
+    MSG_CREATE_GCS_BUCKET_PROMPT, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
     MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT, MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT,
 };
 
@@ -74,7 +74,7 @@ pub enum ProverInitArgsFinal {
 }
 
 impl ProverInitArgs {
-    pub(crate) fn fill_values_with_prompt(&self) -> ProverInitArgsFinal {
+    pub(crate) fn fill_values_with_prompt(&self, project_ids: Vec<String>) -> ProverInitArgsFinal {
         if self.proof_store_dir.is_some() {
             return self.handle_file_backed_config();
         }
@@ -84,7 +84,7 @@ impl ProverInitArgs {
         }
 
         if self.partial_create_gcs_bucket_config_provided() {
-            return self.handle_create_gcs_bucket();
+            return self.handle_create_gcs_bucket(project_ids);
         }
 
         let proof_store_config =
@@ -92,7 +92,7 @@ impl ProverInitArgs {
 
         match proof_store_config {
             ProofStoreConfig::Local => self.handle_file_backed_config(),
-            ProofStoreConfig::GCS => self.handle_gcs_config(),
+            ProofStoreConfig::GCS => self.handle_gcs_config(project_ids),
         }
     }
 
@@ -116,22 +116,28 @@ impl ProverInitArgs {
         ProverInitArgsFinal::FileBacked(ProofStorageFileBacked { proof_store_dir })
     }
 
-    fn handle_gcs_config(&self) -> ProverInitArgsFinal {
+    fn handle_gcs_config(&self, project_ids: Vec<String>) -> ProverInitArgsFinal {
         if !self.partial_gcs_config_provided() {
             if PromptConfirm::new(MSG_CREATE_GCS_BUCKET_PROMPT).ask() {
-                return self.handle_create_gcs_bucket();
+                return self.handle_create_gcs_bucket(project_ids);
             }
         }
 
         self.ask_gcs_config()
     }
 
-    fn handle_create_gcs_bucket(&self) -> ProverInitArgsFinal {
+    fn handle_create_gcs_bucket(&self, project_ids: Vec<String>) -> ProverInitArgsFinal {
         let project_id = self
             .create_gcs_bucket_config
             .project_id
             .clone()
-            .unwrap_or_else(|| Prompt::new(MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT).ask());
+            .unwrap_or_else(|| {
+                if project_ids.is_empty() {
+                    Prompt::new(MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT).ask()
+                } else {
+                    PromptSelect::new(MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, project_ids).ask()
+                }
+            });
         let bucket_name = self
             .create_gcs_bucket_config
             .bucket_name
