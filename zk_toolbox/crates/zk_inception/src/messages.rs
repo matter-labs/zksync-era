@@ -204,5 +204,6 @@ pub(super) const MSG_GENERAL_CONFIG_NOT_FOUND_ERR: &str = "General config not fo
 pub(super) const MSG_PROVER_CONFIG_NOT_FOUND_ERR: &str = "Prover config not found";
 pub(super) const MSG_PROVER_INITIALIZED: &str = "Prover has been initialized successfully";
 pub(super) const MSG_CREATE_GCS_BUCKET_PROMPT: &str = "Do you want to create a new GCS bucket?";
+pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT: &str = "Provide the project ID:";
 pub(super) const MSG_CREATE_GCS_BUCKET_NAME_PROMTP: &str = "What do you want to name the bucket?";
 pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use?";

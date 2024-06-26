@@ -6,7 +6,8 @@ use strum_macros::EnumIter;
 
 use crate::messages::{
     MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT, MSG_CREATE_GCS_BUCKET_NAME_PROMTP,
-    MSG_CREATE_GCS_BUCKET_PROMPT, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
+    MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
+    MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
     MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT, MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT,
 };
 
@@ -42,6 +43,8 @@ pub struct CreateGCSBucketConfig {
     pub bucket_name: Option<String>,
     #[clap(long)]
     pub location: Option<String>,
+    #[clap(long)]
+    pub project_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +62,8 @@ pub struct ProofStorageGCS {
 pub struct ProofStorageGCSCreateBucket {
     pub bucket_name: String,
     pub location: String,
+    pub project_id: String,
+    pub credentials_file: String,
 }
 
 #[derive(Debug, Clone)]
@@ -121,6 +126,11 @@ impl ProverInitArgs {
     }
 
     fn handle_create_gcs_bucket(&self) -> ProverInitArgsFinal {
+        let project_id = self
+            .create_gcs_bucket_config
+            .project_id
+            .clone()
+            .unwrap_or_else(|| Prompt::new(MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT).ask());
         let bucket_name = self
             .create_gcs_bucket_config
             .bucket_name
@@ -131,10 +141,17 @@ impl ProverInitArgs {
             .location
             .clone()
             .unwrap_or_else(|| Prompt::new(MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT).ask());
+        let credentials_file = self
+            .clone()
+            .proof_store_gcs_config
+            .credentials_file
+            .unwrap_or_else(|| Prompt::new(MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT).ask());
 
         ProverInitArgsFinal::GCSCreateBucket(ProofStorageGCSCreateBucket {
             bucket_name,
             location,
+            project_id,
+            credentials_file,
         })
     }
 

@@ -1,4 +1,8 @@
-use common::{cmd::Cmd, logger};
+use common::{
+    cmd::Cmd,
+    logger,
+    spinner::{self, Spinner},
+};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
@@ -57,10 +61,25 @@ fn create_gcs_bucket(
 ) -> anyhow::Result<ObjectStoreConfig> {
     let bucket_name = config.bucket_name;
     let location = config.location;
+    let project_id = config.project_id;
     let mut cmd = Cmd::new(cmd!(
         shell,
-        "gcloud storage buckets create gs://{bucket_name} --location={location}"
+        "gcloud storage buckets create gs://{bucket_name} --location={location} --project={project_id}"
     ));
-    let _output = cmd.run_with_output()?;
-    todo!();
+    let spinner = Spinner::new("Creating GCS bucket...");
+    cmd.run()?;
+    spinner.finish();
+
+    logger::info(format!(
+        "Bucket created successfully with url: gs://{bucket_name}"
+    ));
+
+    Ok(ObjectStoreConfig {
+        mode: ObjectStoreMode::GCSWithCredentialFile {
+            bucket_base_url: format!("gs://{}", bucket_name),
+            gcs_credential_file_path: config.credentials_file,
+        },
+        max_retries: PROVER_STORE_MAX_RETRIES,
+        local_mirror_path: None,
+    })
 }
