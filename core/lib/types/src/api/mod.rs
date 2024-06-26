@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Value;
 use strum::Display;
 use zksync_basic_types::{
     web3::{AccessList, Bytes, Index},
@@ -824,7 +825,9 @@ pub struct ApiStorageLog {
 // Coming from TransactionExecutionMetrics
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ApiTransactionExecutionInfo {}
+pub struct ApiTransactionExecutionInfo {
+    pub execution_info: Value,
+}
 
 #[cfg(test)]
 mod tests {

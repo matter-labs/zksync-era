@@ -11,7 +11,7 @@ impl UnstableNamespaceServer for UnstableNamespace {
     async fn transaction_execution_info(
         &self,
         hash: H256,
-    ) -> RpcResult<ApiTransactionExecutionInfo> {
+    ) -> RpcResult<Option<ApiTransactionExecutionInfo>> {
         self.transaction_execution_info_impl(hash)
             .await
             .map_err(|err| self.current_method().map_err(err))

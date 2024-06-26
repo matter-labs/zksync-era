@@ -16,7 +16,7 @@ use zksync_types::{
 use crate::{
     models::storage_transaction::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
-        StorageTransactionReceipt,
+        StorageTransactionExecutionInfo, StorageTransactionReceipt,
     },
     Core, CoreDal,
 };
@@ -149,6 +149,29 @@ impl TransactionsWeb3Dal<'_, '_> {
     ) -> DalResult<Vec<api::Transaction>> {
         self.get_transactions_inner(TransactionSelector::Hashes(hashes), chain_id)
             .await
+    }
+
+    pub async fn get_unstable_transaction_execution_info(
+        &mut self,
+        hash: H256,
+    ) -> DalResult<Option<StorageTransactionExecutionInfo>> {
+        let row = sqlx::query_as!(
+            StorageTransactionExecutionInfo,
+            r#"
+            SELECT
+                transactions.execution_info
+            FROM
+                transactions
+            WHERE
+                transactions.hash = $1
+            "#,
+            hash.as_bytes()
+        )
+        .instrument("get_unstable_transaction_execution_info")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(row)
     }
 
     async fn get_transactions_inner(

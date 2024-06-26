@@ -19,5 +19,5 @@ pub trait UnstableNamespace {
     async fn transaction_execution_info(
         &self,
         hash: H256,
-    ) -> RpcResult<ApiTransactionExecutionInfo>;
+    ) -> RpcResult<Option<ApiTransactionExecutionInfo>>;
 }
