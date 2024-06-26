@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 
-/// Represents the base token to ETH ratio at a given point in time.
+/// Represents the base token to ETH conversion ratio at a given point in time.
 #[derive(Debug, Clone)]
 pub struct BaseTokenRatio {
     pub id: i64,

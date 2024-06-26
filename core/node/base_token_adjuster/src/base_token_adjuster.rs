@@ -11,7 +11,7 @@ use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
-    base_token_price::BaseTokenAPIRatio, fee_model::BaseTokenConversionRatio, Address,
+    base_token_ratio::BaseTokenAPIRatio, fee_model::BaseTokenConversionRatio, Address,
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 
@@ -211,6 +211,6 @@ impl Default for MockBaseTokenAdjuster {
 #[async_trait]
 impl BaseTokenAdjuster for MockBaseTokenAdjuster {
     async fn get_conversion_ratio(&self) -> anyhow::Result<BaseTokenConversionRatio> {
-        Ok(self.last_ratio.clone())
+        Ok(self.last_ratio)
     }
 }

@@ -1,8 +1,8 @@
 use bigdecimal::{BigDecimal, ToPrimitive};
 use chrono::NaiveDateTime;
-use zksync_types::base_token_price::BaseTokenRatio;
+use zksync_types::base_token_ratio::BaseTokenRatio;
 
-/// Represents a row in the `storage_base_token_price` table.
+/// Represents a row in the `base_token_ratios` table.
 #[derive(Debug, Clone)]
 pub struct StorageBaseTokenRatio {
     pub id: i64,

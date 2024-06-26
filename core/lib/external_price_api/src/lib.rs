@@ -1,7 +1,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_types::{base_token_price::BaseTokenAPIRatio, Address};
+use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 
 /// Trait that defines the interface for a client connecting with an external API to get prices.
 #[async_trait]

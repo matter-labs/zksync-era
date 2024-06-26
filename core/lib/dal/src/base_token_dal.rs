@@ -1,6 +1,6 @@
 use bigdecimal::{BigDecimal, FromPrimitive};
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::base_token_price::BaseTokenRatio;
+use zksync_types::base_token_ratio::BaseTokenRatio;
 
 use crate::{models::storage_base_token_ratio::StorageBaseTokenRatio, Core};
 
