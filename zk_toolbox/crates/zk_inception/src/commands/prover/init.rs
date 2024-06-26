@@ -20,7 +20,8 @@ const PROVER_STORE_MAX_RETRIES: u16 = 10;
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let project_ids = get_project_ids(shell)?;
-    let args = args.fill_values_with_prompt(project_ids);
+    let home = shell.var("HOME")?;
+    let args = args.fill_values_with_prompt(project_ids, &home);
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let object_store_config = match args {

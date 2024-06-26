@@ -208,7 +208,7 @@ pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT: &str = "Select the pro
 pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT: &str =
     "Provide a project ID:";
 pub(super) const MSG_CREATE_GCS_BUCKET_NAME_PROMTP: &str = "What do you want to name the bucket?";
-pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use?";
+pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use? Find available locations at https://cloud.google.com/storage/docs/locations";
 pub(super) const MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR: &str =
     "Proof compressor config not found";
 pub(super) const MSG_DOWNLOADING_SETUP_KEY_SPINNER: &str = "Downloading setup key...";
