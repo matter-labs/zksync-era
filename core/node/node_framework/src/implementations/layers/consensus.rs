@@ -53,8 +53,7 @@ impl WiringLayer for ConsensusLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool = context
-            .get_resource::<PoolResource<MasterPool>>()
-            .await?
+            .get_resource::<PoolResource<MasterPool>>()?
             .get()
             .await?;
 
@@ -74,11 +73,10 @@ impl WiringLayer for ConsensusLayer {
                 context.add_task(Box::new(task));
             }
             Mode::External => {
-                let main_node_client = context.get_resource::<MainNodeClientResource>().await?.0;
-                let sync_state = context.get_resource::<SyncStateResource>().await?.0;
+                let main_node_client = context.get_resource::<MainNodeClientResource>()?.0;
+                let sync_state = context.get_resource::<SyncStateResource>()?.0;
                 let action_queue_sender = context
-                    .get_resource::<ActionQueueSenderResource>()
-                    .await?
+                    .get_resource::<ActionQueueSenderResource>()?
                     .0
                     .take()
                     .ok_or_else(|| {

@@ -32,13 +32,13 @@ impl WiringLayer for BatchStatusUpdaterLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let MainNodeClientResource(client) = context.get_resource().await?;
+        let pool = context.get_resource::<PoolResource<MasterPool>>()?;
+        let MainNodeClientResource(client) = context.get_resource()?;
 
         let updater = BatchStatusUpdater::new(client, pool.get().await?);
 
         // Insert healthcheck
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
         app_health
             .insert_component(updater.health_check())
             .map_err(WiringError::internal)?;

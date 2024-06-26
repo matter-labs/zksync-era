@@ -45,7 +45,7 @@ impl WiringLayer for ProtectiveReadsWriterLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>()?;
 
         let (protective_reads_writer, tasks) = ProtectiveReadsWriter::new(
             // One for `StorageSyncTask` which can hold a long-term connection in case it needs to

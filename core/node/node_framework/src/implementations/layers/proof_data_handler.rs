@@ -50,10 +50,10 @@ impl WiringLayer for ProofDataHandlerLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let main_pool = pool_resource.get().await.unwrap();
 
-        let object_store = context.get_resource::<ObjectStoreResource>().await?;
+        let object_store = context.get_resource::<ObjectStoreResource>()?;
 
         context.add_task(Box::new(ProofDataHandlerTask {
             proof_data_handler_config: self.proof_data_handler_config,

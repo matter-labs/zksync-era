@@ -38,9 +38,9 @@ impl WiringLayer for ReorgDetectorCheckerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let main_node_client = context.get_resource::<MainNodeClientResource>().await?.0;
+        let main_node_client = context.get_resource::<MainNodeClientResource>()?.0;
 
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let pool = pool_resource.get().await?;
 
         // Create and insert precondition.

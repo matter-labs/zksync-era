@@ -32,9 +32,7 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
 
     async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let circuit_breaker_resource = node
-            .get_resource_or_default::<CircuitBreakersResource>()
-            .await;
+        let circuit_breaker_resource = node.get_resource_or_default::<CircuitBreakersResource>();
 
         let circuit_breaker_checker =
             CircuitBreakerChecker::new(circuit_breaker_resource.breakers, self.0.sync_interval());

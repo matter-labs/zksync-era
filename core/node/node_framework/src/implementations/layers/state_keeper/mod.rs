@@ -66,25 +66,22 @@ impl WiringLayer for StateKeeperLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let io = context
-            .get_resource::<StateKeeperIOResource>()
-            .await?
+            .get_resource::<StateKeeperIOResource>()?
             .0
             .take()
             .context("StateKeeperIO was provided but taken by some other task")?;
         let batch_executor_base = context
-            .get_resource::<BatchExecutorResource>()
-            .await?
+            .get_resource::<BatchExecutorResource>()?
             .0
             .take()
             .context("L1BatchExecutorBuilder was provided but taken by some other task")?;
         let output_handler = context
-            .get_resource::<OutputHandlerResource>()
-            .await?
+            .get_resource::<OutputHandlerResource>()?
             .0
             .take()
             .context("HandleStateKeeperOutput was provided but taken by another task")?;
-        let sealer = context.get_resource::<ConditionalSealerResource>().await?.0;
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let sealer = context.get_resource::<ConditionalSealerResource>()?.0;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>()?;
 
         let (storage_factory, task) = AsyncRocksdbCache::new(
             master_pool.get_custom(2).await?,

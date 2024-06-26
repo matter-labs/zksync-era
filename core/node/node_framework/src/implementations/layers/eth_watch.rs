@@ -51,10 +51,10 @@ impl WiringLayer for EthWatchLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let main_pool = pool_resource.get().await.unwrap();
 
-        let client = context.get_resource::<EthInterfaceResource>().await?.0;
+        let client = context.get_resource::<EthInterfaceResource>()?.0;
 
         let eth_client = EthHttpQueryClient::new(
             client,

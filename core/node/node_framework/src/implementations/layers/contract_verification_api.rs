@@ -31,13 +31,11 @@ impl WiringLayer for ContractVerificationApiLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let master_pool = context
-            .get_resource::<PoolResource<MasterPool>>()
-            .await?
+            .get_resource::<PoolResource<MasterPool>>()?
             .get()
             .await?;
         let replica_pool = context
-            .get_resource::<PoolResource<ReplicaPool>>()
-            .await?
+            .get_resource::<PoolResource<ReplicaPool>>()?
             .get()
             .await?;
         context.add_task(Box::new(ContractVerificationApiTask {

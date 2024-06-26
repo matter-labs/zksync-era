@@ -85,7 +85,7 @@ impl<'a> ServiceContext<'a> {
     /// ## Panics
     ///
     /// Panics if the resource with the specified [`ResourceId`] exists, but is not of the requested type.
-    pub async fn get_resource<T: Resource + Clone>(&mut self) -> Result<T, WiringError> {
+    pub fn get_resource<T: Resource + Clone>(&mut self) -> Result<T, WiringError> {
         // Implementation details:
         // Internally the resources are stored as [`std::any::Any`], and this method does the downcasting
         // on behalf of the caller.
@@ -131,11 +131,11 @@ impl<'a> ServiceContext<'a> {
 
     /// Attempts to retrieve the resource of the specified type.
     /// If the resource is not available, it is created using the provided closure.
-    pub async fn get_resource_or_insert_with<T: Resource + Clone, F: FnOnce() -> T>(
+    pub fn get_resource_or_insert_with<T: Resource + Clone, F: FnOnce() -> T>(
         &mut self,
         f: F,
     ) -> T {
-        if let Ok(resource) = self.get_resource::<T>().await {
+        if let Ok(resource) = self.get_resource::<T>() {
             return resource;
         }
 
@@ -154,8 +154,8 @@ impl<'a> ServiceContext<'a> {
 
     /// Attempts to retrieve the resource of the specified type.
     /// If the resource is not available, it is created using `T::default()`.
-    pub async fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
-        self.get_resource_or_insert_with(T::default).await
+    pub fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
+        self.get_resource_or_insert_with(T::default)
     }
 
     /// Adds a resource to the service.

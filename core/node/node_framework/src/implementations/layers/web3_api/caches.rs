@@ -47,7 +47,7 @@ impl WiringLayer for MempoolCacheLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let replica_pool = pool_resource.get().await?;
         let mempool_cache = MempoolCache::new(self.capacity);
         let update_task = mempool_cache.update_task(replica_pool, self.update_interval);

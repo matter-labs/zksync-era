@@ -87,8 +87,8 @@ impl WiringLayer for MempoolIOLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Fetch required resources.
-        let batch_fee_input_provider = context.get_resource::<FeeInputResource>().await?.0;
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let batch_fee_input_provider = context.get_resource::<FeeInputResource>()?.0;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>()?;
 
         // Create mempool fetcher task.
         let mempool_guard = self.build_mempool_guard(&master_pool).await?;

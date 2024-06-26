@@ -131,21 +131,21 @@ impl WiringLayer for Web3ServerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get required resources.
-        let replica_resource_pool = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_resource_pool = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let updaters_pool = replica_resource_pool.get_custom(2).await?;
         let replica_pool = replica_resource_pool.get().await?;
-        let tx_sender = context.get_resource::<TxSenderResource>().await?.0;
-        let sync_state = match context.get_resource::<SyncStateResource>().await {
+        let tx_sender = context.get_resource::<TxSenderResource>()?.0;
+        let sync_state = match context.get_resource::<SyncStateResource>() {
             Ok(sync_state) => Some(sync_state.0),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
-        let tree_api_client = match context.get_resource::<TreeApiClientResource>().await {
+        let tree_api_client = match context.get_resource::<TreeApiClientResource>() {
             Ok(client) => Some(client.0),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
-        let MempoolCacheResource(mempool_cache) = context.get_resource().await?;
+        let MempoolCacheResource(mempool_cache) = context.get_resource()?;
 
         // Build server.
         let mut api_builder =
@@ -180,15 +180,13 @@ impl WiringLayer for Web3ServerLayer {
 
         // Insert healthcheck.
         let api_health_check = server.health_check();
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
         app_health
             .insert_component(api_health_check)
             .map_err(WiringError::internal)?;
 
         // Insert circuit breaker.
-        let circuit_breaker_resource = context
-            .get_resource_or_default::<CircuitBreakersResource>()
-            .await;
+        let circuit_breaker_resource = context.get_resource_or_default::<CircuitBreakersResource>();
         circuit_breaker_resource
             .breakers
             .insert(Box::new(ReplicationLagChecker {

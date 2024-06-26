@@ -35,7 +35,7 @@ impl WiringLayer for MainNodeFeeParamsFetcherLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let MainNodeClientResource(main_node_client) = context.get_resource().await?;
+        let MainNodeClientResource(main_node_client) = context.get_resource()?;
         let fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client));
         context.insert_resource(FeeInputResource(fetcher.clone()))?;
         context.add_task(Box::new(MainNodeFeeParamsFetcherTask { fetcher }));

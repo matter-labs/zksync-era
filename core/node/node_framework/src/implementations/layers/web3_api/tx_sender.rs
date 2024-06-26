@@ -95,15 +95,15 @@ impl WiringLayer for TxSenderLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get required resources.
-        let tx_sink = context.get_resource::<TxSinkResource>().await?.0;
-        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let tx_sink = context.get_resource::<TxSinkResource>()?.0;
+        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let replica_pool = pool_resource.get().await?;
-        let sealer = match context.get_resource::<ConditionalSealerResource>().await {
+        let sealer = match context.get_resource::<ConditionalSealerResource>() {
             Ok(sealer) => Some(sealer.0),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(other) => return Err(other),
         };
-        let fee_input = context.get_resource::<FeeInputResource>().await?.0;
+        let fee_input = context.get_resource::<FeeInputResource>()?.0;
 
         // Initialize Postgres caches.
         let factory_deps_capacity = self.postgres_storage_caches_config.factory_deps_cache_size;
@@ -137,7 +137,7 @@ impl WiringLayer for TxSenderLayer {
 
         // Add the task for updating the whitelisted tokens for the AA cache.
         if self.whitelisted_tokens_for_aa_cache {
-            let MainNodeClientResource(main_node_client) = context.get_resource().await?;
+            let MainNodeClientResource(main_node_client) = context.get_resource()?;
             let whitelisted_tokens = Arc::new(RwLock::new(Default::default()));
             context.add_task(Box::new(WhitelistedTokensForAaUpdateTask {
                 whitelisted_tokens: whitelisted_tokens.clone(),

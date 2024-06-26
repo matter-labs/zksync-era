@@ -52,9 +52,9 @@ impl WiringLayer for ConsistencyCheckerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let l1_client = context.get_resource::<EthInterfaceResource>().await?.0;
+        let l1_client = context.get_resource::<EthInterfaceResource>()?.0;
 
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let singleton_pool = pool_resource.get_singleton().await?;
 
         let consistency_checker = ConsistencyChecker::new(
@@ -66,7 +66,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
         .map_err(WiringError::Internal)?
         .with_diamond_proxy_addr(self.diamond_proxy_addr);
 
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
         app_health
             .insert_component(consistency_checker.health_check().clone())
             .map_err(WiringError::internal)?;

@@ -75,10 +75,10 @@ impl WiringLayer for HouseKeeperLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Initialize resources
-        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let replica_pool = replica_pool_resource.get().await?;
 
-        let prover_pool_resource = context.get_resource::<PoolResource<ProverPool>>().await?;
+        let prover_pool_resource = context.get_resource::<PoolResource<ProverPool>>()?;
         let prover_pool = prover_pool_resource.get().await?;
 
         // Initialize and add tasks
