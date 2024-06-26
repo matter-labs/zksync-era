@@ -67,7 +67,7 @@ impl WiringLayer for PruningLayer {
             .insert_component(db_pruner.health_check())
             .map_err(WiringError::internal)?;
 
-        context.add_task(Box::new(db_pruner));
+        context.add_task(db_pruner);
 
         Ok(())
     }

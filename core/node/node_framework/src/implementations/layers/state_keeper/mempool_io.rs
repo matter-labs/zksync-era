@@ -102,7 +102,7 @@ impl WiringLayer for MempoolIOLayer {
             &self.mempool_config,
             mempool_fetcher_pool,
         );
-        context.add_task(Box::new(MempoolFetcherTask(mempool_fetcher)));
+        context.add_task(MempoolFetcherTask(mempool_fetcher));
 
         // Create mempool IO resource.
         let mempool_db_pool = master_pool

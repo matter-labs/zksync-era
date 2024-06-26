@@ -56,11 +56,11 @@ impl WiringLayer for SyncStateUpdaterLayer {
         context.insert_resource(SyncStateResource(sync_state.clone()))?;
 
         // Insert task
-        context.add_task(Box::new(SyncStateUpdater {
+        context.add_task(SyncStateUpdater {
             sync_state,
             connection_pool: pool.get().await?,
             main_node_client,
-        }));
+        });
 
         Ok(())
     }

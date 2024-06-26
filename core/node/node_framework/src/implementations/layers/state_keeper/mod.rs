@@ -88,15 +88,15 @@ impl WiringLayer for StateKeeperLayer {
             self.state_keeper_db_path,
             self.rocksdb_options,
         );
-        context.add_task(Box::new(RocksdbCatchupTask(task)));
+        context.add_task(RocksdbCatchupTask(task));
 
-        context.add_task(Box::new(StateKeeperTask {
+        context.add_task(StateKeeperTask {
             io,
             batch_executor_base,
             output_handler,
             sealer,
             storage_factory: Arc::new(storage_factory),
-        }));
+        });
 
         context.add_shutdown_hook("rocksdb_terminaton", async {
             // Wait for all the instances of RocksDB to be destroyed.

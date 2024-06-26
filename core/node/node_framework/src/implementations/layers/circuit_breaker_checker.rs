@@ -42,7 +42,7 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
             circuit_breaker_checker,
         };
 
-        node.add_task(Box::new(task));
+        node.add_task(task);
         Ok(())
     }
 }

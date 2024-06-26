@@ -67,11 +67,11 @@ impl WiringLayer for ProtectiveReadsWriterLayer {
         )
         .await?;
 
-        context.add_task(Box::new(tasks.loader_task));
-        context.add_task(Box::new(tasks.output_handler_factory_task));
-        context.add_task(Box::new(ProtectiveReadsWriterTask {
+        context.add_task(tasks.loader_task);
+        context.add_task(tasks.output_handler_factory_task);
+        context.add_task(ProtectiveReadsWriterTask {
             protective_reads_writer,
-        }));
+        });
         Ok(())
     }
 }

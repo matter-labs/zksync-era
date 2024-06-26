@@ -53,7 +53,7 @@ impl WiringLayer for ValidateChainIdsLayer {
             main_node_client,
         );
 
-        context.add_task(Box::new(task));
+        context.add_task(task);
 
         Ok(())
     }

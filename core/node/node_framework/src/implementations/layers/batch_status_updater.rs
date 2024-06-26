@@ -44,7 +44,7 @@ impl WiringLayer for BatchStatusUpdaterLayer {
             .map_err(WiringError::internal)?;
 
         // Insert task
-        context.add_task(Box::new(updater));
+        context.add_task(updater);
 
         Ok(())
     }

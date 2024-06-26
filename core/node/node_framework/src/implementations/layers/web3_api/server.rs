@@ -203,8 +203,8 @@ impl WiringLayer for Web3ServerLayer {
             task_sender,
         };
         let garbage_collector_task = ApiTaskGarbageCollector { task_receiver };
-        context.add_task(Box::new(web3_api_task));
-        context.add_task(Box::new(garbage_collector_task));
+        context.add_task(web3_api_task);
+        context.add_task(garbage_collector_task);
 
         Ok(())
     }

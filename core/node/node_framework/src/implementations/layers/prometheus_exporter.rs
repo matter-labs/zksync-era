@@ -41,10 +41,10 @@ impl WiringLayer for PrometheusExporterLayer {
             .insert_component(prometheus_health_check)
             .map_err(WiringError::internal)?;
 
-        let task = Box::new(PrometheusExporterTask {
+        let task = PrometheusExporterTask {
             config: self.0,
             prometheus_health_updater,
-        });
+        };
 
         node.add_task(task);
         Ok(())

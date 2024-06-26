@@ -52,9 +52,9 @@ impl<'a> ServiceContext<'a> {
     ///
     /// Added tasks will be launched after the wiring process will be finished and all the preconditions
     /// are met.
-    pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
+    pub fn add_task<T: Task>(&mut self, task: T) -> &mut Self {
         tracing::info!("Layer {} has added a new task: {}", self.layer, task.id());
-        self.service.runnables.tasks.push(task);
+        self.service.runnables.tasks.push(Box::new(task));
         self
     }
 

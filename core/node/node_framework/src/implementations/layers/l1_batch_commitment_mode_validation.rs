@@ -50,7 +50,7 @@ impl WiringLayer for L1BatchCommitmentModeValidationLayer {
             query_client,
         );
 
-        context.add_task(Box::new(task));
+        context.add_task(task);
 
         Ok(())
     }

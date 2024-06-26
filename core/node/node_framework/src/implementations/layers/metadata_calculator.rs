@@ -107,14 +107,14 @@ impl WiringLayer for MetadataCalculatorLayer {
         if let Some(tree_api_config) = self.tree_api_config {
             let bind_addr = (Ipv4Addr::UNSPECIFIED, tree_api_config.port).into();
             let tree_reader = metadata_calculator.tree_reader();
-            context.add_task(Box::new(TreeApiTask {
+            context.add_task(TreeApiTask {
                 bind_addr,
                 tree_reader,
-            }));
+            });
         }
 
         if let Some(pruning_removal_delay) = self.pruning_config {
-            let pruning_task = Box::new(metadata_calculator.pruning_task(pruning_removal_delay));
+            let pruning_task = metadata_calculator.pruning_task(pruning_removal_delay);
             app_health
                 .insert_component(pruning_task.health_check())
                 .map_err(|err| WiringError::Internal(err.into()))?;
@@ -125,7 +125,7 @@ impl WiringLayer for MetadataCalculatorLayer {
             metadata_calculator.tree_reader(),
         )))?;
 
-        context.add_task(Box::new(metadata_calculator));
+        context.add_task(metadata_calculator);
 
         context.add_shutdown_hook("rocksdb_terminaton", async {
             // Wait for all the instances of RocksDB to be destroyed.

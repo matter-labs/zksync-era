@@ -70,7 +70,7 @@ impl WiringLayer for ConsensusLayer {
                     secrets,
                     pool,
                 };
-                context.add_task(Box::new(task));
+                context.add_task(task);
             }
             Mode::External => {
                 let main_node_client = context.get_resource::<MainNodeClientResource>()?.0;
@@ -106,7 +106,7 @@ impl WiringLayer for ConsensusLayer {
                     sync_state,
                     action_queue_sender,
                 };
-                context.add_task(Box::new(task));
+                context.add_task(task);
             }
         }
         Ok(())

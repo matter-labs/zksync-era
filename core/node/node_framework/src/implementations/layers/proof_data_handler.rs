@@ -55,12 +55,12 @@ impl WiringLayer for ProofDataHandlerLayer {
 
         let object_store = context.get_resource::<ObjectStoreResource>()?;
 
-        context.add_task(Box::new(ProofDataHandlerTask {
+        context.add_task(ProofDataHandlerTask {
             proof_data_handler_config: self.proof_data_handler_config,
             blob_store: object_store.0,
             main_pool,
             commitment_mode: self.commitment_mode,
-        }));
+        });
 
         Ok(())
     }

@@ -38,11 +38,11 @@ impl WiringLayer for ContractVerificationApiLayer {
             .get_resource::<PoolResource<ReplicaPool>>()?
             .get()
             .await?;
-        context.add_task(Box::new(ContractVerificationApiTask {
+        context.add_task(ContractVerificationApiTask {
             master_pool,
             replica_pool,
             config: self.0,
-        }));
+        });
         Ok(())
     }
 }

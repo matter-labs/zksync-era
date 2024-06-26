@@ -117,17 +117,17 @@ impl WiringLayer for TxSenderLayer {
         if values_capacity > 0 {
             let values_cache_task = storage_caches
                 .configure_storage_values_cache(values_capacity, replica_pool.clone());
-            context.add_task(Box::new(PostgresStorageCachesTask {
+            context.add_task(PostgresStorageCachesTask {
                 task: values_cache_task,
-            }));
+            });
         }
 
         // Initialize `VmConcurrencyLimiter`.
         let (vm_concurrency_limiter, vm_concurrency_barrier) =
             VmConcurrencyLimiter::new(self.max_vm_concurrency);
-        context.add_task(Box::new(VmConcurrencyBarrierTask {
+        context.add_task(VmConcurrencyBarrierTask {
             barrier: vm_concurrency_barrier,
-        }));
+        });
 
         // Build `TxSender`.
         let mut tx_sender = TxSenderBuilder::new(self.tx_sender_config, replica_pool, tx_sink);
@@ -139,10 +139,10 @@ impl WiringLayer for TxSenderLayer {
         if self.whitelisted_tokens_for_aa_cache {
             let MainNodeClientResource(main_node_client) = context.get_resource()?;
             let whitelisted_tokens = Arc::new(RwLock::new(Default::default()));
-            context.add_task(Box::new(WhitelistedTokensForAaUpdateTask {
+            context.add_task(WhitelistedTokensForAaUpdateTask {
                 whitelisted_tokens: whitelisted_tokens.clone(),
                 main_node_client,
-            }));
+            });
             tx_sender = tx_sender.with_whitelisted_tokens_for_aa(whitelisted_tokens);
         }
 

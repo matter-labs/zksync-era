@@ -78,7 +78,7 @@ impl WiringLayer for EthTxManagerLayer {
             eth_client_blobs,
         );
 
-        context.add_task(Box::new(eth_tx_manager_actor));
+        context.add_task(eth_tx_manager_actor);
 
         // Insert circuit breaker.
         let CircuitBreakersResource { breakers } = context.get_resource_or_default();
@@ -179,7 +179,7 @@ impl WiringLayer for EthTxAggregatorLayer {
         )
         .await;
 
-        context.add_task(Box::new(eth_tx_aggregator_actor));
+        context.add_task(eth_tx_aggregator_actor);
 
         // Insert circuit breaker.
         let CircuitBreakersResource { breakers } = context.get_resource_or_default();

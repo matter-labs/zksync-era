@@ -83,7 +83,7 @@ impl WiringLayer for SequencerL1GasLayer {
 
         context.insert_resource(L1TxParamsResource(gas_adjuster.clone()))?;
 
-        context.add_task(Box::new(GasAdjusterTask { gas_adjuster }));
+        context.add_task(GasAdjusterTask { gas_adjuster });
         Ok(())
     }
 }

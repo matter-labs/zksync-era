@@ -41,7 +41,7 @@ impl WiringLayer for HealthCheckLayer {
             app_health_check,
         };
 
-        node.add_task(Box::new(task));
+        node.add_task(task);
         Ok(())
     }
 }

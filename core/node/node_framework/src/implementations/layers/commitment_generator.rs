@@ -70,9 +70,9 @@ impl WiringLayer for CommitmentGeneratorLayer {
             .insert_component(commitment_generator.health_check())
             .map_err(WiringError::internal)?;
 
-        context.add_task(Box::new(CommitmentGeneratorTask {
+        context.add_task(CommitmentGeneratorTask {
             commitment_generator,
-        }));
+        });
 
         Ok(())
     }

@@ -46,10 +46,10 @@ impl WiringLayer for ReorgDetectorRunnerLayer {
         let reverter = context.get_resource::<BlockReverterResource>()?.0;
 
         // Create and insert task.
-        context.add_task(Box::new(RunnerUnconstrainedOneshotTask {
+        context.add_task(RunnerUnconstrainedOneshotTask {
             reorg_detector: ReorgDetector::new(main_node_client, pool),
             reverter,
-        }));
+        });
 
         Ok(())
     }

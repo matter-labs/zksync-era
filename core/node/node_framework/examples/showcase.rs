@@ -196,8 +196,8 @@ impl WiringLayer for TasksLayer {
         let put_task = PutTask { db: db.clone() };
         let check_task = CheckTask { db };
         // These tasks will be launched by the service once the wiring process is complete.
-        context.add_task(Box::new(put_task));
-        context.add_task(Box::new(check_task));
+        context.add_task(put_task);
+        context.add_task(check_task);
         Ok(())
     }
 }

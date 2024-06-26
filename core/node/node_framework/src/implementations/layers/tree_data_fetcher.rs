@@ -61,7 +61,7 @@ impl WiringLayer for TreeDataFetcherLayer {
             .map_err(WiringError::internal)?;
 
         // Insert task
-        context.add_task(Box::new(fetcher));
+        context.add_task(fetcher);
 
         Ok(())
     }

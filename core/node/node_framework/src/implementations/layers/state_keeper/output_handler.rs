@@ -114,7 +114,7 @@ impl WiringLayer for OutputHandlerLayer {
             output_handler = output_handler.with_handler(Box::new(sync_state));
         }
         context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
-        context.add_task(Box::new(L2BlockSealerTask(l2_block_sealer)));
+        context.add_task(L2BlockSealerTask(l2_block_sealer));
 
         Ok(())
     }

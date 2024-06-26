@@ -44,10 +44,10 @@ impl WiringLayer for ReorgDetectorCheckerLayer {
         let pool = pool_resource.get().await?;
 
         // Create and insert precondition.
-        context.add_task(Box::new(CheckerPrecondition {
+        context.add_task(CheckerPrecondition {
             pool: pool.clone(),
             reorg_detector: ReorgDetector::new(main_node_client, pool),
-        }));
+        });
 
         Ok(())
     }

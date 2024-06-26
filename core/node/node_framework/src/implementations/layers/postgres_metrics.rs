@@ -32,7 +32,7 @@ impl WiringLayer for PostgresMetricsLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let pool_for_metrics = replica_pool_resource.get_singleton().await?;
-        context.add_task(Box::new(PostgresMetricsScrapingTask { pool_for_metrics }));
+        context.add_task(PostgresMetricsScrapingTask { pool_for_metrics });
 
         Ok(())
     }

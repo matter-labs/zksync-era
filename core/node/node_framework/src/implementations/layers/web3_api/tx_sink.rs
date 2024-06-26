@@ -60,7 +60,7 @@ impl WiringLayer for TxSinkLayer {
                     .get_singleton()
                     .await?;
                 let task = proxy.account_nonce_sweeper_task(pool);
-                context.add_task(Box::new(task));
+                context.add_task(task);
 
                 TxSinkResource(Arc::new(proxy))
             }

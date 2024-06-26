@@ -48,7 +48,7 @@ impl WiringLayer for TeeVerifierInputProducerLayer {
         let tee =
             TeeVerifierInputProducer::new(pool_resource, object_store.0, self.l2_chain_id).await?;
 
-        context.add_task(Box::new(tee));
+        context.add_task(tee);
 
         Ok(())
     }

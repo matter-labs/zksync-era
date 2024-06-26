@@ -72,7 +72,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
             .map_err(WiringError::internal)?;
 
         // Create and add tasks.
-        context.add_task(Box::new(consistency_checker));
+        context.add_task(consistency_checker);
 
         Ok(())
     }
