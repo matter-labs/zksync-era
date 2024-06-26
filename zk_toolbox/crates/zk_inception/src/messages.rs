@@ -199,6 +199,10 @@ pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness v
 pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
 pub(super) const MSG_RUNNING_COMPRESSOR: &str = "Running compressor";
 
+pub fn msg_started_component(component: &str, pid: u32) -> String {
+    format!("{} started with pid {}", component, pid)
+}
+
 pub fn msg_run_prover_component_prompt(component: &str) -> String {
     format!("Do you want to run the {}?", component)
 }

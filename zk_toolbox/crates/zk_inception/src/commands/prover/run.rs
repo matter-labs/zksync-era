@@ -3,7 +3,10 @@ use std::{
     process::{Command, Stdio},
 };
 
-use common::{cmd::Cmd, logger};
+use common::{
+    cmd::{run_in_background, Cmd},
+    logger,
+};
 use config::{ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
@@ -12,9 +15,9 @@ use super::{
     utils::get_link_to_prover,
 };
 use crate::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENTS_ERR, MSG_RUNNING_COMPRESSOR,
-    MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_WITNESS_GENERATOR,
-    MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
+    msg_started_component, MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENTS_ERR,
+    MSG_RUNNING_COMPRESSOR, MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_GATEWAY,
+    MSG_RUNNING_WITNESS_GENERATOR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -43,11 +46,10 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     Ok(())
 }
 
-fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
+fn run_gateway(chain: &ChainConfig, link_to_prover: &PathBuf) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_PROVER_GATEWAY);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
-    let link_to_prover = shell.current_dir();
 
     let command_str = format!(
         "cargo run --release --bin zksync_prover_fri_gateway -- --config-path={} --secrets-path={}",
@@ -55,35 +57,31 @@ fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
         secrets_path.to_str().unwrap()
     );
 
-    let cmd = Command::new("sh")
-        .current_dir(link_to_prover)
-        .arg("-c")
-        .arg(&command_str)
-        .spawn()?;
+    let pid = run_in_background(&command_str, link_to_prover)?;
 
-    // Get the PID of the spawned process
-    let pid = cmd.id();
-
-    logger::info(format!("Prover gateway started with pid: {}", pid));
+    logger::info(msg_started_component("Prover gateway", pid));
     Ok(())
 }
 
-fn run_witness_generator(shell: &Shell) -> anyhow::Result<()> {
+fn run_witness_generator(chain: &ChainConfig, link_to_prover: &PathBuf) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_WITNESS_GENERATOR);
     todo!()
 }
 
-fn run_witness_vector_generator(shell: &Shell) -> anyhow::Result<()> {
+fn run_witness_vector_generator(
+    chain: &ChainConfig,
+    link_to_prover: &PathBuf,
+) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_WITNESS_VECTOR_GENERATOR);
     todo!()
 }
 
-fn run_prover(shell: &Shell) -> anyhow::Result<()> {
+fn run_prover(chain: &ChainConfig, link_to_prover: &PathBuf) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_PROVER);
     todo!()
 }
 
-fn run_compressor(shell: &Shell) -> anyhow::Result<()> {
+fn run_compressor(chain: &ChainConfig, link_to_prover: &PathBuf) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_COMPRESSOR);
     todo!()
 }

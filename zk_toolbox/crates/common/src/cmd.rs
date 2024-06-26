@@ -1,4 +1,7 @@
-use std::process::Output;
+use std::{
+    path::PathBuf,
+    process::{Command, Output, Stdio},
+};
 
 use anyhow::bail;
 use console::style;
@@ -146,4 +149,16 @@ fn get_indented_output(
         indent(&wrap_text_to_len(&stdout)),
         indent(&wrap_text_to_len(&stderr)),
     )
+}
+
+pub fn run_in_background(command: &str, wd: &PathBuf) -> anyhow::Result<u32> {
+    let cmd = Command::new("sh")
+        .current_dir(wd)
+        .arg("-c")
+        .arg(command)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()?;
+
+    Ok(cmd.id())
 }
