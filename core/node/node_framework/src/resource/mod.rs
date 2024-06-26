@@ -1,12 +1,7 @@
 use std::{any::TypeId, fmt};
 
-pub use self::{
-    lazy_resource::LazyResource, resource_collection::ResourceCollection, resource_id::ResourceId,
-    unique::Unique,
-};
+pub use self::{resource_id::ResourceId, unique::Unique};
 
-mod lazy_resource;
-mod resource_collection;
 mod resource_id;
 mod unique;
 
@@ -14,9 +9,39 @@ mod unique;
 /// Typically, the type that implements this trait also should implement `Clone`
 /// since the same resource may be requested by several tasks and thus it would be an additional
 /// bound on most methods that work with [`Resource`].
+///
+/// # Example
+///
+/// ```
+/// # use zksync_node_framework::resource::Resource;
+/// # use std::sync::Arc;
+///
+/// /// An abstract interface you want to share.
+/// /// Normally you want the interface to be thread-safe.
+/// trait MyInterface: 'static + Send + Sync {
+///    fn do_something(&self);
+/// }
+///
+/// /// Resource wrapper.
+/// #[derive(Clone)]
+/// struct MyResource(Arc<dyn MyInterface>);
+///
+/// impl Resource for MyResource {
+///    fn name() -> String {
+///       // It is a helpful practice to follow a structured naming pattern for resource names.
+///       // For example, you can use a certain prefix for all resources related to a some component, e.g. `api`.
+///       "common/my_resource".to_string()
+///    }
+/// }
+/// ```
 pub trait Resource: 'static + Send + Sync + std::any::Any {
+    /// Invoked after the wiring phase of the service is done.
+    /// Can be used to perform additional resource preparation, knowing that the resource
+    /// is guaranteed to be requested by all the tasks that need it.
     fn on_resource_wired(&mut self) {}
 
+    /// Returns the name of the resource.
+    /// Used for logging purposes.
     fn name() -> String;
 }
 
@@ -26,10 +51,10 @@ pub trait Resource: 'static + Send + Sync + std::any::Any {
 /// This trait is implemented for any type that implements [`Resource`], so there is no need to
 /// implement it manually.
 pub(crate) trait StoredResource: 'static + std::any::Any + Send + Sync {
-    /// An object-safe version of [`Resource::resource_id`].
+    /// An object-safe version of [`Resource::name`].
     fn stored_resource_id(&self) -> ResourceId;
 
-    /// An object-safe version of [`Resource::on_resoure_wired`].
+    /// An object-safe version of [`Resource::on_resource_wired`].
     fn stored_resource_wired(&mut self);
 }
 

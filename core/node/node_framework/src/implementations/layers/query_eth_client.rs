@@ -8,6 +8,11 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for Ethereum client.
+///
+/// ## Adds resources
+///
+/// - `EthInterfaceResource`
 #[derive(Debug)]
 pub struct QueryEthClientLayer {
     chain_id: L1ChainId,
