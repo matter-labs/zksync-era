@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use zksync_node_framework_derive::FromContext;
 
 mod service {

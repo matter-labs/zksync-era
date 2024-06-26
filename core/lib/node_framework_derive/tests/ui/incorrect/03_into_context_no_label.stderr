@@ -1,0 +1,5 @@
+error: All fields must have either `task` or `resource` attribute
+  --> tests/ui/incorrect/03_into_context_no_label.rs:34:5
+   |
+34 |     _field_2: u16,
+   |     ^^^^^^^^
