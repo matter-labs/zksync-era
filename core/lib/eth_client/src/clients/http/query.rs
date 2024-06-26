@@ -79,13 +79,6 @@ where
         upto_block: usize,
         block_count: usize,
     ) -> EnrichedClientResult<Vec<BaseFees>> {
-        const MAX_REQUEST_CHUNK: usize = 1024;
-
-        COUNTERS.call[&(Method::BaseFeeHistory, self.component())].inc();
-        let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
-        let mut history = Vec::with_capacity(block_count);
-        let from_block = upto_block.saturating_sub(block_count);
-
         // Non-panicking conversion to u64.
         fn cast_to_u64(value: U256, tag: &str) -> EnrichedClientResult<u64> {
             u64::try_from(value).map_err(|_| {
@@ -93,6 +86,13 @@ where
                 EnrichedClientError::new(err, "cast_to_u64").with_arg("value", &value)
             })
         }
+
+        const MAX_REQUEST_CHUNK: usize = 1024;
+
+        COUNTERS.call[&(Method::BaseFeeHistory, self.component())].inc();
+        let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
+        let mut history = Vec::with_capacity(block_count);
+        let from_block = upto_block.saturating_sub(block_count);
 
         // Here we are requesting `fee_history` from blocks
         // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`

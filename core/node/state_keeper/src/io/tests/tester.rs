@@ -50,10 +50,9 @@ impl Tester {
         let block_fees = vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9];
         let base_fees = block_fees
             .into_iter()
-            .zip(std::iter::repeat(1))
-            .map(|(block, blob)| BaseFees {
-                base_fee_per_gas: block,
-                base_fee_per_blob_gas: blob.into(),
+            .map(|base_fee_per_gas| BaseFees {
+                base_fee_per_gas,
+                base_fee_per_blob_gas: 1.into(), // Not relevant for the test
             })
             .collect();
         let eth_client = MockEthereum::builder().with_fee_history(base_fees).build();

@@ -1,11 +1,11 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::RwLockReadGuard};
 
 use test_casing::test_casing;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::{clients::MockEthereum, BaseFees};
 use zksync_types::commitment::L1BatchCommitmentMode;
 
-use super::{GasAdjuster, GasStatisticsInner};
+use super::{GasAdjuster, GasStatistics, GasStatisticsInner};
 
 /// Check that we compute the median correctly
 #[test]
@@ -32,11 +32,9 @@ fn samples_queue() {
 #[test_casing(2, [L1BatchCommitmentMode::Rollup, L1BatchCommitmentMode::Validium])]
 #[tokio::test]
 async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
-    // Helper macro to read a value from adjuster
-    macro_rules! read {
-        ($field:expr) => {
-            $field.0.read().unwrap()
-        };
+    // Helper function to read a value from adjuster
+    fn read<T>(statistics: &GasStatistics<T>) -> RwLockReadGuard<GasStatisticsInner<T>> {
+        statistics.0.read().unwrap()
     }
 
     let block_fees = vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9];
@@ -89,19 +87,19 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
     .unwrap();
 
     assert_eq!(
-        read!(adjuster.base_fee_statistics).samples.len(),
+        read(&adjuster.base_fee_statistics).samples.len(),
         config.max_base_fee_samples
     );
-    assert_eq!(read!(adjuster.base_fee_statistics).median(), 6);
+    assert_eq!(read(&adjuster.base_fee_statistics).median(), 6);
 
-    eprintln!("{:?}", read!(adjuster.blob_base_fee_statistics).samples);
+    eprintln!("{:?}", read(&adjuster.blob_base_fee_statistics).samples);
     let expected_median_blob_base_fee = 393216 * 2;
     assert_eq!(
-        read!(adjuster.blob_base_fee_statistics).samples.len(),
+        read(&adjuster.blob_base_fee_statistics).samples.len(),
         config.num_samples_for_blob_base_fee_estimate
     );
     assert_eq!(
-        read!(adjuster.blob_base_fee_statistics).median(),
+        read(&adjuster.blob_base_fee_statistics).median(),
         expected_median_blob_base_fee.into()
     );
 
@@ -109,15 +107,15 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
     adjuster.keep_updated().await.unwrap();
 
     assert_eq!(
-        read!(adjuster.base_fee_statistics).samples.len(),
+        read(&adjuster.base_fee_statistics).samples.len(),
         config.max_base_fee_samples
     );
-    assert_eq!(read!(adjuster.base_fee_statistics).median(), 7);
+    assert_eq!(read(&adjuster.base_fee_statistics).median(), 7);
 
     let expected_median_blob_base_fee = 393216 * 3;
-    assert_eq!(read!(adjuster.blob_base_fee_statistics).samples.len(), 3);
+    assert_eq!(read(&adjuster.blob_base_fee_statistics).samples.len(), 3);
     assert_eq!(
-        read!(adjuster.blob_base_fee_statistics).median(),
+        read(&adjuster.blob_base_fee_statistics).median(),
         expected_median_blob_base_fee.into()
     );
 }

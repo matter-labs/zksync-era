@@ -575,24 +575,22 @@ mod tests {
     use super::*;
     use crate::{CallFunctionArgs, EthInterface};
 
-    macro_rules! base_fees {
-        ($block: expr, $blob: expr) => {
-            BaseFees {
-                base_fee_per_gas: $block,
-                base_fee_per_blob_gas: U256::from($blob),
-            }
-        };
+    fn base_fees(block: u64, blob: u64) -> BaseFees {
+        BaseFees {
+            base_fee_per_gas: block,
+            base_fee_per_blob_gas: U256::from(blob),
+        }
     }
 
     #[tokio::test]
     async fn managing_block_number() {
         let mock = MockEthereum::builder()
             .with_fee_history(vec![
-                base_fees!(0, 4),
-                base_fees!(1, 3),
-                base_fees!(2, 2),
-                base_fees!(3, 1),
-                base_fees!(4, 0),
+                base_fees(0, 4),
+                base_fees(1, 3),
+                base_fees(2, 2),
+                base_fees(3, 1),
+                base_fees(4, 0),
             ])
             .build();
         let block_number = mock.client.block_number().await.unwrap();
@@ -625,11 +623,11 @@ mod tests {
     #[tokio::test]
     async fn managing_fee_history() {
         let initial_fee_history = vec![
-            base_fees!(1, 4),
-            base_fees!(2, 3),
-            base_fees!(3, 2),
-            base_fees!(4, 1),
-            base_fees!(5, 0),
+            base_fees(1, 4),
+            base_fees(2, 3),
+            base_fees(3, 2),
+            base_fees(4, 1),
+            base_fees(5, 0),
         ];
         let client = MockEthereum::builder()
             .with_fee_history(initial_fee_history.clone())
