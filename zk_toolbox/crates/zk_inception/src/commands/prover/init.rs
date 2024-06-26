@@ -11,7 +11,7 @@ use super::{
     utils::get_link_to_prover,
 };
 use crate::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
     MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
     MSG_PROVER_INITIALIZED,
 };
@@ -94,8 +94,8 @@ fn download_setup_key(
     general_config: &GeneralConfig,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
-    let spinner = Spinner::new("Downloading setup key...");
-    let compressor_config = general_config
+    let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_KEY_SPINNER);
+    let compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
         .proof_compressor_config
         .as_ref()
         .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
