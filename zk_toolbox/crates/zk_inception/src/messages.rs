@@ -207,3 +207,5 @@ pub(super) const MSG_CREATE_GCS_BUCKET_PROMPT: &str = "Do you want to create a n
 pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT: &str = "Provide the project ID:";
 pub(super) const MSG_CREATE_GCS_BUCKET_NAME_PROMTP: &str = "What do you want to name the bucket?";
 pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use?";
+pub(super) const MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR: &str =
+    "Proof compressor config not found";

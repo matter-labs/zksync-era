@@ -1,15 +1,18 @@
-use common::{
-    cmd::Cmd,
-    logger,
-    spinner::{self, Spinner},
-};
+use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
-use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
+use zksync_config::{
+    configs::{object_store::ObjectStoreMode, GeneralConfig},
+    ObjectStoreConfig,
+};
 
-use super::args::init::{ProofStorageGCSCreateBucket, ProverInitArgs, ProverInitArgsFinal};
+use super::{
+    args::init::{ProofStorageGCSCreateBucket, ProverInitArgs, ProverInitArgsFinal},
+    utils::get_link_to_prover,
+};
 use crate::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
+    MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
     MSG_PROVER_INITIALIZED,
 };
 
@@ -51,6 +54,8 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     general_config.prover_config = Some(prover_config);
     chain_config.save_general_config(&general_config)?;
 
+    download_setup_key(shell, &general_config, &ecosystem_config)?;
+
     logger::outro(MSG_PROVER_INITIALIZED);
     Ok(())
 }
@@ -82,4 +87,25 @@ fn create_gcs_bucket(
         max_retries: PROVER_STORE_MAX_RETRIES,
         local_mirror_path: None,
     })
+}
+
+fn download_setup_key(
+    shell: &Shell,
+    general_config: &GeneralConfig,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<()> {
+    let spinner = Spinner::new("Downloading setup key...");
+    let compressor_config = general_config
+        .proof_compressor_config
+        .as_ref()
+        .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
+        .clone();
+    let link_to_prover = get_link_to_prover(ecosystem_config);
+    let path = link_to_prover.join(compressor_config.universal_setup_path);
+    let url = compressor_config.universal_setup_download_url;
+
+    let mut cmd = Cmd::new(cmd!(shell, "wget {url} -P {path}"));
+    cmd.run()?;
+    spinner.finish();
+    Ok(())
 }
