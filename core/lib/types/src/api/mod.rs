@@ -821,6 +821,11 @@ pub struct ApiStorageLog {
     pub written_value: U256,
 }
 
+// Coming from TransactionExecutionMetrics
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiTransactionExecutionInfo {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
