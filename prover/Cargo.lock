@@ -8457,7 +8457,6 @@ dependencies = [
  "zkevm_test_harness 1.5.0",
  "zksync_config",
  "zksync_core_leftovers",
- "zksync_dal",
  "zksync_env_config",
  "zksync_multivm",
  "zksync_object_store",

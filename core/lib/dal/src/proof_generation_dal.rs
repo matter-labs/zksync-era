@@ -347,7 +347,7 @@ mod tests {
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
 
         conn.proof_generation_dal()
-            .save_proof_artifacts_metadata(L1BatchNumber(1), "proof")
+            .save_proof_merkle_paths_artifacts_metadata(L1BatchNumber(1), "proof")
             .await
             .unwrap();
 
