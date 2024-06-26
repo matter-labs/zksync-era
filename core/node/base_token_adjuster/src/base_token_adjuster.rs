@@ -17,7 +17,11 @@ use zksync_types::{
 
 #[async_trait]
 pub trait BaseTokenAdjuster: Debug + Send + Sync {
-    /// Returns the last ratio cached by the adjuster and ensure it's still usable.
+    /// Retrieves the most recent ratio persisted by the adjuster and ensures it's still usable.
+    ///
+    /// Returns:
+    /// - The `BaseTokenConversionRatio` if successful.
+    /// - An error if the ratio is not usable or cannot be retrieved.
     async fn get_conversion_ratio(&self) -> anyhow::Result<BaseTokenConversionRatio>;
 }
 
@@ -72,7 +76,7 @@ impl MainNodeBaseTokenAdjuster {
     }
 
     // TODO (PE-135): Use real API client to fetch new ratio through self.PriceAPIClient & mock for tests.
-    //  For now, these hard coded values are also hard coded in the integration tests.
+    //  For now, these are hard coded dummy values.
     async fn fetch_new_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
         let ratio_timestamp = Utc::now();
 
@@ -101,7 +105,6 @@ impl MainNodeBaseTokenAdjuster {
                 &api_price.ratio_timestamp.naive_utc(),
             )
             .await?;
-        drop(conn);
 
         Ok(id)
     }
@@ -118,37 +121,40 @@ impl MainNodeBaseTokenAdjuster {
                 .await
                 .expect("Failed to obtain connection to the database");
 
-            let result = conn.base_token_dal().get_latest_ratio().await;
+            let dal_result = conn.base_token_dal().get_latest_ratio().await;
 
-            drop(conn);
+            drop(conn); // Don't sleep with your connections.
 
-            if let Ok(last_storage_price) = result {
-                return Ok(BaseTokenConversionRatio {
-                    numerator: last_storage_price.numerator,
-                    denominator: last_storage_price.denominator,
-                });
-            } else {
-                if attempts >= max_retries {
-                    break;
+            match dal_result {
+                Ok(last_storage_price) => {
+                    return Ok(BaseTokenConversionRatio {
+                        numerator: last_storage_price.numerator,
+                        denominator: last_storage_price.denominator,
+                    });
                 }
-                let sleep_duration = Duration::from_secs(retry_delay)
-                    .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
-                tracing::warn!(
-                    "Attempt {}/{} failed to get latest base token price, retrying in {} seconds...",
-                    attempts, max_retries, sleep_duration.as_secs()
+                Err(err) if attempts < max_retries => {
+                    let sleep_duration = Duration::from_secs(retry_delay)
+                        .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
+                    tracing::warn!(
+                    "Attempt {}/{} failed to get latest base token price: {:?}, retrying in {} seconds...",
+                    attempts + 1, max_retries, err, sleep_duration.as_secs()
                 );
-                sleep(sleep_duration).await;
-                retry_delay *= 2;
-                attempts += 1;
+                    sleep(sleep_duration).await;
+                    retry_delay *= 2;
+                    attempts += 1;
+                }
+                Err(err) => {
+                    anyhow::bail!(
+                        "Failed to get latest base token price after {} attempts: {:?}",
+                        max_retries,
+                        err
+                    );
+                }
             }
         }
-        anyhow::bail!(
-            "Failed to get latest base token price after {} attempts",
-            max_retries
-        );
     }
 
-    // Sleep for the remaining duration of the polling period
+    /// Sleep for the remaining duration of the polling period
     async fn sleep_until_next_fetch(&self, start_time: Instant) {
         let elapsed_time = start_time.elapsed();
         let sleep_duration = if elapsed_time >= self.config.price_polling_interval() {
@@ -160,7 +166,7 @@ impl MainNodeBaseTokenAdjuster {
         tokio::time::sleep(sleep_duration).await;
     }
 
-    /// Compare with SHARED_BRIDGE_ETHER_TOKEN_ADDRESS
+    /// Returns true if the base token is ETH by comparing its address to the shared bridge ETH token address placeholder.
     fn is_base_token_eth(&self) -> bool {
         self.base_token_l1_address == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS
     }
@@ -169,9 +175,7 @@ impl MainNodeBaseTokenAdjuster {
 #[async_trait]
 impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
     async fn get_conversion_ratio(&self) -> anyhow::Result<BaseTokenConversionRatio> {
-        let is_eth = self.is_base_token_eth();
-
-        if is_eth {
+        if self.is_base_token_eth() {
             return Ok(BaseTokenConversionRatio {
                 numerator: 1,
                 denominator: 1,
@@ -189,12 +193,6 @@ impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
 #[allow(dead_code)]
 pub struct MockBaseTokenAdjuster {
     last_ratio: BaseTokenConversionRatio,
-}
-
-impl MockBaseTokenAdjuster {
-    pub fn new(last_ratio: BaseTokenConversionRatio) -> Self {
-        Self { last_ratio }
-    }
 }
 
 impl Default for MockBaseTokenAdjuster {
