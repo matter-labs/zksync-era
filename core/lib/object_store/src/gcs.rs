@@ -112,10 +112,7 @@ fn get_source<'a, T: StdError + 'static>(mut err: &'a (dyn StdError + 'static)) 
         if let Some(err) = err.downcast_ref::<T>() {
             return Some(err);
         }
-        err = match err.source() {
-            Some(source) => source,
-            None => return None,
-        };
+        err = err.source()?;
     }
 }
 
