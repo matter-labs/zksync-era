@@ -10,7 +10,7 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof,
+    BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof, ValueHash,
 };
 use zksync_multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
@@ -69,7 +69,7 @@ impl TeeVerifierInput {
     ///
     /// Returns a verbose error of the failure, because any error is
     /// not actionable.
-    pub fn verify(self) -> anyhow::Result<()> {
+    pub fn verify(self) -> anyhow::Result<(ValueHash, L1BatchNumber)> {
         let TeeVerifierInput::V1(V1TeeVerifierInput {
             prepare_basic_circuits_job,
             l2_blocks_execution_data,
@@ -102,6 +102,7 @@ impl TeeVerifierInput {
 
         let storage_view = Rc::new(RefCell::new(StorageView::new(&raw_storage)));
 
+        let batch_number = l1_batch_env.number;
         let vm = VmInstance::new(l1_batch_env, system_env, storage_view);
 
         let vm_out = Self::execute_vm(l2_blocks_execution_data, vm)?;
@@ -113,7 +114,7 @@ impl TeeVerifierInput {
             .verify_proofs(&Blake2Hasher, old_root_hash, &instructions)
             .context("Failed to verify_proofs {l1_batch_number} correctly!")?;
 
-        Ok(())
+        Ok((block_output_with_proofs.root_hash().unwrap(), batch_number))
     }
 
     /// Sets the initial storage values and returns `BlockOutputWithProofs`

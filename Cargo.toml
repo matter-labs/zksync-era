@@ -10,6 +10,7 @@ members = [
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
     "core/bin/genesis_generator",
+    "core/bin/zksync_tee_prover",
     # Node services
     "core/node/node_framework",
     "core/node/proof_data_handler",
@@ -121,6 +122,7 @@ iai = "0.1"
 insta = "1.29.0"
 itertools = "0.10"
 jsonrpsee = { version = "0.21.0", default-features = false }
+k256 = { version = "0.13.3", features = ["sha256", "ecdsa", "serde", "ecdsa-core", "expose-field", "hash2curve"], optional = false }
 lazy_static = "1.4"
 leb128 = "0.2.5"
 lru = { version = "0.12.1", default-features = false }

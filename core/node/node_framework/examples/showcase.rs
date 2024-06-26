@@ -31,7 +31,7 @@ struct MemoryDatabase {
 /// but in real envs we use GCP. Alternatively, we have different resource implementations for
 /// main node and EN, like `MempoolIO` and `ExternalIO`.
 ///
-/// Whether it makes sense to hdie the actual resource behind a trait often depends on the resource
+/// Whether it makes sense to hide the actual resource behind a trait often depends on the resource
 /// itself. For example, our DAL is massive and cannot realistically be changed easily, so it's OK
 /// for it to be a concrete resource. But for anything that may realistically have two different
 /// implementations, it's often a good idea to hide it behind a trait.
