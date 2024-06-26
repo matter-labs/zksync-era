@@ -573,6 +573,19 @@ mod tests {
             .get_transaction_by_hash(H256::zero(), L2ChainId::from(270))
             .await;
         assert!(web3_tx.unwrap().is_none());
+
+        let execution_info = conn
+            .transactions_web3_dal()
+            .get_unstable_transaction_execution_info(tx_hash)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Check that execution info has at least the circuit statistics field.
+        assert!(execution_info
+            .execution_info
+            .get("circuit_statistic")
+            .is_some());
     }
 
     #[tokio::test]
