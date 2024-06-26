@@ -99,6 +99,7 @@ impl ProverInitArgs {
     fn partial_create_gcs_bucket_config_provided(&self) -> bool {
         self.create_gcs_bucket_config.bucket_name.is_some()
             || self.create_gcs_bucket_config.location.is_some()
+            || self.create_gcs_bucket_config.project_id.is_some()
     }
 
     fn partial_gcs_config_provided(&self) -> bool {
