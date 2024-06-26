@@ -23,7 +23,7 @@ fn main() {
         .keys()
         .collect::<HashSet<_>>()
         .intersection(&iai_after.keys().collect())
-        .flat_map(|&name| {
+        .filter_map(|&name| {
             let diff = percent_difference(iai_before[name], iai_after[name]);
             if diff.abs() > 2. {
                 Some((name, format!("{:+.1}%", diff)))
@@ -32,35 +32,25 @@ fn main() {
             }
         })
         .collect::<HashMap<_, _>>();
+
     let duration_changes = opcodes_before
         .keys()
         .collect::<HashSet<_>>()
         .intersection(&opcodes_after.keys().collect())
-        .flat_map(|&name| {
+        .map(|&name| {
             let opcodes_abs_diff = (opcodes_after[name] as i64) - (opcodes_before[name] as i64);
-
-            if opcodes_abs_diff != 0 {
-                Some((
-                    name,
-                    format!(
-                        "{:+} ({:+.1}%)",
-                        opcodes_abs_diff,
-                        percent_difference(opcodes_before[name], opcodes_after[name])
-                    ),
-                ))
-            } else {
-                None
-            }
+            (name, opcodes_abs_diff)
         })
         .collect::<HashMap<_, _>>();
 
     let mut nonzero_diff = false;
 
-    for name in perf_changes
-        .keys()
-        .collect::<HashSet<_>>()
-        .union(&duration_changes.keys().collect())
-    {
+    for name in perf_changes.keys().collect::<HashSet<_>>().union(
+        &duration_changes
+            .iter()
+            .filter_map(|(key, value)| (*value != 0).then_some(key))
+            .collect(),
+    ) {
         // write the header before writing the first line of diff
         if !nonzero_diff {
             println!("Benchmark name | change in estimated runtime | change in number of opcodes executed \n--- | --- | ---");
@@ -71,8 +61,15 @@ fn main() {
         println!(
             "{} | {} | {}",
             name,
-            perf_changes.get(**name).unwrap_or(&n_a),
-            duration_changes.get(**name).unwrap_or(&n_a),
+            perf_changes.get(**name).unwrap_or(&n_a.clone()),
+            duration_changes
+                .get(**name)
+                .map(|abs_diff| format!(
+                    "{:+} ({:+.1}%)",
+                    abs_diff,
+                    percent_difference(opcodes_before[**name], opcodes_after[**name])
+                ))
+                .unwrap_or(n_a),
         );
     }
 
