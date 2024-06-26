@@ -79,21 +79,21 @@ impl Default for Erc20DeploymentConfig {
                     symbol: String::from("DAI"),
                     decimals: 18,
                     implementation: String::from("TestnetERC20Token.sol"),
-                    mint: 10000000000000000000,
+                    mint: U256::from_str("9000000000000000000000").unwrap(),
                 },
                 Erc20DeploymentTokensConfig {
                     name: String::from("WBTC"),
                     symbol: String::from("WBTC"),
                     decimals: 8,
                     implementation: String::from("TestnetERC20Token.sol"),
-                    mint: 10000000000000000000,
+                    mint: U256::from_str("9000000000000000000000").unwrap(),
                 },
                 Erc20DeploymentTokensConfig {
                     name: String::from("Wrapped Ether"),
                     symbol: String::from("WETH"),
                     decimals: 18,
                     implementation: String::from("WETH9.sol"),
-                    mint: 0,
+                    mint: U256::zero(),
                 },
             ],
         }
@@ -106,7 +106,7 @@ pub struct Erc20DeploymentTokensConfig {
     pub symbol: String,
     pub decimals: u64,
     pub implementation: String,
-    pub mint: u64,
+    pub mint: U256,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -248,5 +248,5 @@ pub struct TokenDeployErc20Config {
     pub symbol: String,
     pub decimals: u64,
     pub implementation: String,
-    pub mint: u64,
+    pub mint: U256,
 }
