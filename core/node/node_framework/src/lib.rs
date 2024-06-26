@@ -16,6 +16,8 @@ pub mod service;
 pub mod task;
 pub mod wiring_layer;
 
+pub use zksync_node_framework_derive::{FromContext, IntoContext};
+
 pub use self::{
     service::{FromContext, IntoContext},
     task::Task,

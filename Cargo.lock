@@ -8644,6 +8644,7 @@ dependencies = [
  "zksync_node_consensus",
  "zksync_node_db_pruner",
  "zksync_node_fee_model",
+ "zksync_node_framework_derive",
  "zksync_node_sync",
  "zksync_object_store",
  "zksync_proof_data_handler",

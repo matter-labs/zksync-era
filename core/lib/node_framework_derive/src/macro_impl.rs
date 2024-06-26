@@ -122,7 +122,7 @@ impl MacroImpl {
                     #ident: ctx.get_resource::<#ty>()?
                 },
                 (false, true) => quote! {
-                    #ident: ctx.get_resource_or_default::<#ty>()?
+                    #ident: ctx.get_resource_or_default::<#ty>()
                 },
                 (true, false) => quote! {
                     #ident: match ctx.get_resource::<#ty>() {

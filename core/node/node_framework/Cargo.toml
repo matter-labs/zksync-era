@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_node_framework_derive.workspace = true
 zksync_vlog.workspace = true
 zksync_types.workspace = true
 zksync_health_check.workspace = true

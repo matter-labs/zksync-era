@@ -27,8 +27,6 @@ use crate::{
 /// - `FeeInputResource`
 /// - `PoolResource<MasterPool>`
 ///
-/// - `AppHealthCheckResource` (adds a health check)
-///
 /// ## Adds resources
 ///
 /// - `StateKeeperIOResource`
@@ -37,7 +35,6 @@ use crate::{
 /// ## Adds tasks
 ///
 /// - `MempoolFetcherTask`
-/// - `TaskTypeName2`
 #[derive(Debug)]
 pub struct MempoolIOLayer {
     zksync_network_id: L2ChainId,
