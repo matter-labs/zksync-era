@@ -2,11 +2,14 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
-use zksync_dal::{consensus_dal::Payload, Core, CoreDal, DalError};
+use zksync_dal::{
+    consensus_dal::{self, Payload},
+    Core, CoreDal, DalError,
+};
 use zksync_node_sync::{
     fetcher::{FetchedBlock, FetchedTransaction, IoCursorExt as _},
     sync_action::ActionQueueSender,
@@ -23,6 +26,14 @@ pub(crate) mod testonly;
 /// Context-aware `zksync_dal::ConnectionPool<Core>` wrapper.
 #[derive(Debug, Clone)]
 pub(super) struct ConnectionPool(pub(super) zksync_dal::ConnectionPool<Core>);
+
+#[derive(thiserror::Error, Debug)]
+pub enum InsertCertificateError {
+    #[error(transparent)]
+    Canceled(#[from] ctx::Canceled),
+    #[error(transparent)]
+    Inner(#[from] consensus_dal::InsertCertificateError),
+}
 
 impl ConnectionPool {
     /// Wrapper for `connection_tagged()`.
@@ -152,7 +163,7 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         cert: &validator::CommitQC,
-    ) -> ctx::Result<()> {
+    ) -> Result<(), InsertCertificateError> {
         Ok(ctx
             .wait(self.0.consensus_dal().insert_certificate(cert))
             .await??)
@@ -440,23 +451,74 @@ impl Store {
 
 impl StoreRunner {
     pub async fn run(mut self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
-        let res = async {
+        let res = scope::run!(ctx, |ctx, s| async {
+            s.spawn::<()>(async {
+                const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
+                loop {
+                    let range = self
+                        .pool
+                        .connection(ctx)
+                        .await
+                        .wrap("connection")?
+                        .block_range(ctx)
+                        .await
+                        .wrap("block_range()")?;
+                    self.persisted.send_if_modified(|p| {
+                        if range.start < p.first {
+                            return false;
+                        }
+                        p.first = range.start;
+                        if range.start >= p.next() {
+                            p.last = None;
+                        }
+                        true
+                    });
+                    ctx.sleep(POLL_INTERVAL).await?;
+                }
+            });
+
+            // Loop inserting certs to storage.
             loop {
+                const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
                 let cert = self.certificates.recv(ctx).await?;
-                self.pool
-                    .wait_for_payload(ctx, cert.header().number)
-                    .await
-                    .wrap("wait_for_payload()")?;
-                self.pool
-                    .connection(ctx)
-                    .await
-                    .wrap("connection()")?
-                    .insert_certificate(ctx, &cert)
-                    .await
-                    .wrap("insert_certificate()")?;
-                self.persisted.send_modify(|p| p.last = Some(cert));
+                // Wait for the block to be persisted, so that we can attach a cert to it.
+                // It may happen that persisted blocks get pruned and this certificate is not needed any
+                // more.
+                while self.persisted.borrow().next() == cert.header().number {
+                    use consensus_dal::InsertCertificateError as E;
+                    // Try to insert the cert.
+                    match self
+                        .pool
+                        .connection(ctx)
+                        .await
+                        .wrap("connection")?
+                        .insert_certificate(ctx, &cert)
+                        .await
+                    {
+                        Ok(()) => {
+                            self.persisted.send_if_modified(|p| {
+                                if p.next() != cert.header().number {
+                                    return false;
+                                }
+                                p.last = Some(cert);
+                                true
+                            });
+                            break;
+                        }
+                        // In case of missing payload we just need to wait longer.
+                        Err(InsertCertificateError::Inner(E::MissingPayload)) => {
+                            ctx.sleep(POLL_INTERVAL).await?;
+                        }
+                        Err(InsertCertificateError::Canceled(err)) => {
+                            return Err(ctx::Error::Canceled(err))
+                        }
+                        Err(InsertCertificateError::Inner(err)) => {
+                            return Err(ctx::Error::Internal(anyhow::Error::from(err)))
+                        }
+                    }
+                }
             }
-        }
+        })
         .await;
         match res {
             Err(ctx::Error::Canceled(_)) | Ok(()) => Ok(()),

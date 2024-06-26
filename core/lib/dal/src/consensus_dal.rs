@@ -5,7 +5,7 @@ use zksync_consensus_roles::validator;
 use zksync_consensus_storage::ReplicaState;
 use zksync_db_connection::{
     connection::Connection,
-    error::{DalResult, SqlxContext},
+    error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
 use zksync_types::L2BlockNumber;
@@ -17,6 +17,17 @@ use crate::{Core, CoreDal};
 #[derive(Debug)]
 pub struct ConsensusDal<'a, 'c> {
     pub storage: &'a mut Connection<'c, Core>,
+}
+
+/// Error returned by `ConsensusDal::insert_certificate()`.
+#[derive(thiserror::Error, Debug)]
+pub enum InsertCertificateError {
+    #[error("corresponding L2 block is missing")]
+    MissingPayload,
+    #[error(transparent)]
+    Dal(#[from] DalError),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 impl ConsensusDal<'_, '_> {
@@ -113,16 +124,25 @@ impl ConsensusDal<'_, '_> {
     /// Fetches the range of L2 blocks present in storage.
     /// If storage was recovered from snapshot, the range doesn't need to start at 0.
     pub async fn block_range(&mut self) -> DalResult<ops::Range<validator::BlockNumber>> {
-        let mut txn = self.storage.start_transaction().await?;
-        let snapshot = txn
+        let mut start = L2BlockNumber(0);
+        if let Some(snapshot) = self
+            .storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
-            .await?;
-        // `snapshot.l2_block_number` indicates the last block processed.
-        // This block is NOT present in storage. Therefore, the first block
-        // that will appear in storage is `snapshot.l2_block_number + 1`.
-        let start = validator::BlockNumber(snapshot.map_or(0, |s| s.l2_block_number.0 + 1).into());
-        let end = txn
+            .await?
+        {
+            // `snapshot.l2_block_number` indicates the last block processed.
+            // This block is NOT present in storage. Therefore, the first block
+            // that will appear in storage is `snapshot.l2_block_number + 1`.
+            start = start.max(snapshot.l2_block_number + 1);
+        }
+        let pruning_info = self.storage.pruning_dal().get_pruning_info().await?;
+        if let Some(last_pruned) = pruning_info.last_hard_pruned_l2_block {
+            start = start.max(last_pruned + 1);
+        }
+        let start = validator::BlockNumber(start.0.into());
+        let end = self
+            .storage
             .blocks_dal()
             .get_sealed_l2_block_number()
             .await?
@@ -339,24 +359,31 @@ impl ConsensusDal<'_, '_> {
     /// which will help us to detect bugs in the consensus implementation
     /// while it is "fresh". If it turns out to take too long,
     /// we can remove the verification checks later.
-    pub async fn insert_certificate(&mut self, cert: &validator::CommitQC) -> anyhow::Result<()> {
+    pub async fn insert_certificate(
+        &mut self,
+        cert: &validator::CommitQC,
+    ) -> Result<(), InsertCertificateError> {
+        use InsertCertificateError as Err;
         let header = &cert.message.proposal;
         let mut txn = self.storage.start_transaction().await?;
         if let Some(last) = txn.consensus_dal().last_certificate().await? {
-            anyhow::ensure!(
-                last.header().number.next() == header.number,
-                "expected certificate for a block after the current head block"
-            );
+            if last.header().number.next() != header.number {
+                return Err(anyhow::format_err!(
+                    "expected certificate for a block after the current head block"
+                )
+                .into());
+            }
         }
         let want_payload = txn
             .consensus_dal()
             .block_payload(cert.message.proposal.number)
             .await?
-            .context("corresponding L2 block is missing")?;
-        anyhow::ensure!(
-            header.payload == want_payload.encode().hash(),
-            "consensus block payload doesn't match the L2 block"
-        );
+            .ok_or(Err::MissingPayload)?;
+        if header.payload != want_payload.encode().hash() {
+            return Err(
+                anyhow::format_err!("consensus block payload doesn't match the L2 block").into(),
+            );
+        }
         sqlx::query!(
             r#"
             INSERT INTO
@@ -368,7 +395,8 @@ impl ConsensusDal<'_, '_> {
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .execute(txn.conn())
-        .await?;
+        .await
+        .context("sqlx::query::execute()")?;
         txn.commit().await?;
         Ok(())
     }
