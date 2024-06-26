@@ -47,6 +47,7 @@ fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_PROVER_GATEWAY);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
+    let link_to_prover = shell.current_dir();
 
     let command_str = format!(
         "cargo run --release --bin zksync_prover_fri_gateway -- --config-path={} --secrets-path={}",
@@ -55,10 +56,9 @@ fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
     );
 
     let cmd = Command::new("sh")
+        .current_dir(link_to_prover)
         .arg("-c")
         .arg(&command_str)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
         .spawn()?;
 
     // Get the PID of the spawned process
