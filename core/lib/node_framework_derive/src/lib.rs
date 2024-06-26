@@ -24,7 +24,7 @@ mod macro_impl;
 /// #         pub fn get_resource<T>(&mut self) -> Result<T, crate::WiringError> {
 /// #             unimplemented!()
 /// #         }
-/// #         pub fn get_resource_or_default<T>(&mut self) -> Result<T, crate::WiringError> {
+/// #         pub fn get_resource_or_default<T>(&mut self) -> T {
 /// #             unimplemented!()
 /// #         }
 /// #     }

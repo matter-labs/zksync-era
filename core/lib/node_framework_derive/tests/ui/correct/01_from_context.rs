@@ -12,7 +12,7 @@ mod service {
             unimplemented!()
         }
 
-        pub fn get_resource_or_default<T>(&mut self) -> Result<T, crate::WiringError> {
+        pub fn get_resource_or_default<T>(&mut self) -> T {
             unimplemented!()
         }
     }
