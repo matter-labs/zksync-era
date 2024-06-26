@@ -609,7 +609,9 @@ mod tests {
                 case.input_l1_pubdata_price,
             ));
 
-            let base_token_adjuster = Arc::new(MockBaseTokenAdjuster::new(case.conversion_ratio));
+            let base_token_adjuster = Arc::new(MockBaseTokenAdjuster {
+                last_ratio: case.conversion_ratio,
+            });
 
             let config = FeeModelConfig::V2(FeeModelConfigV2 {
                 minimal_l2_gas_price: case.input_minimal_l2_gas_price,

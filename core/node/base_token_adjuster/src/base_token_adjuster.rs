@@ -192,7 +192,7 @@ impl BaseTokenAdjuster for MainNodeBaseTokenAdjuster {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct MockBaseTokenAdjuster {
-    last_ratio: BaseTokenConversionRatio,
+    pub last_ratio: BaseTokenConversionRatio,
 }
 
 impl Default for MockBaseTokenAdjuster {
