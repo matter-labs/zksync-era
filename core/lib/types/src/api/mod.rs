@@ -188,6 +188,21 @@ pub struct L2ToL1LogProof {
     pub root: H256,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LeafAggProof {
+    pub batch_leaf_proof: Vec<H256>,
+    pub batch_leaf_proof_mask: U256,
+    pub chain_id_leaf_proof: Vec<H256>,
+    pub chain_id_leaf_proof_mask: U256,
+}
+
+impl LeafAggProof {
+    pub fn encode(self) -> Vec<H256> {
+        todo!()
+    }
+}
+
 /// A struct with the two default bridge contracts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

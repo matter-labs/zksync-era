@@ -314,6 +314,18 @@ impl HashEmptySubtree<[u8; 88]> for KeccakHasher {
     }
 }
 
+impl HashEmptySubtree<[u8; 96]> for KeccakHasher {
+    fn empty_leaf_hash(&self) -> H256 {
+        self.hash_bytes(&[0_u8; 96])
+    }
+}
+
+// impl HashEmptySubtree<H256> for KeccakHasher {
+//     fn empty_leaf_hash(&self) -> H256 {
+//         self.hash_bytes(&self.0)
+//     }
+// }
+
 fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
     iter::successors(Some(empty_leaf_hash), |hash| {
         Some(KeccakHasher.compress(hash, hash))

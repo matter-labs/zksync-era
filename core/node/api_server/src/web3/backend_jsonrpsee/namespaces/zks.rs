@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use zksync_types::{
     api::{
-        ApiStorageLog, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Log, Proof,
-        ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        ApiStorageLog, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, LeafAggProof,
+        Log, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -91,6 +91,17 @@ impl ZksNamespaceServer for ZksNamespace {
         index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
         self.get_l2_to_l1_log_proof_impl(tx_hash, index)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_aggregated_batch_inclusion_proof(
+        &self,
+        message_root_addr: Address,
+        batch_number: L1BatchNumber,
+        chain_id: u32,
+    ) -> RpcResult<Option<LeafAggProof>> {
+        self.get_aggregated_batch_inclusion_proof_impl(message_root_addr, batch_number, chain_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
