@@ -181,6 +181,7 @@ mod tests {
                     timestamp: 1,
                     virtual_blocks: 1,
                 },
+                pubdata_params: Default::default(),
             },
             number: L1BatchNumber(1),
             first_l2_block_number: L2BlockNumber(1),

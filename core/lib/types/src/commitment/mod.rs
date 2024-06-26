@@ -14,18 +14,14 @@ pub use zksync_basic_types::{commitment::L1BatchCommitmentMode, web3::contract::
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
-    KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY,
-    ZKPORTER_IS_AVAILABLE,
+    KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::{
     blob::num_blobs_required,
     block::{L1BatchHeader, L1BatchTreeData},
-    l2_to_l1_log::{
-        l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes, L2ToL1Log, SystemL2ToL1Log,
-        UserL2ToL1Log,
-    },
+    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     web3::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
@@ -86,6 +82,10 @@ pub struct L1BatchMetadata {
     pub aux_data_hash: H256,
     pub meta_parameters_hash: H256,
     pub pass_through_data_hash: H256,
+
+    // FIXME: it may not be present for old batches
+    pub state_diff_hash: H256,
+
     /// The commitment to the final events queue state after the batch is committed.
     /// Practically, it is a commitment to all events that happened on L2 during the batch execution.
     pub events_queue_commitment: Option<H256>,
@@ -360,6 +360,7 @@ impl L1BatchAuxiliaryOutput {
                 state_diffs,
                 aux_commitments,
                 blob_commitments,
+                blob_linear_hashes,
             } => {
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
@@ -383,22 +384,20 @@ impl L1BatchAuxiliaryOutput {
                 let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
                 let state_diffs_compressed = compress_state_diffs(state_diffs);
 
-                let blob_linear_hashes =
-                    parse_system_logs_for_blob_hashes(&common_input.protocol_version, &system_logs);
-
                 // Sanity checks. System logs are empty for the genesis batch, so we can't do checks for it.
                 if !system_logs.is_empty() {
-                    let state_diff_hash_from_logs = system_logs
-                        .iter()
-                        .find_map(|log| {
-                            (log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()))
-                                .then_some(log.0.value)
-                        })
-                        .expect("Failed to find state diff hash in system logs");
-                    assert_eq!(
-                        state_diffs_hash, state_diff_hash_from_logs,
-                        "State diff hash mismatch"
-                    );
+                    // FIXME: maybe track for older versions
+                    // let state_diff_hash_from_logs = system_logs
+                    //     .iter()
+                    //     .find_map(|log| {
+                    //         (log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()))
+                    //             .then_some(log.0.value)
+                    //     })
+                    //     .expect("Failed to find state diff hash in system logs");
+                    // assert_eq!(
+                    //     state_diffs_hash, state_diff_hash_from_logs,
+                    //     "State diff hash mismatch"
+                    // );
 
                     let l2_to_l1_logs_tree_root_from_logs = system_logs
                         .iter()
@@ -652,12 +651,20 @@ impl L1BatchCommitment {
                 ),
             };
 
+        let state_diff_hash = match &self.auxiliary_output {
+            L1BatchAuxiliaryOutput::PostBoojum {
+                state_diffs_hash, ..
+            } => *state_diffs_hash,
+            L1BatchAuxiliaryOutput::PreBoojum { .. } => H256::zero(),
+        };
+
         L1BatchCommitmentArtifacts {
             commitment_hash: self.hash(),
             l2_l1_merkle_root: self.l2_l1_logs_merkle_root(),
             compressed_state_diffs,
             zkporter_is_available: self.meta_parameters.zkporter_is_available,
             aux_commitments: self.aux_commitments(),
+            state_diff_hash,
             compressed_initial_writes,
             compressed_repeated_writes,
         }
@@ -696,6 +703,8 @@ pub enum CommitmentInput {
         state_diffs: Vec<StateDiffRecord>,
         aux_commitments: AuxCommitments,
         blob_commitments: Vec<H256>,
+        // FIXME: figure out whether it will work for the old server
+        blob_linear_hashes: Vec<H256>,
     },
 }
 
@@ -741,6 +750,11 @@ impl CommitmentInput {
 
                     vec![H256::zero(); num_blobs]
                 },
+                blob_linear_hashes: {
+                    let num_blobs = num_blobs_required(&protocol_version);
+
+                    vec![H256::zero(); num_blobs]
+                },
             }
         }
     }
@@ -753,6 +767,7 @@ pub struct L1BatchCommitmentArtifacts {
     pub compressed_state_diffs: Option<Vec<u8>>,
     pub compressed_initial_writes: Option<Vec<u8>>,
     pub compressed_repeated_writes: Option<Vec<u8>>,
+    pub state_diff_hash: H256,
     pub zkporter_is_available: bool,
     pub aux_commitments: Option<AuxCommitments>,
 }

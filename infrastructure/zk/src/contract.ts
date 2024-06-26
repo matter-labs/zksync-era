@@ -46,7 +46,8 @@ const syncLayerEnvVars = [
     // 'SYNC_LAYER_L1_ERC20_BRIDGE_PROXY_ADDR',
     'CONTRACTS_STM_ASSET_INFO',
 
-    'SYNC_LAYER_DIAMOND_PROXY_ADDR'
+    'SYNC_LAYER_DIAMOND_PROXY_ADDR',
+    'SYNC_LAYER_L1_RELAYED_SL_DA_VALIDATOR'
 ];
 
 const USER_FACING_ENV_VARS = ['CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR', 'CONTRACTS_USER_FACING_BRIDGEHUB_PROXY_ADDR'];
@@ -96,6 +97,7 @@ async function migrateToSyncLayer() {
         `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer migrate-to-sync-layer | tee sync-layer-migration.log`
     );
 
+    // TODO: potentially switch `ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS` for local testing
     const migrationLog = fs
         .readFileSync('sync-layer-migration.log')
         .toString()
@@ -147,6 +149,7 @@ async function updateConfigOnSyncLayer() {
 
     env.modify(`ETH_SENDER_SENDER_IGNORE_DB_NONCE`, 'true', envFile, false);
     env.modify('CONTRACTS_BASE_NETWORK_ZKSYNC', 'true', envFile, false);
+    env.modify('ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS', '4294967295', envFile, false);
 
     // FIXME: while logically incorrect, it is temporarily needed to make the synclayer start
     fs.copyFileSync(
@@ -228,10 +231,12 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 // for testnet and development purposes it is ok to deploy contracts form L1.
 export async function deployL2ThroughL1({
     includePaymaster = true,
-    localLegacyBridgeTesting
+    localLegacyBridgeTesting,
+    deploymentMode
 }: {
     includePaymaster: boolean;
     localLegacyBridgeTesting?: boolean;
+    deploymentMode: DeploymentMode;
 }): Promise<void> {
     await utils.confirmAction();
 
@@ -245,10 +250,16 @@ export async function deployL2ThroughL1({
         await utils.spawn(`yarn l2-contracts build`);
     }
 
+    // The deployment of the L2 DA must be the first operation in the batch, since otherwise it wont be possible to commit it.
+    const daArgs = [...args, deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''];
+    await utils.spawn(
+        `yarn l2-contracts deploy-l2-da-validator-on-l2-through-l1 ${daArgs.join(' ')} | tee deployL2.log`
+    );
+
     await utils.spawn(
         `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${
             localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
-        } | tee deployL2.log`
+        } | tee -a deployL2.log`
     );
 
     if (includePaymaster) {
@@ -269,6 +280,8 @@ export async function deployL2ThroughL1({
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
         'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR',
+        'CONTRACTS_L1_DA_VALIDATOR_ADDR',
+        'CONTRACTS_L2_DA_VALIDATOR_ADDR',
         'CONTRACTS_L2_NATIVE_TOKEN_VAULT_IMPL_ADDR',
         'CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR',
         'CONTRACTS_L2_PROXY_ADMIN_ADDR'
@@ -332,6 +345,8 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_L1_MULTICALL3_ADDR',
         'CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
 
+        'CONTRACTS_L1_ROLLUP_DA_VALIDATOR',
+        'CONTRACTS_L1_VALIDIUM_DA_VALIDATOR',
         'CONTRACTS_STM_DEPLOYMENT_TRACKER_IMPL_ADDR',
         'CONTRACTS_STM_DEPLOYMENT_TRACKER_PROXY_ADDR',
         'CONTRACTS_STM_ASSET_INFO',
@@ -528,5 +543,6 @@ command
         '--local-legacy-bridge-testing',
         'used to test LegacyBridge compatibility. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
     )
+    .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
     .action(deployL2ThroughL1);
 command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);

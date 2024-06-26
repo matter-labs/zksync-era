@@ -7,7 +7,10 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
+use multivm::{
+    interface::{Halt, PubdataParams},
+    utils::derive_base_fee_and_gas_per_pubdata,
+};
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
@@ -209,6 +212,7 @@ impl StateKeeperIO for MempoolIO {
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
+                pubdata_params: PubdataParams::extract_from_env(),
             }));
         }
         Ok(None)
