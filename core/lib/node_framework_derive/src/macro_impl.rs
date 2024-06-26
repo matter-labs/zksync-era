@@ -1,11 +1,12 @@
 use std::fmt;
 
+use quote::quote;
+use syn::{DeriveInput, Result};
+
 use crate::{
     helpers::{extract_option_inner_type, Field},
     labels::{CtxLabel, ParseLabels as _, ResourceOrTask},
 };
-use quote::quote;
-use syn::{DeriveInput, Result};
 
 #[derive(Debug)]
 pub enum MacroKind {

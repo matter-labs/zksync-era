@@ -1,7 +1,8 @@
 use std::fmt;
 
-use crate::labels::ResourceOrTask;
 use syn::{GenericArgument, PathArguments, Type};
+
+use crate::labels::ResourceOrTask;
 
 /// Representation of a single structure field.
 pub(crate) struct Field {
