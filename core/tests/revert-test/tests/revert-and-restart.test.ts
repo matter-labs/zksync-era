@@ -84,7 +84,7 @@ describe('Block reverting test', function () {
             operatorAddress = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR!;
             ethClientWeb3Url = process.env.ETH_CLIENT_WEB3_URL!;
             apiWeb3JsonRpcHttpUrl = process.env.API_WEB3_JSON_RPC_HTTP_URL!;
-            baseTokenAddress = process.env.BASE_TOKEN_ADDR!;
+            baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
         } else {
             const generalConfig = loadConfig({
                 pathToHome,
