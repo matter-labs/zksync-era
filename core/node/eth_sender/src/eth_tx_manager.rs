@@ -252,7 +252,7 @@ impl EthTxManager {
             .await?;
 
         let non_blob_tx_to_resend = self
-            .update_statuses_and_get_first_tx_to_resend(
+            .apply_inflight_txs_statuses_and_get_first_to_resend(
                 storage,
                 l1_block_numbers,
                 operator_nonce,
@@ -273,7 +273,7 @@ impl EthTxManager {
                 panic!("blobs_operator_address has to be set its nonce is known; qed");
             }
             blob_tx_to_resend = self
-                .update_statuses_and_get_first_tx_to_resend(
+                .apply_inflight_txs_statuses_and_get_first_to_resend(
                     storage,
                     l1_block_numbers,
                     blobs_operator_nonce,
@@ -292,7 +292,7 @@ impl EthTxManager {
         }
     }
 
-    async fn update_statuses_and_get_first_tx_to_resend(
+    async fn apply_inflight_txs_statuses_and_get_first_to_resend(
         &mut self,
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
