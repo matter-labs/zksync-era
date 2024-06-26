@@ -19,6 +19,7 @@ mod consts;
 mod defaults;
 pub mod external_node;
 mod messages;
+mod utils;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]

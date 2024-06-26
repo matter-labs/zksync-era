@@ -36,14 +36,19 @@ export function loadConfig({
     pathToHome,
     chain,
     configsFolder,
+    configsFolderSuffix,
     config
 }: {
     pathToHome: string;
     chain: string;
     configsFolder?: string;
+    configsFolderSuffix?: string;
     config: ConfigName;
 }) {
-    const configPath = path.join(getConfigsFolderPath({ pathToHome, chain, configsFolder }), config);
+    const configPath = path.join(
+        getConfigsFolderPath({ pathToHome, chain, configsFolder, configsFolderSuffix }),
+        config
+    );
     if (!fs.existsSync(configPath)) {
         return [];
     }
@@ -99,11 +104,13 @@ export function getAllConfigsPath({
 export function getConfigsFolderPath({
     pathToHome,
     chain,
-    configsFolder
+    configsFolder,
+    configsFolderSuffix
 }: {
     pathToHome: string;
     chain: string;
     configsFolder?: string;
+    configsFolderSuffix?: string;
 }) {
-    return path.join(pathToHome, `/chains/${chain}/${configsFolder ?? 'configs'}`);
+    return path.join(pathToHome, 'chains', chain, configsFolderSuffix ?? '', configsFolder ?? 'configs');
 }

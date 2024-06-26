@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 use xshell::{cmd, Shell};
 
 use crate::messages::{
-    msg_integration_tests_run, MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS,
-    MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
+    msg_integration_tests_run, MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES,
+    MSG_INTEGRATION_TESTS_RUN_SUCCESS, MSG_NTEGRATION_TESTS_BUILDING_CONTRACTS,
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
-pub struct IntegrationTestCommands {
+pub struct IntegrationTestArgs {
     #[clap(short, long)]
     external_node: bool,
 }
@@ -18,10 +18,7 @@ pub struct IntegrationTestCommands {
 const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
 const CONTRACTS_TEST_DATA_PATH: &str = "etc/contracts-test-data";
 
-pub fn run(
-    shell: &Shell,
-    integration_test_commands: IntegrationTestCommands,
-) -> anyhow::Result<()> {
+pub fn run(shell: &Shell, integration_test_commands: IntegrationTestArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     shell.change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
 
@@ -50,14 +47,14 @@ pub fn run(
 
     Cmd::new(command).with_force_run().run()?;
 
-    logger::outro(MSG_TEST_INTEGRATION_RUN_SUCCESS);
+    logger::outro(MSG_INTEGRATION_TESTS_RUN_SUCCESS);
 
     Ok(())
 }
 
 fn build_repository(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
-    let spinner = Spinner::new(MSG_TEST_INTEGRATION_BUILDING_DEPENDENCIES);
+    let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES);
 
     Cmd::new(cmd!(shell, "yarn install --frozen-lockfile")).run()?;
     Cmd::new(cmd!(shell, "yarn utils build")).run()?;
@@ -67,7 +64,7 @@ fn build_repository(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow
 }
 
 fn build_test_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let spinner = Spinner::new(MSG_TEST_INTEGRATION_BUILDING_CONTRACTS);
+    let spinner = Spinner::new(MSG_NTEGRATION_TESTS_BUILDING_CONTRACTS);
 
     Cmd::new(cmd!(shell, "yarn build")).run()?;
     Cmd::new(cmd!(shell, "yarn build-yul")).run()?;

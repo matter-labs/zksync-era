@@ -38,13 +38,13 @@ impl Server {
         general_path: P,
         secrets_path: P,
         contracts_path: P,
+        mut additional_args: Vec<String>,
     ) -> anyhow::Result<()>
     where
         P: AsRef<OsStr>,
     {
         let _dir_guard = shell.push_dir(&self.code_path);
 
-        let mut additional_args = vec![];
         if let Some(components) = self.components() {
             additional_args.push(format!("--components={}", components))
         }

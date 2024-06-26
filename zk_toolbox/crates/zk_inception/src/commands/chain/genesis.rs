@@ -9,9 +9,11 @@ use common::{
     spinner::Spinner,
 };
 use config::{
-    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
-    GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
+    ChainConfig, ContractsConfig, EcosystemConfig, GeneralConfig, GenesisConfig, SecretsConfig,
+    WalletsConfig,
 };
+use types::ProverMode;
 use xshell::Shell;
 
 use super::args::genesis::GenesisArgsFinal;
@@ -22,9 +24,11 @@ use crate::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_FAILED_TO_RUN_SERVER_ERR,
         MSG_GENESIS_COMPLETED, MSG_INITIALIZING_DATABASES_SPINNER,
-        MSG_INITIALIZING_PROVER_DATABASE, MSG_INITIALIZING_SERVER_DATABASE, MSG_SELECTED_CONFIG,
-        MSG_STARTING_GENESIS, MSG_STARTING_GENESIS_SPINNER,
+        MSG_INITIALIZING_PROVER_DATABASE, MSG_INITIALIZING_SERVER_DATABASE,
+        MSG_RECREATE_ROCKS_DB_ERRROR, MSG_SELECTED_CONFIG, MSG_STARTING_GENESIS,
+        MSG_STARTING_GENESIS_SPINNER,
     },
+    utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
 
 pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -145,6 +149,7 @@ fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Resu
             GeneralConfig::get_path_with_base_path(&chain_config.configs),
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
+            vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
 }
