@@ -68,8 +68,9 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     // Genesis file is common for both EN and Main node
     let genesisConfig = loadConfig({ pathToHome, chain, config: 'genesis.yaml' });
 
-    let generalConfig = loadConfig({ pathToHome, chain, config: 'general.yaml', configsFolderSuffix: 'external_node' });
-    let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix: 'external_node' });
+    let configsFolderSuffix = nodeMode == NodeMode.External ? 'external_node' : undefined;
+    let generalConfig = loadConfig({ pathToHome, chain, config: 'general.yaml', configsFolderSuffix });
+    let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix });
 
     const network = ecosystem.l1_network;
     let mainWalletPK = getMainWalletPk(pathToHome, network);
