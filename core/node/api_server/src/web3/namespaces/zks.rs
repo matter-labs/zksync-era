@@ -302,6 +302,15 @@ impl ZksNamespace {
             return Ok(None);
         };
 
+        let Some(batch_meta) = storage
+            .blocks_dal()
+            .get_l1_batch_metadata(l1_batch_number)
+            .await
+            .map_err(DalError::generalize)?
+        else {
+            return Ok(None);
+        };
+
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
 
         let protocol_version = batch
@@ -313,7 +322,7 @@ impl ZksNamespace {
             .merkle_root_and_path(l1_log_index);
 
         // For now it is always 0
-        let aggregated_root = H256::zero();
+        let aggregated_root = batch_meta.metadata.aggregation_root;
         let final_root = zksync_crypto::hasher::keccak::KeccakHasher::default()
             .compress(&root, &aggregated_root);
         proof.push(aggregated_root);
