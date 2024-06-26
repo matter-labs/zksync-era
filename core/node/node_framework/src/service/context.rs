@@ -29,7 +29,7 @@ impl<'a> ServiceContext<'a> {
     /// Provides access to the runtime used by the service.
     ///
     /// Can be used to spawn additional tasks within the same runtime.
-    /// If some tasks stores the handle to spawn additional tasks, it is expected to do all the required
+    /// If some task stores the handle to spawn additional tasks, it is expected to do all the required
     /// cleanup.
     ///
     /// In most cases, however, it is recommended to use [`add_task`](ServiceContext::add_task) or its alternative
