@@ -107,19 +107,23 @@ fn is_transient_http_error(err: &reqwest::Error) -> bool {
         || err.status() == Some(StatusCode::SERVICE_UNAVAILABLE)
 }
 
-fn has_transient_io_source(mut err: &(dyn StdError + 'static)) -> bool {
+fn get_source<'a, T: StdError + 'static>(mut err: &'a (dyn StdError + 'static)) -> Option<&'a T> {
     loop {
-        if err.is::<io::Error>() {
-            // We treat any I/O errors as transient. This isn't always true, but frequently occurring I/O errors
-            // (e.g., "connection reset by peer") *are* transient, and treating an error as transient is a safer option,
-            // even if it can lead to unnecessary retries.
-            return true;
+        if let Some(err) = err.downcast_ref::<T>() {
+            return Some(err);
         }
         err = match err.source() {
             Some(source) => source,
-            None => return false,
+            None => return None,
         };
     }
+}
+
+fn has_transient_io_source(err: &(dyn StdError + 'static)) -> bool {
+    // We treat any I/O errors as transient. This isn't always true, but frequently occurring I/O errors
+    // (e.g., "connection reset by peer") *are* transient, and treating an error as transient is a safer option,
+    // even if it can lead to unnecessary retries.
+    get_source::<io::Error>(err).is_some()
 }
 
 impl From<HttpError> for ObjectStoreError {
@@ -135,10 +139,17 @@ impl From<HttpError> for ObjectStoreError {
         if is_not_found {
             ObjectStoreError::KeyNotFound(err.into())
         } else {
-            let is_transient = matches!(
-                &err,
-                HttpError::HttpClient(err) if is_transient_http_error(err)
-            );
+            let is_transient = match &err {
+                HttpError::HttpClient(err) => is_transient_http_error(err),
+                HttpError::TokenSource(err) => {
+                    // Token sources are mostly based on the `reqwest` HTTP client, so transient error detection
+                    // can reuse the same logic.
+                    let err = err.as_ref();
+                    has_transient_io_source(err)
+                        || get_source::<reqwest::Error>(err).is_some_and(is_transient_http_error)
+                }
+                HttpError::Response(_) => false,
+            };
             ObjectStoreError::Other {
                 is_transient,
                 source: err.into(),
