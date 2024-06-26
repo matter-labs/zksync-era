@@ -64,6 +64,12 @@ pub async fn init(
     // Copy ecosystem contracts
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
+    crate::commands::ecosystem::init::distribute_eth(
+        &ecosystem_config,
+        &chain_config,
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     contracts_config = register_chain(
         shell,

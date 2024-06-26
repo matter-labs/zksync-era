@@ -79,14 +79,14 @@ impl Default for Erc20DeploymentConfig {
                     symbol: String::from("DAI"),
                     decimals: 18,
                     implementation: String::from("TestnetERC20Token.sol"),
-                    mint: 10000000000,
+                    mint: 10000000000000000000,
                 },
                 Erc20DeploymentTokensConfig {
                     name: String::from("WBTC"),
                     symbol: String::from("WBTC"),
                     decimals: 8,
                     implementation: String::from("TestnetERC20Token.sol"),
-                    mint: 10000000000,
+                    mint: 10000000000000000000,
                 },
                 Erc20DeploymentTokensConfig {
                     name: String::from("Wrapped Ether"),
@@ -209,6 +209,7 @@ pub struct DeployErc20Config {
     pub create2_factory_salt: H256,
     pub create2_factory_addr: Address,
     pub tokens: HashMap<String, TokenDeployErc20Config>,
+    pub additional_addresses_for_minting: Vec<Address>,
 }
 
 impl FileConfig for DeployErc20Config {}
@@ -217,6 +218,7 @@ impl DeployErc20Config {
     pub fn new(
         erc20_deployment_config: &Erc20DeploymentConfig,
         contracts_config: &ContractsConfig,
+        additional_addresses_for_minting: Vec<Address>,
     ) -> Self {
         let mut tokens = HashMap::new();
         for token in &erc20_deployment_config.tokens {
@@ -235,6 +237,7 @@ impl DeployErc20Config {
             create2_factory_addr: contracts_config.create2_factory_addr,
             create2_factory_salt: contracts_config.create2_factory_salt,
             tokens,
+            additional_addresses_for_minting,
         }
     }
 }
