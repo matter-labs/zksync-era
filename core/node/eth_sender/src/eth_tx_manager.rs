@@ -250,41 +250,49 @@ impl EthTxManager {
             .l1_interface
             .get_operator_nonce(l1_block_numbers)
             .await?;
+
+        let non_blob_tx_to_resend = self
+            .update_statuses_and_get_first_tx_to_resend(
+                storage,
+                l1_block_numbers,
+                operator_nonce,
+                None,
+            )
+            .await?;
+
         let blobs_operator_nonce = self
             .l1_interface
             .get_blobs_operator_nonce(l1_block_numbers)
             .await?;
         let blobs_operator_address = self.l1_interface.get_blobs_operator_account();
 
-        // We have to resend non-blob transactions first, otherwise in case of a temporary
-        // spike in activity, all Execute and PublishProof would need to wait until all commit txs
-        // are sent, which may take some time. We treat them as if they had higher priority.
-        if let Some(res) = self
-            .monitor_inflight_transactions_inner(storage, l1_block_numbers, operator_nonce, None)
-            .await?
-        {
-            return Ok(Some(res));
-        };
-
+        let mut blob_tx_to_resend = None;
         if let Some(blobs_operator_nonce) = blobs_operator_nonce {
             // need to check if both nonce and address are `Some`
             if blobs_operator_address.is_none() {
                 panic!("blobs_operator_address has to be set its nonce is known; qed");
             }
-            Ok(self
-                .monitor_inflight_transactions_inner(
+            blob_tx_to_resend = self
+                .update_statuses_and_get_first_tx_to_resend(
                     storage,
                     l1_block_numbers,
                     blobs_operator_nonce,
                     blobs_operator_address,
                 )
-                .await?)
+                .await?;
+        }
+
+        // We have to resend non-blob transactions first, otherwise in case of a temporary
+        // spike in activity, all Execute and PublishProof would need to wait until all commit txs
+        // are sent, which may take some time. We treat them as if they had higher priority.
+        if non_blob_tx_to_resend.is_some() {
+            Ok(non_blob_tx_to_resend)
         } else {
-            Ok(None)
+            Ok(blob_tx_to_resend)
         }
     }
 
-    async fn monitor_inflight_transactions_inner(
+    async fn update_statuses_and_get_first_tx_to_resend(
         &mut self,
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
