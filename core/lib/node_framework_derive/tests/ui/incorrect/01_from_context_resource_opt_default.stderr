@@ -1,0 +1,5 @@
+error: `default` cannot be used on `Option` types
+  --> tests/ui/incorrect/01_from_context_resource_opt_default.rs:31:5
+   |
+31 |     _field: Option<u8>,
+   |     ^^^^^^

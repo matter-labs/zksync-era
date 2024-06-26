@@ -15,3 +15,9 @@ pub mod resource;
 pub mod service;
 pub mod task;
 pub mod wiring_layer;
+
+pub use self::{
+    service::{FromContext, IntoContext},
+    task::Task,
+    wiring_layer::{WiringError, WiringLayer},
+};
