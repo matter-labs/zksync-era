@@ -1,3 +1,5 @@
+use std::{fmt::Debug, time::Duration};
+
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
 use k256::{
@@ -34,6 +36,7 @@ struct TeeProverTask {
     api_url: Url,
     signing_key: SigningKey,
     attestation_quote_bytes: Vec<u8>,
+    batch_count: Option<usize>,
     http_client: Client,
 }
 
@@ -76,13 +79,14 @@ impl TeeProverTask {
                 Ok(())
             }
             RegisterTeeAttestationResponse::Error(error) => {
-                return Err(anyhow!("Registering attestation quote failed: {}", error))
+                let err_msg = format!("Registering attestation quote failed: {}", error);
+                tracing::error!(err_msg);
+                Err(anyhow!(err_msg))
             }
         }
     }
 
     async fn get_job(&self, endpoint: &Url) -> anyhow::Result<Option<Box<TeeVerifierInput>>> {
-        tracing::info!("Sending request to {}", endpoint);
         let request = TeeProofGenerationDataRequest {};
         let response = self
             .send_http_request::<TeeProofGenerationDataRequest, TeeProofGenerationDataResponse>(
@@ -95,7 +99,7 @@ impl TeeProverTask {
             TeeProofGenerationDataResponse::Error(err) => {
                 let err_msg = format!("Failed to get proof gen data: {:?}", err);
                 tracing::error!(err_msg);
-                return Err(anyhow!(err_msg));
+                Err(anyhow!(err_msg))
             }
         }
     }
@@ -110,7 +114,7 @@ impl TeeProverTask {
             Ok(verification_result) => {
                 let root_hash_bytes = verification_result.0.as_bytes();
                 let batch_number = verification_result.1;
-                let signature: Signature = self.signing_key.try_sign(root_hash_bytes).unwrap();
+                let signature = self.signing_key.try_sign(root_hash_bytes).unwrap();
                 Ok((signature, batch_number, verification_result.0))
             }
         }
@@ -127,13 +131,23 @@ impl TeeProverTask {
             pubkey: self.signing_key.verifying_key().to_sec1_bytes().into(),
             proof: root_hash.as_bytes().into(),
         }));
-        let _ = self
+        let response = self
             .send_http_request::<SubmitTeeProofRequest, SubmitProofResponse>(
                 request,
                 endpoint.clone(),
             )
-            .await;
-        Ok(())
+            .await?;
+        match response {
+            SubmitProofResponse::Success => {
+                tracing::info!("Proof was successfully submitted");
+                Ok(())
+            }
+            SubmitProofResponse::Error(error) => {
+                let err_msg = format!("Submission of the proof failed: {}", error);
+                tracing::error!(err_msg);
+                Err(anyhow!(err_msg))
+            }
+        }
     }
 }
 
@@ -143,7 +157,7 @@ impl Task for TeeProverTask {
         "tee_prover".into()
     }
 
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         tracing::info!("Starting the task {}", self.id());
 
         let attestation_endpoint = self.api_url.join("/tee/register_attestation")?;
@@ -151,12 +165,29 @@ impl Task for TeeProverTask {
         let submit_proof_endpoint = self.api_url.join("/tee/submit_proofs")?;
         self.register_attestation(&attestation_endpoint).await?;
 
-        while !*stop_receiver.0.borrow() {
+        const POLLING_INTERVAL_MS: u64 = 1000;
+        const MAX_BACKOFF_MS: u64 = 60_000;
+        const BACKOFF_MULTIPLIER: u64 = 2;
+
+        let mut iterations_left = self.batch_count;
+        let mut backoff: u64 = POLLING_INTERVAL_MS;
+
+        while iterations_left.map_or(true, |i| i > 0) {
+            if *stop_receiver.0.borrow() {
+                tracing::warn!("Stop signal received, shutting down TEE Prover component");
+                return Ok(());
+            }
             let job = match self.get_job(&job_fetcher_endpoint).await {
-                Ok(Some(job)) => job,
+                Ok(Some(job)) => {
+                    backoff = POLLING_INTERVAL_MS;
+                    job
+                }
                 Ok(None) => {
-                    tracing::info!("There are currently no pending batches to be proven");
-                    // TODO(patrick) consider adding a delay here if needed, e.g., tokio::time::sleep(Duration::from_secs(1)).await;
+                    tracing::info!("There are currently no pending batches to be proven; backing off for {} ms", backoff);
+                    tokio::time::timeout(Duration::from_millis(backoff), stop_receiver.0.changed())
+                        .await
+                        .ok();
+                    backoff = (backoff * BACKOFF_MULTIPLIER).min(MAX_BACKOFF_MS);
                     continue;
                 }
                 Err(e) => return Err(e),
@@ -168,6 +199,7 @@ impl Task for TeeProverTask {
                 .unwrap()
                 .push(batch_number.to_string().as_str());
             self.submit_proof(signature, root_hash, &endpoint).await?;
+            iterations_left = iterations_left.map(|i| i - 1);
         }
 
         Ok(())
@@ -178,7 +210,7 @@ struct TeeProverLayer {
     api_url: Url,
     signing_key: SigningKey,
     attestation_quote_bytes: Vec<u8>,
-    batch_count: Option<u32>,
+    batch_count: Option<usize>,
 }
 
 impl TeeProverLayer {
@@ -186,7 +218,7 @@ impl TeeProverLayer {
         api_url: Url,
         signing_key: SigningKey,
         attestation_quote_bytes: Vec<u8>,
-        batch_count: Option<u32>,
+        batch_count: Option<usize>,
     ) -> Self {
         Self {
             api_url,
@@ -208,6 +240,7 @@ impl WiringLayer for TeeProverLayer {
             api_url: self.api_url,
             signing_key: self.signing_key,
             attestation_quote_bytes: self.attestation_quote_bytes,
+            batch_count: self.batch_count,
             http_client: Client::new(),
         };
         context.add_task(Box::new(tee_prover_task));
@@ -225,7 +258,7 @@ struct Cli {
     /// Specifies the number of batches to process. If not provided, the process will continue until
     /// it is interrupted by a SIGINT signal (CTRL+C).
     #[arg(long)]
-    batch_count: Option<u32>,
+    batch_count: Option<usize>,
 }
 
 /// This application is a TEE verifier (a.k.a. a prover, or worker) that interacts with three
