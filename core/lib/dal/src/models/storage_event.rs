@@ -1,5 +1,5 @@
 use zksync_types::{
-    api::{self},
+    api,
     l2_to_l1_log::{self, UserL2ToL1Log},
     web3::{Bytes, Index},
     Address, H256, U256, U64,

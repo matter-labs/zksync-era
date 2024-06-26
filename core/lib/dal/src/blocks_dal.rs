@@ -30,6 +30,7 @@ use crate::{
         storage_block::{
             IntoL1BatchHeader, StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader,
         },
+        storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
     },
     Core, CoreDal,
@@ -287,9 +288,7 @@ impl BlocksDal<'_, '_> {
 
         for batch in storage_l1_batch_headers {
             let l2_to_l1_logs = self
-                .storage
-                .blocks_web3_dal()
-                .get_l2_to_l1_logs_by_number::<UserL2ToL1Log>(L1BatchNumber(batch.number as u32))
+                .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(L1BatchNumber(batch.number as u32))
                 .await?;
             l1_batch_headers.push(batch.into_l1_batch_header_with_logs(l2_to_l1_logs));
         }
@@ -380,9 +379,7 @@ impl BlocksDal<'_, '_> {
 
         if let Some(storage_l1_batch_header) = storage_l1_batch_header {
             let l2_to_l1_logs = self
-                .storage
-                .blocks_web3_dal()
-                .get_l2_to_l1_logs_by_number::<UserL2ToL1Log>(L1BatchNumber(
+                .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(L1BatchNumber(
                     storage_l1_batch_header.number as u32,
                 ))
                 .await?;
@@ -1744,9 +1741,7 @@ impl BlocksDal<'_, '_> {
         };
 
         let l2_to_l1_logs = self
-            .storage
-            .blocks_web3_dal()
-            .get_l2_to_l1_logs_by_number::<UserL2ToL1Log>(number)
+            .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(number)
             .await?;
         Ok(Some(L1BatchWithOptionalMetadata {
             header: l1_batch
@@ -1794,9 +1789,7 @@ impl BlocksDal<'_, '_> {
             .await?;
 
         let l2_to_l1_logs = self
-            .storage
-            .blocks_web3_dal()
-            .get_l2_to_l1_logs_by_number::<UserL2ToL1Log>(L1BatchNumber(
+            .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(L1BatchNumber(
                 storage_batch.number as u32,
             ))
             .await?;
@@ -2301,6 +2294,48 @@ impl BlocksDal<'_, '_> {
         .await?
         .map(|row| row.tree_writes_are_present)
         .unwrap_or(false))
+    }
+
+    pub(crate) async fn get_l2_to_l1_logs_for_batch<L>(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Vec<L>>
+    where
+        L: From<StorageL2ToL1Log>,
+    {
+        let results = sqlx::query_as!(
+            StorageL2ToL1Log,
+            r#"
+            SELECT
+                miniblock_number,
+                log_index_in_miniblock,
+                log_index_in_tx,
+                tx_hash,
+                l1_batch_number,
+                shard_id,
+                is_service,
+                tx_index_in_miniblock,
+                tx_index_in_l1_batch,
+                sender,
+                key,
+                value
+            FROM
+                l2_to_l1_logs
+                JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
+            WHERE
+                l1_batch_number = $1
+            ORDER BY
+                tx_index_in_l1_batch,
+                log_index_in_tx
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_l2_to_l1_logs_by_number")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
+        .await?;
+
+        Ok(results.into_iter().map(L::from).collect())
     }
 }
 

@@ -5,6 +5,7 @@ use zksync_db_connection::{
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
+    l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::{BlockHeader, Bytes},
     L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H2048, H256, U256, U64,
@@ -18,10 +19,9 @@ use crate::{
             ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
             LEGACY_BLOCK_GAS_LIMIT,
         },
-        storage_event::StorageL2ToL1Log,
         storage_transaction::CallTrace,
     },
-    Core,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
@@ -420,45 +420,14 @@ impl BlocksWeb3Dal<'_, '_> {
         Ok(hash)
     }
 
-    pub async fn get_l2_to_l1_logs_by_number<L>(
+    pub async fn get_l2_to_l1_logs(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> DalResult<Vec<L>>
-    where
-        L: From<StorageL2ToL1Log>,
-    {
-        let results = sqlx::query_as!(
-            StorageL2ToL1Log,
-            r#"
-            SELECT
-                miniblock_number,
-                log_index_in_miniblock,
-                log_index_in_tx,
-                tx_hash,
-                l1_batch_number,
-                shard_id,
-                is_service,
-                tx_index_in_miniblock,
-                tx_index_in_l1_batch,
-                sender,
-                key,
-                value
-            FROM
-                l2_to_l1_logs
-                JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
-            WHERE
-                l1_batch_number = $1
-            ORDER BY
-                (tx_index_in_l1_batch, log_index_in_tx)
-            "#,
-            i64::from(l1_batch_number.0)
-        )
-        .instrument("get_l2_to_l1_logs_by_number")
-        .with_arg("l1_batch_number", &l1_batch_number)
-        .fetch_all(self.storage)
-        .await?;
-
-        Ok(results.into_iter().map(L::from).collect())
+    ) -> DalResult<Vec<L2ToL1Log>> {
+        self.storage
+            .blocks_dal()
+            .get_l2_to_l1_logs_for_batch::<L2ToL1Log>(l1_batch_number)
+            .await
     }
 
     pub async fn get_l1_batch_number_of_l2_block(
