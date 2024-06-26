@@ -30,17 +30,8 @@ pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_STARTING_SERVER);
 
-    build_l1_contracts(shell, &ecosystem_config)?;
     run_server(args, &chain_config, shell)?;
 
-    Ok(())
-}
-
-fn build_l1_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(ecosystem_config.path_to_foundry());
-    let spinner = Spinner::new(MSG_BUILDING_L1_CONTRACTS);
-    Cmd::new(cmd!(shell, "yarn build")).run()?;
-    spinner.finish();
     Ok(())
 }
 

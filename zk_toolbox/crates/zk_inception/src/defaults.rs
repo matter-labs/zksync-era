@@ -9,8 +9,10 @@ lazy_static! {
         Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
 }
 
-pub const ROCKS_DB_STATE_KEEPER: &str = "main/state_keeper";
-pub const ROCKS_DB_TREE: &str = "main/tree";
+pub const ROCKS_DB_STATE_KEEPER: &str = "state_keeper";
+pub const ROCKS_DB_TREE: &str = "tree";
+pub const EN_ROCKS_DB_PREFIX: &str = "en";
+pub const MAIN_ROCKS_DB_PREFIX: &str = "main";
 
 pub const L2_CHAIN_ID: u32 = 271;
 /// Path to base chain configuration inside zksync-era
@@ -35,4 +37,12 @@ pub fn generate_db_names(config: &ChainConfig) -> DBNames {
             config.name
         ),
     }
+}
+
+pub fn generate_external_node_db_name(config: &ChainConfig) -> String {
+    format!(
+        "external_node_{}_{}",
+        config.l1_network.to_string().to_ascii_lowercase(),
+        config.name
+    )
 }

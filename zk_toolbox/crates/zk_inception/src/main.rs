@@ -9,15 +9,15 @@ use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands, prover::ProverCommands,
+    args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands,
+    external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
 pub mod accept_ownership;
 mod commands;
-mod config_manipulations;
 mod consts;
 mod defaults;
-pub mod forge_utils;
+pub mod external_node;
 mod messages;
 
 #[derive(Parser, Debug)]
@@ -42,6 +42,9 @@ pub enum InceptionSubcommands {
     Prover(ProverCommands),
     /// Run server
     Server(RunServerArgs),
+    // Run External Node
+    #[command(subcommand)]
+    ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
     Containers,
 }
@@ -95,6 +98,9 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::Prover(args) => commands::prover::run(shell, args).await?,
         InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
         InceptionSubcommands::Containers => commands::containers::run(shell)?,
+        InceptionSubcommands::ExternalNode(args) => {
+            commands::external_node::run(shell, args).await?
+        }
     }
     Ok(())
 }

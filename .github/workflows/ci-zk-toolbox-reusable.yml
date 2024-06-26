@@ -90,7 +90,7 @@ jobs:
 
       - name: Run server
         run: |
-          ci_run zk_inception server --ignore-prerequisites -a --verbose &>server.log &
+          ci_run zk_inception server --ignore-prerequisites &>server.log &
           ci_run sleep 5
 
       - name: Run integration tests
@@ -101,6 +101,18 @@ jobs:
         run: |
           ci_run zk_supervisor test revert-and-restart --ignore-prerequisites --verbose
 
+      - name: Run external node server
+        run: |
+          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545
+          ci_run zk_inception external-node init --ignore-prerequisites
+          ci_run zk_inception external-node run --ignore-prerequisites &>external_node.log &
+          ci_run sleep 5
+
+      - name: Run integration tests en
+        run: |
+          ci_run zk_supervisor integration-tests --ignore-prerequisites --verbose --external-node
+
       - name: Show server.log logs
         if: always()
         run: ci_run cat server.log || true
@@ -108,3 +120,7 @@ jobs:
       - name: Show revert.log logs
         if: always()
         run: ci_run cat ./core/tests/revert-test/revert.log || true
+
+      - name: Show external_node.log logs
+        if: always()
+        run: ci_run cat external_node.log || true

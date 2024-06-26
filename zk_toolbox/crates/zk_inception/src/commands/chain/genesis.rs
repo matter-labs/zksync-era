@@ -17,7 +17,7 @@ use xshell::Shell;
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
-    config_manipulations::{update_database_secrets, update_general_config},
+    consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_FAILED_TO_RUN_SERVER_ERR,
@@ -26,9 +26,6 @@ use crate::{
         MSG_STARTING_GENESIS, MSG_STARTING_GENESIS_SPINNER,
     },
 };
-
-const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
-const PROVER_MIGRATIONS: &str = "prover/prover_dal/migrations";
 
 pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
@@ -49,12 +46,20 @@ pub async fn genesis(
     shell: &Shell,
     config: &ChainConfig,
 ) -> anyhow::Result<()> {
-    // Clean the rocksdb
-    shell.remove_path(&config.rocks_db_path)?;
     shell.create_dir(&config.rocks_db_path)?;
 
-    update_general_config(shell, config)?;
-    update_database_secrets(shell, config, &args.server_db, &args.prover_db)?;
+    let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
+        .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
+    let mut general = config.get_general_config()?;
+    general.set_rocks_db_config(rocks_db)?;
+    if config.prover_version != ProverMode::NoProofs {
+        general.eth.sender.proof_sending_mode = "ONLY_REAL_PROOFS".to_string();
+    }
+    general.save_with_base_path(shell, &config.configs)?;
+
+    let mut secrets = config.get_secrets_config()?;
+    secrets.set_databases(&args.server_db, &args.prover_db);
+    secrets.save_with_base_path(&shell, &config.configs)?;
 
     logger::note(
         MSG_SELECTED_CONFIG,

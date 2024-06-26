@@ -58,11 +58,18 @@ function getMainWalletPk(pathToHome: string, network: string): string {
  */
 async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironment> {
     const pathToHome = path.join(__dirname, '../../../..');
+    let nodeMode;
+    if (process.env.EXTERNAL_NODE == 'true') {
+        nodeMode = NodeMode.External;
+    } else {
+        nodeMode = NodeMode.Main;
+    }
     let ecosystem = loadEcosystem(pathToHome);
-
-    let generalConfig = loadConfig({ pathToHome, chain, config: 'general.yaml' });
+    // Genesis file is common for both EN and Main node
     let genesisConfig = loadConfig({ pathToHome, chain, config: 'genesis.yaml' });
-    let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml' });
+
+    let generalConfig = loadConfig({ pathToHome, chain, config: 'general.yaml', configsFolderSuffix: 'external_node' });
+    let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix: 'external_node' });
 
     const network = ecosystem.l1_network;
     let mainWalletPK = getMainWalletPk(pathToHome, network);
@@ -116,8 +123,6 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     const l2ChainId = parseInt(genesisConfig.l2_chain_id);
     const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
     let minimalL2GasPrice = generalConfig.state_keeper.minimal_l2_gas_price;
-    // TODO add support for en
-    let nodeMode = NodeMode.Main;
 
     const validationComputationalGasLimit = parseInt(generalConfig.state_keeper.validation_computational_gas_limit);
     // TODO set it properly

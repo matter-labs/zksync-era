@@ -12,6 +12,8 @@ use messages::{
 };
 use xshell::Shell;
 
+use crate::commands::integration_tests::IntegrationTestCommands;
+
 mod commands;
 mod dals;
 mod messages;

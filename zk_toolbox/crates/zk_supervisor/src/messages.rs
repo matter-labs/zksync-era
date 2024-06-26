@@ -1,5 +1,6 @@
 // Ecosystem related messages
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
+
 pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &str) -> String {
     format!("Chain with name {chain} doesnt exist, please choose one of: {available_chains}")
 }
@@ -10,12 +11,15 @@ pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
 
 // Database related messages
 pub(super) const MSG_NO_DATABASES_SELECTED: &str = "No databases selected";
+
 pub(super) fn msg_database_info(gerund_verb: &str) -> String {
     format!("{gerund_verb} databases")
 }
+
 pub(super) fn msg_database_success(past_verb: &str) -> String {
     format!("Databases {past_verb} successfully")
 }
+
 pub(super) fn msg_database_loading(gerund_verb: &str, dal: &str) -> String {
     format!("{gerund_verb} database for dal {dal}...")
 }
@@ -32,6 +36,8 @@ pub(super) const MSG_DATABASE_RESET_GERUND: &str = "Resetting";
 pub(super) const MSG_DATABASE_RESET_PAST: &str = "reset";
 pub(super) const MSG_DATABASE_SETUP_GERUND: &str = "Setting up";
 pub(super) const MSG_DATABASE_SETUP_PAST: &str = "set up";
+
+pub(super) const MSG_PROVER_URL_MUST_BE_PRESENTED: &str = "Prover url must be presented";
 
 pub(super) const MSG_DATABASE_COMMON_PROVER_HELP: &str = "Prover database";
 pub(super) const MSG_DATABASE_COMMON_CORE_HELP: &str = "Core database";
@@ -57,9 +63,11 @@ pub(super) const MSG_DATABASE_NEW_MIGRATION_DB_PROMPT: &str =
     "What database do you want to create a new migration for?";
 pub(super) const MSG_DATABASE_NEW_MIGRATION_NAME_PROMPT: &str =
     "How do you want to name the migration?";
+
 pub(super) fn msg_database_new_migration_loading(dal: &str) -> String {
     format!("Creating new database migration for dal {}...", dal)
 }
+
 pub(super) const MSG_DATABASE_NEW_MIGRATION_SUCCESS: &str = "Migration created successfully";
 
 // Tests related messages
@@ -67,9 +75,18 @@ pub(super) const MSG_TEST_INTEGRATION_ABOUT: &str = "Run integration tests";
 pub(super) const MSG_TEST_REVERT_AND_RESTART_ABOUT: &str = "Run revert tests";
 
 // Integration tests related messages
-pub(super) const MSG_TEST_INTEGRATION_RUN_INFO: &str = "Running integration tests";
-pub(super) const MSG_TEST_INTEGRATION_RUN_SUCCESS: &str = "Integration tests ran successfully";
-pub(super) const MSG_TEST_INTEGRATION_BUILDING_DEPENDENCIES: &str =
+
+pub(super) fn msg_integration_tests_run(external_node: bool) -> String {
+    let base = "Running integration tests";
+    if external_node {
+        format!("{} for external node", base)
+    } else {
+        format!("{} for main server", base)
+    }
+}
+
+pub(super) const MSG_INTEGRATION_TESTS_RUN_SUCCESS: &str = "Integration tests ran successfully";
+pub(super) const MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES: &str =
     "Building repository dependencies...";
 pub(super) const MSG_TEST_INTEGRATION_BUILDING_CONTRACTS: &str = "Building test contracts...";
 
