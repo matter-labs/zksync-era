@@ -29,6 +29,7 @@ types = { path = "crates/types" }
 # External dependencies
 anyhow = "1.0.82"
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
+slugify-rs = "0.0.3"
 cliclack = "0.2.5"
 console = "0.15.8"
 ethers = "2.0"

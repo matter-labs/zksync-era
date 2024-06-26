@@ -10,7 +10,6 @@
 //! at a time).
 
 use anyhow::Context as _;
-use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{
     configs::{DatabaseSecrets, ObservabilityConfig, PrometheusConfig},
@@ -19,6 +18,7 @@ use zksync_config::{
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::creator::SnapshotCreator;
 
@@ -55,13 +55,13 @@ async fn main() -> anyhow::Result<()> {
 
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
 
     let prometheus_exporter_task = maybe_enable_prometheus_metrics(stop_receiver).await?;
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = observability_config.sentry_url {
         builder = builder
             .with_sentry_url(&sentry_url)

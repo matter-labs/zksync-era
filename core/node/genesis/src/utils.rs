@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
-use multivm::{
+use zksync_contracts::BaseSystemContracts;
+use zksync_dal::{Connection, Core, CoreDal};
+use zksync_multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
 };
-use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{Connection, Core, CoreDal};
 use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
     block::{DeployedContract, L1BatchTreeData},

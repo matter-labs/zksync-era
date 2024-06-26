@@ -2,12 +2,12 @@ use std::{error::Error as StdError, fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::interface::{
-    FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
-};
 use tokio::{
     sync::{mpsc, oneshot, watch},
     task::JoinHandle,
+};
+use zksync_multivm::interface::{
+    FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
 use zksync_state::{ReadStorageFactory, StorageViewCache};
 use zksync_types::{vm_trace::Call, Transaction};

@@ -2,7 +2,12 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::{
+use once_cell::sync::OnceCell;
+use tokio::{
+    runtime::Handle,
+    sync::{mpsc, watch},
+};
+use zksync_multivm::{
     interface::{
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
@@ -10,11 +15,6 @@ use multivm::{
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
     MultiVMTracer, VmInstance,
-};
-use once_cell::sync::OnceCell;
-use tokio::{
-    runtime::Handle,
-    sync::{mpsc, watch},
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
 use zksync_state::{ReadStorage, ReadStorageFactory, StorageView, WriteStorage};

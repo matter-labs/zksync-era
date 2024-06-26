@@ -1,8 +1,8 @@
-use multivm::{
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     utils::get_batch_base_fee,
 };
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_state::StorageViewCache;
 use zksync_types::{
     block::BlockGasCount, fee_model::BatchFeeInput,

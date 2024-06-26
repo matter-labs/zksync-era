@@ -85,6 +85,34 @@ impl VmRunnerDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn delete_protective_reads(
+        &mut self,
+        last_batch_to_keep: L1BatchNumber,
+    ) -> DalResult<()> {
+        self.delete_protective_reads_inner(Some(last_batch_to_keep))
+            .await
+    }
+
+    async fn delete_protective_reads_inner(
+        &mut self,
+        last_batch_to_keep: Option<L1BatchNumber>,
+    ) -> DalResult<()> {
+        let l1_batch_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
+        sqlx::query!(
+            r#"
+            DELETE FROM vm_runner_protective_reads
+            WHERE
+                l1_batch_number > $1
+            "#,
+            l1_batch_number
+        )
+        .instrument("delete_protective_reads")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_bwip_latest_processed_batch(
         &mut self,
         default_batch: L1BatchNumber,

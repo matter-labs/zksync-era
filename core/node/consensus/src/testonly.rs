@@ -7,7 +7,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_config::{
     configs,
     configs::{
-        chain::OperationsManagerConfig,
+        chain::{OperationsManagerConfig, StateKeeperConfig},
         consensus as config,
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
@@ -166,8 +166,15 @@ impl StateKeeper {
         let operation_manager_config = OperationsManagerConfig {
             delay_interval: 100, //`100ms`
         };
-        let config =
-            MetadataCalculatorConfig::for_main_node(&merkle_tree_config, &operation_manager_config);
+        let state_keeper_config = StateKeeperConfig {
+            protective_reads_persistence_enabled: true,
+            ..Default::default()
+        };
+        let config = MetadataCalculatorConfig::for_main_node(
+            &merkle_tree_config,
+            &operation_manager_config,
+            &state_keeper_config,
+        );
         let metadata_calculator = MetadataCalculator::new(config, None, pool.0.clone())
             .await
             .context("MetadataCalculator::new()")?;

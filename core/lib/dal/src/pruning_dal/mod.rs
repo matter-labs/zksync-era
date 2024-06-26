@@ -336,6 +336,7 @@ impl PruningDal<'_, '_> {
             DELETE FROM storage_logs USING new_logs
             WHERE
                 storage_logs.hashed_key = new_logs.hashed_key
+                AND storage_logs.miniblock_number <= $2
                 AND (storage_logs.miniblock_number, storage_logs.operation_number) < (new_logs.miniblock_number, new_logs.operation_number)
             "#,
             i64::from(l2_blocks_to_prune.start().0),

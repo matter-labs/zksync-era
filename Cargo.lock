@@ -637,13 +637,13 @@ dependencies = [
  "clap 4.4.6",
  "serde_json",
  "tokio",
- "vlog",
  "zksync_block_reverter",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
  "zksync_types",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -1509,16 +1509,15 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
-version = "4.1.2"
+version = "4.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a677b8922c94e01bdbb12126b0bc852f00447528dee1782229af9c720c3f348"
+checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
 dependencies = [
  "cfg-if 1.0.0",
  "cpufeatures",
  "curve25519-dalek-derive",
  "digest 0.10.7",
  "fiat-crypto",
- "platforms",
  "rustc_version",
  "subtle",
  "zeroize",
@@ -2465,7 +2464,7 @@ dependencies = [
  "no-std-compat",
  "nonzero_ext",
  "parking_lot",
- "quanta 0.9.3",
+ "quanta",
  "rand 0.8.5",
  "smallvec",
 ]
@@ -2538,15 +2537,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 dependencies = [
  "ahash 0.7.7",
-]
-
-[[package]]
-name = "hashbrown"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33ff8ae62cd3a9102e5637afc8452c55acf3844001bd5374e0b0bd7b6616c038"
-dependencies = [
- "ahash 0.8.7",
 ]
 
 [[package]]
@@ -3305,7 +3295,6 @@ dependencies = [
  "hex",
  "num",
  "once_cell",
- "prometheus_exporter",
  "rand 0.8.5",
  "regex",
  "reqwest",
@@ -3316,7 +3305,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vlog",
  "zksync_config",
  "zksync_contracts",
  "zksync_eth_client",
@@ -3324,6 +3312,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vlog",
  "zksync_web3_decl",
 ]
 
@@ -3401,15 +3390,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mach2"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d0d1830bcd151a6fc4aea1369af235b36c1528fe976b8ff678683c9995eade8"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "match_cfg"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3477,67 +3457,12 @@ dependencies = [
  "anyhow",
  "clap 4.4.6",
  "tracing",
- "vlog",
  "zksync_config",
  "zksync_env_config",
  "zksync_merkle_tree",
  "zksync_storage",
  "zksync_types",
-]
-
-[[package]]
-name = "metrics"
-version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fde3af1a009ed76a778cb84fdef9e7dbbdf5775ae3e4cc1f434a6a307f6f76c5"
-dependencies = [
- "ahash 0.8.7",
- "metrics-macros",
- "portable-atomic",
-]
-
-[[package]]
-name = "metrics-exporter-prometheus"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a4964177ddfdab1e3a2b37aec7cf320e14169abb0ed73999f558136409178d5"
-dependencies = [
- "base64 0.21.5",
- "hyper",
- "indexmap 1.9.3",
- "ipnet",
- "metrics",
- "metrics-util",
- "quanta 0.11.1",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "metrics-macros"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddece26afd34c31585c74a4db0630c376df271c285d682d1e55012197830b6df"
-dependencies = [
- "proc-macro2 1.0.69",
- "quote 1.0.33",
- "syn 2.0.38",
-]
-
-[[package]]
-name = "metrics-util"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4de2ed6e491ed114b40b732e4d1659a9d53992ebd87490c44a6ffe23739d973e"
-dependencies = [
- "crossbeam-epoch 0.9.15",
- "crossbeam-utils 0.8.16",
- "hashbrown 0.13.1",
- "metrics",
- "num_cpus",
- "quanta 0.11.1",
- "sketches-ddsketch",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -3625,39 +3550,6 @@ name = "multimap"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
-
-[[package]]
-name = "multivm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "circuit_sequencer_api 0.1.0",
- "circuit_sequencer_api 0.1.40",
- "circuit_sequencer_api 0.1.41",
- "circuit_sequencer_api 0.1.42",
- "circuit_sequencer_api 0.1.50",
- "ethabi",
- "hex",
- "itertools 0.10.5",
- "once_cell",
- "serde",
- "thiserror",
- "tokio",
- "tracing",
- "vise",
- "zk_evm 1.3.1",
- "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
- "zk_evm 1.4.0",
- "zk_evm 1.4.1",
- "zk_evm 1.5.0",
- "zksync_contracts",
- "zksync_eth_signer",
- "zksync_state",
- "zksync_system_constants",
- "zksync_test_account",
- "zksync_types",
- "zksync_utils",
-]
 
 [[package]]
 name = "native-tls"
@@ -4388,12 +4280,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
-name = "platforms"
-version = "3.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14e6ab3f592e6fb464fc9712d8d6e6912de6473954635fd76a589d832cffcbb0"
-
-[[package]]
 name = "plotters"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4443,12 +4329,6 @@ dependencies = [
  "opaque-debug",
  "universal-hash",
 ]
-
-[[package]]
-name = "portable-atomic"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b559898e0b4931ed2d3b959ab0c2da4d99cc644c4b0b1a35b4d344027f474023"
 
 [[package]]
 name = "powerfmt"
@@ -4596,18 +4476,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prometheus_exporter"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "metrics",
- "metrics-exporter-prometheus",
- "tokio",
- "vise",
- "vise-exporter",
-]
-
-[[package]]
 name = "prost"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4728,16 +4596,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prover_dal"
-version = "0.1.0"
-dependencies = [
- "sqlx",
- "strum",
- "zksync_basic_types",
- "zksync_db_connection",
-]
-
-[[package]]
 name = "ptr_meta"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4780,22 +4638,6 @@ dependencies = [
  "once_cell",
  "raw-cpuid",
  "wasi 0.10.2+wasi-snapshot-preview1",
- "web-sys",
- "winapi",
-]
-
-[[package]]
-name = "quanta"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a17e662a7a8291a865152364c20c7abc5e60486ab2001e8ec10b24862de0b9ab"
-dependencies = [
- "crossbeam-utils 0.8.16",
- "libc",
- "mach2",
- "once_cell",
- "raw-cpuid",
- "wasi 0.11.0+wasi-snapshot-preview1",
  "web-sys",
  "winapi",
 ]
@@ -5890,12 +5732,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sketches-ddsketch"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68a406c1882ed7f29cd5e248c9848a80e7cb6ae0fea82346d2746f2f941c07e1"
-
-[[package]]
 name = "slab"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5919,17 +5755,16 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures 0.3.28",
- "prometheus_exporter",
  "rand 0.8.5",
  "tokio",
  "tracing",
  "vise",
- "vlog",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
  "zksync_types",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -6401,11 +6236,11 @@ name = "system-constants-generator"
 version = "0.1.0"
 dependencies = [
  "codegen 0.2.0",
- "multivm",
  "once_cell",
  "serde",
  "serde_json",
  "zksync_contracts",
+ "zksync_multivm",
  "zksync_state",
  "zksync_types",
  "zksync_utils",
@@ -7164,7 +6999,6 @@ version = "0.1.0"
 source = "git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4#a5bb80c9ce7168663114ee30e794d6dc32159ee4"
 dependencies = [
  "hyper",
- "metrics-exporter-prometheus",
  "once_cell",
  "tokio",
  "tracing",
@@ -7182,60 +7016,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "vlog"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry-semantic-conventions",
- "sentry",
- "serde",
- "serde_json",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "vm-benchmark"
 version = "0.1.0"
 dependencies = [
  "criterion",
  "iai",
- "metrics-exporter-prometheus",
  "tokio",
  "vise",
- "vm-benchmark-harness",
-]
-
-[[package]]
-name = "vm-benchmark-harness"
-version = "0.1.0"
-dependencies = [
- "multivm",
- "once_cell",
- "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
- "zksync_contracts",
- "zksync_state",
- "zksync_system_constants",
- "zksync_types",
- "zksync_utils",
-]
-
-[[package]]
-name = "vm_utils"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "multivm",
- "tokio",
- "tracing",
- "zksync_contracts",
- "zksync_dal",
- "zksync_state",
- "zksync_types",
- "zksync_utils",
+ "zksync_vlog",
+ "zksync_vm_benchmark_harness",
 ]
 
 [[package]]
@@ -7961,7 +7750,6 @@ dependencies = [
  "circuit_sequencer_api 0.1.50",
  "futures 0.3.28",
  "itertools 0.10.5",
- "multivm",
  "num_cpus",
  "rand 0.8.5",
  "serde_json",
@@ -7976,6 +7764,7 @@ dependencies = [
  "zksync_eth_client",
  "zksync_health_check",
  "zksync_l1_contract_interface",
+ "zksync_multivm",
  "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_types",
@@ -8199,17 +7988,16 @@ dependencies = [
  "anyhow",
  "ctrlc",
  "futures 0.3.28",
- "prometheus_exporter",
  "structopt",
  "tokio",
  "tracing",
- "vlog",
  "zksync_config",
  "zksync_contract_verifier_lib",
  "zksync_dal",
  "zksync_env_config",
  "zksync_queued_job_processor",
  "zksync_utils",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -8440,14 +8228,13 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.7.0"
+version = "24.8.0"
 dependencies = [
  "anyhow",
  "assert_matches",
  "clap 4.4.6",
  "envy",
  "futures 0.3.28",
- "prometheus_exporter",
  "rustc_version",
  "semver",
  "serde",
@@ -8458,7 +8245,6 @@ dependencies = [
  "tracing",
  "url",
  "vise",
- "vlog",
  "zksync_block_reverter",
  "zksync_commitment_generator",
  "zksync_concurrency",
@@ -8491,6 +8277,7 @@ dependencies = [
  "zksync_storage",
  "zksync_types",
  "zksync_utils",
+ "zksync_vlog",
  "zksync_web3_decl",
 ]
 
@@ -8515,12 +8302,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "prover_dal",
  "tokio",
  "tracing",
  "vise",
  "zksync_config",
  "zksync_dal",
+ "zksync_prover_dal",
  "zksync_shared_metrics",
  "zksync_types",
 ]
@@ -8626,6 +8413,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_multivm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "circuit_sequencer_api 0.1.0",
+ "circuit_sequencer_api 0.1.40",
+ "circuit_sequencer_api 0.1.41",
+ "circuit_sequencer_api 0.1.42",
+ "circuit_sequencer_api 0.1.50",
+ "ethabi",
+ "hex",
+ "itertools 0.10.5",
+ "once_cell",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zk_evm 1.3.1",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
+ "zk_evm 1.4.0",
+ "zk_evm 1.4.1",
+ "zk_evm 1.5.0",
+ "zksync_contracts",
+ "zksync_eth_signer",
+ "zksync_state",
+ "zksync_system_constants",
+ "zksync_test_account",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_node_api_server"
 version = "0.1.0"
 dependencies = [
@@ -8640,12 +8460,12 @@ dependencies = [
  "http",
  "itertools 0.10.5",
  "lru",
- "multivm",
  "once_cell",
  "pin-project-lite",
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "strum",
  "test-casing",
  "thiserror",
  "thread_local",
@@ -8660,6 +8480,7 @@ dependencies = [
  "zksync_health_check",
  "zksync_metadata_calculator",
  "zksync_mini_merkle_tree",
+ "zksync_multivm",
  "zksync_node_fee_model",
  "zksync_node_genesis",
  "zksync_node_sync",
@@ -8765,12 +8586,10 @@ dependencies = [
  "async-trait",
  "ctrlc",
  "futures 0.3.28",
- "prometheus_exporter",
- "prover_dal",
+ "pin-project-lite",
  "thiserror",
  "tokio",
  "tracing",
- "vlog",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
@@ -8796,6 +8615,7 @@ dependencies = [
  "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
+ "zksync_prover_dal",
  "zksync_queued_job_processor",
  "zksync_reorg_detector",
  "zksync_state",
@@ -8804,6 +8624,7 @@ dependencies = [
  "zksync_tee_verifier_input_producer",
  "zksync_types",
  "zksync_utils",
+ "zksync_vlog",
  "zksync_vm_runner",
  "zksync_web3_decl",
 ]
@@ -8814,7 +8635,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "itertools 0.10.5",
- "multivm",
  "thiserror",
  "tokio",
  "tracing",
@@ -8824,6 +8644,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_merkle_tree",
+ "zksync_multivm",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
@@ -8846,7 +8667,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vm_utils",
  "zksync_concurrency",
  "zksync_config",
  "zksync_contracts",
@@ -8860,6 +8680,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_utils",
  "zksync_web3_decl",
 ]
 
@@ -8867,10 +8688,10 @@ dependencies = [
 name = "zksync_node_test_utils"
 version = "0.1.0"
 dependencies = [
- "multivm",
  "zksync_contracts",
  "zksync_dal",
  "zksync_merkle_tree",
+ "zksync_multivm",
  "zksync_node_genesis",
  "zksync_system_constants",
  "zksync_types",
@@ -8910,7 +8731,6 @@ dependencies = [
  "axum",
  "chrono",
  "hyper",
- "multivm",
  "serde_json",
  "tokio",
  "tower",
@@ -8919,6 +8739,7 @@ dependencies = [
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
+ "zksync_multivm",
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_tee_verifier",
@@ -8980,6 +8801,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_prover_dal"
+version = "0.1.0"
+dependencies = [
+ "sqlx",
+ "strum",
+ "zksync_basic_types",
+ "zksync_db_connection",
+]
+
+[[package]]
 name = "zksync_prover_interface"
 version = "0.1.0"
 dependencies = [
@@ -9036,12 +8867,10 @@ dependencies = [
  "anyhow",
  "clap 4.4.6",
  "futures 0.3.28",
- "prometheus_exporter",
  "serde_json",
  "tikv-jemallocator",
  "tokio",
  "tracing",
- "vlog",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_crypto",
@@ -9058,6 +8887,7 @@ dependencies = [
  "zksync_storage",
  "zksync_types",
  "zksync_utils",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -9128,7 +8958,6 @@ dependencies = [
  "futures 0.3.28",
  "hex",
  "itertools 0.10.5",
- "multivm",
  "once_cell",
  "tempfile",
  "test-casing",
@@ -9136,12 +8965,12 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vm_utils",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
  "zksync_mempool",
+ "zksync_multivm",
  "zksync_node_fee_model",
  "zksync_node_genesis",
  "zksync_node_test_utils",
@@ -9153,6 +8982,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_utils",
 ]
 
 [[package]]
@@ -9182,10 +9012,8 @@ name = "zksync_tee_verifier"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "multivm",
  "serde",
  "tracing",
- "vm_utils",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
@@ -9193,12 +9021,14 @@ dependencies = [
  "zksync_dal",
  "zksync_db_connection",
  "zksync_merkle_tree",
+ "zksync_multivm",
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_queued_job_processor",
  "zksync_state",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_utils",
 ]
 
 [[package]]
@@ -9210,7 +9040,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vm_utils",
  "zksync_dal",
  "zksync_object_store",
  "zksync_prover_interface",
@@ -9218,6 +9047,7 @@ dependencies = [
  "zksync_tee_verifier",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_utils",
 ]
 
 [[package]]
@@ -9286,9 +9116,43 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vlog",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zksync_basic_types",
+ "zksync_vlog",
+]
+
+[[package]]
+name = "zksync_vlog"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry-semantic-conventions",
+ "sentry",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "vise",
+ "vise-exporter",
+]
+
+[[package]]
+name = "zksync_vm_benchmark_harness"
+version = "0.1.0"
+dependencies = [
+ "once_cell",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
+ "zksync_contracts",
+ "zksync_multivm",
+ "zksync_state",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -9300,16 +9164,15 @@ dependencies = [
  "backon",
  "dashmap",
  "futures 0.3.28",
- "multivm",
  "once_cell",
  "rand 0.8.5",
  "tempfile",
  "tokio",
  "tracing",
  "vise",
- "vm_utils",
  "zksync_contracts",
  "zksync_dal",
+ "zksync_multivm",
  "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_object_store",
@@ -9318,6 +9181,22 @@ dependencies = [
  "zksync_state_keeper",
  "zksync_storage",
  "zksync_test_account",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_vm_utils",
+]
+
+[[package]]
+name = "zksync_vm_utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tokio",
+ "tracing",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_multivm",
+ "zksync_state",
  "zksync_types",
  "zksync_utils",
 ]

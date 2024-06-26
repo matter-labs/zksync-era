@@ -10,7 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-multivm.workspace = true
+zksync_multivm.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_contracts.workspace = true
@@ -20,7 +20,7 @@ zksync_state_keeper.workspace = true
 zksync_utils.workspace = true
 zksync_prover_interface.workspace = true
 zksync_object_store.workspace = true
-vm_utils.workspace = true
+zksync_vm_utils.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true

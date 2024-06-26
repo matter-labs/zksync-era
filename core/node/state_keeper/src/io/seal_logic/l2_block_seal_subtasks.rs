@@ -365,12 +365,12 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
 
 #[cfg(test)]
 mod tests {
-    use multivm::{
+    use zksync_dal::{ConnectionPool, Core};
+    use zksync_multivm::{
         utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte},
         zk_evm_latest::ethereum_types::H256,
         VmVersion,
     };
-    use zksync_dal::{ConnectionPool, Core};
     use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
         block::L2BlockHeader,

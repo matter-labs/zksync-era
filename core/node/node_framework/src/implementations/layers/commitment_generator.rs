@@ -13,6 +13,18 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for l1 batches commitment generation
+///
+/// Responsible for initialization and running [`CommitmentGenerator`].
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `CommitmentGeneratorTask`
 #[derive(Debug)]
 pub struct CommitmentGeneratorLayer {
     mode: L1BatchCommitmentMode,

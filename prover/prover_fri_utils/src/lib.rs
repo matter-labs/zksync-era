@@ -1,7 +1,7 @@
 use std::time::Instant;
 
-use prover_dal::{Connection, Prover, ProverDal};
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         circuit_definitions::recursion_layer::{

@@ -16,6 +16,19 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for ethereum watcher
+///
+/// Responsible for initializing and running of [`EthWatch`] component, that polls the Ethereum node for the relevant events,
+/// such as priority operations (aka L1 transactions), protocol upgrades etc.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `EthInterfaceResource`
+///
+/// ## Adds tasks
+///
+/// - `EthWatchTask`
 #[derive(Debug)]
 pub struct EthWatchLayer {
     eth_watch_config: EthWatchConfig,

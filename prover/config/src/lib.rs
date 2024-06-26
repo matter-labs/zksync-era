@@ -51,6 +51,9 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
+        commitment_generator: None,
+        pruning: None,
+        snapshot_recovery: None,
     })
 }
 

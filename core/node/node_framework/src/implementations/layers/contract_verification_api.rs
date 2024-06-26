@@ -8,6 +8,18 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for contract verification
+///
+/// Responsible for initialization of the contract verification server.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `PoolResource<ReplicaPool>`
+///
+/// ## Adds tasks
+///
+/// - `ContractVerificationApiTask`
 #[derive(Debug)]
 pub struct ContractVerificationApiLayer(pub ContractVerifierConfig);
 

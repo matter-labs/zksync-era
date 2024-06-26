@@ -1,9 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::Context;
-use multivm::interface::L2BlockEnv;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_multivm::interface::L2BlockEnv;
 use zksync_state_keeper::{
     BatchExecutor, BatchExecutorHandle, ExecutionMetricsForCriteria, L2BlockParams,
     StateKeeperOutputHandler, TxExecutionResult, UpdatesManager,
