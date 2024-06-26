@@ -97,9 +97,9 @@ jobs:
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose
 
-      - name: Run revert-and-restart tests
+      - name: Run revert tests
         run: |
-          ci_run zk_supervisor test revert-and-restart --ignore-prerequisites --verbose
+          ci_run zk_supervisor test revert --ignore-prerequisites --verbose
 
       - name: Run external node server
         run: |
@@ -111,7 +111,7 @@ jobs:
 
       - name: Run integration tests en
         run: |
-          ci_run zk_supervisor integration-tests --ignore-prerequisites --verbose --external-node
+          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node
 
       - name: Show server.log logs
         if: always()
