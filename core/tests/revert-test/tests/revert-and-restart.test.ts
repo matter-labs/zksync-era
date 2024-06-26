@@ -124,7 +124,12 @@ describe('Block reverting test', function () {
         await killServerAndWaitForShutdown(tester).catch(ignoreError);
 
         // Run server in background.
-        runServerInBackground({ components: [components], stdio: [null, logs, logs], cwd: pathToHome });
+        runServerInBackground({
+            components: [components],
+            stdio: [null, logs, logs],
+            cwd: pathToHome,
+            useZkInception: fileConfig.loadFromFile
+        });
 
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
@@ -232,7 +237,12 @@ describe('Block reverting test', function () {
 
     step('execute transaction after revert', async () => {
         // Run server.
-        runServerInBackground({ components: [components], stdio: [null, logs, logs], cwd: pathToHome });
+        runServerInBackground({
+            components: [components],
+            stdio: [null, logs, logs],
+            cwd: pathToHome,
+            useZkInception: fileConfig.loadFromFile
+        });
         await utils.sleep(30);
 
         const balanceBefore = await alice.getBalance();
@@ -278,7 +288,12 @@ describe('Block reverting test', function () {
         await killServerAndWaitForShutdown(tester);
 
         // Run again.
-        runServerInBackground({ components: [components], stdio: [null, logs, logs], cwd: pathToHome });
+        runServerInBackground({
+            components: [components],
+            stdio: [null, logs, logs],
+            cwd: pathToHome,
+            useZkInception: fileConfig.loadFromFile
+        });
         await utils.sleep(30);
 
         // Trying to send a transaction from the same address again
