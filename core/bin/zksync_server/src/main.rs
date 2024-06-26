@@ -204,7 +204,7 @@ async fn main() -> anyhow::Result<()> {
                 &database_secrets,
             )
             .await
-            .context("Failed to save SetChainId upgrade transaction")?;
+            .context("Failed to save Genesis upgrade transaction")?;
         }
 
         if opt.genesis {

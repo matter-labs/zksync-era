@@ -15,8 +15,10 @@ use zksync_contracts::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    abi, ethabi::ParamType, web3::Log, Address, Execute, ExecuteTransactionCommon, Transaction,
-    TransactionType, H256, U256,
+    abi,
+    ethabi::{ParamType, Token},
+    web3::Log,
+    Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256, U256,
 };
 
 /// Represents a call to be made during governance operation.
@@ -135,12 +137,33 @@ impl ProtocolUpgrade {
     }
 }
 
-pub fn decode_set_chain_id_event(
+pub fn decode_genesis_upgrade_event(
     event: Log,
 ) -> Result<(ProtocolVersionId, ProtocolUpgradeTx), ethabi::Error> {
-    let tx = ethabi::decode(&[abi::L2CanonicalTransaction::schema()], &event.data.0)?;
-    let tx = abi::L2CanonicalTransaction::decode(tx.into_iter().next().unwrap()).unwrap();
+    let tokens = ethabi::decode(
+        &[
+            abi::L2CanonicalTransaction::schema(),
+            ParamType::Array(Box::new(ParamType::Bytes)),
+        ],
+        &event.data.0,
+    )?;
+    let mut t: std::vec::IntoIter<Token> = tokens.into_iter();
+    let mut next = || t.next().unwrap();
 
+    let tx = abi::L2CanonicalTransaction::decode(next()).unwrap();
+    let factory_deps = next()
+        .into_array()
+        .context("factory_deps")
+        .unwrap()
+        // todo proper error
+        // .map_err(|e| ethabi::Error::Other(&e.to_sting().as_ref().into()))?
+        .into_iter()
+        .enumerate()
+        .map(|(i, t)| t.into_bytes().context(i))
+        .collect::<Result<Vec<Vec<u8>>, _>>()
+        .context("factory_deps")
+        .unwrap();
+    // .map_err(|e| ethabi::Error::Other(e.to_string()))?;
     let full_version_id = h256_to_u256(event.topics[2]);
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
         .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
@@ -152,7 +175,7 @@ pub fn decode_set_chain_id_event(
                 .block_number
                 .expect("Event block number is missing")
                 .as_u64(),
-            factory_deps: vec![],
+            factory_deps,
         })
         .unwrap()
         .try_into()

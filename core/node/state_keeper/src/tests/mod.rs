@@ -472,7 +472,7 @@ async fn load_upgrade_tx() {
 
     // TODO: add one more test case for the shared bridge after it's integrated.
     // If we are processing the 1st batch while using the shared bridge,
-    // we should load the upgrade transaction -- that's the `SetChainIdUpgrade`.
+    // we should load the upgrade transaction -- that's the `GenesisUpgrade`.
 }
 
 /// Unconditionally seal the batch without triggering specific criteria.
