@@ -200,3 +200,4 @@ pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
 pub(super) const MSG_RUNNING_COMPRESSOR: &str = "Running compressor";
 pub(super) const MSG_RUN_COMPONENT_PROMPT: &str = "What component do you want to run?";
 pub(super) const MSG_RUNNING_PROVER_GATEWAY_ERR: &str = "Failed to run prover gateway";
+pub(super) const MSG_RUNNING_WITNESS_GENERATOR_ERR: &str = "Failed to run witness generator";
