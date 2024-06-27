@@ -1,7 +1,6 @@
-use std::{fmt::Debug, str::FromStr, time::Duration};
+use std::{str::FromStr, time::Duration};
 
 use anyhow::Context as _;
-use clap::Parser;
 use k256::{
     ecdsa::{signature::Signer, Signature, SigningKey, VerifyingKey},
     pkcs8::DecodePrivateKey,
@@ -158,7 +157,6 @@ struct TeeProver {
     signing_key: SigningKey,
     attestation_quote_bytes: Vec<u8>,
     tee_type: TeeType,
-    batch_count: Option<usize>,
     api_client: ApiClient,
 }
 
@@ -197,10 +195,9 @@ impl Task for TeeProver {
         const MAX_BACKOFF_MS: u64 = 60_000;
         const BACKOFF_MULTIPLIER: u64 = 2;
 
-        let mut iterations_left = self.batch_count;
         let mut backoff: u64 = POLLING_INTERVAL_MS;
 
-        while iterations_left.map_or(true, |i| i > 0) {
+        loop {
             if *stop_receiver.0.borrow() {
                 tracing::warn!("Stop signal received, shutting down TEE Prover component");
                 return Ok(());
@@ -231,10 +228,7 @@ impl Task for TeeProver {
                     self.tee_type,
                 )
                 .await?;
-            iterations_left = iterations_left.map(|i| i - 1);
         }
-
-        Ok(())
     }
 }
 
@@ -243,7 +237,6 @@ struct TeeProverLayer {
     signing_key: SigningKey,
     attestation_quote_bytes: Vec<u8>,
     tee_type: TeeType,
-    batch_count: Option<usize>,
 }
 
 impl TeeProverLayer {
@@ -252,14 +245,12 @@ impl TeeProverLayer {
         signing_key: SigningKey,
         attestation_quote_bytes: Vec<u8>,
         tee_type: TeeType,
-        batch_count: Option<usize>,
     ) -> Self {
         Self {
             api_url,
             signing_key,
             attestation_quote_bytes,
             tee_type,
-            batch_count,
         }
     }
 }
@@ -275,21 +266,11 @@ impl WiringLayer for TeeProverLayer {
             signing_key: self.signing_key,
             attestation_quote_bytes: self.attestation_quote_bytes,
             tee_type: self.tee_type,
-            batch_count: self.batch_count,
             api_client: ApiClient::new(self.api_url, Client::new()),
         };
         context.add_task(Box::new(tee_prover_task));
         Ok(())
     }
-}
-
-#[derive(Debug, Parser)]
-#[command(author = "Matter Labs", version, about = "TEE prover", long_about = None)]
-struct Cli {
-    /// Specifies the number of batches to process. If not provided, the process will continue until
-    /// it is interrupted by a SIGINT signal (CTRL+C).
-    #[arg(long)]
-    batch_count: Option<usize>,
 }
 
 /// This application is a TEE verifier (a.k.a. a prover, or worker) that interacts with three
@@ -346,8 +327,6 @@ fn main() -> anyhow::Result<()> {
     let attestation_quote_file = std::env::var("TEE_QUOTE_FILE")?;
     let attestation_quote_bytes = std::fs::read(attestation_quote_file)?;
 
-    let opt = Cli::parse();
-
     // let prometheus_config = PrometheusConfig::from_env().ok();
     // if let Some(prometheus_config) = prometheus_config {
     //     let exporter_config = PrometheusExporterConfig::push(
@@ -374,7 +353,6 @@ fn main() -> anyhow::Result<()> {
             signing_key,
             attestation_quote_bytes,
             tee_type,
-            opt.batch_count,
         ))
         .build()?
         .run()?;
