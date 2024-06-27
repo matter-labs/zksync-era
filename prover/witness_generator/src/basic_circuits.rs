@@ -420,7 +420,7 @@ async fn generate_witness(
     let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
 
     let make_circuits = tokio::task::spawn_blocking(move || {
-        let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state);
+        let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state.into());
         let storage_view = StorageView::new(witness_storage).to_rc_ptr();
 
         let vm_storage_oracle: VmStorageOracle<StorageView<WitnessStorage<'_>>, HistoryDisabled> =

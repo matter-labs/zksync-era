@@ -7,8 +7,9 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::VMRunWitnessInputData;
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{
-    block::StorageOracleInfo, witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId,
-    ProtocolVersionId, H256,
+    block::StorageOracleInfo,
+    witness_block_state::{WitnessBlockState, WitnessBlockStateSerializable},
+    L1BatchNumber, L2ChainId, ProtocolVersionId, H256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -173,7 +174,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
             is_write_initial: updates_manager.storage_view_cache.initial_writes(),
         };
 
-        result.witness_block_state = block_state;
+        result.witness_block_state = block_state.into();
         result.previous_aux_hash = previous_batch_with_metadata.metadata.aux_data_hash;
         result.previous_meta_hash = previous_batch_with_metadata.metadata.meta_parameters_hash;
         result.previous_root_hash = previous_batch_with_metadata.metadata.root_hash;
@@ -262,7 +263,7 @@ async fn get_updates_manager_witness_input_data(
         default_account_code_hash: account_code_hash,
         storage_refunds,
         pubdata_costs,
-        witness_block_state: WitnessBlockState::default(),
+        witness_block_state: WitnessBlockStateSerializable::default(),
     }
 }
 
@@ -349,7 +350,7 @@ async fn get_database_witness_input_data(
         default_account_code_hash: account_code_hash,
         storage_refunds,
         pubdata_costs,
-        witness_block_state: WitnessBlockState::default(),
+        witness_block_state: WitnessBlockStateSerializable::default(),
     }
 }
 
