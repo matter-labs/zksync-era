@@ -41,11 +41,13 @@ function batchLeafHash(batchNumber: BigNumber, batchRoot: string) {
 
 function chainIdLeafHash(chainId: BigNumber, chainIdRoot: string) {
     // keccak256(abi.encodePacked(CHAIN_ID_LEAF_PADDING, chainIdRoot, chainId));
-    const CHAIN_ID_LEAF_PADDING = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('zkSync:BatchLeaf'));
+    const CHAIN_ID_LEAF_PADDING = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('zkSync:ChainIdLeaf'));
     return ethers.utils.keccak256(
         ethers.utils.solidityPack(['bytes32', 'bytes32', 'uint256'], [CHAIN_ID_LEAF_PADDING, chainIdRoot, chainId])
     );
 }
+
+const ZERO = '0x46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21';
 
 function composeMerkleTree(leaves: string[], zero: string): string {
     while ((leaves.length - 1) & leaves.length) {
@@ -74,7 +76,7 @@ function composeMerkleTree(leaves: string[], zero: string): string {
 function composeBatchTree(roots: [string, BigNumber][]): string {
     const leaves = roots.map(([root, number]) => batchLeafHash(number, root));
 
-    return composeMerkleTree(leaves, ethers.constants.HashZero);
+    return composeMerkleTree(leaves, ZERO);
 }
 
 async function composeChainTree(contract: ethers.Contract, provider: ethers.providers.Provider): Promise<string> {
@@ -87,29 +89,34 @@ async function composeChainTree(contract: ethers.Contract, provider: ethers.prov
         leaves.push(chainIdLeafHash(chainId, await contract.getChainRoot(chainId)));
     }
 
-    return composeMerkleTree(leaves, ethers.constants.HashZero);
+    return composeMerkleTree(leaves, ZERO);
 }
 
 async function restoreChainIdMerkleTree(chainId: number, provider: ethers.providers.Provider): Promise<string> {
-    const contract = new ethers.Contract(process.env.CONTRACTS_MESSAGE_ROOT_PROXY_ADDR!, EVENT_ABI, provider);
+    const contract = new ethers.Contract(process.env.SYNC_LAYER_MESSAGE_ROOT_PROXY_ADDR!, EVENT_ABI, provider);
 
     const eventName = 'AppendedChainBatchRoot'; // Replace with your event name
     const filter = contract.filters[eventName](chainId);
 
-    const events = await contract.queryFilter(filter, 0, await provider.getBlockNumber());
+    const BLOCK_NUM = 285;
+
+    const events = await contract.queryFilter(filter, 0, BLOCK_NUM);
 
     const roots = events.map((e) => [e.args!.batchRoot as string, e.args!.batchNumber as ethers.BigNumber]) as [
         string,
         BigNumber
     ][];
-    console.log(roots);
+    console.log(roots.map((x) => [x[0], x[1].toNumber()]));
 
+    for (let i = 0; i < roots.length; i++) {
+        console.log('root for ', i, '=', composeBatchTree(roots.slice(0, i + 1)));
+    }
     console.log(composeBatchTree(roots));
-    console.log(await contract.getChainRoot(chainId));
+    console.log(await contract.getChainRoot(chainId, { blockTag: BLOCK_NUM }));
 
     const filter2 = contract.filters['Preimage']();
 
-    console.log(await contract.queryFilter(filter2, 0, await provider.getBlockNumber()));
+    console.log(await contract.queryFilter(filter2, 0, BLOCK_NUM));
 
     console.log(await composeChainTree(contract, provider));
     console.log(await contract.getAggregatedRoot());
@@ -139,9 +146,9 @@ describe.only('ETH token checks', () => {
     });
 
     // test.only('Debug', async () => {
-    //     await sleep(30);
+    //     // await sleep(10);
 
-    //     await restoreChainIdMerkleTree(270, alice.ethWallet().provider);
+    //     await restoreChainIdMerkleTree(320, new zksync.Provider('http://127.0.0.1:3050'));
 
     //     return;
     // });
@@ -365,6 +372,8 @@ describe.only('ETH token checks', () => {
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
         await withdrawalTx.waitFinalize();
+
+        await sleep(10);
 
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();

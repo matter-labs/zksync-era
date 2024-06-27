@@ -8770,6 +8770,7 @@ name = "zksync_mini_merkle_tree"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "hex",
  "once_cell",
  "zksync_basic_types",
  "zksync_crypto",
