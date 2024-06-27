@@ -320,7 +320,7 @@ K678gpQwmzwbZqqiuNpWxeEu+51Nh3tmPPJGTW9Y0BCNC0if7cxA
     }
     // END TEST
 
-    let attestation_quote_file = std::env::var("TEE_SIGNING_KEY").unwrap_or_default();
+    let attestation_quote_file = std::env::var("TEE_QUOTE_FILE").unwrap_or_default();
     let attestation_quote_bytes = std::fs::read(&attestation_quote_file).unwrap_or_default();
 
     let opt = Cli::parse();
