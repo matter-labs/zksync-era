@@ -29,10 +29,9 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
 
     let project_ids = get_project_ids(shell)?;
-    let home = shell.var("HOME")?;
     let setup_key_path = get_setup_key_path(&general_config, &ecosystem_config)?;
 
-    let args = args.fill_values_with_prompt(project_ids, &home, &setup_key_path);
+    let args = args.fill_values_with_prompt(project_ids, &setup_key_path);
 
     let object_store_config = match args.proof_store {
         ProofStorageConfig::FileBacked(config) => ObjectStoreConfig {

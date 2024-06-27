@@ -97,14 +97,15 @@ pub struct ProverInitArgsFinal {
     pub setup_key_config: SetupKeyConfig,
 }
 
+const DEFAULT_CREDENTIALS_FILE: &str = "~/.config/gcloud/application_default_credentials.json";
+
 impl ProverInitArgs {
     pub(crate) fn fill_values_with_prompt(
         &self,
         project_ids: Vec<String>,
-        home: &str,
         setup_key_path: &str,
     ) -> ProverInitArgsFinal {
-        let proof_store = self.fill_proof_storage_values_with_prompt(project_ids, home);
+        let proof_store = self.fill_proof_storage_values_with_prompt(project_ids);
         let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
         ProverInitArgsFinal {
             proof_store,
@@ -115,18 +116,17 @@ impl ProverInitArgs {
     fn fill_proof_storage_values_with_prompt(
         &self,
         project_ids: Vec<String>,
-        home: &str,
     ) -> ProofStorageConfig {
         if self.proof_store_dir.is_some() {
             return self.handle_file_backed_config();
         }
 
         if self.partial_gcs_config_provided() {
-            return self.ask_gcs_config(home);
+            return self.ask_gcs_config();
         }
 
         if self.partial_create_gcs_bucket_config_provided() {
-            return self.handle_create_gcs_bucket(project_ids, home);
+            return self.handle_create_gcs_bucket(project_ids);
         }
 
         let proof_store_config =
@@ -134,7 +134,7 @@ impl ProverInitArgs {
 
         match proof_store_config {
             ProofStoreConfig::Local => self.handle_file_backed_config(),
-            ProofStoreConfig::GCS => self.handle_gcs_config(project_ids, home),
+            ProofStoreConfig::GCS => self.handle_gcs_config(project_ids),
         }
     }
 
@@ -180,17 +180,17 @@ impl ProverInitArgs {
         ProofStorageConfig::FileBacked(ProofStorageFileBacked { proof_store_dir })
     }
 
-    fn handle_gcs_config(&self, project_ids: Vec<String>, home: &str) -> ProofStorageConfig {
+    fn handle_gcs_config(&self, project_ids: Vec<String>) -> ProofStorageConfig {
         if !self.partial_gcs_config_provided() {
             if PromptConfirm::new(MSG_CREATE_GCS_BUCKET_PROMPT).ask() {
-                return self.handle_create_gcs_bucket(project_ids, home);
+                return self.handle_create_gcs_bucket(project_ids);
             }
         }
 
-        self.ask_gcs_config(home)
+        self.ask_gcs_config()
     }
 
-    fn handle_create_gcs_bucket(&self, project_ids: Vec<String>, home: &str) -> ProofStorageConfig {
+    fn handle_create_gcs_bucket(&self, project_ids: Vec<String>) -> ProofStorageConfig {
         let project_id = self
             .create_gcs_bucket_config
             .project_id
@@ -218,7 +218,7 @@ impl ProverInitArgs {
             .credentials_file
             .unwrap_or_else(|| {
                 Prompt::new(MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT)
-                    .default(&self.default_credentials_file(home))
+                    .default(DEFAULT_CREDENTIALS_FILE)
                     .ask()
             });
 
@@ -230,7 +230,7 @@ impl ProverInitArgs {
         })
     }
 
-    fn ask_gcs_config(&self, home: &str) -> ProofStorageConfig {
+    fn ask_gcs_config(&self) -> ProofStorageConfig {
         let bucket_base_url = self
             .clone()
             .proof_store_gcs_config
@@ -242,7 +242,7 @@ impl ProverInitArgs {
             .credentials_file
             .unwrap_or_else(|| {
                 Prompt::new(MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT)
-                    .default(&self.default_credentials_file(home))
+                    .default(DEFAULT_CREDENTIALS_FILE)
                     .ask()
             });
 
@@ -250,12 +250,5 @@ impl ProverInitArgs {
             bucket_base_url,
             credentials_file,
         })
-    }
-
-    fn default_credentials_file(&self, home: &str) -> String {
-        format!(
-            "{}/.config/gcloud/application_default_credentials.json",
-            home
-        )
     }
 }
