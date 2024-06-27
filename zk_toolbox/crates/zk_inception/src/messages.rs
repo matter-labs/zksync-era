@@ -235,3 +235,5 @@ pub(super) const MSG_DOWNLOADING_SETUP_KEY_SPINNER: &str = "Downloading setup ke
 pub(super) const MSG_DOWNLOAD_SETUP_KEY_PROMPT: &str = "Do you want to download the setup key?";
 pub(super) const MSG_SETUP_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
 pub(super) const MSG_GETTING_GCP_PROJECTS_SPINNER: &str = "Getting GCP projects...";
+pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store configuration...";
+pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";

@@ -1,5 +1,5 @@
 use clap::{Parser, ValueEnum};
-use common::{Prompt, PromptConfirm, PromptSelect};
+use common::{logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -7,9 +7,10 @@ use strum_macros::EnumIter;
 use crate::messages::{
     MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT, MSG_CREATE_GCS_BUCKET_NAME_PROMTP,
     MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT, MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT,
-    MSG_CREATE_GCS_BUCKET_PROMPT, MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_PROOF_STORE_CONFIG_PROMPT,
-    MSG_PROOF_STORE_DIR_PROMPT, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT,
-    MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_SETUP_KEY_PATH_PROMPT,
+    MSG_CREATE_GCS_BUCKET_PROMPT, MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
+    MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
+    MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT, MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT,
+    MSG_SETUP_KEY_PATH_PROMPT,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
@@ -153,6 +154,8 @@ impl ProverInitArgs {
         &self,
         project_ids: Vec<String>,
     ) -> ProofStorageConfig {
+        logger::info(MSG_GETTING_PROOF_STORE_CONFIG);
+
         if self.proof_store_dir.is_some() {
             return self.handle_file_backed_config(self.proof_store_dir.clone());
         }
@@ -181,10 +184,7 @@ impl ProverInitArgs {
             );
         }
 
-        let proof_store_config =
-            PromptSelect::new(MSG_PROOF_STORE_CONFIG_PROMPT, ProofStoreConfig::iter()).ask();
-
-        match proof_store_config {
+        match PromptSelect::new(MSG_PROOF_STORE_CONFIG_PROMPT, ProofStoreConfig::iter()).ask() {
             ProofStoreConfig::Local => self.handle_file_backed_config(self.proof_store_dir.clone()),
             ProofStoreConfig::GCS => self.handle_gcs_config(
                 project_ids,
@@ -198,6 +198,7 @@ impl ProverInitArgs {
         &self,
         project_ids: Vec<String>,
     ) -> Option<ProofStorageConfig> {
+        logger::info(MSG_GETTING_PUBLIC_STORE_CONFIG);
         let shall_save_to_public_bucket = self
             .shall_save_to_public_bucket
             .unwrap_or_else(|| PromptConfirm::new("Do you want to save to public bucket?").ask());
@@ -206,17 +207,21 @@ impl ProverInitArgs {
             return None;
         }
 
-        let public_store = if self.public_store_dir.is_some() {
-            self.handle_file_backed_config(self.public_store_dir.clone())
-        } else if self.partial_gcs_config_provided(
+        if self.public_store_dir.is_some() {
+            return Some(self.handle_file_backed_config(self.public_store_dir.clone()));
+        }
+
+        if self.partial_gcs_config_provided(
             self.public_store_gcs_config.public_bucket_base_url.clone(),
             self.public_store_gcs_config.public_credentials_file.clone(),
         ) {
-            self.ask_gcs_config(
+            return Some(self.ask_gcs_config(
                 self.public_store_gcs_config.public_bucket_base_url.clone(),
                 self.public_store_gcs_config.public_credentials_file.clone(),
-            )
-        } else if self.partial_create_gcs_bucket_config_provided(
+            ));
+        }
+
+        if self.partial_create_gcs_bucket_config_provided(
             self.public_create_gcs_bucket_config
                 .public_bucket_name
                 .clone(),
@@ -225,26 +230,31 @@ impl ProverInitArgs {
                 .public_project_id
                 .clone(),
         ) {
-            self.handle_create_gcs_bucket(
-                project_ids,
-                self.public_create_gcs_bucket_config
-                    .public_project_id
-                    .clone(),
-                self.public_create_gcs_bucket_config
-                    .public_bucket_name
-                    .clone(),
-                self.public_create_gcs_bucket_config.public_location.clone(),
-                self.public_store_gcs_config.public_credentials_file.clone(),
-            )
-        } else {
-            self.handle_gcs_config(
+            return Some(
+                self.handle_create_gcs_bucket(
+                    project_ids,
+                    self.public_create_gcs_bucket_config
+                        .public_project_id
+                        .clone(),
+                    self.public_create_gcs_bucket_config
+                        .public_bucket_name
+                        .clone(),
+                    self.public_create_gcs_bucket_config.public_location.clone(),
+                    self.public_store_gcs_config.public_credentials_file.clone(),
+                ),
+            );
+        }
+
+        match PromptSelect::new(MSG_PROOF_STORE_CONFIG_PROMPT, ProofStoreConfig::iter()).ask() {
+            ProofStoreConfig::Local => {
+                Some(self.handle_file_backed_config(self.public_store_dir.clone()))
+            }
+            ProofStoreConfig::GCS => Some(self.handle_gcs_config(
                 project_ids,
                 self.public_store_gcs_config.public_bucket_base_url.clone(),
                 self.public_store_gcs_config.public_credentials_file.clone(),
-            )
-        };
-
-        Some(public_store)
+            )),
+        }
     }
 
     fn fill_setup_key_values_with_prompt(&self, setup_key_path: &str) -> SetupKeyConfig {
