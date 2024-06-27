@@ -23,7 +23,7 @@ use zksync_types::{
     utils::storage_key_for_standard_token_balance,
     web3::{keccak256, Bytes},
     AccountTreeId, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, ProtocolVersionId,
-    StorageKey, Transaction, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS,
+    StorageKey, Transaction, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, h256_to_u256, u256_to_h256};
@@ -358,10 +358,7 @@ impl ZksNamespace {
 
             let proof = client
                 .get_aggregated_batch_inclusion_proof(
-                    Address::from_str(
-                        &std::env::var("SYNC_LAYER_MESSAGE_ROOT_PROXY_ADDR").unwrap(),
-                    )
-                    .unwrap(),
+                    L2_MESSAGE_ROOT_ADDRESS,
                     l1_batch_number,
                     self.state.api_config.l2_chain_id.0 as u32,
                 )
@@ -473,6 +470,8 @@ impl ZksNamespace {
         return Ok(Some(l1_batch_number.as_u32()));
     }
 
+    // FIXME: `message_root_addr` is most often constant. The only reason we may want to provide a custom value is
+    // for L1, but at this point maybe it could known from the config, not sure.
     pub async fn get_aggregated_batch_inclusion_proof_impl(
         &self,
         message_root_addr: Address,

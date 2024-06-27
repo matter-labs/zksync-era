@@ -4,7 +4,7 @@ genesis_batch_commitment: 0xc9a735504866a02c338522afc6f236b7b949e2dc7e27d9a04691
 genesis_protocol_semantic_version: '0.24.0'
 # deprecated
 genesis_protocol_version: 24
-default_aa_hash: 0x0100055df3908fa6efcfa0bdfce813d4224f4657b696bcfdea0c1dbac659ecf4
+default_aa_hash: 0x0100055dd60e287d65a886ec1a868dcb4f400e67efffaf7df2615da552f00777
 bootloader_hash: 0x010008ebbfd1b493a9e7030a84799f367a68086f1750b19bcb2e9945752975ef
 l1_chain_id: 9
 l2_chain_id: 270
