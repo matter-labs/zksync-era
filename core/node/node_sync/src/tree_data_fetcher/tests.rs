@@ -85,7 +85,8 @@ pub(super) async fn seal_l1_batch_with_timestamp(
     let initial_writes = [StorageKey::new(
         AccountTreeId::new(Address::repeat_byte(1)),
         H256::from_low_u64_be(number.0.into()),
-    )];
+    )
+    .hashed_key()];
     transaction
         .storage_logs_dedup_dal()
         .insert_initial_writes(number, &initial_writes)

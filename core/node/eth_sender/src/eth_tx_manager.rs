@@ -232,6 +232,8 @@ impl EthTxManager {
                         .remove_tx_history(tx_history_id)
                         .await
                         .unwrap();
+                } else {
+                    METRICS.l1_transient_errors.inc();
                 }
                 Err(error.into())
             }
@@ -250,35 +252,49 @@ impl EthTxManager {
             .l1_interface
             .get_operator_nonce(l1_block_numbers)
             .await?;
+
+        let non_blob_tx_to_resend = self
+            .apply_inflight_txs_statuses_and_get_first_to_resend(
+                storage,
+                l1_block_numbers,
+                operator_nonce,
+                None,
+            )
+            .await?;
+
         let blobs_operator_nonce = self
             .l1_interface
             .get_blobs_operator_nonce(l1_block_numbers)
             .await?;
         let blobs_operator_address = self.l1_interface.get_blobs_operator_account();
 
+        let mut blob_tx_to_resend = None;
         if let Some(blobs_operator_nonce) = blobs_operator_nonce {
             // need to check if both nonce and address are `Some`
             if blobs_operator_address.is_none() {
                 panic!("blobs_operator_address has to be set its nonce is known; qed");
             }
-            if let Some(res) = self
-                .monitor_inflight_transactions_inner(
+            blob_tx_to_resend = self
+                .apply_inflight_txs_statuses_and_get_first_to_resend(
                     storage,
                     l1_block_numbers,
                     blobs_operator_nonce,
                     blobs_operator_address,
                 )
-                .await?
-            {
-                return Ok(Some(res));
-            }
+                .await?;
         }
 
-        self.monitor_inflight_transactions_inner(storage, l1_block_numbers, operator_nonce, None)
-            .await
+        // We have to resend non-blob transactions first, otherwise in case of a temporary
+        // spike in activity, all Execute and PublishProof would need to wait until all commit txs
+        // are sent, which may take some time. We treat them as if they had higher priority.
+        if non_blob_tx_to_resend.is_some() {
+            Ok(non_blob_tx_to_resend)
+        } else {
+            Ok(blob_tx_to_resend)
+        }
     }
 
-    async fn monitor_inflight_transactions_inner(
+    async fn apply_inflight_txs_statuses_and_get_first_to_resend(
         &mut self,
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
@@ -549,6 +565,9 @@ impl EthTxManager {
                     // Web3 API request failures can cause this,
                     // and anything more important is already properly reported.
                     tracing::warn!("eth_sender error {:?}", e);
+                    if e.is_transient() {
+                        METRICS.l1_transient_errors.inc();
+                    }
                 }
             }
 
