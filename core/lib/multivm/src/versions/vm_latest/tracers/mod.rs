@@ -12,5 +12,6 @@ pub(crate) mod result_tracer;
 
 pub(crate) mod circuits_capacity;
 pub mod dispatcher;
+pub(crate) mod gas_limiter;
 pub(crate) mod traits;
 pub(crate) mod utils;
