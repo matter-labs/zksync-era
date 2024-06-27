@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_prover_dal::{Prover, ProverDal};
 
 use crate::{periodic_job::PeriodicJob, prover::metrics::FRI_PROVER_METRICS};
 

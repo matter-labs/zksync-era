@@ -1,4 +1,4 @@
-use vm_benchmark_harness::*;
+use zksync_vm_benchmark_harness::*;
 
 fn main() {
     let test_contract = std::fs::read(

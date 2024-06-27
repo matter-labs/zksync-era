@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM vm_runner_protective_reads\n            WHERE\n                l1_batch_number > $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "daa330d43f150824f2195cdbfb96862d6ad0de7c7ca1d5320800f317428f07e1"
+}

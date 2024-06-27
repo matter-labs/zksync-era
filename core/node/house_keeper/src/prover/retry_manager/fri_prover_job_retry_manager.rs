@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
+use zksync_prover_dal::{Prover, ProverDal};
 
 use crate::{periodic_job::PeriodicJob, prover::metrics::SERVER_METRICS};
 

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use multivm::{
+use zksync_multivm::{
     interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs},
     vm_latest::TransactionVmExt,
 };
@@ -181,7 +181,7 @@ impl L2BlockUpdates {
 
 #[cfg(test)]
 mod tests {
-    use multivm::vm_latest::TransactionVmExt;
+    use zksync_multivm::vm_latest::TransactionVmExt;
 
     use super::*;
     use crate::tests::{create_execution_result, create_transaction};

@@ -120,6 +120,12 @@ pub struct StateKeeperConfig {
     /// the recursion layers' circuits.
     pub max_circuits_per_batch: usize,
 
+    /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
+    /// Protective reads can be written asynchronously in VM runner instead.
+    /// By default, set to `true` as a temporary safety measure.
+    #[serde(default = "StateKeeperConfig::default_protective_reads_persistence_enabled")]
+    pub protective_reads_persistence_enabled: bool,
+
     // Base system contract hashes, required only for generating genesis config.
     // #PLA-811
     #[deprecated(note = "Use GenesisConfig::bootloader_hash instead")]
@@ -132,6 +138,10 @@ pub struct StateKeeperConfig {
 }
 
 impl StateKeeperConfig {
+    fn default_protective_reads_persistence_enabled() -> bool {
+        true
+    }
+
     /// Creates a config object suitable for use in unit tests.
     /// Values mostly repeat the values used in the localhost environment.
     pub fn for_tests() -> Self {
@@ -163,6 +173,7 @@ impl StateKeeperConfig {
             validation_computational_gas_limit: 300000,
             save_call_traces: true,
             max_circuits_per_batch: 24100,
+            protective_reads_persistence_enabled: true,
             bootloader_hash: None,
             default_aa_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,

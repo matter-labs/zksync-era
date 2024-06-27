@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use multivm::interface::{VmExecutionResultAndLogs, VmMemoryMetrics};
 use vise::{
     Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
 };
+use zksync_multivm::interface::{VmExecutionResultAndLogs, VmMemoryMetrics};
 use zksync_shared_metrics::InteractionType;
 use zksync_state::StorageViewMetrics;
 use zksync_types::{

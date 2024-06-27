@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use itertools::Itertools;
-use multivm::{
+use zksync_multivm::{
     interface::{ExecutionResult, VmRevertReason},
     vm_latest::{VmExecutionLogs, VmExecutionResultAndLogs},
 };

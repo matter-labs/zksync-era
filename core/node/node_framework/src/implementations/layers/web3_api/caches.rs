@@ -12,6 +12,19 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for API mempool cache.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<ReplicaPool>`
+///
+/// ## Adds resources
+///
+/// - `MempoolCacheResource`
+///
+/// ## Adds tasks
+///
+/// - `MempoolCacheUpdateTask`
 #[derive(Debug)]
 pub struct MempoolCacheLayer {
     capacity: usize,

@@ -5,12 +5,22 @@ use crate::{
     implementations::resources::{
         eth_interface::EthInterfaceResource, main_node_client::MainNodeClientResource,
     },
-    precondition::Precondition,
     service::{ServiceContext, StopReceiver},
-    task::TaskId,
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for chain ID validation precondition for external node.
+/// Ensures that chain IDs are consistent locally, on main node, and on L1.
+///
+/// ## Requests resources
+///
+/// - `EthInterfaceResource`
+/// - `MainNodeClientResource
+///
+/// ## Adds preconditions
+///
+/// - `ValidateChainIdsTask`
 #[derive(Debug)]
 pub struct ValidateChainIdsLayer {
     l1_chain_id: L1ChainId,
@@ -43,19 +53,23 @@ impl WiringLayer for ValidateChainIdsLayer {
             main_node_client,
         );
 
-        context.add_precondition(Box::new(task));
+        context.add_task(Box::new(task));
 
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl Precondition for ValidateChainIdsTask {
+impl Task for ValidateChainIdsTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::Precondition
+    }
+
     fn id(&self) -> TaskId {
         "validate_chain_ids".into()
     }
 
-    async fn check(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         (*self).run_once(stop_receiver.0).await
     }
 }

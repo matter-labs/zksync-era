@@ -120,6 +120,7 @@ impl EcosystemConfig {
             chain_id: config.chain_id,
             prover_version: config.prover_version,
             configs: config.configs,
+            external_node_config_path: config.external_node_config_path,
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
             l1_network: self.l1_network,
             link_to_code: self

@@ -2,8 +2,8 @@
 pub mod availability_checker {
     use std::{sync::Arc, time::Duration};
 
-    use prover_dal::{ConnectionPool, Prover, ProverDal};
     use tokio::sync::Notify;
+    use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
     use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
     use crate::metrics::{KillingReason, METRICS};
