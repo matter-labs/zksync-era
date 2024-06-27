@@ -633,6 +633,9 @@ impl EthTxManager {
                 // Web3 API request failures can cause this,
                 // and anything more important is already properly reported.
                 tracing::warn!("eth_sender error {:?}", error);
+                if e.is_transient() {
+                    METRICS.l1_transient_errors.inc();
+                }
             }
         }
     }
