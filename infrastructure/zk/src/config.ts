@@ -266,7 +266,8 @@ command
                 '"l2-inits/dev2.init.env"',
                 `"l1-inits/${process.env.ZKSYNC_ENV!}.env", "l1-inits/${process.env
                     .ZKSYNC_ENV!}-sync-layer.env", "l2-inits/${envName}.init.env"`
-            );
+            )
+            .replace('CONTRACTS_ERA_CHAIN_ID="270"', 'CONTRACTS_ERA_CHAIN_ID="9"');
 
         const configFile = `etc/env/configs/${envName}.toml`;
 
