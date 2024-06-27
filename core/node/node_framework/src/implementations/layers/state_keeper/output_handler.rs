@@ -17,6 +17,21 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for the state keeper output handler.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `SyncStateResource` (optional)
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds resources
+///
+/// - `OutputHandlerResource`
+///
+/// ## Adds tasks
+///
+/// - `L2BlockSealerTask`
 #[derive(Debug)]
 pub struct OutputHandlerLayer {
     l2_shared_bridge_addr: Address,
@@ -87,7 +102,7 @@ impl WiringLayer for OutputHandlerLayer {
         }
         if !self.protective_reads_persistence_enabled {
             // **Important:** Disabling protective reads persistence is only sound if the node will never
-            // run a full Merkle tree.
+            // run a full Merkle tree OR an accompanying protective-reads-writer is being run.
             tracing::warn!("Disabling persisting protective reads; this should be safe, but is considered an experimental option at the moment");
             persistence = persistence.without_protective_reads();
         }

@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+
+use anyhow::Context;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -8,9 +11,10 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
+        CommitmentGeneratorConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
     },
     ApiConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig,
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -21,6 +25,11 @@ pub fn decode_yaml_repr<T: ProtoRepr>(yaml: &str) -> anyhow::Result<T::Type> {
     let d = serde_yaml::Deserializer::from_str(yaml);
     let this: T = zksync_protobuf::serde::deserialize_proto_with_options(d, false)?;
     this.read()
+}
+
+pub fn read_yaml_repr<T: ProtoRepr>(path_buf: PathBuf) -> anyhow::Result<T::Type> {
+    let yaml = std::fs::read_to_string(path_buf).context("failed reading YAML config")?;
+    decode_yaml_repr::<T>(&yaml)
 }
 
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
@@ -57,6 +66,9 @@ pub struct TempConfigStore {
     pub da_dispatcher_config: Option<DADispatcherConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
+    pub commitment_generator: Option<CommitmentGeneratorConfig>,
+    pub pruning: Option<PruningConfig>,
+    pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
 }
 
 impl TempConfigStore {
@@ -85,6 +97,9 @@ impl TempConfigStore {
             da_dispatcher_config: self.da_dispatcher_config.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
             core_object_store: self.core_object_store.clone(),
+            commitment_generator: self.commitment_generator.clone(),
+            snapshot_recovery: self.snapshot_recovery.clone(),
+            pruning: self.pruning.clone(),
         }
     }
 

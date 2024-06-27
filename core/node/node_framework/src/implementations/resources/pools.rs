@@ -6,10 +6,10 @@ use std::{
     time::Duration,
 };
 
-use prover_dal::Prover;
 use tokio::sync::Mutex;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_db_connection::connection_pool::ConnectionPoolBuilder;
+use zksync_prover_dal::Prover;
 use zksync_types::url::SensitiveUrl;
 
 use crate::resource::Resource;

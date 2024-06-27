@@ -1,4 +1,4 @@
-use multivm::utils::get_bootloader_encoding_space;
+use zksync_multivm::utils::get_bootloader_encoding_space;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{

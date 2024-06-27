@@ -5,8 +5,6 @@ use std::{future::Future, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use clap::Parser;
 use local_ip_address::local_ip;
-use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::{
     sync::{oneshot, watch::Receiver, Notify},
     task::JoinHandle,
@@ -15,6 +13,7 @@ use zksync_config::configs::{DatabaseSecrets, FriProverConfig};
 use zksync_env_config::FromEnv;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_config::{load_database_secrets, load_general_config};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
@@ -23,6 +22,7 @@ use zksync_types::{
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
 };
 use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 mod gpu_prover_availability_checker;
 mod gpu_prover_job_processor;
@@ -63,12 +63,12 @@ async fn main() -> anyhow::Result<()> {
     let observability_config = general_config
         .observability
         .context("observability config")?;
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
 
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)

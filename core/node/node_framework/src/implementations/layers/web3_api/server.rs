@@ -56,6 +56,7 @@ impl Web3ServerOptionalConfig {
             api_builder = api_builder
                 .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
         }
+        api_builder = api_builder.with_extended_tracing(self.with_extended_tracing);
         api_builder
     }
 }
@@ -67,6 +68,22 @@ enum Transport {
     Ws,
 }
 
+/// Wiring layer for Web3 JSON RPC server.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<ReplicaPool>`
+/// - `TxSenderResource`
+/// - `SyncStateResource` (optional)
+/// - `TreeApiClientResource` (optional)
+/// - `MempoolCacheResource`
+/// - `CircuitBreakersResource` (adds a circuit breaker)
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `Web3ApiTask` -- wrapper for all the tasks spawned by the API.
+/// - `ApiTaskGarbageCollector` -- maintenance task that manages API tasks.
 #[derive(Debug)]
 pub struct Web3ServerLayer {
     transport: Transport,
@@ -250,7 +267,10 @@ impl Task for ApiTaskGarbageCollector {
         // We can ignore the stop signal here, since we're tied to the main API task through the channel:
         // it'll either get dropped if API cannot be built or will send something through the channel.
         // The tasks it sends are aware of the stop receiver themselves.
-        let tasks = self.task_receiver.await?;
+        let Ok(tasks) = self.task_receiver.await else {
+            // API cannot be built, so there are no tasks to wait for.
+            return Ok(());
+        };
         let _ = futures::future::join_all(tasks).await;
         Ok(())
     }

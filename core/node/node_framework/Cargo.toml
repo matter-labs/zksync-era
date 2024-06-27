@@ -10,11 +10,11 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-prometheus_exporter.workspace = true
+zksync_vlog.workspace = true
 zksync_types.workspace = true
 zksync_health_check.workspace = true
 zksync_dal.workspace = true
-prover_dal.workspace = true
+zksync_prover_dal.workspace = true
 zksync_db_connection.workspace = true
 zksync_config.workspace = true
 zksync_protobuf_config.workspace = true
@@ -49,6 +49,7 @@ zksync_reorg_detector.workspace = true
 zksync_vm_runner.workspace = true
 zksync_node_db_pruner.workspace = true
 
+pin-project-lite.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
@@ -59,5 +60,4 @@ ctrlc.workspace = true
 
 [dev-dependencies]
 zksync_env_config.workspace = true
-vlog.workspace = true
 assert_matches.workspace = true

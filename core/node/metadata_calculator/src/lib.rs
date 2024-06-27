@@ -10,7 +10,7 @@ use std::{
 use anyhow::Context as _;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
-    chain::OperationsManagerConfig,
+    chain::{OperationsManagerConfig, StateKeeperConfig},
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
 use zksync_dal::{ConnectionPool, Core};
@@ -89,6 +89,8 @@ pub struct MetadataCalculatorConfig {
     pub memtable_capacity: usize,
     /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
     pub stalled_writes_timeout: Duration,
+    /// Whether state keeper writes protective reads when it seals a batch.
+    pub sealed_batches_have_protective_reads: bool,
     /// Configuration specific to the Merkle tree recovery.
     pub recovery: MetadataCalculatorRecoveryConfig,
 }
@@ -97,6 +99,7 @@ impl MetadataCalculatorConfig {
     pub fn for_main_node(
         merkle_tree_config: &MerkleTreeConfig,
         operation_config: &OperationsManagerConfig,
+        state_keeper_config: &StateKeeperConfig,
     ) -> Self {
         Self {
             db_path: merkle_tree_config.path.clone(),
@@ -109,6 +112,8 @@ impl MetadataCalculatorConfig {
             include_indices_and_filters_in_block_cache: false,
             memtable_capacity: merkle_tree_config.memtable_capacity(),
             stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout(),
+            sealed_batches_have_protective_reads: state_keeper_config
+                .protective_reads_persistence_enabled,
             // The main node isn't supposed to be recovered yet, so this value doesn't matter much
             recovery: MetadataCalculatorRecoveryConfig::default(),
         }
@@ -248,7 +253,12 @@ impl MetadataCalculator {
         self.health_updater
             .update(MerkleTreeHealth::MainLoop(tree_info).into());
 
-        let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
+        let updater = TreeUpdater::new(
+            tree,
+            self.max_l1_batches_per_iter,
+            self.object_store,
+            self.config.sealed_batches_have_protective_reads,
+        );
         updater
             .loop_updating_tree(self.delayer, &self.pool, stop_receiver)
             .await

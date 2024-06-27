@@ -108,12 +108,12 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
 
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(log_directives) = observability_config.log_directives {
         builder = builder.with_log_directives(log_directives);
     }
@@ -271,5 +271,8 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
+        commitment_generator: None,
+        pruning: None,
+        snapshot_recovery: None,
     })
 }

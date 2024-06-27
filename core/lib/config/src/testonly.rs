@@ -97,6 +97,9 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             mempool_cache_update_interval: self.sample(rng),
             mempool_cache_size: self.sample(rng),
             whitelisted_tokens_for_aa: self.sample_range(rng).map(|_| rng.gen()).collect(),
+            api_namespaces: self
+                .sample_opt(|| self.sample_range(rng).map(|_| self.sample(rng)).collect()),
+            extended_api_tracing: self.sample(rng),
         }
     }
 }
@@ -175,6 +178,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             validation_computational_gas_limit: self.sample(rng),
             save_call_traces: self.sample(rng),
             max_circuits_per_batch: self.sample(rng),
+            protective_reads_persistence_enabled: self.sample(rng),
             // These values are not involved into files serialization skip them
             fee_account_addr: None,
             bootloader_hash: None,
@@ -280,6 +284,9 @@ impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
         configs::ExperimentalDBConfig {
             state_keeper_db_block_cache_capacity_mb: self.sample(rng),
             state_keeper_db_max_open_files: self.sample(rng),
+            protective_reads_persistence_enabled: self.sample(rng),
+            processing_delay_ms: self.sample(rng),
+            include_indices_and_filters_in_block_cache: self.sample(rng),
         }
     }
 }

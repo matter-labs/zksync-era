@@ -3,7 +3,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     consts::CONTRACTS_FILE,
-    forge_interface::deploy_ecosystem::output::DeployL1Output,
+    forge_interface::{
+        deploy_ecosystem::output::DeployL1Output,
+        initialize_bridges::output::InitializeBridgeOutput,
+        register_chain::output::RegisterChainOutput,
+    },
     traits::{FileConfig, FileConfigWithDefaultName},
 };
 
@@ -63,6 +67,20 @@ impl ContractsConfig {
         self.ecosystem_contracts
             .diamond_cut_data
             .clone_from(&deploy_l1_output.contracts_config.diamond_cut_data);
+    }
+
+    pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
+        self.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
+        self.l1.governance_addr = register_chain_output.governance_addr;
+    }
+
+    pub fn set_l2_shared_bridge(
+        &mut self,
+        initialize_bridges_output: &InitializeBridgeOutput,
+    ) -> anyhow::Result<()> {
+        self.bridges.shared.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
+        self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
+        Ok(())
     }
 }
 

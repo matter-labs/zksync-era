@@ -29,6 +29,7 @@ impl<T: 'static + Send> Unique<T> {
     }
 
     /// Takes the resource from the container.
+    /// Will return `None` if the resource was already taken.
     pub fn take(&self) -> Option<T> {
         let result = self.inner.lock().unwrap().take();
 

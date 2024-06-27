@@ -12,8 +12,8 @@
 
 use std::fmt;
 
-use multivm::{interface::Halt, vm_latest::TransactionVmExt};
 use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_multivm::{interface::Halt, vm_latest::TransactionVmExt};
 use zksync_types::{
     block::BlockGasCount,
     fee::TransactionExecutionMetrics,

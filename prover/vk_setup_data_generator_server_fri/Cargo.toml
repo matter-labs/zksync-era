@@ -20,7 +20,7 @@ path = "src/lib.rs"
 
 
 [dependencies]
-vlog.workspace = true
+zksync_vlog.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
 zksync_prover_fri_types.workspace = true

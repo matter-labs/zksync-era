@@ -13,11 +13,13 @@ use crate::{
 /// Responsible for initialization of the contract verification server.
 ///
 /// ## Requests resources
-/// - [`PoolResource`] for [`MasterPool`]
-/// - [`PoolResource`] for [`ReplicaPool`]
+///
+/// - `PoolResource<MasterPool>`
+/// - `PoolResource<ReplicaPool>`
 ///
 /// ## Adds tasks
-/// - [`ContractVerificationApiTask`] (as [`Task`])
+///
+/// - `ContractVerificationApiTask`
 #[derive(Debug)]
 pub struct ContractVerificationApiLayer(pub ContractVerifierConfig);
 
