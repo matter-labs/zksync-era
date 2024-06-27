@@ -154,7 +154,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_unstable_transaction_execution_info(
         &mut self,
         hash: H256,
-    ) -> DalResult<Option<StorageTransactionExecutionInfo>> {
+    ) -> DalResult<Option<serde_json::Value>> {
         let row = sqlx::query_as!(
             StorageTransactionExecutionInfo,
             r#"
@@ -171,7 +171,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         .with_arg("hash", &hash)
         .fetch_optional(self.storage)
         .await?;
-        Ok(row)
+        Ok(row.map(|entry| entry.execution_info))
     }
 
     async fn get_transactions_inner(
@@ -579,13 +579,15 @@ mod tests {
             .get_unstable_transaction_execution_info(tx_hash)
             .await
             .unwrap()
-            .unwrap();
+            .expect("Transaction execution info is missing in the DAL");
 
         // Check that execution info has at least the circuit statistics field.
-        assert!(execution_info
-            .execution_info
-            .get("circuit_statistic")
-            .is_some());
+        // If this assertion fails because the transaction execution info format
+        // has changed, replace circuit_statistic with any other valid field
+        assert!(
+            execution_info.get("circuit_statistic").is_some(),
+            "Missing circuit_statistics field"
+        );
     }
 
     #[tokio::test]

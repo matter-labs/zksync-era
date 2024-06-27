@@ -397,10 +397,10 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
     }
 }
 
-// Details of the transaction execution.
+/// Details of the transaction execution.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageTransactionExecutionInfo {
-    // This is an opaque JSON field, with VM version specific contents.
+    /// This is an opaque JSON field, with VM version specific contents.
     pub execution_info: Value,
 }
 

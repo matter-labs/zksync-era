@@ -13,6 +13,7 @@ impl UnstableNamespace {
     pub fn new(state: RpcState) -> Self {
         Self { state }
     }
+
     pub(crate) fn current_method(&self) -> &MethodTracer {
         &self.state.current_method
     }
@@ -27,8 +28,6 @@ impl UnstableNamespace {
             .get_unstable_transaction_execution_info(hash)
             .await
             .map_err(DalError::generalize)?
-            .map(|info| ApiTransactionExecutionInfo {
-                execution_info: info.execution_info,
-            }))
+            .map(|execution_info| ApiTransactionExecutionInfo { execution_info }))
     }
 }

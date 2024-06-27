@@ -822,7 +822,8 @@ pub struct ApiStorageLog {
     pub written_value: U256,
 }
 
-// Coming from TransactionExecutionMetrics
+/// Raw transaction execution data.
+/// Data is taken from `TransactionExecutionMetrics`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiTransactionExecutionInfo {
