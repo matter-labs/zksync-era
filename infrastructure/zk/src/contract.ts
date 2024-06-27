@@ -7,6 +7,7 @@ export async function build(zkSyncNetwork: boolean): Promise<void> {
     const additionalParams = zkSyncNetwork ? `CONTRACTS_BASE_NETWORK_ZKSYNC=true` : '';
     await utils.spawn(`${additionalParams} yarn l1-contracts build`);
     await utils.spawn('yarn l2-contracts build');
+    await utils.spawn('yarn da-contracts build');
 }
 
 const syncLayerEnvVars = [
