@@ -30,6 +30,7 @@ pub struct BasicWitnessInputProducerConfig {
 }
 
 impl BasicWitnessInputProducerConfig {
+    #[allow(dead_code)]
     fn default_db_path() -> String {
         "./db/basic_witness_input_producer".to_owned()
     }
