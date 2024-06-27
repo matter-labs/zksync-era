@@ -4,17 +4,16 @@ use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::api::{
-    GenericProofGenerationDataResponse, RegisterTeeAttestationRequest,
-    RegisterTeeAttestationResponse, SubmitProofResponse, SubmitTeeProofRequest,
-    TeeProofGenerationDataRequest,
+use zksync_prover_interface::{
+    api::{
+        RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
+        SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
+    },
+    inputs::TeeVerifierInput,
 };
-use zksync_tee_verifier::TeeVerifierInput;
 use zksync_types::L1BatchNumber;
 
 use crate::errors::RequestProcessorError;
-
-pub type TeeProofGenerationDataResponse = GenericProofGenerationDataResponse<TeeVerifierInput>;
 
 #[derive(Clone)]
 pub(crate) struct TeeRequestProcessor {

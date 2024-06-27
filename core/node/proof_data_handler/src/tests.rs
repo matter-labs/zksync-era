@@ -15,8 +15,10 @@ use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_object_store::MockObjectStore;
-use zksync_prover_interface::{api::SubmitTeeProofRequest, inputs::PrepareBasicCircuitsJob};
-use zksync_tee_verifier::TeeVerifierInput;
+use zksync_prover_interface::{
+    api::SubmitTeeProofRequest,
+    inputs::{PrepareBasicCircuitsJob, TeeVerifierInput},
+};
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
 
 use crate::create_proof_processing_router;

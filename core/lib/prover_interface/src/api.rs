@@ -9,7 +9,7 @@ use zksync_types::{
 };
 
 use crate::{
-    inputs::PrepareBasicCircuitsJob,
+    inputs::{PrepareBasicCircuitsJob, TeeVerifierInput},
     outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
 };
 
@@ -31,6 +31,7 @@ pub enum GenericProofGenerationDataResponse<T> {
 }
 
 pub type ProofGenerationDataResponse = GenericProofGenerationDataResponse<ProofGenerationData>;
+pub type TeeProofGenerationDataResponse = GenericProofGenerationDataResponse<TeeVerifierInput>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SimpleResponse {

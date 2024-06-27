@@ -16,17 +16,14 @@ use zksync_node_framework::{
 };
 use zksync_prover_interface::{
     api::{
-        GenericProofGenerationDataResponse, RegisterTeeAttestationRequest,
-        RegisterTeeAttestationResponse, SubmitProofResponse, SubmitTeeProofRequest,
-        TeeProofGenerationDataRequest,
+        RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
+        SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
     },
+    inputs::TeeVerifierInput,
     outputs::L1BatchTeeProofForL1,
 };
-use zksync_tee_verifier::TeeVerifierInput;
+use zksync_tee_verifier::Verifiable;
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
-
-// TODO(patrick) refactor; this is already defined elsewhere but it's private
-pub type TeeProofGenerationDataResponse = GenericProofGenerationDataResponse<TeeVerifierInput>;
 
 struct ApiClient {
     api_base_url: Url,
