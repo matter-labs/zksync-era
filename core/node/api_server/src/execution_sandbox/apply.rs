@@ -386,7 +386,7 @@ impl StoredL2BlockInfo {
         );
         let l2_block_info = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&l2_block_info_key, l2_block_number)
+            .get_historical_value_unchecked(l2_block_info_key.hashed_key(), l2_block_number)
             .await
             .context("failed reading L2 block info from VM state")?;
         let (l2_block_number_from_state, l2_block_timestamp) =
@@ -398,7 +398,10 @@ impl StoredL2BlockInfo {
         );
         let txs_rolling_hash = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&l2_block_txs_rolling_hash_key, l2_block_number)
+            .get_historical_value_unchecked(
+                l2_block_txs_rolling_hash_key.hashed_key(),
+                l2_block_number,
+            )
             .await
             .context("failed reading transaction rolling hash from VM state")?;
 

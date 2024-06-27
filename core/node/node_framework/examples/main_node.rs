@@ -135,9 +135,11 @@ impl MainNodeBuilder {
     fn add_metadata_calculator_layer(mut self) -> anyhow::Result<Self> {
         let merkle_tree_env_config = DBConfig::from_env()?.merkle_tree;
         let operations_manager_env_config = OperationsManagerConfig::from_env()?;
+        let state_keeper_env_config = StateKeeperConfig::from_env()?;
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
+            &state_keeper_env_config,
         );
         self.node
             .add_layer(MetadataCalculatorLayer::new(metadata_calculator_config));
@@ -302,6 +304,7 @@ impl MainNodeBuilder {
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
             replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
+            with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::ws(

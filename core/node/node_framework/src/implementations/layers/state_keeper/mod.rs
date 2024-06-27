@@ -29,11 +29,20 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Requests:
+/// Wiring layer for the state keeper.
+///
+/// ## Requests resources
+///
 /// - `StateKeeperIOResource`
 /// - `BatchExecutorResource`
+/// - `OutputHandlerResource`
 /// - `ConditionalSealerResource`
+/// - `PoolResource<MasterPool>`
 ///
+/// ## Adds tasks
+///
+/// - `RocksdbCatchupTask`
+/// - `StateKeeperTask`
 #[derive(Debug)]
 pub struct StateKeeperLayer {
     state_keeper_db_path: String,
@@ -91,6 +100,13 @@ impl WiringLayer for StateKeeperLayer {
             sealer,
             storage_factory: Arc::new(storage_factory),
         }));
+
+        context.add_shutdown_hook("rocksdb_terminaton", async {
+            // Wait for all the instances of RocksDB to be destroyed.
+            tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+                .await
+                .context("failed terminating RocksDB instances")
+        });
         Ok(())
     }
 }
@@ -119,14 +135,7 @@ impl Task for StateKeeperTask {
             self.sealer,
             self.storage_factory,
         );
-        let result = state_keeper.run().await;
-
-        // Wait for all the instances of RocksDB to be destroyed.
-        tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
-            .await
-            .unwrap();
-
-        result
+        state_keeper.run().await
     }
 }
 

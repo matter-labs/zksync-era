@@ -14,7 +14,7 @@ use zksync_web3_decl::client::{DynClient, MockClient, L1};
 
 use crate::{
     types::{ContractCallError, SignedCallResult, SigningError},
-    BoundEthInterface, Options, RawTransactionBytes,
+    BaseFees, BoundEthInterface, Options, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
@@ -212,8 +212,7 @@ type CallHandler =
 pub struct MockEthereumBuilder {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
-    base_fee_history: Vec<u64>,
-    excess_blob_gas_history: Vec<u64>,
+    base_fee_history: Vec<BaseFees>,
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
@@ -228,7 +227,6 @@ impl fmt::Debug for MockEthereumBuilder {
             .field("max_fee_per_gas", &self.max_fee_per_gas)
             .field("max_priority_fee_per_gas", &self.max_priority_fee_per_gas)
             .field("base_fee_history", &self.base_fee_history)
-            .field("excess_blob_gas_history", &self.excess_blob_gas_history)
             .field(
                 "non_ordering_confirmations",
                 &self.non_ordering_confirmations,
@@ -244,7 +242,6 @@ impl Default for MockEthereumBuilder {
             max_fee_per_gas: 100.into(),
             max_priority_fee_per_gas: 10.into(),
             base_fee_history: vec![],
-            excess_blob_gas_history: vec![],
             non_ordering_confirmations: false,
             inner: Arc::default(),
             call_handler: Box::new(|call, block_id| {
@@ -256,17 +253,9 @@ impl Default for MockEthereumBuilder {
 
 impl MockEthereumBuilder {
     /// Sets fee history for each block in the mocked Ethereum network, starting from the 0th block.
-    pub fn with_fee_history(self, history: Vec<u64>) -> Self {
+    pub fn with_fee_history(self, history: Vec<BaseFees>) -> Self {
         Self {
             base_fee_history: history,
-            ..self
-        }
-    }
-
-    /// Sets the excess blob gas history for each block in the mocked Ethereum network, starting from the 0th block.
-    pub fn with_excess_blob_gas_history(self, history: Vec<u64>) -> Self {
-        Self {
-            excess_blob_gas_history: history,
             ..self
         }
     }
@@ -306,19 +295,16 @@ impl MockEthereumBuilder {
     }
 
     fn get_block_by_number(
-        base_fee_history: &[u64],
-        excess_blob_gas_history: &[u64],
+        fee_history: &[BaseFees],
         block: web3::BlockNumber,
     ) -> Option<web3::Block<H256>> {
         let web3::BlockNumber::Number(number) = block else {
             panic!("Non-numeric block requested");
         };
-        let excess_blob_gas = excess_blob_gas_history
+        let excess_blob_gas = Some(0.into()); // Not relevant for tests.
+        let base_fee_per_gas = fee_history
             .get(number.as_usize())
-            .map(|excess_blob_gas| (*excess_blob_gas).into());
-        let base_fee_per_gas = base_fee_history
-            .get(number.as_usize())
-            .map(|base_fee| (*base_fee).into());
+            .map(|fees| fees.base_fee_per_gas.into());
 
         Some(web3::Block {
             number: Some(number),
@@ -341,18 +327,12 @@ impl MockEthereumBuilder {
                 move || Ok(U64::from(inner.read().unwrap().block_number))
             })
             .method("eth_getBlockByNumber", {
-                let base_fee_history = self.base_fee_history;
-                let excess_blob_gas_history = self.excess_blob_gas_history;
                 move |number, full_transactions: bool| {
                     assert!(
                         !full_transactions,
                         "getting blocks with transactions is not mocked"
                     );
-                    Ok(Self::get_block_by_number(
-                        &base_fee_history,
-                        &excess_blob_gas_history,
-                        number,
-                    ))
+                    Ok(Self::get_block_by_number(&self.base_fee_history, number))
                 }
             })
             .method("eth_getTransactionCount", {
@@ -374,10 +354,14 @@ impl MockEthereumBuilder {
                         oldest_block: start_block.into(),
                         base_fee_per_gas: base_fee_history[start_block..=from_block]
                             .iter()
-                            .copied()
-                            .map(U256::from)
+                            .map(|fee| U256::from(fee.base_fee_per_gas))
                             .collect(),
-                        gas_used_ratio: vec![], // not used
+                        base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
+                            .iter()
+                            .map(|fee| fee.base_fee_per_blob_gas)
+                            .collect(),
+                        gas_used_ratio: vec![],      // not used
+                        blob_gas_used_ratio: vec![], // not used
                         reward: None,
                     })
                 },
@@ -591,10 +575,23 @@ mod tests {
     use super::*;
     use crate::{CallFunctionArgs, EthInterface};
 
+    fn base_fees(block: u64, blob: u64) -> BaseFees {
+        BaseFees {
+            base_fee_per_gas: block,
+            base_fee_per_blob_gas: U256::from(blob),
+        }
+    }
+
     #[tokio::test]
     async fn managing_block_number() {
         let mock = MockEthereum::builder()
-            .with_fee_history(vec![0, 1, 2, 3, 4])
+            .with_fee_history(vec![
+                base_fees(0, 4),
+                base_fees(1, 3),
+                base_fees(2, 2),
+                base_fees(3, 1),
+                base_fees(4, 0),
+            ])
             .build();
         let block_number = mock.client.block_number().await.unwrap();
         assert_eq!(block_number, 0.into());
@@ -625,17 +622,24 @@ mod tests {
 
     #[tokio::test]
     async fn managing_fee_history() {
+        let initial_fee_history = vec![
+            base_fees(1, 4),
+            base_fees(2, 3),
+            base_fees(3, 2),
+            base_fees(4, 1),
+            base_fees(5, 0),
+        ];
         let client = MockEthereum::builder()
-            .with_fee_history(vec![1, 2, 3, 4, 5])
+            .with_fee_history(initial_fee_history.clone())
             .build();
         client.advance_block_number(4);
 
         let fee_history = client.as_ref().base_fee_history(4, 4).await.unwrap();
-        assert_eq!(fee_history, [2, 3, 4, 5]);
+        assert_eq!(fee_history, &initial_fee_history[1..=4]);
         let fee_history = client.as_ref().base_fee_history(2, 2).await.unwrap();
-        assert_eq!(fee_history, [2, 3]);
+        assert_eq!(fee_history, &initial_fee_history[1..=2]);
         let fee_history = client.as_ref().base_fee_history(3, 2).await.unwrap();
-        assert_eq!(fee_history, [3, 4]);
+        assert_eq!(fee_history, &initial_fee_history[2..=3]);
     }
 
     #[tokio::test]

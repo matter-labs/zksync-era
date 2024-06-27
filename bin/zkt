@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+cd $(dirname $0)
+cd ../zk_toolbox
+
+cargo install --path ./crates/zk_inception --force
+cargo install --path ./crates/zk_supervisor --force

@@ -1,10 +1,3 @@
-pub(crate) mod args;
-mod create;
-pub mod deploy_paymaster;
-pub mod genesis;
-pub(crate) mod init;
-mod initialize_bridges;
-
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::Subcommand;
 use common::forge::ForgeScriptArgs;
@@ -12,6 +5,13 @@ pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
 use crate::commands::chain::args::{create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs};
+
+pub(crate) mod args;
+mod create;
+pub mod deploy_paymaster;
+pub mod genesis;
+pub(crate) mod init;
+mod initialize_bridges;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
