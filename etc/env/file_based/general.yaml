@@ -342,6 +342,7 @@ snapshot_recovery:
     chunk_size: 200000
   experimental:
     tree_recovery_parallel_persistence_buffer: 1
+    drop_storage_key_preimages: true
 pruning:
   enabled: true
   chunk_size: 10
@@ -350,7 +351,6 @@ pruning:
 
 commitment_generator:
   max_parallelism: 10
-
 
 core_object_store:
   file_backed:

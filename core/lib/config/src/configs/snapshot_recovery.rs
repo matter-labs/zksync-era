@@ -38,6 +38,10 @@ pub struct SnapshotRecoveryConfig {
     pub enabled: bool,
     /// L1 batch number of the snapshot to use during recovery. Specifying this parameter is mostly useful for testing.
     pub l1_batch: Option<L1BatchNumber>,
+    /// Enables dropping storage key preimages when recovering storage logs from a snapshot with version 0.
+    /// This is a temporary flag that will eventually be removed together with version 0 snapshot support.
+    #[serde(default)]
+    pub drop_storage_key_preimages: bool,
     pub tree: TreeRecoveryConfig,
     pub postgres: PostgresRecoveryConfig,
     pub object_store: Option<ObjectStoreConfig>,

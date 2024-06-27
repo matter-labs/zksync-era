@@ -9,7 +9,7 @@ use zksync_config::{
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::clients::MockEthereum;
+use zksync_eth_client::{clients::MockEthereum, BaseFees};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
@@ -130,12 +130,23 @@ impl EthSenderTester {
             ..eth_sender_config.clone().sender.unwrap()
         };
 
+        let history: Vec<_> = history
+            .into_iter()
+            .map(|base_fee_per_gas| BaseFees {
+                base_fee_per_gas,
+                base_fee_per_blob_gas: 0.into(),
+            })
+            .collect();
+
         let gateway = MockEthereum::builder()
             .with_fee_history(
-                std::iter::repeat(0)
-                    .take(Self::WAIT_CONFIRMATIONS as usize)
-                    .chain(history)
-                    .collect(),
+                std::iter::repeat_with(|| BaseFees {
+                    base_fee_per_gas: 0,
+                    base_fee_per_blob_gas: 0.into(),
+                })
+                .take(Self::WAIT_CONFIRMATIONS as usize)
+                .chain(history)
+                .collect(),
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {

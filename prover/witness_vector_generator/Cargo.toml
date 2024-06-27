@@ -19,6 +19,7 @@ zksync_object_store.workspace = true
 zksync_prover_fri_utils.workspace = true
 zksync_utils.workspace = true
 zksync_prover_fri_types.workspace = true
+zksync_prover_config.workspace = true
 zksync_queued_job_processor.workspace = true
 vk_setup_data_generator_server_fri.workspace = true
 zksync_vlog.workspace = true
@@ -30,6 +31,7 @@ tokio = { workspace = true, features = ["time", "macros"] }
 futures = { workspace = true, features = ["compat"] }
 ctrlc = { workspace = true, features = ["termination"] }
 serde = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }
 async-trait.workspace = true
 queues.workspace = true
 bincode.workspace = true

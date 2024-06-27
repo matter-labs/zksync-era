@@ -16,4 +16,5 @@ message DB {
 // Experimental part of the Snapshot recovery configuration.
 message SnapshotRecovery {
   optional uint64 tree_recovery_parallel_persistence_buffer = 1;
+  optional bool drop_storage_key_preimages = 2; // optional; false by default
 }

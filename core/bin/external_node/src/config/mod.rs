@@ -422,7 +422,7 @@ pub(crate) struct OptionalENConfig {
     pub snapshots_recovery_postgres_max_concurrency: NonZeroUsize,
 
     #[serde(default)]
-    pub snapshot_recover_object_store: Option<ObjectStoreConfig>,
+    pub snapshots_recovery_object_store: Option<ObjectStoreConfig>,
 
     /// Enables pruning of the historical node state (Postgres and Merkle tree). The node will retain
     /// recent state and will continuously remove (prune) old enough parts of the state in the background.
@@ -622,7 +622,7 @@ impl OptionalENConfig {
                 .as_ref()
                 .map(|a| a.enabled)
                 .unwrap_or_default(),
-            snapshot_recover_object_store: load_config!(
+            snapshots_recovery_object_store: load_config!(
                 general_config.snapshot_recovery,
                 object_store
             ),
@@ -808,7 +808,7 @@ impl OptionalENConfig {
         let mut result: OptionalENConfig = envy::prefixed("EN_")
             .from_env()
             .context("could not load external node config")?;
-        result.snapshot_recover_object_store = snapshot_recovery_object_store_config().ok();
+        result.snapshots_recovery_object_store = snapshot_recovery_object_store_config().ok();
         Ok(result)
     }
 
@@ -1041,6 +1041,10 @@ pub(crate) struct ExperimentalENConfig {
     // Snapshot recovery
     /// L1 batch number of the snapshot to use during recovery. Specifying this parameter is mostly useful for testing.
     pub snapshots_recovery_l1_batch: Option<L1BatchNumber>,
+    /// Enables dropping storage key preimages when recovering storage logs from a snapshot with version 0.
+    /// This is a temporary flag that will eventually be removed together with version 0 snapshot support.
+    #[serde(default)]
+    pub snapshots_recovery_drop_storage_key_preimages: bool,
     /// Approximate chunk size (measured in the number of entries) to recover in a single iteration.
     /// Reasonable values are order of 100,000 (meaning an iteration takes several seconds).
     ///
@@ -1077,6 +1081,7 @@ impl ExperimentalENConfig {
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
             snapshots_recovery_l1_batch: None,
+            snapshots_recovery_drop_storage_key_preimages: false,
             snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
             snapshots_recovery_tree_parallel_persistence_buffer: None,
             commitment_generator_max_parallelism: None,
@@ -1095,7 +1100,6 @@ impl ExperimentalENConfig {
                 experimental.state_keeper_db_block_cache_capacity_mb,
                 default_state_keeper_db_block_cache_capacity_mb
             ),
-
             state_keeper_db_max_open_files: load_config!(
                 general_config.db_config,
                 experimental.state_keeper_db_max_open_files
@@ -1110,6 +1114,10 @@ impl ExperimentalENConfig {
                 general_config.snapshot_recovery,
                 tree.parallel_persistence_buffer
             ),
+            snapshots_recovery_drop_storage_key_preimages: general_config
+                .snapshot_recovery
+                .as_ref()
+                .map_or(false, |config| config.drop_storage_key_preimages),
             commitment_generator_max_parallelism: general_config
                 .commitment_generator
                 .as_ref()
