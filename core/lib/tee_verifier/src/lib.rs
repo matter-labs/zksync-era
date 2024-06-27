@@ -241,6 +241,7 @@ mod tests {
     use zksync_basic_types::U256;
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
+    use zksync_object_store::StoredObject;
 
     use super::*;
 
