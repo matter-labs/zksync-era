@@ -51,7 +51,10 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .expect(MSG_PROVER_CONFIG_NOT_FOUND_ERR);
     prover_config.prover_object_store = proof_object_store_config.clone();
     if let Some(public_object_store_config) = public_object_store_config {
+        prover_config.shall_save_to_public_bucket = true;
         prover_config.public_object_store = Some(public_object_store_config);
+    } else {
+        prover_config.shall_save_to_public_bucket = false;
     }
     general_config.prover_config = Some(prover_config);
 
