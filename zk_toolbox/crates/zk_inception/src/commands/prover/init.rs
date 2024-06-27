@@ -1,6 +1,4 @@
-use std::path::PathBuf;
-
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 use zksync_config::{
@@ -21,6 +19,7 @@ use crate::messages::{
 const PROVER_STORE_MAX_RETRIES: u16 = 10;
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
+    check_prover_prequisites(shell);
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(Some(ecosystem_config.default_chain.clone()))
