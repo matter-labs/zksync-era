@@ -11,6 +11,7 @@ use crate::messages::{
     MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR, MSG_RUNNING_COMPRESSOR, MSG_RUNNING_PROVER,
     MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR, MSG_RUNNING_WITNESS_GENERATOR,
     MSG_RUNNING_WITNESS_GENERATOR_ERR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
+    MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR,
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -44,9 +45,7 @@ fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
 
     let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_prover_fri_gateway -- --config-path={config_path} --secrets-path={secrets_path}"));
     cmd = cmd.with_force_run();
-    cmd.run().context(MSG_RUNNING_PROVER_GATEWAY_ERR)?;
-
-    Ok(())
+    cmd.run().context(MSG_RUNNING_PROVER_GATEWAY_ERR)
 }
 
 fn run_witness_generator(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
@@ -56,14 +55,16 @@ fn run_witness_generator(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<(
 
     let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_witness_generator -- --all_rounds --config-path={config_path} --secrets-path={secrets_path}"));
     cmd = cmd.with_force_run();
-    cmd.run().context(MSG_RUNNING_WITNESS_GENERATOR_ERR)?;
-
-    Ok(())
+    cmd.run().context(MSG_RUNNING_WITNESS_GENERATOR_ERR)
 }
 
 fn run_witness_vector_generator(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_WITNESS_VECTOR_GENERATOR);
-    todo!()
+    let config_path = chain.path_to_general_config();
+    let secrets_path = chain.path_to_secrets_config();
+    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_witness_vector_generator -- --config-path={config_path} --secrets-path={secrets_path}"));
+    cmd = cmd.with_force_run();
+    cmd.run().context(MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR)
 }
 
 fn run_prover(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
