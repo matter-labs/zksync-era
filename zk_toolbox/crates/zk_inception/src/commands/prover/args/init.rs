@@ -98,6 +98,7 @@ pub struct ProverInitArgsFinal {
 }
 
 const DEFAULT_CREDENTIALS_FILE: &str = "~/.config/gcloud/application_default_credentials.json";
+const DEFAULT_PROOF_STORE_DIR: &str = "artifacts";
 
 impl ProverInitArgs {
     pub(crate) fn fill_values_with_prompt(
@@ -172,10 +173,11 @@ impl ProverInitArgs {
     }
 
     fn handle_file_backed_config(&self) -> ProofStorageConfig {
-        let proof_store_dir = self
-            .proof_store_dir
-            .clone()
-            .unwrap_or_else(|| Prompt::new(MSG_PROOF_STORE_DIR_PROMPT).ask());
+        let proof_store_dir = self.proof_store_dir.clone().unwrap_or_else(|| {
+            Prompt::new(MSG_PROOF_STORE_DIR_PROMPT)
+                .default(DEFAULT_PROOF_STORE_DIR)
+                .ask()
+        });
 
         ProofStorageConfig::FileBacked(ProofStorageFileBacked { proof_store_dir })
     }
