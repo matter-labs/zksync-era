@@ -21,7 +21,7 @@ export class Tester {
     }
 
     // prettier-ignore
-    static async init(l1_rpc_addr: string, l2_rpc_addr: string) : Promise<Tester> {
+    static async init(l1_rpc_addr: string, l2_rpc_addr: string, baseTokenAddress: string) : Promise<Tester> {
         const ethProvider = new ethers.providers.JsonRpcProvider(l1_rpc_addr);
         ethProvider.pollingInterval = 100;
 
@@ -46,7 +46,7 @@ export class Tester {
         const pendingNonce = await ethWallet.getTransactionCount('pending');
         const cancellationTxs = [];
         for (let nonce = latestNonce; nonce != pendingNonce; nonce++) {
-            // For each transaction to override it, we need to provide greater fee. 
+            // For each transaction to override it, we need to provide greater fee.
             // We would manually provide a value high enough (for a testnet) to be both valid
             // and higher than the previous one. It's OK as we'll only be charged for the bass fee
             // anyways. We will also set the miner's tip to 5 gwei, which is also much higher than the normal one.
@@ -59,7 +59,6 @@ export class Tester {
             console.log(`Canceled ${cancellationTxs.length} pending transactions`);
         }
 
-        const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
         const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
 
         return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, hyperchainAdmin, isETHBasedChain, baseTokenAddress);

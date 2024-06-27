@@ -639,9 +639,11 @@ dependencies = [
  "tokio",
  "zksync_block_reverter",
  "zksync_config",
+ "zksync_core_leftovers",
  "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
+ "zksync_protobuf_config",
  "zksync_types",
  "zksync_vlog",
 ]
