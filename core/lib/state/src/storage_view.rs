@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_types::{StorageKey, StorageValue, H256};
+use zksync_types::{StorageKey, StorageValue, H256, U256};
 
 use crate::{ReadStorage, WriteStorage};
 
@@ -47,8 +47,10 @@ pub struct StorageView<S> {
     modified_storage_keys: HashMap<StorageKey, StorageValue>,
     // Used purely for caching
     read_storage_keys: HashMap<StorageKey, StorageValue>,
+    initial_reads_cache: HashMap<U256, H256>,
     // Cache for `contains_key()` checks. The cache is only valid within one L1 batch execution.
     initial_writes_cache: HashMap<StorageKey, bool>,
+    initial_writes_cache_u256: HashMap<U256, bool>,
     metrics: StorageViewMetrics,
 }
 
@@ -92,7 +94,9 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
             modified_storage_keys: HashMap::new(),
             read_storage_keys: HashMap::new(),
             initial_writes_cache: HashMap::new(),
+            initial_reads_cache: HashMap::new(),
             metrics: StorageViewMetrics::default(),
+            initial_writes_cache_u256: HashMap::new(),
         }
     }
 
@@ -103,19 +107,40 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
             .modified_storage_keys
             .get(key)
             .or_else(|| self.read_storage_keys.get(key));
-        cached_value.copied().unwrap_or_else(|| {
-            let value = self.storage_handle.read_value(key);
-            self.read_storage_keys.insert(*key, value);
-            self.metrics.time_spent_on_storage_missed += started_at.elapsed();
-            self.metrics.storage_invocations_missed += 1;
-            value
-        })
+        if cached_value.is_some() {
+            return *cached_value.unwrap();
+        }
+
+        let initial_cache = self.initial_reads_cache.get(&key.hashed_key_u256());
+        if initial_cache.is_some() {
+            let val = *initial_cache.unwrap();
+            self.read_storage_keys.insert(*key, val);
+            self.initial_reads_cache.remove(&key.hashed_key_u256());
+            return val;
+        }
+
+        let value = self.storage_handle.read_value(key);
+        self.read_storage_keys.insert(*key, value);
+        self.metrics.time_spent_on_storage_missed += started_at.elapsed();
+        self.metrics.storage_invocations_missed += 1;
+
+        value
     }
 
     fn cache_size(&self) -> usize {
         self.modified_storage_keys.len() * mem::size_of::<(StorageKey, StorageValue)>()
             + self.initial_writes_cache.len() * mem::size_of::<(StorageKey, bool)>()
             + self.read_storage_keys.len() * mem::size_of::<(StorageKey, StorageValue)>()
+    }
+
+    /// Prepopulate initial read cache
+    pub fn populate_read_cache(&mut self, hashed_key: U256, value: StorageValue) {
+        self.initial_reads_cache.insert(hashed_key, value);
+    }
+
+    /// Prepopulate initial read cache
+    pub fn populate_initial_writes_cache(&mut self, hashed_key: U256, value: bool) {
+        self.initial_writes_cache_u256.insert(hashed_key, value);
     }
 
     /// Returns the current metrics.
@@ -154,12 +179,21 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     /// inserted using [`Self::set_value()`], it will still return `true`.
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
         if let Some(&is_write_initial) = self.initial_writes_cache.get(key) {
-            is_write_initial
-        } else {
-            let is_write_initial = self.storage_handle.is_write_initial(key);
-            self.initial_writes_cache.insert(*key, is_write_initial);
-            is_write_initial
+            return is_write_initial;
         }
+
+        let initial_cache = self.initial_writes_cache_u256.get(&key.hashed_key_u256());
+        if initial_cache.is_some() {
+            let val = *initial_cache.unwrap();
+            self.initial_writes_cache.insert(*key, val);
+            self.initial_writes_cache_u256
+                .remove(&key.hashed_key_u256());
+            return val;
+        }
+
+        let is_write_initial = self.storage_handle.is_write_initial(key);
+        self.initial_writes_cache.insert(*key, is_write_initial);
+        is_write_initial
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {

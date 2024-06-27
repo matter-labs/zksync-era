@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::DefaultHasher, HashSet},
+    collections::{hash_map::DefaultHasher, HashMap, HashSet},
     hash::{Hash, Hasher},
     sync::Arc,
     time::Instant,
@@ -16,6 +16,7 @@ use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
 use prover_dal::{ConnectionPool, Prover, ProverDal};
+use serde::{Deserialize, Serialize};
 use tracing::Instrument;
 use zkevm_test_harness::geometry_config::get_geometry_config;
 use zksync_config::configs::FriWitnessGeneratorConfig;
@@ -77,9 +78,9 @@ struct BlobUrls {
 
 #[derive(Clone)]
 pub struct BasicWitnessGeneratorJob {
-    block_number: L1BatchNumber,
-    job: PrepareBasicCircuitsJob,
-    eip_4844_blobs: Eip4844Blobs,
+    pub block_number: L1BatchNumber,
+    pub job: PrepareBasicCircuitsJob,
+    pub eip_4844_blobs: Eip4844Blobs,
 }
 
 #[derive(Debug)]
@@ -280,14 +281,19 @@ async fn process_basic_circuits_job(
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
+
+    let inputs_for_witness_generation =
+        prepare_inputs_for_artifacts_generation(&connection_pool, witness_gen_input.clone()).await;
+
     let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
         block_number,
         object_store,
-        connection_pool,
+        inputs_for_witness_generation,
         witness_gen_input,
         eip_4844_blobs,
     )
     .await;
+
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
     tracing::info!(
@@ -341,7 +347,7 @@ async fn update_database(
         .await;
 }
 
-async fn get_artifacts(
+pub async fn get_artifacts(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
     eip_4844_blobs: Eip4844Blobs,
@@ -405,7 +411,7 @@ async fn save_recursion_queue(
 
 // If making changes to this method, consider moving this logic to the DAL layer and make
 // `PrepareBasicCircuitsJob` have all fields of `BasicCircuitWitnessGeneratorInput`.
-async fn build_basic_circuits_witness_generator_input(
+pub async fn build_basic_circuits_witness_generator_input(
     connection_pool: &ConnectionPool<Core>,
     witness_merkle_input: PrepareBasicCircuitsJob,
     l1_batch_number: L1BatchNumber,
@@ -446,10 +452,10 @@ async fn build_basic_circuits_witness_generator_input(
     }
 }
 
-async fn generate_witness(
+pub async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
-    connection_pool: ConnectionPool<Core>,
+    inputs_for_witness_generation: InputsForArtifactsGeneration,
     input: BasicCircuitWitnessGeneratorInput,
     eip_4844_blobs: Eip4844Blobs,
 ) -> (
@@ -462,6 +468,160 @@ async fn generate_witness(
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
 ) {
+    let InputsForArtifactsGeneration {
+        protocol_version,
+        storage_refunds,
+        pubdata_costs,
+        bootloader_code_bytes,
+        account_code_hash,
+        used_bytecodes,
+        geometry_config,
+        previous_batch_with_metadata,
+    } = inputs_for_witness_generation;
+
+    let tree = PrecalculatedMerklePathsProvider::new(
+        input.merkle_paths_input,
+        input.previous_block_hash.0,
+    );
+
+    // The following part is CPU-heavy, so we move it to a separate thread.
+    // let rt_handle = tokio::runtime::Handle::current();
+
+    let (circuit_sender, mut circuit_receiver) = tokio::sync::mpsc::channel(1);
+    let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
+
+    let bootloader_contents =
+        expand_bootloader_contents(&input.initial_heap_content, protocol_version);
+
+    let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
+
+    let make_circuits = tokio::task::spawn_blocking(move || {
+        //let connection = rt_handle.block_on(connection_pool.connection()).unwrap();
+        use zksync_state::InMemoryStorage; // TODO DANGEROUS, TESTING ONLY
+
+        let storage = InMemoryStorage::default();
+
+        let mut storage_view = StorageView::new(storage);
+
+        println!("Leaves: {}", tree.pending_leaves.len());
+
+        for leaf in &tree.pending_leaves {
+            let key = leaf.leaf_hashed_key;
+            let read_val = leaf.value_read;
+            storage_view.populate_read_cache(key, H256(read_val));
+
+            if leaf.is_write {
+                storage_view.populate_initial_writes_cache(key, leaf.first_write);
+            } else if H256(read_val) != H256::zero() {
+                storage_view.populate_initial_writes_cache(key, false); // TODO check
+            } else if H256(read_val) == H256::zero() {
+                storage_view.populate_initial_writes_cache(key, true); // TODO check
+            }
+        }
+
+        let storage_view = storage_view.to_rc_ptr();
+
+        let vm_storage_oracle: VmStorageOracle<StorageView<InMemoryStorage>, HistoryDisabled> =
+            VmStorageOracle::new(storage_view.clone());
+        let storage_oracle = StorageOracle::new(
+            vm_storage_oracle,
+            storage_refunds,
+            pubdata_costs.expect("pubdata costs should be present"),
+        );
+
+        let path = KZG_TRUSTED_SETUP_FILE
+            .path()
+            .to_str()
+            .expect("Path to KZG trusted setup is not a UTF-8 string");
+
+        let instant = Instant::now();
+        let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
+            Address::zero(),
+            BOOTLOADER_ADDRESS,
+            bootloader_code,
+            bootloader_contents,
+            false,
+            account_code_hash,
+            // NOTE: this will be evm_simulator_code_hash in future releases
+            account_code_hash,
+            used_bytecodes,
+            Vec::default(),
+            MAX_CYCLES_FOR_TX as usize,
+            geometry_config,
+            storage_oracle,
+            tree,
+            path,
+            eip_4844_blobs.blobs(),
+            |circuit| {
+                circuit_sender.blocking_send(circuit).unwrap();
+            },
+            |a, b, c| queue_sender.blocking_send((a as u8, b, c)).unwrap(),
+        );
+
+        println!("GLOBAL TIME {:?}", instant.elapsed());
+        (scheduler_witness, block_witness)
+    });
+
+    let mut circuit_urls = vec![];
+    let mut recursion_urls = vec![];
+
+    let mut circuits_present = HashSet::<u8>::new();
+
+    let save_circuits = async {
+        loop {
+            tokio::select! {
+                Some(circuit) = circuit_receiver.recv() => {
+                    circuits_present.insert(circuit.numeric_circuit_type());
+                    circuit_urls.push(
+                        save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
+                    );
+                }
+                Some((circuit_id, queue, inputs)) = queue_receiver.recv() => recursion_urls.push(
+                    save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store)
+                        .await,
+                ),
+                else => break,
+            };
+        }
+    };
+
+    let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
+    let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
+
+    recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
+
+    scheduler_witness.previous_block_meta_hash =
+        previous_batch_with_metadata.metadata.meta_parameters_hash.0;
+    scheduler_witness.previous_block_aux_hash =
+        previous_batch_with_metadata.metadata.aux_data_hash.0;
+
+    (
+        circuit_urls,
+        recursion_urls,
+        scheduler_witness,
+        block_aux_witness,
+    )
+}
+
+use zkevm_test_harness::toolset::GeometryConfig;
+use zksync_types::{commitment::L1BatchWithMetadata, L2BlockNumber, U256};
+
+#[derive(Serialize, Deserialize)]
+pub struct InputsForArtifactsGeneration {
+    protocol_version: ProtocolVersionId,
+    storage_refunds: Vec<u32>,
+    pubdata_costs: Option<Vec<i32>>,
+    bootloader_code_bytes: Vec<u8>,
+    account_code_hash: U256,
+    used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
+    geometry_config: GeometryConfig,
+    previous_batch_with_metadata: L1BatchWithMetadata,
+}
+
+pub async fn prepare_inputs_for_artifacts_generation(
+    connection_pool: &ConnectionPool<Core>,
+    input: BasicCircuitWitnessGeneratorInput,
+) -> InputsForArtifactsGeneration {
     let mut connection = connection_pool.connection().await.unwrap();
     let header = connection
         .blocks_dal()
@@ -489,7 +649,6 @@ async fn generate_witness(
         .await
         .expect("Failed fetching bootloader bytecode from DB")
         .expect("Bootloader bytecode should exist");
-    let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
     let account_bytecode_bytes = connection
         .factory_deps_dal()
         .get_sealed_factory_dep(header.base_system_contracts_hashes.default_aa)
@@ -497,8 +656,6 @@ async fn generate_witness(
         .expect("Failed fetching default account bytecode from DB")
         .expect("Default account bytecode should exist");
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-    let bootloader_contents =
-        expand_bootloader_contents(&input.initial_heap_content, protocol_version);
     let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
 
     let hashes: HashSet<H256> = input
@@ -544,10 +701,6 @@ async fn generate_witness(
         .expect("L1 batch should contain at least one miniblock");
     drop(connection);
 
-    let mut tree = PrecalculatedMerklePathsProvider::new(
-        input.merkle_paths_input,
-        input.previous_block_hash.0,
-    );
     let geometry_config = get_geometry_config();
     let mut hasher = DefaultHasher::new();
     geometry_config.hash(&mut hasher);
@@ -557,93 +710,14 @@ async fn generate_witness(
         hasher.finish()
     );
 
-    // The following part is CPU-heavy, so we move it to a separate thread.
-    let rt_handle = tokio::runtime::Handle::current();
-
-    let (circuit_sender, mut circuit_receiver) = tokio::sync::mpsc::channel(1);
-    let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
-
-    let make_circuits = tokio::task::spawn_blocking(move || {
-        let connection = rt_handle.block_on(connection_pool.connection()).unwrap();
-
-        let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
-        let storage_view = StorageView::new(storage).to_rc_ptr();
-
-        let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
-            VmStorageOracle::new(storage_view.clone());
-        let storage_oracle = StorageOracle::new(
-            vm_storage_oracle,
-            storage_refunds,
-            pubdata_costs.expect("pubdata costs should be present"),
-        );
-
-        let path = KZG_TRUSTED_SETUP_FILE
-            .path()
-            .to_str()
-            .expect("Path to KZG trusted setup is not a UTF-8 string");
-
-        let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
-            Address::zero(),
-            BOOTLOADER_ADDRESS,
-            bootloader_code,
-            bootloader_contents,
-            false,
-            account_code_hash,
-            // NOTE: this will be evm_simulator_code_hash in future releases
-            account_code_hash,
-            used_bytecodes,
-            Vec::default(),
-            MAX_CYCLES_FOR_TX as usize,
-            geometry_config,
-            storage_oracle,
-            &mut tree,
-            path,
-            eip_4844_blobs.blobs(),
-            |circuit| {
-                circuit_sender.blocking_send(circuit).unwrap();
-            },
-            |a, b, c| queue_sender.blocking_send((a as u8, b, c)).unwrap(),
-        );
-        (scheduler_witness, block_witness)
-    });
-
-    let mut circuit_urls = vec![];
-    let mut recursion_urls = vec![];
-
-    let mut circuits_present = HashSet::<u8>::new();
-
-    let save_circuits = async {
-        loop {
-            tokio::select! {
-                Some(circuit) = circuit_receiver.recv() => {
-                    circuits_present.insert(circuit.numeric_circuit_type());
-                    circuit_urls.push(
-                        save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
-                    );
-                }
-                Some((circuit_id, queue, inputs)) = queue_receiver.recv() => recursion_urls.push(
-                    save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store)
-                        .await,
-                ),
-                else => break,
-            };
-        }
-    };
-
-    let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
-    let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
-
-    recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
-
-    scheduler_witness.previous_block_meta_hash =
-        previous_batch_with_metadata.metadata.meta_parameters_hash.0;
-    scheduler_witness.previous_block_aux_hash =
-        previous_batch_with_metadata.metadata.aux_data_hash.0;
-
-    (
-        circuit_urls,
-        recursion_urls,
-        scheduler_witness,
-        block_aux_witness,
-    )
+    InputsForArtifactsGeneration {
+        protocol_version,
+        storage_refunds,
+        pubdata_costs,
+        bootloader_code_bytes,
+        account_code_hash,
+        used_bytecodes,
+        geometry_config,
+        previous_batch_with_metadata,
+    }
 }

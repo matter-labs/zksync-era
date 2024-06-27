@@ -475,7 +475,7 @@ impl<'a> PostgresStorage<'a> {
         }
     }
 
-    fn values_cache(&self) -> Option<&ValuesCache> {
+    pub fn values_cache(&self) -> Option<&ValuesCache> {
         Some(&self.caches.as_ref()?.values.as_ref()?.cache)
     }
 }

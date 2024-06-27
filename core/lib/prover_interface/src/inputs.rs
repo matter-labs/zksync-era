@@ -133,7 +133,7 @@ impl PrepareBasicCircuitsJob {
 }
 
 /// Enriched `PrepareBasicCircuitsJob`. All the other fields are taken from the `l1_batches` table.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BasicCircuitWitnessGeneratorInput {
     pub block_number: L1BatchNumber,
     pub previous_block_hash: H256,

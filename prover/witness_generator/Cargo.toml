@@ -34,6 +34,8 @@ zksync_protobuf_config.workspace = true
 
 zkevm_test_harness = { workspace = true }
 circuit_definitions = { workspace = true, features = [ "log_tracing" ] }
+ciborium = "*"
+serde_json = "*"
 zk_evm.workspace = true
 
 anyhow.workspace = true
@@ -49,8 +51,6 @@ ctrlc = { workspace = true, features = ["termination"] }
 once_cell.workspace = true
 tempfile.workspace = true
 
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
-jemallocator = "0.5"
-
 [dev-dependencies]
 const-decoder = "0.3.0"
+

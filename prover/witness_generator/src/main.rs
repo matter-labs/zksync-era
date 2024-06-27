@@ -33,14 +33,8 @@ mod scheduler;
 mod storage_oracle;
 mod utils;
 
-#[cfg(not(target_env = "msvc"))]
-use jemallocator::Jemalloc;
 use zksync_dal::Core;
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
-
-#[cfg(not(target_env = "msvc"))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
