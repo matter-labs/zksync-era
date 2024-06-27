@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContracts;
+use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
 use zksync_types::{
@@ -158,5 +159,33 @@ impl ConnectionPool {
             block.verify(&genesis).context(block.number())?;
         }
         Ok(blocks)
+    }
+
+    pub async fn prune_batches(
+        &self,
+        ctx: &ctx::Ctx,
+        last_batch: L1BatchNumber,
+    ) -> ctx::Result<()> {
+        let mut conn = self.connection(ctx).await.context("connection()")?;
+        let (_, last_block) = ctx
+            .wait(
+                conn.0
+                    .blocks_dal()
+                    .get_l2_block_range_of_l1_batch(last_batch),
+            )
+            .await?
+            .context("get_l2_block_range_of_l1_batch()")?
+            .context("batch not found")?;
+        conn.0
+            .pruning_dal()
+            .soft_prune_batches_range(last_batch, last_block)
+            .await
+            .context("soft_prune_batches_range()")?;
+        conn.0
+            .pruning_dal()
+            .hard_prune_batches_range(last_batch, last_block)
+            .await
+            .context("hard_prune_batches_range()")?;
+        Ok(())
     }
 }

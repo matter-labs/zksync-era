@@ -41,7 +41,7 @@ impl GenesisSpec {
         Self {
             chain_id: g.chain_id,
             protocol_version: g.protocol_version,
-            validators: g.committee.clone(),
+            validators: g.validators.clone(),
             leader_selection: g.leader_selection.clone(),
         }
     }
@@ -107,5 +107,6 @@ pub(super) fn executor(
             .collect::<Result<_, _>>()
             .context("gossip_static_inbound")?,
         gossip_static_outbound,
+        debug_page: None,
     })
 }

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage as storage;
 use zksync_dal::{
     consensus_dal::{self, Payload},
@@ -242,7 +242,8 @@ impl<'a> Connection<'a> {
             first_block: txn.next_block(ctx).await.context("next_block()")?,
 
             protocol_version: spec.protocol_version,
-            committee: spec.validators.clone(),
+            validators: spec.validators.clone(),
+            attesters: None,
             leader_selection: spec.leader_selection.clone(),
         }
         .with_hash();
@@ -400,10 +401,13 @@ impl StoreRunner {
                         .await
                         .wrap("certificates_range()")?;
                     self.persisted.send_if_modified(|p| {
-                        if p.first == range.first {
+                        if &range == p {
                             return false;
                         }
-                        p.first = range.first;
+                        p.first = p.first.max(range.first);
+                        if p.next() < range.next() {
+                            p.last = range.last;
+                        }
                         true
                     });
                     ctx.sleep(POLL_INTERVAL).await?;
@@ -597,5 +601,39 @@ impl PayloadManager for Store {
             }
         }
         Ok(())
+    }
+}
+
+// Dummy implementation
+#[async_trait::async_trait]
+impl storage::PersistentBatchStore for Store {
+    fn last_batch(&self) -> attester::BatchNumber {
+        unimplemented!()
+    }
+    fn last_batch_qc(&self) -> attester::BatchQC {
+        unimplemented!()
+    }
+    fn get_batch(&self, _number: attester::BatchNumber) -> Option<attester::SyncBatch> {
+        None
+    }
+    fn get_batch_qc(&self, _number: attester::BatchNumber) -> Option<attester::BatchQC> {
+        None
+    }
+    fn store_qc(&self, _qc: attester::BatchQC) {
+        unimplemented!()
+    }
+    fn persisted(&self) -> sync::watch::Receiver<storage::BatchStoreState> {
+        sync::watch::channel(storage::BatchStoreState {
+            first: attester::BatchNumber(0),
+            last: None,
+        })
+        .1
+    }
+    async fn queue_next_batch(
+        &self,
+        _ctx: &ctx::Ctx,
+        _batch: attester::SyncBatch,
+    ) -> ctx::Result<()> {
+        Err(anyhow::format_err!("unimplemented").into())
     }
 }

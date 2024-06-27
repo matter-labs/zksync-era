@@ -20,8 +20,6 @@ pub struct ConsensusDal<'a, 'c> {
 /// Error returned by `ConsensusDal::insert_certificate()`.
 #[derive(thiserror::Error, Debug)]
 pub enum InsertCertificateError {
-    #[error("unexpected certificate, want certificate for block {want}")]
-    UnexpectedCert { want: validator::BlockNumber },
     #[error("corresponding L2 block is missing")]
     MissingPayload,
     #[error("certificate doesn't match the payload")]
@@ -148,7 +146,8 @@ impl ConsensusDal<'_, '_> {
                 .context("next_block()")?,
 
             protocol_version: old.protocol_version,
-            committee: old.committee.clone(),
+            validators: old.validators.clone(),
+            attesters: old.attesters.clone(),
             leader_selection: old.leader_selection.clone(),
         }
         .with_hash();
@@ -190,6 +189,7 @@ impl ConsensusDal<'_, '_> {
             state_json
         )
         .instrument("set_replica_state")
+        .report_latency()
         .with_arg("state.view", &state.view)
         .execute(self.storage)
         .await?;
@@ -198,23 +198,19 @@ impl ConsensusDal<'_, '_> {
 
     /// First block that should be in storage.
     async fn first_block(&mut self) -> anyhow::Result<validator::BlockNumber> {
-        let mut start = validator::BlockNumber(0);
-        // If we recovered from a snapshot then it cannot be older than the first block after
-        // snapshot.
-        if let Some(snapshot) = self
+        let info = self
             .storage
-            .snapshot_recovery_dal()
-            .get_applied_snapshot_status()
-            .await?
-        {
-            start = start.max(validator::BlockNumber(snapshot.l2_block_number.0.into()) + 1);
-        }
-        // If the node was pruned, it cannot be older than the first block after soft pruned block.
-        let pruning_info = self.storage.pruning_dal().get_pruning_info().await?;
-        if let Some(last_pruned) = pruning_info.last_soft_pruned_l2_block {
-            start = start.max(validator::BlockNumber(last_pruned.0.into()) + 1);
-        }
-        Ok(start)
+            .pruning_dal()
+            .get_pruning_info()
+            .await
+            .context("get_pruning_info()")?;
+        Ok(match info.last_soft_pruned_l2_block {
+            // It is guaranteed that pruning info values are set for storage recovered from
+            // snapshot, even if pruning was not enabled.
+            Some(last_pruned) => validator::BlockNumber(last_pruned.0.into()) + 1,
+            // No snapshot and no pruning:
+            None => validator::BlockNumber(0),
+        })
     }
 
     /// Next block that should be inserted to storage.
@@ -271,6 +267,7 @@ impl ConsensusDal<'_, '_> {
             i64::try_from(start.0)?,
         )
         .instrument("last_certificate")
+        .report_latency()
         .fetch_optional(&mut txn)
         .await?;
         txn.commit().await.context("commit()")?;
@@ -300,6 +297,7 @@ impl ConsensusDal<'_, '_> {
             i64::try_from(block_number.0)?
         )
         .instrument("certificate")
+        .report_latency()
         .fetch_optional(self.storage)
         .await?
         else {
@@ -358,15 +356,8 @@ impl ConsensusDal<'_, '_> {
             .next())
     }
 
-    /// Inserts a certificate for the L2 block `cert.header().number`. It verifies that
-    ///
-    /// - the certified payload matches the L2 block in storage
-    /// - the parent block already has a certificate.
-    ///
-    /// NOTE: This is an extra secure way of storing a certificate,
-    /// which will help us to detect bugs in the consensus implementation
-    /// while it is "fresh". If it turns out to take too long,
-    /// we can remove the verification checks later.
+    /// Inserts a certificate for the L2 block `cert.header().number`.
+    /// Fails if certificate doesn't match the stored block.
     pub async fn insert_certificate(
         &mut self,
         cert: &validator::CommitQC,
@@ -374,14 +365,6 @@ impl ConsensusDal<'_, '_> {
         use InsertCertificateError as E;
         let header = &cert.message.proposal;
         let mut txn = self.storage.start_transaction().await?;
-        let range = txn.consensus_dal().certificates_range().await?;
-        // If we are not interested in this cert anymore, just return OK.
-        if range.next() < header.number {
-            return Ok(());
-        }
-        if range.next() != header.number {
-            return Err(E::UnexpectedCert { want: range.next() });
-        }
         let want_payload = txn
             .consensus_dal()
             .block_payload(cert.message.proposal.number)
@@ -401,6 +384,7 @@ impl ConsensusDal<'_, '_> {
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_certificate")
+        .report_latency()
         .execute(&mut txn)
         .await?;
         txn.commit().await.context("commit")?;

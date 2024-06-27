@@ -262,12 +262,14 @@ impl StateKeeper {
     }
 
     /// Pushes `SealBatch` command to the `StateKeeper`.
-    pub async fn seal_batch(&mut self) {
+    /// Returns the number of the sealed batch.
+    pub async fn seal_batch(&mut self) -> L1BatchNumber {
         // Each batch ends with an empty block (aka fictive block).
         let mut actions = vec![self.open_block()];
         actions.push(SyncAction::SealBatch);
         self.actions_sender.push_actions(actions).await;
         self.batch_sealed = true;
+        self.last_batch
     }
 
     /// Pushes `count` random L2 blocks to the StateKeeper.
