@@ -1048,8 +1048,9 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
 dependencies = [
- "circuit_encodings 0.1.50",
+ "circuit_encodings 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "crossbeam 0.8.4",
  "derivative",
  "seq-macro",
@@ -1060,9 +1061,9 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization#2cecbe1f35e5dc2eb71c4999565cf348e3168925"
 dependencies = [
- "circuit_encodings 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
+ "circuit_encodings 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
  "crossbeam 0.8.4",
  "derivative",
  "seq-macro",
@@ -1106,6 +1107,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
 dependencies = [
  "derivative",
  "serde",
@@ -1116,7 +1118,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization#2cecbe1f35e5dc2eb71c4999565cf348e3168925"
 dependencies = [
  "derivative",
  "serde",
@@ -1178,9 +1180,10 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
- "circuit_encodings 0.1.50",
+ "circuit_encodings 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "derivative",
  "rayon",
  "serde",
@@ -1189,10 +1192,10 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization#2cecbe1f35e5dc2eb71c4999565cf348e3168925"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
- "circuit_encodings 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
+ "circuit_encodings 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
  "derivative",
  "rayon",
  "serde",
@@ -3463,6 +3466,7 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
 dependencies = [
  "boojum",
  "derivative",
@@ -3478,7 +3482,7 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#5d6a06c37f4656d26a4170d22f2298cd7716c070"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization#2cecbe1f35e5dc2eb71c4999565cf348e3168925"
 dependencies = [
  "boojum",
  "derivative",
@@ -5009,7 +5013,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "circuit_definitions 1.5.0",
+ "circuit_definitions 1.5.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
  "clap 4.5.7",
  "colored",
  "dialoguer",
@@ -7550,7 +7554,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "circuit_definitions 1.5.0",
+ "circuit_definitions 1.5.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
  "clap 4.5.7",
  "hex",
  "indicatif",
@@ -8386,15 +8390,16 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization#2cecbe1f35e5dc2eb71c4999565cf348e3168925"
 dependencies = [
  "bincode",
- "circuit_definitions 1.5.0",
- "circuit_sequencer_api 0.1.50",
+ "circuit_definitions 1.5.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
+ "circuit_sequencer_api 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
  "codegen 0.2.0",
  "crossbeam 0.8.4",
  "derivative",
  "hex",
- "kzg 0.1.50",
+ "kzg 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
  "peak_alloc",
  "rand 0.4.6",
  "rayon",
@@ -9220,7 +9225,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_sequencer_api 0.1.50",
+ "circuit_sequencer_api 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
  "ctrlc",
  "futures 0.3.30",
  "prometheus_exporter",
@@ -9318,7 +9323,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "circuit_definitions 1.5.0",
+ "circuit_definitions 1.5.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
  "ctrlc",
  "futures 0.3.30",
  "local-ip-address",
@@ -9375,7 +9380,7 @@ dependencies = [
 name = "zksync_prover_fri_types"
 version = "0.1.0"
 dependencies = [
- "circuit_definitions 1.5.0",
+ "circuit_definitions 1.5.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
  "serde",
  "zksync_object_store",
  "zksync_types",
@@ -9645,7 +9650,7 @@ dependencies = [
  "async-trait",
  "bincode",
  "ciborium",
- "circuit_definitions 1.5.0",
+ "circuit_definitions 1.5.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-memory-optimization)",
  "const-decoder",
  "ctrlc",
  "futures 0.3.30",
