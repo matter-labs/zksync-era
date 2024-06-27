@@ -6,7 +6,7 @@ use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
-    L1ChainId, L2ChainId,
+    L1BatchNumber, L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
 
@@ -641,6 +641,8 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
 impl Distribution<configs::SnapshotsCreatorConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SnapshotsCreatorConfig {
         configs::SnapshotsCreatorConfig {
+            l1_batch_number: self.sample_opt(|| L1BatchNumber(rng.gen())),
+            version: if rng.gen() { 0 } else { 1 },
             storage_logs_chunk_size: self.sample(rng),
             concurrent_queries_count: self.sample(rng),
             object_store: self.sample(rng),
