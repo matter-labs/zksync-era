@@ -17,7 +17,7 @@ use crate::{
     OutputHandlerFactory, VmRunner, VmRunnerIo, VmRunnerStorage,
 };
 
-/// A standalone component that writes witness input data asynchronously to state keeper.
+/// A standalone component that retrieves all needed data for basic witness generation and saves it to the bucket
 #[derive(Debug)]
 pub struct BasicWitnessInputProducer {
     vm_runner: VmRunner,

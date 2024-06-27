@@ -21,7 +21,7 @@ impl ProtectiveReadsWriterConfig {
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
 pub struct BasicWitnessInputProducerConfig {
     /// Path to the RocksDB data directory that serves state cache.
-    #[serde(default = "ProtectiveReadsWriterConfig::default_db_path")]
+    #[serde(default = "BasicWitnessInputProducerConfig::default_db_path")]
     pub db_path: String,
     /// How many max batches should be processed at the same time.
     pub window_size: u32,
@@ -31,6 +31,6 @@ pub struct BasicWitnessInputProducerConfig {
 
 impl BasicWitnessInputProducerConfig {
     fn default_db_path() -> String {
-        "./db/protective_reads_writer".to_owned()
+        "./db/basic_witness_input_producer".to_owned()
     }
 }

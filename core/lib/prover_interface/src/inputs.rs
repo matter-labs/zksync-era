@@ -144,7 +144,6 @@ pub struct VMRunWitnessInputData {
     pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
     pub initial_heap_content: Vec<(usize, U256)>,
     pub protocol_version: ProtocolVersionId,
-
     pub bootloader_code: Vec<[u8; 32]>,
     pub default_account_code_hash: U256,
     pub storage_refunds: Vec<u32>,

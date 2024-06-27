@@ -9,3 +9,11 @@ db_path = "./db/main/protective_reads"
 window_size = 3
 # All batches before this one (inclusive) are always considered to be processed.
 first_processed_batch = 0
+
+[vm_runner.bwip]
+# Path to the directory that contains RocksDB with bwip writer cache.
+db_path = "./db/main/basic_witness_input_producer"
+# Amount of batches that can be processed in parallel.
+window_size = 3
+# All batches before this one (inclusive) are always considered to be processed.
+first_processed_batch = 0

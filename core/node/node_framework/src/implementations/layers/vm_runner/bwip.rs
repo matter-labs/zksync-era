@@ -47,7 +47,7 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
             // One for `ConcurrentOutputHandlerFactoryTask`/`VmRunner` as they need occasional access
             // to DB for querying last processed batch and last ready to be loaded batch.
             //
-            // `window_size` connections for `ProtectiveReadsOutputHandlerFactory`
+            // `window_size` connections for `BasicWitnessInputProducer`
             // as there can be multiple output handlers holding multi-second connections to write
             // large amount of protective reads.
             master_pool

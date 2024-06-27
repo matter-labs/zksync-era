@@ -27,7 +27,7 @@ use zksync_vm_utils::execute_tx;
 /// Version 1 of the data used as input for the TEE verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct V1TeeVerifierInput {
-    prepare_basic_circuits_job: WitnessInputMerklePaths,
+    merkle_paths: WitnessInputMerklePaths,
     l2_blocks_execution_data: Vec<L2BlockExecutionData>,
     l1_batch_env: L1BatchEnv,
     system_env: SystemEnv,
@@ -46,14 +46,14 @@ pub enum TeeVerifierInput {
 
 impl TeeVerifierInput {
     pub fn new(
-        prepare_basic_circuits_job: WitnessInputMerklePaths,
+        merkle_paths: WitnessInputMerklePaths,
         l2_blocks_execution_data: Vec<L2BlockExecutionData>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         used_contracts: Vec<(H256, Vec<u8>)>,
     ) -> Self {
         TeeVerifierInput::V1(V1TeeVerifierInput {
-            prepare_basic_circuits_job,
+            merkle_paths,
             l2_blocks_execution_data,
             l1_batch_env,
             system_env,
@@ -71,7 +71,7 @@ impl TeeVerifierInput {
     /// not actionable.
     pub fn verify(self) -> anyhow::Result<()> {
         let TeeVerifierInput::V1(V1TeeVerifierInput {
-            prepare_basic_circuits_job,
+            merkle_paths: prepare_basic_circuits_job,
             l2_blocks_execution_data,
             l1_batch_env,
             system_env,
@@ -118,10 +118,10 @@ impl TeeVerifierInput {
 
     /// Sets the initial storage values and returns `BlockOutputWithProofs`
     fn get_bowp_and_set_initial_values(
-        prepare_basic_circuits_job: WitnessInputMerklePaths,
+        merkle_paths: WitnessInputMerklePaths,
         raw_storage: &mut InMemoryStorage,
     ) -> BlockOutputWithProofs {
-        let logs = prepare_basic_circuits_job
+        let logs = merkle_paths
             .into_merkle_paths()
             .map(
                 |StorageLogMetadata {

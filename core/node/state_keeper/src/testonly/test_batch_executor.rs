@@ -30,7 +30,9 @@ use crate::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
     io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
-    testonly::{default_vm_batch_result, successful_exec, BASE_SYSTEM_CONTRACTS},
+    testonly::{
+        default_vm_batch_result, storage_view_cache, successful_exec, BASE_SYSTEM_CONTRACTS,
+    },
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
@@ -499,8 +501,7 @@ impl TestBatchExecutor {
                     resp.send(default_vm_batch_result()).unwrap();
                     return;
                 }
-                //todo: add test
-                Command::StorageViewCache(_) => (),
+                Command::StorageViewCache(resp) => resp.send(storage_view_cache()).unwrap(),
             }
         }
     }
@@ -829,8 +830,7 @@ impl BatchExecutor for MockBatchExecutor {
                         resp.send(default_vm_batch_result()).unwrap();
                         break;
                     }
-                    // todo: add test
-                    Command::StorageViewCache(_) => (),
+                    Command::StorageViewCache(resp) => resp.send(storage_view_cache()).unwrap(),
                 }
             }
             anyhow::Ok(())
