@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_txs\n            SET\n                resend_attempts_count = resend_attempts_count + 1\n            WHERE\n                id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ee6bca9b64e9091894c8687c4d8ad03734fb046daf0eb54c08f820d448712b5c"
+}

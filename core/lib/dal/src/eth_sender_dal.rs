@@ -272,6 +272,39 @@ impl EthSenderDal<'_, '_> {
         .map(|row| row.id as u32))
     }
 
+    pub async fn increase_resend_attempts_count(&mut self, eth_txs_id: u32) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs
+            SET
+                resend_attempts_count = resend_attempts_count + 1
+            WHERE
+                id = $1
+            "#,
+            eth_txs_id as i32
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_txs_history_entries_count(&mut self, eth_txs_id: u32) -> sqlx::Result<u32> {
+        let count = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*) AS "count!"
+            FROM
+                eth_txs_history
+            WHERE
+                eth_tx_id = $1
+            "#,
+            eth_txs_id as i32
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .count;
+        Ok(count as u32)
+    }
     pub async fn set_sent_at_block(
         &mut self,
         eth_txs_history_id: u32,

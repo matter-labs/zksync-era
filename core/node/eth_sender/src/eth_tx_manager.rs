@@ -119,10 +119,17 @@ impl EthTxManager {
             time_in_mempool,
         )?;
 
+        let tx_history_entries_count = storage
+            .eth_sender_dal()
+            .get_txs_history_entries_count(tx.id)
+            .await
+            .unwrap();
+
         if let Some(previous_sent_tx) = previous_sent_tx {
             METRICS.transaction_resent.inc();
             tracing::info!(
-                "Resending tx {} at block {current_block} with \
+                "Resending tx {} at block {current_block}, \
+                attempt #{}, it has been in mempool {} time(s) with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
                 blob_fee_per_gas {blob_base_fee_per_gas:?}, \
@@ -132,17 +139,21 @@ impl EthTxManager {
                 blob_fee_per_gas {:?}, \
                 ",
                 tx.id,
+                tx.resend_attempts_count + 1,
+                tx_history_entries_count + 1,
                 previous_sent_tx.base_fee_per_gas,
                 previous_sent_tx.priority_fee_per_gas,
                 previous_sent_tx.blob_base_fee_per_gas
             );
         } else {
             tracing::info!(
-                "Sending tx {} at block {current_block} with \
+                "Sending tx {} at block {current_block}, \
+                attempt #{} with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
                 blob_fee_per_gas {blob_base_fee_per_gas:?}",
-                tx.id
+                tx.id,
+                tx.resend_attempts_count + 1
             );
         }
 
@@ -198,8 +209,17 @@ impl EthTxManager {
             .await
             .unwrap()
         {
+            let transaction_type = if has_blob_sidecar {
+                TransactionType::Blob
+            } else {
+                TransactionType::Regular
+            };
+
+            METRICS.resend_attempts_per_transaction[&transaction_type]
+                .observe(tx.resend_attempts_count.into());
+
             if let Err(error) = self
-                .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx)
+                .send_raw_transaction(storage, tx.id, tx_history_id, signed_tx.raw_tx)
                 .await
             {
                 tracing::warn!(
@@ -210,6 +230,9 @@ impl EthTxManager {
                     error {error}",
                     tx.id
                 );
+            } else {
+                METRICS.times_landed_in_mempool_per_transaction[&transaction_type]
+                    .observe((tx_history_entries_count + 1).into());
             }
         }
         Ok(signed_tx.hash)
@@ -218,9 +241,15 @@ impl EthTxManager {
     async fn send_raw_transaction(
         &self,
         storage: &mut Connection<'_, Core>,
+        tx_id: u32,
         tx_history_id: u32,
         raw_tx: RawTransactionBytes,
     ) -> Result<(), EthSenderError> {
+        storage
+            .eth_sender_dal()
+            .increase_resend_attempts_count(tx_id)
+            .await
+            .unwrap();
         match self.l1_interface.send_raw_tx(raw_tx).await {
             Ok(_) => Ok(()),
             Err(error) => {
@@ -424,6 +453,7 @@ impl EthTxManager {
                 if let Err(error) = self
                     .send_raw_transaction(
                         storage,
+                        tx.eth_tx_id,
                         tx.id,
                         RawTransactionBytes::new_unchecked(tx.signed_raw_tx.clone()),
                     )
@@ -532,6 +562,21 @@ impl EthTxManager {
             .unwrap_or(0);
         let waited_blocks = tx_status.receipt.block_number.unwrap().as_u32() - sent_at_block;
         METRICS.l1_blocks_waited_in_mempool[&tx_type_label].observe(waited_blocks.into());
+
+        let transaction_type = if tx.blob_sidecar.is_some() {
+            TransactionType::Blob
+        } else {
+            TransactionType::Regular
+        };
+        METRICS.total_resend_attempts_per_transaction[&transaction_type]
+            .observe(tx.resend_attempts_count.into());
+        let tx_history_entries_count = storage
+            .eth_sender_dal()
+            .get_txs_history_entries_count(tx.id)
+            .await
+            .unwrap();
+        METRICS.total_times_landed_in_mempool_per_transaction[&transaction_type]
+            .observe(tx_history_entries_count.into());
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
