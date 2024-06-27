@@ -6,6 +6,7 @@ use common::files::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 use xshell::Shell;
+use zksync_protobuf::repr::ProtoRepr;
 
 pub trait FileConfig {}
 
@@ -19,13 +20,13 @@ pub trait FileConfigWithDefaultName {
 
 impl<T> FileConfig for T where T: FileConfigWithDefaultName {}
 
-impl<T> ReadConfig for T where T: FileConfig + Clone + DeserializeOwned {}
+// impl<T> ReadConfig for T where T: FileConfig + Clone {}
 
 impl<T> SaveConfig for T where T: FileConfig + Serialize {}
 
 impl<T> SaveConfigWithComment for T where T: FileConfig + Serialize {}
 
-impl<T> ReadConfigWithBasePath for T where T: FileConfigWithDefaultName + Clone + DeserializeOwned {}
+impl<T> ReadConfigWithBasePath for T where T: FileConfigWithDefaultName + DeserializeOwned + Clone {}
 
 impl<T> SaveConfigWithBasePath for T where T: FileConfigWithDefaultName + Serialize {}
 
@@ -33,7 +34,14 @@ impl<T> SaveConfigWithCommentAndBasePath for T where T: FileConfigWithDefaultNam
 
 /// Reads a config file from a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
-pub trait ReadConfig: DeserializeOwned + Clone {
+pub trait ReadConfig: Clone {
+    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self>;
+}
+
+impl<T> ReadConfig for T
+where
+    T: DeserializeOwned + Clone + FileConfig,
+{
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());
 
@@ -48,6 +56,25 @@ pub trait ReadConfig: DeserializeOwned + Clone {
         }
     }
 }
+
+// impl<T> ReadConfig for T
+// where
+//     T: ProtoRepr + Clone + FileConfig,
+// {
+//     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
+//         let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());
+//
+//         match path.as_ref().extension().and_then(|ext| ext.to_str()) {
+//             Some("yaml") | Some("yml") => read_yaml_file(shell, &path).with_context(error_context),
+//             Some("toml") => read_toml_file(shell, &path).with_context(error_context),
+//             Some("json") => read_json_file(shell, &path).with_context(error_context),
+//             _ => bail!(format!(
+//                 "Unsupported file extension for config file {:?}.",
+//                 path.as_ref()
+//             )),
+//         }
+//     }
+// }
 
 /// Reads a config file from a base path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.

@@ -26,6 +26,11 @@ common = { path = "crates/common" }
 config = { path = "crates/config" }
 types = { path = "crates/types" }
 
+# ZkSync deps
+zksync_config = { path = "../core/lib/config" }
+zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3e6f101ee4124308c4c974caaa259d524549b0c6" }
+
 # External dependencies
 anyhow = "1.0.82"
 clap = { version = "4.4", features = ["derive", "wrap_help"] }

@@ -25,3 +25,7 @@ thiserror.workspace = true
 types.workspace = true
 url.workspace = true
 xshell.workspace = true
+
+zksync_protobuf_config.workspace = true
+zksync_protobuf.workspace = true
+zksync_config.workspace = true
