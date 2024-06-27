@@ -47,11 +47,11 @@ async fn run_main_node(
                 .wrap("adjust_genesis()")?;
         }
         let (store, runner) = Store::new(ctx, pool, None).await.wrap("Store::new()")?;
-        s.spawn_bg(runner.run(ctx));
+        s.spawn_bg(async { runner.run(ctx).await.context("Store::runner()") });
         let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
             .await
             .wrap("BlockStore::new()")?;
-        s.spawn_bg(runner.run(ctx));
+        s.spawn_bg(async { runner.run(ctx).await.context("BlockStore::runner()") });
         anyhow::ensure!(
             block_store.genesis().leader_selection
                 == validator::LeaderSelectionMode::Sticky(validator_key.public()),
@@ -62,7 +62,7 @@ async fn run_main_node(
         let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
             .await
             .wrap("BatchStore::new()")?;
-        s.spawn_bg(runner.run(ctx));
+        s.spawn_bg(async { runner.run(ctx).await.context("BatchStore::runner()") });
 
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets)?,
@@ -75,7 +75,7 @@ async fn run_main_node(
                 payload_manager: Box::new(store.clone()),
             }),
         };
-        executor.run(ctx).await
+        executor.run(ctx).await.context("executor.run()")
     })
     .await
 }

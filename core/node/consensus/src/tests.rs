@@ -493,7 +493,14 @@ async fn test_with_pruning(version: ProtocolVersionId) {
         });
         tracing::info!("Run validator.");
         let (cfg, secrets) = testonly::config(&validator_cfg);
-        s.spawn_bg(run_main_node(ctx, cfg, secrets, validator_pool.clone()));
+        s.spawn_bg({
+            let validator_pool = validator_pool.clone();
+            async {
+                run_main_node(ctx, cfg, secrets, validator_pool)
+                    .await
+                    .context("run_main_node()")
+            }
+        });
         // TODO: ensure at least L1 batch in `testonly::StateKeeper::new()` to make it fool proof.
         validator.seal_batch().await;
 
@@ -507,22 +514,41 @@ async fn test_with_pruning(version: ProtocolVersionId) {
                 .await
                 .context("node")
         });
-        s.spawn_bg(node.run_consensus(ctx, validator.connect(ctx).await?, &node_cfg));
+        let conn = validator.connect(ctx).await?;
+        s.spawn_bg(async {
+            node.run_consensus(ctx, conn, &node_cfg)
+                .await
+                .context("run_consensus()")
+        });
 
         tracing::info!("Sync some blocks");
         validator.push_random_blocks(rng, 5).await;
-        let to_prune = validator.seal_batch().await;
+        validator.seal_batch().await;
+        let to_prune = validator.last_sealed_batch();
+        tracing::info!(
+            "to_prune = batch {}; block {}",
+            to_prune,
+            validator.last_block()
+        );
+        tracing::info!(
+            "Seal another batch to make sure that there is at least 1 sealed batch after pruning."
+        );
         validator.push_random_blocks(rng, 5).await;
-        node_pool
-            .wait_for_certificates(ctx, validator.last_block())
+        validator.seal_batch().await;
+        validator_pool
+            .wait_for_batch(ctx, validator.last_sealed_batch())
             .await?;
 
         tracing::info!("Prune some blocks and sync more");
-        validator_pool.prune_batches(ctx, to_prune).await?;
+        validator_pool
+            .prune_batches(ctx, to_prune)
+            .await
+            .context("prune_batches")?;
         validator.push_random_blocks(rng, 5).await;
         node_pool
             .wait_for_certificates(ctx, validator.last_block())
-            .await?;
+            .await
+            .context("wait_for_certificates()")?;
         Ok(())
     })
     .await

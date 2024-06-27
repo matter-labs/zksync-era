@@ -59,7 +59,7 @@ impl ConnectionPool {
                 .wrap("connection()")?
                 .payload(ctx, number)
                 .await
-                .wrap("payload()")?
+                .with_wrap(|| format!("payload({number})"))?
             {
                 return Ok(payload);
             }
@@ -553,7 +553,11 @@ impl PayloadManager for Store {
         block_number: validator::BlockNumber,
     ) -> ctx::Result<validator::Payload> {
         const LARGE_PAYLOAD_SIZE: usize = 1 << 20;
-        let payload = self.pool.wait_for_payload(ctx, block_number).await?;
+        let payload = self
+            .pool
+            .wait_for_payload(ctx, block_number)
+            .await
+            .wrap("wait_for_payload")?;
         let encoded_payload = payload.encode();
         if encoded_payload.0.len() > LARGE_PAYLOAD_SIZE {
             tracing::warn!(
