@@ -65,6 +65,13 @@ impl Options {
     }
 }
 
+/// Information about the base fees provided by the L1 client.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BaseFees {
+    pub base_fee_per_gas: u64,
+    pub base_fee_per_blob_gas: U256,
+}
+
 /// Common Web3 interface, as seen by the core applications.
 /// Encapsulates the raw Web3 interaction, providing a high-level interface. Acts as an extension
 /// trait implemented for L1 / Ethereum [clients](zksync_web3_decl::client::Client).
@@ -96,7 +103,7 @@ pub trait EthInterface: Sync + Send {
         &self,
         from_block: usize,
         block_count: usize,
-    ) -> EnrichedClientResult<Vec<u64>>;
+    ) -> EnrichedClientResult<Vec<BaseFees>>;
 
     /// Returns the `base_fee_per_gas` value for the currently pending L1 block.
     async fn get_pending_block_base_fee_per_gas(&self) -> EnrichedClientResult<U256>;

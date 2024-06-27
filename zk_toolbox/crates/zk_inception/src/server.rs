@@ -44,14 +44,18 @@ impl RunServer {
         }
     }
 
-    pub fn run(&self, shell: &Shell, server_mode: ServerMode) -> anyhow::Result<()> {
+    pub fn run(
+        &self,
+        shell: &Shell,
+        server_mode: ServerMode,
+        mut additional_args: Vec<String>,
+    ) -> anyhow::Result<()> {
         shell.change_dir(&self.code_path);
         let config_genesis = &self.genesis.to_str().unwrap();
         let config_wallets = &self.wallets.to_str().unwrap();
         let config_general_config = &self.general_config.to_str().unwrap();
         let config_contracts = &self.contracts.to_str().unwrap();
         let secrets = &self.secrets.to_str().unwrap();
-        let mut additional_args = vec![];
         if let Some(components) = self.components() {
             additional_args.push(format!("--components={}", components))
         }

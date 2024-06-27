@@ -11,6 +11,8 @@ pub(crate) const GENERAL_FILE: &str = "general.yaml";
 /// Name of the genesis config file
 pub(crate) const GENESIS_FILE: &str = "genesis.yaml";
 
+// Name of external node specific config
+pub(crate) const EN_CONFIG_FILE: &str = "external_node.yaml";
 pub(crate) const ERC20_CONFIGS_FILE: &str = "erc20.yaml";
 /// Name of the initial deployments config file
 pub(crate) const INITIAL_DEPLOYMENT_FILE: &str = "initial_deployments.yaml";
