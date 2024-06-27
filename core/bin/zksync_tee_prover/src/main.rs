@@ -32,7 +32,7 @@ use zksync_types::{tee_types::TeeType, L1BatchNumber};
 // TODO(patrick) refactor; this is already defined elsewhere but it's private
 pub type TeeProofGenerationDataResponse = GenericProofGenerationDataResponse<TeeVerifierInput>;
 
-struct TeeProverTask {
+struct TeeProver {
     api_url: Url,
     signing_key: SigningKey,
     attestation_quote_bytes: Vec<u8>,
@@ -41,7 +41,7 @@ struct TeeProverTask {
     http_client: Client,
 }
 
-impl TeeProverTask {
+impl TeeProver {
     async fn send_http_request<Req, Resp>(
         &self,
         request: Req,
@@ -154,7 +154,7 @@ impl TeeProverTask {
 }
 
 #[async_trait::async_trait]
-impl Task for TeeProverTask {
+impl Task for TeeProver {
     fn id(&self) -> TaskId {
         "tee_prover".into()
     }
@@ -241,7 +241,7 @@ impl WiringLayer for TeeProverLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let tee_prover_task = TeeProverTask {
+        let tee_prover_task = TeeProver {
             api_url: self.api_url,
             signing_key: self.signing_key,
             attestation_quote_bytes: self.attestation_quote_bytes,
