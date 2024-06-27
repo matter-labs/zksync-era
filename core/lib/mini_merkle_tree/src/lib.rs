@@ -384,6 +384,10 @@ where
         self.0.lock().unwrap().hashes_prefix(count)
     }
 
+    pub fn start_index(&self) -> usize {
+        self.0.lock().unwrap().start_index
+    }
+
     pub fn from_hashes(hashes: impl Iterator<Item = H256>, min_tree_size: Option<usize>) -> Self {
         Self(Arc::new(Mutex::new(MiniMerkleTree::from_hashes(
             KeccakHasher,
