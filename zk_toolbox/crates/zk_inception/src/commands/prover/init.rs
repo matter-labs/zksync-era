@@ -12,8 +12,8 @@ use super::{
 };
 use crate::messages::{
     MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
-    MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
-    MSG_PROVER_INITIALIZED,
+    MSG_GETTING_GCP_PROJECTS_SPINNER, MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR,
+    MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED,
 };
 
 const PROVER_STORE_MAX_RETRIES: u16 = 10;
@@ -28,7 +28,9 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .get_zksync_general_config()
         .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
 
+    let spinner = Spinner::new(MSG_GETTING_GCP_PROJECTS_SPINNER);
     let project_ids = get_project_ids(shell)?;
+    spinner.finish();
     let setup_key_path = get_setup_key_path(&general_config, &ecosystem_config)?;
 
     let args = args.fill_values_with_prompt(project_ids, &setup_key_path);
