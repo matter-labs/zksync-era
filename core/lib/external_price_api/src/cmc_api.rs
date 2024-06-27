@@ -17,6 +17,15 @@ pub struct CoinMarketCapPriceAPIClient {
 }
 
 impl CoinMarketCapPriceAPIClient {
+    fn new(base_url: Url, api_key: Option<String>, client: reqwest::Client) -> Self {
+        Self {
+            base_url,
+            api_key,
+            client,
+            token_id_by_address: HashMap::new(),
+        }
+    }
+
     async fn get_token_id(self: &Self, address: Address) -> anyhow::Result<String> {
         match self.token_id_by_address.get(&address) {
             Some(x) => Ok(x.clone()),
@@ -34,7 +43,9 @@ impl CoinMarketCapPriceAPIClient {
                 let address_str = address_to_string(address);
                 for crypto in response.data {
                     if let Some(platform) = crypto.platform {
-                        if platform.token_address == address_str {
+                        if platform.name.to_ascii_lowercase() == "ethereum"
+                            && platform.token_address == address_str
+                        {
                             return Ok(crypto.id.to_string());
                         }
                     }
@@ -84,34 +95,44 @@ impl CoinMarketCapPriceAPIClient {
 #[derive(Debug, Deserialize)]
 struct CMCMapResponse {
     data: Vec<CMCCryptoInfo>,
-    status: Status,
 }
 
 #[derive(Debug, Deserialize)]
 struct CMCCryptoInfo {
     id: i32,
-    name: String,
-    symbol: String,
-    slug: String,
     platform: Option<CMCCryptoPlatform>,
 }
 
 #[derive(Debug, Deserialize)]
 struct CMCCryptoPlatform {
-    id: i32,
     name: String,
-    symbol: String,
-    slug: String,
     token_address: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct Status {
-    timestamp: String,
-    error_code: i32,
-    error_message: Option<String>,
-    elapsed: i32,
-    credit_count: i32,
-}
+mod tests {
+    use std::str::FromStr;
 
-mod tests {}
+    use url::Url;
+    use zksync_types::Address;
+
+    use crate::cmc_api::CoinMarketCapPriceAPIClient;
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_happy_day() {
+        let address = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984";
+        let api_key = "KEY".to_string();
+
+        let cmc_client = CoinMarketCapPriceAPIClient::new(
+            Url::from_str("https://pro-api.coinmarketcap.com/").unwrap(),
+            Some(api_key.clone()),
+            reqwest::Client::new(),
+        );
+        let api_price = cmc_client
+            .get_token_price_by_address(Address::from_str(address).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(0.0, api_price);
+    }
+}
