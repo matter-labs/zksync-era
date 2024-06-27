@@ -1,4 +1,4 @@
-use std::{fmt::Debug, time::Duration};
+use std::{fmt::Debug, str::FromStr, time::Duration};
 
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
@@ -27,7 +27,7 @@ use zksync_prover_interface::{
     outputs::L1BatchTeeProofForL1,
 };
 use zksync_tee_verifier::TeeVerifierInput;
-use zksync_types::L1BatchNumber;
+use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
 // TODO(patrick) refactor; this is already defined elsewhere but it's private
 pub type TeeProofGenerationDataResponse = GenericProofGenerationDataResponse<TeeVerifierInput>;
@@ -36,6 +36,7 @@ struct TeeProverTask {
     api_url: Url,
     signing_key: SigningKey,
     attestation_quote_bytes: Vec<u8>,
+    tee_type: TeeType,
     batch_count: Option<usize>,
     http_client: Client,
 }
@@ -114,7 +115,7 @@ impl TeeProverTask {
             Ok(verification_result) => {
                 let root_hash_bytes = verification_result.0.as_bytes();
                 let batch_number = verification_result.1;
-                let signature = self.signing_key.try_sign(root_hash_bytes).unwrap();
+                let signature = self.signing_key.try_sign(root_hash_bytes)?;
                 Ok((signature, batch_number, verification_result.0))
             }
         }
@@ -130,6 +131,7 @@ impl TeeProverTask {
             signature: signature.to_vec(),
             pubkey: self.signing_key.verifying_key().to_sec1_bytes().into(),
             proof: root_hash.as_bytes().into(),
+            tee_type: self.tee_type,
         }));
         let response = self
             .send_http_request::<SubmitTeeProofRequest, SubmitProofResponse>(
@@ -210,6 +212,7 @@ struct TeeProverLayer {
     api_url: Url,
     signing_key: SigningKey,
     attestation_quote_bytes: Vec<u8>,
+    tee_type: TeeType,
     batch_count: Option<usize>,
 }
 
@@ -218,12 +221,14 @@ impl TeeProverLayer {
         api_url: Url,
         signing_key: SigningKey,
         attestation_quote_bytes: Vec<u8>,
+        tee_type: TeeType,
         batch_count: Option<usize>,
     ) -> Self {
         Self {
             api_url,
             signing_key,
             attestation_quote_bytes,
+            tee_type,
             batch_count,
         }
     }
@@ -240,6 +245,7 @@ impl WiringLayer for TeeProverLayer {
             api_url: self.api_url,
             signing_key: self.signing_key,
             attestation_quote_bytes: self.attestation_quote_bytes,
+            tee_type: self.tee_type,
             batch_count: self.batch_count,
             http_client: Client::new(),
         };
@@ -297,31 +303,23 @@ fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let signing_key_pem = std::env::var("TEE_SIGNING_KEY").unwrap_or(
-        r#"-----BEGIN PRIVATE KEY-----
-MIGEAgEAMBAGByqGSM49AgEGBSuBBAAKBG0wawIBAQQgtQs4yNOWyIco/AMuzlWO
-valpB6CxqTQCiXFe73vyneuhRANCAARXX55cR5OHwxskdsKKBBalUBgCAU+oKIl7
-K678gpQwmzwbZqqiuNpWxeEu+51Nh3tmPPJGTW9Y0BCNC0if7cxA
------END PRIVATE KEY-----
-"#
-        .into(),
-    );
-    let signing_key: SigningKey = SigningKey::from_pkcs8_pem(&signing_key_pem).unwrap();
+    let signing_key_pem = std::env::var("TEE_SIGNING_KEY")?;
+    let signing_key: SigningKey = SigningKey::from_pkcs8_pem(&signing_key_pem)?;
     let _verifying_key_bytes = signing_key.verifying_key().to_sec1_bytes();
 
     // TEST TEST
     {
         use k256::ecdsa::signature::Verifier;
-        let vkey: VerifyingKey = VerifyingKey::try_from(_verifying_key_bytes.as_ref()).unwrap();
-        let signature: Signature = signing_key.try_sign(&[0, 0, 0, 0]).unwrap();
+        let vkey: VerifyingKey = VerifyingKey::try_from(_verifying_key_bytes.as_ref())?;
+        let signature: Signature = signing_key.try_sign(&[0, 0, 0, 0])?;
         let sig_bytes = signature.to_vec();
-        let signature: Signature = Signature::try_from(sig_bytes.as_ref()).unwrap();
-        let _ = vkey.verify(&[0, 0, 0, 0], &signature).unwrap();
+        let signature: Signature = Signature::try_from(sig_bytes.as_ref())?;
+        let _ = vkey.verify(&[0, 0, 0, 0], &signature)?;
     }
     // END TEST
 
-    let attestation_quote_file = std::env::var("TEE_QUOTE_FILE").unwrap_or_default();
-    let attestation_quote_bytes = std::fs::read(&attestation_quote_file).unwrap_or_default();
+    let attestation_quote_file = std::env::var("TEE_QUOTE_FILE")?;
+    let attestation_quote_bytes = std::fs::read(attestation_quote_file)?;
 
     let opt = Cli::parse();
 
@@ -339,14 +337,17 @@ K678gpQwmzwbZqqiuNpWxeEu+51Nh3tmPPJGTW9Y0BCNC0if7cxA
     // }
 
     let api_url = Url::parse(opt.api_url.as_str())?;
+    let tee_type = std::env::var("TEE_TYPE")?;
+    let tee_type = TeeType::from_str(tee_type.as_str())?;
 
     ZkStackServiceBuilder::new()
         .add_layer(SigintHandlerLayer)
-        // .add_layer(PrometheusExporterLayer(prometheus_config.unwrap()))
+        // .add_layer(PrometheusExporterLayer(prometheus_config?))
         .add_layer(TeeProverLayer::new(
             api_url,
             signing_key,
             attestation_quote_bytes,
+            tee_type,
             opt.batch_count,
         ))
         .build()?

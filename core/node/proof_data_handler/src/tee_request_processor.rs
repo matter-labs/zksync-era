@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{tee_proof_generation_dal::TeeType, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     GenericProofGenerationDataResponse, RegisterTeeAttestationRequest,
@@ -92,7 +92,7 @@ impl TeeRequestProcessor {
             &proof.0.signature,
             &proof.0.pubkey,
             &proof.0.proof,
-            TeeType::Sgx,
+            proof.0.tee_type,
         )
         .await
         .map_err(RequestProcessorError::Dal)?;
