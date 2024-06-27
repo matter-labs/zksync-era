@@ -476,7 +476,7 @@ async fn test_with_pruning(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    let mut setup = Setup::new(rng, 1);
+    let setup = Setup::new(rng, 1);
     let validator_cfg = new_configs(rng, &setup, 0)[0].clone();
     let node_cfg = new_fullnode(rng, &validator_cfg);
 
@@ -498,7 +498,7 @@ async fn test_with_pruning(version: ProtocolVersionId) {
         validator.seal_batch().await;
 
         tracing::info!("Run node.");
-        let mut node_pool = ConnectionPool::test(false, version).await;
+        let node_pool = ConnectionPool::test(false, version).await;
         let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
         s.spawn_bg(async {
             runner
@@ -519,7 +519,7 @@ async fn test_with_pruning(version: ProtocolVersionId) {
 
         tracing::info!("Prune some blocks and sync more");
         validator_pool.prune_batches(ctx, to_prune).await?;
-        validator.push_random_blocks(rng, 5);
+        validator.push_random_blocks(rng, 5).await;
         node_pool
             .wait_for_certificates(ctx, validator.last_block())
             .await?;
