@@ -974,6 +974,7 @@ async fn run_node(
                 drop_storage_key_preimages: config
                     .experimental
                     .snapshots_recovery_drop_storage_key_preimages,
+                object_store_config: config.optional.snapshots_recovery_object_store.clone(),
             });
     ensure_storage_initialized(
         connection_pool.clone(),

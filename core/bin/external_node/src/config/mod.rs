@@ -421,6 +421,9 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_snapshots_recovery_postgres_max_concurrency")]
     pub snapshots_recovery_postgres_max_concurrency: NonZeroUsize,
 
+    #[serde(default)]
+    pub snapshots_recovery_object_store: Option<ObjectStoreConfig>,
+
     /// Enables pruning of the historical node state (Postgres and Merkle tree). The node will retain
     /// recent state and will continuously remove (prune) old enough parts of the state in the background.
     #[serde(default)]
@@ -619,6 +622,10 @@ impl OptionalENConfig {
                 .as_ref()
                 .map(|a| a.enabled)
                 .unwrap_or_default(),
+            snapshots_recovery_object_store: load_config!(
+                general_config.snapshot_recovery,
+                object_store
+            ),
             pruning_chunk_size: load_optional_config_or_default!(
                 general_config.pruning,
                 chunk_size,
@@ -798,9 +805,11 @@ impl OptionalENConfig {
     }
 
     fn from_env() -> anyhow::Result<Self> {
-        envy::prefixed("EN_")
+        let mut result: OptionalENConfig = envy::prefixed("EN_")
             .from_env()
-            .context("could not load external node config")
+            .context("could not load external node config")?;
+        result.snapshots_recovery_object_store = snapshot_recovery_object_store_config().ok();
+        Ok(result)
     }
 
     pub fn polling_interval(&self) -> Duration {
