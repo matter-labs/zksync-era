@@ -1,7 +1,7 @@
 //! Crate allowing to calculate root hashes and Merkle proofs for small in-memory Merkle trees.
 
 // Linter settings.
-#![warn(missing_debug_implementations, bare_trait_objects)]
+#![warn(missing_debug_implementations, missing_docs, bare_trait_objects)]
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::must_use_candidate, clippy::similar_names)]
 
@@ -9,6 +9,7 @@ use std::{
     collections::VecDeque,
     iter,
     marker::PhantomData,
+    ops::Range,
     sync::{Arc, Mutex},
 };
 
@@ -194,7 +195,7 @@ where
     /// Panics if `length` is 0 or greater than the number of leaves in the tree.
     pub fn merkle_root_and_paths_for_range(
         &self,
-        range: std::ops::Range<usize>,
+        range: Range<usize>,
     ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
         assert!(range.start < range.end, "invalid range");
         assert!(
@@ -323,22 +324,18 @@ enum Side {
 pub trait HashEmptySubtree<L>: 'static + Send + Sync + Hasher<Hash = H256> {
     /// Returns the hash of an empty subtree with the given depth.
     /// Implementations are encouraged to cache the returned values.
-    fn empty_subtree_hash(&self, depth: usize) -> H256 {
-        static EMPTY_TREE_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
-        EMPTY_TREE_HASHES.get_or_init(|| compute_empty_tree_hashes(self.empty_leaf_hash()))[depth]
-    }
-
-    /// Returns an empty hash
-    fn empty_leaf_hash(&self) -> H256;
+    fn empty_subtree_hash(&self, depth: usize) -> H256;
 }
 
 impl HashEmptySubtree<[u8; 88]> for KeccakHasher {
-    fn empty_leaf_hash(&self) -> H256 {
-        self.hash_bytes(&[0_u8; 88])
+    fn empty_subtree_hash(&self, depth: usize) -> H256 {
+        static EMPTY_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
+        EMPTY_HASHES.get_or_init(|| compute_empty_tree_hashes(self.hash_bytes(&[0; 88])))[depth]
     }
 }
 
-fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
+/// Given the leaf hash, computes successive hashes of empty subtrees up to the maximum depth.
+pub fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
     iter::successors(Some(empty_leaf_hash), |hash| {
         Some(KeccakHasher.compress(hash, hash))
     })
@@ -346,9 +343,11 @@ fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
     .collect()
 }
 
+/// An `Arc<Mutex<_>>` wrapper around the `MiniMerkleTree`.
 #[derive(Debug, Clone)]
 pub struct SyncMerkleTree<T>(pub Arc<Mutex<MiniMerkleTree<T>>>);
 
+#[allow(clippy::missing_panics_doc, missing_docs)]
 impl<T> SyncMerkleTree<T>
 where
     KeccakHasher: HashEmptySubtree<T>,
@@ -367,12 +366,16 @@ where
 
     pub fn merkle_root_and_paths_for_range(
         &self,
-        range: std::ops::Range<usize>,
+        range: Range<usize>,
     ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
         self.0
             .lock()
             .unwrap()
             .merkle_root_and_paths_for_range(range)
+    }
+
+    pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
+        self.0.lock().unwrap().merkle_root_and_path(index)
     }
 
     pub fn hashes_prefix(&self, count: usize) -> Vec<H256> {
