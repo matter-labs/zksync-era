@@ -1,0 +1,2 @@
+DROP INDEX l1_batches_consensus_is_submitted;
+DROP TABLE l1_batches_consensus;
