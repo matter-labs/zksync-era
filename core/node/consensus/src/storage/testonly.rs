@@ -125,19 +125,13 @@ impl ConnectionPool {
     ) -> ctx::Result<Vec<validator::FinalBlock>> {
         self.wait_for_certificate(ctx, want_last).await?;
         let mut conn = self.connection(ctx).await.wrap("connection()")?;
-        let last_cert = conn
-            .last_certificate(ctx)
+        let range = conn
+            .certificates_range(ctx)
             .await
-            .wrap("last_certificate()")?
-            .unwrap();
-        let first_cert = conn
-            .first_certificate(ctx)
-            .await
-            .wrap("first_certificate()")?
-            .unwrap();
-        assert_eq!(want_last, last_cert.header().number);
+            .wrap("certificates_range()")?;
+        assert_eq!(want_last.next(), range.next());
         let mut blocks: Vec<validator::FinalBlock> = vec![];
-        for i in first_cert.header().number.0..=last_cert.header().number.0 {
+        for i in range.first.0..range.next().0 {
             let i = validator::BlockNumber(i);
             let block = conn.block(ctx, i).await.context("block()")?.unwrap();
             blocks.push(block);
