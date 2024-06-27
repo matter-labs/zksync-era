@@ -49,6 +49,7 @@ pub struct StorageView<S> {
     metrics: StorageViewMetrics,
 }
 
+/// `StorageViewCache` is a struct for caching storage reads and `contains_key()` checks.
 #[derive(Debug, Default, Clone)]
 pub struct StorageViewCache {
     // Used purely for caching
@@ -58,16 +59,19 @@ pub struct StorageViewCache {
 }
 
 impl StorageViewCache {
+    /// Returns the read storage keys.
     pub fn read_storage_keys(&self) -> HashMap<StorageKey, StorageValue> {
         self.read_storage_keys.clone()
     }
 
+    /// Returns the initial writes.
     pub fn initial_writes(&self) -> HashMap<StorageKey, bool> {
         self.initial_writes.clone()
     }
 }
 
 impl<S> StorageView<S> {
+    /// Returns the underlying storage cache.
     pub fn cache(&self) -> StorageViewCache {
         self.cache.clone()
     }
