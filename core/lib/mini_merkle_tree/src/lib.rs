@@ -205,6 +205,8 @@ where
         let mut right_path = vec![];
         let mut left_path = vec![];
         // TODO: refactor, instead of calling this twice
+        // TODO: maybe actually we don't need this? investigate if we have to trim asynchronously
+        // or we can do it right away after getting the proof
         self.compute_merkle_root_and_path(range.start, Some(&mut left_path), Some(Side::Left));
         let root_hash = self.compute_merkle_root_and_path(
             range.end - 1,

@@ -91,12 +91,15 @@ impl EventProcessor for PriorityOpsEventProcessor {
         APP_METRICS.processed_l1_txs[&TxStage::added_to_mempool()].inc();
         for new_op in new_ops {
             let eth_block = new_op.eth_block();
-            storage
+            let inserted = storage
                 .transactions_dal()
                 .insert_transaction_l1(&new_op, eth_block)
                 .await
                 .map_err(DalError::generalize)?;
-            self.priority_merkle_tree.push_hash(new_op.hash());
+            // Transaction could have been a duplicate.
+            if inserted {
+                self.priority_merkle_tree.push_hash(new_op.hash());
+            }
         }
         stage_latency.observe();
         self.next_expected_priority_id = next_expected_priority_id;

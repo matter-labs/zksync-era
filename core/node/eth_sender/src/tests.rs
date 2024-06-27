@@ -11,6 +11,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
+use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
@@ -178,6 +179,7 @@ impl EthSenderTester {
                 MockObjectStore::arc(),
                 aggregator_operate_4844_mode,
                 commitment_mode,
+                SyncMerkleTree::from_hashes(std::iter::empty(), None),
             ),
             gateway.clone(),
             // zkSync contract address
@@ -1173,6 +1175,7 @@ async fn execute_l1_batches(
     confirm: bool,
 ) -> H256 {
     let operation = AggregatedOperation::Execute(ExecuteBatches {
+        priority_ops_proofs: l1_batches.iter().map(|_| Default::default()).collect(),
         l1_batches: l1_batches.into_iter().map(l1_batch_with_metadata).collect(),
     });
     send_operation(tester, operation, confirm).await

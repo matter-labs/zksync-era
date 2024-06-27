@@ -498,8 +498,6 @@ impl EthTxAggregator {
                         .expect("Failed to encode execute transaction data")
                 } else {
                     args.extend(op.into_tokens());
-                    // TODO: if priority_ops_first_index > firstunexecuted priority op:
-                    // args[-1] = Token::Array(vec![]);
                     self.functions
                         .post_shared_bridge_execute
                         .as_ref()

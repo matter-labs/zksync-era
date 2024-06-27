@@ -95,7 +95,7 @@ pub struct L1BatchMetadata {
     pub state_diffs_compressed: Vec<u8>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct PriorityOpsMerkleProof {
     pub left_path: Vec<H256>,
     pub right_path: Vec<H256>,

@@ -188,20 +188,23 @@ impl Aggregator {
         .await;
 
         l1_batches.map(|l1_batches| {
+            let mut first_unexecuted_op_index = 0; // FIXME
+            let priority_tree_start_index = self.config.priority_tree_start_index.unwrap_or(0);
             let priority_ops_proofs = l1_batches
                 .iter()
                 .map(|batch| {
                     let count = batch.header.l1_tx_count as usize;
+                    if priority_tree_start_index > first_unexecuted_op_index {
+                        first_unexecuted_op_index += count;
+                        return Default::default();
+                    }
                     let (_, left, right) = self
                         .priority_merkle_tree
-                        .merkle_root_and_paths_for_range(0..count); // FIXME: indexes are wrong if
-                                                                    // we're not trimming right
-                                                                    // away
+                        .merkle_root_and_paths_for_range(0..count);
                     let hashes = self.priority_merkle_tree.hashes_prefix(count);
-                    self.priority_merkle_tree.trim_start(count); // TODO: trim only after tx
-                                                                 // succeeds?
+                    self.priority_merkle_tree.trim_start(count);
                     PriorityOpsMerkleProof {
-                        // TODO: are zero hashes fine?
+                        // TODO: are zero hashes fine or should we pack it?
                         left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
                         right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
                         hashes,
