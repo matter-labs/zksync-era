@@ -505,7 +505,7 @@ async fn test_with_pruning(version: ProtocolVersionId) {
                 .run(ctx)
                 .instrument(tracing::info_span!("node"))
                 .await
-                .with_context(|| format!("node"))
+                .context("node")
         });
         s.spawn_bg(node.run_consensus(ctx, validator.connect(ctx).await?, &node_cfg));
 
