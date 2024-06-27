@@ -22,7 +22,10 @@ pub struct EthSenderDal<'a, 'c> {
 }
 
 impl EthSenderDal<'_, '_> {
-    pub async fn get_inflight_txs(&mut self) -> sqlx::Result<Vec<EthTx>> {
+    pub async fn get_inflight_txs(
+        &mut self,
+        operator_address: Option<Address>,
+    ) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
             StorageEthTx,
             r#"
@@ -31,7 +34,8 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                confirmed_eth_tx_history_id IS NULL
+                from_addr IS NOT DISTINCT FROM $1
+                AND confirmed_eth_tx_history_id IS NULL
                 AND id <= (
                     SELECT
                         COALESCE(MAX(eth_tx_id), 0)
@@ -42,7 +46,8 @@ impl EthSenderDal<'_, '_> {
                 )
             ORDER BY
                 id
-            "#
+            "#,
+            operator_address.as_ref().map(|h160| h160.as_bytes()),
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -121,7 +126,11 @@ impl EthSenderDal<'_, '_> {
         .map(Into::into))
     }
 
-    pub async fn get_new_eth_txs(&mut self, limit: u64) -> sqlx::Result<Vec<EthTx>> {
+    pub async fn get_new_eth_txs(
+        &mut self,
+        limit: u64,
+        operator_address: &Option<Address>,
+    ) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
             StorageEthTx,
             r#"
@@ -130,7 +139,8 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                id > (
+                from_addr IS NOT DISTINCT FROM $2
+                AND id > (
                     SELECT
                         COALESCE(MAX(eth_tx_id), 0)
                     FROM
@@ -141,7 +151,8 @@ impl EthSenderDal<'_, '_> {
             LIMIT
                 $1
             "#,
-            limit as i64
+            limit as i64,
+            operator_address.as_ref().map(|h160| h160.as_bytes()),
         )
         .fetch_all(self.storage.conn())
         .await?;

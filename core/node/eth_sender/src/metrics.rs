@@ -8,7 +8,7 @@ use zksync_shared_metrics::{BlockL1Stage, BlockStage, APP_METRICS};
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::abstract_l1_interface::L1BlockNumbers;
+use crate::abstract_l1_interface::{L1BlockNumbers, OperatorType};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]
@@ -98,7 +98,7 @@ pub(super) struct EthSenderMetrics {
     /// Last L1 block observed by the Ethereum sender.
     pub last_known_l1_block: Family<BlockNumberVariant, Gauge<usize>>,
     /// Number of in-flight txs produced by the Ethereum sender.
-    pub number_of_inflight_txs: Gauge<usize>,
+    pub number_of_inflight_txs: Family<OperatorType, Gauge<usize>>,
     #[metrics(buckets = GAS_BUCKETS)]
     pub l1_gas_used: Family<ActionTypeLabel, Histogram<f64>>,
     #[metrics(buckets = Buckets::LATENCIES)]

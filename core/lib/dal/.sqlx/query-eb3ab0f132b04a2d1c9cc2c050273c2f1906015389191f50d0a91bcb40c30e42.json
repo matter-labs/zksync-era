@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                id > (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                )\n            ORDER BY\n                id\n            LIMIT\n                $1\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr IS NOT DISTINCT FROM $2\n                AND id > (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                )\n            ORDER BY\n                id\n            LIMIT\n                $1\n            ",
   "describe": {
     "columns": [
       {
@@ -76,7 +76,8 @@
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Bytea"
       ]
     },
     "nullable": [
@@ -96,5 +97,5 @@
       true
     ]
   },
-  "hash": "5659480e5d79dab3399e35539b240e7eb9f598999c28015a504605f88bf84b33"
+  "hash": "eb3ab0f132b04a2d1c9cc2c050273c2f1906015389191f50d0a91bcb40c30e42"
 }
