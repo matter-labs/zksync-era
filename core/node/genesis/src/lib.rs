@@ -7,7 +7,7 @@ use std::fmt::Formatter;
 use anyhow::Context as _;
 use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, GENESIS_UPGRADE_EVENT};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
@@ -16,7 +16,7 @@ use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
-    protocol_upgrade::decode_set_chain_id_event,
+    protocol_upgrade::decode_genesis_upgrade_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
@@ -94,6 +94,16 @@ impl GenesisParams {
         base_system_contracts: BaseSystemContracts,
         system_contracts: Vec<DeployedContract>,
     ) -> Result<GenesisParams, GenesisError> {
+        println!(
+            "
+                bootloader_hash = \"{:?}\"
+                default_aa_hash = \"{:?}\"
+                GENESIS_PROTOCOL_SEMANTIC_VERSION = \"{:?}\"
+            ",
+            base_system_contracts.hashes().bootloader,
+            base_system_contracts.hashes().default_aa,
+            config.protocol_version.unwrap(),
+        );
         let base_system_contracts_hashes = BaseSystemContractsHashes {
             bootloader: config
                 .bootloader_hash
@@ -290,7 +300,14 @@ pub async fn ensure_genesis_state(
         commitment,
         rollup_last_leaf_index,
     } = insert_genesis_batch(&mut transaction, genesis_params).await?;
-
+    println!(
+        "
+            GENESIS_ROOT = \"{:?}\"
+            GENESIS_BATCH_COMMITMENT = \"{:?}\"
+            GENESIS_ROLLUP_LEAF_INDEX = \"{:?}\" 
+        ",
+        root_hash, commitment, rollup_last_leaf_index
+    );
     let expected_root_hash = genesis_params
         .config
         .genesis_root_hash
@@ -424,7 +441,7 @@ pub async fn save_set_chain_id_tx(
     let filter = FilterBuilder::default()
         .address(vec![diamond_proxy_address])
         .topics(
-            Some(vec![SET_CHAIN_ID_EVENT.signature()]),
+            Some(vec![GENESIS_UPGRADE_EVENT.signature()]),
             Some(vec![diamond_proxy_address.into()]),
             None,
             None,
@@ -440,7 +457,7 @@ pub async fn save_set_chain_id_tx(
         logs
     );
     let (version_id, upgrade_tx) =
-        decode_set_chain_id_event(logs.remove(0)).context("Chain id event is incorrect")?;
+        decode_genesis_upgrade_event(logs.remove(0)).context("Chain id event is incorrect")?;
 
     tracing::info!("New version id {:?}", version_id);
     storage
