@@ -32,16 +32,19 @@ use zksync_types::{tee_types::TeeType, L1BatchNumber};
 // TODO(patrick) refactor; this is already defined elsewhere but it's private
 pub type TeeProofGenerationDataResponse = GenericProofGenerationDataResponse<TeeVerifierInput>;
 
-struct TeeProver {
-    api_url: Url,
-    signing_key: SigningKey,
-    attestation_quote_bytes: Vec<u8>,
-    tee_type: TeeType,
-    batch_count: Option<usize>,
+struct ApiClient {
+    api_base_url: Url,
     http_client: Client,
 }
 
-impl TeeProver {
+impl ApiClient {
+    pub fn new(api_base_url: Url, http_client: Client) -> Self {
+        ApiClient {
+            api_base_url,
+            http_client,
+        }
+    }
+
     async fn send_http_request<Req, Resp>(
         &self,
         request: Req,
@@ -63,10 +66,15 @@ impl TeeProver {
             .await
     }
 
-    async fn register_attestation(&self, endpoint: &Url) -> anyhow::Result<()> {
+    pub async fn register_attestation(
+        &self,
+        attestation_quote_bytes: Vec<u8>,
+        signing_key: &SigningKey,
+    ) -> anyhow::Result<()> {
+        let endpoint = self.api_base_url.join("/tee/register_attestation")?;
         let request = RegisterTeeAttestationRequest {
-            attestation: self.attestation_quote_bytes.clone(),
-            pubkey: self.signing_key.verifying_key().to_sec1_bytes().into(),
+            attestation: attestation_quote_bytes,
+            pubkey: signing_key.verifying_key().to_sec1_bytes().into(),
         };
         let response = self
             .send_http_request::<RegisterTeeAttestationRequest, RegisterTeeAttestationResponse>(
@@ -87,7 +95,8 @@ impl TeeProver {
         }
     }
 
-    async fn get_job(&self, endpoint: &Url) -> anyhow::Result<Option<Box<TeeVerifierInput>>> {
+    pub async fn get_job(&self) -> anyhow::Result<Option<Box<TeeVerifierInput>>> {
+        let endpoint = self.api_base_url.join("/tee/proof_inputs")?;
         let request = TeeProofGenerationDataRequest {};
         let response = self
             .send_http_request::<TeeProofGenerationDataRequest, TeeProofGenerationDataResponse>(
@@ -105,33 +114,25 @@ impl TeeProver {
         }
     }
 
-    fn verify(&self, tvi: TeeVerifierInput) -> anyhow::Result<(Signature, L1BatchNumber, H256)> {
-        match tvi.verify() {
-            Err(e) => {
-                let err_msg = format!("L1 batch verification failed: {e}");
-                tracing::warn!(err_msg);
-                Err(anyhow::anyhow!(err_msg))
-            }
-            Ok(verification_result) => {
-                let root_hash_bytes = verification_result.0.as_bytes();
-                let batch_number = verification_result.1;
-                let signature = self.signing_key.try_sign(root_hash_bytes)?;
-                Ok((signature, batch_number, verification_result.0))
-            }
-        }
-    }
-
-    async fn submit_proof(
+    pub async fn submit_proof(
         &self,
+        batch_number: L1BatchNumber,
         signature: Signature,
+        pubkey: &VerifyingKey,
         root_hash: H256,
-        endpoint: &Url,
+        tee_type: TeeType,
     ) -> anyhow::Result<()> {
+        let submit_proof_endpoint = self.api_base_url.join("/tee/submit_proofs")?;
+        let mut endpoint = submit_proof_endpoint.clone();
+        endpoint
+            .path_segments_mut()
+            .unwrap()
+            .push(batch_number.to_string().as_str());
         let request = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
             signature: signature.to_vec(),
-            pubkey: self.signing_key.verifying_key().to_sec1_bytes().into(),
+            pubkey: pubkey.to_sec1_bytes().into(),
             proof: root_hash.as_bytes().into(),
-            tee_type: self.tee_type,
+            tee_type,
         }));
         let response = self
             .send_http_request::<SubmitTeeProofRequest, SubmitProofResponse>(
@@ -153,6 +154,32 @@ impl TeeProver {
     }
 }
 
+struct TeeProver {
+    signing_key: SigningKey,
+    attestation_quote_bytes: Vec<u8>,
+    tee_type: TeeType,
+    batch_count: Option<usize>,
+    api_client: ApiClient,
+}
+
+impl TeeProver {
+    fn verify(&self, tvi: TeeVerifierInput) -> anyhow::Result<(Signature, L1BatchNumber, H256)> {
+        match tvi.verify() {
+            Err(e) => {
+                let err_msg = format!("L1 batch verification failed: {e}");
+                tracing::warn!(err_msg);
+                Err(anyhow::anyhow!(err_msg))
+            }
+            Ok(verification_result) => {
+                let root_hash_bytes = verification_result.0.as_bytes();
+                let batch_number = verification_result.1;
+                let signature = self.signing_key.try_sign(root_hash_bytes)?;
+                Ok((signature, batch_number, verification_result.0))
+            }
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl Task for TeeProver {
     fn id(&self) -> TaskId {
@@ -162,10 +189,9 @@ impl Task for TeeProver {
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         tracing::info!("Starting the task {}", self.id());
 
-        let attestation_endpoint = self.api_url.join("/tee/register_attestation")?;
-        let job_fetcher_endpoint = self.api_url.join("/tee/proof_inputs")?;
-        let submit_proof_endpoint = self.api_url.join("/tee/submit_proofs")?;
-        self.register_attestation(&attestation_endpoint).await?;
+        self.api_client
+            .register_attestation(self.attestation_quote_bytes.clone(), &self.signing_key)
+            .await?;
 
         const POLLING_INTERVAL_MS: u64 = 1000;
         const MAX_BACKOFF_MS: u64 = 60_000;
@@ -179,7 +205,7 @@ impl Task for TeeProver {
                 tracing::warn!("Stop signal received, shutting down TEE Prover component");
                 return Ok(());
             }
-            let job = match self.get_job(&job_fetcher_endpoint).await {
+            let job = match self.api_client.get_job().await {
                 Ok(Some(job)) => {
                     backoff = POLLING_INTERVAL_MS;
                     job
@@ -195,12 +221,16 @@ impl Task for TeeProver {
                 Err(e) => return Err(e),
             };
             let (signature, batch_number, root_hash) = self.verify(*job)?;
-            let mut endpoint = submit_proof_endpoint.clone();
-            endpoint
-                .path_segments_mut()
-                .unwrap()
-                .push(batch_number.to_string().as_str());
-            self.submit_proof(signature, root_hash, &endpoint).await?;
+            let pubkey = self.signing_key.clone();
+            self.api_client
+                .submit_proof(
+                    batch_number,
+                    signature,
+                    pubkey.verifying_key(),
+                    root_hash,
+                    self.tee_type,
+                )
+                .await?;
             iterations_left = iterations_left.map(|i| i - 1);
         }
 
@@ -242,12 +272,11 @@ impl WiringLayer for TeeProverLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let tee_prover_task = TeeProver {
-            api_url: self.api_url,
             signing_key: self.signing_key,
             attestation_quote_bytes: self.attestation_quote_bytes,
             tee_type: self.tee_type,
             batch_count: self.batch_count,
-            http_client: Client::new(),
+            api_client: ApiClient::new(self.api_url, Client::new()),
         };
         context.add_task(Box::new(tee_prover_task));
         Ok(())
