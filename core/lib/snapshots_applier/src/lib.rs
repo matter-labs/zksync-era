@@ -1,6 +1,6 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
-use std::{collections::HashMap, fmt, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{cmp::Ordering, collections::HashMap, fmt, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -258,6 +258,41 @@ impl SnapshotsApplierTask {
             connection_pool,
             main_node_client,
             blob_store,
+        }
+    }
+
+    /// Checks whether the snapshot recovery is already completed.
+    ///
+    /// Returns `None` if no snapshot recovery information is detected in the DB.
+    /// Returns `Some(true)` if the recovery is completed.
+    /// Returns `Some(false)` if the recovery is not completed.
+    pub async fn is_recovery_completed(
+        conn: &mut Connection<'_, Core>,
+        client: &dyn SnapshotsApplierMainNodeClient,
+    ) -> anyhow::Result<Option<bool>> {
+        let Some(applied_snapshot_status) = conn
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await?
+        else {
+            return Ok(None);
+        };
+        // If there are unprocessed storage logs chunks, the recovery is not complete.
+        if applied_snapshot_status.storage_logs_chunks_left_to_process() != 0 {
+            return Ok(Some(false));
+        }
+        // Currently, migrating tokens is the last step of the recovery.
+        // The number of tokens is not a part of the snapshot header, so we have to re-query the main node.
+        let added_tokens = conn.tokens_dal().get_all_l2_token_addresses().await?.len();
+        let tokens_on_main_node = client
+            .fetch_tokens(applied_snapshot_status.l2_block_number)
+            .await?
+            .len();
+
+        match added_tokens.cmp(&tokens_on_main_node) {
+            Ordering::Less => Ok(Some(false)),
+            Ordering::Equal => Ok(Some(true)),
+            Ordering::Greater => anyhow::bail!("DB contains more tokens than the main node"),
         }
     }
 
