@@ -10,7 +10,10 @@ use crate::{
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
+    versions::shadow::ShadowVm,
 };
+
+pub type FastVm<S, H> = ShadowVm<crate::vm_latest::Vm<S, H>, crate::vm_fast::Vm<S>>;
 
 #[derive(Debug)]
 pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
@@ -23,7 +26,7 @@ pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
     Vm1_4_1(crate::vm_1_4_1::Vm<S, H>),
     Vm1_4_2(crate::vm_1_4_2::Vm<S, H>),
     Vm1_5_0(crate::vm_latest::Vm<S, H>),
-    VmFast(crate::vm_fast::Vm<S>),
+    VmFast(FastVm<S, H>),
 }
 
 macro_rules! dispatch_vm {
@@ -49,6 +52,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage_view: StoragePtr<S>) -> Self {
         let protocol_version = system_env.version;
         let vm_version: VmVersion = protocol_version.into();
+        //Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
         Self::new_fast_with_specific_version(batch_env, system_env, storage_view, vm_version)
     }
 
@@ -247,7 +251,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
     ) -> Self {
         match vm_version {
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => VmInstance::VmFast(
-                crate::vm_fast::Vm::new(l1_batch_env, system_env, storage_view),
+                //crate::vm_fast::Vm::new(l1_batch_env, system_env, storage_view),
+                FastVm::new(l1_batch_env, system_env, storage_view),
             ),
             _ => unimplemented!("version not supported by fast VM"),
         }
