@@ -35,24 +35,8 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     let args = args.fill_values_with_prompt(project_ids, &setup_key_path);
 
-    let object_store_config = match args.proof_store {
-        ProofStorageConfig::FileBacked(config) => ObjectStoreConfig {
-            mode: ObjectStoreMode::FileBacked {
-                file_backed_base_path: config.proof_store_dir,
-            },
-            max_retries: PROVER_STORE_MAX_RETRIES,
-            local_mirror_path: None,
-        },
-        ProofStorageConfig::GCS(config) => ObjectStoreConfig {
-            mode: ObjectStoreMode::GCSWithCredentialFile {
-                bucket_base_url: config.bucket_base_url,
-                gcs_credential_file_path: config.credentials_file,
-            },
-            max_retries: PROVER_STORE_MAX_RETRIES,
-            local_mirror_path: None,
-        },
-        ProofStorageConfig::GCSCreateBucket(config) => create_gcs_bucket(shell, config)?,
-    };
+    let proof_object_store_config = get_object_store_config(shell, Some(args.proof_store))?;
+    let public_object_store_config = get_object_store_config(shell, args.public_store)?;
 
     if args.setup_key_config.download_key {
         download_setup_key(
@@ -65,7 +49,10 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let mut prover_config = general_config
         .prover_config
         .expect(MSG_PROVER_CONFIG_NOT_FOUND_ERR);
-    prover_config.prover_object_store = Some(object_store_config.clone());
+    prover_config.prover_object_store = proof_object_store_config.clone();
+    if let Some(public_object_store_config) = public_object_store_config {
+        prover_config.public_object_store = Some(public_object_store_config);
+    }
     general_config.prover_config = Some(prover_config);
 
     let mut proof_compressor_config = general_config
@@ -157,4 +144,33 @@ fn get_setup_key_path(
     let string = path.to_str().unwrap();
 
     Ok(String::from(string))
+}
+
+fn get_object_store_config(
+    shell: &Shell,
+    config: Option<ProofStorageConfig>,
+) -> anyhow::Result<Option<ObjectStoreConfig>> {
+    let object_store = match config {
+        Some(ProofStorageConfig::FileBacked(config)) => Some(ObjectStoreConfig {
+            mode: ObjectStoreMode::FileBacked {
+                file_backed_base_path: config.proof_store_dir,
+            },
+            max_retries: PROVER_STORE_MAX_RETRIES,
+            local_mirror_path: None,
+        }),
+        Some(ProofStorageConfig::GCS(config)) => Some(ObjectStoreConfig {
+            mode: ObjectStoreMode::GCSWithCredentialFile {
+                bucket_base_url: config.bucket_base_url,
+                gcs_credential_file_path: config.credentials_file,
+            },
+            max_retries: PROVER_STORE_MAX_RETRIES,
+            local_mirror_path: None,
+        }),
+        Some(ProofStorageConfig::GCSCreateBucket(config)) => {
+            Some(create_gcs_bucket(shell, config)?)
+        }
+        None => None,
+    };
+
+    Ok(object_store)
 }

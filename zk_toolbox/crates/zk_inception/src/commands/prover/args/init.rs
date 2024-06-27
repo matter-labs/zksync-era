@@ -14,6 +14,7 @@ use crate::messages::{
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
 pub struct ProverInitArgs {
+    // Proof store object
     #[clap(long)]
     pub proof_store_dir: Option<String>,
     #[clap(flatten)]
@@ -22,6 +23,19 @@ pub struct ProverInitArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub create_gcs_bucket_config: ProofStorageGCSCreateBucketTmp,
+
+    // Public store object
+    #[clap(long)]
+    pub shall_save_to_public_bucket: Option<bool>,
+    #[clap(long)]
+    pub public_store_dir: Option<String>,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub public_store_gcs_config: PublicStorageGCSTmp,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub public_create_gcs_bucket_config: PublicStorageGCSCreateBucketTmp,
+
     #[clap(flatten)]
     #[serde(flatten)]
     pub setup_key_config: SetupKeyConfigTmp,
@@ -49,6 +63,24 @@ pub struct ProofStorageGCSCreateBucketTmp {
     pub location: Option<String>,
     #[clap(long)]
     pub project_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
+pub struct PublicStorageGCSTmp {
+    #[clap(long)]
+    pub public_bucket_base_url: Option<String>,
+    #[clap(long)]
+    pub public_credentials_file: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
+pub struct PublicStorageGCSCreateBucketTmp {
+    #[clap(long)]
+    pub public_bucket_name: Option<String>,
+    #[clap(long)]
+    pub public_location: Option<String>,
+    #[clap(long)]
+    pub public_project_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
@@ -94,6 +126,7 @@ pub struct SetupKeyConfig {
 #[derive(Debug, Clone)]
 pub struct ProverInitArgsFinal {
     pub proof_store: ProofStorageConfig,
+    pub public_store: Option<ProofStorageConfig>,
     pub setup_key_config: SetupKeyConfig,
 }
 
@@ -106,10 +139,12 @@ impl ProverInitArgs {
         project_ids: Vec<String>,
         setup_key_path: &str,
     ) -> ProverInitArgsFinal {
-        let proof_store = self.fill_proof_storage_values_with_prompt(project_ids);
+        let proof_store = self.fill_proof_storage_values_with_prompt(project_ids.clone());
+        let public_store = self.fill_public_storage_values_with_prompt(project_ids);
         let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
         ProverInitArgsFinal {
             proof_store,
+            public_store,
             setup_key_config,
         }
     }
@@ -119,24 +154,97 @@ impl ProverInitArgs {
         project_ids: Vec<String>,
     ) -> ProofStorageConfig {
         if self.proof_store_dir.is_some() {
-            return self.handle_file_backed_config();
+            return self.handle_file_backed_config(self.proof_store_dir.clone());
         }
 
-        if self.partial_gcs_config_provided() {
-            return self.ask_gcs_config();
+        if self.partial_gcs_config_provided(
+            self.proof_store_gcs_config.bucket_base_url.clone(),
+            self.proof_store_gcs_config.credentials_file.clone(),
+        ) {
+            return self.ask_gcs_config(
+                self.proof_store_gcs_config.bucket_base_url.clone(),
+                self.proof_store_gcs_config.credentials_file.clone(),
+            );
         }
 
-        if self.partial_create_gcs_bucket_config_provided() {
-            return self.handle_create_gcs_bucket(project_ids);
+        if self.partial_create_gcs_bucket_config_provided(
+            self.create_gcs_bucket_config.bucket_name.clone(),
+            self.create_gcs_bucket_config.location.clone(),
+            self.create_gcs_bucket_config.project_id.clone(),
+        ) {
+            return self.handle_create_gcs_bucket(
+                project_ids,
+                self.create_gcs_bucket_config.project_id.clone(),
+                self.create_gcs_bucket_config.bucket_name.clone(),
+                self.create_gcs_bucket_config.location.clone(),
+                self.proof_store_gcs_config.credentials_file.clone(),
+            );
         }
 
         let proof_store_config =
             PromptSelect::new(MSG_PROOF_STORE_CONFIG_PROMPT, ProofStoreConfig::iter()).ask();
 
         match proof_store_config {
-            ProofStoreConfig::Local => self.handle_file_backed_config(),
-            ProofStoreConfig::GCS => self.handle_gcs_config(project_ids),
+            ProofStoreConfig::Local => self.handle_file_backed_config(self.proof_store_dir.clone()),
+            ProofStoreConfig::GCS => self.handle_gcs_config(
+                project_ids,
+                self.proof_store_gcs_config.bucket_base_url.clone(),
+                self.proof_store_gcs_config.credentials_file.clone(),
+            ),
         }
+    }
+
+    fn fill_public_storage_values_with_prompt(
+        &self,
+        project_ids: Vec<String>,
+    ) -> Option<ProofStorageConfig> {
+        let shall_save_to_public_bucket = self
+            .shall_save_to_public_bucket
+            .unwrap_or_else(|| PromptConfirm::new("Do you want to save to public bucket?").ask());
+
+        if !shall_save_to_public_bucket {
+            return None;
+        }
+
+        let public_store = if self.public_store_dir.is_some() {
+            self.handle_file_backed_config(self.public_store_dir.clone())
+        } else if self.partial_gcs_config_provided(
+            self.public_store_gcs_config.public_bucket_base_url.clone(),
+            self.public_store_gcs_config.public_credentials_file.clone(),
+        ) {
+            self.ask_gcs_config(
+                self.public_store_gcs_config.public_bucket_base_url.clone(),
+                self.public_store_gcs_config.public_credentials_file.clone(),
+            )
+        } else if self.partial_create_gcs_bucket_config_provided(
+            self.public_create_gcs_bucket_config
+                .public_bucket_name
+                .clone(),
+            self.public_create_gcs_bucket_config.public_location.clone(),
+            self.public_create_gcs_bucket_config
+                .public_project_id
+                .clone(),
+        ) {
+            self.handle_create_gcs_bucket(
+                project_ids,
+                self.public_create_gcs_bucket_config
+                    .public_project_id
+                    .clone(),
+                self.public_create_gcs_bucket_config
+                    .public_bucket_name
+                    .clone(),
+                self.public_create_gcs_bucket_config.public_location.clone(),
+                self.public_store_gcs_config.public_credentials_file.clone(),
+            )
+        } else {
+            self.handle_gcs_config(
+                project_ids,
+                self.public_store_gcs_config.public_bucket_base_url.clone(),
+                self.public_store_gcs_config.public_credentials_file.clone(),
+            )
+        };
+
+        Some(public_store)
     }
 
     fn fill_setup_key_values_with_prompt(&self, setup_key_path: &str) -> SetupKeyConfig {
@@ -161,19 +269,25 @@ impl ProverInitArgs {
         }
     }
 
-    fn partial_create_gcs_bucket_config_provided(&self) -> bool {
-        self.create_gcs_bucket_config.bucket_name.is_some()
-            || self.create_gcs_bucket_config.location.is_some()
-            || self.create_gcs_bucket_config.project_id.is_some()
+    fn partial_create_gcs_bucket_config_provided(
+        &self,
+        bucket_name: Option<String>,
+        location: Option<String>,
+        project_id: Option<String>,
+    ) -> bool {
+        bucket_name.is_some() || location.is_some() || project_id.is_some()
     }
 
-    fn partial_gcs_config_provided(&self) -> bool {
-        self.proof_store_gcs_config.bucket_base_url.is_some()
-            || self.proof_store_gcs_config.credentials_file.is_some()
+    fn partial_gcs_config_provided(
+        &self,
+        bucket_base_url: Option<String>,
+        credentials_file: Option<String>,
+    ) -> bool {
+        bucket_base_url.is_some() || credentials_file.is_some()
     }
 
-    fn handle_file_backed_config(&self) -> ProofStorageConfig {
-        let proof_store_dir = self.proof_store_dir.clone().unwrap_or_else(|| {
+    fn handle_file_backed_config(&self, store_dir: Option<String>) -> ProofStorageConfig {
+        let proof_store_dir = store_dir.unwrap_or_else(|| {
             Prompt::new(MSG_PROOF_STORE_DIR_PROMPT)
                 .default(DEFAULT_PROOF_STORE_DIR)
                 .ask()
@@ -182,47 +296,45 @@ impl ProverInitArgs {
         ProofStorageConfig::FileBacked(ProofStorageFileBacked { proof_store_dir })
     }
 
-    fn handle_gcs_config(&self, project_ids: Vec<String>) -> ProofStorageConfig {
-        if !self.partial_gcs_config_provided() {
+    fn handle_gcs_config(
+        &self,
+        project_ids: Vec<String>,
+        bucket_base_url: Option<String>,
+        credentials_file: Option<String>,
+    ) -> ProofStorageConfig {
+        if !self.partial_gcs_config_provided(bucket_base_url.clone(), credentials_file.clone()) {
             if PromptConfirm::new(MSG_CREATE_GCS_BUCKET_PROMPT).ask() {
-                return self.handle_create_gcs_bucket(project_ids);
+                return self.handle_create_gcs_bucket(project_ids, None, None, None, None);
             }
         }
 
-        self.ask_gcs_config()
+        self.ask_gcs_config(bucket_base_url, credentials_file)
     }
 
-    fn handle_create_gcs_bucket(&self, project_ids: Vec<String>) -> ProofStorageConfig {
-        let project_id = self
-            .create_gcs_bucket_config
-            .project_id
-            .clone()
-            .unwrap_or_else(|| {
-                if project_ids.is_empty() {
-                    Prompt::new(MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT).ask()
-                } else {
-                    PromptSelect::new(MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, project_ids).ask()
-                }
-            });
-        let bucket_name = self
-            .create_gcs_bucket_config
-            .bucket_name
-            .clone()
-            .unwrap_or_else(|| Prompt::new(MSG_CREATE_GCS_BUCKET_NAME_PROMTP).ask());
-        let location = self
-            .create_gcs_bucket_config
-            .location
-            .clone()
-            .unwrap_or_else(|| Prompt::new(MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT).ask());
-        let credentials_file = self
-            .clone()
-            .proof_store_gcs_config
-            .credentials_file
-            .unwrap_or_else(|| {
-                Prompt::new(MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT)
-                    .default(DEFAULT_CREDENTIALS_FILE)
-                    .ask()
-            });
+    fn handle_create_gcs_bucket(
+        &self,
+        project_ids: Vec<String>,
+        project_id: Option<String>,
+        bucket_name: Option<String>,
+        location: Option<String>,
+        credentials_file: Option<String>,
+    ) -> ProofStorageConfig {
+        let project_id = project_id.unwrap_or_else(|| {
+            if project_ids.is_empty() {
+                Prompt::new(MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT).ask()
+            } else {
+                PromptSelect::new(MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, project_ids).ask()
+            }
+        });
+        let bucket_name =
+            bucket_name.unwrap_or_else(|| Prompt::new(MSG_CREATE_GCS_BUCKET_NAME_PROMTP).ask());
+        let location =
+            location.unwrap_or_else(|| Prompt::new(MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT).ask());
+        let credentials_file = credentials_file.unwrap_or_else(|| {
+            Prompt::new(MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT)
+                .default(DEFAULT_CREDENTIALS_FILE)
+                .ask()
+        });
 
         ProofStorageConfig::GCSCreateBucket(ProofStorageGCSCreateBucket {
             bucket_name,
@@ -232,21 +344,18 @@ impl ProverInitArgs {
         })
     }
 
-    fn ask_gcs_config(&self) -> ProofStorageConfig {
-        let bucket_base_url = self
-            .clone()
-            .proof_store_gcs_config
-            .bucket_base_url
+    fn ask_gcs_config(
+        &self,
+        bucket_base_url: Option<String>,
+        credentials_file: Option<String>,
+    ) -> ProofStorageConfig {
+        let bucket_base_url = bucket_base_url
             .unwrap_or_else(|| Prompt::new(MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT).ask());
-        let credentials_file = self
-            .clone()
-            .proof_store_gcs_config
-            .credentials_file
-            .unwrap_or_else(|| {
-                Prompt::new(MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT)
-                    .default(DEFAULT_CREDENTIALS_FILE)
-                    .ask()
-            });
+        let credentials_file = credentials_file.unwrap_or_else(|| {
+            Prompt::new(MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT)
+                .default(DEFAULT_CREDENTIALS_FILE)
+                .ask()
+        });
 
         ProofStorageConfig::GCS(ProofStorageGCS {
             bucket_base_url,
