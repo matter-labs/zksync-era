@@ -1,10 +1,7 @@
-use std::{str::FromStr, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use anyhow::Context as _;
-use k256::{
-    ecdsa::{signature::Signer, Signature, SigningKey, VerifyingKey},
-    pkcs8::DecodePrivateKey,
-};
+use k256::ecdsa::{signature::Signer, Signature, SigningKey, VerifyingKey};
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Serialize};
 use url::Url;
@@ -273,6 +270,24 @@ impl WiringLayer for TeeProverLayer {
     }
 }
 
+struct TeeProverConfig {
+    signing_key: SigningKey,
+    attestation_quote_file_path: PathBuf,
+    tee_type: TeeType,
+    api_url: Url,
+}
+
+impl FromEnv for TeeProverConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            signing_key: std::env::var("TEE_SIGNING_KEY")?.parse()?,
+            attestation_quote_file_path: std::env::var("TEE_QUOTE_FILE")?.parse()?,
+            tee_type: std::env::var("TEE_TYPE")?.parse()?,
+            api_url: std::env::var("TEE_API_URL")?.parse()?,
+        })
+    }
+}
+
 /// This application is a TEE verifier (a.k.a. a prover, or worker) that interacts with three
 /// endpoints of the TEE prover interface API:
 /// 1. `/tee/proof_inputs` - Fetches input data about a batch for the TEE verifier to process.
@@ -309,8 +324,8 @@ fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let signing_key_pem = std::env::var("TEE_SIGNING_KEY")?;
-    let signing_key: SigningKey = SigningKey::from_pkcs8_pem(&signing_key_pem)?;
+    let tee_prover_config = TeeProverConfig::from_env().context("TeeProverConfig::from_env()")?;
+    let signing_key = &tee_prover_config.signing_key;
     let _verifying_key_bytes = signing_key.verifying_key().to_sec1_bytes();
 
     // TEST TEST
@@ -324,8 +339,7 @@ fn main() -> anyhow::Result<()> {
     }
     // END TEST
 
-    let attestation_quote_file = std::env::var("TEE_QUOTE_FILE")?;
-    let attestation_quote_bytes = std::fs::read(attestation_quote_file)?;
+    let attestation_quote_bytes = std::fs::read(tee_prover_config.attestation_quote_file_path)?;
 
     // let prometheus_config = PrometheusConfig::from_env().ok();
     // if let Some(prometheus_config) = prometheus_config {
@@ -340,19 +354,14 @@ fn main() -> anyhow::Result<()> {
     //     bail!("No Prometheus configuration found");
     // }
 
-    let api_url = std::env::var("TEE_API_URL")?;
-    let api_url = Url::parse(api_url.as_str())?;
-    let tee_type = std::env::var("TEE_TYPE")?;
-    let tee_type = TeeType::from_str(tee_type.as_str())?;
-
     ZkStackServiceBuilder::new()
         .add_layer(SigintHandlerLayer)
         // .add_layer(PrometheusExporterLayer(prometheus_config?))
         .add_layer(TeeProverLayer::new(
-            api_url,
-            signing_key,
+            tee_prover_config.api_url,
+            tee_prover_config.signing_key,
             attestation_quote_bytes,
-            tee_type,
+            tee_prover_config.tee_type,
         ))
         .build()?
         .run()?;
