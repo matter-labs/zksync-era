@@ -2311,8 +2311,8 @@ impl BlocksDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             ORDER BY
-                tx_index_in_l1_batch,
-                log_index_in_tx
+                miniblock_number,
+                log_index_in_miniblock
             "#,
             i64::from(l1_batch_number.0)
         )
