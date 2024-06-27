@@ -825,7 +825,7 @@ async fn insert_initial_writes_for_batch(
 ) {
     let written_non_zero_slots: Vec<_> = connection
         .storage_logs_dal()
-        .get_touched_slots_for_l1_batch(l1_batch_number)
+        .get_touched_slots_for_executed_l1_batch(l1_batch_number)
         .await
         .unwrap()
         .into_iter()
@@ -845,6 +845,7 @@ async fn insert_initial_writes_for_batch(
         .into_iter()
         .sorted()
         .filter(|key| !pre_written_slots.contains(&key.hashed_key()))
+        .map(|key| key.hashed_key())
         .collect();
     connection
         .storage_logs_dedup_dal()

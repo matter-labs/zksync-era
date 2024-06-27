@@ -60,6 +60,11 @@ impl ProtoRepr for proto::SnapshotRecovery {
                 .unwrap_or_default(),
             l1_batch: self.l1_batch.map(L1BatchNumber),
             object_store: read_optional_repr(&self.object_store).context("object store")?,
+            drop_storage_key_preimages: self
+                .experimental
+                .as_ref()
+                .and_then(|experimental| experimental.drop_storage_key_preimages)
+                .unwrap_or_default(),
         })
     }
 
@@ -76,6 +81,7 @@ impl ProtoRepr for proto::SnapshotRecovery {
                         .tree
                         .parallel_persistence_buffer
                         .map(|a| a.get() as u64),
+                    drop_storage_key_preimages: Some(this.drop_storage_key_preimages),
                 }),
             )
         };
