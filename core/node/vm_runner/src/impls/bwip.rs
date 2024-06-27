@@ -180,6 +180,8 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 
         let blob_url = self.object_store.put(l1_batch_number, &result).await?;
 
+        tracing::info!("Saved VM run data for L1 batch {}", l1_batch_number.0);
+
         self.pool
             .connection()
             .await
