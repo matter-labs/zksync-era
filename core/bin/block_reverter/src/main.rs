@@ -21,7 +21,7 @@ use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_types::{network::Network, Address, L1BatchNumber};
+use zksync_types::{Address, L1BatchNumber};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -206,16 +206,16 @@ async fn main() -> anyhow::Result<()> {
             .context("Failed to find postgres config")?,
         None => PostgresConfig::from_env().context("PostgresConfig::from_env()")?,
     };
-    let network_config = match &genesis_config {
-        Some(genesis_config) => NetworkConfig {
-            network: Network::from_chain_id(genesis_config.l1_chain_id),
-            zksync_network: genesis_config.l2_chain_id.as_u64().to_string(),
-            zksync_network_id: genesis_config.l2_chain_id,
-        },
-        None => NetworkConfig::from_env().context("NetworkConfig::from_env()")?,
+    let zksync_network_id = match &genesis_config {
+        Some(genesis_config) => genesis_config.l2_chain_id,
+        None => {
+            NetworkConfig::from_env()
+                .context("NetworkConfig::from_env()")?
+                .zksync_network_id
+        }
     };
 
-    let config = BlockReverterEthConfig::new(&eth_sender, &contracts, &network_config)?;
+    let config = BlockReverterEthConfig::new(&eth_sender, &contracts, zksync_network_id)?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
         database_secrets.master_url()?,

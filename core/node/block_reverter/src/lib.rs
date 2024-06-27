@@ -3,7 +3,7 @@ use std::{path::Path, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use serde::Serialize;
 use tokio::{fs, sync::Semaphore};
-use zksync_config::{configs::chain::NetworkConfig, ContractsConfig, EthConfig};
+use zksync_config::{ContractsConfig, EthConfig};
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 // Public re-export to simplify the API use.
@@ -42,7 +42,7 @@ impl BlockReverterEthConfig {
     pub fn new(
         eth_config: &EthConfig,
         contract: &ContractsConfig,
-        network_config: &NetworkConfig,
+        hyperchain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             diamond_proxy_addr: contract.diamond_proxy_addr,
@@ -52,7 +52,7 @@ impl BlockReverterEthConfig {
                 .as_ref()
                 .context("gas adjuster")?
                 .default_priority_fee_per_gas,
-            hyperchain_id: network_config.zksync_network_id,
+            hyperchain_id,
         })
     }
 }
