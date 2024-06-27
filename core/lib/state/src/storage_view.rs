@@ -52,13 +52,6 @@ pub struct StorageView<S> {
     metrics: StorageViewMetrics,
 }
 
-impl<S> StorageView<S> {
-    /// Returns the modified storage keys
-    pub fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
-        &self.modified_storage_keys
-    }
-}
-
 impl<S> ReadStorage for Box<S>
 where
     S: ReadStorage + ?Sized,
