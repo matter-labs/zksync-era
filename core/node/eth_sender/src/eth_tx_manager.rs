@@ -621,11 +621,12 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
     ) {
+        tracing::info!("Loop iteration at block {}", l1_block_numbers.latest);
         for operator_type in [OperatorType::NonBlob, OperatorType::Blob] {
             self.send_new_eth_txs(storage, l1_block_numbers.latest, operator_type)
                 .await;
             let result = self
-                .update_statuses_and_resend_if_needed(storage, l1_block_numbers, OperatorType::Blob)
+                .update_statuses_and_resend_if_needed(storage, l1_block_numbers, operator_type)
                 .await;
 
             //We don't want an error in sending non-blob transactions interrupt sending blob txs
