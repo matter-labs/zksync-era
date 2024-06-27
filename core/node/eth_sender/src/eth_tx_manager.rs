@@ -546,19 +546,13 @@ impl EthTxManager {
                 tracing::info!("Stop signal received, eth_tx_manager is shutting down");
                 break;
             }
+            let l1_block_numbers = self.l1_interface.get_l1_block_numbers().await?;
+            METRICS.track_block_numbers(&l1_block_numbers);
 
-            match self.loop_iteration(&mut storage, last_known_l1_block).await {
-                Ok(block) => last_known_l1_block = block,
-                Err(e) => {
-                    // Web3 API request failures can cause this,
-                    // and anything more important is already properly reported.
-                    tracing::warn!("eth_sender error {:?}", e);
-                    if e.is_transient() {
-                        METRICS.l1_transient_errors.inc();
-                    }
-                }
+            if last_known_l1_block < l1_block_numbers.latest {
+                self.loop_iteration(&mut storage, l1_block_numbers).await;
+                last_known_l1_block = l1_block_numbers.latest;
             }
-
             tokio::time::sleep(self.config.tx_poll_period()).await;
         }
         Ok(())
@@ -625,18 +619,8 @@ impl EthTxManager {
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        previous_block: L1BlockNumber,
-    ) -> Result<L1BlockNumber, EthSenderError> {
-        let l1_block_numbers = self.l1_interface.get_l1_block_numbers().await?;
-
-        if l1_block_numbers.latest <= previous_block {
-            // Nothing to do - no new blocks were mined.
-            return Ok(previous_block);
-        }
-
-        METRICS.track_block_numbers(&l1_block_numbers);
-
-        let mut last_error = None;
+        l1_block_numbers: L1BlockNumbers,
+    ) {
         for operator_type in [OperatorType::NonBlob, OperatorType::Blob] {
             self.send_new_eth_txs(storage, l1_block_numbers.latest, operator_type)
                 .await;
@@ -646,13 +630,10 @@ impl EthTxManager {
 
             //We don't want an error in sending non-blob transactions interrupt sending blob txs
             if let Err(error) = result {
-                last_error = Some(error);
+                // Web3 API request failures can cause this,
+                // and anything more important is already properly reported.
+                tracing::warn!("eth_sender error {:?}", error);
             }
-        }
-        if let Some(last_error) = last_error {
-            Err(last_error)
-        } else {
-            Ok(l1_block_numbers.latest)
         }
     }
 }
