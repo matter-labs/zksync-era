@@ -4,7 +4,7 @@ use std::{collections::HashMap, fmt, future, sync::Arc};
 
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_object_store::{Bucket, MockObjectStore, ObjectStore, ObjectStoreError};
+use zksync_object_store::{Bucket, MockObjectStore, ObjectStore, ObjectStoreError, StoredObject};
 use zksync_types::{
     api,
     block::L2BlockHeader,
@@ -16,11 +16,33 @@ use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
     web3::Bytes,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
-    StorageValue, H160, H256,
+    StorageValue, H256,
 };
 use zksync_web3_decl::error::EnrichedClientResult;
 
 use crate::SnapshotsApplierMainNodeClient;
+
+pub(super) trait SnapshotLogKey: Clone {
+    const VERSION: SnapshotVersion;
+
+    fn random() -> Self;
+}
+
+impl SnapshotLogKey for H256 {
+    const VERSION: SnapshotVersion = SnapshotVersion::Version1;
+
+    fn random() -> Self {
+        Self::random()
+    }
+}
+
+impl SnapshotLogKey for StorageKey {
+    const VERSION: SnapshotVersion = SnapshotVersion::Version0;
+
+    fn random() -> Self {
+        Self::new(AccountTreeId::new(Address::random()), H256::random())
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct MockMainNodeClient {
@@ -182,16 +204,13 @@ fn l1_batch_details(number: L1BatchNumber, root_hash: H256) -> api::L1BatchDetai
     }
 }
 
-pub(super) fn random_storage_logs(
+pub(super) fn random_storage_logs<K: SnapshotLogKey>(
     l1_batch_number: L1BatchNumber,
     count: u64,
-) -> Vec<SnapshotStorageLog> {
+) -> Vec<SnapshotStorageLog<K>> {
     (0..count)
         .map(|i| SnapshotStorageLog {
-            key: StorageKey::new(
-                AccountTreeId::from_fixed_bytes(H160::random().to_fixed_bytes()),
-                H256::random(),
-            ),
+            key: K::random(),
             value: StorageValue::random(),
             l1_batch_number_of_initial_write: l1_batch_number,
             enumeration_index: i + 1,
@@ -235,9 +254,12 @@ pub(super) fn mock_tokens() -> Vec<TokenInfo> {
     ]
 }
 
-pub(super) fn mock_snapshot_header(status: &SnapshotRecoveryStatus) -> SnapshotHeader {
+pub(super) fn mock_snapshot_header(
+    version: u16,
+    status: &SnapshotRecoveryStatus,
+) -> SnapshotHeader {
     SnapshotHeader {
-        version: SnapshotVersion::Version0.into(),
+        version,
         l1_batch_number: status.l1_batch_number,
         l2_block_number: status.l2_block_number,
         storage_logs_chunks: (0..status.storage_logs_chunks_processed.len() as u64)
@@ -250,10 +272,14 @@ pub(super) fn mock_snapshot_header(status: &SnapshotRecoveryStatus) -> SnapshotH
     }
 }
 
-pub(super) async fn prepare_clients(
+pub(super) async fn prepare_clients<K>(
     status: &SnapshotRecoveryStatus,
-    logs: &[SnapshotStorageLog],
-) -> (Arc<dyn ObjectStore>, MockMainNodeClient) {
+    logs: &[SnapshotStorageLog<K>],
+) -> (Arc<dyn ObjectStore>, MockMainNodeClient)
+where
+    K: SnapshotLogKey,
+    for<'a> SnapshotStorageLogsChunk<K>: StoredObject<Key<'a> = SnapshotStorageLogsStorageKey>,
+{
     let object_store = MockObjectStore::arc();
     let mut client = MockMainNodeClient::default();
     let factory_dep_bytes: Vec<u8> = (0..32).collect();
@@ -286,7 +312,7 @@ pub(super) async fn prepare_clients(
             .unwrap();
     }
 
-    client.fetch_newest_snapshot_response = Some(mock_snapshot_header(status));
+    client.fetch_newest_snapshot_response = Some(mock_snapshot_header(K::VERSION.into(), status));
     client.fetch_l1_batch_responses.insert(
         status.l1_batch_number,
         l1_batch_details(status.l1_batch_number, status.l1_batch_root_hash),

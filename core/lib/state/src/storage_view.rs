@@ -70,6 +70,7 @@ impl StorageViewCache {
     }
 }
 
+
 impl<S> StorageView<S> {
     /// Returns the underlying storage cache.
     pub fn cache(&self) -> StorageViewCache {
