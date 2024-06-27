@@ -35,10 +35,10 @@ impl ConnectionPool {
     ) -> ConnectionPool {
         match from_snapshot {
             true => {
-                ConnectionPool::from_snapshot(Snapshot::make(
+                ConnectionPool::from_snapshot(Snapshot::new(
                     L1BatchNumber(23),
                     L2BlockNumber(87),
-                    &[],
+                    vec![],
                     mock_genesis_params(protocol_version),
                 ))
                 .await

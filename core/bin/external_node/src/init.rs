@@ -17,6 +17,7 @@ use zksync_web3_decl::client::{DynClient, L2};
 pub(crate) struct SnapshotRecoveryConfig {
     /// If not specified, the latest snapshot will be used.
     pub snapshot_l1_batch_override: Option<L1BatchNumber>,
+    pub drop_storage_key_preimages: bool,
     pub object_store_config: Option<ObjectStoreConfig>,
 }
 
@@ -110,6 +111,10 @@ pub(crate) async fn ensure_storage_initialized(
                      if the snapshot is too old (order of several weeks old) or non-existent"
                 );
                 snapshots_applier_task.set_snapshot_l1_batch(snapshot_l1_batch);
+            }
+            if recovery_config.drop_storage_key_preimages {
+                tracing::info!("Dropping storage key preimages for snapshot storage logs");
+                snapshots_applier_task.drop_storage_key_preimages();
             }
             app_health.insert_component(snapshots_applier_task.health_check())?;
 
