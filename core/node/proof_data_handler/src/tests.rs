@@ -135,7 +135,8 @@ async fn submit_tee_proof() {
     let tee_proof_request_str = r#"{
         "signature": [ 0, 1, 2, 3, 4 ],
         "pubkey": [ 5, 6, 7, 8, 9 ],
-        "proof": [ 10, 11, 12, 13, 14 ]
+        "proof": [ 10, 11, 12, 13, 14 ],
+        "tee_type": "Sgx"
     }"#;
     let tee_proof_request =
         serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_request_str).unwrap();
