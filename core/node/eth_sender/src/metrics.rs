@@ -130,24 +130,25 @@ impl EthSenderMetrics {
             tx_type: tx.tx_type,
         };
 
-        let l1_batch_headers = connection
+        let l1_batches_statistics = connection
             .blocks_dal()
-            .get_l1_batches_for_eth_tx_id(tx.id)
+            .get_l1_batches_statistics_for_eth_tx_id(tx.id)
             .await
             .unwrap();
 
         // This should be only the case when some blocks were reverted.
-        if l1_batch_headers.is_empty() {
+        if l1_batches_statistics.is_empty() {
             tracing::warn!("No L1 batches were found for eth_tx with id = {}", tx.id);
             return;
         }
 
-        for header in l1_batch_headers {
+        for statistics in l1_batches_statistics {
             APP_METRICS.block_latency[&stage].observe(Duration::from_secs(
-                seconds_since_epoch() - header.timestamp,
+                seconds_since_epoch() - statistics.timestamp,
             ));
-            APP_METRICS.processed_txs[&stage.into()].inc_by(header.tx_count() as u64);
-            APP_METRICS.processed_l1_txs[&stage.into()].inc_by(header.tx_count() as u64);
+            APP_METRICS.processed_txs[&stage.into()]
+                .inc_by(statistics.l2_tx_count as u64 + statistics.l1_tx_count as u64);
+            APP_METRICS.processed_l1_txs[&stage.into()].inc_by(statistics.l1_tx_count as u64);
         }
         metrics_latency.observe();
     }

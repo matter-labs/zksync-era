@@ -15,7 +15,10 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHeader, StorageOracleInfo},
+    block::{
+        BlockGasCount, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
+        StorageOracleInfo,
+    },
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
     l2_to_l1_log::UserL2ToL1Log,
@@ -27,9 +30,7 @@ pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptional
 use crate::{
     models::{
         parse_protocol_version,
-        storage_block::{
-            IntoL1BatchHeader, StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader,
-        },
+        storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader},
         storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
     },
@@ -106,7 +107,7 @@ impl BlocksDal<'_, '_> {
                 l1_batches
             "#
         )
-        .instrument("get_sealed_block_number")
+        .instrument("get_sealed_l1_batch_number")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
@@ -162,7 +163,7 @@ impl BlocksDal<'_, '_> {
                 hash IS NOT NULL
             "#
         )
-        .instrument("get_last_block_number_with_tree_data")
+        .instrument("get_last_l1_batch_number_with_tree_data")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
@@ -249,27 +250,17 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
-    pub async fn get_l1_batches_for_eth_tx_id(
+    pub async fn get_l1_batches_statistics_for_eth_tx_id(
         &mut self,
         eth_tx_id: u32,
-    ) -> DalResult<Vec<L1BatchHeader>> {
-        let storage_l1_batch_headers = sqlx::query_as!(
-            StorageL1BatchHeader,
+    ) -> DalResult<Vec<L1BatchStatistics>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 number,
                 l1_tx_count,
                 l2_tx_count,
-                timestamp,
-                l2_to_l1_messages,
-                bloom,
-                priority_ops_onchain_data,
-                used_contract_hashes,
-                bootloader_code_hash,
-                default_aa_code_hash,
-                protocol_version,
-                system_logs,
-                pubdata_input
+                timestamp
             FROM
                 l1_batches
             WHERE
@@ -279,21 +270,18 @@ impl BlocksDal<'_, '_> {
             "#,
             eth_tx_id as i32
         )
-        .instrument("get_l1_batches_for_eth_tx_id")
+        .instrument("get_l1_batch_statistics_for_eth_tx_id")
         .with_arg("eth_tx_id", &eth_tx_id)
         .fetch_all(self.storage)
-        .await?;
-
-        let mut l1_batch_headers = Vec::with_capacity(storage_l1_batch_headers.len());
-
-        for batch in storage_l1_batch_headers {
-            let l2_to_l1_logs = self
-                .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(L1BatchNumber(batch.number as u32))
-                .await?;
-            l1_batch_headers.push(batch.into_l1_batch_header_with_logs(l2_to_l1_logs));
-        }
-
-        Ok(l1_batch_headers)
+        .await?
+        .into_iter()
+        .map(|row| L1BatchStatistics {
+            number: L1BatchNumber(row.number as u32),
+            timestamp: row.timestamp as u64,
+            l2_tx_count: row.l2_tx_count as u32,
+            l1_tx_count: row.l1_tx_count as u32,
+        })
+        .collect())
     }
 
     async fn get_storage_l1_batch(
@@ -379,9 +367,7 @@ impl BlocksDal<'_, '_> {
 
         if let Some(storage_l1_batch_header) = storage_l1_batch_header {
             let l2_to_l1_logs = self
-                .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(L1BatchNumber(
-                    storage_l1_batch_header.number as u32,
-                ))
+                .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(number)
                 .await?;
             return Ok(Some(
                 storage_l1_batch_header.into_l1_batch_header_with_logs(l2_to_l1_logs),
@@ -1002,8 +988,8 @@ impl BlocksDal<'_, '_> {
     pub async fn get_last_committed_to_eth_l1_batch(
         &mut self,
     ) -> DalResult<Option<L1BatchWithMetadata>> {
-        // We can get 0 block for the first transaction
-        let block = sqlx::query_as!(
+        // We can get 0 batch for the first transaction
+        let batch = sqlx::query_as!(
             StorageL1Batch,
             r#"
             SELECT
@@ -1049,12 +1035,12 @@ impl BlocksDal<'_, '_> {
         .instrument("get_last_committed_to_eth_l1_batch")
         .fetch_one(self.storage)
         .await?;
-        // genesis block is first generated without commitment, we should wait for the tree to set it.
-        if block.commitment.is_none() {
+        // genesis batch is first generated without commitment, we should wait for the tree to set it.
+        if batch.commitment.is_none() {
             return Ok(None);
         }
 
-        self.map_storage_l1_batch(block).await
+        self.map_storage_l1_batch(batch).await
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum commit tx was sent and confirmed.
@@ -1242,12 +1228,12 @@ impl BlocksDal<'_, '_> {
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let mut l1_batches_with_metadata = Vec::with_capacity(raw_batches.len());
         for raw_batch in raw_batches {
-            let block = self
+            let batch = self
                 .map_storage_l1_batch(raw_batch)
                 .await
                 .context("map_storage_l1_batch()")?
-                .context("Block should be complete")?;
-            l1_batches_with_metadata.push(block);
+                .context("Batch should be complete")?;
+            l1_batches_with_metadata.push(batch);
         }
         Ok(l1_batches_with_metadata)
     }
@@ -1257,12 +1243,12 @@ impl BlocksDal<'_, '_> {
         &mut self,
         limit: usize,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
-        let last_proved_block_number = self
+        let last_proved_batch_number = self
             .get_last_l1_batch_with_prove_tx()
             .await
             .context("get_last_l1_batch_with_prove_tx()")?;
         // Witness jobs can be processed out of order, so `WHERE l1_batches.number - row_number = $1`
-        // is used to avoid having gaps in the list of blocks to send dummy proofs for.
+        // is used to avoid having gaps in the list of batches to send dummy proofs for.
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
             r#"
@@ -1316,7 +1302,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number - ROW_NUMBER = $1
             "#,
-            last_proved_block_number.0 as i32,
+            last_proved_batch_number.0 as i32,
             limit as i32
         )
         .instrument("get_skipped_for_proof_l1_batches")
@@ -1457,10 +1443,10 @@ impl BlocksDal<'_, '_> {
         .fetch_one(self.storage.conn())
         .await?;
 
-        Ok(if let Some(max_ready_to_send_block) = row.max {
-            // If we found at least one ready to execute batch then we can simply return all blocks between
-            // the expected started point and the max ready to send block because we send them to the L1 sequentially.
-            assert!(max_ready_to_send_block >= expected_started_point);
+        Ok(if let Some(max_ready_to_send_batch) = row.max {
+            // If we found at least one ready to execute batch then we can simply return all batches between
+            // the expected started point and the max ready to send batch because we send them to the L1 sequentially.
+            assert!(max_ready_to_send_batch >= expected_started_point);
             sqlx::query_as!(
                 StorageL1Batch,
                 r#"
@@ -1502,13 +1488,13 @@ impl BlocksDal<'_, '_> {
                     $3
                 "#,
                 expected_started_point as i32,
-                max_ready_to_send_block,
+                max_ready_to_send_batch,
                 limit as i32,
             )
             .instrument("get_ready_for_execute_l1_batches")
             .with_arg(
                 "numbers",
-                &(expected_started_point..=max_ready_to_send_block),
+                &(expected_started_point..=max_ready_to_send_batch),
             )
             .with_arg("limit", &limit)
             .fetch_all(self.storage)
@@ -1794,12 +1780,12 @@ impl BlocksDal<'_, '_> {
             ))
             .await?;
 
-        let header: L1BatchHeader = storage_batch
-            .clone()
-            .into_l1_batch_header_with_logs(l2_to_l1_logs);
-        let Ok(metadata) = storage_batch.try_into() else {
+        let Ok(metadata) = storage_batch.clone().try_into() else {
             return Ok(None);
         };
+
+        let header: L1BatchHeader = storage_batch.into_l1_batch_header_with_logs(l2_to_l1_logs);
+
         let raw_published_bytecode_hashes = self
             .storage
             .events_dal()

@@ -54,12 +54,11 @@ pub(crate) struct StorageL1BatchHeader {
     pub pubdata_input: Option<Vec<u8>>,
 }
 
-pub trait IntoL1BatchHeader {
-    fn into_l1_batch_header_with_logs(self, l2_to_l1_logs: Vec<UserL2ToL1Log>) -> L1BatchHeader;
-}
-
-impl IntoL1BatchHeader for StorageL1BatchHeader {
-    fn into_l1_batch_header_with_logs(self, l2_to_l1_logs: Vec<UserL2ToL1Log>) -> L1BatchHeader {
+impl StorageL1BatchHeader {
+    pub fn into_l1_batch_header_with_logs(
+        self,
+        l2_to_l1_logs: Vec<UserL2ToL1Log>,
+    ) -> L1BatchHeader {
         let priority_ops_onchain_data: Vec<_> = self
             .priority_ops_onchain_data
             .into_iter()
@@ -150,8 +149,11 @@ pub(crate) struct StorageL1Batch {
     pub pubdata_input: Option<Vec<u8>>,
 }
 
-impl IntoL1BatchHeader for StorageL1Batch {
-    fn into_l1_batch_header_with_logs(self, l2_to_l1_logs: Vec<UserL2ToL1Log>) -> L1BatchHeader {
+impl StorageL1Batch {
+    pub fn into_l1_batch_header_with_logs(
+        self,
+        l2_to_l1_logs: Vec<UserL2ToL1Log>,
+    ) -> L1BatchHeader {
         let priority_ops_onchain_data: Vec<_> = self
             .priority_ops_onchain_data
             .into_iter()
