@@ -179,14 +179,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         result.previous_root_hash = previous_batch_with_metadata.metadata.root_hash;
 
         let blob_url = self.object_store.put(l1_batch_number, &result).await?;
-        self.pool
-            .connection()
-            .await
-            .unwrap()
-            .vm_runner_dal()
-            .mark_bwip_batch_as_completed(l1_batch_number)
-            .await
-            .unwrap();
+
         self.pool
             .connection()
             .await
