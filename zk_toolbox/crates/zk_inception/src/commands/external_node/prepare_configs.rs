@@ -72,8 +72,8 @@ fn prepare_configs(
     let dirs = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::ExternalNode)?;
     general_en.set_rocks_db_config(dirs)?;
 
-    general_en.save_with_base_path(shell, &en_configs_path)?;
-    en_config.save_with_base_path(shell, &en_configs_path)?;
+    general_en.save_with_base_path(shell, en_configs_path)?;
+    en_config.save_with_base_path(shell, en_configs_path)?;
 
     Ok(())
 }
