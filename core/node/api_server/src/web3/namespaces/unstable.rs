@@ -1,5 +1,5 @@
 use zksync_dal::{CoreDal, DalError};
-use zksync_types::api::ApiTransactionExecutionInfo;
+use zksync_types::api::TransactionExecutionInfo;
 use zksync_web3_decl::{error::Web3Error, types::H256};
 
 use crate::web3::{backend_jsonrpsee::MethodTracer, RpcState};
@@ -21,13 +21,13 @@ impl UnstableNamespace {
     pub async fn transaction_execution_info_impl(
         &self,
         hash: H256,
-    ) -> Result<Option<ApiTransactionExecutionInfo>, Web3Error> {
+    ) -> Result<Option<TransactionExecutionInfo>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
         Ok(storage
             .transactions_web3_dal()
             .get_unstable_transaction_execution_info(hash)
             .await
             .map_err(DalError::generalize)?
-            .map(|execution_info| ApiTransactionExecutionInfo { execution_info }))
+            .map(|execution_info| TransactionExecutionInfo { execution_info }))
     }
 }

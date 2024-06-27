@@ -826,7 +826,7 @@ pub struct ApiStorageLog {
 /// Data is taken from `TransactionExecutionMetrics`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ApiTransactionExecutionInfo {
+pub struct TransactionExecutionInfo {
     pub execution_info: Value,
 }
 
