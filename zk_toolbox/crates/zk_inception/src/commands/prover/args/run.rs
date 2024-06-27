@@ -1,16 +1,16 @@
 use clap::{Parser, ValueEnum};
-use common::PromptConfirm;
+use common::PromptSelect;
 use strum::{EnumIter, IntoEnumIterator};
 
-use crate::messages::msg_run_prover_component_prompt;
+use crate::messages::MSG_RUN_COMPONENT_PROMPT;
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct ProverRunArgs {
-    #[clap(long, value_delimiter = ',')]
-    pub components: Option<Vec<ProverComponent>>,
+    #[clap(long)]
+    pub component: Option<ProverComponent>,
 }
 
-#[derive(Debug, Clone, ValueEnum, strum::EnumString, EnumIter)]
+#[derive(Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq)]
 pub enum ProverComponent {
     Gateway,
     WitnessGenerator,
@@ -33,21 +33,12 @@ impl std::fmt::Display for ProverComponent {
 
 impl ProverRunArgs {
     pub fn fill_values_with_prompt(&self) -> anyhow::Result<ProverRunArgs> {
-        let components = self.components.clone().unwrap_or_else(|| {
-            let mut c = vec![];
-            for component in ProverComponent::iter() {
-                if PromptConfirm::new(msg_run_prover_component_prompt(&component.to_string()))
-                    .default(true)
-                    .ask()
-                {
-                    c.push(component);
-                }
-            }
-            c
+        let component = self.component.clone().unwrap_or_else(|| {
+            PromptSelect::new(MSG_RUN_COMPONENT_PROMPT, ProverComponent::iter()).ask()
         });
 
         Ok(ProverRunArgs {
-            components: Some(components),
+            component: Some(component),
         })
     }
 }
