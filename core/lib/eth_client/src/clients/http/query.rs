@@ -117,7 +117,7 @@ where
             // prior to EIP-4844.
             // https://ethereum.github.io/execution-apis/api-documentation/
             if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
-                tracing::warn!(
+                tracing::error!(
                     "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
                     fee_history.base_fee_per_gas.len(),
                     fee_history.base_fee_per_blob_gas.len()
