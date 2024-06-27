@@ -25,7 +25,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .load_chain(Some(ecosystem_config.default_chain.clone()))
         .expect(MSG_CHAIN_NOT_FOUND_ERR);
     let mut general_config = chain_config
-        .get_general_config()
+        .get_zksync_general_config()
         .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
 
     let project_ids = get_project_ids(shell)?;
@@ -73,7 +73,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     proof_compressor_config.universal_setup_path = args.setup_key_config.setup_key_path;
     general_config.proof_compressor_config = Some(proof_compressor_config);
 
-    chain_config.save_general_config(&general_config)?;
+    chain_config.save_zksync_general_config(&general_config)?;
 
     logger::outro(MSG_PROVER_INITIALIZED);
     Ok(())

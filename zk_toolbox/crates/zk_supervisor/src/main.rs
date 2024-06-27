@@ -12,6 +12,8 @@ use messages::{
 };
 use xshell::Shell;
 
+use crate::commands::integration_tests::IntegrationTestCommands;
+
 mod commands;
 mod dals;
 mod messages;
@@ -30,7 +32,7 @@ enum SupervisorSubcommands {
     #[command(subcommand, about = MSG_SUBCOMMAND_DATABASE_ABOUT)]
     Database(DatabaseCommands),
     #[command(about = MSG_SUBCOMMAND_INTEGRATION_TESTS_ABOUT)]
-    IntegrationTests,
+    IntegrationTests(IntegrationTestCommands),
 }
 
 #[derive(Parser, Debug)]
@@ -93,7 +95,9 @@ async fn main() -> anyhow::Result<()> {
 async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
     match args.command {
         SupervisorSubcommands::Database(command) => commands::database::run(shell, command).await?,
-        SupervisorSubcommands::IntegrationTests => commands::integration_tests::run(shell)?,
+        SupervisorSubcommands::IntegrationTests(args) => {
+            commands::integration_tests::run(shell, args)?
+        }
     }
     Ok(())
 }
