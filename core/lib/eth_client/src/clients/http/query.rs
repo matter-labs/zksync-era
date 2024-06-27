@@ -112,6 +112,18 @@ where
                 .with_arg("block", &chunk_end)
                 .await?;
 
+            // Check that the lengths are the same.
+            // Per specification, the values should always be provided, and must be 0 for blocks
+            // prior to EIP-4844.
+            // https://ethereum.github.io/execution-apis/api-documentation/
+            if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
+                tracing::warn!(
+                    "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
+                    fee_history.base_fee_per_gas.len(),
+                    fee_history.base_fee_per_blob_gas.len()
+                );
+            }
+
             for (base, blob) in fee_history
                 .base_fee_per_gas
                 .into_iter()
