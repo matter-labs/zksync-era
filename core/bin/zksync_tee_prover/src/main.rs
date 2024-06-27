@@ -1,6 +1,6 @@
 use std::{fmt::Debug, str::FromStr, time::Duration};
 
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
 use clap::Parser;
 use k256::{
     ecdsa::{signature::Signer, Signature, SigningKey, VerifyingKey},
@@ -82,7 +82,7 @@ impl TeeProverTask {
             RegisterTeeAttestationResponse::Error(error) => {
                 let err_msg = format!("Registering attestation quote failed: {}", error);
                 tracing::error!(err_msg);
-                Err(anyhow!(err_msg))
+                Err(anyhow::anyhow!(err_msg))
             }
         }
     }
@@ -100,7 +100,7 @@ impl TeeProverTask {
             TeeProofGenerationDataResponse::Error(err) => {
                 let err_msg = format!("Failed to get proof gen data: {:?}", err);
                 tracing::error!(err_msg);
-                Err(anyhow!(err_msg))
+                Err(anyhow::anyhow!(err_msg))
             }
         }
     }
@@ -110,7 +110,7 @@ impl TeeProverTask {
             Err(e) => {
                 let err_msg = format!("L1 batch verification failed: {e}");
                 tracing::warn!(err_msg);
-                Err(anyhow!(err_msg))
+                Err(anyhow::anyhow!(err_msg))
             }
             Ok(verification_result) => {
                 let root_hash_bytes = verification_result.0.as_bytes();
@@ -147,7 +147,7 @@ impl TeeProverTask {
             SubmitProofResponse::Error(error) => {
                 let err_msg = format!("Submission of the proof failed: {}", error);
                 tracing::error!(err_msg);
-                Err(anyhow!(err_msg))
+                Err(anyhow::anyhow!(err_msg))
             }
         }
     }
