@@ -286,10 +286,6 @@ impl WiringLayer for TeeProverLayer {
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "TEE prover", long_about = None)]
 struct Cli {
-    // The URL of the TEE prover interface API.
-    #[arg(long)]
-    api_url: String,
-
     /// Specifies the number of batches to process. If not provided, the process will continue until
     /// it is interrupted by a SIGINT signal (CTRL+C).
     #[arg(long)]
@@ -365,7 +361,8 @@ fn main() -> anyhow::Result<()> {
     //     bail!("No Prometheus configuration found");
     // }
 
-    let api_url = Url::parse(opt.api_url.as_str())?;
+    let api_url = std::env::var("TEE_API_URL")?;
+    let api_url = Url::parse(api_url.as_str())?;
     let tee_type = std::env::var("TEE_TYPE")?;
     let tee_type = TeeType::from_str(tee_type.as_str())?;
 
