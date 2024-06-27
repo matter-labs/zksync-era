@@ -13,8 +13,8 @@ use ethers::types::{Address, H256};
 use xshell::Shell;
 
 use crate::{
-    forge_utils::{check_the_balance, fill_forge_private_key},
     messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
+    utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
 pub async fn accept_admin(

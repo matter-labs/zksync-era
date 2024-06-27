@@ -688,6 +688,10 @@ impl EthNamespace {
             base_fee_per_gas.len()
         ]);
 
+        // We do not support EIP-4844, but per API specification we should return 0 for pre EIP-4844 blocks.
+        let base_fee_per_blob_gas = vec![U256::zero(); base_fee_per_gas.len()];
+        let blob_gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
+
         // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         Ok(FeeHistory {
@@ -695,6 +699,8 @@ impl EthNamespace {
             base_fee_per_gas,
             gas_used_ratio,
             reward,
+            base_fee_per_blob_gas,
+            blob_gas_used_ratio,
         })
     }
 
