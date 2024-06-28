@@ -2,14 +2,13 @@ use common::{cmd::Cmd, logger, spinner::Spinner};
 use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
+use super::args::init::ProofStorageGCSCreateBucket;
 use crate::{
     consts::PROVER_STORE_MAX_RETRIES,
     messages::{
         msg_bucket_created, MSG_CREATING_GCS_BUCKET_SPINNER, MSG_GETTING_GCP_PROJECTS_SPINNER,
     },
 };
-
-use super::args::init::ProofStorageGCSCreateBucket;
 
 pub(crate) fn create_gcs_bucket(
     shell: &Shell,
