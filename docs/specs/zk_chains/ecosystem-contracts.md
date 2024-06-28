@@ -1,4 +1,4 @@
-# Shared Bridge
+# Ecosystem Contracts
 
 ## Introduction
 
@@ -17,25 +17,10 @@ If you want to know more about ZK Chains, check this
 We want to create a system where:
 
 - ZK Chains should be launched permissionlessly within the ecosystem.
-- Hyperbridges should enable unified liquidity for assets across the ecosystem.
-- Multi-chain smart contracts need to be easy to develop, which means easy access to traditional bridges, and other
-  supporting architecture.
+- Cross-chain interop should enable unified liquidity for assets across the ecosystem.
+- Multi-chain smart contracts need to be easy to develop, which means easy access to bridges.
 
-ZK Chains have specific trust requirements - they need to satisfy certain common standards so that they can trust each
-other. This means a single set of L1 smart contracts has to manage the proof verification for all ZK Chains, and if the
-proof system is upgraded, all chains have to be upgraded together. New chains will be able to be launched
-permissionlessly in the ecosystem according to this shared standard.
-
-To allow unified liquidity each L1 asset (ETH, ERC20, NFTs) will have a single bridge contract on L1 for the whole
-ecosystem. These shared bridges will allow users to deposit, withdraw and transfer from any ZK Chain in the ecosystem.
-These shared bridges are also responsible for deploying and maintaining their counterparts on the ZK Chains. The
-counterparts will be asset contracts extended with bridging functionality.
-
-To enable the bridging functionality:
-
-- On the L1 we will add a Bridgehub contract which connects asset bridges to all the ZK Chains. This will also be the
-  contract that holds the ETH for the ecosystem.
-- On the ZK Chain side we will add special system contracts that enable these features.
+ZK Chains have specific trust requirements - they need to satisfy certain common standards so that they can interoperate. Additionally for the easy of maintainability chains can choose to share their architecture, including their proof systems, VM and other components. These chains will be upgraded together. These together mean a single set of L1 smart contracts will manage the chains on L1.
 
 We want to make the ecosystem as modular as possible, giving developers the ability to modify the architecture as
 needed; consensus mechanism, staking, and DA requirements.
@@ -54,102 +39,6 @@ be able to leverage them when available).
 ![Contracts](./img/contractsExternal.png)
 
 ### Components
-
-#### Bridgehub
-
-- Acts as a hub for bridges, so that they have a single point of communication with all ZK Chain contracts. This allows
-  L1 assets to be locked in the same contract for all ZK Chains, including L3s and validiums. The `Bridgehub` also
-  implements the following:
-- `Registry` This is where ZK Chains can register, starting in a permissioned manner, but with the goal to be
-  permissionless in the future. This is where their `chainID` is determined. L3s will also register here. This
-  `Registry` is also where State Transition contracts should register. Each chain has to specify its desired ST when
-  registering (Initially, only one will be available).
-
-  ```
-  function newChain(
-          uint256 _chainId,
-          address _stateTransition
-      ) external returns (uint256 chainId);
-
-  function newStateTransition(address _stateTransition) external;
-  ```
-
-- `BridgehubMailbox` routes messages to the Diamond proxy’s Mailbox facet based on chainID
-
-  - Same as the current zkEVM
-    [Mailbox](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/zksync/facets/Mailbox.sol),
-    just with chainId,
-  - Ether needs to be deposited and withdrawn from here.
-  - This is where L2 transactions can be requested.
-
-  ```
-  function requestL2Transaction(
-          uint256 _chainId,
-          address _contractL2,
-          uint256 _l2Value,
-          bytes calldata _calldata,
-          uint256 _l2GasLimit,
-          uint256 _l2GasPerPubdataByteLimit,
-          bytes[] calldata _factoryDeps,
-          address _refundRecipient
-      ) public payable override returns (bytes32 canonicalTxHash) {
-          address proofChain = bridgeheadStorage.proofChain[_chainId];
-          canonicalTxHash = IProofChain(proofChain).requestL2TransactionBridgehead(
-              _chainId,
-              msg.value,
-              msg.sender,
-              _contractL2,
-              _l2Value,
-              _calldata,
-              _l2GasLimit,
-              _l2GasPerPubdataByteLimit,
-              _factoryDeps,
-              _refundRecipient
-          );
-      }
-  ```
-
-- `Hypermailbox`
-  - This will allow general message passing (L2<>L2, L2<>L3, etc). This is where the `Mailbox` sends the `Hyperlogs`.
-    `Hyperlogs` are commitments to these messages sent from a single ZK Chain. `Hyperlogs` are aggregated into a
-    `HyperRoot` in the `HyperMailbox`.
-  - This component has not been implemented yet
-
-#### Main asset shared bridges
-
-- Some assets have to be natively supported (ETH, WETH) and it also makes sense to support some generally accepted token
-  standards (ERC20 tokens), as this makes it easy to bridge those tokens (and ensures a single version of them exists on
-  the ZK Chain ecosystem). These canonical asset contracts are deployed from L1 by a bridge shared by all ZK Chains.
-  This is where assets are locked on L1. These bridges use the BridgeHub to communicate with all ZK Chains. Currently,
-  these bridges are the `WETH` and `ERC20` bridges.
-
-  - The pair on L2 is deployed from L1. The hash of the factory dependencies is stored on L1, and when a ZK Chain wants
-    to register, it can passes it in for deployment, it is verified, and the contract is deployed on L2. The actual
-    token contracts on L2 are deployed by the L2 bridge.
-
-  ```
-  function initializeChain(
-          uint256 _chainId,
-          bytes[] calldata _factoryDeps,
-          uint256 _deployBridgeImplementationFee,
-          uint256 _deployBridgeProxyFee
-      ) external payable {
-      ....
-      // Deploy L2 bridge proxy contract
-          l2Bridge[_chainId] = BridgeInitializationHelper.requestDeployTransaction(
-              _chainId,
-              bridgehead,
-              _deployBridgeProxyFee,
-              l2SharedBridgeProxyBytecodeHash,
-              l2SharedBridgeProxyConstructorData,
-              // No factory deps are needed for L2 bridge proxy, because it is already passed in the previous step
-              new bytes[](0)
-          );
-  ```
-
-This topic is now covered more thoroughly by the Custom native token discussion.
-
-[Custom native token compatible with Hyperbridging](https://www.notion.so/Custom-native-token-compatible-with-Hyperbridging-54e190a1a76f44248cf84a38304a0641?pvs=21)
 
 #### State Transition
 
@@ -199,23 +88,6 @@ features required to process proofs. The chain ID is set in the VM in a special 
 
 <!--![newChain.png](./img/newChain.png) Image outdated-->
 
-#### WETH Contract
-
-Ether, the native gas token is part of the core system contracts, so deploying it is not necessary. But WETH is just a
-smart contract, it needs to be deployed and initialised. This happens from the L1 WETH bridge. This deploys on L2 the
-corresponding bridge and ERC20 contract. This is deployed from L1, but the L2 address is known at deployment time.
-
-![deployWeth.png](./img/deployWeth.png)
-
-#### Deposit WETH
-
-The user can deposit WETH into the ecosystem using the WETH bridge on L1. The destination chain ID has to be specified.
-The Bridgehub unwraps the WETH, and keeps the ETH, and send a message to the destination L2 to mint WETH to the
-specified address.
-
-![depositWeth.png](./img/depositWeth.png)
-
----
 
 ### Common Standards and Upgrades
 
