@@ -138,6 +138,24 @@ pub static L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE: Lazy<H256> = Lazy:
     )
 });
 
+pub static MESSAGE_ROOT_ADDED_CHAIN_EVENT: Lazy<H256> = Lazy::new(|| {
+    ethabi::long_signature(
+        "AddedChain",
+        &[ethabi::ParamType::Uint(256), ethabi::ParamType::Uint(256)],
+    )
+});
+
+pub static MESSAGE_ROOT_ADDED_CHAIN_BATCH_ROOT_EVENT: Lazy<H256> = Lazy::new(|| {
+    ethabi::long_signature(
+        "AppendedChainBatchRoot",
+        &[
+            ethabi::ParamType::Uint(256),
+            ethabi::ParamType::Uint(256),
+            ethabi::ParamType::FixedBytes(32),
+        ],
+    )
+});
+
 #[derive(Debug, PartialEq)]
 pub struct L1MessengerBytecodePublicationRequest {
     pub bytecode_hash: H256,

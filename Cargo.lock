@@ -8770,6 +8770,7 @@ name = "zksync_mini_merkle_tree"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "hex",
  "once_cell",
  "zksync_basic_types",
  "zksync_crypto",
@@ -8806,6 +8807,7 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_contracts",
+ "zksync_crypto",
  "zksync_dal",
  "zksync_health_check",
  "zksync_metadata_calculator",
@@ -9411,6 +9413,7 @@ dependencies = [
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
+ "zksync_crypto",
  "zksync_crypto_primitives",
  "zksync_mini_merkle_tree",
  "zksync_protobuf",

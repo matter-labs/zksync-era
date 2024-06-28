@@ -253,6 +253,8 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
         bootloader_initial_content_commitment: Some(H256::zero()),
         state_diffs_compressed: vec![],
         state_diff_hash: H256::default(),
+        local_root: H256::zero(),
+        aggregation_root: H256::zero(),
     }
 }
 

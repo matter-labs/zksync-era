@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_crypto.workspace = true
 zksync_system_constants.workspace = true
 zksync_utils.workspace = true
 zksync_basic_types.workspace = true
