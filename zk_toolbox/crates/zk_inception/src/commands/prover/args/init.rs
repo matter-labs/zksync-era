@@ -15,7 +15,7 @@ use crate::{
         MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
         MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
         MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT, MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT,
-        MSG_SETUP_KEY_PATH_PROMPT,
+        MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT, MSG_SETUP_KEY_PATH_PROMPT,
     },
 };
 
@@ -210,7 +210,7 @@ impl ProverInitArgs {
         logger::info(MSG_GETTING_PUBLIC_STORE_CONFIG);
         let shall_save_to_public_bucket = self
             .shall_save_to_public_bucket
-            .unwrap_or_else(|| PromptConfirm::new("Do you want to save to public bucket?").ask());
+            .unwrap_or_else(|| PromptConfirm::new(MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT).ask());
 
         if !shall_save_to_public_bucket {
             return Ok(None);
