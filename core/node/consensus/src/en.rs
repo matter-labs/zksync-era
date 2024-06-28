@@ -73,11 +73,12 @@ impl EN {
                 .await
                 .wrap("Store::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+
             let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-            // Dummy batch store - we don't gossip batches yet, but we need one anyway.
+
             let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BatchStore::new()")?;
@@ -87,7 +88,6 @@ impl EN {
                 config: config::executor(&cfg, &secrets)?,
                 block_store,
                 batch_store,
-                attester: None,
                 validator: config::validator_key(&secrets)
                     .context("validator_key")?
                     .map(|key| executor::Validator {
@@ -95,8 +95,12 @@ impl EN {
                         replica_store: Box::new(store.clone()),
                         payload_manager: Box::new(store.clone()),
                     }),
+                attester: config::attester_key(&secrets)
+                    .context("attester_key")?
+                    .map(|key| executor::Attester { key }),
             };
             executor.run(ctx).await?;
+
             Ok(())
         })
         .await;

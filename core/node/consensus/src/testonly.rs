@@ -99,6 +99,10 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                     key: config::ValidatorPublicKey(key.public().encode()),
                     weight: 1,
                 }],
+                attesters: vec![config::WeightedAttester {
+                    key: config::AttesterPublicKey(key.public().encode()),
+                    weight: 1,
+                }],
                 leader: config::ValidatorPublicKey(key.public().encode()),
             }),
             rpc: None,
@@ -109,6 +113,10 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                 .validator_key
                 .as_ref()
                 .map(|k| config::ValidatorSecretKey(k.encode().into())),
+            attester_key: cfg
+                .attester_key
+                .as_ref()
+                .map(|k| config::AttesterSecretKey(k.encode().into())),
         },
     )
 }

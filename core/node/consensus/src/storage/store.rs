@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage as storage;
+use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::consensus_dal::{self, Payload};
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
 use zksync_types::L2BlockNumber;
@@ -349,33 +349,52 @@ impl PayloadManager for Store {
 // Dummy implementation
 #[async_trait::async_trait]
 impl storage::PersistentBatchStore for Store {
+    /// Get the L1 batch from storage with the highest number.
     async fn last_batch(&self) -> attester::BatchNumber {
-        unimplemented!()
+        // TODO: Should we return the last batch which was inserted?
+        // I think we can assume that there are no gaps in batches, so this should be okay.
+        todo!()
     }
+    /// Get the L1 batch QC from storage with the highest number.
     async fn last_batch_qc(&self) -> attester::BatchQC {
-        unimplemented!()
+        // TODO: We discussed that inserting batches should allow gaps, and the retrieval
+        // should cater for not returning anything other than what we consider final.
+        // Does that apply here, should this one be the last inserted or the last final?
+        todo!()
     }
-    async fn get_batch(&self, _number: attester::BatchNumber) -> Option<attester::SyncBatch> {
-        None
+    /// Returns the batch with the given number.
+    async fn get_batch(&self, number: attester::BatchNumber) -> Option<attester::SyncBatch> {
+        // TODO: Look up the batch in the store and map it to SyncBatch
+        todo!()
     }
-    async fn get_batch_qc(&self, _number: attester::BatchNumber) -> Option<attester::BatchQC> {
-        None
+    /// Returns the QC of the batch with the given number.
+    async fn get_batch_qc(&self, number: attester::BatchNumber) -> Option<attester::BatchQC> {
+        // TODO: Look up the batch QC in the new table. Should this only return the value if it's final?
+        todo!()
     }
-    async fn store_qc(&self, _qc: attester::BatchQC) {
-        unimplemented!()
+    /// Store the given QC in the storage.
+    async fn store_qc(&self, qc: attester::BatchQC) {
+        // TODO: Insert into the new table even if this creates a gap. Or think about whether this just complicates everything else.
+        todo!()
     }
-    fn persisted(&self) -> sync::watch::Receiver<storage::BatchStoreState> {
-        sync::watch::channel(storage::BatchStoreState {
-            first: attester::BatchNumber(0),
-            last: None,
-        })
-        .1
+    /// Range of batches persisted in storage.
+    fn persisted(&self) -> sync::watch::Receiver<BatchStoreState> {
+        // TODO: Add something like the `BlockStoreState` that gets updated when inserts happen.
+        // It's not clear whether this gets updated on nodes that aren't actively doing the insertion,
+        // but just use the database for synchronising state with other processes.
+        todo!()
     }
+    /// Queue the batch to be persisted in storage.
+    /// `queue_next_batch()` may return BEFORE the batch is actually persisted,
+    /// but if the call succeeded the batch is expected to be persisted eventually.
+    /// Implementations are only required to accept a batch directly after the previous queued
+    /// batch, starting with `persisted().borrow().next()`.
     async fn queue_next_batch(
         &self,
-        _ctx: &ctx::Ctx,
-        _batch: attester::SyncBatch,
+        ctx: &ctx::Ctx,
+        batch: attester::SyncBatch,
     ) -> ctx::Result<()> {
-        Err(anyhow::format_err!("unimplemented").into())
+        // TODO: Check how it works for blocks: does it wait for all previous ones to be persisted here, or in a background queue?
+        todo!()
     }
 }
