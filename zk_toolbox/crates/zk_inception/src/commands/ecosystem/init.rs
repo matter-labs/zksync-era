@@ -59,7 +59,10 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let genesis_args = args.genesis_args.clone();
+    let mut genesis_args = args.genesis_args.clone();
+    if args.dev {
+        genesis_args.use_default = true;
+    }
     let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
