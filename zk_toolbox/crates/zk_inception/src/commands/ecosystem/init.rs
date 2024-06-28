@@ -109,13 +109,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         };
 
-        distribute_eth(
-            &ecosystem_config,
-            &chain_config,
-            final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
-        )
-        .await?;
-
         chain::init::init(
             &mut chain_init_args,
             shell,
@@ -195,8 +188,17 @@ async fn deploy_erc20(
     l1_rpc_url: String,
 ) -> anyhow::Result<DeployErc20Output> {
     let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
-    DeployErc20Config::new(erc20_deployment_config, contracts_config)
-        .save(shell, deploy_config_path)?;
+    let wallets = ecosystem_config.get_wallets()?;
+    DeployErc20Config::new(
+        erc20_deployment_config,
+        contracts_config,
+        vec![
+            wallets.governor.address,
+            wallets.operator.address,
+            wallets.blob_operator.address,
+        ],
+    )
+    .save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
