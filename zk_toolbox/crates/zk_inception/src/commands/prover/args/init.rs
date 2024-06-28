@@ -1,19 +1,19 @@
 use clap::{Parser, ValueEnum};
-use common::{cmd::Cmd, logger, spinner::Spinner, Prompt, PromptConfirm, PromptSelect};
+use common::{logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::{
+    commands::prover::gcs::get_project_ids,
     consts::{DEFAULT_CREDENTIALS_FILE, DEFAULT_PROOF_STORE_DIR},
     messages::{
         MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT, MSG_CREATE_GCS_BUCKET_NAME_PROMTP,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
-        MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_GCP_PROJECTS_SPINNER,
-        MSG_GETTING_PROOF_STORE_CONFIG, MSG_GETTING_PUBLIC_STORE_CONFIG,
-        MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
+        MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
+        MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
         MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT, MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT,
         MSG_SETUP_KEY_PATH_PROMPT,
     },
@@ -387,20 +387,4 @@ impl ProverInitArgs {
             credentials_file,
         })
     }
-}
-
-fn get_project_ids(shell: &Shell) -> anyhow::Result<Vec<String>> {
-    let spinner = Spinner::new(MSG_GETTING_GCP_PROJECTS_SPINNER);
-
-    let mut cmd = Cmd::new(cmd!(
-        shell,
-        "gcloud projects list --format='value(projectId)'"
-    ));
-    let output = cmd.run_with_output()?;
-    let project_ids: Vec<String> = String::from_utf8(output.stdout)?
-        .lines()
-        .map(|line| line.to_string())
-        .collect();
-    spinner.finish();
-    Ok(project_ids)
 }

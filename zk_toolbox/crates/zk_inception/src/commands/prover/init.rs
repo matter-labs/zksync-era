@@ -7,16 +7,16 @@ use zksync_config::{
 };
 
 use super::{
-    args::init::{ProofStorageConfig, ProofStorageGCSCreateBucket, ProverInitArgs},
+    args::init::{ProofStorageConfig, ProverInitArgs},
+    gcs::create_gcs_bucket,
     utils::get_link_to_prover,
 };
 use crate::{
     consts::PROVER_STORE_MAX_RETRIES,
     messages::{
-        msg_bucket_created, MSG_CHAIN_NOT_FOUND_ERR, MSG_CREATING_GCS_BUCKET_SPINNER,
-        MSG_DOWNLOADING_SETUP_KEY_SPINNER, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
-        MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
-        MSG_PROVER_INITIALIZED,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
+        MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR,
+        MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED,
     },
 };
 
@@ -67,33 +67,6 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     logger::outro(MSG_PROVER_INITIALIZED);
     Ok(())
-}
-
-fn create_gcs_bucket(
-    shell: &Shell,
-    config: ProofStorageGCSCreateBucket,
-) -> anyhow::Result<ObjectStoreConfig> {
-    let bucket_name = config.bucket_name;
-    let location = config.location;
-    let project_id = config.project_id;
-    let mut cmd = Cmd::new(cmd!(
-        shell,
-        "gcloud storage buckets create gs://{bucket_name} --location={location} --project={project_id}"
-    ));
-    let spinner = Spinner::new(MSG_CREATING_GCS_BUCKET_SPINNER);
-    cmd.run()?;
-    spinner.finish();
-
-    logger::info(msg_bucket_created(&bucket_name));
-
-    Ok(ObjectStoreConfig {
-        mode: ObjectStoreMode::GCSWithCredentialFile {
-            bucket_base_url: format!("gs://{}", bucket_name),
-            gcs_credential_file_path: config.credentials_file,
-        },
-        max_retries: PROVER_STORE_MAX_RETRIES,
-        local_mirror_path: None,
-    })
 }
 
 fn download_setup_key(
