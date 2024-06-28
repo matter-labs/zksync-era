@@ -16,6 +16,7 @@ fn test_encoding() {
     test_encode_all_formats::<ReprConv<proto::chain::StateKeeper>>(rng);
     test_encode_all_formats::<ReprConv<proto::chain::OperationsManager>>(rng);
     test_encode_all_formats::<ReprConv<proto::chain::Mempool>>(rng);
+    test_encode_all_formats::<ReprConv<proto::consensus::RpcConfig>>(rng);
     test_encode_all_formats::<ReprConv<proto::consensus::WeightedValidator>>(rng);
     test_encode_all_formats::<ReprConv<proto::consensus::GenesisSpec>>(rng);
     test_encode_all_formats::<ReprConv<proto::consensus::Config>>(rng);
