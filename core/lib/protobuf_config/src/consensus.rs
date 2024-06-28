@@ -1,10 +1,10 @@
 use anyhow::Context as _;
 use zksync_basic_types::L2ChainId;
 use zksync_config::configs::consensus::{
-    ConsensusConfig, GenesisSpec, Host, NodePublicKey, ProtocolVersion, ValidatorPublicKey,
-    WeightedValidator,
+    ConsensusConfig, GenesisSpec, Host, NodePublicKey, ProtocolVersion, RpcConfig,
+    ValidatorPublicKey, WeightedValidator,
 };
-use zksync_protobuf::{repr::ProtoRepr, required};
+use zksync_protobuf::{read_optional, repr::ProtoRepr, required, ProtoFmt};
 
 use crate::{proto::consensus as proto, read_optional_repr};
 
@@ -54,6 +54,20 @@ impl ProtoRepr for proto::GenesisSpec {
     }
 }
 
+impl ProtoRepr for proto::RpcConfig {
+    type Type = RpcConfig;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            get_block_rate: read_optional(&self.get_block_rate).context("get_block_rate")?,
+        })
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            get_block_rate: this.get_block_rate.as_ref().map(ProtoFmt::build),
+        }
+    }
+}
+
 impl ProtoRepr for proto::Config {
     type Type = ConsensusConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
@@ -85,6 +99,7 @@ impl ProtoRepr for proto::Config {
                 .map(|(i, e)| read_addr(e).context(i))
                 .collect::<Result<_, _>>()?,
             genesis_spec: read_optional_repr(&self.genesis_spec).context("genesis_spec")?,
+            rpc: read_optional_repr(&self.rpc_config).context("rpc_config")?,
         })
     }
 
@@ -110,6 +125,7 @@ impl ProtoRepr for proto::Config {
                 })
                 .collect(),
             genesis_spec: this.genesis_spec.as_ref().map(ProtoRepr::build),
+            rpc_config: this.rpc.as_ref().map(ProtoRepr::build),
         }
     }
 }
