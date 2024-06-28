@@ -34,7 +34,7 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                from_addr IS NOT DISTINCT FROM $1
+                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL
                 AND confirmed_eth_tx_history_id IS NULL
                 AND id <= (
                     SELECT
@@ -139,7 +139,7 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                from_addr IS NOT DISTINCT FROM $2
+                from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL
                 AND id > (
                     SELECT
                         COALESCE(MAX(eth_tx_id), 0)

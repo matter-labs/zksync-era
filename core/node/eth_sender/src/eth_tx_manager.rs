@@ -622,6 +622,9 @@ impl EthTxManager {
         l1_block_numbers: L1BlockNumbers,
     ) {
         tracing::info!("Loop iteration at block {}", l1_block_numbers.latest);
+        // We can treat those two operators independently as they have different nonces and
+        // aggregator makes sure that corresponding Commit transaction is confirmed before creating
+        // a PublishProof transaction
         for operator_type in [OperatorType::NonBlob, OperatorType::Blob] {
             self.send_new_eth_txs(storage, l1_block_numbers.latest, operator_type)
                 .await;
