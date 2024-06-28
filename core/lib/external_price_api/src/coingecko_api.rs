@@ -29,7 +29,7 @@ impl CoinGeckoPriceAPIClient {
 
     async fn get_token_price_by_address(self: &Self, address: Address) -> anyhow::Result<f64> {
         let vs_currency = "usd";
-        let address_str = address_to_string(address);
+        let address_str = address_to_string(&address);
         let price_url = self
             .base_url
             .join(
@@ -50,7 +50,7 @@ impl CoinGeckoPriceAPIClient {
         let response = builder.send().await?;
         if !response.status().is_success() {
             return Err(anyhow::anyhow!(
-                "Http error while fetching price by address. Status: {}, token: {}, msg: {}",
+                "Http error while fetching token price. Status: {}, token: {}, msg: {}",
                 response.status(),
                 address_str,
                 response.text().await.unwrap_or("".to_string())
@@ -88,7 +88,7 @@ impl CoinGeckoPriceAPIClient {
         let response = builder.send().await?;
         if !response.status().is_success() {
             return Err(anyhow::anyhow!(
-                "Http error while fetching price by id. Status: {}, token: {}, msg: {}",
+                "Http error while fetching token price. Status: {}, token: {}, msg: {}",
                 response.status(),
                 id,
                 response.text().await.unwrap_or("".to_string())
@@ -131,19 +131,17 @@ impl CoinGeckoPriceResponse {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, str::FromStr};
+    use std::collections::HashMap;
 
     use httpmock::MockServer;
-    use url::Url;
     use zksync_types::Address;
 
     use crate::{
         address_to_string,
         coingecko_api::{CoinGeckoPriceAPIClient, COIN_GECKO_AUTH_HEADER},
         tests::tests::{
-            add_mock, base_token_price_not_found_test, eth_price_not_found_test,
-            happy_day_no_api_key_test, happy_day_with_api_key_test, no_base_token_price_404_test,
-            no_eth_price_404_test,
+            add_mock, base_token_price_not_found_test, eth_price_not_found_test, happy_day_test,
+            no_base_token_price_404_test, no_eth_price_404_test, server_url,
         },
         PriceAPIClient,
     };
@@ -152,7 +150,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("ids".to_string(), id.clone());
         params.insert("vs_currencies".to_string(), "usd".to_string());
-        crate::tests::tests::add_mock(
+        add_mock(
             server,
             httpmock::Method::GET,
             "/api/v3/simple/price".to_string(),
@@ -174,7 +172,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("contract_addresses".to_string(), address.clone());
         params.insert("vs_currencies".to_string(), "usd".to_string());
-        crate::tests::tests::add_mock(
+        add_mock(
             server,
             httpmock::Method::GET,
             "/api/v3/simple/token_price/ethereum".to_string(),
@@ -186,10 +184,6 @@ mod tests {
         );
     }
 
-    fn server_url(server: &MockServer) -> Url {
-        Url::from_str(server.url("").as_str()).unwrap()
-    }
-
     fn happy_day_setup(
         server: &MockServer,
         api_key: Option<String>,
@@ -199,7 +193,7 @@ mod tests {
     ) -> Box<dyn PriceAPIClient> {
         add_mock_by_address(
             &server,
-            address_to_string(address),
+            address_to_string(&address),
             base_token_price,
             api_key.clone(),
         );
@@ -213,40 +207,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_happy_day_with_api_key() {
-        happy_day_with_api_key_test(happy_day_setup).await
+        happy_day_test(Some("test".to_string()), happy_day_setup).await
     }
 
     #[tokio::test]
     async fn test_happy_day_with_no_api_key() {
-        happy_day_no_api_key_test(happy_day_setup).await
+        happy_day_test(None, happy_day_setup).await
     }
 
     #[tokio::test]
     async fn test_no_eth_price_404() {
         no_eth_price_404_test(
+            None,
             |server: &MockServer,
              api_key: Option<String>,
              address: Address,
              _base_token_price: f64,
              _eth_price: f64|
              -> Box<dyn PriceAPIClient> {
-                add_mock_by_address(&server, address_to_string(address), 198.9, None);
-                let mut params = HashMap::new();
-                params.insert("ids".to_string(), "ethereum".to_string());
-                params.insert("vs_currencies".to_string(), "usd".to_string());
-                add_mock(
-                    &server,
-                    httpmock::Method::GET,
-                    "/api/v3/simple/price".to_string(),
-                    params,
-                    404,
-                    "".to_string(),
-                    COIN_GECKO_AUTH_HEADER.to_string(),
-                    api_key,
-                );
+                add_mock_by_address(&server, address_to_string(&address), 198.9, None);
                 Box::new(CoinGeckoPriceAPIClient::new(
                     server_url(&server),
-                    None,
+                    api_key,
                     reqwest::Client::new(),
                 ))
             },
@@ -257,13 +239,14 @@ mod tests {
     #[tokio::test]
     async fn test_eth_price_not_found() {
         eth_price_not_found_test(
+            None,
             |server: &MockServer,
              api_key: Option<String>,
              address: Address,
              _base_token_price: f64,
              _eth_price: f64|
              -> Box<dyn PriceAPIClient> {
-                add_mock_by_address(&server, address_to_string(address), 198.9, None);
+                add_mock_by_address(&server, address_to_string(&address), 198.9, None);
                 let mut params = HashMap::new();
                 params.insert("ids".to_string(), "ethereum".to_string());
                 params.insert("vs_currencies".to_string(), "usd".to_string());
@@ -275,11 +258,11 @@ mod tests {
                     200,
                     "{}".to_string(),
                     COIN_GECKO_AUTH_HEADER.to_string(),
-                    api_key,
+                    api_key.clone(),
                 );
                 Box::new(CoinGeckoPriceAPIClient::new(
                     server_url(&server),
-                    None,
+                    api_key,
                     reqwest::Client::new(),
                 ))
             },
@@ -290,32 +273,17 @@ mod tests {
     #[tokio::test]
     async fn test_no_base_token_price_404() {
         no_base_token_price_404_test(
+            None,
             |server: &MockServer,
              api_key: Option<String>,
-             address: Address,
+             _address: Address,
              _base_token_price: f64,
              _eth_price: f64|
              -> Box<dyn PriceAPIClient> {
                 add_mock_by_id(&server, "ethereum".to_string(), 29.5, None);
-                let mut params = HashMap::new();
-                params.insert(
-                    "contract_addresses".to_string(),
-                    address_to_string(address).to_string(),
-                );
-                params.insert("vs_currencies".to_string(), "usd".to_string());
-                add_mock(
-                    &server,
-                    httpmock::Method::GET,
-                    "/api/v3/simple/token_price/ethereum".to_string(),
-                    params,
-                    404,
-                    "".to_string(),
-                    COIN_GECKO_AUTH_HEADER.to_string(),
-                    api_key,
-                );
                 Box::new(CoinGeckoPriceAPIClient::new(
                     server_url(&server),
-                    None,
+                    api_key,
                     reqwest::Client::new(),
                 ))
             },
@@ -326,6 +294,7 @@ mod tests {
     #[tokio::test]
     async fn test_base_token_price_not_found() {
         base_token_price_not_found_test(
+            None,
             |server: &MockServer,
              api_key: Option<String>,
              address: Address,
@@ -334,7 +303,10 @@ mod tests {
              -> Box<dyn PriceAPIClient> {
                 add_mock_by_id(&server, "ethereum".to_string(), 29.5, None);
                 let mut params = HashMap::new();
-                params.insert("contract_addresses".to_string(), address_to_string(address));
+                params.insert(
+                    "contract_addresses".to_string(),
+                    address_to_string(&address),
+                );
                 params.insert("vs_currencies".to_string(), "usd".to_string());
                 add_mock(
                     &server,
@@ -344,11 +316,11 @@ mod tests {
                     200,
                     "{}".to_string(),
                     COIN_GECKO_AUTH_HEADER.to_string(),
-                    api_key,
+                    api_key.clone(),
                 );
                 Box::new(CoinGeckoPriceAPIClient::new(
                     server_url(&server),
-                    None,
+                    api_key,
                     reqwest::Client::new(),
                 ))
             },

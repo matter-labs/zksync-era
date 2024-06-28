@@ -14,6 +14,6 @@ pub trait PriceAPIClient: Sync + Send + Debug {
     async fn fetch_price(&mut self, token_address: Address) -> anyhow::Result<BaseTokenAPIPrice>;
 }
 
-fn address_to_string(address: Address) -> String {
+fn address_to_string(address: &Address) -> String {
     format!("{:#x}", address)
 }
