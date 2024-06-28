@@ -8324,6 +8324,7 @@ dependencies = [
  "chrono",
  "once_cell",
  "test-casing",
+ "test-log",
  "thiserror",
  "tokio",
  "tracing",
