@@ -8274,6 +8274,7 @@ dependencies = [
  "serde",
  "serde_with",
  "strum",
+ "zksync_multivm",
  "zksync_object_store",
  "zksync_types",
 ]
