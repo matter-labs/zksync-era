@@ -8,8 +8,5 @@
         "noEmitOnError": true,
         "skipLibCheck": true,
         "declaration": true
-    },
-    "files": [
-        "src/index.ts"
-    ]
+    }
 }

@@ -55,7 +55,7 @@ impl GeneralConfig {
 }
 
 fn update_port_in_url(http_url: &mut String, port: u16) -> anyhow::Result<()> {
-    let mut http_url_url = Url::parse(&http_url)?;
+    let mut http_url_url = Url::parse(http_url)?;
     if let Err(()) = http_url_url.set_port(Some(port)) {
         anyhow::bail!("Wrong url, setting port is impossible");
     }
