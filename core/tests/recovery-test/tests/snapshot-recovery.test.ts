@@ -169,7 +169,7 @@ describe('snapshot recovery', () => {
                     const snapshotAccountAddress = '0x' + storageLog.accountAddress.toString('hex');
                     const snapshotKey = '0x' + storageLog.storageKey.toString('hex');
                     const snapshotValue = '0x' + storageLog.storageValue.toString('hex');
-                    const valueOnBlockchain = await mainNode.getStorageAt(
+                    const valueOnBlockchain = await mainNode.getStorage(
                         snapshotAccountAddress,
                         snapshotKey,
                         l2BlockNumber
