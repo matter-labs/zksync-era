@@ -5,8 +5,7 @@ use std::{env, time::Duration};
 use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::{oneshot, watch};
-use zksync_config::configs::{DatabaseSecrets, FriProofCompressorConfig, ObservabilityConfig};
-use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
+use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_dal::{ConnectionPool, Prover};
@@ -38,6 +37,8 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let opt = Cli::parse();
+
     let general_config = load_general_config(opt.config_path).context("general config")?;
     let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
 
@@ -122,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
     );
     let tasks = vec![
         tokio::spawn(prometheus_config.run(stop_receiver.clone())),
-        tokio::spawn(proof_compressor.run(stop_receiver, opt.number_of_iterations)),
+        tokio::spawn(proof_compressor.run(stop_receiver, opt.n_iterations)),
     ];
 
     let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
