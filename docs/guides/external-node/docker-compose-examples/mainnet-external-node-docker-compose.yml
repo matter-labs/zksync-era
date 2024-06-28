@@ -97,7 +97,7 @@ services:
       EN_CONSENSUS_CONFIG_PATH: "./configs/consensus_config.yaml"
       EN_CONSENSUS_SECRETS_PATH: "./configs/consensus_secrets.yaml"
 
-    volumes:
+volumes:
   mainnet-postgres: {}
   mainnet-rocksdb: {}
   mainnet-prometheus-data: {}
