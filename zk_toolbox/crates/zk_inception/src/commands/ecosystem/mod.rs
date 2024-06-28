@@ -9,7 +9,7 @@ mod args;
 mod change_default;
 mod create;
 pub mod create_configs;
-mod init;
+pub(crate) mod init;
 
 #[derive(Subcommand, Debug)]
 #[allow(clippy::large_enum_variant)]

@@ -68,6 +68,12 @@ pub async fn init(
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
+    crate::commands::ecosystem::init::distribute_eth(
+        &ecosystem_config,
+        &chain_config,
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
     let mut secrets = chain_config.get_secrets_config()?;
     secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone());
     secrets.save_with_base_path(shell, &chain_config.configs)?;

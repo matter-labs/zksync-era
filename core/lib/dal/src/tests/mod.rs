@@ -183,14 +183,14 @@ pub(crate) fn mock_vm_event(index: u8) -> VmEvent {
     }
 }
 
-pub(crate) fn mock_l2_to_l1_log() -> UserL2ToL1Log {
+pub(crate) fn create_l2_to_l1_log(tx_number_in_block: u16, index: u8) -> UserL2ToL1Log {
     UserL2ToL1Log(L2ToL1Log {
         shard_id: 0,
         is_service: false,
-        tx_number_in_block: 0,
-        sender: Address::repeat_byte(0),
-        key: H256::from_low_u64_be(0),
-        value: H256::repeat_byte(0),
+        tx_number_in_block,
+        sender: Address::repeat_byte(index),
+        key: H256::from_low_u64_be(u64::from(index)),
+        value: H256::repeat_byte(index),
     })
 }
 

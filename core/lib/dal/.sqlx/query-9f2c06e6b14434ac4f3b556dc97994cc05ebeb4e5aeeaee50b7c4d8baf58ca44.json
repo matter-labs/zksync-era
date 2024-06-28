@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                l1_batches (\n                    number,\n                    l1_tx_count,\n                    l2_tx_count,\n                    timestamp,\n                    l2_to_l1_messages,\n                    bloom,\n                    priority_ops_onchain_data,\n                    predicted_commit_gas_cost,\n                    predicted_prove_gas_cost,\n                    predicted_execute_gas_cost,\n                    initial_bootloader_heap_content,\n                    used_contract_hashes,\n                    bootloader_code_hash,\n                    default_aa_code_hash,\n                    protocol_version,\n                    system_logs,\n                    storage_refunds,\n                    pubdata_costs,\n                    pubdata_input,\n                    predicted_circuits_by_type,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                (\n                    $1,\n                    $2,\n                    $3,\n                    $4,\n                    $5,\n                    $6,\n                    $7,\n                    $8,\n                    $9,\n                    $10,\n                    $11,\n                    $12,\n                    $13,\n                    $14,\n                    $15,\n                    $16,\n                    $17,\n                    $18,\n                    $19,\n                    $20,\n                    NOW(),\n                    NOW()\n                )\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Int4",
+        "Int8",
+        "ByteaArray",
+        "Bytea",
+        "ByteaArray",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Jsonb",
+        "Jsonb",
+        "Bytea",
+        "Bytea",
+        "Int4",
+        "ByteaArray",
+        "Int8Array",
+        "Int8Array",
+        "Bytea",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9f2c06e6b14434ac4f3b556dc97994cc05ebeb4e5aeeaee50b7c4d8baf58ca44"
+}
