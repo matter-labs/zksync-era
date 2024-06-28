@@ -10,13 +10,15 @@ use super::{
     args::init::{ProofStorageConfig, ProofStorageGCSCreateBucket, ProverInitArgs},
     utils::get_link_to_prover,
 };
-use crate::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
-    MSG_GETTING_GCP_PROJECTS_SPINNER, MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR,
-    MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED,
+use crate::{
+    consts::PROVER_STORE_MAX_RETRIES,
+    messages::{
+        msg_bucket_created, MSG_CHAIN_NOT_FOUND_ERR, MSG_CREATING_GCS_BUCKET_SPINNER,
+        MSG_DOWNLOADING_SETUP_KEY_SPINNER, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
+        MSG_GETTING_GCP_PROJECTS_SPINNER, MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR,
+        MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED,
+    },
 };
-
-const PROVER_STORE_MAX_RETRIES: u16 = 10;
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     check_prover_prequisites(shell);
@@ -81,13 +83,11 @@ fn create_gcs_bucket(
         shell,
         "gcloud storage buckets create gs://{bucket_name} --location={location} --project={project_id}"
     ));
-    let spinner = Spinner::new("Creating GCS bucket...");
+    let spinner = Spinner::new(MSG_CREATING_GCS_BUCKET_SPINNER);
     cmd.run()?;
     spinner.finish();
 
-    logger::info(format!(
-        "Bucket created successfully with url: gs://{bucket_name}"
-    ));
+    logger::info(msg_bucket_created(&bucket_name));
 
     Ok(ObjectStoreConfig {
         mode: ObjectStoreMode::GCSWithCredentialFile {

@@ -237,3 +237,8 @@ pub(super) const MSG_SETUP_KEY_PATH_PROMPT: &str = "Provide the path to the setu
 pub(super) const MSG_GETTING_GCP_PROJECTS_SPINNER: &str = "Getting GCP projects...";
 pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store configuration...";
 pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";
+pub(super) const MSG_CREATING_GCS_BUCKET_SPINNER: &str = "Creating GCS bucket...";
+
+pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
+    format!("Bucket created successfully with url: gs://{bucket_name}")
+}
