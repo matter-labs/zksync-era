@@ -2,7 +2,7 @@ use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_base_token_adjuster::BaseTokenAdjuster;
+use zksync_base_token_adjuster::BaseTokenFetcher;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     fee_model::{
@@ -61,7 +61,7 @@ impl dyn BatchFeeModelInputProvider {
 #[derive(Debug)]
 pub struct MainNodeFeeInputProvider {
     provider: Arc<dyn L1GasAdjuster>,
-    base_token_adjuster: Arc<dyn BaseTokenAdjuster>,
+    base_token_adjuster: Arc<BaseTokenFetcher>,
     config: FeeModelConfig,
 }
 
@@ -77,7 +77,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
                 config,
                 self.provider.estimate_effective_gas_price(),
                 self.provider.estimate_effective_pubdata_price(),
-                self.base_token_adjuster.get_conversion_ratio().await?,
+                self.base_token_adjuster.get_conversion_ratio().unwrap(),
             ))),
         }
     }
@@ -86,12 +86,12 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 impl MainNodeFeeInputProvider {
     pub fn new(
         provider: Arc<dyn L1GasAdjuster>,
-        base_token_adjuster: Arc<dyn BaseTokenAdjuster>,
+        base_token_fetcher: Arc<BaseTokenFetcher>,
         config: FeeModelConfig,
     ) -> Self {
         Self {
             provider,
-            base_token_adjuster,
+            base_token_adjuster: base_token_fetcher,
             config,
         }
     }
@@ -248,7 +248,8 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 
 #[cfg(test)]
 mod tests {
-    use zksync_base_token_adjuster::MockBaseTokenAdjuster;
+    use std::num::NonZeroU64;
+
     use zksync_types::fee_model::BaseTokenConversionRatio;
 
     use super::*;
@@ -261,11 +262,6 @@ mod tests {
 
     // As a small small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: u64 = 1;
-
-    const ONE_TO_ONE_CONVERSION: BaseTokenConversionRatio = BaseTokenConversionRatio {
-        numerator: 1,
-        denominator: 1,
-    };
 
     #[test]
     fn test_compute_batch_fee_model_input_v2_giant_numbers() {
@@ -287,7 +283,7 @@ mod tests {
             config,
             GIANT_L1_GAS_PRICE,
             GIANT_L1_GAS_PRICE,
-            ONE_TO_ONE_CONVERSION,
+            BaseTokenConversionRatio::default(),
         );
 
         // We'll use scale factor of 3.0
@@ -314,7 +310,7 @@ mod tests {
             config,
             SMALL_L1_GAS_PRICE,
             SMALL_L1_GAS_PRICE,
-            ONE_TO_ONE_CONVERSION,
+            BaseTokenConversionRatio::default(),
         );
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
@@ -340,7 +336,7 @@ mod tests {
             config,
             GIANT_L1_GAS_PRICE,
             GIANT_L1_GAS_PRICE,
-            ONE_TO_ONE_CONVERSION,
+            BaseTokenConversionRatio::default(),
         );
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
@@ -367,7 +363,7 @@ mod tests {
             config,
             GIANT_L1_GAS_PRICE,
             GIANT_L1_GAS_PRICE,
-            ONE_TO_ONE_CONVERSION,
+            BaseTokenConversionRatio::default(),
         );
 
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
@@ -394,7 +390,7 @@ mod tests {
             base_config,
             1_000_000_000,
             1_000_000_000,
-            ONE_TO_ONE_CONVERSION,
+            BaseTokenConversionRatio::default(),
         );
 
         let base_input = compute_batch_fee_model_input_v2(base_params, 1.0, 1.0);
@@ -405,7 +401,7 @@ mod tests {
                 // We double the L1 gas price
                 2_000_000_000,
                 1_000_000_000,
-                ONE_TO_ONE_CONVERSION,
+                BaseTokenConversionRatio::default(),
             ),
             1.0,
             1.0,
@@ -431,7 +427,7 @@ mod tests {
                 1_000_000_000,
                 // We double the L1 pubdata price
                 2_000_000_000,
-                ONE_TO_ONE_CONVERSION,
+                BaseTokenConversionRatio::default(),
             ),
             1.0,
             1.0,
@@ -459,7 +455,7 @@ mod tests {
                 },
                 base_params.l1_gas_price(),
                 base_params.l1_pubdata_price(),
-                ONE_TO_ONE_CONVERSION,
+                BaseTokenConversionRatio::default(),
             ),
             1.0,
             1.0,
@@ -481,7 +477,7 @@ mod tests {
                 },
                 base_params.l1_gas_price(),
                 base_params.l1_pubdata_price(),
-                ONE_TO_ONE_CONVERSION,
+                BaseTokenConversionRatio::default(),
             ),
             1.0,
             1.0,
@@ -513,8 +509,8 @@ mod tests {
             TestCase {
                 name: "1 ETH = 2 BaseToken",
                 conversion_ratio: BaseTokenConversionRatio {
-                    numerator: 2,
-                    denominator: 1,
+                    numerator: NonZeroU64::new(2).unwrap(),
+                    denominator: NonZeroU64::new(1).unwrap(),
                 },
                 input_minimal_l2_gas_price: 1000,
                 input_l1_gas_price: 2000,
@@ -526,8 +522,8 @@ mod tests {
             TestCase {
                 name: "1 ETH = 0.5 BaseToken",
                 conversion_ratio: BaseTokenConversionRatio {
-                    numerator: 1,
-                    denominator: 2,
+                    numerator: NonZeroU64::new(1).unwrap(),
+                    denominator: NonZeroU64::new(2).unwrap(),
                 },
                 input_minimal_l2_gas_price: 1000,
                 input_l1_gas_price: 2000,
@@ -539,8 +535,8 @@ mod tests {
             TestCase {
                 name: "1 ETH = 1 BaseToken",
                 conversion_ratio: BaseTokenConversionRatio {
-                    numerator: 1,
-                    denominator: 1,
+                    numerator: NonZeroU64::new(1).unwrap(),
+                    denominator: NonZeroU64::new(1).unwrap(),
                 },
                 input_minimal_l2_gas_price: 1000,
                 input_l1_gas_price: 2000,
@@ -552,8 +548,8 @@ mod tests {
             TestCase {
                 name: "Large conversion - 1 ETH = 1_000 BaseToken",
                 conversion_ratio: BaseTokenConversionRatio {
-                    numerator: 1_000_000,
-                    denominator: 1,
+                    numerator: NonZeroU64::new(1_000_000).unwrap(),
+                    denominator: NonZeroU64::new(1).unwrap(),
                 },
                 input_minimal_l2_gas_price: 1_000_000,
                 input_l1_gas_price: 2_000_000,
@@ -565,8 +561,8 @@ mod tests {
             TestCase {
                 name: "Small conversion - 1 ETH = 0.001 BaseToken",
                 conversion_ratio: BaseTokenConversionRatio {
-                    numerator: 1,
-                    denominator: 1_000,
+                    numerator: NonZeroU64::new(1).unwrap(),
+                    denominator: NonZeroU64::new(1_000).unwrap(),
                 },
                 input_minimal_l2_gas_price: 1_000_000,
                 input_l1_gas_price: 2_000_000,
@@ -578,8 +574,8 @@ mod tests {
             TestCase {
                 name: "Fractional conversion ratio 123456789",
                 conversion_ratio: BaseTokenConversionRatio {
-                    numerator: 1123456789,
-                    denominator: 1_000_000_000,
+                    numerator: NonZeroU64::new(1123456789).unwrap(),
+                    denominator: NonZeroU64::new(1_000_000_000).unwrap(),
                 },
                 input_minimal_l2_gas_price: 1_000_000,
                 input_l1_gas_price: 2_000_000,
@@ -591,8 +587,8 @@ mod tests {
             TestCase {
                 name: "Conversion ratio too large so clamp down to u64::MAX",
                 conversion_ratio: BaseTokenConversionRatio {
-                    numerator: u64::MAX,
-                    denominator: 1,
+                    numerator: NonZeroU64::new(u64::MAX).unwrap(),
+                    denominator: NonZeroU64::new(1).unwrap(),
                 },
                 input_minimal_l2_gas_price: 2,
                 input_l1_gas_price: 2,
@@ -609,9 +605,10 @@ mod tests {
                 case.input_l1_pubdata_price,
             ));
 
-            let base_token_adjuster = Arc::new(MockBaseTokenAdjuster {
-                last_ratio: case.conversion_ratio,
-            });
+            let base_token_fetcher = BaseTokenFetcher {
+                pool: None,
+                latest_ratio: Some(case.conversion_ratio),
+            };
 
             let config = FeeModelConfig::V2(FeeModelConfigV2 {
                 minimal_l2_gas_price: case.input_minimal_l2_gas_price,
@@ -624,7 +621,7 @@ mod tests {
 
             let fee_provider = MainNodeFeeInputProvider::new(
                 gas_adjuster.clone(),
-                base_token_adjuster.clone(),
+                Arc::new(base_token_fetcher),
                 config,
             );
 

@@ -1,4 +1,5 @@
 pub mod base_token_adjuster;
+pub mod base_token_fetcher;
 pub mod batch_status_updater;
 pub mod circuit_breaker_checker;
 pub mod commitment_generator;

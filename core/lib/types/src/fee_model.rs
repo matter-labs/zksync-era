@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use bigdecimal::{BigDecimal, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
@@ -278,8 +280,8 @@ impl FeeParamsV2 {
 
     /// Converts the fee param to the base token.
     fn convert_to_base_token(&self, price_in_wei: u64) -> u64 {
-        let conversion_ratio = BigDecimal::from(self.conversion_ratio.numerator)
-            / BigDecimal::from(self.conversion_ratio.denominator);
+        let conversion_ratio = BigDecimal::from(self.conversion_ratio.numerator.get())
+            / BigDecimal::from(self.conversion_ratio.denominator.get());
         let converted_price_bd = BigDecimal::from(price_in_wei) * conversion_ratio;
 
         // Match on the converted price to ensure it can be represented as a u64
@@ -305,8 +307,17 @@ impl FeeParamsV2 {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct BaseTokenConversionRatio {
-    pub numerator: u64,
-    pub denominator: u64,
+    pub numerator: NonZeroU64,
+    pub denominator: NonZeroU64,
+}
+
+impl Default for BaseTokenConversionRatio {
+    fn default() -> Self {
+        Self {
+            numerator: NonZeroU64::new(1).unwrap(),
+            denominator: NonZeroU64::new(1).unwrap(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use bigdecimal::{BigDecimal, FromPrimitive};
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::base_token_ratio::BaseTokenRatio;
@@ -12,8 +14,8 @@ pub struct BaseTokenDal<'a, 'c> {
 impl BaseTokenDal<'_, '_> {
     pub async fn insert_token_ratio(
         &mut self,
-        numerator: u64,
-        denominator: u64,
+        numerator: NonZeroU64,
+        denominator: NonZeroU64,
         ratio_timestamp: &chrono::NaiveDateTime,
     ) -> DalResult<usize> {
         let row = sqlx::query!(
@@ -25,8 +27,8 @@ impl BaseTokenDal<'_, '_> {
             RETURNING
                 id
             "#,
-            BigDecimal::from_u64(numerator),
-            BigDecimal::from_u64(denominator),
+            BigDecimal::from_u64(numerator.get()),
+            BigDecimal::from_u64(denominator.get()),
             ratio_timestamp,
         )
         .instrument("insert_token_ratio")
@@ -38,7 +40,7 @@ impl BaseTokenDal<'_, '_> {
 
     // TODO (PE-128): pub async fn mark_l1_update()
 
-    pub async fn get_latest_ratio(&mut self) -> DalResult<BaseTokenRatio> {
+    pub async fn get_latest_ratio(&mut self) -> DalResult<Option<BaseTokenRatio>> {
         let row = sqlx::query_as!(
             StorageBaseTokenRatio,
             r#"
@@ -53,8 +55,9 @@ impl BaseTokenDal<'_, '_> {
             "#,
         )
         .instrument("get_latest_ratio")
-        .fetch_one(self.storage)
+        .fetch_optional(self.storage)
         .await?;
-        Ok(row.into())
+
+        Ok(row.map(|r| r.into()))
     }
 }

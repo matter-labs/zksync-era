@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use bigdecimal::{BigDecimal, ToPrimitive};
 use chrono::NaiveDateTime;
 use zksync_types::base_token_ratio::BaseTokenRatio;
@@ -19,8 +21,10 @@ impl From<StorageBaseTokenRatio> for BaseTokenRatio {
         BaseTokenRatio {
             id: row.id,
             ratio_timestamp: row.ratio_timestamp.and_utc(),
-            numerator: row.numerator.to_u64().expect("numerator is not u64"),
-            denominator: row.denominator.to_u64().expect("denominator is not u64"),
+            numerator: NonZeroU64::new(row.numerator.to_u64().expect("numerator is not u64"))
+                .unwrap(),
+            denominator: NonZeroU64::new(row.denominator.to_u64().expect("denominator is not u64"))
+                .unwrap(),
             used_in_l1: row.used_in_l1,
         }
     }

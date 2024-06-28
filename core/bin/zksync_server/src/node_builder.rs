@@ -15,6 +15,7 @@ use zksync_node_api_server::{
 use zksync_node_framework::{
     implementations::layers::{
         base_token_adjuster::BaseTokenAdjusterLayer,
+        base_token_fetcher::BaseTokenFetcherLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
@@ -50,6 +51,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
+use zksync_types::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
@@ -141,19 +143,21 @@ impl MainNodeBuilder {
     }
 
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
+        // Prerequisite for the layer that inserts a resource the sequencer_l1_gas_layer uses.
+        if self.contracts_config.base_token_addr != SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
+            self.node.add_layer(BaseTokenFetcherLayer {});
+        }
+
         let gas_adjuster_config = try_load_config!(self.configs.eth)
             .gas_adjuster
             .context("Gas adjuster")?;
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let eth_sender_config = try_load_config!(self.configs.eth);
-        let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             self.genesis_config.clone(),
             state_keeper_config,
             try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
-            base_token_adjuster_config,
-            self.contracts_config.base_token_addr,
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
@@ -461,10 +465,7 @@ impl MainNodeBuilder {
 
     fn add_base_token_adjuster_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
-        self.node.add_layer(BaseTokenAdjusterLayer::new(
-            self.contracts_config.base_token_addr,
-            config,
-        ));
+        self.node.add_layer(BaseTokenAdjusterLayer::new(config));
 
         Ok(self)
     }

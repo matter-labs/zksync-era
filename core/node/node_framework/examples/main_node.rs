@@ -112,7 +112,6 @@ impl MainNodeBuilder {
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
         let eth_sender_config = EthConfig::from_env()?;
-        let base_token_adjuster_config = BaseTokenAdjusterConfig::from_env()?;
         let contracts_config = ContractsConfig::from_env()?;
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
@@ -122,7 +121,6 @@ impl MainNodeBuilder {
                 .sender
                 .context("eth_sender")?
                 .pubdata_sending_mode,
-            base_token_adjuster_config,
             contracts_config.base_token_addr,
         );
         self.node.add_layer(sequencer_l1_gas_layer);
