@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                confirmed_eth_tx_history_id IS NULL\n                AND id <= (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                    WHERE\n                        sent_at_block IS NOT NULL\n                )\n            ORDER BY\n                id\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL\n                AND confirmed_eth_tx_history_id IS NULL\n                AND id <= (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                    WHERE\n                        sent_at_block IS NOT NULL\n                )\n            ORDER BY\n                id\n            ",
   "describe": {
     "columns": [
       {
@@ -75,7 +75,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Bytea"
+      ]
     },
     "nullable": [
       false,
@@ -94,5 +96,5 @@
       true
     ]
   },
-  "hash": "23be43bf705d679ca751c89353716065fcad42c6b621efb3a135a16b477dcfd9"
+  "hash": "aa92b31d0e0a2b353b66c501bf73b36b935046a9132f045ab105eaeac30c4a4d"
 }
