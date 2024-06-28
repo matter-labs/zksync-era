@@ -26,7 +26,7 @@ use zksync_web3_decl::error::{EnrichedClientError, EnrichedClientResult};
 
 use crate::SnapshotsApplierMainNodeClient;
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct MockMainNodeClient {
     pub fetch_l1_batch_responses: HashMap<L1BatchNumber, api::L1BatchDetails>,
     pub fetch_l2_block_responses: HashMap<L2BlockNumber, api::BlockDetails>,
@@ -44,21 +44,6 @@ impl MockMainNodeClient {
 
     fn take_token_response_error(&self) -> Option<EnrichedClientError> {
         self.tokens_response_error.write().unwrap().take()
-    }
-}
-
-impl fmt::Debug for MockMainNodeClient {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("MockMainNodeClient")
-            .field("fetch_l1_batch_responses", &self.fetch_l1_batch_responses)
-            .field("fetch_l2_block_responses", &self.fetch_l2_block_responses)
-            .field(
-                "fetch_newest_snapshot_response",
-                &self.fetch_newest_snapshot_response,
-            )
-            .field("tokens_response", &self.tokens_response)
-            .finish()
     }
 }
 

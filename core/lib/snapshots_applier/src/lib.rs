@@ -283,7 +283,11 @@ impl SnapshotsApplierTask {
         }
         // Currently, migrating tokens is the last step of the recovery.
         // The number of tokens is not a part of the snapshot header, so we have to re-query the main node.
-        let added_tokens = conn.tokens_dal().get_all_l2_token_addresses().await?.len();
+        let added_tokens = conn
+            .tokens_web3_dal()
+            .get_all_tokens(Some(applied_snapshot_status.l2_block_number))
+            .await?
+            .len();
         let tokens_on_main_node = client
             .fetch_tokens(applied_snapshot_status.l2_block_number)
             .await?

@@ -241,7 +241,7 @@ async fn snapshot_applier_recovers_after_stopping() {
     assert_eq!(
         is_recovery_completed(&pool, &client).await,
         Some(false),
-        "Recovery has been abrupted"
+        "Recovery has been aborted"
     );
 
     // Check that factory deps have been persisted, but no storage logs.
