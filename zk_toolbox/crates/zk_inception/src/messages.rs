@@ -36,6 +36,8 @@ pub(super) const MSG_LINK_TO_CODE_SELECTION_PATH: &str = "I have the code alread
 /// Ecosystem and chain init related messages
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
+pub(super) const MSG_DEV_ARG_HELP: &str =
+    "Deploy ecosystem  using all defaults. Suitable for local development";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
@@ -166,6 +168,7 @@ pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
+pub(super) const MSG_SERVER_BUILD_HELP: &str = "Build server but don't run it";
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";

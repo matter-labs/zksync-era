@@ -22,6 +22,7 @@ interface AllSnapshotsResponse {
 }
 
 interface GetSnapshotResponse {
+    readonly version: number;
     readonly miniblockNumber: number;
     readonly l1BatchNumber: number;
     readonly storageLogsChunks: Array<StorageLogChunkMetadata>;
@@ -138,6 +139,7 @@ describe('snapshot recovery', () => {
         const l1BatchNumber = Math.max(...newBatchNumbers);
         snapshotMetadata = await getSnapshot(l1BatchNumber);
         console.log('Obtained latest snapshot', snapshotMetadata);
+        expect(snapshotMetadata.version).to.be.oneOf([0, 1]);
         const l2BlockNumber = snapshotMetadata.miniblockNumber;
 
         const protoPath = path.join(homeDir, 'core/lib/types/src/proto/mod.proto');
@@ -160,13 +162,20 @@ describe('snapshot recovery', () => {
                 }
                 sampledCount++;
 
-                const snapshotAccountAddress = '0x' + storageLog.accountAddress.toString('hex');
-                const snapshotKey = '0x' + storageLog.storageKey.toString('hex');
-                const snapshotValue = '0x' + storageLog.storageValue.toString('hex');
                 const snapshotL1BatchNumber = storageLog.l1BatchNumberOfInitialWrite;
-                const valueOnBlockchain = await mainNode.getStorage(snapshotAccountAddress, snapshotKey, l2BlockNumber);
-                expect(snapshotValue).to.equal(valueOnBlockchain);
                 expect(snapshotL1BatchNumber).to.be.lessThanOrEqual(l1BatchNumber);
+
+                if (snapshotMetadata.version === 0) {
+                    const snapshotAccountAddress = '0x' + storageLog.accountAddress.toString('hex');
+                    const snapshotKey = '0x' + storageLog.storageKey.toString('hex');
+                    const snapshotValue = '0x' + storageLog.storageValue.toString('hex');
+                    const valueOnBlockchain = await mainNode.getStorageAt(
+                        snapshotAccountAddress,
+                        snapshotKey,
+                        l2BlockNumber
+                    );
+                    expect(snapshotValue).to.equal(valueOnBlockchain);
+                }
             }
             console.log(`Checked random ${sampledCount} logs in the chunk`);
         }

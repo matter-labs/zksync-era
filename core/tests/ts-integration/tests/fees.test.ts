@@ -323,7 +323,7 @@ async function setInternalL1GasPrice(
         command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ${command}`;
     }
 
-    const zkSyncServer = utils.background(command, [null, logs, logs]);
+    const zkSyncServer = utils.background({ command, stdio: [null, logs, logs] });
 
     if (disconnect) {
         zkSyncServer.unref();

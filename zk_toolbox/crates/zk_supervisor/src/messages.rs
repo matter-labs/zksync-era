@@ -7,7 +7,7 @@ pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &st
 
 // Subcommands help
 pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related commands";
-pub(super) const MSG_SUBCOMMAND_INTEGRATION_TESTS_ABOUT: &str = "Run integration tests";
+pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
 
 // Database related messages
 pub(super) const MSG_NO_DATABASES_SELECTED: &str = "No databases selected";
@@ -70,8 +70,12 @@ pub(super) fn msg_database_new_migration_loading(dal: &str) -> String {
 
 pub(super) const MSG_DATABASE_NEW_MIGRATION_SUCCESS: &str = "Migration created successfully";
 
-// Integration tests related messages
+// Tests related messages
+pub(super) const MSG_INTEGRATION_TESTS_ABOUT: &str = "Run integration tests";
+pub(super) const MSG_REVERT_TEST_ABOUT: &str = "Run revert tests";
+pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
 
+// Integration tests related messages
 pub(super) fn msg_integration_tests_run(external_node: bool) -> String {
     let base = "Running integration tests";
     if external_node {
@@ -85,3 +89,8 @@ pub(super) const MSG_INTEGRATION_TESTS_RUN_SUCCESS: &str = "Integration tests ra
 pub(super) const MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES: &str =
     "Building repository dependencies...";
 pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test contracts...";
+
+// Revert tests related messages
+pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
+pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
+pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ran successfully";
