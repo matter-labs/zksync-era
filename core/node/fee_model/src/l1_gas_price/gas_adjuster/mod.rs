@@ -2,15 +2,13 @@
 
 use std::{
     collections::VecDeque,
-    fmt::Debug,
-    ops::RangeInclusive,
     sync::{Arc, RwLock},
 };
 
 use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::EthInterface;
-use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
+use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use self::metrics::METRICS;
@@ -106,26 +104,25 @@ impl GasAdjuster {
             .await?
             .as_usize()
             .saturating_sub(1);
-        let base_fee_history = eth_client
+        let fee_history = eth_client
             .base_fee_history(current_block, config.max_base_fee_samples)
             .await?;
 
-        // Web3 API doesn't provide a method to fetch blob fees for multiple blocks using single request,
-        // so we request blob base fee only for the latest block.
-        let (_, last_block_blob_base_fee) =
-            Self::get_base_fees_history(eth_client.as_ref(), current_block..=current_block).await?;
+        let base_fee_statistics = GasStatistics::new(
+            config.max_base_fee_samples,
+            current_block,
+            fee_history.iter().map(|fee| fee.base_fee_per_gas),
+        );
+
+        let blob_base_fee_statistics = GasStatistics::new(
+            config.num_samples_for_blob_base_fee_estimate,
+            current_block,
+            fee_history.iter().map(|fee| fee.base_fee_per_blob_gas),
+        );
 
         Ok(Self {
-            base_fee_statistics: GasStatistics::new(
-                config.max_base_fee_samples,
-                current_block,
-                &base_fee_history,
-            ),
-            blob_base_fee_statistics: GasStatistics::new(
-                config.num_samples_for_blob_base_fee_estimate,
-                current_block,
-                &last_block_blob_base_fee,
-            ),
+            base_fee_statistics,
+            blob_base_fee_statistics,
             config,
             pubdata_sending_mode,
             eth_client,
@@ -149,25 +146,29 @@ impl GasAdjuster {
         let last_processed_block = self.base_fee_statistics.last_processed_block();
 
         if current_block > last_processed_block {
-            let (base_fee_history, blob_base_fee_history) = Self::get_base_fees_history(
-                self.eth_client.as_ref(),
-                (last_processed_block + 1)..=current_block,
-            )
-            .await?;
+            let n_blocks = current_block - last_processed_block;
+            let base_fees = self
+                .eth_client
+                .base_fee_history(current_block, n_blocks)
+                .await?;
 
             // We shouldn't rely on L1 provider to return consistent results, so we check that we have at least one new sample.
-            if let Some(current_base_fee_per_gas) = base_fee_history.last() {
+            if let Some(current_base_fee_per_gas) = base_fees.last().map(|fee| fee.base_fee_per_gas)
+            {
                 METRICS
                     .current_base_fee_per_gas
-                    .set(*current_base_fee_per_gas);
+                    .set(current_base_fee_per_gas);
             }
-            self.base_fee_statistics.add_samples(&base_fee_history);
+            self.base_fee_statistics
+                .add_samples(base_fees.iter().map(|fee| fee.base_fee_per_gas));
 
-            if let Some(current_blob_base_fee) = blob_base_fee_history.last() {
+            if let Some(current_blob_base_fee) =
+                base_fees.last().map(|fee| fee.base_fee_per_blob_gas)
+            {
                 // Blob base fee overflows `u64` only in very extreme cases.
                 // It doesn't worth to observe exact value with metric because anyway values that can be used
                 // are capped by `self.config.max_blob_base_fee()` of `u64` type.
-                if current_blob_base_fee > &U256::from(u64::MAX) {
+                if current_blob_base_fee > U256::from(u64::MAX) {
                     tracing::error!("Failed to report current_blob_base_fee = {current_blob_base_fee}, it exceeds u64::MAX");
                 } else {
                     METRICS
@@ -176,7 +177,7 @@ impl GasAdjuster {
                 }
             }
             self.blob_base_fee_statistics
-                .add_samples(&blob_base_fee_history);
+                .add_samples(base_fees.iter().map(|fee| fee.base_fee_per_blob_gas));
         }
         Ok(())
     }
@@ -228,62 +229,6 @@ impl GasAdjuster {
                 blob_base_fee as u64
             }
         }
-    }
-
-    /// Returns vector of base fees and blob base fees for given block range.
-    /// Note, that data for pre-dencun blocks won't be included in the vector returned.
-    async fn get_base_fees_history(
-        eth_client: &DynClient<L1>,
-        block_range: RangeInclusive<usize>,
-    ) -> anyhow::Result<(Vec<u64>, Vec<U256>)> {
-        let mut base_fee_history = Vec::new();
-        let mut blob_base_fee_history = Vec::new();
-        for block_number in block_range {
-            let header = eth_client.block(U64::from(block_number).into()).await?;
-            if let Some(base_fee_per_gas) =
-                header.as_ref().and_then(|header| header.base_fee_per_gas)
-            {
-                base_fee_history.push(base_fee_per_gas.as_u64())
-            }
-
-            if let Some(excess_blob_gas) = header.as_ref().and_then(|header| header.excess_blob_gas)
-            {
-                blob_base_fee_history.push(Self::blob_base_fee(excess_blob_gas.as_u64()))
-            }
-        }
-
-        Ok((base_fee_history, blob_base_fee_history))
-    }
-
-    /// Calculates `blob_base_fee` given `excess_blob_gas`.
-    fn blob_base_fee(excess_blob_gas: u64) -> U256 {
-        // Constants and formula are taken from EIP4844 specification.
-        const MIN_BLOB_BASE_FEE: u32 = 1;
-        const BLOB_BASE_FEE_UPDATE_FRACTION: u32 = 3338477;
-
-        Self::fake_exponential(
-            MIN_BLOB_BASE_FEE.into(),
-            excess_blob_gas.into(),
-            BLOB_BASE_FEE_UPDATE_FRACTION.into(),
-        )
-    }
-
-    /// approximates `factor * e ** (numerator / denominator)` using Taylor expansion.
-    fn fake_exponential(factor: U256, numerator: U256, denominator: U256) -> U256 {
-        let mut i = 1_u32;
-        let mut output = U256::zero();
-        let mut accum = factor * denominator;
-        while !accum.is_zero() {
-            output += accum;
-
-            accum *= numerator;
-            accum /= denominator;
-            accum /= U256::from(i);
-
-            i += 1;
-        }
-
-        output / denominator
     }
 }
 
@@ -369,7 +314,7 @@ pub(super) struct GasStatisticsInner<T> {
 }
 
 impl<T: Ord + Copy + Default> GasStatisticsInner<T> {
-    fn new(max_samples: usize, block: usize, fee_history: &[T]) -> Self {
+    fn new(max_samples: usize, block: usize, fee_history: impl IntoIterator<Item = T>) -> Self {
         let mut statistics = Self {
             max_samples,
             samples: VecDeque::with_capacity(max_samples),
@@ -393,9 +338,11 @@ impl<T: Ord + Copy + Default> GasStatisticsInner<T> {
         self.samples.back().copied().unwrap_or(self.median_cached)
     }
 
-    fn add_samples(&mut self, fees: &[T]) {
+    fn add_samples(&mut self, fees: impl IntoIterator<Item = T>) {
+        let old_len = self.samples.len();
         self.samples.extend(fees);
-        self.last_processed_block += fees.len();
+        let processed_blocks = self.samples.len() - old_len;
+        self.last_processed_block += processed_blocks;
 
         let extra = self.samples.len().saturating_sub(self.max_samples);
         self.samples.drain(..extra);
@@ -413,7 +360,7 @@ impl<T: Ord + Copy + Default> GasStatisticsInner<T> {
 pub(super) struct GasStatistics<T>(RwLock<GasStatisticsInner<T>>);
 
 impl<T: Ord + Copy + Default> GasStatistics<T> {
-    pub fn new(max_samples: usize, block: usize, fee_history: &[T]) -> Self {
+    pub fn new(max_samples: usize, block: usize, fee_history: impl IntoIterator<Item = T>) -> Self {
         Self(RwLock::new(GasStatisticsInner::new(
             max_samples,
             block,
@@ -429,7 +376,7 @@ impl<T: Ord + Copy + Default> GasStatistics<T> {
         self.0.read().unwrap().last_added_value()
     }
 
-    pub fn add_samples(&self, fees: &[T]) {
+    pub fn add_samples(&self, fees: impl IntoIterator<Item = T>) {
         self.0.write().unwrap().add_samples(fees)
     }
 

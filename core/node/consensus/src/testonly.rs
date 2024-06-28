@@ -100,6 +100,7 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                 }],
                 leader: config::ValidatorPublicKey(key.public().encode()),
             }),
+            rpc: None,
         },
         config::ConsensusSecrets {
             node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),

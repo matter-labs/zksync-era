@@ -63,8 +63,6 @@ struct DatabaseResource(pub Arc<dyn Database>);
 ///
 /// For the latter requirement, there exists an `Unique` wrapper that can be used to store non-`Clone`
 /// resources. It's not used in this example, but it's a useful thing to know about.
-///
-/// Finally, there are other wrappers for resources as well, like `ResourceCollection` and `LazyResource`.
 impl Resource for DatabaseResource {
     fn name() -> String {
         // The convention for resource names is `<scope>/<name>`. In this case, the scope is `common`, but
