@@ -1,33 +1,21 @@
-use clap::Parser;
 use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
 use config::EcosystemConfig;
-use serde::{Deserialize, Serialize};
 use xshell::{cmd, Shell};
 
+use super::args::integration::IntegrationArgs;
 use crate::messages::{
     msg_integration_tests_run, MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS,
     MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
 };
 
-#[derive(Debug, Serialize, Deserialize, Parser)]
-pub struct IntegrationTestCommands {
-    #[clap(short, long)]
-    external_node: bool,
-}
-
 const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
 const CONTRACTS_TEST_DATA_PATH: &str = "etc/contracts-test-data";
 
-pub fn run(
-    shell: &Shell,
-    integration_test_commands: IntegrationTestCommands,
-) -> anyhow::Result<()> {
+pub fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     shell.change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
 
-    logger::info(msg_integration_tests_run(
-        integration_test_commands.external_node,
-    ));
+    logger::info(msg_integration_tests_run(args.external_node));
 
     build_repository(shell, &ecosystem_config)?;
     build_test_contracts(shell, &ecosystem_config)?;
@@ -35,11 +23,8 @@ pub fn run(
     let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 60000")
         .env("CHAIN_NAME", ecosystem_config.default_chain);
 
-    if integration_test_commands.external_node {
-        command = command.env(
-            "EXTERNAL_NODE",
-            format!("{:?}", integration_test_commands.external_node),
-        )
+    if args.external_node {
+        command = command.env("EXTERNAL_NODE", format!("{:?}", args.external_node))
     }
     if global_config().verbose {
         command = command.env(
