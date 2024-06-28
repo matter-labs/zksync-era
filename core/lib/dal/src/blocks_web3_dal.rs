@@ -21,7 +21,7 @@ use crate::{
         },
         storage_transaction::CallTrace,
     },
-    Core,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
@@ -424,28 +424,10 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<Vec<L2ToL1Log>> {
-        let raw_logs = sqlx::query!(
-            r#"
-            SELECT
-                l2_to_l1_logs
-            FROM
-                l1_batches
-            WHERE
-                number = $1
-            "#,
-            i64::from(l1_batch_number.0)
-        )
-        .instrument("get_l2_to_l1_logs")
-        .with_arg("l1_batch_number", &l1_batch_number)
-        .fetch_optional(self.storage)
-        .await?
-        .map(|row| row.l2_to_l1_logs)
-        .unwrap_or_default();
-
-        Ok(raw_logs
-            .into_iter()
-            .map(|bytes| L2ToL1Log::from_slice(&bytes))
-            .collect())
+        self.storage
+            .blocks_dal()
+            .get_l2_to_l1_logs_for_batch::<L2ToL1Log>(l1_batch_number)
+            .await
     }
 
     pub async fn get_l1_batch_number_of_l2_block(
