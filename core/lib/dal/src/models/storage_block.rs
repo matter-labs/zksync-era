@@ -38,7 +38,6 @@ pub(crate) struct StorageL1BatchHeader {
     pub timestamp: i64,
     pub l1_tx_count: i32,
     pub l2_tx_count: i32,
-    pub l2_to_l1_logs: Vec<Vec<u8>>,
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     pub bloom: Vec<u8>,
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
@@ -55,38 +54,40 @@ pub(crate) struct StorageL1BatchHeader {
     pub pubdata_input: Option<Vec<u8>>,
 }
 
-impl From<StorageL1BatchHeader> for L1BatchHeader {
-    fn from(l1_batch: StorageL1BatchHeader) -> Self {
-        let priority_ops_onchain_data: Vec<_> = l1_batch
+impl StorageL1BatchHeader {
+    pub fn into_l1_batch_header_with_logs(
+        self,
+        l2_to_l1_logs: Vec<UserL2ToL1Log>,
+    ) -> L1BatchHeader {
+        let priority_ops_onchain_data: Vec<_> = self
             .priority_ops_onchain_data
             .into_iter()
             .map(|raw_data| raw_data.into())
             .collect();
 
-        let system_logs = convert_l2_to_l1_logs(l1_batch.system_logs);
-        let user_l2_to_l1_logs = convert_l2_to_l1_logs(l1_batch.l2_to_l1_logs);
+        let system_logs = convert_l2_to_l1_logs(self.system_logs);
 
         L1BatchHeader {
-            number: L1BatchNumber(l1_batch.number as u32),
-            timestamp: l1_batch.timestamp as u64,
+            number: L1BatchNumber(self.number as u32),
+            timestamp: self.timestamp as u64,
             priority_ops_onchain_data,
-            l1_tx_count: l1_batch.l1_tx_count as u16,
-            l2_tx_count: l1_batch.l2_tx_count as u16,
-            l2_to_l1_logs: user_l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
-            l2_to_l1_messages: l1_batch.l2_to_l1_messages,
+            l1_tx_count: self.l1_tx_count as u16,
+            l2_tx_count: self.l2_tx_count as u16,
+            l2_to_l1_logs,
+            l2_to_l1_messages: self.l2_to_l1_messages,
 
-            bloom: H2048::from_slice(&l1_batch.bloom),
-            used_contract_hashes: serde_json::from_value(l1_batch.used_contract_hashes)
+            bloom: H2048::from_slice(&self.bloom),
+            used_contract_hashes: serde_json::from_value(self.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
-                l1_batch.bootloader_code_hash,
-                l1_batch.default_aa_code_hash,
+                self.bootloader_code_hash,
+                self.default_aa_code_hash,
             ),
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
-            protocol_version: l1_batch
+            protocol_version: self
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
-            pubdata_input: l1_batch.pubdata_input,
+            pubdata_input: self.pubdata_input,
         }
     }
 }
@@ -121,7 +122,6 @@ pub(crate) struct StorageL1Batch {
     pub l1_tx_count: i32,
     pub l2_tx_count: i32,
     pub bloom: Vec<u8>,
-    pub l2_to_l1_logs: Vec<Vec<u8>>,
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
 
     pub hash: Option<Vec<u8>>,
@@ -149,38 +149,40 @@ pub(crate) struct StorageL1Batch {
     pub pubdata_input: Option<Vec<u8>>,
 }
 
-impl From<StorageL1Batch> for L1BatchHeader {
-    fn from(l1_batch: StorageL1Batch) -> Self {
-        let priority_ops_onchain_data: Vec<_> = l1_batch
+impl StorageL1Batch {
+    pub fn into_l1_batch_header_with_logs(
+        self,
+        l2_to_l1_logs: Vec<UserL2ToL1Log>,
+    ) -> L1BatchHeader {
+        let priority_ops_onchain_data: Vec<_> = self
             .priority_ops_onchain_data
             .into_iter()
             .map(Vec::into)
             .collect();
 
-        let system_logs = convert_l2_to_l1_logs(l1_batch.system_logs);
-        let user_l2_to_l1_logs = convert_l2_to_l1_logs(l1_batch.l2_to_l1_logs);
+        let system_logs = convert_l2_to_l1_logs(self.system_logs);
 
         L1BatchHeader {
-            number: L1BatchNumber(l1_batch.number as u32),
-            timestamp: l1_batch.timestamp as u64,
+            number: L1BatchNumber(self.number as u32),
+            timestamp: self.timestamp as u64,
             priority_ops_onchain_data,
-            l1_tx_count: l1_batch.l1_tx_count as u16,
-            l2_tx_count: l1_batch.l2_tx_count as u16,
-            l2_to_l1_logs: user_l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
-            l2_to_l1_messages: l1_batch.l2_to_l1_messages,
+            l1_tx_count: self.l1_tx_count as u16,
+            l2_tx_count: self.l2_tx_count as u16,
+            l2_to_l1_logs,
+            l2_to_l1_messages: self.l2_to_l1_messages,
 
-            bloom: H2048::from_slice(&l1_batch.bloom),
-            used_contract_hashes: serde_json::from_value(l1_batch.used_contract_hashes)
+            bloom: H2048::from_slice(&self.bloom),
+            used_contract_hashes: serde_json::from_value(self.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
-                l1_batch.bootloader_code_hash,
-                l1_batch.default_aa_code_hash,
+                self.bootloader_code_hash,
+                self.default_aa_code_hash,
             ),
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
-            protocol_version: l1_batch
+            protocol_version: self
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
-            pubdata_input: l1_batch.pubdata_input,
+            pubdata_input: self.pubdata_input,
         }
     }
 }
