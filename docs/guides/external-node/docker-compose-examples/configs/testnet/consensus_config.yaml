@@ -1,0 +1,10 @@
+server_addr: '0.0.0.0:3054'
+public_addr: '<your public IP goes here>:3054'
+max_payload_size: 5000000
+gossip_dynamic_inbound_limit: 100
+gossip_static_outbound:
+  # preconfigured ENs owned by matterlabs that you can connect to
+  - key: 'node:public:ed25519:4a94067664e7b8d0927ab1443491dab71a1d0c63f861099e1852f2b6d0831c3e'
+    addr: 'external-node-consensus-sepolia.zksync.dev:3054'
+  - key: 'node:public:ed25519:cfbbebc74127099680584f07a051a2573e2dd7463abdd000d31aaa44a7985045'
+    addr: 'external-node-moby-consensus-sepolia.zksync.dev:3054'
