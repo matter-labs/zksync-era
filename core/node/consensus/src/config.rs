@@ -41,7 +41,7 @@ impl GenesisSpec {
         Self {
             chain_id: g.chain_id,
             protocol_version: g.protocol_version,
-            validators: g.committee.clone(),
+            validators: g.validators.clone(),
             leader_selection: g.leader_selection.clone(),
         }
     }
@@ -91,6 +91,10 @@ pub(super) fn executor(
             append(k, v).with_context(|| format!("gossip_static_outbound[{i}]"))?;
         }
     }
+
+    let mut rpc = executor::RpcConfig::default();
+    rpc.get_block_rate = cfg.rpc().get_block_rate();
+
     Ok(executor::Config {
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
@@ -107,5 +111,7 @@ pub(super) fn executor(
             .collect::<Result<_, _>>()
             .context("gossip_static_inbound")?,
         gossip_static_outbound,
+        rpc,
+        debug_page: None,
     })
 }
