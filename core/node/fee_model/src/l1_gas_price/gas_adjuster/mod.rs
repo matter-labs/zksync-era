@@ -2,6 +2,7 @@
 
 use std::{
     collections::VecDeque,
+    fmt,
     sync::{Arc, RwLock},
 };
 
@@ -18,7 +19,7 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
-pub trait L1GasAdjuster: Debug + Send + Sync {
+pub trait L1GasAdjuster: fmt::Debug + Send + Sync {
     fn estimate_effective_gas_price(&self) -> u64;
     fn estimate_effective_pubdata_price(&self) -> u64;
 }

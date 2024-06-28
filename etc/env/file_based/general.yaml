@@ -295,6 +295,8 @@ prover_group:
       aggregation_round: 1
     - circuit_id: 18
       aggregation_round: 1
+base_token_adjuster:
+  price_polling_interval_ms: 10000
 
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000
