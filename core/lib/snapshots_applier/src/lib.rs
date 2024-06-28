@@ -191,6 +191,17 @@ impl SnapshotsApplierMainNodeClient for Box<DynClient<L2>> {
     }
 }
 
+/// Reported status of the snapshot recovery progress.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RecoveryCompletionStatus {
+    /// There is no infomration about snapshot recovery in the database.
+    NoRecoveryDetected,
+    /// Snapshot recovery is not finished yet.
+    InProgress,
+    /// Snapshot recovery is completed.
+    Completed,
+}
+
 /// Snapshot applier configuration options.
 #[derive(Debug, Clone)]
 pub struct SnapshotsApplierConfig {
@@ -269,17 +280,17 @@ impl SnapshotsApplierTask {
     pub async fn is_recovery_completed(
         conn: &mut Connection<'_, Core>,
         client: &dyn SnapshotsApplierMainNodeClient,
-    ) -> anyhow::Result<Option<bool>> {
+    ) -> anyhow::Result<RecoveryCompletionStatus> {
         let Some(applied_snapshot_status) = conn
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await?
         else {
-            return Ok(None);
+            return Ok(RecoveryCompletionStatus::NoRecoveryDetected);
         };
         // If there are unprocessed storage logs chunks, the recovery is not complete.
         if applied_snapshot_status.storage_logs_chunks_left_to_process() != 0 {
-            return Ok(Some(false));
+            return Ok(RecoveryCompletionStatus::InProgress);
         }
         // Currently, migrating tokens is the last step of the recovery.
         // The number of tokens is not a part of the snapshot header, so we have to re-query the main node.
@@ -294,8 +305,8 @@ impl SnapshotsApplierTask {
             .len();
 
         match added_tokens.cmp(&tokens_on_main_node) {
-            Ordering::Less => Ok(Some(false)),
-            Ordering::Equal => Ok(Some(true)),
+            Ordering::Less => Ok(RecoveryCompletionStatus::InProgress),
+            Ordering::Equal => Ok(RecoveryCompletionStatus::Completed),
             Ordering::Greater => anyhow::bail!("DB contains more tokens than the main node"),
         }
     }

@@ -28,7 +28,7 @@ mod utils;
 async fn is_recovery_completed(
     pool: &ConnectionPool<Core>,
     client: &MockMainNodeClient,
-) -> Option<bool> {
+) -> RecoveryCompletionStatus {
     let mut connection = pool.connection().await.unwrap();
     SnapshotsApplierTask::is_recovery_completed(&mut connection, client)
         .await
@@ -75,7 +75,7 @@ async fn snapshots_creator_can_successfully_recover_db(
 
     assert_eq!(
         is_recovery_completed(&pool, &client).await,
-        None,
+        RecoveryCompletionStatus::NoRecoveryDetected,
         "No snapshot information in the DB"
     );
 
@@ -95,7 +95,7 @@ async fn snapshots_creator_can_successfully_recover_db(
 
     assert_eq!(
         is_recovery_completed(&pool, &client).await,
-        Some(true),
+        RecoveryCompletionStatus::Completed,
         "Recovery has been completed"
     );
 
@@ -240,7 +240,7 @@ async fn snapshot_applier_recovers_after_stopping() {
 
     assert_eq!(
         is_recovery_completed(&pool, &client).await,
-        Some(false),
+        RecoveryCompletionStatus::InProgress,
         "Recovery has been aborted"
     );
 
@@ -275,7 +275,7 @@ async fn snapshot_applier_recovers_after_stopping() {
 
     assert_eq!(
         is_recovery_completed(&pool, &client).await,
-        Some(false),
+        RecoveryCompletionStatus::InProgress,
         "Not all logs have been recovered"
     );
 
@@ -298,7 +298,7 @@ async fn snapshot_applier_recovers_after_stopping() {
 
     assert_eq!(
         is_recovery_completed(&pool, &client).await,
-        Some(true),
+        RecoveryCompletionStatus::Completed,
         "Recovery has been completed"
     );
 
@@ -547,7 +547,7 @@ async fn recovering_tokens() {
 
     assert_eq!(
         is_recovery_completed(&pool, &client).await,
-        Some(false),
+        RecoveryCompletionStatus::InProgress,
         "Tokens are not migrated"
     );
 
@@ -562,7 +562,7 @@ async fn recovering_tokens() {
 
     assert_eq!(
         is_recovery_completed(&pool, &client).await,
-        Some(true),
+        RecoveryCompletionStatus::Completed,
         "Recovery is completed"
     );
 
