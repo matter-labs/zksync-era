@@ -12,8 +12,18 @@ use zksync_prover_interface::{
     outputs::L1BatchTeeProofForL1,
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
+
+/// Configuration for the [`zksync_proof_data_handler::run_server`] API client that serves the TEE
+/// prover by:
+/// 1. Providing proof generation data.
+/// 2. Submitting proofs.
+/// 3. Submitting attestation quotes.
+#[derive(Debug)]
 pub(crate) struct ApiClient {
+    /// Base URL for the [`zksync_proof_data_handler`] API. Optionally, include the port number,
+    /// e.g., `https://127.0.0.1:3320`.
     api_base_url: Url,
+    /// HTTP client used to send requests to the API.
     http_client: Client,
 }
 
