@@ -15,7 +15,7 @@ pub(super) const MSG_L1_NETWORK_HELP: &str = "L1 Network";
 pub(super) const MSG_LINK_TO_CODE_HELP: &str = "Code link";
 pub(super) const MSG_START_CONTAINERS_HELP: &str =
     "Start reth and postgres containers after creation";
-pub(super) const MSG_ECOSYSTEM_NAME_PROMPT: &str = "How do you want to name the ecosystem?";
+pub(super) const MSG_ECOSYSTEM_NAME_PROMPT: &str = "What do you want to name the ecosystem?";
 pub(super) const MSG_REPOSITORY_ORIGIN_PROMPT: &str = "Select the origin of zksync-era repository";
 pub(super) const MSG_LINK_TO_CODE_PROMPT: &str = "Where's the code located?";
 pub(super) const MSG_L1_NETWORK_PROMPT: &str = "Select the L1 network";
@@ -69,7 +69,7 @@ pub(super) fn msg_ecosystem_initialized(chains: &str) -> String {
 }
 
 /// Ecosystem default related messages
-pub(super) const MSG_DEFAULT_CHAIN_PROMPT: &str = "What chain you want to set as default?";
+pub(super) const MSG_DEFAULT_CHAIN_PROMPT: &str = "What chain do you want to set as default?";
 
 /// Ecosystem config related messages
 pub(super) const MSG_SAVE_INITIAL_CONFIG_ATTENTION: &str =
@@ -209,8 +209,42 @@ pub(super) fn msg_preparing_en_config_is_done(path: &Path) -> String {
 
 pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
     "External node is not initialized";
+
+pub(super) const MSG_STARTING_EN: &str = "Starting external node";
+
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
+pub(super) const MSG_PROOF_STORE_CONFIG_PROMPT: &str =
+    "Select where you would like to store the proofs";
+pub(super) const MSG_PROOF_STORE_DIR_PROMPT: &str =
+    "Provide the path where you would like to store the proofs:";
+pub(super) const MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT: &str =
+    "Provide the base URL of the GCS bucket (e.g., gs://bucket-name):";
+pub(super) const MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR: &str =
+    "Bucket base URL should start with gs://";
+pub(super) const MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT: &str =
+    "Provide the path to the GCS credentials file:";
+pub(super) const MSG_GENERAL_CONFIG_NOT_FOUND_ERR: &str = "General config not found";
+pub(super) const MSG_PROVER_CONFIG_NOT_FOUND_ERR: &str = "Prover config not found";
+pub(super) const MSG_PROVER_INITIALIZED: &str = "Prover has been initialized successfully";
+pub(super) const MSG_CREATE_GCS_BUCKET_PROMPT: &str = "Do you want to create a new GCS bucket?";
+pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT: &str = "Select the project ID:";
+pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT: &str =
+    "Provide a project ID:";
+pub(super) const MSG_CREATE_GCS_BUCKET_NAME_PROMTP: &str = "What do you want to name the bucket?";
+pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use? Find available locations at https://cloud.google.com/storage/docs/locations";
+pub(super) const MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR: &str =
+    "Proof compressor config not found";
+pub(super) const MSG_DOWNLOADING_SETUP_KEY_SPINNER: &str = "Downloading setup key...";
+pub(super) const MSG_DOWNLOAD_SETUP_KEY_PROMPT: &str = "Do you want to download the setup key?";
+pub(super) const MSG_SETUP_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
+pub(super) const MSG_GETTING_GCP_PROJECTS_SPINNER: &str = "Getting GCP projects...";
+pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store configuration...";
+pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";
+pub(super) const MSG_CREATING_GCS_BUCKET_SPINNER: &str = "Creating GCS bucket...";
+pub(super) const MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT: &str = "Do you want to save to public bucket?";
 
-pub(super) const MSG_STARTING_EN: &str = "Starting external node";
+pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
+    format!("Bucket created successfully with url: gs://{bucket_name}")
+}
