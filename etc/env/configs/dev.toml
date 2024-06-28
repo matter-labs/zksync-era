@@ -1,4 +1,4 @@
 __imports__ = [ "base", "l1-inits/.init.env", "l1-inits/dev-sync-layer.env", "l2-inits/dev.init.env" ]
 
-ETH_SENDER_SENDER_PUBDATA_SENDING_MODE = "Calldata"
+ETH_SENDER_SENDER_PUBDATA_SENDING_MODE = "Blobs"
 CHAIN_STATE_KEEPER_MAX_PUBDATA_PER_BATCH = 120000
