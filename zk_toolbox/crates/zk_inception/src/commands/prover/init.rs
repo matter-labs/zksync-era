@@ -15,8 +15,8 @@ use crate::{
     messages::{
         msg_bucket_created, MSG_CHAIN_NOT_FOUND_ERR, MSG_CREATING_GCS_BUCKET_SPINNER,
         MSG_DOWNLOADING_SETUP_KEY_SPINNER, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
-        MSG_GETTING_GCP_PROJECTS_SPINNER, MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR,
-        MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED,
+        MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
+        MSG_PROVER_INITIALIZED,
     },
 };
 
@@ -30,12 +30,9 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .get_zksync_general_config()
         .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
 
-    let spinner = Spinner::new(MSG_GETTING_GCP_PROJECTS_SPINNER);
-    let project_ids = get_project_ids(shell)?;
-    spinner.finish();
     let setup_key_path = get_setup_key_path(&general_config, &ecosystem_config)?;
 
-    let args = args.fill_values_with_prompt(project_ids, &setup_key_path);
+    let args = args.fill_values_with_prompt(shell, &setup_key_path)?;
 
     let proof_object_store_config = get_object_store_config(shell, Some(args.proof_store))?;
     let public_object_store_config = get_object_store_config(shell, args.public_store)?;
@@ -116,20 +113,6 @@ fn download_setup_key(
     cmd.run()?;
     spinner.finish();
     Ok(())
-}
-
-fn get_project_ids(shell: &Shell) -> anyhow::Result<Vec<String>> {
-    let mut cmd = Cmd::new(cmd!(
-        shell,
-        "gcloud projects list --format='value(projectId)'"
-    ));
-    let output = cmd.run_with_output()?;
-    let project_ids: Vec<String> = String::from_utf8(output.stdout)?
-        .lines()
-        .map(|line| line.to_string())
-        .collect();
-
-    Ok(project_ids)
 }
 
 fn get_setup_key_path(

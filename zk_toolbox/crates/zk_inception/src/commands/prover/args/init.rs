@@ -1,8 +1,9 @@
 use clap::{Parser, ValueEnum};
-use common::{logger, Prompt, PromptConfirm, PromptSelect};
+use common::{cmd::Cmd, logger, spinner::Spinner, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
+use xshell::{cmd, Shell};
 
 use crate::{
     consts::{DEFAULT_CREDENTIALS_FILE, DEFAULT_PROOF_STORE_DIR},
@@ -10,8 +11,9 @@ use crate::{
         MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT, MSG_CREATE_GCS_BUCKET_NAME_PROMTP,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
-        MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
-        MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
+        MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_GCP_PROJECTS_SPINNER,
+        MSG_GETTING_PROOF_STORE_CONFIG, MSG_GETTING_PUBLIC_STORE_CONFIG,
+        MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
         MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT, MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT,
         MSG_SETUP_KEY_PATH_PROMPT,
     },
@@ -138,37 +140,37 @@ pub struct ProverInitArgsFinal {
 impl ProverInitArgs {
     pub(crate) fn fill_values_with_prompt(
         &self,
-        project_ids: Vec<String>,
+        shell: &Shell,
         setup_key_path: &str,
-    ) -> ProverInitArgsFinal {
-        let proof_store = self.fill_proof_storage_values_with_prompt(project_ids.clone());
-        let public_store = self.fill_public_storage_values_with_prompt(project_ids);
+    ) -> anyhow::Result<ProverInitArgsFinal> {
+        let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
+        let public_store = self.fill_public_storage_values_with_prompt(shell)?;
         let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
-        ProverInitArgsFinal {
+        Ok(ProverInitArgsFinal {
             proof_store,
             public_store,
             setup_key_config,
-        }
+        })
     }
 
     fn fill_proof_storage_values_with_prompt(
         &self,
-        project_ids: Vec<String>,
-    ) -> ProofStorageConfig {
+        shell: &Shell,
+    ) -> anyhow::Result<ProofStorageConfig> {
         logger::info(MSG_GETTING_PROOF_STORE_CONFIG);
 
         if self.proof_store_dir.is_some() {
-            return self.handle_file_backed_config(self.proof_store_dir.clone());
+            return Ok(self.handle_file_backed_config(self.proof_store_dir.clone()));
         }
 
         if self.partial_gcs_config_provided(
             self.proof_store_gcs_config.bucket_base_url.clone(),
             self.proof_store_gcs_config.credentials_file.clone(),
         ) {
-            return self.ask_gcs_config(
+            return Ok(self.ask_gcs_config(
                 self.proof_store_gcs_config.bucket_base_url.clone(),
                 self.proof_store_gcs_config.credentials_file.clone(),
-            );
+            ));
         }
 
         if self.partial_create_gcs_bucket_config_provided(
@@ -176,50 +178,58 @@ impl ProverInitArgs {
             self.create_gcs_bucket_config.location.clone(),
             self.create_gcs_bucket_config.project_id.clone(),
         ) {
-            return self.handle_create_gcs_bucket(
+            let project_ids = get_project_ids(shell)?;
+            return Ok(self.handle_create_gcs_bucket(
                 project_ids,
                 self.create_gcs_bucket_config.project_id.clone(),
                 self.create_gcs_bucket_config.bucket_name.clone(),
                 self.create_gcs_bucket_config.location.clone(),
                 self.proof_store_gcs_config.credentials_file.clone(),
-            );
+            ));
         }
 
         match PromptSelect::new(MSG_PROOF_STORE_CONFIG_PROMPT, ProofStoreConfig::iter()).ask() {
-            ProofStoreConfig::Local => self.handle_file_backed_config(self.proof_store_dir.clone()),
-            ProofStoreConfig::GCS => self.handle_gcs_config(
-                project_ids,
-                self.proof_store_gcs_config.bucket_base_url.clone(),
-                self.proof_store_gcs_config.credentials_file.clone(),
-            ),
+            ProofStoreConfig::Local => {
+                Ok(self.handle_file_backed_config(self.proof_store_dir.clone()))
+            }
+            ProofStoreConfig::GCS => {
+                let project_ids = get_project_ids(shell)?;
+                Ok(self.handle_gcs_config(
+                    project_ids,
+                    self.proof_store_gcs_config.bucket_base_url.clone(),
+                    self.proof_store_gcs_config.credentials_file.clone(),
+                ))
+            }
         }
     }
 
     fn fill_public_storage_values_with_prompt(
         &self,
-        project_ids: Vec<String>,
-    ) -> Option<ProofStorageConfig> {
+        shell: &Shell,
+    ) -> anyhow::Result<Option<ProofStorageConfig>> {
         logger::info(MSG_GETTING_PUBLIC_STORE_CONFIG);
         let shall_save_to_public_bucket = self
             .shall_save_to_public_bucket
             .unwrap_or_else(|| PromptConfirm::new("Do you want to save to public bucket?").ask());
 
         if !shall_save_to_public_bucket {
-            return None;
+            return Ok(None);
         }
 
         if self.public_store_dir.is_some() {
-            return Some(self.handle_file_backed_config(self.public_store_dir.clone()));
+            return Ok(Some(
+                self.handle_file_backed_config(self.public_store_dir.clone()),
+            ));
         }
 
         if self.partial_gcs_config_provided(
             self.public_store_gcs_config.public_bucket_base_url.clone(),
             self.public_store_gcs_config.public_credentials_file.clone(),
         ) {
-            return Some(self.ask_gcs_config(
+            return Ok(Some(self.ask_gcs_config(
                 self.public_store_gcs_config.public_bucket_base_url.clone(),
                 self.public_store_gcs_config.public_credentials_file.clone(),
-            ));
+            )));
         }
 
         if self.partial_create_gcs_bucket_config_provided(
@@ -231,7 +241,8 @@ impl ProverInitArgs {
                 .public_project_id
                 .clone(),
         ) {
-            return Some(
+            let project_ids = get_project_ids(shell)?;
+            return Ok(Some(
                 self.handle_create_gcs_bucket(
                     project_ids,
                     self.public_create_gcs_bucket_config
@@ -243,18 +254,21 @@ impl ProverInitArgs {
                     self.public_create_gcs_bucket_config.public_location.clone(),
                     self.public_store_gcs_config.public_credentials_file.clone(),
                 ),
-            );
+            ));
         }
 
         match PromptSelect::new(MSG_PROOF_STORE_CONFIG_PROMPT, ProofStoreConfig::iter()).ask() {
-            ProofStoreConfig::Local => {
-                Some(self.handle_file_backed_config(self.public_store_dir.clone()))
-            }
-            ProofStoreConfig::GCS => Some(self.handle_gcs_config(
-                project_ids,
-                self.public_store_gcs_config.public_bucket_base_url.clone(),
-                self.public_store_gcs_config.public_credentials_file.clone(),
+            ProofStoreConfig::Local => Ok(Some(
+                self.handle_file_backed_config(self.public_store_dir.clone()),
             )),
+            ProofStoreConfig::GCS => {
+                let project_ids = get_project_ids(shell)?;
+                Ok(Some(self.handle_gcs_config(
+                    project_ids,
+                    self.public_store_gcs_config.public_bucket_base_url.clone(),
+                    self.public_store_gcs_config.public_credentials_file.clone(),
+                )))
+            }
         }
     }
 
@@ -373,4 +387,20 @@ impl ProverInitArgs {
             credentials_file,
         })
     }
+}
+
+fn get_project_ids(shell: &Shell) -> anyhow::Result<Vec<String>> {
+    let spinner = Spinner::new(MSG_GETTING_GCP_PROJECTS_SPINNER);
+
+    let mut cmd = Cmd::new(cmd!(
+        shell,
+        "gcloud projects list --format='value(projectId)'"
+    ));
+    let output = cmd.run_with_output()?;
+    let project_ids: Vec<String> = String::from_utf8(output.stdout)?
+        .lines()
+        .map(|line| line.to_string())
+        .collect();
+    spinner.finish();
+    Ok(project_ids)
 }
