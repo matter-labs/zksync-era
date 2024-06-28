@@ -14,8 +14,9 @@ use crate::{
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
         MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
         MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
-        MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT, MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT,
-        MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT, MSG_SETUP_KEY_PATH_PROMPT,
+        MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT,
+        MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT,
+        MSG_SETUP_KEY_PATH_PROMPT,
     },
 };
 
@@ -374,8 +375,12 @@ impl ProverInitArgs {
         bucket_base_url: Option<String>,
         credentials_file: Option<String>,
     ) -> ProofStorageConfig {
-        let bucket_base_url = bucket_base_url
+        let mut bucket_base_url = bucket_base_url
             .unwrap_or_else(|| Prompt::new(MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT).ask());
+        while !bucket_base_url.starts_with("gs://") {
+            logger::error(MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR);
+            bucket_base_url = Prompt::new(MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT).ask();
+        }
         let credentials_file = credentials_file.unwrap_or_else(|| {
             Prompt::new(MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT)
                 .default(DEFAULT_CREDENTIALS_FILE)
