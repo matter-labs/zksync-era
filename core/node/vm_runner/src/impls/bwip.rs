@@ -147,6 +147,11 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
     ) -> anyhow::Result<()> {
         let l1_batch_number = updates_manager.l1_batch.number;
 
+        tracing::info!(
+            "Started saving VM run data for L1 batch {}",
+            l1_batch_number
+        );
+
         let db_result =
             get_database_witness_input_data(&mut self.pool.connection().await?, l1_batch_number)
                 .await;
@@ -215,6 +220,13 @@ async fn get_updates_manager_witness_input_data(
         .base_system_contract_hashes()
         .bootloader
         .clone();
+    let bootloader_code_bytes = connection
+        .factory_deps_dal()
+        .get_sealed_factory_dep(bootloader)
+        .await
+        .expect("Failed fetching bootloader bytecode from DB")
+        .expect("Bootloader bytecode should exist");
+    let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
 
     let account_code_hash = h256_to_u256(default_aa);
     let account_bytecode_bytes = connection
@@ -258,7 +270,7 @@ async fn get_updates_manager_witness_input_data(
 
         protocol_version: updates_manager.protocol_version(),
 
-        bootloader_code: bytes_to_chunks(bootloader.as_bytes()),
+        bootloader_code,
         default_account_code_hash: account_code_hash,
         storage_refunds,
         pubdata_costs,
@@ -328,6 +340,14 @@ async fn get_database_witness_input_data(
         .unwrap()
         .unwrap();
 
+    let bootloader_code_bytes = connection
+        .factory_deps_dal()
+        .get_sealed_factory_dep(block_header.base_system_contracts_hashes.bootloader)
+        .await
+        .expect("Failed fetching bootloader bytecode from DB")
+        .expect("Bootloader bytecode should exist");
+    let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
+
     VMRunWitnessInputData {
         l1_batch_number: block_header.number,
         previous_root_hash: H256::zero(),
@@ -340,12 +360,7 @@ async fn get_database_witness_input_data(
             .protocol_version
             .unwrap_or(ProtocolVersionId::last_potentially_undefined()),
 
-        bootloader_code: bytes_to_chunks(
-            block_header
-                .base_system_contracts_hashes
-                .bootloader
-                .as_bytes(),
-        ),
+        bootloader_code,
         default_account_code_hash: account_code_hash,
         storage_refunds,
         pubdata_costs,
