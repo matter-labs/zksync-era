@@ -215,13 +215,8 @@ impl ConsensusDal<'_, '_> {
 
     /// Next block that should be inserted to storage.
     pub async fn next_block(&mut self) -> anyhow::Result<validator::BlockNumber> {
-        let mut txn = self
+        if let Some(last) = self
             .storage
-            .transaction_builder()?
-            .set_readonly()
-            .build()
-            .await?;
-        if let Some(last) = txn
             .blocks_dal()
             .get_sealed_l2_block_number()
             .await
@@ -229,7 +224,8 @@ impl ConsensusDal<'_, '_> {
         {
             return Ok(validator::BlockNumber(last.0.into()) + 1);
         }
-        let next = txn
+        let next = self
+            .storage
             .consensus_dal()
             .first_block()
             .await
@@ -241,25 +237,9 @@ impl ConsensusDal<'_, '_> {
     /// Currently, certificates are NOT generated synchronously with L2 blocks,
     /// so it might NOT be the certificate for the last L2 block.
     pub async fn certificates_range(&mut self) -> anyhow::Result<BlockStoreState> {
-        let mut txn = self
-            .storage
-            .transaction_builder()?
-            .set_readonly()
-            .build()
-            .await?;
         // It cannot be older than genesis first block.
-        let mut start = txn
-            .consensus_dal()
-            .genesis()
-            .await?
-            .context("genesis()")?
-            .first_block;
-        start = start.max(
-            txn.consensus_dal()
-                .first_block()
-                .await
-                .context("first_block()")?,
-        );
+        let mut start = self.genesis().await?.context("genesis()")?.first_block;
+        start = start.max(self.first_block().await.context("first_block()")?);
         let row = sqlx::query!(
             r#"
             SELECT
@@ -277,7 +257,7 @@ impl ConsensusDal<'_, '_> {
         )
         .instrument("last_certificate")
         .report_latency()
-        .fetch_optional(&mut txn)
+        .fetch_optional(self.storage)
         .await?;
         Ok(BlockStoreState {
             first: start,
