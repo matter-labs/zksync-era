@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use k256::ecdsa::{signature::Signer, Signature, SigningKey};
 use reqwest::Client;
+use secp256k1::{ecdsa::Signature, Message, Secp256k1, SecretKey};
 use url::Url;
 use zksync_basic_types::H256;
 use zksync_node_framework::{
@@ -17,7 +17,7 @@ use crate::api_client::ApiClient;
 
 pub struct TeeProverLayer {
     api_url: Url,
-    signing_key: SigningKey,
+    signing_key: SecretKey,
     attestation_quote_bytes: Vec<u8>,
     tee_type: TeeType,
 }
@@ -25,7 +25,7 @@ pub struct TeeProverLayer {
 impl TeeProverLayer {
     pub fn new(
         api_url: Url,
-        signing_key: SigningKey,
+        signing_key: SecretKey,
         attestation_quote_bytes: Vec<u8>,
         tee_type: TeeType,
     ) -> Self {
@@ -57,7 +57,7 @@ impl WiringLayer for TeeProverLayer {
 }
 
 struct TeeProver {
-    signing_key: SigningKey,
+    signing_key: SecretKey,
     attestation_quote_bytes: Vec<u8>,
     tee_type: TeeType,
     api_client: ApiClient,
@@ -74,7 +74,8 @@ impl TeeProver {
             Ok(verification_result) => {
                 let root_hash_bytes = verification_result.0.as_bytes();
                 let batch_number = verification_result.1;
-                let signature = self.signing_key.try_sign(root_hash_bytes)?;
+                let msg_to_sign = Message::from_slice(root_hash_bytes)?;
+                let signature = self.signing_key.sign_ecdsa(msg_to_sign);
                 Ok((signature, batch_number, verification_result.0))
             }
         }
@@ -121,15 +122,10 @@ impl Task for TeeProver {
                 Err(e) => return Err(e),
             };
             let (signature, batch_number, root_hash) = self.verify(*job)?;
-            let pubkey = self.signing_key.clone();
+            let secp = Secp256k1::new();
+            let pubkey = self.signing_key.public_key(&secp);
             self.api_client
-                .submit_proof(
-                    batch_number,
-                    signature,
-                    pubkey.verifying_key(),
-                    root_hash,
-                    self.tee_type,
-                )
+                .submit_proof(batch_number, signature, &pubkey, root_hash, self.tee_type)
                 .await?;
         }
     }

@@ -1,6 +1,5 @@
 use anyhow::Context as _;
 use config::TeeProverConfig;
-use k256::ecdsa::{signature::Signer, Signature, VerifyingKey};
 use tee_prover::TeeProverLayer;
 use zksync_config::configs::ObservabilityConfig;
 use zksync_env_config::FromEnv;
@@ -48,39 +47,11 @@ fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let tee_prover_config = TeeProverConfig::from_env().context("TeeProverConfig::from_env()")?;
-    let signing_key = &tee_prover_config.signing_key;
-    let _verifying_key_bytes = signing_key.verifying_key().to_sec1_bytes();
-
-    // TEST TEST
-    {
-        use k256::ecdsa::signature::Verifier;
-        let vkey: VerifyingKey = VerifyingKey::try_from(_verifying_key_bytes.as_ref())?;
-        let signature: Signature = signing_key.try_sign(&[0, 0, 0, 0])?;
-        let sig_bytes = signature.to_vec();
-        let signature: Signature = Signature::try_from(sig_bytes.as_ref())?;
-        vkey.verify(&[0, 0, 0, 0], &signature)?;
-    }
-    // END TEST
-
+    let tee_prover_config = TeeProverConfig::from_env()?;
     let attestation_quote_bytes = std::fs::read(tee_prover_config.attestation_quote_file_path)?;
-
-    // let prometheus_config = PrometheusConfig::from_env().ok();
-    // if let Some(prometheus_config) = prometheus_config {
-    //     let exporter_config = PrometheusExporterConfig::push(
-    //         prometheus_config.gateway_endpoint(),
-    //         prometheus_config.push_interval(),
-    //     );
-
-    //     tracing::info!("Starting prometheus exporter with config {prometheus_config:?}");
-    //     let prometheus_exporter_task = tokio::spawn(exporter_config.run(stop_receiver));
-    // } else {
-    //     bail!("No Prometheus configuration found");
-    // }
 
     ZkStackServiceBuilder::new()
         .add_layer(SigintHandlerLayer)
-        // .add_layer(PrometheusExporterLayer(prometheus_config?))
         .add_layer(TeeProverLayer::new(
             tee_prover_config.api_url,
             tee_prover_config.signing_key,

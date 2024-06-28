@@ -1,5 +1,5 @@
-use k256::ecdsa::{Signature, SigningKey, VerifyingKey};
 use reqwest::Client;
+use secp256k1::{ecdsa::Signature, PublicKey, Secp256k1, SecretKey};
 use serde::{de::DeserializeOwned, Serialize};
 use url::Url;
 use zksync_basic_types::H256;
@@ -12,7 +12,6 @@ use zksync_prover_interface::{
     outputs::L1BatchTeeProofForL1,
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
-
 pub(crate) struct ApiClient {
     api_base_url: Url,
     http_client: Client,
@@ -50,12 +49,13 @@ impl ApiClient {
     pub async fn register_attestation(
         &self,
         attestation_quote_bytes: Vec<u8>,
-        signing_key: &SigningKey,
+        signing_key: &SecretKey,
     ) -> anyhow::Result<()> {
         let endpoint = self.api_base_url.join("/tee/register_attestation")?;
+        let secp = Secp256k1::new();
         let request = RegisterTeeAttestationRequest {
             attestation: attestation_quote_bytes,
-            pubkey: signing_key.verifying_key().to_sec1_bytes().into(),
+            pubkey: signing_key.public_key(&secp).serialize().to_vec(),
         };
         let response = self
             .send_http_request::<RegisterTeeAttestationRequest, RegisterTeeAttestationResponse>(
@@ -99,7 +99,7 @@ impl ApiClient {
         &self,
         batch_number: L1BatchNumber,
         signature: Signature,
-        pubkey: &VerifyingKey,
+        pubkey: &PublicKey,
         root_hash: H256,
         tee_type: TeeType,
     ) -> anyhow::Result<()> {
@@ -110,8 +110,8 @@ impl ApiClient {
             .unwrap()
             .push(batch_number.to_string().as_str());
         let request = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
-            signature: signature.to_vec(),
-            pubkey: pubkey.to_sec1_bytes().into(),
+            signature: signature.serialize_compact().into(),
+            pubkey: pubkey.serialize().into(),
             proof: root_hash.as_bytes().into(),
             tee_type,
         }));
