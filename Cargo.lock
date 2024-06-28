@@ -8623,6 +8623,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "trybuild",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
@@ -8670,7 +8671,6 @@ dependencies = [
  "proc-macro2 1.0.69",
  "quote 1.0.33",
  "syn 2.0.38",
- "trybuild",
 ]
 
 [[package]]

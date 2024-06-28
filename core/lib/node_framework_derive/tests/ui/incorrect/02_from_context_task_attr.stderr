@@ -1,5 +1,0 @@
-error: Only `resource` labels are supported for `FromContext`
-  --> tests/ui/incorrect/02_from_context_task_attr.rs:30:5
-   |
-30 |     #[task]
-   |     ^^^^^^^

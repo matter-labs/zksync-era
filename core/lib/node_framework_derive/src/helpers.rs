@@ -2,7 +2,7 @@ use std::fmt;
 
 use syn::{GenericArgument, PathArguments, Type};
 
-use crate::labels::ResourceOrTask;
+use crate::labels::CtxLabel;
 
 /// Representation of a single structure field.
 pub(crate) struct Field {
@@ -10,8 +10,8 @@ pub(crate) struct Field {
     pub(crate) ident: syn::Ident,
     /// Type of the field.
     pub(crate) ty: syn::Type,
-    /// `resource`/`task` label.
-    pub(crate) label: Option<ResourceOrTask>,
+    /// label.
+    pub(crate) label: CtxLabel,
 }
 
 impl fmt::Debug for Field {

@@ -3,10 +3,7 @@ use std::fmt;
 use quote::quote;
 use syn::{DeriveInput, Result};
 
-use crate::{
-    helpers::{extract_option_inner_type, Field},
-    labels::{CtxLabel, ParseLabels as _, ResourceOrTask},
-};
+use crate::{helpers::Field, labels::CtxLabel};
 
 #[derive(Debug)]
 pub enum MacroKind {
@@ -50,7 +47,7 @@ impl MacroImpl {
                     .map(|field| {
                         let ident = field.ident.unwrap();
                         let ty = field.ty;
-                        let label = ResourceOrTask::parse(&field.attrs)?;
+                        let label = CtxLabel::parse(&field.attrs)?.unwrap_or_default();
                         Ok(Field { ident, ty, label })
                     })
                     .collect::<Result<Vec<_>>>()?,
@@ -84,59 +81,44 @@ impl MacroImpl {
         }
     }
 
-    fn render_from_context(self) -> Result<proc_macro2::TokenStream> {
-        let ident = self.ident;
-        let crate_path = if self.ctx.local {
-            quote! { crate }
+    fn crate_path(&self) -> proc_macro2::TokenStream {
+        if let Some(krate) = &self.ctx.krate {
+            quote! { #krate }
         } else {
             quote! { zksync_node_framework }
-        };
+        }
+    }
+
+    fn render_from_context(self) -> Result<proc_macro2::TokenStream> {
+        let crate_path = self.crate_path();
+        let ident = self.ident;
         let mut fields = Vec::new();
         for field in self.fields {
-            // Only accept `resource` labels here.
-            let label = match field.label {
-                Some(ResourceOrTask::Resource(label)) => Some(label),
-                Some(ResourceOrTask::Task(task)) => {
-                    return Err(syn::Error::new(
-                        task.span.unwrap(), // Must be set during parsing.
-                        "Only `resource` labels are supported for `FromContext`",
-                    ));
-                }
-                None => None,
-            };
-
-            let mut ty = field.ty;
-
-            // Type may be an option, and it has special handling.
-            // Try to extract the wrapped type.
-            let mut is_option = false;
-            if let Some(wrapped_ty) = extract_option_inner_type(&ty) {
-                ty = wrapped_ty.clone();
-                is_option = true;
-            };
-
+            let ty = field.ty;
             let ident = field.ident;
-            let default = label.map(|label| label.default).unwrap_or(false);
+            let default = field.label.default;
 
-            let field = match (is_option, default) {
-                (false, false) => quote! {
-                    #ident: ctx.get_resource::<#ty>()?
-                },
-                (false, true) => quote! {
+            if field.label.krate.is_some() {
+                return Err(syn::Error::new_spanned(
+                    ident,
+                    "`crate` attribute is not allowed for fields",
+                ));
+            }
+
+            if field.label.task {
+                return Err(syn::Error::new_spanned(
+                    ident,
+                    "`task` attribute is not allowed in `FromContext` macro",
+                ));
+            }
+
+            let field = if default {
+                quote! {
                     #ident: ctx.get_resource_or_default::<#ty>()
-                },
-                (true, false) => quote! {
-                    #ident: match ctx.get_resource::<#ty>() {
-                        Ok(resource) => Some(resource),
-                        Err(#crate_path::WiringError::ResourceLacking { .. }) => None,
-                        Err(err) => return Err(err),
-                    }
-                },
-                (true, true) => {
-                    return Err(syn::Error::new(
-                        ident.span(),
-                        "`default` cannot be used on `Option` types",
-                    ));
+                }
+            } else {
+                quote! {
+                    #ident: <#ty as #crate_path::service::FromContext>::from_context(ctx)?
                 }
             };
 
@@ -155,66 +137,45 @@ impl MacroImpl {
     }
 
     fn render_into_context(self) -> Result<proc_macro2::TokenStream> {
+        let crate_path = self.crate_path();
         let ident = self.ident;
-        let crate_path = if self.ctx.local {
-            quote! { crate }
-        } else {
-            quote! { zksync_node_framework }
-        };
         let mut actions = Vec::new();
         for field in self.fields {
-            // Label must be provided.
-            let Some(label) = field.label else {
-                return Err(syn::Error::new_spanned(
-                    field.ident,
-                    "All fields must have either `task` or `resource` attribute",
-                ));
-            };
-
+            let ty = field.ty;
             let ident = field.ident;
-            match label {
-                ResourceOrTask::Resource(label) => {
-                    // Default label is not allowed here.
-                    if label.default {
-                        return Err(syn::Error::new_spanned(
-                            ident,
-                            "`default` attribute is not allowed in `IntoContext` macro",
-                        ));
-                    }
-
-                    let action = if let Some(_wrapped_ty) = extract_option_inner_type(&field.ty) {
-                        // Type is an option.
-                        // Only insert resource if provided.
-                        quote! {
-                            if let Some(resource) = self.#ident {
-                                ctx.insert_resource(resource)?;
-                            }
-                        }
-                    } else {
-                        quote! {
-                            ctx.insert_resource(self.#ident)?;
-                        }
-                    };
-
-                    actions.push(action);
-                }
-                ResourceOrTask::Task(_label) => {
-                    let action = if let Some(_wrapped_ty) = extract_option_inner_type(&field.ty) {
-                        // Type is an option.
-                        // Only add task if provided.
-                        quote! {
-                            if let Some(task) = self.#ident {
-                                ctx.add_task(task);
-                            }
-                        }
-                    } else {
-                        quote! {
-                            ctx.add_task(self.#ident);
-                        }
-                    };
-                    actions.push(action);
-                }
+            if field.label.default {
+                return Err(syn::Error::new_spanned(
+                    ident,
+                    "`default` attribute is not allowed in `IntoContext` macro",
+                ));
             }
+
+            if field.label.krate.is_some() {
+                return Err(syn::Error::new_spanned(
+                    ident,
+                    "`crate` attribute is not allowed for fields",
+                ));
+            }
+
+            let action = if field.label.task {
+                // Check whether the task is an `Option`.
+                if let Some(_inner_ty) = crate::helpers::extract_option_inner_type(&ty) {
+                    quote! {
+                        if let Some(task) = self.#ident {
+                            ctx.add_task(task);
+                        }
+                    }
+                } else {
+                    quote! {
+                        ctx.add_task(self.#ident);
+                    }
+                }
+            } else {
+                quote! {
+                    <#ty as #crate_path::service::IntoContext>::into_context(self.#ident, ctx)?;
+                }
+            };
+            actions.push(action);
         }
 
         Ok(quote! {

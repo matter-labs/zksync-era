@@ -1,23 +1,47 @@
+use std::fmt;
+
 use syn::{spanned::Spanned as _, Attribute, Result};
 
-/// Trait allowing to iterate over the attributes and parse the labels.
-/// Only supports simple path attributes, like `ctx(local)`.
-pub(crate) trait ParseLabels: Sized + Default {
-    const ATTR_NAME: &'static str;
-    const LABELS: &'static [&'static str];
+/// Context label, e.g. `ctx(local)`.
+#[derive(Default)]
+pub(crate) struct CtxLabel {
+    /// Special attribute that marks the derive as internal.
+    /// Alters the path to the trait to be implemented.
+    pub(crate) krate: Option<syn::Path>, // `crate` is a reserved keyword and cannot be a raw identifier.
+    pub(crate) span: Option<proc_macro2::Span>,
+    pub(crate) task: bool,
+    pub(crate) default: bool,
+}
 
-    fn set_label(&mut self, label: &str);
+impl fmt::Debug for CtxLabel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // For some weird reason, doc tests fail with the derived impl, stating that
+        // `syn::Path` does not implement `Debug`.
+        f.debug_struct("CtxLabel")
+            .field("krate", &self.krate.as_ref().and_then(|p| p.get_ident()))
+            .field("span", &self.span)
+            .field("task", &self.task)
+            .field("default", &self.default)
+            .finish()
+    }
+}
 
-    fn set_span(&mut self, span: proc_macro2::Span);
+impl CtxLabel {
+    const ATTR_NAME: &'static str = "context";
+    const CRATE_LABEL: &'static str = "crate";
+    const TASK_LABEL: &'static str = "task";
+    const DEFAULT_LABEL: &'static str = "default";
+    const LABELS: &'static [&'static str] =
+        &[Self::CRATE_LABEL, Self::TASK_LABEL, Self::DEFAULT_LABEL];
 
-    fn parse(attrs: &[Attribute]) -> Result<Option<Self>> {
+    pub(crate) fn parse(attrs: &[Attribute]) -> Result<Option<Self>> {
         let mut self_ = Self::default();
 
         let mut found = false;
         for attr in attrs {
             if attr.path().is_ident(Self::ATTR_NAME) {
                 found = true;
-                self_.set_span(attr.span());
+                self_.span = Some(attr.span());
                 match attr.meta {
                     syn::Meta::Path(_) => {
                         // No values to parse.
@@ -35,9 +59,22 @@ pub(crate) trait ParseLabels: Sized + Default {
                 }
                 attr.parse_nested_meta(|meta| {
                     let mut added = false;
-                    for label in Self::LABELS {
+                    for &label in Self::LABELS {
                         if meta.path.is_ident(label) {
-                            self_.set_label(label);
+                            match label {
+                                Self::CRATE_LABEL => {
+                                    let value = meta.value()?;
+                                    let lit: syn::LitStr = value.parse()?; // Check that the value is a path.
+                                    self_.krate = Some(syn::parse_str(&lit.value())?);
+                                }
+                                Self::TASK_LABEL => {
+                                    self_.task = true;
+                                }
+                                Self::DEFAULT_LABEL => {
+                                    self_.default = true;
+                                }
+                                _ => unreachable!(),
+                            }
                             added = true;
                             break;
                         }
@@ -57,91 +94,5 @@ pub(crate) trait ParseLabels: Sized + Default {
             return Ok(None);
         }
         Ok(Some(self_))
-    }
-}
-
-/// Context label, e.g. `ctx(local)`.
-#[derive(Debug, Default)]
-pub(crate) struct CtxLabel {
-    /// Special attribute that marks the derive as internal.
-    /// Alters the path to the trait to be implemented.
-    pub(crate) local: bool,
-    pub(crate) span: Option<proc_macro2::Span>,
-}
-
-impl ParseLabels for CtxLabel {
-    const ATTR_NAME: &'static str = "ctx";
-    const LABELS: &'static [&'static str] = &["local"];
-
-    fn set_label(&mut self, label: &str) {
-        match label {
-            "local" => self.local = true,
-            _ => unreachable!(),
-        }
-    }
-
-    fn set_span(&mut self, span: proc_macro2::Span) {
-        self.span = Some(span);
-    }
-}
-
-/// Resource label, e.g. `resource` or `resource(default)`.
-#[derive(Debug, Default)]
-pub(crate) struct ResourceLabel {
-    /// Resource should be retrieved with `get_resource_or_default`.
-    pub(crate) default: bool,
-    pub(crate) span: Option<proc_macro2::Span>,
-}
-
-impl ParseLabels for ResourceLabel {
-    const ATTR_NAME: &'static str = "resource";
-    const LABELS: &'static [&'static str] = &["default"];
-
-    fn set_label(&mut self, label: &str) {
-        match label {
-            "default" => self.default = true,
-            _ => unreachable!(),
-        }
-    }
-
-    fn set_span(&mut self, span: proc_macro2::Span) {
-        self.span = Some(span);
-    }
-}
-
-/// Task label, e.g. `task`.
-#[derive(Debug, Default)]
-pub(crate) struct TaskLabel {
-    pub(crate) span: Option<proc_macro2::Span>,
-}
-
-impl ParseLabels for TaskLabel {
-    const ATTR_NAME: &'static str = "task";
-    const LABELS: &'static [&'static str] = &[];
-
-    fn set_label(&mut self, _label: &str) {
-        unreachable!("No labels are supported for `task`")
-    }
-
-    fn set_span(&mut self, span: proc_macro2::Span) {
-        self.span = Some(span);
-    }
-}
-
-#[derive(Debug)]
-pub(crate) enum ResourceOrTask {
-    Resource(ResourceLabel),
-    Task(TaskLabel),
-}
-
-impl ResourceOrTask {
-    pub(crate) fn parse(attrs: &[Attribute]) -> Result<Option<Self>> {
-        if let Some(resource) = ResourceLabel::parse(attrs)? {
-            return Ok(Some(ResourceOrTask::Resource(resource)));
-        }
-        if let Some(task) = TaskLabel::parse(attrs)? {
-            return Ok(Some(ResourceOrTask::Task(task)));
-        }
-        Ok(None)
     }
 }

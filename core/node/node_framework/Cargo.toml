@@ -60,3 +60,5 @@ ctrlc.workspace = true
 [dev-dependencies]
 zksync_env_config.workspace = true
 assert_matches.workspace = true
+# For running UI tests for proc macro
+trybuild.workspace = true
