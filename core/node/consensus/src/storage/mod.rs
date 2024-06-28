@@ -347,10 +347,12 @@ pub(super) struct Store {
     persisted: sync::watch::Receiver<storage::BlockStoreState>,
 }
 
+struct PersistedState(sync::watch::Sender<storage::BlockStoreState>);
+
 /// Background task of the `Store`.
 pub struct StoreRunner {
     pool: ConnectionPool,
-    persisted: sync::watch::Sender<storage::BlockStoreState>,
+    persisted: PersistedState,
     certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
 }
 
@@ -378,10 +380,47 @@ impl Store {
             },
             StoreRunner {
                 pool,
-                persisted,
+                persisted: PersistedState(persisted),
                 certificates: certs_recv,
             },
         ))
+    }
+}
+
+impl PersistedState {
+    /// Updates `persisted` to new.
+    /// Ends of the range can only be moved forward.
+    /// If `persisted.first` is moved forward, it means that blocks have been pruned.
+    /// If `persisted.last` is moved forward, it means that new blocks with certificates have been
+    /// persisted.
+    fn update(&self, new: storage::BlockStoreState) {
+        self.0.send_if_modified(|p| {
+            if &new == p {
+                return false;
+            }
+            p.first = p.first.max(new.first);
+            if p.next() < new.next() {
+                p.last = new.last;
+            }
+            true
+        });
+    }
+
+    /// Checks if the given certificate is exactly the next one that should
+    /// be persisted.
+    fn should_be_persisted(&self, cert: &validator::CommitQC) -> bool {
+        self.0.borrow().next() == cert.header().number
+    }
+
+    /// Appends the `cert` to `persisted` range.
+    fn advance(&self, cert: validator::CommitQC) {
+        self.0.send_if_modified(|p| {
+            if p.next() != cert.header().number {
+                return false;
+            }
+            p.last = Some(cert);
+            true
+        });
     }
 }
 
@@ -389,7 +428,7 @@ impl StoreRunner {
     pub async fn run(mut self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
             s.spawn::<()>(async {
-                // Loop observing the oldest block in storage.
+                // Loop updating `persisted` whenever blocks get pruned.
                 const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
                 loop {
                     let range = self
@@ -400,16 +439,7 @@ impl StoreRunner {
                         .certificates_range(ctx)
                         .await
                         .wrap("certificates_range()")?;
-                    self.persisted.send_if_modified(|p| {
-                        if &range == p {
-                            return false;
-                        }
-                        p.first = p.first.max(range.first);
-                        if p.next() < range.next() {
-                            p.last = range.last;
-                        }
-                        true
-                    });
+                    self.persisted.update(range);
                     ctx.sleep(POLL_INTERVAL).await?;
                 }
             });
@@ -419,31 +449,28 @@ impl StoreRunner {
             loop {
                 let cert = self.certificates.recv(ctx).await?;
                 // Wait for the block to be persisted, so that we can attach a cert to it.
-                // It may happen that persisted blocks get pruned and this certificate is not needed any
-                // more.
-                while self.persisted.borrow().next() == cert.header().number {
+                // We may exit this loop without persisting the certificate in case the
+                // corresponding block has been pruned in the meantime.
+                while self.persisted.should_be_persisted(&cert) {
                     use consensus_dal::InsertCertificateError as E;
                     // Try to insert the cert.
-                    match self
+                    let res = self
                         .pool
                         .connection(ctx)
                         .await
                         .wrap("connection")?
                         .insert_certificate(ctx, &cert)
-                        .await
-                    {
+                        .await;
+                    match res {
                         Ok(()) => {
-                            self.persisted.send_if_modified(|p| {
-                                if p.next() != cert.header().number {
-                                    return false;
-                                }
-                                p.last = Some(cert);
-                                true
-                            });
+                            // Insertion succeeded: update persisted state
+                            // and wait for the next cert.
+                            self.persisted.advance(cert);
                             break;
                         }
-                        // In case of missing payload we just need to wait longer.
                         Err(InsertCertificateError::Inner(E::MissingPayload)) => {
+                            // the payload is not in storage, it's either not yet persisted
+                            // or already pruned. We will retry after a delay.
                             ctx.sleep(POLL_INTERVAL).await?;
                         }
                         Err(InsertCertificateError::Canceled(err)) => {
@@ -611,19 +638,19 @@ impl PayloadManager for Store {
 // Dummy implementation
 #[async_trait::async_trait]
 impl storage::PersistentBatchStore for Store {
-    fn last_batch(&self) -> attester::BatchNumber {
+    async fn last_batch(&self) -> attester::BatchNumber {
         unimplemented!()
     }
-    fn last_batch_qc(&self) -> attester::BatchQC {
+    async fn last_batch_qc(&self) -> attester::BatchQC {
         unimplemented!()
     }
-    fn get_batch(&self, _number: attester::BatchNumber) -> Option<attester::SyncBatch> {
+    async fn get_batch(&self, _number: attester::BatchNumber) -> Option<attester::SyncBatch> {
         None
     }
-    fn get_batch_qc(&self, _number: attester::BatchNumber) -> Option<attester::BatchQC> {
+    async fn get_batch_qc(&self, _number: attester::BatchNumber) -> Option<attester::BatchQC> {
         None
     }
-    fn store_qc(&self, _qc: attester::BatchQC) {
+    async fn store_qc(&self, _qc: attester::BatchQC) {
         unimplemented!()
     }
     fn persisted(&self) -> sync::watch::Receiver<storage::BatchStoreState> {

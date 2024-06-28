@@ -751,6 +751,15 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
                 .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
                 .collect(),
             genesis_spec: self.sample(rng),
+            rpc: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::consensus::RpcConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::RpcConfig {
+        configs::consensus::RpcConfig {
+            get_block_rate: self.sample(rng),
         }
     }
 }

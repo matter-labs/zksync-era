@@ -215,7 +215,12 @@ impl ConsensusDal<'_, '_> {
 
     /// Next block that should be inserted to storage.
     pub async fn next_block(&mut self) -> anyhow::Result<validator::BlockNumber> {
-        let mut txn = self.storage.start_transaction().await?;
+        let mut txn = self
+            .storage
+            .transaction_builder()?
+            .set_readonly()
+            .build()
+            .await?;
         if let Some(last) = txn
             .blocks_dal()
             .get_sealed_l2_block_number()
@@ -229,7 +234,6 @@ impl ConsensusDal<'_, '_> {
             .first_block()
             .await
             .context("first_block()")?;
-        txn.commit().await.context("commit()")?;
         Ok(next)
     }
 
@@ -237,7 +241,12 @@ impl ConsensusDal<'_, '_> {
     /// Currently, certificates are NOT generated synchronously with L2 blocks,
     /// so it might NOT be the certificate for the last L2 block.
     pub async fn certificates_range(&mut self) -> anyhow::Result<BlockStoreState> {
-        let mut txn = self.storage.start_transaction().await?;
+        let mut txn = self
+            .storage
+            .transaction_builder()?
+            .set_readonly()
+            .build()
+            .await?;
         // It cannot be older than genesis first block.
         let mut start = txn
             .consensus_dal()
@@ -270,13 +279,11 @@ impl ConsensusDal<'_, '_> {
         .report_latency()
         .fetch_optional(&mut txn)
         .await?;
-        txn.commit().await.context("commit()")?;
         Ok(BlockStoreState {
             first: start,
-            last: match row {
-                None => None,
-                Some(row) => Some(zksync_protobuf::serde::deserialize(row.certificate)?),
-            },
+            last: row
+                .map(|row| zksync_protobuf::serde::deserialize(row.certificate))
+                .transpose()?,
         })
     }
 

@@ -29,6 +29,8 @@ syntax = "proto3";
 
 package zksync.core.consensus;
 
+import "zksync/std.proto";
+
 // (public key, ip address) of a gossip network node.
 message NodeAddr {
   optional string key = 1; // required; NodePublicKey
@@ -47,6 +49,11 @@ message GenesisSpec {
   optional uint32 protocol_version = 2; // required; validator::ProtocolVersion
   repeated WeightedValidator validators = 3; // must be non-empty; validator committee.
   optional string leader = 4; // required; ValidatorPublicKey
+}
+
+// Per peer connection RPC rate limits.
+message RpcConfig {
+  optional std.RateLimit get_block_rate = 1; // optional; defaults to 10 blocks/s.
 }
 
 message Config {
@@ -79,5 +86,9 @@ message Config {
   // Used to (re)initialize genesis if needed.
   // External nodes fetch the genesis from the main node.
   optional GenesisSpec genesis_spec = 8;
+
+  // RPC rate limits configuration.
+  // If missing, defaults are used.
+  optional RpcConfig rpc_config = 9; // optional
 }
 
