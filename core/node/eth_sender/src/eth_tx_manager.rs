@@ -290,7 +290,7 @@ impl EthTxManager {
         operator_nonce: OperatorNonce,
         inflight_txs: Vec<EthTx>,
     ) -> Result<Option<(EthTx, u32)>, EthSenderError> {
-        tracing::info!(
+        tracing::trace!(
             "Going through not confirmed txs. \
              Block numbers: latest {}, finalized {}, \
              operator's nonce: latest {}, finalized {}",
@@ -302,7 +302,7 @@ impl EthTxManager {
 
         // Not confirmed transactions, ordered by nonce
         for tx in inflight_txs {
-            tracing::info!(
+            tracing::trace!(
                 "Checking tx id: {}, operator_nonce: {:?}, tx nonce: {}",
                 tx.id,
                 operator_nonce,
