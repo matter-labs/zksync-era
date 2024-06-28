@@ -6,9 +6,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_types::{StorageKey, StorageValue, H256};
+use zksync_types::{api::state_override::StateOverride, StorageKey, StorageValue, H256};
 
-use crate::{ReadStorage, WriteStorage};
+use crate::{OverrideStorage, ReadStorage, WriteStorage};
 
 /// Metrics for [`StorageView`].
 #[derive(Debug, Default, Clone, Copy)]
@@ -56,11 +56,6 @@ impl<S> StorageView<S> {
     /// Returns the modified storage keys
     pub fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
         &self.modified_storage_keys
-    }
-
-    /// Returns the underlying storage handle
-    pub fn storage_handle_mut(&mut self) -> &mut S {
-        &mut self.storage_handle
     }
 }
 
@@ -206,6 +201,12 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
 
     fn missed_storage_invocations(&self) -> usize {
         self.metrics.storage_invocations_missed
+    }
+}
+
+impl<S: ReadStorage + fmt::Debug + OverrideStorage> OverrideStorage for StorageView<S> {
+    fn apply_state_override(&mut self, state_override: &StateOverride) {
+        self.storage_handle.apply_state_override(state_override);
     }
 }
 

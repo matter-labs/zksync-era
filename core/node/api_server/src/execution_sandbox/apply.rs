@@ -272,11 +272,8 @@ impl<'a> Sandbox<'a> {
     ) {
         // Apply state override
         if let Some(state_override) = state_override {
-            let storage_overrides: &mut StorageOverrides<PostgresStorage> =
-                self.storage_view.storage_handle_mut();
-
             // Apply the state override
-            storage_overrides.apply_state_override(&state_override);
+            self.storage_view.apply_state_override(&state_override);
         }
         self.setup_storage_view(tx);
         let protocol_version = self.system_env.version;
