@@ -16,7 +16,7 @@ use zksync_types::{
 use crate::{
     models::storage_transaction::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
-        StorageTransactionReceipt,
+        StorageTransactionExecutionInfo, StorageTransactionReceipt,
     },
     Core, CoreDal,
 };
@@ -149,6 +149,29 @@ impl TransactionsWeb3Dal<'_, '_> {
     ) -> DalResult<Vec<api::Transaction>> {
         self.get_transactions_inner(TransactionSelector::Hashes(hashes), chain_id)
             .await
+    }
+
+    pub async fn get_unstable_transaction_execution_info(
+        &mut self,
+        hash: H256,
+    ) -> DalResult<Option<serde_json::Value>> {
+        let row = sqlx::query_as!(
+            StorageTransactionExecutionInfo,
+            r#"
+            SELECT
+                transactions.execution_info
+            FROM
+                transactions
+            WHERE
+                transactions.hash = $1
+            "#,
+            hash.as_bytes()
+        )
+        .instrument("get_unstable_transaction_execution_info")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(row.map(|entry| entry.execution_info))
     }
 
     async fn get_transactions_inner(
@@ -550,6 +573,21 @@ mod tests {
             .get_transaction_by_hash(H256::zero(), L2ChainId::from(270))
             .await;
         assert!(web3_tx.unwrap().is_none());
+
+        let execution_info = conn
+            .transactions_web3_dal()
+            .get_unstable_transaction_execution_info(tx_hash)
+            .await
+            .unwrap()
+            .expect("Transaction execution info is missing in the DAL");
+
+        // Check that execution info has at least the circuit statistics field.
+        // If this assertion fails because the transaction execution info format
+        // has changed, replace circuit_statistic with any other valid field
+        assert!(
+            execution_info.get("circuit_statistic").is_some(),
+            "Missing circuit_statistics field"
+        );
     }
 
     #[tokio::test]
