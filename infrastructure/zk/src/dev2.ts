@@ -25,7 +25,7 @@ async function supplyRichWallets() {
     const l2Provider = new Provider(process.env.API_WEB3_JSON_RPC_HTTP_URL);
 
     const richAccounts = [...(await getTestAccounts()), ...(await getDeployAccounts())];
-    const promises = richAccounts.map(async (account) => {
+    for (const account of richAccounts) {
         const { privateKey } = account;
         const wallet = new Wallet(privateKey, l2Provider, l1Provider);
 
@@ -34,20 +34,20 @@ async function supplyRichWallets() {
             privateKey == process.env.ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY
         ) {
             console.log(`Skipping rich wallet ${wallet.address} as it is an operator wallet`);
-            return;
+            continue;
         }
 
         console.log('Depositing to wallet ', wallet.address);
 
         // For now, we only deposit ETH and only deal with ETH-based chains.
-        return await (
+        await (
             await wallet.deposit({
                 token: zkUtils.ETH_ADDRESS_IN_CONTRACTS,
                 amount: ethers.utils.parseEther('100000')
             })
         ).wait();
-    });
-    await Promise.all(promises);
+        console.log('Done');
+    }
 
     console.log('Deposits completed!');
 }
