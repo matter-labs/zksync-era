@@ -1,7 +1,5 @@
 # ZK Router
 
-
-
 #### Asset Router
 
 - Some assets have to be natively supported (ETH, WETH) and it also makes sense to support some generally accepted token

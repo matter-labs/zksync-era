@@ -20,7 +20,10 @@ We want to create a system where:
 - Cross-chain interop should enable unified liquidity for assets across the ecosystem.
 - Multi-chain smart contracts need to be easy to develop, which means easy access to bridges.
 
-ZK Chains have specific trust requirements - they need to satisfy certain common standards so that they can interoperate. Additionally for the easy of maintainability chains can choose to share their architecture, including their proof systems, VM and other components. These chains will be upgraded together. These together mean a single set of L1 smart contracts will manage the chains on L1.
+ZK Chains have specific trust requirements - they need to satisfy certain common standards so that they can
+interoperate. Additionally for the easy of maintainability chains can choose to share their architecture, including
+their proof systems, VM and other components. These chains will be upgraded together. These together mean a single set
+of L1 smart contracts will manage the chains on L1.
 
 We want to make the ecosystem as modular as possible, giving developers the ability to modify the architecture as
 needed; consensus mechanism, staking, and DA requirements.
@@ -87,7 +90,6 @@ predefined facets which are made available by the ST contract. These facets cont
 features required to process proofs. The chain ID is set in the VM in a special system transaction sent from L1.
 
 <!--![newChain.png](./img/newChain.png) Image outdated-->
-
 
 ### Common Standards and Upgrades
 
