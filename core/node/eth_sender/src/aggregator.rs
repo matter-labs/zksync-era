@@ -4,12 +4,14 @@ use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
+use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
     helpers::unix_timestamp_ms,
+    l1::L1Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataDA,
     L1BatchNumber, ProtocolVersionId,
@@ -38,6 +40,7 @@ pub struct Aggregator {
     operate_4844_mode: bool,
     pubdata_da: PubdataDA,
     commitment_mode: L1BatchCommitmentMode,
+    priority_merkle_tree: SyncMerkleTree<L1Tx>,
 }
 
 impl Aggregator {
@@ -46,6 +49,7 @@ impl Aggregator {
         blob_store: Arc<dyn ObjectStore>,
         operate_4844_mode: bool,
         commitment_mode: L1BatchCommitmentMode,
+        priority_merkle_tree: SyncMerkleTree<L1Tx>,
     ) -> Self {
         let pubdata_da = config.pubdata_sending_mode.into();
 
@@ -109,6 +113,7 @@ impl Aggregator {
             operate_4844_mode,
             pubdata_da,
             commitment_mode,
+            priority_merkle_tree,
         }
     }
 
@@ -180,9 +185,46 @@ impl Aggregator {
             ready_for_execute_batches,
             last_sealed_l1_batch,
         )
-        .await;
+        .await?;
 
-        l1_batches.map(|l1_batches| ExecuteBatches { l1_batches })
+        let priority_tree_start_index = self.config.priority_tree_start_index.unwrap_or(0);
+        let mut priority_ops_proofs = vec![];
+        for batch in l1_batches.iter() {
+            let first_priority_op_id = match storage
+                .blocks_dal()
+                .get_batch_first_priority_op_id(batch.header.number)
+                .await
+                .unwrap()
+            {
+                // Batch has no priority ops, no proofs to send
+                None => return Default::default(),
+                // We haven't started to use the priority tree in the contracts yet
+                Some(id) if id < priority_tree_start_index => return Default::default(),
+                Some(id) => id,
+            };
+
+            let count = batch.header.l1_tx_count as usize;
+            self.priority_merkle_tree.trim_start(
+                first_priority_op_id // global index
+                    - priority_tree_start_index // first index when tree is activated
+                    - self.priority_merkle_tree.start_index(), // first index in the tree
+            );
+            let (_, left, right) = self
+                .priority_merkle_tree
+                .merkle_root_and_paths_for_range(0..count);
+            let hashes = self.priority_merkle_tree.hashes_prefix(count);
+            priority_ops_proofs.push(PriorityOpsMerkleProof {
+                // TODO: are zero hashes fine or should we pack it?
+                left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
+                right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
+                hashes,
+            });
+        }
+
+        Some(ExecuteBatches {
+            l1_batches,
+            priority_ops_proofs,
+        })
     }
 
     async fn get_commit_operation(

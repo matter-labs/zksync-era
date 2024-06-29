@@ -13,6 +13,7 @@ pub mod metadata_calculator;
 pub mod object_store;
 pub mod pk_signing_eth_client;
 pub mod pools_layer;
+pub mod priority_tree;
 pub mod prometheus_exporter;
 pub mod proof_data_handler;
 pub mod query_eth_client;

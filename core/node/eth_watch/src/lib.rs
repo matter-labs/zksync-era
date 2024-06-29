@@ -7,9 +7,10 @@ use std::time::Duration;
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
+    ethabi::Contract, l1::L1Tx, protocol_version::ProtocolSemanticVersion,
     web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
 };
 
@@ -53,6 +54,7 @@ impl EthWatch {
         mut client: Box<dyn EthClient>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
+        priority_merkle_tree: SyncMerkleTree<L1Tx>,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let state = Self::initialize_state(&*client, &mut storage).await?;
@@ -60,7 +62,7 @@ impl EthWatch {
         drop(storage);
 
         let priority_ops_processor =
-            PriorityOpsEventProcessor::new(state.next_expected_priority_id)?;
+            PriorityOpsEventProcessor::new(state.next_expected_priority_id, priority_merkle_tree)?;
         let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
             diamond_proxy_addr,
             state.last_seen_protocol_version,

@@ -1397,6 +1397,30 @@ impl BlocksDal<'_, '_> {
             .context("map_l1_batches()")
     }
 
+    pub async fn get_batch_first_priority_op_id(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<usize>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(priority_op_id) AS "id?"
+            FROM
+                transactions
+            WHERE
+                l1_batch_number = $1
+                AND is_priority = TRUE
+            "#,
+            i64::from(batch_number.0),
+        )
+        .instrument("get_batch_first_priority_op_id")
+        .with_arg("batch_number", &batch_number)
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.id.map(|id| id as usize))
+    }
+
     async fn raw_ready_for_execute_l1_batches(
         &mut self,
         max_l1_batch_timestamp_seconds: f64,
