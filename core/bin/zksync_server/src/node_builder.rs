@@ -28,6 +28,7 @@ use zksync_node_framework::{
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
+        priority_tree::PriorityTreeLayer,
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
@@ -194,10 +195,18 @@ impl MainNodeBuilder {
 
     fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.configs.eth);
-        self.node.add_layer(EthWatchLayer::new(
-            try_load_config!(eth_config.watcher),
-            self.contracts_config.clone(),
-        ));
+        let priority_tree_layer = PriorityTreeLayer::new(
+            eth_config
+                .sender
+                .and_then(|config| config.priority_tree_start_index)
+                .unwrap_or(0),
+        );
+        self.node
+            .add_layer(priority_tree_layer)
+            .add_layer(EthWatchLayer::new(
+                try_load_config!(eth_config.watcher),
+                self.contracts_config.clone(),
+            ));
         Ok(self)
     }
 
@@ -329,13 +338,21 @@ impl MainNodeBuilder {
 
     fn add_eth_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
-
-        self.node.add_layer(EthTxAggregatorLayer::new(
-            eth_sender_config,
-            self.contracts_config.clone(),
-            self.genesis_config.l2_chain_id,
-            self.genesis_config.l1_batch_commit_data_generator_mode,
-        ));
+        let priority_tree_layer = PriorityTreeLayer::new(
+            eth_sender_config
+                .sender
+                .as_ref()
+                .and_then(|config| config.priority_tree_start_index)
+                .unwrap_or(0),
+        );
+        self.node
+            .add_layer(priority_tree_layer)
+            .add_layer(EthTxAggregatorLayer::new(
+                eth_sender_config,
+                self.contracts_config.clone(),
+                self.genesis_config.l2_chain_id,
+                self.genesis_config.l1_batch_commit_data_generator_mode,
+            ));
 
         Ok(self)
     }

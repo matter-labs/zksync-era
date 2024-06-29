@@ -53,6 +53,7 @@ use zksync_house_keeper::{
 use zksync_metadata_calculator::{
     api_server::TreeApiHttpClient, MetadataCalculator, MetadataCalculatorConfig,
 };
+use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_node_api_server::{
     healthcheck::HealthCheckHandle,
     tx_sender::{build_tx_sender, TxSenderConfig},
@@ -72,7 +73,7 @@ use zksync_state_keeper::{
     TreeWritesPersistence,
 };
 use zksync_tee_verifier_input_producer::TeeVerifierInputProducer;
-use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
+use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, l1::L1Tx, Address, L2ChainId};
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
 pub mod temp_config_store;
@@ -568,6 +569,26 @@ pub async fn initialize_components(
         tracing::info!("initialized Consensus in {elapsed:?}");
     }
 
+    let priority_merkle_tree: SyncMerkleTree<L1Tx> = {
+        tracing::info!("initiaizing priority_merkle_tree");
+        let priority_op_start_index = configs
+            .eth
+            .clone()
+            .context("eth_config")?
+            .sender
+            .context("sender")?
+            .priority_tree_start_index
+            .unwrap_or(0);
+        let priority_op_hashes = connection_pool
+            .connection()
+            .await
+            .context("priority_merkle_tree")?
+            .transactions_dal()
+            .get_l1_transactions_hashes(priority_op_start_index)
+            .await?;
+        SyncMerkleTree::from_hashes(priority_op_hashes.into_iter(), None)
+    };
+
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -591,6 +612,7 @@ pub async fn initialize_components(
                 state_transition_manager_addr,
                 governance,
                 stop_receiver.clone(),
+                priority_merkle_tree.clone(),
             )
             .await
             .context("start_eth_watch()")?,
@@ -650,6 +672,7 @@ pub async fn initialize_components(
                 store_factory.create_store().await?,
                 operator_blobs_address.is_some(),
                 l1_batch_commit_data_generator_mode,
+                priority_merkle_tree.clone(),
             ),
             Box::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -913,6 +936,7 @@ async fn add_state_keeper_to_task_futures(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_eth_watch(
     config: EthWatchConfig,
     pool: ConnectionPool<Core>,
@@ -921,6 +945,7 @@ pub async fn start_eth_watch(
     state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
+    priority_merkle_tree: SyncMerkleTree<L1Tx>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
@@ -936,6 +961,7 @@ pub async fn start_eth_watch(
         Box::new(eth_client),
         pool,
         config.poll_interval(),
+        priority_merkle_tree,
     )
     .await?;
 

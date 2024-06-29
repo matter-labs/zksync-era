@@ -12,6 +12,7 @@ use crate::{
         l1_tx_params::L1TxParamsResource,
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
+        priority_merkle_tree::PriorityTreeResource,
     },
     service::{ServiceContext, StopReceiver},
     task::{Task, TaskId},
@@ -125,6 +126,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             Err(err) => return Err(err),
         };
         let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
+        let priority_merkle_tree = context.get_resource::<PriorityTreeResource>().await?.0;
 
         // Create and add tasks.
         let eth_client_blobs_addr = eth_client_blobs
@@ -137,6 +139,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             object_store,
             eth_client_blobs_addr.is_some(),
             self.l1_batch_commit_data_generator_mode,
+            priority_merkle_tree,
         );
 
         let eth_tx_aggregator_actor = EthTxAggregator::new(
