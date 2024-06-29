@@ -936,6 +936,7 @@ async fn add_state_keeper_to_task_futures(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_eth_watch(
     config: EthWatchConfig,
     pool: ConnectionPool<Core>,
