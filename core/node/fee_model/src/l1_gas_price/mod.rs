@@ -3,8 +3,7 @@
 use std::fmt;
 
 pub use self::{
-    gas_adjuster::{GasAdjuster, L1GasAdjuster, MockGasAdjuster},
-    main_node_fetcher::MainNodeFeeParamsFetcher,
+    gas_adjuster::GasAdjuster, main_node_fetcher::MainNodeFeeParamsFetcher,
     singleton::GasAdjusterSingleton,
 };
 

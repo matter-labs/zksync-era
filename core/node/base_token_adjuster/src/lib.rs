@@ -1,5 +1,3 @@
-extern crate core;
-
 pub use self::{
     base_token_adjuster::BaseTokenConversionPersister, base_token_fetcher::BaseTokenFetcher,
 };

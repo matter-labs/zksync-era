@@ -13,7 +13,7 @@ use zksync_types::{
 };
 use zksync_utils::ceil_div_u256;
 
-use crate::l1_gas_price::L1GasAdjuster;
+use crate::l1_gas_price::GasAdjuster;
 
 pub mod l1_gas_price;
 
@@ -60,7 +60,7 @@ impl dyn BatchFeeModelInputProvider {
 /// case with the external node.
 #[derive(Debug)]
 pub struct MainNodeFeeInputProvider {
-    provider: Arc<dyn L1GasAdjuster>,
+    provider: Arc<GasAdjuster>,
     base_token_adjuster: Arc<BaseTokenFetcher>,
     config: FeeModelConfig,
 }
@@ -85,7 +85,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 
 impl MainNodeFeeInputProvider {
     pub fn new(
-        provider: Arc<dyn L1GasAdjuster>,
+        provider: Arc<GasAdjuster>,
         base_token_fetcher: Arc<BaseTokenFetcher>,
         config: FeeModelConfig,
     ) -> Self {
@@ -250,10 +250,11 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 mod tests {
     use std::num::NonZeroU64;
 
-    use zksync_types::fee_model::BaseTokenConversionRatio;
+    use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+    use zksync_eth_client::{clients::MockEthereum, BaseFees};
+    use zksync_types::{commitment::L1BatchCommitmentMode, fee_model::BaseTokenConversionRatio};
 
     use super::*;
-    use crate::l1_gas_price::MockGasAdjuster;
 
     // To test that overflow never happens, we'll use giant L1 gas price, i.e.
     // almost realistic very large value of 100k gwei. Since it is so large, we'll also
@@ -504,7 +505,6 @@ mod tests {
             expected_l1_gas_price: u64,         // BaseToken
             expected_l1_pubdata_price: u64,     // BaseToken
         }
-
         let test_cases = vec![
             TestCase {
                 name: "1 ETH = 2 BaseToken",
@@ -600,32 +600,19 @@ mod tests {
         ];
 
         for case in test_cases {
-            let gas_adjuster = Arc::new(MockGasAdjuster::new(
-                case.input_l1_gas_price,
-                case.input_l1_pubdata_price,
-            ));
-
-            let base_token_fetcher = BaseTokenFetcher {
-                pool: None,
-                latest_ratio: Some(case.conversion_ratio),
-            };
-
-            let config = FeeModelConfig::V2(FeeModelConfigV2 {
-                minimal_l2_gas_price: case.input_minimal_l2_gas_price,
-                compute_overhead_part: 1.0,
-                pubdata_overhead_part: 1.0,
-                batch_overhead_l1_gas: 1,
-                max_gas_per_batch: 1,
-                max_pubdata_per_batch: 1,
-            });
-
-            let fee_provider = MainNodeFeeInputProvider::new(
-                gas_adjuster.clone(),
-                Arc::new(base_token_fetcher),
-                config,
+            let gas_adjuster =
+                setup_gas_adjuster(case.input_l1_gas_price, case.input_l1_pubdata_price).await;
+            let base_token_fetcher = setup_base_token_fetcher(case.conversion_ratio);
+            let fee_provider = setup_fee_provider(
+                gas_adjuster,
+                base_token_fetcher,
+                case.input_minimal_l2_gas_price,
             );
 
-            let fee_params = fee_provider.get_fee_model_params().await.unwrap();
+            let fee_params = fee_provider
+                .get_fee_model_params()
+                .await
+                .expect("Failed to get fee model params");
 
             if let FeeParams::V2(params) = fee_params {
                 assert_eq!(
@@ -650,5 +637,68 @@ mod tests {
                 panic!("Expected FeeParams::V2 for test case '{}'", case.name);
             }
         }
+    }
+
+    // Helper function to create base fees
+    fn base_fees(block: u64, blob: U256) -> BaseFees {
+        BaseFees {
+            base_fee_per_gas: block,
+            base_fee_per_blob_gas: blob,
+        }
+    }
+
+    async fn setup_gas_adjuster(l1_gas_price: u64, l1_pubdata_price: u64) -> GasAdjuster {
+        let mock = MockEthereum::builder()
+            .with_fee_history(vec![
+                base_fees(0, U256::from(4)),
+                base_fees(1, U256::from(3)),
+            ])
+            .build();
+        mock.advance_block_number(2); // Ensure we have enough blocks for the fee history
+
+        let gas_adjuster_config = GasAdjusterConfig {
+            internal_enforced_l1_gas_price: Some(l1_gas_price),
+            internal_enforced_pubdata_price: Some(l1_pubdata_price),
+            max_base_fee_samples: 1, // Ensure this is less than the number of blocks
+            num_samples_for_blob_base_fee_estimate: 2,
+            ..Default::default()
+        };
+
+        GasAdjuster::new(
+            Box::new(mock.into_client()),
+            gas_adjuster_config,
+            PubdataSendingMode::Blobs,
+            L1BatchCommitmentMode::Rollup,
+        )
+        .await
+        .expect("Failed to create GasAdjuster")
+    }
+
+    fn setup_base_token_fetcher(conversion_ratio: BaseTokenConversionRatio) -> BaseTokenFetcher {
+        BaseTokenFetcher {
+            pool: None,
+            latest_ratio: Some(conversion_ratio),
+        }
+    }
+
+    fn setup_fee_provider(
+        gas_adjuster: GasAdjuster,
+        base_token_fetcher: BaseTokenFetcher,
+        minimal_l2_gas_price: u64,
+    ) -> MainNodeFeeInputProvider {
+        let config = FeeModelConfig::V2(FeeModelConfigV2 {
+            minimal_l2_gas_price,
+            compute_overhead_part: 1.0,
+            pubdata_overhead_part: 1.0,
+            batch_overhead_l1_gas: 1,
+            max_gas_per_batch: 1,
+            max_pubdata_per_batch: 1,
+        });
+
+        MainNodeFeeInputProvider::new(
+            Arc::new(gas_adjuster.into()),
+            Arc::new(base_token_fetcher),
+            config,
+        )
     }
 }

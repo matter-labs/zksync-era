@@ -1,6 +1,5 @@
 use std::{fmt::Debug, num::NonZero, time::Duration};
 
-use rand::Rng;
 use tokio::{sync::watch, time::sleep};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{base_token_ratio::BaseTokenRatio, fee_model::BaseTokenConversionRatio};
@@ -38,8 +37,8 @@ impl BaseTokenFetcher {
     }
 
     async fn retry_get_latest_price(&self) -> anyhow::Result<BaseTokenRatio> {
-        let mut retry_delay = 1; // seconds
-        let max_retries = 5;
+        let retry_delay = 1; // seconds
+        let max_retries = 10;
         let mut attempts = 1;
 
         loop {
@@ -60,8 +59,7 @@ impl BaseTokenFetcher {
                     return Ok(last_storage_price);
                 }
                 Ok(None) if attempts < max_retries => {
-                    let sleep_duration = Duration::from_secs(retry_delay)
-                        .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
+                    let sleep_duration = Duration::from_secs(retry_delay);
                     tracing::warn!(
                         "Attempt {}/{} found no latest base token price, retrying in {} seconds...",
                         attempts,
@@ -69,7 +67,6 @@ impl BaseTokenFetcher {
                         sleep_duration.as_secs()
                     );
                     sleep(sleep_duration).await;
-                    retry_delay *= 2;
                     attempts += 1;
                 }
                 Ok(None) => {
