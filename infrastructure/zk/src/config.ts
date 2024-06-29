@@ -9,6 +9,7 @@ import { ethers } from 'ethers';
 import { getTestAccounts } from './run';
 import * as utils from 'utils';
 import { unpackStringSemVer } from 'utils';
+import { clean } from './clean';
 
 function loadConfigFile(configPath: string, stack: string[] = []) {
     if (stack.includes(configPath)) {
@@ -272,6 +273,7 @@ command
         const configFile = `etc/env/configs/${envName}.toml`;
 
         fs.writeFileSync(configFile, template);
+        clean(`etc/env/l2-inits/${envName}.init.env`)
 
         env.modify('CHAIN_ETH_ZKSYNC_NETWORK_ID', chainId, configFile, false);
 
