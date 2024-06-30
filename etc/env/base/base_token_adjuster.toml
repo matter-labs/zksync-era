@@ -1,0 +1,11 @@
+# Configuration for the Base Token Adjuster crate
+
+[base_token_adjuster]
+
+# How often to poll external price feeds for the base token price.
+price_polling_interval_ms = "50000"
+
+# The numerator and the denominator make up the BaseToken/ETH conversion ratio. Upon initialization,
+# the ratio is set to these configured values to avoid loss of liveness while external APIs are being used.
+initial_numerator = "100"
+initial_denominator = "1"

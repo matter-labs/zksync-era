@@ -1,9 +1,5 @@
-use zksync_config::{
-    configs::chain::{
-        CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-        StateKeeperConfig,
-    },
-    BaseTokenAdjusterConfig,
+use zksync_config::configs::chain::{
+    CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig,
 };
 
 use crate::{envy_load, FromEnv};
@@ -35,12 +31,6 @@ impl FromEnv for CircuitBreakerConfig {
 impl FromEnv for MempoolConfig {
     fn from_env() -> anyhow::Result<Self> {
         envy_load("mempool", "CHAIN_MEMPOOL_")
-    }
-}
-
-impl FromEnv for BaseTokenAdjusterConfig {
-    fn from_env() -> anyhow::Result<Self> {
-        envy_load("base_token_adjuster", "BASE_TOKEN_ADJUSTER_")
     }
 }
 

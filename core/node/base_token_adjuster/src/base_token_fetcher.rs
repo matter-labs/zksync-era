@@ -1,6 +1,7 @@
-use std::{fmt::Debug, num::NonZero, time::Duration};
+use std::{fmt::Debug, num::NonZeroU64, time::Duration};
 
 use tokio::{sync::watch, time::sleep};
+use zksync_config::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{base_token_ratio::BaseTokenRatio, fee_model::BaseTokenConversionRatio};
 
@@ -11,9 +12,26 @@ const CACHE_UPDATE_INTERVAL: Duration = Duration::from_millis(500);
 pub struct BaseTokenFetcher {
     pub pool: Option<ConnectionPool<Core>>,
     pub latest_ratio: Option<BaseTokenConversionRatio>,
+    pub config: BaseTokenAdjusterConfig,
 }
 
 impl BaseTokenFetcher {
+    pub fn new(pool: Option<ConnectionPool<Core>>, config: BaseTokenAdjusterConfig) -> Self {
+        let latest_ratio = Some(BaseTokenConversionRatio {
+            numerator: NonZeroU64::from(config.initial_numerator),
+            denominator: NonZeroU64::from(config.initial_denominator),
+        });
+        tracing::debug!(
+            "Starting the base token fetcher with conversion ratio: {:?}",
+            latest_ratio
+        );
+        Self {
+            pool,
+            latest_ratio,
+            config,
+        }
+    }
+
     pub async fn run(&mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(CACHE_UPDATE_INTERVAL);
 
@@ -32,13 +50,13 @@ impl BaseTokenFetcher {
             });
         }
 
-        tracing::info!("Stop signal received, eth_watch is shutting down");
+        tracing::info!("Stop signal received, base_token_fetcher is shutting down");
         Ok(())
     }
 
     async fn retry_get_latest_price(&self) -> anyhow::Result<BaseTokenRatio> {
         let retry_delay = 1; // seconds
-        let max_retries = 10;
+        let max_retries = 5; // should be enough time to allow fetching from external APIs & updating the DB upon init
         let mut attempts = 1;
 
         loop {
@@ -82,8 +100,9 @@ impl BaseTokenFetcher {
         }
     }
 
-    pub fn get_conversion_ratio(&self) -> Option<BaseTokenConversionRatio> {
-        self.latest_ratio
+    // TODO(PE-129): Implement latest ratio usability logic.
+    pub fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
+        self.latest_ratio.expect("Conversion ratio is not set")
     }
 }
 
@@ -93,9 +112,10 @@ impl Default for BaseTokenFetcher {
         Self {
             pool: None,
             latest_ratio: Some(BaseTokenConversionRatio {
-                numerator: NonZero::new(1).unwrap(),
-                denominator: NonZero::new(1).unwrap(),
+                numerator: NonZeroU64::new(1).unwrap(),
+                denominator: NonZeroU64::new(1).unwrap(),
             }),
+            config: BaseTokenAdjusterConfig::default(),
         }
     }
 }

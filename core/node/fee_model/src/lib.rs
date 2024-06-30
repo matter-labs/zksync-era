@@ -77,7 +77,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
                 config,
                 self.provider.estimate_effective_gas_price(),
                 self.provider.estimate_effective_pubdata_price(),
-                self.base_token_adjuster.get_conversion_ratio().unwrap(),
+                self.base_token_adjuster.get_conversion_ratio(),
             ))),
         }
     }
@@ -250,7 +250,10 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 mod tests {
     use std::num::NonZeroU64;
 
-    use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+    use zksync_config::{
+        configs::{base_token_adjuster::BaseTokenAdjusterConfig, eth_sender::PubdataSendingMode},
+        GasAdjusterConfig,
+    };
     use zksync_eth_client::{clients::MockEthereum, BaseFees};
     use zksync_types::{commitment::L1BatchCommitmentMode, fee_model::BaseTokenConversionRatio};
 
@@ -602,7 +605,16 @@ mod tests {
         for case in test_cases {
             let gas_adjuster =
                 setup_gas_adjuster(case.input_l1_gas_price, case.input_l1_pubdata_price).await;
-            let base_token_fetcher = setup_base_token_fetcher(case.conversion_ratio);
+
+            let base_token_fetcher = BaseTokenFetcher::new(
+                None,
+                BaseTokenAdjusterConfig {
+                    price_polling_interval_ms: None,
+                    initial_numerator: case.conversion_ratio.numerator,
+                    initial_denominator: case.conversion_ratio.denominator,
+                },
+            );
+
             let fee_provider = setup_fee_provider(
                 gas_adjuster,
                 base_token_fetcher,
@@ -639,7 +651,7 @@ mod tests {
         }
     }
 
-    // Helper function to create base fees
+    // Helper function to create BaseFees.
     fn base_fees(block: u64, blob: U256) -> BaseFees {
         BaseFees {
             base_fee_per_gas: block,
@@ -647,6 +659,7 @@ mod tests {
         }
     }
 
+    // Helper function to setup the GasAdjuster.
     async fn setup_gas_adjuster(l1_gas_price: u64, l1_pubdata_price: u64) -> GasAdjuster {
         let mock = MockEthereum::builder()
             .with_fee_history(vec![
@@ -674,13 +687,7 @@ mod tests {
         .expect("Failed to create GasAdjuster")
     }
 
-    fn setup_base_token_fetcher(conversion_ratio: BaseTokenConversionRatio) -> BaseTokenFetcher {
-        BaseTokenFetcher {
-            pool: None,
-            latest_ratio: Some(conversion_ratio),
-        }
-    }
-
+    // Helper function to setup the MainNodeFeeInputProvider.
     fn setup_fee_provider(
         gas_adjuster: GasAdjuster,
         base_token_fetcher: BaseTokenFetcher,
@@ -695,10 +702,6 @@ mod tests {
             max_pubdata_per_batch: 1,
         });
 
-        MainNodeFeeInputProvider::new(
-            Arc::new(gas_adjuster.into()),
-            Arc::new(base_token_fetcher),
-            config,
-        )
+        MainNodeFeeInputProvider::new(Arc::new(gas_adjuster), Arc::new(base_token_fetcher), config)
     }
 }

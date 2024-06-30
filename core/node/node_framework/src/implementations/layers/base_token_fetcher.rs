@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use zksync_base_token_adjuster::BaseTokenFetcher;
+use zksync_config::BaseTokenAdjusterConfig;
 
 use crate::{
     implementations::resources::{
@@ -14,7 +15,15 @@ use crate::{
 
 /// A layer that inserts a resource for [`BaseTokenFetcher`].
 #[derive(Debug)]
-pub struct BaseTokenFetcherLayer;
+pub struct BaseTokenFetcherLayer {
+    config: BaseTokenAdjusterConfig,
+}
+
+impl BaseTokenFetcherLayer {
+    pub fn new(config: BaseTokenAdjusterConfig) -> Self {
+        Self { config }
+    }
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for BaseTokenFetcherLayer {
@@ -29,6 +38,7 @@ impl WiringLayer for BaseTokenFetcherLayer {
         let fetcher = BaseTokenFetcher {
             pool: Some(master_pool),
             latest_ratio: None,
+            config: self.config,
         };
 
         context.insert_resource(BaseTokenFetcherResource(Arc::new(fetcher.clone())))?;
