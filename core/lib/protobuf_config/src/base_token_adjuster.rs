@@ -1,5 +1,6 @@
-use anyhow::Context as _;
 use std::num::NonZeroU64;
+
+use anyhow::Context as _;
 use zksync_config::configs::{self};
 use zksync_protobuf::{required, ProtoRepr};
 
