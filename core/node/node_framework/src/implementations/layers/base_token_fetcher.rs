@@ -6,14 +6,29 @@ use zksync_config::BaseTokenAdjusterConfig;
 use crate::{
     implementations::resources::{
         base_token_fetcher::BaseTokenFetcherResource,
-        pools::{MasterPool, PoolResource},
+        pools::{PoolResource, ReplicaPool},
     },
     service::{ServiceContext, StopReceiver},
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// A layer that inserts a resource for [`BaseTokenFetcher`].
+/// Wiring layer for `BaseTokenFetcher`
+///
+/// Responsible for serving the latest ETH<->BaseToken conversion ratio. This layer is only wired if
+/// the base token is not ETH. If wired, this layer inserts the BaseTokenFetcherResource and kicks
+/// off a task to poll the DB for the latest ratio and cache it.
+///
+/// If the base token is ETH, a default, no-op impl of the BaseTokenFetcherResource is used by other
+/// layers to always return a conversion ratio of 1.
+
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+///
+/// ## Adds tasks
+///
+/// - `BaseTokenFetcher`
 #[derive(Debug)]
 pub struct BaseTokenFetcherLayer {
     config: BaseTokenAdjusterConfig,
@@ -32,14 +47,10 @@ impl WiringLayer for BaseTokenFetcherLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let master_pool = master_pool_resource.get().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_pool = replica_pool_resource.get().await.unwrap();
 
-        let fetcher = BaseTokenFetcher {
-            pool: Some(master_pool),
-            latest_ratio: None,
-            config: self.config,
-        };
+        let fetcher = BaseTokenFetcher::new(Some(replica_pool), self.config);
 
         context.insert_resource(BaseTokenFetcherResource(Arc::new(fetcher.clone())))?;
         context.add_task(Box::new(fetcher));

@@ -1,4 +1,4 @@
-use zksync_base_token_adjuster::BaseTokenConversionPersister;
+use zksync_base_token_adjuster::BaseTokenAdjuster;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 
 use crate::{
@@ -8,7 +8,18 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// A layer that wires the Base Token Adjuster task.
+/// Wiring layer for `BaseTokenAdjuster`
+///
+/// Responsible for orchestrating communications with external API feeds to get ETH<->BaseToken
+/// conversion ratios and persisting them both in the DB and in the L1.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<ReplicaPool>`
+///
+/// ## Adds tasks
+///
+/// - `BaseTokenAdjuster`
 #[derive(Debug)]
 pub struct BaseTokenAdjusterLayer {
     config: BaseTokenAdjusterConfig,
@@ -30,16 +41,16 @@ impl WiringLayer for BaseTokenAdjusterLayer {
         let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let master_pool = master_pool_resource.get().await?;
 
-        let persister = BaseTokenConversionPersister::new(master_pool, self.config);
+        let adjuster = BaseTokenAdjuster::new(master_pool, self.config);
 
-        context.add_task(Box::new(persister));
+        context.add_task(Box::new(adjuster));
 
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl Task for BaseTokenConversionPersister {
+impl Task for BaseTokenAdjuster {
     fn id(&self) -> TaskId {
         "base_token_adjuster".into()
     }

@@ -402,8 +402,7 @@ mod tests {
         let base_input_larger_l1_gas_price = compute_batch_fee_model_input_v2(
             FeeParamsV2::new(
                 base_config,
-                // We double the L1 gas price
-                2_000_000_000,
+                2_000_000_000, // double the L1 gas price
                 1_000_000_000,
                 BaseTokenConversionRatio::default(),
             ),
@@ -429,8 +428,7 @@ mod tests {
             FeeParamsV2::new(
                 base_config,
                 1_000_000_000,
-                // We double the L1 pubdata price
-                2_000_000_000,
+                2_000_000_000, // double the L1 pubdata price
                 BaseTokenConversionRatio::default(),
             ),
             1.0,

@@ -10,20 +10,9 @@ pub struct BaseTokenAdjusterConfig {
     /// How often to fetch external APIs for a new ETH<->Base-Token price.
     pub price_polling_interval_ms: Option<u64>,
     /// The numerator and the denominator make up the BaseToken/ETH conversion ratio. Upon initialization,
-    /// the ratio is set to these configured values to avoid loss of liveness while external APIs are being used.
+    /// the ratio is set to these configured values to avoid loss of liveness while we wait for external APIs.
     pub initial_numerator: NonZeroU64,
     pub initial_denominator: NonZeroU64,
-}
-
-// default
-impl Default for BaseTokenAdjusterConfig {
-    fn default() -> Self {
-        Self {
-            price_polling_interval_ms: None,
-            initial_numerator: NonZeroU64::new(1).unwrap(),
-            initial_denominator: NonZeroU64::new(1).unwrap(),
-        }
-    }
 }
 
 impl BaseTokenAdjusterConfig {

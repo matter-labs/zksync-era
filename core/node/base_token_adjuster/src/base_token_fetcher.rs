@@ -8,19 +8,18 @@ use zksync_types::{base_token_ratio::BaseTokenRatio, fee_model::BaseTokenConvers
 const CACHE_UPDATE_INTERVAL: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone)]
-/// BaseTokenAdjuster implementation for the main node (not the External Node).
 pub struct BaseTokenFetcher {
     pub pool: Option<ConnectionPool<Core>>,
-    pub latest_ratio: Option<BaseTokenConversionRatio>,
+    pub latest_ratio: BaseTokenConversionRatio,
     pub config: BaseTokenAdjusterConfig,
 }
 
 impl BaseTokenFetcher {
     pub fn new(pool: Option<ConnectionPool<Core>>, config: BaseTokenAdjusterConfig) -> Self {
-        let latest_ratio = Some(BaseTokenConversionRatio {
-            numerator: NonZeroU64::from(config.initial_numerator),
-            denominator: NonZeroU64::from(config.initial_denominator),
-        });
+        let latest_ratio = BaseTokenConversionRatio {
+            numerator: config.initial_numerator,
+            denominator: config.initial_denominator,
+        };
         tracing::debug!(
             "Starting the base token fetcher with conversion ratio: {:?}",
             latest_ratio
@@ -44,10 +43,10 @@ impl BaseTokenFetcher {
             let latest_storage_ratio = self.retry_get_latest_price().await?;
 
             // TODO(PE-129): Implement latest ratio usability logic.
-            self.latest_ratio = Some(BaseTokenConversionRatio {
+            self.latest_ratio = BaseTokenConversionRatio {
                 numerator: latest_storage_ratio.numerator,
                 denominator: latest_storage_ratio.denominator,
-            });
+            };
         }
 
         tracing::info!("Stop signal received, base_token_fetcher is shutting down");
@@ -55,7 +54,7 @@ impl BaseTokenFetcher {
     }
 
     async fn retry_get_latest_price(&self) -> anyhow::Result<BaseTokenRatio> {
-        let retry_delay = 1; // seconds
+        let sleep_duration = Duration::from_secs(1);
         let max_retries = 5; // should be enough time to allow fetching from external APIs & updating the DB upon init
         let mut attempts = 1;
 
@@ -64,7 +63,7 @@ impl BaseTokenFetcher {
                 .pool
                 .as_ref()
                 .expect("Connection pool is not set")
-                .connection_tagged("base_token_adjuster")
+                .connection_tagged("base_token_fetcher")
                 .await
                 .expect("Failed to obtain connection to the database");
 
@@ -76,10 +75,9 @@ impl BaseTokenFetcher {
                 Ok(Some(last_storage_price)) => {
                     return Ok(last_storage_price);
                 }
-                Ok(None) if attempts < max_retries => {
-                    let sleep_duration = Duration::from_secs(retry_delay);
+                Ok(None) if attempts <= max_retries => {
                     tracing::warn!(
-                        "Attempt {}/{} found no latest base token price, retrying in {} seconds...",
+                        "Attempt {}/{} found no latest base token ratio. Retrying in {} seconds...",
                         attempts,
                         max_retries,
                         sleep_duration.as_secs()
@@ -89,12 +87,12 @@ impl BaseTokenFetcher {
                 }
                 Ok(None) => {
                     anyhow::bail!(
-                        "No latest base token price found after {} attempts",
+                        "No latest base token ratio found after {} attempts",
                         max_retries
                     );
                 }
                 Err(err) => {
-                    anyhow::bail!("Failed to get latest base token price: {:?}", err);
+                    anyhow::bail!("Failed to get latest base token ratio: {:?}", err);
                 }
             }
         }
@@ -102,20 +100,24 @@ impl BaseTokenFetcher {
 
     // TODO(PE-129): Implement latest ratio usability logic.
     pub fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
-        self.latest_ratio.expect("Conversion ratio is not set")
+        self.latest_ratio
     }
 }
 
-// Default impl for a No Op BaseTokenFetcher.
+// Default impl for a no-op BaseTokenFetcher (conversion ratio is always 1:1).
 impl Default for BaseTokenFetcher {
     fn default() -> Self {
         Self {
             pool: None,
-            latest_ratio: Some(BaseTokenConversionRatio {
+            latest_ratio: BaseTokenConversionRatio {
                 numerator: NonZeroU64::new(1).unwrap(),
                 denominator: NonZeroU64::new(1).unwrap(),
-            }),
-            config: BaseTokenAdjusterConfig::default(),
+            },
+            config: BaseTokenAdjusterConfig {
+                price_polling_interval_ms: None,
+                initial_numerator: NonZeroU64::new(1).unwrap(),
+                initial_denominator: NonZeroU64::new(1).unwrap(),
+            },
         }
     }
 }

@@ -8,19 +8,18 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::base_token_ratio::BaseTokenAPIRatio;
 
 #[derive(Debug, Clone)]
-/// BaseTokenAdjuster implementation for the main node (not the External Node). TODO (PE-137): impl APIBaseTokenAdjuster
-pub struct BaseTokenConversionPersister {
+pub struct BaseTokenAdjuster {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
 }
 
-impl BaseTokenConversionPersister {
+impl BaseTokenAdjuster {
     pub fn new(pool: ConnectionPool<Core>, config: BaseTokenAdjusterConfig) -> Self {
         Self { pool, config }
     }
 
     /// Main loop for the base token adjuster.
-    /// Orchestrates fetching new ratio, persisting it, and updating L1.
+    /// Orchestrates fetching a new ratio, persisting it, and conditionally updating the L1 with it.
     pub async fn run(&mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(self.config.price_polling_interval());
         let pool = self.pool.clone();
@@ -36,7 +35,7 @@ impl BaseTokenConversionPersister {
             // TODO(PE-128): Update L1 ratio
         }
 
-        tracing::info!("Stop signal received, eth_watch is shutting down");
+        tracing::info!("Stop signal received, base_token_adjuster is shutting down");
         Ok(())
     }
 
@@ -70,7 +69,7 @@ impl BaseTokenConversionPersister {
                 &api_price.ratio_timestamp.naive_utc(),
             )
             .await
-            .context("Failed to insert token ratio into the database")?;
+            .context("Failed to insert base token ratio into the database")?;
 
         Ok(id)
     }

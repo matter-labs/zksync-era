@@ -49,7 +49,7 @@ impl BaseTokenDal<'_, '_> {
             FROM
                 base_token_ratios
             ORDER BY
-                created_at DESC
+                ratio_timestamp DESC
             LIMIT
                 1
             "#,

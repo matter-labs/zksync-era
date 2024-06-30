@@ -290,12 +290,12 @@ impl FeeParamsV2 {
             None => {
                 if converted_price_bd > BigDecimal::from(u64::MAX) {
                     tracing::warn!(
-                        "Conversion to base token price failed: converted price is too large: {}",
+                        "Conversion to base token price failed: converted price is too large: {}. Using u64::MAX instead.",
                         converted_price_bd
                     );
                 } else {
                     tracing::error!(
-                    "Conversion to base token price failed: converted price is not a valid u64: {}",
+                    "Conversion to base token price failed: converted price is not a valid u64: {}. Using u64::MAX instead.",
                     converted_price_bd
                 );
                 }

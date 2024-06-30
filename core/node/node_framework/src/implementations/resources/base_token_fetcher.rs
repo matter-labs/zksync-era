@@ -10,6 +10,6 @@ pub struct BaseTokenFetcherResource(pub Arc<BaseTokenFetcher>);
 
 impl Resource for BaseTokenFetcherResource {
     fn name() -> String {
-        "common/base_token_adjuster".into()
+        "common/base_token_fetcher".into()
     }
 }
