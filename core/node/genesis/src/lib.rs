@@ -270,6 +270,10 @@ pub async fn insert_genesis_batch(
     })
 }
 
+pub async fn is_genesis_needed(storage: &mut Connection<'_, Core>) -> Result<bool, GenesisError> {
+    Ok(storage.blocks_dal().is_genesis_needed().await?)
+}
+
 pub async fn ensure_genesis_state(
     storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
