@@ -8,7 +8,7 @@ use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError, EnrichedCli
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
 use crate::{
     types::{ExecutedTxStatus, FailureInfo},
-    EthInterface, RawTransactionBytes,
+    BaseFees, EthInterface, RawTransactionBytes,
 };
 
 #[async_trait]
@@ -78,7 +78,15 @@ where
         &self,
         upto_block: usize,
         block_count: usize,
-    ) -> EnrichedClientResult<Vec<u64>> {
+    ) -> EnrichedClientResult<Vec<BaseFees>> {
+        // Non-panicking conversion to u64.
+        fn cast_to_u64(value: U256, tag: &str) -> EnrichedClientResult<u64> {
+            u64::try_from(value).map_err(|_| {
+                let err = ClientError::Custom(format!("{tag} value does not fit in u64"));
+                EnrichedClientError::new(err, "cast_to_u64").with_arg("value", &value)
+            })
+        }
+
         const MAX_REQUEST_CHUNK: usize = 1024;
 
         COUNTERS.call[&(Method::BaseFeeHistory, self.component())].inc();
@@ -103,11 +111,34 @@ where
                 .with_arg("chunk_size", &chunk_size)
                 .with_arg("block", &chunk_end)
                 .await?;
-            history.extend(fee_history.base_fee_per_gas);
+
+            // Check that the lengths are the same.
+            // Per specification, the values should always be provided, and must be 0 for blocks
+            // prior to EIP-4844.
+            // https://ethereum.github.io/execution-apis/api-documentation/
+            if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
+                tracing::error!(
+                    "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
+                    fee_history.base_fee_per_gas.len(),
+                    fee_history.base_fee_per_blob_gas.len()
+                );
+            }
+
+            for (base, blob) in fee_history
+                .base_fee_per_gas
+                .into_iter()
+                .zip(fee_history.base_fee_per_blob_gas)
+            {
+                let fees = BaseFees {
+                    base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
+                    base_fee_per_blob_gas: blob,
+                };
+                history.push(fees)
+            }
         }
 
         latency.observe();
-        Ok(history.into_iter().map(|fee| fee.as_u64()).collect())
+        Ok(history)
     }
 
     async fn get_pending_block_base_fee_per_gas(&self) -> EnrichedClientResult<U256> {

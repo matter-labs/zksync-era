@@ -8,14 +8,17 @@ use types::{
     BaseToken, ChainId, L1BatchCommitDataGeneratorMode, L1Network, ProverMode, WalletCreation,
 };
 use xshell::Shell;
+use zksync_config::configs::GeneralConfig as ZkSyncGeneralConfig;
+use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 use crate::{
     consts::{
-        CONFIG_NAME, CONTRACTS_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
+        CONFIG_NAME, CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY,
+        SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -30,6 +33,7 @@ pub struct ChainConfigInternal {
     pub prover_version: ProverMode,
     pub configs: PathBuf,
     pub rocks_db_path: PathBuf,
+    pub external_node_config_path: Option<PathBuf>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     pub base_token: BaseToken,
     pub wallet_creation: WalletCreation,
@@ -47,6 +51,7 @@ pub struct ChainConfig {
     pub link_to_code: PathBuf,
     pub rocks_db_path: PathBuf,
     pub configs: PathBuf,
+    pub external_node_config_path: Option<PathBuf>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     pub base_token: BaseToken,
     pub wallet_creation: WalletCreation,
@@ -71,6 +76,10 @@ impl ChainConfig {
         GenesisConfig::read(self.get_shell(), self.configs.join(GENESIS_FILE))
     }
 
+    pub fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
+        GeneralConfig::read(self.get_shell(), self.configs.join(GENERAL_FILE))
+    }
+
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {
         let path = self.configs.join(WALLETS_FILE);
         if let Ok(wallets) = WalletsConfig::read(self.get_shell(), &path) {
@@ -91,6 +100,25 @@ impl ChainConfig {
         SecretsConfig::read(self.get_shell(), self.configs.join(SECRETS_FILE))
     }
 
+    pub fn get_zksync_general_config(&self) -> anyhow::Result<ZkSyncGeneralConfig> {
+        decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
+            &self.configs.join(GENERAL_FILE),
+            false,
+        )
+    }
+
+    pub fn save_zksync_general_config(
+        &self,
+        general_config: &ZkSyncGeneralConfig,
+    ) -> anyhow::Result<()> {
+        let path = self.configs.join(GENERAL_FILE);
+        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
+            general_config,
+        )?;
+        self.get_shell().write_file(path, bytes)?;
+        Ok(())
+    }
+
     pub fn path_to_foundry(&self) -> PathBuf {
         self.link_to_code.join(L1_CONTRACTS_FOUNDRY)
     }
@@ -100,7 +128,7 @@ impl ChainConfig {
         config.save(shell, path)
     }
 
-    pub fn save_with_base_path(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
+    pub fn save_with_base_path(self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         let config = self.get_internal();
         config.save_with_base_path(shell, path)
     }
@@ -113,6 +141,7 @@ impl ChainConfig {
             prover_version: self.prover_version,
             configs: self.configs.clone(),
             rocks_db_path: self.rocks_db_path.clone(),
+            external_node_config_path: self.external_node_config_path.clone(),
             l1_batch_commit_data_generator_mode: self.l1_batch_commit_data_generator_mode,
             base_token: self.base_token.clone(),
             wallet_creation: self.wallet_creation,

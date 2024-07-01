@@ -18,11 +18,17 @@ pub trait FileConfigWithDefaultName {
 }
 
 impl<T> FileConfig for T where T: FileConfigWithDefaultName {}
+
 impl<T> ReadConfig for T where T: FileConfig + Clone + DeserializeOwned {}
+
 impl<T> SaveConfig for T where T: FileConfig + Serialize {}
+
 impl<T> SaveConfigWithComment for T where T: FileConfig + Serialize {}
+
 impl<T> ReadConfigWithBasePath for T where T: FileConfigWithDefaultName + Clone + DeserializeOwned {}
+
 impl<T> SaveConfigWithBasePath for T where T: FileConfigWithDefaultName + Serialize {}
+
 impl<T> SaveConfigWithCommentAndBasePath for T where T: FileConfigWithDefaultName + Serialize {}
 
 /// Reads a config file from a given path, correctly parsing file extension.

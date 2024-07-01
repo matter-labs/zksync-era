@@ -8,7 +8,6 @@ enum FeeModelVersion {
   V2 = 1;
 }
 
-
 message StateKeeper {
   optional uint64 transaction_slots = 1; // required
   optional uint64 block_commit_deadline_ms = 2; // required; ms

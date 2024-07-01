@@ -68,14 +68,10 @@ impl StorageLogsDedupDal<'_, '_> {
 
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
-        for log in snapshot_storage_logs.iter() {
+        for log in snapshot_storage_logs {
             let row = format!(
                 "\\\\x{:x}|{}|{}|{}|{}\n",
-                log.key.hashed_key(),
-                log.enumeration_index,
-                log.l1_batch_number_of_initial_write,
-                now,
-                now,
+                log.key, log.enumeration_index, log.l1_batch_number_of_initial_write, now, now,
             );
             bytes.extend_from_slice(row.as_bytes());
         }
@@ -85,12 +81,9 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn insert_initial_writes(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        written_storage_keys: &[StorageKey],
+        written_hashed_keys: &[H256],
     ) -> DalResult<()> {
-        let hashed_keys: Vec<_> = written_storage_keys
-            .iter()
-            .map(|key| StorageKey::raw_hashed_key(key.address(), key.key()).to_vec())
-            .collect();
+        let hashed_keys: Vec<_> = written_hashed_keys.iter().map(H256::as_bytes).collect();
 
         let last_index = self.max_enumeration_index().await?.unwrap_or(0);
         let indices: Vec<_> = ((last_index + 1)..=(last_index + hashed_keys.len() as u64))
@@ -110,7 +103,7 @@ impl StorageLogsDedupDal<'_, '_> {
             FROM
                 UNNEST($1::bytea[], $2::BIGINT[]) AS u (hashed_key, INDEX)
             "#,
-            &hashed_keys,
+            &hashed_keys as &[&[u8]],
             &indices,
             i64::from(l1_batch_number.0)
         )
@@ -343,8 +336,8 @@ mod tests {
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
         let initial_writes = [
-            StorageKey::new(account, H256::zero()),
-            StorageKey::new(account, H256::repeat_byte(1)),
+            StorageKey::new(account, H256::zero()).hashed_key(),
+            StorageKey::new(account, H256::repeat_byte(1)).hashed_key(),
         ];
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(0), &initial_writes)
@@ -359,8 +352,8 @@ mod tests {
         assert_eq!(max_index, Some(2));
 
         let initial_writes = [
-            StorageKey::new(account, H256::repeat_byte(2)),
-            StorageKey::new(account, H256::repeat_byte(3)),
+            StorageKey::new(account, H256::repeat_byte(2)).hashed_key(),
+            StorageKey::new(account, H256::repeat_byte(3)).hashed_key(),
         ];
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(1), &initial_writes)
