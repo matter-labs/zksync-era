@@ -1,13 +1,12 @@
-use args::run::ProverRunArgs;
-use args::init::ProverInitArgs;
+use args::{init::ProverInitArgs, run::ProverRunArgs};
 use clap::Subcommand;
 use xshell::Shell;
 mod args;
-mod generate_sk;
-mod run;
-mod init;
-mod utils;
 mod gcs;
+mod generate_sk;
+mod init;
+mod run;
+mod utils;
 
 #[derive(Subcommand, Debug)]
 pub enum ProverCommands {
