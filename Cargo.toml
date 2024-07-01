@@ -28,6 +28,7 @@ members = [
     "core/node/consistency_checker",
     "core/node/metadata_calculator",
     "core/node/node_sync",
+    "core/node/node_storage_init",
     "core/node/consensus",
     "core/node/contract_verification_server",
     "core/node/api_server",
@@ -256,6 +257,7 @@ zksync_reorg_detector = { path = "core/node/reorg_detector" }
 zksync_consistency_checker = { path = "core/node/consistency_checker" }
 zksync_metadata_calculator = { path = "core/node/metadata_calculator" }
 zksync_node_sync = { path = "core/node/node_sync" }
+zksync_node_storage_init = { path = "core/node/node_storage_init" }
 zksync_node_consensus = { path = "core/node/consensus" }
 zksync_contract_verification_server = { path = "core/node/contract_verification_server" }
 zksync_node_api_server = { path = "core/node/api_server" }

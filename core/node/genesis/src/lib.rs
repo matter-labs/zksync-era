@@ -408,9 +408,8 @@ pub async fn create_genesis_l1_batch(
     Ok(())
 }
 
-// Save chain id transaction into the database
-// We keep returning anyhow and will refactor it later
-pub async fn save_set_chain_id_tx(
+// TODO: left to let the old code compile, to be removed in this PR.
+pub async fn save_set_chain_id_tx_temp(
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
@@ -419,7 +418,23 @@ pub async fn save_set_chain_id_tx(
     let db_url = database_secrets.master_url()?;
     let pool = ConnectionPool::<Core>::singleton(db_url).build().await?;
     let mut storage = pool.connection().await?;
+    save_set_chain_id_tx(
+        &mut storage,
+        query_client,
+        diamond_proxy_address,
+        state_transition_manager_address,
+    )
+    .await
+}
 
+// Save chain id transaction into the database
+// We keep returning anyhow and will refactor it later
+pub async fn save_set_chain_id_tx(
+    storage: &mut Connection<'_, Core>,
+    query_client: &dyn EthInterface,
+    diamond_proxy_address: Address,
+    state_transition_manager_address: Address,
+) -> anyhow::Result<()> {
     let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
     let filter = FilterBuilder::default()

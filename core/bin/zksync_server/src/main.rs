@@ -226,7 +226,8 @@ fn run_genesis_if_needed(
                     .context("Ethereum client")?
                     .for_network(genesis.l1_chain_id.into())
                     .build();
-                zksync_node_genesis::save_set_chain_id_tx(
+
+                zksync_node_genesis::save_set_chain_id_tx_temp(
                     &query_client,
                     contracts_config.diamond_proxy_addr,
                     ecosystem_contracts.state_transition_proxy_addr,
