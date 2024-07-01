@@ -111,17 +111,12 @@ impl VmRunner {
                 .context("VM runner failed to handle L2 block")?;
         }
 
-        let storage_view_cache = batch_executor
-            .storage_view_cache()
+        let (finished_batch, storage_view_cache) = batch_executor
+            .finish_batch_with_cache()
             .await
             .context("Failed getting storage view cache")?;
-        updates_manager.update_storage_view_cache(storage_view_cache);
-
-        let finished_batch = batch_executor
-            .finish_batch()
-            .await
-            .context("failed finishing L1 batch in executor")?;
         updates_manager.finish_batch(finished_batch);
+        updates_manager.update_storage_view_cache(storage_view_cache);
 
         latency.observe();
         output_handler

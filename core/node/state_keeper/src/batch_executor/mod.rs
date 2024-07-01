@@ -230,11 +230,13 @@ impl BatchExecutorHandle {
         Ok(finished_batch)
     }
 
-    pub async fn storage_view_cache(&mut self) -> anyhow::Result<StorageViewCache> {
+    pub async fn finish_batch_with_cache(
+        mut self,
+    ) -> anyhow::Result<(FinishedL1Batch, StorageViewCache)> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands
-            .send(Command::StorageViewCache(response_sender))
+            .send(Command::FinishBatchWithCache(response_sender))
             .await
             .is_err();
         if send_failed {
@@ -242,14 +244,17 @@ impl BatchExecutorHandle {
         }
 
         let latency = EXECUTOR_METRICS.batch_executor_command_response_time
-            [&ExecutorCommand::StorageViewCache]
+            [&ExecutorCommand::FinishBatchWithCache]
             .start();
-        let storage_view_cache = match response_receiver.await {
-            Ok(cache) => cache,
+        let batch_with_cache = match response_receiver.await {
+            Ok(batch_with_cache) => batch_with_cache,
             Err(_) => return Err(self.handle.wait_for_error().await),
         };
+
+        self.handle.wait().await?;
+
         latency.observe();
-        Ok(storage_view_cache)
+        Ok(batch_with_cache)
     }
 }
 
@@ -259,5 +264,5 @@ pub(super) enum Command {
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
-    StorageViewCache(oneshot::Sender<StorageViewCache>),
+    FinishBatchWithCache(oneshot::Sender<(FinishedL1Batch, StorageViewCache)>),
 }

@@ -444,7 +444,7 @@ pub(super) enum ExecutorCommand {
     StartNextL2Block,
     RollbackLastTx,
     FinishBatch,
-    StorageViewCache,
+    FinishBatchWithCache,
 }
 
 const GAS_PER_NANOSECOND_BUCKETS: Buckets = Buckets::values(&[

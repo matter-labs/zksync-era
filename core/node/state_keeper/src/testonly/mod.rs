@@ -109,7 +109,9 @@ impl BatchExecutor for MockBatchExecutor {
                         resp.send(default_vm_batch_result()).unwrap();
                         break;
                     }
-                    Command::StorageViewCache(resp) => resp.send(storage_view_cache()).unwrap(),
+                    Command::FinishBatchWithCache(resp) => resp
+                        .send((default_vm_batch_result(), storage_view_cache()))
+                        .unwrap(),
                 }
             }
             anyhow::Ok(())
