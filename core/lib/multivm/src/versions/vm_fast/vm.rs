@@ -83,6 +83,7 @@ impl<S: ReadStorage> Vm<S> {
             operator_suggested_refund: 0,
         };
         let mut last_tx_result = None;
+        let pubdata_before = self.inner.world_diff.pubdata.0 as u32;
 
         let result = loop {
             let hook = match self.inner.resume_from(self.suspended_at, &mut self.world) {
@@ -145,6 +146,7 @@ impl<S: ReadStorage> Vm<S> {
                             .as_u64();
 
                         let pubdata_published = self.inner.world_diff.pubdata.0 as u32;
+                        //pubdata_published -= pubdata_before;
 
                         refund.operator_suggested_refund = compute_refund(
                             &self.batch_env,
@@ -152,7 +154,7 @@ impl<S: ReadStorage> Vm<S> {
                             gas_spent_on_pubdata.as_u64(),
                             tx_gas_limit,
                             gas_per_pubdata_byte.low_u32(),
-                            pubdata_published,
+                            pubdata_published - pubdata_before,
                             self.bootloader_state
                                 .last_l2_block()
                                 .txs
@@ -161,10 +163,13 @@ impl<S: ReadStorage> Vm<S> {
                                 .hash,
                         );
 
+                        let refund_value = refund.operator_suggested_refund;
                         self.write_to_bootloader_heap([(
                             OPERATOR_REFUNDS_OFFSET + current_tx_index,
-                            refund.operator_suggested_refund.into(),
+                            refund_value.into(),
                         )]);
+                        self.bootloader_state
+                            .set_refund_for_current_tx(refund_value);
                     }
                 }
                 NotifyAboutRefund => {
@@ -310,6 +315,7 @@ impl<S: ReadStorage> Vm<S> {
     /// Typically used to read the bootloader heap. We know that we're in the bootloader
     /// when a hook occurs, as they are only enabled when preprocessing bootloader code.
     pub(crate) fn read_heap_word(&self, word: usize) -> U256 {
+        // TODO: this should probably address `vm2::FIRST_HEAP` instead.
         self.inner.state.heaps[self.inner.state.current_frame.heap].read_u256(word as u32 * 32)
     }
 
@@ -318,6 +324,7 @@ impl<S: ReadStorage> Vm<S> {
         memory: impl IntoIterator<Item = (usize, U256)>,
     ) {
         assert!(self.inner.state.previous_frames.is_empty());
+        // TODO: this should probably address `vm2::FIRST_HEAP` instead.
         let heap = &mut self.inner.state.heaps[self.inner.state.current_frame.heap];
         for (slot, value) in memory {
             heap.write_u256(slot as u32 * 32, value);

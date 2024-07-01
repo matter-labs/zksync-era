@@ -3,6 +3,7 @@ use std::{
     fmt,
 };
 
+use pretty_assertions::assert_eq;
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{StorageKey, StorageLogWithPreviousValue, Transaction, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
@@ -153,7 +154,7 @@ where
             for (slot, value) in memory {
                 if *slot == 111 {
                     // FIXME: this particular memory slot (`OPERATOR_REFUNDS_OFFSET`) differs and is always zero for the new VM
-                    *value = U256::zero();
+                    //*value = U256::zero();
                 }
             }
         }
