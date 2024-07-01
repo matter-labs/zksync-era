@@ -26,13 +26,13 @@ impl Task for TaskA {
 
 #[derive(IntoContext)]
 struct SimpleStruct {
-    #[context(crate = "a")]
+    #[context(crate = a)]
     _field: ResourceA,
 }
 
 #[derive(IntoContext)]
 struct SimpleStruct2 {
-    #[context(crate = "b")]
+    #[context(crate = b)]
     _field: ResourceA,
     #[context(task)]
     _field_2: TaskA,
@@ -41,7 +41,7 @@ struct SimpleStruct2 {
 #[derive(IntoContext)]
 struct SimpleStruct3 {
     _field: ResourceA,
-    #[context(task, crate = "c")]
+    #[context(task, crate = c)]
     _field_2: TaskA,
 }
 
