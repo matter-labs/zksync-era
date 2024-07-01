@@ -14,7 +14,7 @@ use zksync_snapshots_applier::{
 use zksync_types::{L1BatchNumber, L2ChainId};
 use zksync_web3_decl::client::{DynClient, L2};
 
-use crate::SnapshotRecoveryConfig;
+use crate::{node_role::NodeRole, SnapshotRecoveryConfig};
 
 #[derive(Debug)]
 pub struct ExternalNodeRole {
@@ -22,10 +22,11 @@ pub struct ExternalNodeRole {
     pub client: Box<DynClient<L2>>,
 }
 
-impl ExternalNodeRole {
+#[async_trait::async_trait]
+impl NodeRole for ExternalNodeRole {
     /// Will perform genesis initialization if it's required.
     /// If genesis is already performed, this method will do nothing.
-    pub(crate) async fn genesis(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn genesis(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let mut storage = pool.connection_tagged("en").await?;
         zksync_node_sync::genesis::perform_genesis_if_needed(
             &mut storage,
@@ -36,16 +37,13 @@ impl ExternalNodeRole {
         .context("performing genesis failed")
     }
 
-    pub(crate) async fn is_genesis_performed(
-        &self,
-        pool: &ConnectionPool<Core>,
-    ) -> anyhow::Result<bool> {
+    async fn is_genesis_performed(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<bool> {
         let mut storage = pool.connection_tagged("en").await?;
         let needed = zksync_node_sync::genesis::is_genesis_needed(&mut storage).await?;
         Ok(!needed)
     }
 
-    pub(crate) async fn snapshot_recovery(
+    async fn snapshot_recovery(
         &self,
         stop_receiver: watch::Receiver<bool>,
         pool: &ConnectionPool<Core>,
@@ -97,7 +95,7 @@ impl ExternalNodeRole {
         Ok(())
     }
 
-    pub(crate) async fn is_snapshot_recovery_completed(
+    async fn is_snapshot_recovery_completed(
         &self,
         pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<bool> {
@@ -109,7 +107,7 @@ impl ExternalNodeRole {
         Ok(completed)
     }
 
-    pub(crate) async fn should_rollback_to(
+    async fn should_rollback_to(
         &self,
         stop_receiver: watch::Receiver<bool>,
         pool: &ConnectionPool<Core>,
@@ -130,7 +128,7 @@ impl ExternalNodeRole {
         Ok(batch)
     }
 
-    pub(crate) async fn perform_rollback(
+    async fn perform_rollback(
         &self,
         reverter: BlockReverter,
         to_batch: L1BatchNumber,

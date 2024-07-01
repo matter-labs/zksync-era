@@ -24,5 +24,6 @@ zksync_reorg_detector.workspace = true
 zksync_block_reverter.workspace = true
 
 anyhow.workspace = true
+async-trait.workspace = true
 tokio.workspace = true
 tracing.workspace = true

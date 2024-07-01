@@ -32,10 +32,18 @@ enum InitDecision {
     SnapshotRecovery,
 }
 
+/// Node storage initializer.
+/// This structure is responsible for making sure that the node storage is initialized.
+///
+/// This structure operates together with [`NodeRole`] to achieve that:
+/// `NodeStorageInitializer` understands what does initialized storage mean, but it defers
+/// any actual initialization to the `NodeRole` implementation. This allows to have different
+/// initialization strategies for different node types, while keeping common invariants
+/// for the whole system.
 #[derive(Debug)]
 pub struct NodeStorageInitializer {
     pool: ConnectionPool<Core>,
-    node_role: NodeRole,
+    node_role: Box<dyn NodeRole>,
     app_health: Arc<AppHealthCheck>,
     recovery_config: Option<SnapshotRecoveryConfig>,
     block_reverter: Option<BlockReverter>,
@@ -43,13 +51,13 @@ pub struct NodeStorageInitializer {
 
 impl NodeStorageInitializer {
     pub fn new(
-        role: impl Into<NodeRole>,
+        role: impl NodeRole,
         pool: ConnectionPool<Core>,
         app_health: Arc<AppHealthCheck>,
     ) -> Self {
         Self {
             pool,
-            node_role: role.into(),
+            node_role: Box::new(role),
             app_health,
             recovery_config: None,
             block_reverter: None,

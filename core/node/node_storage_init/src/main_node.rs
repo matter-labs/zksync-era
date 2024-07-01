@@ -11,7 +11,7 @@ use zksync_node_genesis::GenesisParams;
 use zksync_types::L1BatchNumber;
 use zksync_web3_decl::client::{DynClient, L1};
 
-use crate::SnapshotRecoveryConfig;
+use crate::{node_role::NodeRole, SnapshotRecoveryConfig};
 
 #[derive(Debug)]
 pub struct MainNodeRole {
@@ -20,10 +20,11 @@ pub struct MainNodeRole {
     l1_client: Box<DynClient<L1>>,
 }
 
-impl MainNodeRole {
+#[async_trait::async_trait]
+impl NodeRole for MainNodeRole {
     /// Will perform genesis initialization if it's required.
     /// If genesis is already performed, this method will do nothing.
-    pub(crate) async fn genesis(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    async fn genesis(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let mut storage = pool.connection().await.context("connection()")?;
 
         if !storage.blocks_dal().is_genesis_needed().await? {
@@ -47,16 +48,13 @@ impl MainNodeRole {
         Ok(())
     }
 
-    pub(crate) async fn is_genesis_performed(
-        &self,
-        pool: &ConnectionPool<Core>,
-    ) -> anyhow::Result<bool> {
+    async fn is_genesis_performed(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<bool> {
         let mut storage = pool.connection().await.context("connection()")?;
         let needed = zksync_node_genesis::is_genesis_needed(&mut storage).await?;
         Ok(!needed)
     }
 
-    pub(crate) async fn snapshot_recovery(
+    async fn snapshot_recovery(
         &self,
         _stop_receiver: watch::Receiver<bool>,
         _pool: &ConnectionPool<Core>,
@@ -66,14 +64,14 @@ impl MainNodeRole {
         anyhow::bail!("Snapshot recovery is not supported for the main node")
     }
 
-    pub(crate) async fn is_snapshot_recovery_completed(
+    async fn is_snapshot_recovery_completed(
         &self,
         _pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<bool> {
         anyhow::bail!("Snapshot recovery is not supported for the main node")
     }
 
-    pub(crate) async fn should_rollback_to(
+    async fn should_rollback_to(
         &self,
         _stop_receiver: watch::Receiver<bool>,
         _pool: &ConnectionPool<Core>,
@@ -82,7 +80,7 @@ impl MainNodeRole {
         Ok(None)
     }
 
-    pub(crate) async fn perform_rollback(
+    async fn perform_rollback(
         &self,
         _reverter: BlockReverter,
         _to_batch: L1BatchNumber,
