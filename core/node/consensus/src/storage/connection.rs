@@ -281,4 +281,27 @@ impl<'a> Connection<'a> {
             justification,
         }))
     }
+
+    /// Wrapper for `consensus_dal().get_last_batch_certificate_number()`.
+    pub async fn get_last_batch_certificate_number(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().get_last_batch_certificate_number())
+            .await?
+            .context("get_last_batch_certificate_number()")?)
+    }
+
+    /// Wrapper for `consensus_dal().batch_certificate()`.
+    pub async fn batch_certificate(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::BatchQC>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().batch_certificate(number))
+            .await?
+            .context("batch_certificate()")?)
+    }
 }

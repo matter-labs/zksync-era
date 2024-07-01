@@ -9,7 +9,7 @@ use zksync_dal::consensus_dal::{self, Payload};
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
 use zksync_types::L2BlockNumber;
 
-use super::PayloadQueue;
+use super::{Connection, PayloadQueue};
 use crate::storage::{ConnectionPool, InsertCertificateError};
 
 fn to_fetched_block(
@@ -103,6 +103,11 @@ impl Store {
             },
         ))
     }
+
+    /// Get a fresh connection from the pool.
+    async fn conn(&self, ctx: &ctx::Ctx) -> ctx::Result<Connection> {
+        self.pool.connection(ctx).await.wrap("connection")
+    }
 }
 
 impl PersistedBlockState {
@@ -143,21 +148,26 @@ impl PersistedBlockState {
 }
 
 impl StoreRunner {
-    pub async fn run(mut self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
+    pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
+        let StoreRunner {
+            pool,
+            blocks_persisted,
+            mut block_certificates,
+            mut batch_certificates,
+        } = self;
+
         let res = scope::run!(ctx, |ctx, s| async {
             s.spawn::<()>(async {
                 // Loop updating `persisted` whenever blocks get pruned.
                 const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
                 loop {
-                    let range = self
-                        .pool
+                    let range = pool
                         .connection(ctx)
-                        .await
-                        .wrap("connection")?
+                        .await?
                         .block_certificates_range(ctx)
                         .await
                         .wrap("certificates_range()")?;
-                    self.blocks_persisted.update(range);
+                    blocks_persisted.update(range);
                     ctx.sleep(POLL_INTERVAL).await?;
                 }
             });
@@ -166,16 +176,14 @@ impl StoreRunner {
                 // Loop inserting batch certificates into storage
                 const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
                 loop {
-                    let cert = self.batch_certificates.recv(ctx).await?;
+                    let cert = batch_certificates.recv(ctx).await?;
 
                     loop {
                         use consensus_dal::InsertCertificateError as E;
                         // Try to insert the cert.
-                        let res = self
-                            .pool
+                        let res = pool
                             .connection(ctx)
-                            .await
-                            .wrap("connection")?
+                            .await?
                             .insert_batch_certificate(ctx, &cert)
                             .await;
 
@@ -203,25 +211,23 @@ impl StoreRunner {
             // Loop inserting block certs to storage.
             const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
             loop {
-                let cert = self.block_certificates.recv(ctx).await?;
+                let cert = block_certificates.recv(ctx).await?;
                 // Wait for the block to be persisted, so that we can attach a cert to it.
                 // We may exit this loop without persisting the certificate in case the
                 // corresponding block has been pruned in the meantime.
-                while self.blocks_persisted.should_be_persisted(&cert) {
+                while blocks_persisted.should_be_persisted(&cert) {
                     use consensus_dal::InsertCertificateError as E;
                     // Try to insert the cert.
-                    let res = self
-                        .pool
+                    let res = pool
                         .connection(ctx)
-                        .await
-                        .wrap("connection")?
+                        .await?
                         .insert_block_certificate(ctx, &cert)
                         .await;
                     match res {
                         Ok(()) => {
                             // Insertion succeeded: update persisted state
                             // and wait for the next cert.
-                            self.blocks_persisted.advance(cert);
+                            blocks_persisted.advance(cert);
                             break;
                         }
                         Err(InsertCertificateError::Inner(E::MissingPayload)) => {
@@ -252,10 +258,8 @@ impl StoreRunner {
 impl storage::PersistentBlockStore for Store {
     async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
         Ok(self
-            .pool
-            .connection(ctx)
-            .await
-            .wrap("connection")?
+            .conn(ctx)
+            .await?
             .genesis(ctx)
             .await?
             .context("not found")?)
@@ -271,10 +275,8 @@ impl storage::PersistentBlockStore for Store {
         number: validator::BlockNumber,
     ) -> ctx::Result<validator::FinalBlock> {
         Ok(self
-            .pool
-            .connection(ctx)
-            .await
-            .wrap("connection")?
+            .conn(ctx)
+            .await?
             .block(ctx, number)
             .await?
             .context("not found")?)
@@ -308,20 +310,16 @@ impl storage::PersistentBlockStore for Store {
 #[async_trait::async_trait]
 impl storage::ReplicaStore for Store {
     async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
-        self.pool
-            .connection(ctx)
-            .await
-            .wrap("connection()")?
+        self.conn(ctx)
+            .await?
             .replica_state(ctx)
             .await
             .wrap("replica_state()")
     }
 
     async fn set_state(&self, ctx: &ctx::Ctx, state: &storage::ReplicaState) -> ctx::Result<()> {
-        self.pool
-            .connection(ctx)
-            .await
-            .wrap("connection()")?
+        self.conn(ctx)
+            .await?
             .set_replica_state(ctx, state)
             .await
             .wrap("set_replica_state()")
@@ -405,10 +403,8 @@ impl storage::PersistentBatchStore for Store {
     /// Get the highest L1 batch number from storage.
     async fn last_batch(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchNumber>> {
         let nr = self
-            .pool
-            .connection(ctx)
-            .await
-            .wrap("connection")?
+            .conn(ctx)
+            .await?
             .last_batch_number(ctx)
             .await
             .wrap("last_batch")?;
@@ -421,8 +417,18 @@ impl storage::PersistentBatchStore for Store {
     /// This might have gaps before it. Until there is a way to catch up with missing
     /// certificates by fetching from the main node, returning the last inserted one
     /// is the best we can do.
-    async fn last_batch_qc(&self, _ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchQC>> {
-        todo!()
+    async fn last_batch_qc(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchQC>> {
+        let Some(number) = self
+            .conn(ctx)
+            .await?
+            .get_last_batch_certificate_number(ctx)
+            .await
+            .wrap("get_last_batch_certificate_number")?
+        else {
+            return Ok(None);
+        };
+
+        self.get_batch_qc(ctx, number).await
     }
 
     /// Returns the batch with the given number.
@@ -437,11 +443,14 @@ impl storage::PersistentBatchStore for Store {
     /// Returns the QC of the batch with the given number.
     async fn get_batch_qc(
         &self,
-        _ctx: &ctx::Ctx,
-        _number: attester::BatchNumber,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
     ) -> ctx::Result<Option<attester::BatchQC>> {
-        // TODO: Look up the batch QC in the new table. Should this only return the value if it's final?
-        todo!()
+        self.conn(ctx)
+            .await?
+            .batch_certificate(ctx, number)
+            .await
+            .wrap("batch_certificate")
     }
     /// Store the given QC in the storage.
     ///
@@ -454,16 +463,14 @@ impl storage::PersistentBatchStore for Store {
     }
 
     /// Queue the batch to be persisted in storage.
-    /// `queue_next_batch()` may return BEFORE the batch is actually persisted,
-    /// but if the call succeeded the batch is expected to be persisted eventually.
-    /// Implementations are only required to accept a batch directly after the previous queued
-    /// batch, starting with `persisted().borrow().next()`.
+    ///
+    /// The caller [BatchStore] ensures that this is only called when the batch is the next expected one.
     async fn queue_next_batch(
         &self,
         _ctx: &ctx::Ctx,
         _batch: attester::SyncBatch,
     ) -> ctx::Result<()> {
-        // TODO: Check how it works for blocks: does it wait for all previous ones to be persisted here, or in a background queue?
+        // TODO: Map SyncBatch to whatever the inner representation is.
         todo!()
     }
 }

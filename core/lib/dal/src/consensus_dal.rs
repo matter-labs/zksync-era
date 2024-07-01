@@ -293,6 +293,32 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
     }
 
+    /// Fetches the attester certificate for the L1 batch with the given `batch_number`.
+    pub async fn batch_certificate(
+        &mut self,
+        batch_number: attester::BatchNumber,
+    ) -> anyhow::Result<Option<attester::BatchQC>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                certificate
+            FROM
+                l1_batches_consensus
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::try_from(batch_number.0)?
+        )
+        .instrument("batch_certificate")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+    }
+
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
     pub async fn block_payloads(
         &mut self,
@@ -421,6 +447,29 @@ impl ConsensusDal<'_, '_> {
         .await?;
         txn.commit().await.context("commit")?;
         Ok(())
+    }
+
+    /// Gets a number of the last L1 batch that was inserted. It might have gaps before it,
+    /// depending on the order in which votes have been collected over gossip by consensus.
+    pub async fn get_last_batch_certificate_number(
+        &mut self,
+    ) -> DalResult<Option<attester::BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(l1_batch_number) AS "number"
+            FROM
+                l1_batches_consensus
+            "#
+        )
+        .instrument("get_last_batch_certificate_number")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row
+            .number
+            .map(|number| attester::BatchNumber(number as u64)))
     }
 }
 
