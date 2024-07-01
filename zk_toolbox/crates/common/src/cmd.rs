@@ -1,6 +1,6 @@
-use std::{ffi::OsStr, process::Output};
+use std::{ffi::OsStr, string::FromUtf8Error};
 
-use anyhow::bail;
+use anyhow::anyhow;
 use console::style;
 
 use crate::{
@@ -15,6 +15,33 @@ pub struct Cmd<'a> {
     inner: xshell::Cmd<'a>,
     force_run: bool,
 }
+
+#[derive(thiserror::Error, Debug)]
+#[error("Cmd error: {source} {stderr:?}")]
+pub struct CmdError {
+    stderr: Option<String>,
+    source: anyhow::Error,
+}
+
+impl From<xshell::Error> for CmdError {
+    fn from(value: xshell::Error) -> Self {
+        Self {
+            stderr: None,
+            source: value.into(),
+        }
+    }
+}
+
+impl From<FromUtf8Error> for CmdError {
+    fn from(value: FromUtf8Error) -> Self {
+        Self {
+            stderr: None,
+            source: value.into(),
+        }
+    }
+}
+
+pub type CmdResult<T> = Result<T, CmdError>;
 
 impl<'a> Cmd<'a> {
     /// Create a new `Cmd` instance.
@@ -38,11 +65,22 @@ impl<'a> Cmd<'a> {
     }
 
     /// Run the command without capturing its output.
-    pub fn run(&mut self) -> anyhow::Result<()> {
+    pub fn run(&mut self) -> CmdResult<()> {
         if global_config().verbose || self.force_run {
             logger::debug(format!("Running: {}", self.inner));
             logger::new_empty_line();
-            self.inner.run()?;
+
+            self.inner.set_ignore_status(true);
+            // if let Err(err) = self.inner.read_stderr().map(|s| dbg!(s)) {
+            //     dbg!(&self.inner.read_stderr());
+            //     return Err(CmdError {
+            //         stderr: Some(String::from_utf8(self.inner.output()?.stderr)?),
+            //         source: err.into(),
+            //     });
+            // }
+            let output = self.inner.output()?;
+            self.check_output_status(&output)?;
+
             logger::new_empty_line();
             logger::new_line();
         } else {
@@ -51,6 +89,13 @@ impl<'a> Cmd<'a> {
             // Error will be handled manually.
             self.inner.set_ignore_status(true);
             let output = self.inner.output()?;
+            if let Err(err) = self.inner.run() {
+                return Err(CmdError {
+                    stderr: Some(String::from_utf8(output.stderr)?),
+                    source: err.into(),
+                });
+            }
+
             self.check_output_status(&output)?;
         }
 
@@ -62,7 +107,7 @@ impl<'a> Cmd<'a> {
     }
 
     /// Run the command and return its output.
-    pub fn run_with_output(&mut self) -> anyhow::Result<Output> {
+    pub fn run_with_output(&mut self) -> CmdResult<std::process::Output> {
         if global_config().verbose || self.force_run {
             logger::debug(format!("Running: {}", self.inner));
             logger::new_empty_line();
@@ -80,14 +125,17 @@ impl<'a> Cmd<'a> {
         Ok(output)
     }
 
-    fn check_output_status(&self, output: &std::process::Output) -> anyhow::Result<()> {
+    fn check_output_status(&self, output: &std::process::Output) -> CmdResult<()> {
         if !output.status.success() {
             logger::new_line();
             logger::error_note(
                 &format!("Command failed to run: {}", self.inner),
                 &log_output(output),
             );
-            bail!("Command failed to run: {}", self.inner);
+            return Err(CmdError {
+                stderr: Some(String::from_utf8(output.stderr.clone())?),
+                source: anyhow!("Command failed to run: {}", self.inner),
+            });
         }
 
         Ok(())
