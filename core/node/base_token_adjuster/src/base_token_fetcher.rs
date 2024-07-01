@@ -61,12 +61,10 @@ impl DBBaseTokenFetcher {
 }
 
 async fn get_latest_price(pool: ConnectionPool<Core>) -> anyhow::Result<Option<BaseTokenRatio>> {
-    let mut conn = pool
-        .connection_tagged("db_base_token_fetcher")
+    pool.connection_tagged("db_base_token_fetcher")
         .await
-        .context("Failed to obtain connection to the database")?;
-
-    conn.base_token_dal()
+        .context("Failed to obtain connection to the database")?
+        .base_token_dal()
         .get_latest_ratio()
         .await
         .map_err(DalError::generalize)
@@ -74,7 +72,7 @@ async fn get_latest_price(pool: ConnectionPool<Core>) -> anyhow::Result<Option<B
 
 async fn retry_get_latest_price(pool: ConnectionPool<Core>) -> anyhow::Result<BaseTokenRatio> {
     let sleep_duration = Duration::from_secs(1);
-    let max_retries = 5; // should be enough time to allow fetching from external APIs & updating the DB upon init
+    let max_retries = 6; // should be enough time to allow fetching from external APIs & updating the DB upon init
     let mut attempts = 1;
 
     loop {

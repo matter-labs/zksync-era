@@ -251,10 +251,7 @@ mod tests {
     use std::num::NonZeroU64;
 
     use zksync_base_token_adjuster::NoOpFetcher;
-    use zksync_config::{
-        configs::{base_token_adjuster::BaseTokenAdjusterConfig, eth_sender::PubdataSendingMode},
-        GasAdjusterConfig,
-    };
+    use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
     use zksync_eth_client::{clients::MockEthereum, BaseFees};
     use zksync_types::{commitment::L1BatchCommitmentMode, fee_model::BaseTokenConversionRatio};
 
@@ -607,10 +604,19 @@ mod tests {
 
             let base_token_fetcher = NoOpFetcher::new(case.conversion_ratio);
 
-            let fee_provider = setup_fee_provider(
-                gas_adjuster,
-                base_token_fetcher,
-                case.input_minimal_l2_gas_price,
+            let config = FeeModelConfig::V2(FeeModelConfigV2 {
+                minimal_l2_gas_price: case.input_minimal_l2_gas_price,
+                compute_overhead_part: 1.0,
+                pubdata_overhead_part: 1.0,
+                batch_overhead_l1_gas: 1,
+                max_gas_per_batch: 1,
+                max_pubdata_per_batch: 1,
+            });
+
+            let fee_provider = MainNodeFeeInputProvider::new(
+                Arc::new(gas_adjuster),
+                Arc::new(base_token_fetcher),
+                config,
             );
 
             let fee_params = fee_provider
@@ -677,23 +683,5 @@ mod tests {
         )
         .await
         .expect("Failed to create GasAdjuster")
-    }
-
-    // Helper function to setup the MainNodeFeeInputProvider.
-    fn setup_fee_provider(
-        gas_adjuster: GasAdjuster,
-        base_token_fetcher: DBBaseTokenFetcher,
-        minimal_l2_gas_price: u64,
-    ) -> MainNodeFeeInputProvider {
-        let config = FeeModelConfig::V2(FeeModelConfigV2 {
-            minimal_l2_gas_price,
-            compute_overhead_part: 1.0,
-            pubdata_overhead_part: 1.0,
-            batch_overhead_l1_gas: 1,
-            max_gas_per_batch: 1,
-            max_pubdata_per_batch: 1,
-        });
-
-        MainNodeFeeInputProvider::new(Arc::new(gas_adjuster), Arc::new(base_token_fetcher), config)
     }
 }
