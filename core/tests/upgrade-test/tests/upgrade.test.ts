@@ -69,10 +69,10 @@ describe('Upgrade test', function () {
         // Must be > 1s, because bootloader requires l1 batch timestamps to be incremental.
         process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS = '2000';
         // Run server in background.
-        utils.background(
-            `cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=${serverComponents}`,
-            [null, logs, logs]
-        );
+        utils.background({
+            command: `cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=${serverComponents}`,
+            stdio: [null, logs, logs]
+        });
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
         while (iter < 30 && !mainContract) {
@@ -265,10 +265,10 @@ describe('Upgrade test', function () {
         await utils.sleep(10);
 
         // Run again.
-        utils.background(
-            `cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=${serverComponents} &> upgrade.log`,
-            [null, logs, logs]
-        );
+        utils.background({
+            command: `cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=${serverComponents} &> upgrade.log`,
+            stdio: [null, logs, logs]
+        });
         await utils.sleep(10);
 
         // Trying to send a transaction from the same address again
