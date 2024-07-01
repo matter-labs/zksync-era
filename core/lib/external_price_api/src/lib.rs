@@ -5,6 +5,7 @@ use zksync_types::{base_token_price::BaseTokenAPIPrice, Address};
 
 mod cmc_api;
 mod coingecko_api;
+mod strategies;
 mod tests;
 
 /// Trait that defines the interface for a client connecting with an external API to get prices.

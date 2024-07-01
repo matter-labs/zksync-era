@@ -23,6 +23,7 @@ num.workspace = true
 bigdecimal.workspace = true
 chrono.workspace = true
 tokio.workspace = true
+tracing.workspace = true
 
 
 [dev-dependencies]
