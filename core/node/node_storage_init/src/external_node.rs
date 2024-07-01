@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Instant};
 
 use anyhow::{Context as _, Ok};
+use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::AppHealthCheck;
 use zksync_object_store::ObjectStoreFactory;
@@ -44,6 +45,7 @@ impl ExternalNodeRole {
 
     pub(crate) async fn snapshot_recovery(
         self,
+        stop_receiver: watch::Receiver<bool>,
         pool: ConnectionPool<Core>,
         recovery_config: SnapshotRecoveryConfig,
         app_health: Arc<AppHealthCheck>,
@@ -78,7 +80,7 @@ impl ExternalNodeRole {
 
         let recovery_started_at = Instant::now();
         let stats = snapshots_applier_task
-            .run()
+            .run(stop_receiver)
             .await
             .context("snapshot recovery failed")?;
         if stats.done_work {
@@ -86,6 +88,8 @@ impl ExternalNodeRole {
             APP_METRICS.snapshot_recovery_latency[&SnapshotRecoveryStage::Postgres].set(latency);
             tracing::info!("Recovered Postgres from snapshot in {latency:?}");
         }
+        // We don't really care if the task was canceled.
+        // If it was, all the other tasks are canceled as well.
 
         Ok(())
     }

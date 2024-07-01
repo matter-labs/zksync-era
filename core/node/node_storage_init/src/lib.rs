@@ -156,7 +156,7 @@ impl NodeStorageInitializer {
                     "Snapshot recovery is required to proceed, but it is not enabled. Enable by setting \
                      `EN_SNAPSHOTS_RECOVERY_ENABLED=true` env variable to the node binary, or use a Postgres dump for recovery"
                 )?;
-                en.snapshot_recovery(self.pool, recovery_config, self.app_health)
+                en.snapshot_recovery(stop_receiver, self.pool, recovery_config, self.app_health)
                     .await?;
             }
         }
