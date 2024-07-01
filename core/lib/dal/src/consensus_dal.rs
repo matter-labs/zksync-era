@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
@@ -20,7 +20,7 @@ pub struct ConsensusDal<'a, 'c> {
 /// Error returned by `ConsensusDal::insert_certificate()`.
 #[derive(thiserror::Error, Debug)]
 pub enum InsertCertificateError {
-    #[error("corresponding L2 block is missing")]
+    #[error("corresponding payload is missing")]
     MissingPayload,
     #[error("certificate doesn't match the payload")]
     PayloadMismatch,
@@ -371,6 +371,51 @@ impl ConsensusDal<'_, '_> {
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_block_certificate")
+        .report_latency()
+        .execute(&mut txn)
+        .await?;
+        txn.commit().await.context("commit")?;
+        Ok(())
+    }
+
+    /// Inserts a certificate for the L1 batch.
+    ///
+    /// Insertion is allowed even if it creates gaps in the L1 batch history.
+    ///
+    /// It fails if the batch payload is missing or it's not consistent with the QC.
+    pub async fn insert_batch_certificate(
+        &mut self,
+        cert: &attester::BatchQC,
+    ) -> Result<(), InsertCertificateError> {
+        use InsertCertificateError as E;
+        let mut txn = self.storage.start_transaction().await?;
+
+        let _l1_batch_header = txn
+            .blocks_dal()
+            .get_l1_batch_header(zksync_types::L1BatchNumber(cert.message.number.0 as u32))
+            .await?
+            .ok_or(E::MissingPayload)?;
+
+        // TODO: Verify that the certificate matches the stored batch:
+        // * Add the hash of the batch to the `BatchQC`
+        // * How do we match the `L1BatchHeader` to an `attester::SyncBatch`? Do we need metadata as well?
+
+        // if header.payload != want_payload.encode().hash() {
+        //     return Err(E::PayloadMismatch);
+        // }
+
+        // TODO: Handle duplicates
+        sqlx::query!(
+            r#"
+            INSERT INTO
+                l1_batches_consensus (l1_batch_number, certificate, created_at, updated_at)
+            VALUES
+                ($1, $2, NOW(), NOW())
+            "#,
+            cert.message.number.0 as i64,
+            zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
+        )
+        .instrument("insert_batch_certificate")
         .report_latency()
         .execute(&mut txn)
         .await?;

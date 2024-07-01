@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage as storage;
 use zksync_dal::{consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
@@ -114,6 +114,17 @@ impl<'a> Connection<'a> {
             .await??)
     }
 
+    /// Wrapper for `consensus_dal().insert_batch_certificate()`.
+    pub async fn insert_batch_certificate(
+        &mut self,
+        ctx: &ctx::Ctx,
+        cert: &attester::BatchQC,
+    ) -> Result<(), InsertCertificateError> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().insert_batch_certificate(cert))
+            .await??)
+    }
+
     /// Wrapper for `consensus_dal().replica_state()`.
     pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
         Ok(ctx
@@ -134,7 +145,7 @@ impl<'a> Connection<'a> {
             .context("sqlx")?)
     }
 
-    /// Wrapper for `consensus_dal().get_l1_batch_metadata()`.
+    /// Wrapper for `blocks_dal().get_l1_batch_metadata()`.
     pub async fn batch(
         &mut self,
         ctx: &ctx::Ctx,
@@ -144,6 +155,18 @@ impl<'a> Connection<'a> {
             .wait(self.0.blocks_dal().get_l1_batch_metadata(number))
             .await?
             .context("get_l1_batch_metadata()")?)
+    }
+
+    /// Wrapper for `blocks_dal().get_sealed_l1_batch_number()`.
+    pub async fn last_batch_number(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<L1BatchNumber>> {
+        // There are a number of other getters to consider if we want the `hash` or the `commitment` fields to be filled
+        Ok(ctx
+            .wait(self.0.blocks_dal().get_sealed_l1_batch_number())
+            .await?
+            .context("get_sealed_l1_batch_number()")?)
     }
 
     /// Wrapper for `FetcherCursor::new()`.

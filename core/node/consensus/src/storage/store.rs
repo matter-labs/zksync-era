@@ -349,34 +349,6 @@ impl PayloadManager for Store {
 
 #[async_trait::async_trait]
 impl storage::PersistentBatchStore for Store {
-    /// Get the L1 batch from storage with the highest number.
-    async fn last_batch(&self) -> attester::BatchNumber {
-        // TODO: Should we return the last batch which was inserted?
-        // I think we can assume that there are no gaps in batches, so this should be okay.
-        todo!()
-    }
-    /// Get the L1 batch QC from storage with the highest number.
-    async fn last_batch_qc(&self) -> attester::BatchQC {
-        // TODO: We discussed that inserting batches should allow gaps, and the retrieval
-        // should cater for not returning anything other than what we consider final.
-        // Does that apply here, should this one be the last inserted or the last final?
-        todo!()
-    }
-    /// Returns the batch with the given number.
-    async fn get_batch(&self, _number: attester::BatchNumber) -> Option<attester::SyncBatch> {
-        // TODO: Look up the batch in the store and map it to SyncBatch
-        todo!()
-    }
-    /// Returns the QC of the batch with the given number.
-    async fn get_batch_qc(&self, _number: attester::BatchNumber) -> Option<attester::BatchQC> {
-        // TODO: Look up the batch QC in the new table. Should this only return the value if it's final?
-        todo!()
-    }
-    /// Store the given QC in the storage.
-    async fn store_qc(&self, _qc: attester::BatchQC) {
-        // TODO: Insert into the new table even if this creates a gap. Or think about whether this just complicates everything else.
-        todo!()
-    }
     /// Range of batches persisted in storage.
     fn persisted(&self) -> sync::watch::Receiver<BatchStoreState> {
         // TODO: Add something like the `BlockStoreState` that gets updated when inserts happen.
@@ -384,6 +356,57 @@ impl storage::PersistentBatchStore for Store {
         // but just use the database for synchronising state with other processes.
         todo!()
     }
+
+    /// Get the highest L1 batch number from storage.
+    async fn last_batch(&self, _ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchNumber>> {
+        let nr = self
+            .pool
+            .connection(ctx)
+            .await
+            .wrap("connection")?
+            .last_batch_number(ctx)
+            .await
+            .wrap("last_batch")?;
+
+        Ok(nr.map(|nr| attester::BatchNumber(nr.0 as u64)))
+    }
+
+    /// Get the L1 batch QC from storage with the highest number.
+    ///
+    /// This might have gaps before it. Until there is a way to catch up with missing
+    /// certificates by fetching from the main node, returning the last inserted one
+    /// is the best we can do.
+    async fn last_batch_qc(&self, _ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchQC>> {
+        todo!()
+    }
+
+    /// Returns the batch with the given number.
+    async fn get_batch(
+        &self,
+        _ctx: &ctx::Ctx,
+        _number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::SyncBatch>> {
+        // TODO: Look up the batch in the store and map it to SyncBatch
+        todo!()
+    }
+    /// Returns the QC of the batch with the given number.
+    async fn get_batch_qc(
+        &self,
+        _ctx: &ctx::Ctx,
+        _number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::BatchQC>> {
+        // TODO: Look up the batch QC in the new table. Should this only return the value if it's final?
+        todo!()
+    }
+    /// Store the given QC in the storage.
+    ///
+    /// Storing a QC is allowed even if it creates a gap in the L1 batch history.
+    /// If we need the last batch QC that still needs to be signed then the queries need to look for gaps.
+    async fn store_qc(&self, ctx: &ctx::Ctx, qc: attester::BatchQC) -> ctx::Result<()> {
+        // TODO: Create a `batch_certificates` queue which handles the case of a missing payload.
+        todo!()
+    }
+
     /// Queue the batch to be persisted in storage.
     /// `queue_next_batch()` may return BEFORE the batch is actually persisted,
     /// but if the call succeeded the batch is expected to be persisted eventually.
