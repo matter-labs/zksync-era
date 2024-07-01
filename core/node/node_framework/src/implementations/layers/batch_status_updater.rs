@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[derive(Debug, FromContext)]
-#[context(crate = "crate")]
+#[context(crate = crate)]
 struct LayerInput {
     pool: PoolResource<MasterPool>,
     client: MainNodeClientResource,
@@ -22,7 +22,7 @@ struct LayerInput {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = "crate")]
+#[context(crate = crate)]
 struct LayerOutput {
     #[context(task)]
     updater: BatchStatusUpdater,

@@ -64,8 +64,8 @@ impl CtxLabel {
                             match label {
                                 Self::CRATE_LABEL => {
                                     let value = meta.value()?;
-                                    let lit: syn::LitStr = value.parse()?; // Check that the value is a path.
-                                    self_.krate = Some(syn::parse_str(&lit.value())?);
+                                    let path: syn::Path = value.parse()?;
+                                    self_.krate = Some(path);
                                 }
                                 Self::TASK_LABEL => {
                                     self_.task = true;

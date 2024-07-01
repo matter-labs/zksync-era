@@ -47,10 +47,10 @@ impl FromContext for () {
     }
 }
 
-impl<T: Resource + Clone> FromContext for Option<T> {
+impl<T: FromContext> FromContext for Option<T> {
     fn from_context(context: &mut ServiceContext<'_>) -> Result<Self, WiringError> {
-        match context.get_resource() {
-            Ok(resource) => Ok(Some(resource)),
+        match T::from_context(context) {
+            Ok(inner) => Ok(Some(inner)),
             Err(WiringError::ResourceLacking { .. }) => Ok(None),
             Err(err) => Err(err),
         }
@@ -122,10 +122,10 @@ impl IntoContext for () {
     }
 }
 
-impl<T: Resource> IntoContext for Option<T> {
+impl<T: IntoContext> IntoContext for Option<T> {
     fn into_context(self, context: &mut ServiceContext<'_>) -> Result<(), WiringError> {
-        if let Some(resource) = self {
-            context.insert_resource(resource)
+        if let Some(inner) = self {
+            inner.into_context(context)
         } else {
             Ok(())
         }
