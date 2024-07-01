@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{future::Future, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
@@ -22,7 +22,7 @@ pub struct SnapshotRecoveryConfig {
     pub object_store_config: Option<ObjectStoreConfig>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum InitDecision {
     /// Perform or check genesis.
     Genesis,
@@ -118,37 +118,6 @@ impl NodeStorageInitializer {
         Ok(decision)
     }
 
-    /// Checks if the node can safely start operating.
-    pub async fn storage_initialized(
-        &self,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<bool> {
-        let decision = self.decision().await?;
-        let mut initialized = match decision {
-            InitDecision::Genesis => self.node_role.is_genesis_performed(&self.pool).await?,
-            InitDecision::SnapshotRecovery => {
-                self.node_role
-                    .is_snapshot_recovery_completed(&self.pool)
-                    .await?
-            }
-        };
-        if !initialized {
-            return Ok(false);
-        }
-
-        if self
-            .node_role
-            .should_rollback_to(stop_receiver, &self.pool)
-            .await?
-            .is_some()
-        {
-            // Node is in the incorrect state. Not safe to proceed.
-            initialized = false;
-        }
-
-        Ok(initialized)
-    }
-
     /// Initializes the storage for the node.
     /// After the initialization, the node can safely start operating.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -194,4 +163,81 @@ impl NodeStorageInitializer {
 
         Ok(())
     }
+
+    /// Checks if the node can safely start operating.
+    pub async fn wait_for_initialized_storage(
+        &self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        const POLLING_INTERVAL: Duration = Duration::from_secs(1);
+
+        let decision = self.decision().await?;
+
+        // Wait until data is added to the database.
+        poll(stop_receiver.clone(), POLLING_INTERVAL, || {
+            self.is_database_initialized(decision)
+        })
+        .await?;
+        if *stop_receiver.borrow() {
+            return Ok(());
+        }
+
+        // Wait until the rollback is no longer needed.
+        poll(stop_receiver.clone(), POLLING_INTERVAL, || {
+            self.is_rollback_not_needed(stop_receiver.clone())
+        })
+        .await?;
+
+        Ok(())
+    }
+
+    async fn is_database_initialized(&self, decision: InitDecision) -> anyhow::Result<bool> {
+        match decision {
+            InitDecision::Genesis => self.node_role.is_genesis_performed(&self.pool).await,
+            InitDecision::SnapshotRecovery => {
+                self.node_role
+                    .is_snapshot_recovery_completed(&self.pool)
+                    .await
+            }
+        }
+    }
+
+    async fn is_rollback_not_needed(
+        &self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<bool> {
+        let initialized = self
+            .node_role
+            .should_rollback_to(stop_receiver, &self.pool)
+            .await?
+            .is_none();
+        Ok(initialized)
+    }
+}
+
+async fn poll<F, Fut>(
+    mut stop_receiver: watch::Receiver<bool>,
+    polling_interval: Duration,
+    mut check: F,
+) -> anyhow::Result<()>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = anyhow::Result<bool>>,
+{
+    loop {
+        if *stop_receiver.borrow() {
+            break;
+        }
+
+        if check().await? {
+            break;
+        }
+
+        // Return value will be checked on the next iteration.
+        tokio::time::timeout(polling_interval, stop_receiver.changed())
+            .await
+            .ok();
+    }
+
+    Ok(())
 }

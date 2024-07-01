@@ -1,12 +1,8 @@
-use std::time::Duration;
-
 use zksync_node_storage_init::{NodeRole, NodeStorageInitializer, SnapshotRecoveryConfig};
 
-// Note: unlike with other modules, this one keeps
 use crate::{
     implementations::resources::{
         healthcheck::AppHealthCheckResource,
-        main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
         reverter::BlockReverterResource,
     },
@@ -15,6 +11,9 @@ use crate::{
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
 };
+
+pub mod external_node_role;
+pub mod main_node_role;
 
 /// Wiring layer for `NodeStorageInializer`.
 ///
@@ -59,7 +58,7 @@ impl NodeStorageInitializerLayer {
 #[async_trait::async_trait]
 impl WiringLayer for NodeStorageInitializerLayer {
     fn layer_name(&self) -> &'static str {
-        "batch_status_updater_layer"
+        "node_storage_initializer_layer"
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
@@ -134,32 +133,15 @@ impl Task for NodeStorageInitializerPrecondition {
         "node_storage_initializer_precondition".into()
     }
 
-    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        const POLLING_INTERVAL: Duration = Duration::from_secs(1);
-
-        let initializer = self.0;
-        loop {
-            if *stop_receiver.0.borrow() {
-                break;
-            }
-
-            if initializer
-                .storage_initialized(stop_receiver.0.clone())
-                .await?
-            {
-                tracing::info!("Storage is initialized");
-                break;
-            }
-
-            tokio::time::timeout(POLLING_INTERVAL, stop_receiver.0.changed())
-                .await
-                .ok();
-        }
-
-        Ok(())
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.0.wait_for_initialized_storage(stop_receiver.0).await
     }
 }
 
+// Note: unlike with other modules, this one keeps within the same file to simplify
+// moving the implementations out of the framework soon.
+/// Resource representing the node role.
+/// Used for storage initialization.
 #[derive(Debug, Clone)]
 pub struct NodeRoleResource(Unique<Box<dyn NodeRole>>);
 

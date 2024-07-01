@@ -15,9 +15,9 @@ use crate::{node_role::NodeRole, SnapshotRecoveryConfig};
 
 #[derive(Debug)]
 pub struct MainNodeRole {
-    genesis: GenesisConfig,
-    contracts: ContractsConfig,
-    l1_client: Box<DynClient<L1>>,
+    pub genesis: GenesisConfig,
+    pub contracts: ContractsConfig,
+    pub l1_client: Box<DynClient<L1>>,
 }
 
 #[async_trait::async_trait]
