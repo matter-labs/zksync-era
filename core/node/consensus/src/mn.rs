@@ -37,6 +37,7 @@ pub async fn run_main_node(
                 .wrap("adjust_genesis()")?;
         }
 
+        // The main node doesn't have a payload queue as it produces all the L2 blocks itself.
         let (store, runner) = Store::new(ctx, pool, None).await.wrap("Store::new()")?;
         s.spawn_bg(runner.run(ctx));
 

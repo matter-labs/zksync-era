@@ -51,20 +51,21 @@ fn to_fetched_block(
 #[derive(Clone, Debug)]
 pub(crate) struct Store {
     pub(super) pool: ConnectionPool,
-    payloads: Arc<sync::Mutex<Option<PayloadQueue>>>,
+    /// Action queue to fetch/store L2 block payloads
+    block_payloads: Arc<sync::Mutex<Option<PayloadQueue>>>,
     /// L2 block QCs received over gossip
-    certificates: ctx::channel::UnboundedSender<validator::CommitQC>,
+    block_certificates: ctx::channel::UnboundedSender<validator::CommitQC>,
     /// Range of L2 blocks for which we have a QC persisted.
-    persisted: sync::watch::Receiver<storage::BlockStoreState>,
+    blocks_persisted: sync::watch::Receiver<storage::BlockStoreState>,
 }
 
-struct PersistedState(sync::watch::Sender<storage::BlockStoreState>);
+struct PersistedBlockState(sync::watch::Sender<storage::BlockStoreState>);
 
 /// Background task of the `Store`.
 pub struct StoreRunner {
     pool: ConnectionPool,
-    persisted: PersistedState,
-    certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
+    blocks_persisted: PersistedBlockState,
+    block_certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
 }
 
 impl Store {
@@ -73,32 +74,32 @@ impl Store {
         pool: ConnectionPool,
         payload_queue: Option<PayloadQueue>,
     ) -> ctx::Result<(Store, StoreRunner)> {
-        let persisted = pool
+        let blocks_persisted = pool
             .connection(ctx)
             .await
             .wrap("connection()")?
             .certificates_range(ctx)
             .await
             .wrap("certificates_range()")?;
-        let persisted = sync::watch::channel(persisted).0;
+        let blocks_persisted = sync::watch::channel(blocks_persisted).0;
         let (certs_send, certs_recv) = ctx::channel::unbounded();
         Ok((
             Store {
                 pool: pool.clone(),
-                certificates: certs_send,
-                payloads: Arc::new(sync::Mutex::new(payload_queue)),
-                persisted: persisted.subscribe(),
+                block_certificates: certs_send,
+                block_payloads: Arc::new(sync::Mutex::new(payload_queue)),
+                blocks_persisted: blocks_persisted.subscribe(),
             },
             StoreRunner {
                 pool,
-                persisted: PersistedState(persisted),
-                certificates: certs_recv,
+                blocks_persisted: PersistedBlockState(blocks_persisted),
+                block_certificates: certs_recv,
             },
         ))
     }
 }
 
-impl PersistedState {
+impl PersistedBlockState {
     /// Updates `persisted` to new.
     /// Ends of the range can only be moved forward.
     /// If `persisted.first` is moved forward, it means that blocks have been pruned.
@@ -150,7 +151,7 @@ impl StoreRunner {
                         .certificates_range(ctx)
                         .await
                         .wrap("certificates_range()")?;
-                    self.persisted.update(range);
+                    self.blocks_persisted.update(range);
                     ctx.sleep(POLL_INTERVAL).await?;
                 }
             });
@@ -158,11 +159,11 @@ impl StoreRunner {
             // Loop inserting certs to storage.
             const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
             loop {
-                let cert = self.certificates.recv(ctx).await?;
+                let cert = self.block_certificates.recv(ctx).await?;
                 // Wait for the block to be persisted, so that we can attach a cert to it.
                 // We may exit this loop without persisting the certificate in case the
                 // corresponding block has been pruned in the meantime.
-                while self.persisted.should_be_persisted(&cert) {
+                while self.blocks_persisted.should_be_persisted(&cert) {
                     use consensus_dal::InsertCertificateError as E;
                     // Try to insert the cert.
                     let res = self
@@ -176,7 +177,7 @@ impl StoreRunner {
                         Ok(()) => {
                             // Insertion succeeded: update persisted state
                             // and wait for the next cert.
-                            self.persisted.advance(cert);
+                            self.blocks_persisted.advance(cert);
                             break;
                         }
                         Err(InsertCertificateError::Inner(E::MissingPayload)) => {
@@ -216,7 +217,7 @@ impl storage::PersistentBlockStore for Store {
     }
 
     fn persisted(&self) -> sync::watch::Receiver<storage::BlockStoreState> {
-        self.persisted.clone()
+        self.blocks_persisted.clone()
     }
 
     async fn block(
@@ -247,14 +248,14 @@ impl storage::PersistentBlockStore for Store {
         ctx: &ctx::Ctx,
         block: validator::FinalBlock,
     ) -> ctx::Result<()> {
-        let mut payloads = sync::lock(ctx, &self.payloads).await?.into_async();
+        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
         if let Some(payloads) = &mut *payloads {
             payloads
                 .send(to_fetched_block(block.number(), &block.payload).context("to_fetched_block")?)
                 .await
                 .context("payload_queue.send()")?;
         }
-        self.certificates.send(block.justification);
+        self.block_certificates.send(block.justification);
         Ok(())
     }
 }
@@ -321,7 +322,7 @@ impl PayloadManager for Store {
         block_number: validator::BlockNumber,
         payload: &validator::Payload,
     ) -> ctx::Result<()> {
-        let mut payloads = sync::lock(ctx, &self.payloads).await?.into_async();
+        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
         if let Some(payloads) = &mut *payloads {
             let block = to_fetched_block(block_number, payload).context("to_fetched_block")?;
             let n = block.number;
@@ -346,7 +347,6 @@ impl PayloadManager for Store {
     }
 }
 
-// Dummy implementation
 #[async_trait::async_trait]
 impl storage::PersistentBatchStore for Store {
     /// Get the L1 batch from storage with the highest number.
@@ -363,17 +363,17 @@ impl storage::PersistentBatchStore for Store {
         todo!()
     }
     /// Returns the batch with the given number.
-    async fn get_batch(&self, number: attester::BatchNumber) -> Option<attester::SyncBatch> {
+    async fn get_batch(&self, _number: attester::BatchNumber) -> Option<attester::SyncBatch> {
         // TODO: Look up the batch in the store and map it to SyncBatch
         todo!()
     }
     /// Returns the QC of the batch with the given number.
-    async fn get_batch_qc(&self, number: attester::BatchNumber) -> Option<attester::BatchQC> {
+    async fn get_batch_qc(&self, _number: attester::BatchNumber) -> Option<attester::BatchQC> {
         // TODO: Look up the batch QC in the new table. Should this only return the value if it's final?
         todo!()
     }
     /// Store the given QC in the storage.
-    async fn store_qc(&self, qc: attester::BatchQC) {
+    async fn store_qc(&self, _qc: attester::BatchQC) {
         // TODO: Insert into the new table even if this creates a gap. Or think about whether this just complicates everything else.
         todo!()
     }
@@ -391,8 +391,8 @@ impl storage::PersistentBatchStore for Store {
     /// batch, starting with `persisted().borrow().next()`.
     async fn queue_next_batch(
         &self,
-        ctx: &ctx::Ctx,
-        batch: attester::SyncBatch,
+        _ctx: &ctx::Ctx,
+        _batch: attester::SyncBatch,
     ) -> ctx::Result<()> {
         // TODO: Check how it works for blocks: does it wait for all previous ones to be persisted here, or in a background queue?
         todo!()
