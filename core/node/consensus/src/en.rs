@@ -39,18 +39,23 @@ impl EN {
             // Initialize genesis.
             let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
             let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
+
             conn.try_update_genesis(ctx, &genesis)
                 .await
                 .wrap("set_genesis()")?;
+
             let mut payload_queue = conn
                 .new_payload_queue(ctx, actions, self.sync_state.clone())
                 .await
                 .wrap("new_payload_queue()")?;
+
             drop(conn);
 
             // Fetch blocks before the genesis.
             self.fetch_blocks(ctx, &mut payload_queue, Some(genesis.first_block))
-                .await?;
+                .await
+                .wrap("fetch_blocks()")?;
+
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
             s.spawn_bg::<()>(async {

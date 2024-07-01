@@ -54,7 +54,7 @@ pub async fn run_main_node(
         let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
             .await
             .wrap("BatchStore::new()")?;
-        s.spawn_bg(async { runner.run(ctx).await.context("BatchStore::runner()") });
+        s.spawn_bg(runner.run(ctx));
 
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets)?,
