@@ -1,6 +1,12 @@
+use ethabi::Token;
+use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
+    ethabi,
     event::L1MessengerL2ToL1Log,
+    l2_to_l1_log::l2_to_l1_logs_tree_size,
+    web3::keccak256,
     writes::{compress_state_diffs, StateDiffRecord},
+    ProtocolVersionId,
 };
 
 /// Struct based on which the pubdata blob is formed
@@ -44,6 +50,7 @@ fn encode_user_logs(user_logs: Vec<L1MessengerL2ToL1Log>) -> Vec<u8> {
 impl PubdataBuilder for RollupPubdataBuilder {
     fn build_pubdata(&self, input: PubdataInput, l2_version: bool) -> Vec<u8> {
         let mut l1_messenger_pubdata = vec![];
+        let mut l2_da_header = vec![];
 
         let PubdataInput {
             user_logs,
@@ -51,6 +58,18 @@ impl PubdataBuilder for RollupPubdataBuilder {
             published_bytecodes,
             state_diffs,
         } = input;
+
+        if l2_version {
+            let chained_log_hash = build_chained_log_hash(user_logs.clone());
+            let log_root_hash = build_logs_root(user_logs.clone());
+            let chained_msg_hash = build_chained_message_hash(l2_to_l1_messages.clone());
+            let chained_bytecodes_hash = build_chained_bytecode_hash(published_bytecodes.clone());
+
+            l2_da_header.push(Token::FixedBytes(chained_log_hash));
+            l2_da_header.push(Token::FixedBytes(log_root_hash));
+            l2_da_header.push(Token::FixedBytes(chained_msg_hash));
+            l2_da_header.push(Token::FixedBytes(chained_bytecodes_hash));
+        }
 
         l1_messenger_pubdata.extend(encode_user_logs(user_logs));
 
@@ -80,6 +99,14 @@ impl PubdataBuilder for RollupPubdataBuilder {
             for state_diff in state_diffs {
                 l1_messenger_pubdata.extend(state_diff.encode_padded());
             }
+
+            let func_selector = hex::decode("89f9a072").unwrap();
+
+            l2_da_header.push(ethabi::Token::Bytes(l1_messenger_pubdata));
+
+            l1_messenger_pubdata = [func_selector, ethabi::encode(&l2_da_header)]
+                .concat()
+                .to_vec();
         }
 
         l1_messenger_pubdata
@@ -98,6 +125,60 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
     fn build_pubdata(&self, _: PubdataInput, _: bool) -> Vec<u8> {
         todo!()
     }
+}
+
+fn build_chained_log_hash(user_logs: Vec<L1MessengerL2ToL1Log>) -> Vec<u8> {
+    let mut chained_log_hash = vec![0u8; 32];
+
+    for log in user_logs {
+        let log_bytes = log.packed_encoding();
+        let hash = keccak256(&log_bytes);
+
+        chained_log_hash = keccak256(&[chained_log_hash, hash.to_vec()].concat()).to_vec();
+    }
+
+    chained_log_hash
+}
+
+fn build_logs_root(user_logs: Vec<L1MessengerL2ToL1Log>) -> Vec<u8> {
+    let logs = user_logs.iter().map(|log| {
+        let encoded = log.packed_encoding();
+        let mut slice = [0u8; 88];
+        slice.copy_from_slice(&encoded);
+        slice
+    });
+    MiniMerkleTree::new(
+        logs,
+        Some(l2_to_l1_logs_tree_size(ProtocolVersionId::latest())),
+    )
+    .merkle_root()
+    .as_bytes()
+    .to_vec()
+}
+
+fn build_chained_message_hash(l2_to_l1_messages: Vec<Vec<u8>>) -> Vec<u8> {
+    let mut chained_msg_hash = vec![0u8; 32];
+
+    for msg in l2_to_l1_messages {
+        let hash = keccak256(&msg);
+
+        chained_msg_hash = keccak256(&[chained_msg_hash, hash.to_vec()].concat()).to_vec();
+    }
+
+    chained_msg_hash
+}
+
+fn build_chained_bytecode_hash(published_bytecodes: Vec<Vec<u8>>) -> Vec<u8> {
+    let mut chained_bytecode_hash = vec![0u8; 32];
+
+    for bytecode in published_bytecodes {
+        let hash = keccak256(&bytecode);
+
+        chained_bytecode_hash =
+            keccak256(&[chained_bytecode_hash, hash.to_vec()].concat()).to_vec();
+    }
+
+    chained_bytecode_hash
 }
 
 #[cfg(test)]
