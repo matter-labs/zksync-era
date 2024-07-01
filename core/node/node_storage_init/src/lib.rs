@@ -8,9 +8,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_health_check::AppHealthCheck;
 use zksync_types::L1BatchNumber;
 
-use crate::node_role::NodeRole;
-
-pub use crate::{external_node::ExternalNodeRole, main_node::MainNodeRole};
+pub use crate::{external_node::ExternalNodeRole, main_node::MainNodeRole, node_role::NodeRole};
 
 mod external_node;
 mod main_node;
@@ -51,13 +49,13 @@ pub struct NodeStorageInitializer {
 
 impl NodeStorageInitializer {
     pub fn new(
-        role: impl NodeRole,
+        node_role: Box<dyn NodeRole>,
         pool: ConnectionPool<Core>,
         app_health: Arc<AppHealthCheck>,
     ) -> Self {
         Self {
             pool,
-            node_role: Box::new(role),
+            node_role,
             app_health,
             recovery_config: None,
             block_reverter: None,
