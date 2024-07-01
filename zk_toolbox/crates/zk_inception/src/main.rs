@@ -1,6 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use common::{
-    check_prerequisites,
+    check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
     error::log_error,
     init_prompt_theme, logger,
@@ -79,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
     init_global_config_inner(&shell, &inception_args.global)?;
 
     if !global_config().ignore_prerequisites {
-        check_prerequisites(&shell);
+        check_general_prerequisites(&shell);
     }
 
     match run_subcommand(inception_args, &shell).await {

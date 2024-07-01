@@ -1,6 +1,10 @@
 //! Test utils.
 
-use std::{collections::HashMap, fmt, future, sync::Arc};
+use std::{
+    collections::HashMap,
+    fmt, future,
+    sync::{Arc, RwLock},
+};
 
 use async_trait::async_trait;
 use tokio::sync::watch;
@@ -18,7 +22,7 @@ use zksync_types::{
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
     StorageValue, H256,
 };
-use zksync_web3_decl::error::EnrichedClientResult;
+use zksync_web3_decl::error::{EnrichedClientError, EnrichedClientResult};
 
 use crate::SnapshotsApplierMainNodeClient;
 
@@ -50,6 +54,19 @@ pub(super) struct MockMainNodeClient {
     pub fetch_l2_block_responses: HashMap<L2BlockNumber, api::BlockDetails>,
     pub fetch_newest_snapshot_response: Option<SnapshotHeader>,
     pub tokens_response: Vec<TokenInfo>,
+    pub tokens_response_error: Arc<RwLock<Option<EnrichedClientError>>>,
+}
+
+impl MockMainNodeClient {
+    /// Sets the error to be returned by the `fetch_tokens` method.
+    /// Error will be returned just once. Next time the request will succeed.
+    pub(super) fn set_token_response_error(&self, error: EnrichedClientError) {
+        *self.tokens_response_error.write().unwrap() = Some(error);
+    }
+
+    fn take_token_response_error(&self) -> Option<EnrichedClientError> {
+        self.tokens_response_error.write().unwrap().take()
+    }
 }
 
 #[async_trait]
@@ -91,6 +108,10 @@ impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
         &self,
         _at_l2_block: L2BlockNumber,
     ) -> EnrichedClientResult<Vec<TokenInfo>> {
+        if let Some(error) = self.take_token_response_error() {
+            return Err(error);
+        }
+
         Ok(self.tokens_response.clone())
     }
 }
