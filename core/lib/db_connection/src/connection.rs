@@ -323,19 +323,17 @@ impl<'a, DB: DbMarker> TransactionBuilder<'a, '_, DB> {
     pub async fn build(self) -> DalResult<Connection<'a, DB>> {
         let mut transaction = self.connection.start_transaction().await?;
 
-        let mut set_transaction_args = String::new();
-        let mut level = self.isolation_level;
-        if self.is_readonly && level.is_none() {
-            level = Some(IsolationLevel::RepeatableRead);
-        }
-        let level = level.map(|level| match level {
+        let level = self.isolation_level.unwrap_or(if self.is_readonly {
+            IsolationLevel::RepeatableRead
+        } else {
+            IsolationLevel::ReadCommitted
+        });
+        let level = match level {
             IsolationLevel::ReadCommitted => "READ COMMITTED",
             IsolationLevel::RepeatableRead => "REPEATABLE READ",
             IsolationLevel::Serializable => "SERIALIZABLE",
-        });
-        if let Some(level) = level {
-            set_transaction_args += &format!(" ISOLATION LEVEL {level}");
-        }
+        };
+        let mut set_transaction_args = format!(" ISOLATION LEVEL {level}");
 
         if self.is_readonly {
             set_transaction_args += " READ ONLY";
@@ -344,6 +342,8 @@ impl<'a, DB: DbMarker> TransactionBuilder<'a, '_, DB> {
         if !set_transaction_args.is_empty() {
             sqlx::query(&format!("SET TRANSACTION{set_transaction_args}"))
                 .instrument("set_transaction_characteristics")
+                .with_arg("isolation_level", &self.isolation_level)
+                .with_arg("readonly", &self.is_readonly)
                 .execute(&mut transaction)
                 .await?;
         }
