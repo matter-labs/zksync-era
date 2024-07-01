@@ -5,7 +5,6 @@ use std::{
     string::FromUtf8Error,
 };
 
-use anyhow::anyhow;
 use console::style;
 
 use crate::{
@@ -80,12 +79,11 @@ impl<'a> Cmd<'a> {
 
     /// Run the command without capturing its output.
     pub fn run(mut self) -> CmdResult<()> {
-        let data = format!("{}", &self.inner);
+        let command_txt = self.inner.to_string();
         let output = if global_config().verbose || self.force_run {
             logger::debug(format!("Running: {}", self.inner));
             logger::new_empty_line();
-            self.inner.set_ignore_status(true);
-            run_command(self.inner.into())?
+            run_low_level_process_command(self.inner.into())?
         } else {
             // Command will be logged manually.
             self.inner.set_quiet(true);
@@ -94,9 +92,9 @@ impl<'a> Cmd<'a> {
             self.inner.output()?
         };
 
-        check_output_status(&data, &output)?;
+        check_output_status(&command_txt, &output)?;
         if global_config().verbose {
-            logger::debug(format!("Command completed: {}", data));
+            logger::debug(format!("Command completed: {}", command_txt));
         }
 
         Ok(())
@@ -131,14 +129,14 @@ fn check_output_status(command_text: &str, output: &std::process::Output) -> Cmd
         );
         return Err(CmdError {
             stderr: Some(String::from_utf8(output.stderr.clone())?),
-            source: anyhow!("Command failed to run: {}", command_text),
+            source: anyhow::anyhow!("Command failed to run: {}", command_text),
         });
     }
 
     Ok(())
 }
 
-fn run_command(mut command: Command) -> io::Result<Output> {
+fn run_low_level_process_command(mut command: Command) -> io::Result<Output> {
     command.stdout(Stdio::inherit());
     command.stderr(Stdio::piped());
     let child = command.spawn()?;
