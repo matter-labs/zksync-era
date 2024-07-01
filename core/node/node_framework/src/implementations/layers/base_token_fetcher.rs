@@ -38,13 +38,13 @@ impl WiringLayer for BaseTokenFetcherLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let replica_pool = replica_pool_resource.get().await.unwrap();
 
         let fetcher = DBBaseTokenFetcher::new(replica_pool).await?;
 
         context.insert_resource(BaseTokenFetcherResource(Arc::new(fetcher.clone())))?;
-        context.add_task(Box::new(fetcher));
+        context.add_task(fetcher);
 
         Ok(())
     }

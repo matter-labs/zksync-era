@@ -75,11 +75,11 @@ impl WiringLayer for SequencerL1GasLayer {
         .context("GasAdjuster::new()")?;
         let gas_adjuster = Arc::new(adjuster);
 
-        let BaseTokenFetcherResource(fetcher) = context.get_resource_or_default().await;
+        let fetcher = context.get_resource_or_default::<BaseTokenFetcherResource>();
 
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             gas_adjuster.clone(),
-            fetcher,
+            fetcher.0.clone(),
             FeeModelConfig::from_state_keeper_config(&self.state_keeper_config),
         ));
         context.insert_resource(FeeInputResource(batch_fee_input_provider))?;

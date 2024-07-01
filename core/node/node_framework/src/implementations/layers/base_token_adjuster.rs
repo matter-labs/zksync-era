@@ -38,12 +38,12 @@ impl WiringLayer for BaseTokenAdjusterLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let master_pool = master_pool_resource.get().await?;
 
         let adjuster = BaseTokenAdjuster::new(master_pool, self.config);
 
-        context.add_task(Box::new(adjuster));
+        context.add_task(adjuster);
 
         Ok(())
     }
