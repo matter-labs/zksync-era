@@ -1,6 +1,8 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
-use std::{collections::HashMap, fmt, mem, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{
+    cmp::Ordering, collections::HashMap, fmt, mem, num::NonZeroUsize, sync::Arc, time::Duration,
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -191,6 +193,17 @@ impl SnapshotsApplierMainNodeClient for Box<DynClient<L2>> {
     }
 }
 
+/// Reported status of the snapshot recovery progress.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RecoveryCompletionStatus {
+    /// There is no infomration about snapshot recovery in the database.
+    NoRecoveryDetected,
+    /// Snapshot recovery is not finished yet.
+    InProgress,
+    /// Snapshot recovery is completed.
+    Completed,
+}
+
 /// Snapshot applier configuration options.
 #[derive(Debug, Clone)]
 pub struct SnapshotsApplierConfig {
@@ -260,6 +273,45 @@ impl SnapshotsApplierTask {
             connection_pool,
             main_node_client,
             blob_store,
+        }
+    }
+
+    /// Checks whether the snapshot recovery is already completed.
+    ///
+    /// Returns `None` if no snapshot recovery information is detected in the DB.
+    /// Returns `Some(true)` if the recovery is completed.
+    /// Returns `Some(false)` if the recovery is not completed.
+    pub async fn is_recovery_completed(
+        conn: &mut Connection<'_, Core>,
+        client: &dyn SnapshotsApplierMainNodeClient,
+    ) -> anyhow::Result<RecoveryCompletionStatus> {
+        let Some(applied_snapshot_status) = conn
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await?
+        else {
+            return Ok(RecoveryCompletionStatus::NoRecoveryDetected);
+        };
+        // If there are unprocessed storage logs chunks, the recovery is not complete.
+        if applied_snapshot_status.storage_logs_chunks_left_to_process() != 0 {
+            return Ok(RecoveryCompletionStatus::InProgress);
+        }
+        // Currently, migrating tokens is the last step of the recovery.
+        // The number of tokens is not a part of the snapshot header, so we have to re-query the main node.
+        let added_tokens = conn
+            .tokens_web3_dal()
+            .get_all_tokens(Some(applied_snapshot_status.l2_block_number))
+            .await?
+            .len();
+        let tokens_on_main_node = client
+            .fetch_tokens(applied_snapshot_status.l2_block_number)
+            .await?
+            .len();
+
+        match added_tokens.cmp(&tokens_on_main_node) {
+            Ordering::Less => Ok(RecoveryCompletionStatus::InProgress),
+            Ordering::Equal => Ok(RecoveryCompletionStatus::Completed),
+            Ordering::Greater => anyhow::bail!("DB contains more tokens than the main node"),
         }
     }
 
