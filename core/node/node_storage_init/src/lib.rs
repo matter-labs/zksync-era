@@ -2,15 +2,19 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
+use zksync_block_reverter::BlockReverter;
 use zksync_config::ObjectStoreConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_health_check::AppHealthCheck;
 use zksync_types::L1BatchNumber;
 
-pub use self::{external_node::ExternalNodeRole, main_node::MainNodeRole};
+use crate::node_role::NodeRole;
+
+pub use crate::{external_node::ExternalNodeRole, main_node::MainNodeRole};
 
 mod external_node;
 mod main_node;
+mod node_role;
 
 #[derive(Debug)]
 pub struct SnapshotRecoveryConfig {
@@ -21,7 +25,7 @@ pub struct SnapshotRecoveryConfig {
 }
 
 #[derive(Debug)]
-pub enum InitDecision {
+enum InitDecision {
     /// Perform or check genesis.
     Genesis,
     /// Perform or check snapshot recovery.
@@ -29,32 +33,12 @@ pub enum InitDecision {
 }
 
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-pub enum NodeRole {
-    /// Storage must be initialized for the main node.
-    Main(MainNodeRole),
-    /// Storage must be initialized for the external node.
-    External(ExternalNodeRole),
-}
-
-impl From<MainNodeRole> for NodeRole {
-    fn from(main: MainNodeRole) -> Self {
-        Self::Main(main)
-    }
-}
-
-impl From<ExternalNodeRole> for NodeRole {
-    fn from(en: ExternalNodeRole) -> Self {
-        Self::External(en)
-    }
-}
-
-#[derive(Debug)]
 pub struct NodeStorageInitializer {
     pool: ConnectionPool<Core>,
     node_role: NodeRole,
-    recovery_config: Option<SnapshotRecoveryConfig>,
     app_health: Arc<AppHealthCheck>,
+    recovery_config: Option<SnapshotRecoveryConfig>,
+    block_reverter: Option<BlockReverter>,
 }
 
 impl NodeStorageInitializer {
@@ -66,13 +50,19 @@ impl NodeStorageInitializer {
         Self {
             pool,
             node_role: role.into(),
-            recovery_config: None,
             app_health,
+            recovery_config: None,
+            block_reverter: None,
         }
     }
 
     pub fn with_recovery_config(mut self, recovery_config: Option<SnapshotRecoveryConfig>) -> Self {
         self.recovery_config = recovery_config;
+        self
+    }
+
+    pub fn with_block_reverter(mut self, block_reverter: Option<BlockReverter>) -> Self {
+        self.block_reverter = block_reverter;
         self
     }
 
@@ -122,43 +112,78 @@ impl NodeStorageInitializer {
         Ok(decision)
     }
 
-    pub async fn storage_initialized(&self) -> anyhow::Result<bool> {
+    /// Checks if the node can safely start operating.
+    pub async fn storage_initialized(
+        &self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<bool> {
         let decision = self.decision().await?;
-        let initialized = match (&self.node_role, decision) {
-            (NodeRole::Main(main), InitDecision::Genesis) => {
-                main.is_genesis_performed(&self.pool).await?
-            }
-            (NodeRole::Main(_), InitDecision::SnapshotRecovery) => {
-                anyhow::bail!("Snapshot recovery is not supported for the main node")
-            }
-            (NodeRole::External(en), InitDecision::Genesis) => {
-                en.is_genesis_performed(&self.pool).await?
-            }
-            (NodeRole::External(en), InitDecision::SnapshotRecovery) => {
-                en.is_snapshot_recovery_completed(&self.pool).await?
+        let mut initialized = match decision {
+            InitDecision::Genesis => self.node_role.is_genesis_performed(&self.pool).await?,
+            InitDecision::SnapshotRecovery => {
+                self.node_role
+                    .is_snapshot_recovery_completed(&self.pool)
+                    .await?
             }
         };
+        if !initialized {
+            return Ok(false);
+        }
+
+        if self
+            .node_role
+            .should_rollback_to(stop_receiver, &self.pool)
+            .await?
+            .is_some()
+        {
+            // Node is in the incorrect state. Not safe to proceed.
+            initialized = false;
+        }
 
         Ok(initialized)
     }
 
+    /// Initializes the storage for the node.
+    /// After the initialization, the node can safely start operating.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let decision = self.decision().await?;
 
-        match (self.node_role, decision) {
-            (NodeRole::Main(main), InitDecision::Genesis) => main.genesis(&self.pool).await?,
-            (NodeRole::Main(_), InitDecision::SnapshotRecovery) => {
-                anyhow::bail!("Snapshot recovery is not supported for the main node")
+        // Make sure that we have state to work with.
+        match decision {
+            InitDecision::Genesis => {
+                tracing::info!("Performing genesis initialization");
+                self.node_role.genesis(&self.pool).await?;
             }
-            (NodeRole::External(en), InitDecision::Genesis) => en.genesis(&self.pool).await?,
-            (NodeRole::External(en), InitDecision::SnapshotRecovery) => {
+            InitDecision::SnapshotRecovery => {
+                tracing::info!("Performing snapshot recovery initialization");
                 let recovery_config = self.recovery_config.context(
-                    "Snapshot recovery is required to proceed, but it is not enabled. Enable by setting \
-                     `EN_SNAPSHOTS_RECOVERY_ENABLED=true` env variable to the node binary, or use a Postgres dump for recovery"
+                    "Snapshot recovery is required to proceed, but it is not enabled. \
+                    Consult the documentation for more information on how to enable it.",
                 )?;
-                en.snapshot_recovery(stop_receiver, self.pool, recovery_config, self.app_health)
+                self.node_role
+                    .snapshot_recovery(
+                        stop_receiver.clone(),
+                        &self.pool,
+                        recovery_config,
+                        self.app_health.clone(),
+                    )
                     .await?;
             }
+        }
+
+        // Now we may check whether we're in the invalid state and should perform a rollback.
+        if let Some(to_batch) = self
+            .node_role
+            .should_rollback_to(stop_receiver, &self.pool)
+            .await?
+        {
+            tracing::info!(l1_batch = %to_batch, "State must be rolled back to L1 batch");
+            let Some(reverter) = self.block_reverter else {
+                anyhow::bail!("Blocks must be reverted, but the block reverter is not provided.");
+            };
+
+            tracing::info!("Performing the rollback");
+            self.node_role.perform_rollback(reverter, to_batch).await?;
         }
 
         Ok(())

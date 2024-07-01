@@ -20,6 +20,8 @@ zksync_shared_metrics.workspace = true
 zksync_snapshots_applier.workspace = true
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
+zksync_reorg_detector.workspace = true
+zksync_block_reverter.workspace = true
 
 anyhow.workspace = true
 tokio.workspace = true
