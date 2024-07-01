@@ -18,7 +18,7 @@ zksync_env_config.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
 zksync_utils.workspace = true
-zksync_prometheus_exporter.workspace = true
+zksync_prover_config.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_queued_job_processor.workspace = true
 vk_setup_data_generator_server_fri.workspace = true
@@ -34,6 +34,7 @@ structopt.workspace = true
 tokio = { workspace = true, features = ["time", "macros"] }
 futures = { workspace = true, features = ["compat"] }
 ctrlc = { workspace = true, features = ["termination"] }
+clap = { workspace = true, features = ["derive"] }
 async-trait.workspace = true
 bincode.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }

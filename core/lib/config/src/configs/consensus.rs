@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use secrecy::{ExposeSecret as _, Secret};
 use zksync_basic_types::L2ChainId;
+use zksync_concurrency::{limiter, time};
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -65,6 +66,22 @@ pub struct GenesisSpec {
     pub leader: ValidatorPublicKey,
 }
 
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct RpcConfig {
+    /// Max number of blocks that can be send from/to each peer.
+    /// Defaults to 10 blocks/s/connection.
+    pub get_block_rate: Option<limiter::Rate>,
+}
+
+impl RpcConfig {
+    pub fn get_block_rate(&self) -> limiter::Rate {
+        self.get_block_rate.unwrap_or(limiter::Rate {
+            burst: 10,
+            refresh: time::Duration::milliseconds(100),
+        })
+    }
+}
+
 /// Config (shared between main node and external node).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConsensusConfig {
@@ -91,6 +108,15 @@ pub struct ConsensusConfig {
     /// Used to (re)initialize genesis if needed.
     /// External nodes fetch the genesis from the main node.
     pub genesis_spec: Option<GenesisSpec>,
+
+    /// Rate limiting configuration for the p2p RPCs.
+    pub rpc: Option<RpcConfig>,
+}
+
+impl ConsensusConfig {
+    pub fn rpc(&self) -> RpcConfig {
+        self.rpc.clone().unwrap_or_default()
+    }
 }
 
 /// Secrets need for consensus.

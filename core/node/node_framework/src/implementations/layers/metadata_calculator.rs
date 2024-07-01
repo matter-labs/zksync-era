@@ -23,15 +23,23 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Builder for a metadata calculator.
+/// Wiring layer for <insert description here>
 ///
-/// ## Effects
+/// ## Requests resources
 ///
-/// - Resolves `PoolResource<MasterPool>`.
-/// - Resolves `PoolResource<ReplicaPool>`.
-/// - Resolves `ObjectStoreResource` (optional).
-/// - Adds `tree_health_check` to the `ResourceCollection<HealthCheckResource>`.
-/// - Adds `metadata_calculator` to the node.
+/// - `PoolResource<MasterPool>`
+/// - `PoolResource<ReplicaPool>`
+/// - `ObjectStoreResource` (only for `MerkleTreeMode::Full`)
+/// - `AppHealthCheckResource` (adds several health checks)
+///
+/// ## Adds resources
+///
+/// - `TreeApiClientResource`
+///
+/// ## Adds tasks
+///
+/// - `MetadataCalculatorTask`
+/// - `TreeApiTask` (if requested)
 #[derive(Debug)]
 pub struct MetadataCalculatorLayer {
     config: MetadataCalculatorConfig,
@@ -154,13 +162,16 @@ impl Task for TreeApiTask {
         "tree_api".into()
     }
 
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.tree_reader
-            .wait()
-            .await
-            .context("Cannot initialize tree reader")?
-            .run_api_server(self.bind_addr, stop_receiver.0)
-            .await
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        if let Some(reader) = self.tree_reader.wait().await {
+            reader.run_api_server(self.bind_addr, stop_receiver.0).await
+        } else {
+            // Tree is dropped before initialized, e.g. because the node is getting shut down.
+            // We don't want to treat this as an error since it could mask the real shutdown cause in logs etc.
+            tracing::warn!("Tree is dropped before initialized, not starting the tree API server");
+            stop_receiver.0.changed().await?;
+            Ok(())
+        }
     }
 }
 

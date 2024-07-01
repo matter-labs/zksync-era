@@ -10,7 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_prometheus_exporter.workspace = true
+zksync_vlog.workspace = true
 zksync_types.workspace = true
 zksync_health_check.workspace = true
 zksync_dal.workspace = true
@@ -58,5 +58,4 @@ ctrlc.workspace = true
 
 [dev-dependencies]
 zksync_env_config.workspace = true
-zksync_vlog.workspace = true
 assert_matches.workspace = true

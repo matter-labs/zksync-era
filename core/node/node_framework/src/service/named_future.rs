@@ -1,6 +1,8 @@
 use std::{fmt, future::Future, pin::Pin, task};
 
+use futures::future::{Fuse, FutureExt};
 use pin_project_lite::pin_project;
+use tokio::task::JoinHandle;
 
 use crate::task::TaskId;
 
@@ -15,19 +17,34 @@ pin_project! {
 
 impl<F> NamedFuture<F>
 where
-    F: Future,
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
 {
     /// Creates a new future with the name tag attached.
     pub fn new(inner: F, name: TaskId) -> Self {
         Self { inner, name }
     }
 
+    /// Returns the ID of the task attached to the future.
     pub fn id(&self) -> TaskId {
         self.name.clone()
     }
 
-    pub fn into_inner(self) -> F {
-        self.inner
+    /// Fuses the wrapped future.
+    pub fn fuse(self) -> NamedFuture<Fuse<F>> {
+        NamedFuture {
+            name: self.name,
+            inner: self.inner.fuse(),
+        }
+    }
+
+    /// Spawns the wrapped future on the provided runtime handle.
+    /// Returns a named wrapper over the join handle.
+    pub fn spawn(self, handle: &tokio::runtime::Handle) -> NamedFuture<JoinHandle<F::Output>> {
+        NamedFuture {
+            name: self.name,
+            inner: handle.spawn(self.inner),
+        }
     }
 }
 

@@ -21,3 +21,4 @@ strum_macros.workspace = true
 tokio.workspace = true
 url.workspace = true
 xshell.workspace = true
+serde.workspace = true

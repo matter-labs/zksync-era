@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsStr,
     path::PathBuf,
     process::{Command, Output, Stdio},
 };
@@ -31,6 +32,12 @@ impl<'a> Cmd<'a> {
     /// Run the command printing the output to the console.
     pub fn with_force_run(mut self) -> Self {
         self.force_run = true;
+        self
+    }
+
+    /// Set env variables for the command.
+    pub fn env<K: AsRef<OsStr>, V: AsRef<OsStr>>(mut self, key: K, value: V) -> Self {
+        self.inner = self.inner.env(key, value);
         self
     }
 

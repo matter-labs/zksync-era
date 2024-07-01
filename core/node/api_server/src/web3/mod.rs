@@ -24,7 +24,8 @@ use zksync_web3_decl::{
     },
     namespaces::{
         DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, EthPubSubServer,
-        NetNamespaceServer, SnapshotsNamespaceServer, Web3NamespaceServer, ZksNamespaceServer,
+        NetNamespaceServer, SnapshotsNamespaceServer, UnstableNamespaceServer, Web3NamespaceServer,
+        ZksNamespaceServer,
     },
     types::Filter,
 };
@@ -37,8 +38,8 @@ use self::{
     mempool_cache::MempoolCache,
     metrics::API_METRICS,
     namespaces::{
-        DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
-        ZksNamespace,
+        DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace,
+        UnstableNamespace, Web3Namespace, ZksNamespace,
     },
     pubsub::{EthSubscribe, EthSubscriptionIdProvider, PubSubEvent},
     state::{Filters, InternalApiConfig, RpcState, SealedL2BlockNumber},
@@ -86,8 +87,9 @@ enum ApiTransport {
     Http(SocketAddr),
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, strum::EnumString)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum Namespace {
     Eth,
     Net,
@@ -97,6 +99,7 @@ pub enum Namespace {
     En,
     Pubsub,
     Snapshots,
+    Unstable,
 }
 
 impl Namespace {
@@ -406,8 +409,12 @@ impl ApiServer {
                 .context("cannot merge en namespace")?;
         }
         if namespaces.contains(&Namespace::Snapshots) {
-            rpc.merge(SnapshotsNamespace::new(rpc_state).into_rpc())
+            rpc.merge(SnapshotsNamespace::new(rpc_state.clone()).into_rpc())
                 .context("cannot merge snapshots namespace")?;
+        }
+        if namespaces.contains(&Namespace::Unstable) {
+            rpc.merge(UnstableNamespace::new(rpc_state).into_rpc())
+                .context("cannot merge unstable namespace")?;
         }
         Ok(rpc)
     }
