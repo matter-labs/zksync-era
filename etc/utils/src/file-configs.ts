@@ -16,7 +16,14 @@ export function shouldLoadConfigFromFile() {
     }
 }
 
-export const configNames = ['contracts.yaml', 'general.yaml', 'genesis.yaml', 'secrets.yaml', 'wallets.yaml'] as const;
+export const configNames = [
+    'contracts.yaml',
+    'general.yaml',
+    'genesis.yaml',
+    'secrets.yaml',
+    'wallets.yaml',
+    'external_node.yaml'
+] as const;
 
 export type ConfigName = (typeof configNames)[number];
 

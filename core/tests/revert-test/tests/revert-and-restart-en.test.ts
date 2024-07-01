@@ -11,20 +11,61 @@ import { expect, assert } from 'chai';
 import fs from 'fs';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
+import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import path from 'path';
+
+const pathToHome = path.join(__dirname, '../../../..');
+const fileConfig = shouldLoadConfigFromFile();
 
 let mainEnv: string;
 let extEnv: string;
-if (process.env.DEPLOYMENT_MODE == 'Validium') {
+
+let deploymentMode: string;
+
+if (fileConfig.loadFromFile) {
+    const genesisConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'genesis.yaml' });
+    deploymentMode = genesisConfig.deploymentMode;
+} else {
+    if (!process.env.DEPLOYMENT_MODE) {
+        throw new Error('DEPLOYMENT_MODE is not set');
+    }
+    if (!['Validium', 'Rollup'].includes(process.env.DEPLOYMENT_MODE)) {
+        throw new Error(`Unknown deployment mode: ${process.env.DEPLOYMENT_MODE}`);
+    }
+    deploymentMode = process.env.DEPLOYMENT_MODE;
+}
+
+if (deploymentMode == 'Validium') {
     mainEnv = process.env.IN_DOCKER ? 'dev_validium_docker' : 'dev_validium';
     extEnv = process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium';
-} else if (process.env.DEPLOYMENT_MODE == 'Rollup') {
+} else {
+    // Rollup deployment mode
     mainEnv = process.env.IN_DOCKER ? 'docker' : 'dev';
     extEnv = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
-} else {
-    throw new Error(`Unknown deployment mode: ${process.env.DEPLOYMENT_MODE}`);
 }
 const mainLogsPath: string = 'revert_main.log';
 const extLogsPath: string = 'revert_ext.log';
+
+let ethClientWeb3Url: string;
+let apiWeb3JsonRpcHttpUrl: string;
+let baseTokenAddress: string;
+
+if (fileConfig.loadFromFile) {
+    const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+    const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+    const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
+    const externalNodeConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'external_node.yaml' });
+
+    ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
+    apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+    baseTokenAddress = contractsConfig.l1.base_token_addr;
+} else {
+    let env = fetchEnv(mainEnv);
+    ethClientWeb3Url = env.ETH_CLIENT_WEB3_URL;
+    apiWeb3JsonRpcHttpUrl = env.API_WEB3_JSON_RPC_HTTP_URL;
+    baseTokenAddress = env.CONTRACTS_BASE_TOKEN_ADDR;
+    env.EN_ETH_CLIENT_URL`http://127.0.0.1:${env.EN_HTTP_PORT}`;
+}
 
 interface SuggestedValues {
     lastExecutedL1BatchNumber: BigNumber;
@@ -150,11 +191,7 @@ class MainNode {
             }
         });
         // Wait until the main node starts responding.
-        let tester: Tester = await Tester.init(
-            env.ETH_CLIENT_WEB3_URL,
-            env.API_WEB3_JSON_RPC_HTTP_URL,
-            env.CONTRACTS_BASE_TOKEN_ADDR
-        );
+        let tester: Tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
         while (true) {
             try {
                 await tester.syncWallet.provider.getBlockNumber();
@@ -204,7 +241,7 @@ class ExtNode {
         let tester: Tester = await Tester.init(
             env.EN_ETH_CLIENT_URL,
             `http://127.0.0.1:${env.EN_HTTP_PORT}`,
-            env.CONTRACTS_BASE_TOKEN_ADDR
+            baseTokenAddress
         );
         while (true) {
             try {
@@ -231,7 +268,7 @@ class ExtNode {
 }
 
 describe('Block reverting test', function () {
-    if (process.env.SKIP_COMPILATION !== 'true') {
+    if (process.env.SKIP_COMPILATION !== 'true' && !fileConfig.loadFromFile) {
         compileBinaries();
     }
     console.log(`PWD = ${process.env.PWD}`);
