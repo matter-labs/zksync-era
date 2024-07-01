@@ -14,11 +14,12 @@ use crate::{OverrideStorage, ReadStorage};
 #[derive(Debug)]
 pub struct StorageOverrides<S> {
     storage_handle: S,
-    overrided_factory_deps: HashMap<H256, Vec<u8>>,
-    overrided_account_state: HashMap<AccountTreeId, HashMap<H256, H256>>,
-    overrided_balance: HashMap<StorageKey, U256>,
-    overrided_nonce: HashMap<StorageKey, U256>,
-    overrided_code: HashMap<StorageKey, H256>,
+    overridden_factory_deps: HashMap<H256, Vec<u8>>,
+    overridden_account_state: HashMap<AccountTreeId, HashMap<H256, H256>>,
+    overriden_account_state_diff: HashMap<AccountTreeId, HashMap<H256, H256>>,
+    overridden_balance: HashMap<StorageKey, U256>,
+    overridden_nonce: HashMap<StorageKey, U256>,
+    overridden_code: HashMap<StorageKey, H256>,
 }
 
 impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
@@ -26,22 +27,33 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
     pub fn new(storage: S) -> Self {
         Self {
             storage_handle: storage,
-            overrided_factory_deps: HashMap::new(),
-            overrided_account_state: HashMap::new(),
-            overrided_balance: HashMap::new(),
-            overrided_nonce: HashMap::new(),
-            overrided_code: HashMap::new(),
+            overridden_factory_deps: HashMap::new(),
+            overridden_account_state: HashMap::new(),
+            overriden_account_state_diff: HashMap::new(),
+            overridden_balance: HashMap::new(),
+            overridden_nonce: HashMap::new(),
+            overridden_code: HashMap::new(),
         }
     }
 
     /// Overrides a factory dependency code.
     pub fn store_factory_dep(&mut self, hash: H256, code: Vec<u8>) {
-        self.overrided_factory_deps.insert(hash, code);
+        self.overridden_factory_deps.insert(hash, code);
     }
 
     /// Overrides an account entire state.
     pub fn override_account_state(&mut self, account: AccountTreeId, state: HashMap<H256, H256>) {
-        self.overrided_account_state.insert(account, state);
+        self.overridden_account_state.insert(account, state);
+    }
+
+    /// Overrides an account state diff.
+    pub fn override_account_state_diff(
+        &mut self,
+        account: AccountTreeId,
+        state_diff: HashMap<H256, H256>,
+    ) {
+        self.overriden_account_state_diff
+            .insert(account, state_diff);
     }
 
     /// Make a Rc RefCell ptr to the storage
@@ -52,22 +64,30 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
 
 impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageOverrides<S> {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        if let Some(balance) = self.overrided_balance.get(key) {
+        if let Some(balance) = self.overridden_balance.get(key) {
             return u256_to_h256(*balance);
         }
-        if let Some(code) = self.overrided_code.get(key) {
+        if let Some(code) = self.overridden_code.get(key) {
             return *code;
         }
 
-        if let Some(nonce) = self.overrided_nonce.get(key) {
+        if let Some(nonce) = self.overridden_nonce.get(key) {
             return u256_to_h256(*nonce);
         }
-        // If the account is overridden, return the overridden value if any or zero.
-        // Otherwise, return the value from the underlying storage.
-        self.overrided_account_state.get(key.account()).map_or_else(
-            || self.storage_handle.read_value(key),
-            |state| state.get(key.key()).copied().unwrap_or_else(H256::zero),
-        )
+
+        if let Some(account_state) = self.overridden_account_state.get(key.account()) {
+            if let Some(value) = account_state.get(key.key()) {
+                return *value;
+            }
+        }
+
+        if let Some(account_state_diff) = self.overriden_account_state_diff.get(key.account()) {
+            if let Some(value) = account_state_diff.get(key.key()) {
+                return *value;
+            }
+        }
+
+        self.storage_handle.read_value(key)
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
@@ -75,7 +95,7 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageOverrides<S> {
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.overrided_factory_deps
+        self.overridden_factory_deps
             .get(&hash)
             .cloned()
             .or_else(|| self.storage_handle.load_factory_dep(hash))
@@ -91,7 +111,7 @@ impl<S: ReadStorage + fmt::Debug> OverrideStorage for StorageOverrides<S> {
         for (account, overrides) in state_override.iter() {
             if let Some(balance) = overrides.balance {
                 let balance_key = storage_key_for_eth_balance(account);
-                self.overrided_balance.insert(balance_key, balance);
+                self.overridden_balance.insert(balance_key, balance);
             }
 
             if let Some(nonce) = overrides.nonce {
@@ -99,13 +119,13 @@ impl<S: ReadStorage + fmt::Debug> OverrideStorage for StorageOverrides<S> {
                 let full_nonce = self.read_value(&nonce_key);
                 let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
                 let new_full_nonce = nonces_to_full_nonce(nonce, deployment_nonce);
-                self.overrided_nonce.insert(nonce_key, new_full_nonce);
+                self.overridden_nonce.insert(nonce_key, new_full_nonce);
             }
 
             if let Some(code) = &overrides.code {
                 let code_key = get_code_key(account);
                 let code_hash = hash_bytecode(&code.0);
-                self.overrided_code.insert(code_key, code_hash);
+                self.overridden_code.insert(code_key, code_hash);
                 self.store_factory_dep(code_hash, code.0.clone());
             }
 
@@ -116,7 +136,7 @@ impl<S: ReadStorage + fmt::Debug> OverrideStorage for StorageOverrides<S> {
                 Some(OverrideState::StateDiff(state_diff)) => {
                     for (key, value) in state_diff {
                         let account_state = self
-                            .overrided_account_state
+                            .overridden_account_state
                             .entry(AccountTreeId::new(*account))
                             .or_default();
                         account_state.insert(*key, *value);

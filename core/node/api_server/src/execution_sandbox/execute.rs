@@ -173,6 +173,7 @@ impl TransactionExecutor {
         block_args: BlockArgs,
         vm_execution_cache_misses_limit: Option<usize>,
         custom_tracers: Vec<ApiTracer>,
+        state_override: Option<StateOverride>,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
         let execution_args = TxExecutionArgs::for_eth_call(
             call_overrides.enforced_base_fee,
@@ -192,7 +193,7 @@ impl TransactionExecutor {
                 connection_pool,
                 tx.into(),
                 block_args,
-                None,
+                state_override,
                 custom_tracers,
             )
             .await?;

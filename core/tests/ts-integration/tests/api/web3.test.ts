@@ -20,7 +20,8 @@ const contracts = {
     counter: getTestContract('Counter'),
     events: getTestContract('Emitter'),
     outer: getTestContract('Outer'),
-    inner: getTestContract('Inner')
+    inner: getTestContract('Inner'),
+    stateOverride: getTestContract('StateOverrideTest')
 };
 
 describe('web3 API compatibility tests', () => {
@@ -945,10 +946,17 @@ describe('web3 API compatibility tests', () => {
 
     describe('Storage override', () => {
         test('Should be able to estimate_gas overriding the balance of the sender', async () => {
-            const balance = await alice.getBalance(l2Token);
+            const balance = await alice.getBalance();
             const amount = balance.add(1);
-            // const tx = await alice.transfer({ to: alice.address, token: l2Token, amount });
-            // await expect(tx).toBeRejected('insufficient balance for transfer');
+
+            // Expect the transaction to be reverted without the overridden balance
+            await expect(
+                alice.provider.estimateGas({
+                    from: alice.address,
+                    to: alice.address,
+                    value: amount.toHexString()
+                })
+            ).toBeRejected();
 
             // Call estimate_gas overriding the balance of the sender using the eth_estimateGas endpoint
             const response = await alice.provider.send('eth_estimateGas', [
@@ -1004,6 +1012,121 @@ describe('web3 API compatibility tests', () => {
             // Assert that the response is successful
             expect(response).toEqual(expect.stringMatching(HEX_VALUE_REGEX));
         });
+
+        test('Should estimate gas by overriding state with State', async () => {
+            const contract = await deployContract(alice, contracts.stateOverride, []);
+
+            const sumValuesFunctionData = contract.interface.encodeFunctionData('sumValues', []);
+
+            // Ensure that the initial gas estimation fails due to contract requirements
+            await expect(
+                alice.provider.estimateGas({
+                    to: contract.address,
+                    data: sumValuesFunctionData
+                })
+            ).toBeRejected();
+
+            // Override the entire contract state using State
+            const state = {
+                [contract.address]: {
+                    state: {
+                        '0x0000000000000000000000000000000000000000000000000000000000000000':
+                            '0x0000000000000000000000000000000000000000000000000000000000000001',
+                        '0x0000000000000000000000000000000000000000000000000000000000000001':
+                            '0x0000000000000000000000000000000000000000000000000000000000000002'
+                    }
+                }
+            };
+
+            const response = await alice.provider.send('eth_estimateGas', [
+                {
+                    from: alice.address,
+                    to: contract.address,
+                    data: sumValuesFunctionData
+                },
+                'latest',
+                state
+            ]);
+
+            expect(response).toEqual(expect.stringMatching(HEX_VALUE_REGEX));
+        });
+
+        test('Should estimate gas by overriding state with StateDiff', async () => {
+            const contract = await deployContract(alice, contracts.stateOverride, []);
+            const incrementFunctionData = contract.interface.encodeFunctionData('increment', [1]);
+
+            // Ensure that the initial gas estimation fails due to contract requirements
+            await expect(
+                alice.provider.estimateGas({
+                    to: contract.address,
+                    data: incrementFunctionData
+                })
+            ).toBeRejected();
+
+            // Override the contract state using StateDiff
+            const stateDiff = {
+                [contract.address]: {
+                    stateDiff: {
+                        '0x0000000000000000000000000000000000000000000000000000000000000000':
+                            '0x0000000000000000000000000000000000000000000000000000000000000001'
+                    }
+                }
+            };
+
+            const response = await alice.provider.send('eth_estimateGas', [
+                {
+                    from: alice.address,
+                    to: contract.address,
+                    data: incrementFunctionData
+                },
+                'latest',
+                stateDiff
+            ]);
+
+            expect(response).toEqual(expect.stringMatching(HEX_VALUE_REGEX));
+        });
+    });
+
+    test('Should call and succeed with overriding state with State', async () => {
+        const contract = await deployContract(alice, contracts.stateOverride, []);
+        const sumValuesFunctionData = contract.interface.encodeFunctionData('sumValues', []);
+
+        // Ensure that the initial call fails due to contract requirements
+        const callResponse = await alice.provider.call({
+            to: contract.address,
+            data: sumValuesFunctionData
+        });
+
+        const errorString = 'Initial state not set';
+        const encodedErrorString = ethers.utils.defaultAbiCoder.encode(['string'], [errorString]);
+        const errorSelector = '0x08c379a0';
+        const expectedResponse = errorSelector + encodedErrorString.slice(2);
+
+        expect(callResponse).toEqual(expectedResponse);
+
+        // Override the contract state using State
+        const state = {
+            [contract.address]: {
+                state: {
+                    '0x0000000000000000000000000000000000000000000000000000000000000000':
+                        '0x0000000000000000000000000000000000000000000000000000000000000001',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001':
+                        '0x0000000000000000000000000000000000000000000000000000000000000002'
+                }
+            }
+        };
+
+        const response = await alice.provider.send('eth_call', [
+            {
+                from: alice.address,
+                to: contract.address,
+                data: sumValuesFunctionData
+            },
+            'latest',
+            state
+        ]);
+
+        expect(response).toEqual('0x0000000000000000000000000000000000000000000000000000000000000003');
     });
 
     // We want to be sure that correct(outer) contract address is return in the transaction receipt,

@@ -34,7 +34,12 @@ pub trait EthNamespace {
     async fn chain_id(&self) -> RpcResult<U64>;
 
     #[method(name = "call")]
-    async fn call(&self, req: CallRequest, block: Option<BlockIdVariant>) -> RpcResult<Bytes>;
+    async fn call(
+        &self,
+        req: CallRequest,
+        block: Option<BlockIdVariant>,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<Bytes>;
 
     #[method(name = "estimateGas")]
     async fn estimate_gas(

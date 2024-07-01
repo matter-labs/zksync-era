@@ -989,6 +989,7 @@ impl TxSender {
         block_args: BlockArgs,
         call_overrides: CallOverrides,
         tx: L2Tx,
+        state_override: Option<StateOverride>,
     ) -> Result<Vec<u8>, SubmitTxError> {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
@@ -1005,6 +1006,7 @@ impl TxSender {
                 block_args,
                 vm_execution_cache_misses_limit,
                 vec![],
+                state_override,
             )
             .await?
             .into_api_call_result()

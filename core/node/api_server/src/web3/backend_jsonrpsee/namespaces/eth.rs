@@ -27,8 +27,13 @@ impl EthNamespaceServer for EthNamespace {
         Ok(self.chain_id_impl())
     }
 
-    async fn call(&self, req: CallRequest, block: Option<BlockIdVariant>) -> RpcResult<Bytes> {
-        self.call_impl(req, block.map(Into::into))
+    async fn call(
+        &self,
+        req: CallRequest,
+        block: Option<BlockIdVariant>,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<Bytes> {
+        self.call_impl(req, block.map(Into::into), state_override)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

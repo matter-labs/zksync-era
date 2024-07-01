@@ -23,7 +23,7 @@ pub fn create_vm(
     l1_batch_number: L1BatchNumber,
     mut connection: Connection<'_, Core>,
     l2_chain_id: L2ChainId,
-) -> anyhow::Result<VmAndStorage<'_>> {
+) -> anyhow::Result<VmAndStorage> {
     let l1_batch_params_provider = rt_handle
         .block_on(L1BatchParamsProvider::new(&mut connection))
         .context("failed initializing L1 batch params provider")?;

@@ -64,7 +64,9 @@ impl HttpTest for CallTest {
         client: &DynClient<L2>,
         _pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
-        let call_result = client.call(Self::call_request(b"pending"), None).await?;
+        let call_result = client
+            .call(Self::call_request(b"pending"), None, None)
+            .await?;
         assert_eq!(call_result.0, b"output");
 
         let valid_block_numbers_and_calldata = [
@@ -75,7 +77,7 @@ impl HttpTest for CallTest {
         for (number, calldata) in valid_block_numbers_and_calldata {
             let number = api::BlockIdVariant::BlockNumber(number);
             let call_result = client
-                .call(Self::call_request(calldata), Some(number))
+                .call(Self::call_request(calldata), Some(number), None)
                 .await?;
             assert_eq!(call_result.0, b"output");
         }
@@ -83,7 +85,7 @@ impl HttpTest for CallTest {
         let invalid_block_number = api::BlockNumber::from(100);
         let number = api::BlockIdVariant::BlockNumber(invalid_block_number);
         let error = client
-            .call(Self::call_request(b"100"), Some(number))
+            .call(Self::call_request(b"100"), Some(number), None)
             .await
             .unwrap_err();
         if let ClientError::Call(error) = error {
@@ -121,7 +123,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         _pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         let call_result = client
-            .call(CallTest::call_request(b"pending"), None)
+            .call(CallTest::call_request(b"pending"), None, None)
             .await?;
         assert_eq!(call_result.0, b"output");
         let pending_block_number = api::BlockIdVariant::BlockNumber(api::BlockNumber::Pending);
@@ -129,6 +131,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
             .call(
                 CallTest::call_request(b"pending"),
                 Some(pending_block_number),
+                None,
             )
             .await?;
         assert_eq!(call_result.0, b"output");
@@ -138,7 +141,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
             let error = client
-                .call(CallTest::call_request(b"pruned"), Some(number))
+                .call(CallTest::call_request(b"pruned"), Some(number), None)
                 .await
                 .unwrap_err();
             assert_pruned_block_error(&error, first_local_l2_block);
@@ -148,7 +151,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         for number in first_l2_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
             let call_result = client
-                .call(CallTest::call_request(b"first"), Some(number))
+                .call(CallTest::call_request(b"first"), Some(number), None)
                 .await?;
             assert_eq!(call_result.0, b"output");
         }
@@ -500,7 +503,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
             let error = client
-                .call(CallTest::call_request(b"pruned"), Some(number))
+                .call(CallTest::call_request(b"pruned"), Some(number), None)
                 .await
                 .unwrap_err();
             assert_pruned_block_error(&error, first_local_l2_block);

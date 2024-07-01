@@ -55,6 +55,7 @@ impl EthNamespace {
         &self,
         mut request: CallRequest,
         block_id: Option<BlockId>,
+        state_override: Option<StateOverride>,
     ) -> Result<Bytes, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
@@ -88,7 +89,7 @@ impl EthNamespace {
         let call_result: Vec<u8> = self
             .state
             .tx_sender
-            .eth_call(block_args, call_overrides, tx)
+            .eth_call(block_args, call_overrides, tx, state_override)
             .await?;
         Ok(call_result.into())
     }
