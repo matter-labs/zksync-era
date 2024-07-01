@@ -4,7 +4,7 @@ use config::{ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use super::{
-    args::run::{ProverComponent, ProverRunArgs},
+    args::run::{ProverComponent, ProverRunArgs, WitnessGeneratorArgs, WitnessGeneratorRound},
     utils::get_link_to_prover,
 };
 use crate::messages::{
@@ -12,6 +12,7 @@ use crate::messages::{
     MSG_RUNNING_PROVER_ERR, MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR,
     MSG_RUNNING_WITNESS_GENERATOR, MSG_RUNNING_WITNESS_GENERATOR_ERR,
     MSG_RUNNING_WITNESS_VECTOR_GENERATOR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR,
+    MSG_WITNESS_GENERATOR_ROUND_ERR,
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -26,7 +27,9 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 
     match args.component {
         Some(ProverComponent::Gateway) => run_gateway(shell, &chain)?,
-        Some(ProverComponent::WitnessGenerator) => run_witness_generator(shell, &chain)?,
+        Some(ProverComponent::WitnessGenerator) => {
+            run_witness_generator(shell, &chain, args.witness_generator_args)?
+        }
         Some(ProverComponent::WitnessVectorGenerator) => {
             run_witness_vector_generator(shell, &chain)?
         }
@@ -48,12 +51,26 @@ fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
     cmd.run().context(MSG_RUNNING_PROVER_GATEWAY_ERR)
 }
 
-fn run_witness_generator(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
+fn run_witness_generator(
+    shell: &Shell,
+    chain: &ChainConfig,
+    args: WitnessGeneratorArgs,
+) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_WITNESS_GENERATOR);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
+    let round = args.round.expect(MSG_WITNESS_GENERATOR_ROUND_ERR);
 
-    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_witness_generator -- --all_rounds --config-path={config_path} --secrets-path={secrets_path}"));
+    let round_str = match round {
+        WitnessGeneratorRound::AllRounds => "--all_rounds",
+        WitnessGeneratorRound::BasicCircuits => "--round=basic_circuits",
+        WitnessGeneratorRound::LeafAggregation => "--round=leaf_aggregation",
+        WitnessGeneratorRound::NodeAggregation => "--round=node_aggregation",
+        WitnessGeneratorRound::RecursionTip => "--round=recursion_tip",
+        WitnessGeneratorRound::Scheduler => "--round=scheduler",
+    };
+
+    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_witness_generator -- {round_str} --config-path={config_path} --secrets-path={secrets_path}"));
     cmd = cmd.with_force_run();
     cmd.run().context(MSG_RUNNING_WITNESS_GENERATOR_ERR)
 }
