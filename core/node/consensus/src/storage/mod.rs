@@ -1,6 +1,8 @@
 //! Storage implementation based on DAL.
 
+use zksync_concurrency::ctx;
 use zksync_consensus_roles::validator;
+use zksync_dal::consensus_dal;
 use zksync_node_sync::{
     fetcher::{FetchedBlock, IoCursorExt as _},
     sync_action::ActionQueueSender,
@@ -16,6 +18,14 @@ pub(crate) use store::*;
 
 #[cfg(test)]
 pub(crate) mod testonly;
+
+#[derive(thiserror::Error, Debug)]
+pub enum InsertCertificateError {
+    #[error(transparent)]
+    Canceled(#[from] ctx::Canceled),
+    #[error(transparent)]
+    Inner(#[from] consensus_dal::InsertCertificateError),
+}
 
 #[derive(Debug)]
 pub(crate) struct PayloadQueue {

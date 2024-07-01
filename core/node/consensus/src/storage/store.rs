@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, sync};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage as storage;
-use zksync_dal::consensus_dal::Payload;
+use zksync_dal::consensus_dal::{self, Payload};
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
 use zksync_types::L2BlockNumber;
 
 use super::PayloadQueue;
-use crate::storage::ConnectionPool;
+use crate::storage::{ConnectionPool, InsertCertificateError};
 
 fn to_fetched_block(
     number: validator::BlockNumber,
@@ -58,15 +58,17 @@ pub(crate) struct Store {
     persisted: sync::watch::Receiver<storage::BlockStoreState>,
 }
 
+struct PersistedState(sync::watch::Sender<storage::BlockStoreState>);
+
 /// Background task of the `Store`.
 pub struct StoreRunner {
     pool: ConnectionPool,
-    persisted: sync::watch::Sender<storage::BlockStoreState>,
+    persisted: PersistedState,
     certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
 }
 
 impl Store {
-    pub async fn new(
+    pub(crate) async fn new(
         ctx: &ctx::Ctx,
         pool: ConnectionPool,
         payload_queue: Option<PayloadQueue>,
@@ -89,34 +91,109 @@ impl Store {
             },
             StoreRunner {
                 pool,
-                persisted,
+                persisted: PersistedState(persisted),
                 certificates: certs_recv,
             },
         ))
     }
 }
 
+impl PersistedState {
+    /// Updates `persisted` to new.
+    /// Ends of the range can only be moved forward.
+    /// If `persisted.first` is moved forward, it means that blocks have been pruned.
+    /// If `persisted.last` is moved forward, it means that new blocks with certificates have been
+    /// persisted.
+    fn update(&self, new: storage::BlockStoreState) {
+        self.0.send_if_modified(|p| {
+            if &new == p {
+                return false;
+            }
+            p.first = p.first.max(new.first);
+            if p.next() < new.next() {
+                p.last = new.last;
+            }
+            true
+        });
+    }
+
+    /// Checks if the given certificate is exactly the next one that should
+    /// be persisted.
+    fn should_be_persisted(&self, cert: &validator::CommitQC) -> bool {
+        self.0.borrow().next() == cert.header().number
+    }
+
+    /// Appends the `cert` to `persisted` range.
+    fn advance(&self, cert: validator::CommitQC) {
+        self.0.send_if_modified(|p| {
+            if p.next() != cert.header().number {
+                return false;
+            }
+            p.last = Some(cert);
+            true
+        });
+    }
+}
+
 impl StoreRunner {
-    /// Background tasks for the store:
-    /// * save L2 quorum certificates into the persistent backend
     pub async fn run(mut self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
-        let res = async {
+        let res = scope::run!(ctx, |ctx, s| async {
+            s.spawn::<()>(async {
+                // Loop updating `persisted` whenever blocks get pruned.
+                const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
+                loop {
+                    let range = self
+                        .pool
+                        .connection(ctx)
+                        .await
+                        .wrap("connection")?
+                        .certificates_range(ctx)
+                        .await
+                        .wrap("certificates_range()")?;
+                    self.persisted.update(range);
+                    ctx.sleep(POLL_INTERVAL).await?;
+                }
+            });
+
+            // Loop inserting certs to storage.
+            const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
             loop {
                 let cert = self.certificates.recv(ctx).await?;
-                self.pool
-                    .wait_for_payload(ctx, cert.header().number)
-                    .await
-                    .wrap("wait_for_payload()")?;
-                self.pool
-                    .connection(ctx)
-                    .await
-                    .wrap("connection()")?
-                    .insert_certificate(ctx, &cert)
-                    .await
-                    .wrap("insert_certificate()")?;
-                self.persisted.send_modify(|p| p.last = Some(cert));
+                // Wait for the block to be persisted, so that we can attach a cert to it.
+                // We may exit this loop without persisting the certificate in case the
+                // corresponding block has been pruned in the meantime.
+                while self.persisted.should_be_persisted(&cert) {
+                    use consensus_dal::InsertCertificateError as E;
+                    // Try to insert the cert.
+                    let res = self
+                        .pool
+                        .connection(ctx)
+                        .await
+                        .wrap("connection")?
+                        .insert_certificate(ctx, &cert)
+                        .await;
+                    match res {
+                        Ok(()) => {
+                            // Insertion succeeded: update persisted state
+                            // and wait for the next cert.
+                            self.persisted.advance(cert);
+                            break;
+                        }
+                        Err(InsertCertificateError::Inner(E::MissingPayload)) => {
+                            // the payload is not in storage, it's either not yet persisted
+                            // or already pruned. We will retry after a delay.
+                            ctx.sleep(POLL_INTERVAL).await?;
+                        }
+                        Err(InsertCertificateError::Canceled(err)) => {
+                            return Err(ctx::Error::Canceled(err))
+                        }
+                        Err(InsertCertificateError::Inner(err)) => {
+                            return Err(ctx::Error::Internal(anyhow::Error::from(err)))
+                        }
+                    }
+                }
             }
-        }
+        })
         .await;
         match res {
             Err(ctx::Error::Canceled(_)) | Ok(()) => Ok(()),
@@ -214,7 +291,11 @@ impl PayloadManager for Store {
         block_number: validator::BlockNumber,
     ) -> ctx::Result<validator::Payload> {
         const LARGE_PAYLOAD_SIZE: usize = 1 << 20;
-        let payload = self.pool.wait_for_payload(ctx, block_number).await?;
+        let payload = self
+            .pool
+            .wait_for_payload(ctx, block_number)
+            .await
+            .wrap("wait_for_payload")?;
         let encoded_payload = payload.encode();
         if encoded_payload.0.len() > LARGE_PAYLOAD_SIZE {
             tracing::warn!(
@@ -262,5 +343,39 @@ impl PayloadManager for Store {
             }
         }
         Ok(())
+    }
+}
+
+// Dummy implementation
+#[async_trait::async_trait]
+impl storage::PersistentBatchStore for Store {
+    async fn last_batch(&self) -> attester::BatchNumber {
+        unimplemented!()
+    }
+    async fn last_batch_qc(&self) -> attester::BatchQC {
+        unimplemented!()
+    }
+    async fn get_batch(&self, _number: attester::BatchNumber) -> Option<attester::SyncBatch> {
+        None
+    }
+    async fn get_batch_qc(&self, _number: attester::BatchNumber) -> Option<attester::BatchQC> {
+        None
+    }
+    async fn store_qc(&self, _qc: attester::BatchQC) {
+        unimplemented!()
+    }
+    fn persisted(&self) -> sync::watch::Receiver<storage::BatchStoreState> {
+        sync::watch::channel(storage::BatchStoreState {
+            first: attester::BatchNumber(0),
+            last: None,
+        })
+        .1
+    }
+    async fn queue_next_batch(
+        &self,
+        _ctx: &ctx::Ctx,
+        _batch: attester::SyncBatch,
+    ) -> ctx::Result<()> {
+        Err(anyhow::format_err!("unimplemented").into())
     }
 }

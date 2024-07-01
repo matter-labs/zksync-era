@@ -25,6 +25,16 @@ use crate::tests::utils::HangingObjectStore;
 
 mod utils;
 
+async fn is_recovery_completed(
+    pool: &ConnectionPool<Core>,
+    client: &MockMainNodeClient,
+) -> RecoveryCompletionStatus {
+    let mut connection = pool.connection().await.unwrap();
+    SnapshotsApplierTask::is_recovery_completed(&mut connection, client)
+        .await
+        .unwrap()
+}
+
 #[test_casing(3, [(None, false), (Some(2), false), (None, true)])]
 #[tokio::test]
 async fn snapshots_creator_can_successfully_recover_db(
@@ -36,6 +46,7 @@ async fn snapshots_creator_can_successfully_recover_db(
     } else {
         ConnectionPool::<Core>::test_pool().await
     };
+
     let expected_status = mock_recovery_status();
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
@@ -60,6 +71,12 @@ async fn snapshots_creator_can_successfully_recover_db(
         object_store
     };
 
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::NoRecoveryDetected,
+        "No snapshot information in the DB"
+    );
+
     let task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),
         pool.clone(),
@@ -72,6 +89,12 @@ async fn snapshots_creator_can_successfully_recover_db(
     assert_matches!(
         task_health.check_health().await.status(),
         HealthStatus::Ready
+    );
+
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::Completed,
+        "Recovery has been completed"
     );
 
     let mut storage = pool.connection().await.unwrap();
@@ -261,6 +284,12 @@ async fn snapshot_applier_recovers_after_stopping() {
     assert!(!task_handle.is_finished());
     task_handle.abort();
 
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::InProgress,
+        "Recovery has been aborted"
+    );
+
     // Check that factory deps have been persisted, but no storage logs.
     let mut storage = pool.connection().await.unwrap();
     let all_factory_deps = storage
@@ -290,6 +319,12 @@ async fn snapshot_applier_recovers_after_stopping() {
     assert!(!task_handle.is_finished());
     task_handle.abort();
 
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::InProgress,
+        "Not all logs have been recovered"
+    );
+
     let all_storage_logs = storage
         .storage_logs_dal()
         .dump_all_storage_logs_for_tests()
@@ -301,11 +336,17 @@ async fn snapshot_applier_recovers_after_stopping() {
     let mut task = SnapshotsApplierTask::new(
         config,
         pool.clone(),
-        Box::new(client),
+        Box::new(client.clone()),
         Arc::new(stopping_object_store),
     );
     task.set_snapshot_l1_batch(expected_status.l1_batch_number); // check that this works fine
     task.run().await.unwrap();
+
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::Completed,
+        "Recovery has been completed"
+    );
 
     let all_storage_logs = storage
         .storage_logs_dal()
@@ -535,6 +576,25 @@ async fn recovering_tokens() {
 
     client.tokens_response.clone_from(&tokens);
 
+    // Make sure that the task will fail when we will start migrating tokens.
+    client.set_token_response_error(EnrichedClientError::custom("Error", "not_important"));
+
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool.clone(),
+        Box::new(client.clone()),
+        object_store.clone(),
+    );
+    let task_result = task.run().await;
+    assert!(task_result.is_err());
+
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::InProgress,
+        "Tokens are not migrated"
+    );
+
+    // Now perform the recovery again, tokens should be migrated.
     let task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),
         pool.clone(),
@@ -542,6 +602,12 @@ async fn recovering_tokens() {
         object_store.clone(),
     );
     task.run().await.unwrap();
+
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::Completed,
+        "Recovery is completed"
+    );
 
     // Check that tokens are successfully restored.
     let mut storage = pool.connection().await.unwrap();

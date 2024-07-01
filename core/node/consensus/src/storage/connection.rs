@@ -7,7 +7,7 @@ use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber};
 
-use super::PayloadQueue;
+use super::{InsertCertificateError, PayloadQueue};
 use crate::config;
 
 /// Context-aware `zksync_dal::ConnectionPool<Core>` wrapper.
@@ -38,7 +38,7 @@ impl ConnectionPool {
                 .wrap("connection()")?
                 .payload(ctx, number)
                 .await
-                .wrap("payload()")?
+                .with_wrap(|| format!("payload({number})"))?
             {
                 return Ok(payload);
             }
@@ -68,17 +68,6 @@ impl<'a> Connection<'a> {
         Ok(ctx.wait(self.0.commit()).await?.context("sqlx")?)
     }
 
-    /// Wrapper for `consensus_dal().block_range()`.
-    pub async fn block_range(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<std::ops::Range<validator::BlockNumber>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().block_range())
-            .await?
-            .context("sqlx")?)
-    }
-
     /// Wrapper for `consensus_dal().block_payload()`.
     pub async fn payload(
         &mut self,
@@ -103,28 +92,6 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
-    /// Wrapper for `consensus_dal().first_certificate()`.
-    pub async fn first_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<validator::CommitQC>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().first_certificate())
-            .await?
-            .map_err(DalError::generalize)?)
-    }
-
-    /// Wrapper for `consensus_dal().last_certificate()`.
-    pub async fn last_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<validator::CommitQC>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().last_certificate())
-            .await?
-            .map_err(DalError::generalize)?)
-    }
-
     /// Wrapper for `consensus_dal().certificate()`.
     pub async fn certificate(
         &mut self,
@@ -133,8 +100,7 @@ impl<'a> Connection<'a> {
     ) -> ctx::Result<Option<validator::CommitQC>> {
         Ok(ctx
             .wait(self.0.consensus_dal().certificate(number))
-            .await?
-            .map_err(DalError::generalize)?)
+            .await??)
     }
 
     /// Wrapper for `consensus_dal().insert_certificate()`.
@@ -142,7 +108,7 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         cert: &validator::CommitQC,
-    ) -> ctx::Result<()> {
+    ) -> Result<(), InsertCertificateError> {
         Ok(ctx
             .wait(self.0.consensus_dal().insert_certificate(cert))
             .await??)
@@ -194,6 +160,7 @@ impl<'a> Connection<'a> {
         })
     }
 
+    /// Wrapper for `consensus_dal().genesis()`.
     pub async fn genesis(&mut self, ctx: &ctx::Ctx) -> ctx::Result<Option<validator::Genesis>> {
         Ok(ctx
             .wait(self.0.consensus_dal().genesis())
@@ -201,6 +168,7 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
+    /// Wrapper for `consensus_dal().try_update_genesis()`.
     pub async fn try_update_genesis(
         &mut self,
         ctx: &ctx::Ctx,
@@ -211,52 +179,19 @@ impl<'a> Connection<'a> {
             .await??)
     }
 
-    /// Fetches and verifies consistency of certificates in storage.
-    pub async fn certificates_range(
+    /// Wrapper for `consensus_dal().next_block()`.
+    async fn next_block(&mut self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
+        Ok(ctx.wait(self.0.consensus_dal().next_block()).await??)
+    }
+
+    /// Wrapper for `consensus_dal().certificates_range()`.
+    pub(crate) async fn certificates_range(
         &mut self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<storage::BlockStoreState> {
-        // Fetch the range of L2 blocks in storage.
-        let block_range = self.block_range(ctx).await.context("block_range")?;
-
-        // Fetch the range of certificates in storage.
-        let genesis = self
-            .genesis(ctx)
-            .await
-            .wrap("genesis()")?
-            .context("genesis missing")?;
-        let first_expected_cert = genesis.first_block.max(block_range.start);
-        let last_cert = self
-            .last_certificate(ctx)
-            .await
-            .wrap("last_certificate()")?;
-        let next_expected_cert = last_cert
-            .as_ref()
-            .map_or(first_expected_cert, |cert| cert.header().number.next());
-
-        // Check that the first certificate in storage has the expected L2 block number.
-        if let Some(got) = self
-            .first_certificate(ctx)
-            .await
-            .wrap("first_certificate()")?
-        {
-            if got.header().number != first_expected_cert {
-                return Err(anyhow::format_err!(
-                    "inconsistent storage: certificates should start at {first_expected_cert}, while they start at {}",
-                    got.header().number,
-                ).into());
-            }
-        }
-
-        // Check that the node has all the blocks before the next expected certificate, because
-        // the node needs to know the state of the chain up to block `X` to process block `X+1`.
-        if block_range.end < next_expected_cert {
-            return Err(anyhow::format_err!("inconsistent storage: cannot start consensus for L2 block {next_expected_cert}, because earlier blocks are missing").into());
-        }
-        Ok(storage::BlockStoreState {
-            first: first_expected_cert,
-            last: last_cert,
-        })
+        Ok(ctx
+            .wait(self.0.consensus_dal().certificates_range())
+            .await??)
     }
 
     /// (Re)initializes consensus genesis to start at the last L2 block in storage.
@@ -266,7 +201,6 @@ impl<'a> Connection<'a> {
         ctx: &ctx::Ctx,
         spec: &config::GenesisSpec,
     ) -> ctx::Result<()> {
-        let block_range = self.block_range(ctx).await.wrap("block_range()")?;
         let mut txn = self
             .start_transaction(ctx)
             .await
@@ -284,10 +218,11 @@ impl<'a> Connection<'a> {
             fork_number: old
                 .as_ref()
                 .map_or(validator::ForkNumber(0), |old| old.fork_number.next()),
-            first_block: block_range.end,
+            first_block: txn.next_block(ctx).await.context("next_block()")?,
 
             protocol_version: spec.protocol_version,
-            committee: spec.validators.clone(),
+            validators: spec.validators.clone(),
+            attesters: None,
             leader_selection: spec.leader_selection.clone(),
         }
         .with_hash();
@@ -298,7 +233,8 @@ impl<'a> Connection<'a> {
         Ok(())
     }
 
-    pub(super) async fn block(
+    /// Fetches a block from storage.
+    pub(crate) async fn block(
         &mut self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,

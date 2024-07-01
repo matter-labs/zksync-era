@@ -60,7 +60,7 @@ pub async fn init(
     build_l1_contracts(shell, ecosystem_config)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
-    genesis_config.update_from_chain_config(&chain_config);
+    genesis_config.update_from_chain_config(chain_config);
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Copy ecosystem contracts
@@ -68,6 +68,12 @@ pub async fn init(
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
+    crate::commands::ecosystem::init::distribute_eth(
+        &ecosystem_config,
+        &chain_config,
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
     let mut secrets = chain_config.get_secrets_config()?;
     secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone());
     secrets.save_with_base_path(shell, &chain_config.configs)?;
@@ -135,7 +141,7 @@ async fn register_chain(
 ) -> anyhow::Result<()> {
     let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
 
-    let deploy_config = RegisterChainL1Config::new(chain_config, &contracts)?;
+    let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&config.path_to_foundry())

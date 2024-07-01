@@ -8,6 +8,8 @@ use types::{
     BaseToken, ChainId, L1BatchCommitDataGeneratorMode, L1Network, ProverMode, WalletCreation,
 };
 use xshell::Shell;
+use zksync_config::configs::GeneralConfig as ZkSyncGeneralConfig;
+use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 use crate::{
     consts::{
@@ -96,6 +98,25 @@ impl ChainConfig {
 
     pub fn get_secrets_config(&self) -> anyhow::Result<SecretsConfig> {
         SecretsConfig::read(self.get_shell(), self.configs.join(SECRETS_FILE))
+    }
+
+    pub fn get_zksync_general_config(&self) -> anyhow::Result<ZkSyncGeneralConfig> {
+        decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
+            &self.configs.join(GENERAL_FILE),
+            false,
+        )
+    }
+
+    pub fn save_zksync_general_config(
+        &self,
+        general_config: &ZkSyncGeneralConfig,
+    ) -> anyhow::Result<()> {
+        let path = self.configs.join(GENERAL_FILE);
+        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
+            general_config,
+        )?;
+        self.get_shell().write_file(path, bytes)?;
+        Ok(())
     }
 
     pub fn path_to_foundry(&self) -> PathBuf {

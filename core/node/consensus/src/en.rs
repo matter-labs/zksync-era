@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::BlockStore;
+use zksync_consensus_storage::{BatchStore, BlockStore};
 use zksync_node_sync::{
     fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
 };
@@ -77,9 +77,17 @@ impl EN {
                 .await
                 .wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            // Dummy batch store - we don't gossip batches yet, but we need one anyway.
+            let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
+                .await
+                .wrap("BatchStore::new()")?;
+            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets)?,
                 block_store,
+                batch_store,
+                attester: None,
                 validator: config::validator_key(&secrets)
                     .context("validator_key")?
                     .map(|key| executor::Validator {

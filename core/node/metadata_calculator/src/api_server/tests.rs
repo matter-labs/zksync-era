@@ -30,6 +30,7 @@ async fn merkle_tree_api() {
         .await
         .unwrap()
         .create_api_server(&api_addr, stop_receiver.clone())
+        .await
         .unwrap();
     let local_addr = *api_server.local_addr();
     let api_server_task = tokio::spawn(api_server.run());
