@@ -78,7 +78,7 @@ impl Store {
             .connection(ctx)
             .await
             .wrap("connection()")?
-            .certificates_range(ctx)
+            .block_certificates_range(ctx)
             .await
             .wrap("certificates_range()")?;
         let blocks_persisted = sync::watch::channel(blocks_persisted).0;
@@ -148,7 +148,7 @@ impl StoreRunner {
                         .connection(ctx)
                         .await
                         .wrap("connection")?
-                        .certificates_range(ctx)
+                        .block_certificates_range(ctx)
                         .await
                         .wrap("certificates_range()")?;
                     self.blocks_persisted.update(range);
@@ -171,7 +171,7 @@ impl StoreRunner {
                         .connection(ctx)
                         .await
                         .wrap("connection")?
-                        .insert_certificate(ctx, &cert)
+                        .insert_block_certificate(ctx, &cert)
                         .await;
                     match res {
                         Ok(()) => {

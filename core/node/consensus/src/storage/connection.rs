@@ -92,25 +92,25 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
-    /// Wrapper for `consensus_dal().certificate()`.
-    pub async fn certificate(
+    /// Wrapper for `consensus_dal().block_certificate()`.
+    pub async fn block_certificate(
         &mut self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<Option<validator::CommitQC>> {
         Ok(ctx
-            .wait(self.0.consensus_dal().certificate(number))
+            .wait(self.0.consensus_dal().block_certificate(number))
             .await??)
     }
 
-    /// Wrapper for `consensus_dal().insert_certificate()`.
-    pub async fn insert_certificate(
+    /// Wrapper for `consensus_dal().insert_block_certificate()`.
+    pub async fn insert_block_certificate(
         &mut self,
         ctx: &ctx::Ctx,
         cert: &validator::CommitQC,
     ) -> Result<(), InsertCertificateError> {
         Ok(ctx
-            .wait(self.0.consensus_dal().insert_certificate(cert))
+            .wait(self.0.consensus_dal().insert_block_certificate(cert))
             .await??)
     }
 
@@ -184,13 +184,13 @@ impl<'a> Connection<'a> {
         Ok(ctx.wait(self.0.consensus_dal().next_block()).await??)
     }
 
-    /// Wrapper for `consensus_dal().certificates_range()`.
-    pub(crate) async fn certificates_range(
+    /// Wrapper for `consensus_dal().block_certificates_range()`.
+    pub(crate) async fn block_certificates_range(
         &mut self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<storage::BlockStoreState> {
         Ok(ctx
-            .wait(self.0.consensus_dal().certificates_range())
+            .wait(self.0.consensus_dal().block_certificates_range())
             .await??)
     }
 
@@ -239,14 +239,20 @@ impl<'a> Connection<'a> {
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<Option<validator::FinalBlock>> {
-        let Some(justification) = self.certificate(ctx, number).await.wrap("certificate()")? else {
+        let Some(justification) = self
+            .block_certificate(ctx, number)
+            .await
+            .wrap("block_certificate()")?
+        else {
             return Ok(None);
         };
+
         let payload = self
             .payload(ctx, number)
             .await
             .wrap("payload()")?
             .context("L2 block disappeared from storage")?;
+
         Ok(Some(validator::FinalBlock {
             payload: payload.encode(),
             justification,

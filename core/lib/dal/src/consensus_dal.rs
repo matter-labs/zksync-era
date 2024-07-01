@@ -236,7 +236,7 @@ impl ConsensusDal<'_, '_> {
     /// Fetches the last consensus certificate.
     /// Currently, certificates are NOT generated synchronously with L2 blocks,
     /// so it might NOT be the certificate for the last L2 block.
-    pub async fn certificates_range(&mut self) -> anyhow::Result<BlockStoreState> {
+    pub async fn block_certificates_range(&mut self) -> anyhow::Result<BlockStoreState> {
         // It cannot be older than genesis first block.
         let mut start = self.genesis().await?.context("genesis()")?.first_block;
         start = start.max(self.first_block().await.context("first_block()")?);
@@ -255,7 +255,7 @@ impl ConsensusDal<'_, '_> {
             "#,
             i64::try_from(start.0)?,
         )
-        .instrument("last_certificate")
+        .instrument("block_certificate_range")
         .report_latency()
         .fetch_optional(self.storage)
         .await?;
@@ -268,7 +268,7 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Fetches the consensus certificate for the L2 block with the given `block_number`.
-    pub async fn certificate(
+    pub async fn block_certificate(
         &mut self,
         block_number: validator::BlockNumber,
     ) -> anyhow::Result<Option<validator::CommitQC>> {
@@ -283,7 +283,7 @@ impl ConsensusDal<'_, '_> {
             "#,
             i64::try_from(block_number.0)?
         )
-        .instrument("certificate")
+        .instrument("block_certificate")
         .report_latency()
         .fetch_optional(self.storage)
         .await?
@@ -345,7 +345,7 @@ impl ConsensusDal<'_, '_> {
 
     /// Inserts a certificate for the L2 block `cert.header().number`.
     /// Fails if certificate doesn't match the stored block.
-    pub async fn insert_certificate(
+    pub async fn insert_block_certificate(
         &mut self,
         cert: &validator::CommitQC,
     ) -> Result<(), InsertCertificateError> {
@@ -370,7 +370,7 @@ impl ConsensusDal<'_, '_> {
             header.number.0 as i64,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
-        .instrument("insert_certificate")
+        .instrument("insert_block_certificate")
         .report_latency()
         .execute(&mut txn)
         .await?;
