@@ -31,6 +31,7 @@ impl DataAvailabilityDal<'_, '_> {
                 data_availability (l1_batch_number, blob_id, sent_at, created_at, updated_at)
             VALUES
                 ($1, $2, $3, NOW(), NOW())
+            ON CONFLICT DO NOTHING
             "#,
             i64::from(number.0),
             blob_id,
@@ -48,34 +49,31 @@ impl DataAvailabilityDal<'_, '_> {
                 "L1 batch #{number}: DA blob_id wasn't updated as it's already present"
             );
 
-            let instrumentation = Instrumented::new("get_matching_batch_da_blob_id")
-                .with_arg("number", &number)
-                .with_arg("blob_id", &blob_id);
+            let instrumentation =
+                Instrumented::new("get_matching_batch_da_blob_id").with_arg("number", &number);
 
             // Batch was already processed. Verify that existing DA blob_id matches
             let query = sqlx::query!(
                 r#"
                 SELECT
-                    COUNT(*) AS "count!"
+                    blob_id
                 FROM
                     data_availability
                 WHERE
                     l1_batch_number = $1
-                    AND blob_id = $2
                 "#,
                 i64::from(number.0),
-                blob_id,
             );
 
-            let matched: i64 = instrumentation
+            let matched: String = instrumentation
                 .clone()
                 .with(query)
                 .report_latency()
                 .fetch_one(self.storage)
                 .await?
-                .count;
+                .blob_id;
 
-            if matched != 1 {
+            if matched != *blob_id.to_string() {
                 let err = instrumentation.constraint_error(anyhow::anyhow!(
                     "Error storing DA blob id. DA blob_id {blob_id} for L1 batch #{number} does not match the expected value"
                 ));
@@ -122,26 +120,24 @@ impl DataAvailabilityDal<'_, '_> {
             let query = sqlx::query!(
                 r#"
                 SELECT
-                    COUNT(*) AS "count!"
+                    inclusion_data
                 FROM
                     data_availability
                 WHERE
                     l1_batch_number = $1
-                    AND inclusion_data = $2
                 "#,
                 i64::from(number.0),
-                da_inclusion_data,
             );
 
-            let matched: i64 = instrumentation
+            let matched: Option<Vec<u8>> = instrumentation
                 .clone()
                 .with(query)
                 .report_latency()
                 .fetch_one(self.storage)
                 .await?
-                .count;
+                .inclusion_data;
 
-            if matched != 1 {
+            if matched.unwrap_or_default() != da_inclusion_data.to_vec() {
                 let err = instrumentation.constraint_error(anyhow::anyhow!(
                     "Error storing DA inclusion data. DA data for L1 batch #{number} does not match the one provided before"
                 ));

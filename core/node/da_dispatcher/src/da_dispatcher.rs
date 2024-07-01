@@ -3,7 +3,7 @@ use std::{future::Future, time::Duration};
 use anyhow::Context;
 use chrono::{NaiveDateTime, Utc};
 use rand::Rng;
-use tokio::sync::watch;
+use tokio::sync::watch::Receiver;
 use zksync_config::DADispatcherConfig;
 use zksync_da_client::{types::DAError, DataAvailabilityClient};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -31,7 +31,7 @@ impl DataAvailabilityDispatcher {
         }
     }
 
-    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
                 break;
@@ -39,7 +39,7 @@ impl DataAvailabilityDispatcher {
 
             tokio::join!(
                 async {
-                    if let Err(err) = self.dispatch().await {
+                    if let Err(err) = self.dispatch(&mut stop_receiver).await {
                         tracing::error!("dispatch error {err:?}");
                     }
                 },
@@ -63,7 +63,7 @@ impl DataAvailabilityDispatcher {
     }
 
     /// Dispatches the blobs to the data availability layer, and saves the blob_id in the database.
-    async fn dispatch(&self) -> anyhow::Result<()> {
+    async fn dispatch(&self, stop_receiver: &mut Receiver<bool>) -> anyhow::Result<()> {
         let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
         let batches = conn
             .data_availability_dal()
@@ -73,10 +73,15 @@ impl DataAvailabilityDispatcher {
 
         for batch in batches {
             let dispatch_latency = METRICS.blob_dispatch_latency.start();
-            let dispatch_response = retry(self.config.max_retries(), batch.l1_batch_number, || {
-                self.client
-                    .dispatch_blob(batch.l1_batch_number.0, batch.pubdata.clone())
-            })
+            let dispatch_response = retry(
+                self.config.max_retries(),
+                batch.l1_batch_number,
+                stop_receiver,
+                || {
+                    self.client
+                        .dispatch_blob(batch.l1_batch_number.0, batch.pubdata.clone())
+                },
+            )
             .await
             .with_context(|| {
                 format!(
@@ -172,6 +177,7 @@ impl DataAvailabilityDispatcher {
 async fn retry<T, Fut, F>(
     max_retries: u16,
     batch_number: L1BatchNumber,
+    stop_receiver: &mut Receiver<bool>,
     mut f: F,
 ) -> Result<T, DAError>
 where
@@ -195,7 +201,16 @@ where
                 let sleep_duration = Duration::from_secs(backoff_secs)
                     .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
                 tracing::warn!(%err, "Failed DA dispatch request {retries}/{max_retries} for batch {batch_number}, retrying in {} milliseconds.", sleep_duration.as_millis());
-                tokio::time::sleep(sleep_duration).await;
+                if tokio::time::timeout(sleep_duration, stop_receiver.changed())
+                    .await
+                    .is_ok()
+                {
+                    return Err(DAError {
+                        error: anyhow::anyhow!("stop signal received"),
+                        is_transient: true,
+                    });
+                }
+
                 backoff_secs = (backoff_secs * 2).min(128); // cap the back-off at 128 seconds
             }
         }

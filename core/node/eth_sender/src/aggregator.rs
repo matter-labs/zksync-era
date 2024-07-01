@@ -216,7 +216,7 @@ impl Aggregator {
                     base_system_contracts_hashes.bootloader,
                     base_system_contracts_hashes.default_aa,
                     protocol_version_id,
-                    self.commitment_mode == L1BatchCommitmentMode::Rollup,
+                    self.commitment_mode != L1BatchCommitmentMode::Rollup,
                 )
                 .await
                 .unwrap()

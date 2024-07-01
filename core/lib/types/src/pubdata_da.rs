@@ -27,11 +27,6 @@ impl From<PubdataSendingMode> for PubdataDA {
     }
 }
 
-/// Used as a wrapper for the pubdata to be stored in the GCS.
-pub struct StorablePubdata {
-    pub data: Vec<u8>,
-}
-
 /// Represents a blob in the data availability layer.
 #[derive(Debug, Clone)]
 pub struct DataAvailabilityBlob {

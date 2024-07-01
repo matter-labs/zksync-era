@@ -7,7 +7,9 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_types::{pubdata_da::StorablePubdata, L1BatchNumber};
+use zksync_types::L1BatchNumber;
+
+use crate::object_store::types::StorablePubdata;
 
 /// An implementation of the `DataAvailabilityClient` trait that stores the pubdata in the GCS.
 #[derive(Clone, Debug)]

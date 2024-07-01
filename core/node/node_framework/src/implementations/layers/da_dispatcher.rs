@@ -1,7 +1,5 @@
 use zksync_config::configs::{chain::StateKeeperConfig, da_dispatcher::DADispatcherConfig};
-use zksync_da_client::DataAvailabilityClient;
-use zksync_dal::Core;
-use zksync_db_connection::connection_pool::ConnectionPool;
+use zksync_da_dispatcher::DataAvailabilityDispatcher;
 
 use crate::{
     implementations::resources::{
@@ -50,36 +48,23 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
             }
         }
 
-        context.add_task(Box::new(DataAvailabilityDispatcherTask {
-            main_pool: master_pool,
-            da_config: self.da_config,
-            client: da_client,
-        }));
+        context.add_task(Box::new(DataAvailabilityDispatcher::new(
+            master_pool,
+            self.da_config,
+            da_client,
+        )));
 
         Ok(())
     }
 }
 
-#[derive(Debug)]
-struct DataAvailabilityDispatcherTask {
-    main_pool: ConnectionPool<Core>,
-    da_config: DADispatcherConfig,
-    client: Box<dyn DataAvailabilityClient>,
-}
-
 #[async_trait::async_trait]
-impl Task for DataAvailabilityDispatcherTask {
+impl Task for DataAvailabilityDispatcher {
     fn id(&self) -> TaskId {
         "da_dispatcher".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let da_dispatcher = zksync_da_dispatcher::DataAvailabilityDispatcher::new(
-            self.main_pool,
-            self.da_config,
-            self.client,
-        );
-
-        da_dispatcher.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }

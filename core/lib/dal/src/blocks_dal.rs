@@ -1578,13 +1578,16 @@ impl BlocksDal<'_, '_> {
             .context("map_l1_batches()")
     }
 
+    /// When `with_da_inclusion_info` is true, only batches for which custom DA inclusion
+    /// information has already been provided will be included
     pub async fn get_ready_for_commit_l1_batches(
         &mut self,
         limit: usize,
         bootloader_hash: H256,
         default_aa_hash: H256,
         protocol_version_id: ProtocolVersionId,
-        is_rollup: bool,
+
+        with_da_inclusion_info: bool,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
@@ -1635,7 +1638,7 @@ impl BlocksDal<'_, '_> {
                 AND bootloader_initial_content_commitment IS NOT NULL
                 AND (
                     data_availability.inclusion_data IS NOT NULL
-                    OR $4 IS TRUE
+                    OR $4 IS FALSE
                 )
             ORDER BY
                 number
@@ -1645,7 +1648,7 @@ impl BlocksDal<'_, '_> {
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
             protocol_version_id as i32,
-            is_rollup,
+            with_da_inclusion_info,
             limit as i64,
         )
         .instrument("get_ready_for_commit_l1_batches")
@@ -1653,7 +1656,7 @@ impl BlocksDal<'_, '_> {
         .with_arg("bootloader_hash", &bootloader_hash)
         .with_arg("default_aa_hash", &default_aa_hash)
         .with_arg("protocol_version_id", &protocol_version_id)
-        .with_arg("is_rollup", &is_rollup)
+        .with_arg("with_da_inclusion_info", &with_da_inclusion_info)
         .fetch_all(self.storage)
         .await?;
 

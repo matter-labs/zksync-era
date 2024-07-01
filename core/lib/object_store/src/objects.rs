@@ -7,7 +7,6 @@ use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use prost::Message;
 use zksync_protobuf::{decode, ProtoFmt};
 use zksync_types::{
-    pubdata_da::StorablePubdata,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
@@ -85,33 +84,6 @@ impl StoredObject for SnapshotFactoryDependencies {
         decode(&decompressed_bytes[..])
             .context("deserialization of Message to SnapshotFactoryDependencies")
             .map_err(From::from)
-    }
-}
-
-impl StoredObject for StorablePubdata {
-    const BUCKET: Bucket = Bucket::DataAvailability;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("l1_batch_{key}_pubdata.gzip")
-    }
-
-    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
-        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(&self.data[..])?;
-        encoder.finish().map_err(From::from)
-    }
-
-    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        let mut decoder = GzDecoder::new(&bytes[..]);
-        let mut decompressed_bytes = Vec::new();
-        decoder
-            .read_to_end(&mut decompressed_bytes)
-            .map_err(BoxedError::from)?;
-
-        Ok(Self {
-            data: decompressed_bytes,
-        })
     }
 }
 
