@@ -32,7 +32,7 @@ impl EcosystemArgs {
     pub fn fill_values_with_prompt(self, l1_network: L1Network, dev: bool) -> EcosystemArgsFinal {
         let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
             if dev {
-                return true;
+                true
             } else {
                 PromptConfirm::new(MSG_DEPLOY_ECOSYSTEM_PROMPT)
                     .default(true)

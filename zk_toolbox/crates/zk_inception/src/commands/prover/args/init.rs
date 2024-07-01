@@ -50,6 +50,7 @@ pub struct ProverInitArgs {
 }
 
 #[derive(Debug, Clone, ValueEnum, EnumIter, strum_macros::Display, PartialEq, Eq)]
+#[allow(clippy::upper_case_acronyms)]
 enum ProofStoreConfig {
     Local,
     GCS,
@@ -119,6 +120,7 @@ pub struct ProofStorageGCSCreateBucket {
 }
 
 #[derive(Debug, Clone)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum ProofStorageConfig {
     FileBacked(ProofStorageFileBacked),
     GCS(ProofStorageGCS),
@@ -328,10 +330,10 @@ impl ProverInitArgs {
         bucket_base_url: Option<String>,
         credentials_file: Option<String>,
     ) -> ProofStorageConfig {
-        if !self.partial_gcs_config_provided(bucket_base_url.clone(), credentials_file.clone()) {
-            if PromptConfirm::new(MSG_CREATE_GCS_BUCKET_PROMPT).ask() {
-                return self.handle_create_gcs_bucket(project_ids, None, None, None, None);
-            }
+        if !self.partial_gcs_config_provided(bucket_base_url.clone(), credentials_file.clone())
+            && PromptConfirm::new(MSG_CREATE_GCS_BUCKET_PROMPT).ask()
+        {
+            return self.handle_create_gcs_bucket(project_ids, None, None, None, None);
         }
 
         self.ask_gcs_config(bucket_base_url, credentials_file)
