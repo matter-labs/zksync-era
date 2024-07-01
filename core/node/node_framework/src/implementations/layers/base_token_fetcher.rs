@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use zksync_base_token_adjuster::BaseTokenFetcher;
-use zksync_config::BaseTokenAdjusterConfig;
+use zksync_base_token_adjuster::DBBaseTokenFetcher;
 
 use crate::{
     implementations::resources::{
@@ -30,15 +29,7 @@ use crate::{
 ///
 /// - `BaseTokenFetcher`
 #[derive(Debug)]
-pub struct BaseTokenFetcherLayer {
-    config: BaseTokenAdjusterConfig,
-}
-
-impl BaseTokenFetcherLayer {
-    pub fn new(config: BaseTokenAdjusterConfig) -> Self {
-        Self { config }
-    }
-}
+pub struct BaseTokenFetcherLayer;
 
 #[async_trait::async_trait]
 impl WiringLayer for BaseTokenFetcherLayer {
@@ -50,7 +41,7 @@ impl WiringLayer for BaseTokenFetcherLayer {
         let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = replica_pool_resource.get().await.unwrap();
 
-        let fetcher = BaseTokenFetcher::new(Some(replica_pool), self.config);
+        let fetcher = DBBaseTokenFetcher::new(replica_pool).await?;
 
         context.insert_resource(BaseTokenFetcherResource(Arc::new(fetcher.clone())))?;
         context.add_task(Box::new(fetcher));
@@ -60,7 +51,7 @@ impl WiringLayer for BaseTokenFetcherLayer {
 }
 
 #[async_trait::async_trait]
-impl Task for BaseTokenFetcher {
+impl Task for DBBaseTokenFetcher {
     fn id(&self) -> TaskId {
         "base_token_fetcher".into()
     }

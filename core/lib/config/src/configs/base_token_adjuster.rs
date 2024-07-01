@@ -1,4 +1,4 @@
-use std::{num::NonZeroU64, time::Duration};
+use std::time::Duration;
 
 use serde::Deserialize;
 
@@ -9,10 +9,6 @@ pub const DEFAULT_INTERVAL_MS: u64 = 30_000;
 pub struct BaseTokenAdjusterConfig {
     /// How often to fetch external APIs for a new ETH<->Base-Token price.
     pub price_polling_interval_ms: Option<u64>,
-    /// The numerator and the denominator make up the BaseToken/ETH conversion ratio. Upon initialization,
-    /// the ratio is set to these configured values to avoid loss of liveness while we wait for external APIs.
-    pub initial_numerator: NonZeroU64,
-    pub initial_denominator: NonZeroU64,
 }
 
 impl BaseTokenAdjusterConfig {

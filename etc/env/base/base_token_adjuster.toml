@@ -4,8 +4,3 @@
 
 # How often to poll external price feeds for the base token price.
 price_polling_interval_ms = "30000"
-
-# The numerator and the denominator make up the BaseToken/ETH conversion ratio. Upon initialization,
-# the ratio is set to these configured values to avoid loss of liveness while we wait for external APIs.
-initial_numerator = "100"
-initial_denominator = "1"

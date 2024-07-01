@@ -61,7 +61,7 @@ impl dyn BatchFeeModelInputProvider {
 #[derive(Debug)]
 pub struct MainNodeFeeInputProvider {
     provider: Arc<GasAdjuster>,
-    base_token_adjuster: Arc<BaseTokenFetcher>,
+    base_token_fetcher: Arc<dyn BaseTokenFetcher>,
     config: FeeModelConfig,
 }
 
@@ -77,7 +77,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
                 config,
                 self.provider.estimate_effective_gas_price(),
                 self.provider.estimate_effective_pubdata_price(),
-                self.base_token_adjuster.get_conversion_ratio(),
+                self.base_token_fetcher.get_conversion_ratio(),
             ))),
         }
     }
@@ -86,12 +86,12 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 impl MainNodeFeeInputProvider {
     pub fn new(
         provider: Arc<GasAdjuster>,
-        base_token_fetcher: Arc<BaseTokenFetcher>,
+        base_token_fetcher: Arc<dyn BaseTokenFetcher>,
         config: FeeModelConfig,
     ) -> Self {
         Self {
             provider,
-            base_token_adjuster: base_token_fetcher,
+            base_token_fetcher,
             config,
         }
     }
@@ -250,6 +250,7 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 mod tests {
     use std::num::NonZeroU64;
 
+    use zksync_base_token_adjuster::NoOpFetcher;
     use zksync_config::{
         configs::{base_token_adjuster::BaseTokenAdjusterConfig, eth_sender::PubdataSendingMode},
         GasAdjusterConfig,
@@ -604,14 +605,7 @@ mod tests {
             let gas_adjuster =
                 setup_gas_adjuster(case.input_l1_gas_price, case.input_l1_pubdata_price).await;
 
-            let base_token_fetcher = BaseTokenFetcher::new(
-                None,
-                BaseTokenAdjusterConfig {
-                    price_polling_interval_ms: None,
-                    initial_numerator: case.conversion_ratio.numerator,
-                    initial_denominator: case.conversion_ratio.denominator,
-                },
-            );
+            let base_token_fetcher = NoOpFetcher::new(case.conversion_ratio);
 
             let fee_provider = setup_fee_provider(
                 gas_adjuster,
@@ -688,7 +682,7 @@ mod tests {
     // Helper function to setup the MainNodeFeeInputProvider.
     fn setup_fee_provider(
         gas_adjuster: GasAdjuster,
-        base_token_fetcher: BaseTokenFetcher,
+        base_token_fetcher: DBBaseTokenFetcher,
         minimal_l2_gas_price: u64,
     ) -> MainNodeFeeInputProvider {
         let config = FeeModelConfig::V2(FeeModelConfigV2 {

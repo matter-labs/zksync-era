@@ -4,6 +4,4 @@ package zksync.config.base_token_adjuster;
 
 message BaseTokenAdjuster {
   optional uint64 price_polling_interval_ms = 1;
-  optional uint64 initial_numerator = 2;
-  optional uint64 initial_denominator = 3;
 }

@@ -2,7 +2,7 @@
 
 use std::{slice, sync::Arc, time::Duration};
 
-use zksync_base_token_adjuster::BaseTokenFetcher;
+use zksync_base_token_adjuster::NoOpFetcher;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
     GasAdjusterConfig,
@@ -88,7 +88,7 @@ impl Tester {
 
         MainNodeFeeInputProvider::new(
             gas_adjuster,
-            Arc::new(BaseTokenFetcher::default()),
+            Arc::new(NoOpFetcher::default()),
             FeeModelConfig::V1(FeeModelConfigV1 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
             }),
@@ -107,7 +107,7 @@ impl Tester {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
-            Arc::new(BaseTokenFetcher::default()),
+            Arc::new(NoOpFetcher::default()),
             FeeModelConfig::V1(FeeModelConfigV1 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
             }),

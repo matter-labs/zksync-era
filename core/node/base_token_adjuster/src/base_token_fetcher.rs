@@ -1,34 +1,38 @@
 use std::{fmt::Debug, num::NonZeroU64, time::Duration};
 
+use anyhow::Context;
+use async_trait::async_trait;
 use tokio::{sync::watch, time::sleep};
-use zksync_config::BaseTokenAdjusterConfig;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_types::{base_token_ratio::BaseTokenRatio, fee_model::BaseTokenConversionRatio};
 
 const CACHE_UPDATE_INTERVAL: Duration = Duration::from_millis(500);
 
-#[derive(Debug, Clone)]
-pub struct BaseTokenFetcher {
-    pub pool: Option<ConnectionPool<Core>>,
-    pub latest_ratio: BaseTokenConversionRatio,
-    pub config: BaseTokenAdjusterConfig,
+#[async_trait]
+pub trait BaseTokenFetcher: Debug + Send + Sync {
+    fn get_conversion_ratio(&self) -> BaseTokenConversionRatio;
 }
 
-impl BaseTokenFetcher {
-    pub fn new(pool: Option<ConnectionPool<Core>>, config: BaseTokenAdjusterConfig) -> Self {
+#[derive(Debug, Clone)]
+pub struct DBBaseTokenFetcher {
+    pub pool: ConnectionPool<Core>,
+    pub latest_ratio: BaseTokenConversionRatio,
+}
+
+impl DBBaseTokenFetcher {
+    pub async fn new(pool: ConnectionPool<Core>) -> anyhow::Result<Self> {
+        let latest_storage_ratio = retry_get_latest_price(pool.clone()).await?;
+
+        // TODO(PE-129): Implement latest ratio usability logic.
         let latest_ratio = BaseTokenConversionRatio {
-            numerator: config.initial_numerator,
-            denominator: config.initial_denominator,
+            numerator: latest_storage_ratio.numerator,
+            denominator: latest_storage_ratio.denominator,
         };
         tracing::debug!(
             "Starting the base token fetcher with conversion ratio: {:?}",
             latest_ratio
         );
-        Self {
-            pool,
-            latest_ratio,
-            config,
-        }
+        Ok(Self { pool, latest_ratio })
     }
 
     pub async fn run(&mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -40,7 +44,9 @@ impl BaseTokenFetcher {
                 _ = stop_receiver.changed() => break,
             }
 
-            let latest_storage_ratio = self.retry_get_latest_price().await?;
+            let latest_storage_ratio = get_latest_price(self.pool.clone())
+                .await?
+                .expect("No latest base token ratio found");
 
             // TODO(PE-129): Implement latest ratio usability logic.
             self.latest_ratio = BaseTokenConversionRatio {
@@ -52,72 +58,89 @@ impl BaseTokenFetcher {
         tracing::info!("Stop signal received, base_token_fetcher is shutting down");
         Ok(())
     }
+}
 
-    async fn retry_get_latest_price(&self) -> anyhow::Result<BaseTokenRatio> {
-        let sleep_duration = Duration::from_secs(1);
-        let max_retries = 5; // should be enough time to allow fetching from external APIs & updating the DB upon init
-        let mut attempts = 1;
+async fn get_latest_price(pool: ConnectionPool<Core>) -> anyhow::Result<Option<BaseTokenRatio>> {
+    let mut conn = pool
+        .connection_tagged("db_base_token_fetcher")
+        .await
+        .context("Failed to obtain connection to the database")?;
 
-        loop {
-            let mut conn = self
-                .pool
-                .as_ref()
-                .expect("Connection pool is not set")
-                .connection_tagged("base_token_fetcher")
-                .await
-                .expect("Failed to obtain connection to the database");
+    conn.base_token_dal()
+        .get_latest_ratio()
+        .await
+        .map_err(DalError::generalize)
+}
 
-            let dal_result = conn.base_token_dal().get_latest_ratio().await;
+async fn retry_get_latest_price(pool: ConnectionPool<Core>) -> anyhow::Result<BaseTokenRatio> {
+    let sleep_duration = Duration::from_secs(1);
+    let max_retries = 5; // should be enough time to allow fetching from external APIs & updating the DB upon init
+    let mut attempts = 1;
 
-            drop(conn); // Don't sleep with your connections.
-
-            match dal_result {
-                Ok(Some(last_storage_price)) => {
-                    return Ok(last_storage_price);
-                }
-                Ok(None) if attempts <= max_retries => {
-                    tracing::warn!(
-                        "Attempt {}/{} found no latest base token ratio. Retrying in {} seconds...",
-                        attempts,
-                        max_retries,
-                        sleep_duration.as_secs()
-                    );
-                    sleep(sleep_duration).await;
-                    attempts += 1;
-                }
-                Ok(None) => {
-                    anyhow::bail!(
-                        "No latest base token ratio found after {} attempts",
-                        max_retries
-                    );
-                }
-                Err(err) => {
-                    anyhow::bail!("Failed to get latest base token ratio: {:?}", err);
-                }
+    loop {
+        match get_latest_price(pool.clone()).await {
+            Ok(Some(last_storage_price)) => {
+                return Ok(last_storage_price);
+            }
+            Ok(None) if attempts <= max_retries => {
+                tracing::warn!(
+                    "Attempt {}/{} found no latest base token ratio. Retrying in {} seconds...",
+                    attempts,
+                    max_retries,
+                    sleep_duration.as_secs()
+                );
+                sleep(sleep_duration).await;
+                attempts += 1;
+            }
+            Ok(None) => {
+                anyhow::bail!(
+                    "No latest base token ratio found after {} attempts",
+                    max_retries
+                );
+            }
+            Err(err) => {
+                anyhow::bail!(
+                    "Failed to get latest base token ratio with DAL error: {:?}",
+                    err
+                );
             }
         }
     }
+}
 
-    // TODO(PE-129): Implement latest ratio usability logic.
-    pub fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
+#[async_trait]
+impl BaseTokenFetcher for DBBaseTokenFetcher {
+    fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
         self.latest_ratio
     }
 }
 
-// Default impl for a no-op BaseTokenFetcher (conversion ratio is always 1:1).
-impl Default for BaseTokenFetcher {
+// Struct for a no-op BaseTokenFetcher (conversion ratio is either always 1:1 or a forced ratio).
+#[derive(Debug, Clone)]
+pub struct NoOpFetcher {
+    pub latest_ratio: BaseTokenConversionRatio,
+}
+
+impl NoOpFetcher {
+    pub fn new(latest_ratio: BaseTokenConversionRatio) -> Self {
+        Self { latest_ratio }
+    }
+}
+
+impl Default for NoOpFetcher {
     fn default() -> Self {
         Self {
-            pool: None,
             latest_ratio: BaseTokenConversionRatio {
                 numerator: NonZeroU64::new(1).unwrap(),
                 denominator: NonZeroU64::new(1).unwrap(),
             },
-            config: BaseTokenAdjusterConfig {
-                price_polling_interval_ms: None,
-                initial_numerator: NonZeroU64::new(1).unwrap(),
-                initial_denominator: NonZeroU64::new(1).unwrap(),
-            },
         }
+    }
+}
+
+#[async_trait]
+impl BaseTokenFetcher for NoOpFetcher {
+    fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
+        self.latest_ratio
     }
 }
