@@ -50,8 +50,8 @@ impl WiringLayer for ExternalIOLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Fetch required resources.
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let MainNodeClientResource(main_node_client) = context.get_resource().await?;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>()?;
+        let MainNodeClientResource(main_node_client) = context.get_resource()?;
 
         // Create `SyncState` resource.
         let sync_state = SyncState::default();

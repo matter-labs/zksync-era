@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_node_framework_derive.workspace = true
 zksync_vlog.workspace = true
 zksync_types.workspace = true
 zksync_health_check.workspace = true
@@ -60,3 +61,5 @@ ctrlc.workspace = true
 [dev-dependencies]
 zksync_env_config.workspace = true
 assert_matches.workspace = true
+# For running UI tests for proc macro
+trybuild.workspace = true

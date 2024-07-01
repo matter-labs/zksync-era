@@ -12,7 +12,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     shell.change_dir(&link_to_prover);
 
     let spinner = Spinner::new(MSG_GENERATING_SK_SPINNER);
-    let mut cmd = Cmd::new(cmd!(
+    let cmd = Cmd::new(cmd!(
         shell,
         "cargo run --features gpu --release --bin key_generator -- 
             generate-sk all --recompute-if-missing 

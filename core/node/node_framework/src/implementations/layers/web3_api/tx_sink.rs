@@ -46,23 +46,21 @@ impl WiringLayer for TxSinkLayer {
         let tx_sink = match self.as_ref() {
             TxSinkLayer::MasterPoolSink => {
                 let pool = context
-                    .get_resource::<PoolResource<MasterPool>>()
-                    .await?
+                    .get_resource::<PoolResource<MasterPool>>()?
                     .get()
                     .await?;
                 TxSinkResource(Arc::new(MasterPoolSink::new(pool)))
             }
             TxSinkLayer::ProxySink => {
-                let MainNodeClientResource(client) = context.get_resource().await?;
+                let MainNodeClientResource(client) = context.get_resource()?;
                 let proxy = TxProxy::new(client);
 
                 let pool = context
-                    .get_resource::<PoolResource<MasterPool>>()
-                    .await?
+                    .get_resource::<PoolResource<MasterPool>>()?
                     .get_singleton()
                     .await?;
                 let task = proxy.account_nonce_sweeper_task(pool);
-                context.add_task(Box::new(task));
+                context.add_task(task);
 
                 TxSinkResource(Arc::new(proxy))
             }

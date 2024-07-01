@@ -18,8 +18,10 @@ pub async fn start_server(
     let bind_address = config.bind_addr();
     let api = RestApi::new(master_connection_pool, replica_connection_pool).into_router();
 
-    axum::Server::bind(&bind_address)
-        .serve(api.into_make_service())
+    let listener = tokio::net::TcpListener::bind(bind_address)
+        .await
+        .context("Cannot bind to the specified address")?;
+    axum::serve(listener, api)
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!("Stop signal sender for contract verification server was dropped without sending a signal");
