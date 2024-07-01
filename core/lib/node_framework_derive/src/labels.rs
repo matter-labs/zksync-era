@@ -2,7 +2,7 @@ use std::fmt;
 
 use syn::{spanned::Spanned as _, Attribute, Result};
 
-/// Context label, e.g. `ctx(local)`.
+/// Context label, e.g. `ctx(crate = "crate")`.
 #[derive(Default)]
 pub(crate) struct CtxLabel {
     /// Special attribute that marks the derive as internal.

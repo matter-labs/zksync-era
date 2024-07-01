@@ -10,7 +10,7 @@ pub(crate) struct Field {
     pub(crate) ident: syn::Ident,
     /// Type of the field.
     pub(crate) ty: syn::Type,
-    /// label.
+    /// Parsed label.
     pub(crate) label: CtxLabel,
 }
 
