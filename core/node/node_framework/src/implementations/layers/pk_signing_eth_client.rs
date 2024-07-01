@@ -61,7 +61,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             .gas_adjuster
             .as_ref()
             .context("gas_adjuster config is missing")?;
-        let EthInterfaceResource(query_client) = context.get_resource().await?;
+        let EthInterfaceResource(query_client) = context.get_resource()?;
 
         let signing_client = PKSigningClient::new_raw(
             private_key.clone(),
