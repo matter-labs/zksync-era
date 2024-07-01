@@ -38,7 +38,7 @@ impl WiringLayer for SyncStateUpdaterLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        if context.get_resource::<SyncStateResource>().await.is_ok() {
+        if context.get_resource::<SyncStateResource>().is_ok() {
             // `SyncState` was provided by some other layer -- we assume that the layer that added this resource
             // will be responsible for its maintenance.
             tracing::info!(
@@ -47,8 +47,8 @@ impl WiringLayer for SyncStateUpdaterLayer {
             return Ok(());
         }
 
-        let pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let MainNodeClientResource(main_node_client) = context.get_resource().await?;
+        let pool = context.get_resource::<PoolResource<MasterPool>>()?;
+        let MainNodeClientResource(main_node_client) = context.get_resource()?;
 
         let sync_state = SyncState::default();
 
@@ -56,11 +56,11 @@ impl WiringLayer for SyncStateUpdaterLayer {
         context.insert_resource(SyncStateResource(sync_state.clone()))?;
 
         // Insert task
-        context.add_task(Box::new(SyncStateUpdater {
+        context.add_task(SyncStateUpdater {
             sync_state,
             connection_pool: pool.get().await?,
             main_node_client,
-        }));
+        });
 
         Ok(())
     }

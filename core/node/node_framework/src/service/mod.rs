@@ -5,7 +5,12 @@ use futures::future::Fuse;
 use tokio::{runtime::Runtime, sync::watch, task::JoinHandle};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
-pub use self::{context::ServiceContext, error::ZkStackServiceError, stop_receiver::StopReceiver};
+pub use self::{
+    context::ServiceContext,
+    context_traits::{FromContext, IntoContext},
+    error::ZkStackServiceError,
+    stop_receiver::StopReceiver,
+};
 use crate::{
     resource::{ResourceId, StoredResource},
     service::{
@@ -17,6 +22,7 @@ use crate::{
 };
 
 mod context;
+mod context_traits;
 mod error;
 mod named_future;
 mod runnables;
