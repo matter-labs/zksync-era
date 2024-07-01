@@ -7,7 +7,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::BlockStore;
+use zksync_consensus_storage::{BatchStore, BlockStore};
 
 use crate::storage::{ConnectionPool, Store};
 
@@ -47,27 +47,35 @@ async fn run_main_node(
                 .wrap("adjust_genesis()")?;
         }
         let (store, runner) = Store::new(ctx, pool, None).await.wrap("Store::new()")?;
-        s.spawn_bg(runner.run(ctx));
+        s.spawn_bg(async { runner.run(ctx).await.context("Store::runner()") });
         let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
             .await
             .wrap("BlockStore::new()")?;
-        s.spawn_bg(runner.run(ctx));
+        s.spawn_bg(async { runner.run(ctx).await.context("BlockStore::runner()") });
         anyhow::ensure!(
             block_store.genesis().leader_selection
                 == validator::LeaderSelectionMode::Sticky(validator_key.public()),
             "unsupported leader selection mode - main node has to be the leader"
         );
 
+        // Dummy batch store - we don't gossip batches yet, but we need one anyway.
+        let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
+            .await
+            .wrap("BatchStore::new()")?;
+        s.spawn_bg(async { runner.run(ctx).await.context("BatchStore::runner()") });
+
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets)?,
             block_store,
+            batch_store,
+            attester: None,
             validator: Some(executor::Validator {
                 key: validator_key,
                 replica_store: Box::new(store.clone()),
                 payload_manager: Box::new(store.clone()),
             }),
         };
-        executor.run(ctx).await
+        executor.run(ctx).await.context("executor.run()")
     })
     .await
 }

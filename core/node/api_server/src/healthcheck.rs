@@ -28,9 +28,10 @@ async fn run_server(
     let app = Router::new()
         .route("/health", get(check_health))
         .with_state(app_health_check);
-
-    axum::Server::bind(bind_address)
-        .serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind(bind_address)
+        .await
+        .unwrap_or_else(|err| panic!("Failed binding healthcheck server to {bind_address}: {err}"));
+    axum::serve(listener, app)
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!("Stop signal sender for healthcheck server was dropped without sending a signal");

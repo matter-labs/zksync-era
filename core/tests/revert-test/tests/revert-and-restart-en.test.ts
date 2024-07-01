@@ -151,7 +151,11 @@ class MainNode {
             }
         });
         // Wait until the main node starts responding.
-        let tester: Tester = await Tester.init(env.ETH_CLIENT_WEB3_URL, env.API_WEB3_JSON_RPC_HTTP_URL);
+        let tester: Tester = await Tester.init(
+            env.ETH_CLIENT_WEB3_URL,
+            env.API_WEB3_JSON_RPC_HTTP_URL,
+            env.CONTRACTS_BASE_TOKEN_ADDR
+        );
         while (true) {
             try {
                 await tester.syncWallet.provider.getBlockNumber();
@@ -198,7 +202,11 @@ class ExtNode {
             }
         });
         // Wait until the node starts responding.
-        let tester: Tester = await Tester.init(env.EN_ETH_CLIENT_URL, `http://127.0.0.1:${env.EN_HTTP_PORT}`);
+        let tester: Tester = await Tester.init(
+            env.EN_ETH_CLIENT_URL,
+            `http://127.0.0.1:${env.EN_HTTP_PORT}`,
+            env.CONTRACTS_BASE_TOKEN_ADDR
+        );
         while (true) {
             try {
                 await tester.syncWallet.provider.getBlockNumber();

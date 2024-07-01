@@ -2,11 +2,14 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage as storage;
-use zksync_dal::{consensus_dal::Payload, Core, CoreDal, DalError};
+use zksync_dal::{
+    consensus_dal::{self, Payload},
+    Core, CoreDal, DalError,
+};
 use zksync_node_sync::{
     fetcher::{FetchedBlock, FetchedTransaction, IoCursorExt as _},
     sync_action::ActionQueueSender,
@@ -23,6 +26,14 @@ pub(crate) mod testonly;
 /// Context-aware `zksync_dal::ConnectionPool<Core>` wrapper.
 #[derive(Debug, Clone)]
 pub(super) struct ConnectionPool(pub(super) zksync_dal::ConnectionPool<Core>);
+
+#[derive(thiserror::Error, Debug)]
+pub enum InsertCertificateError {
+    #[error(transparent)]
+    Canceled(#[from] ctx::Canceled),
+    #[error(transparent)]
+    Inner(#[from] consensus_dal::InsertCertificateError),
+}
 
 impl ConnectionPool {
     /// Wrapper for `connection_tagged()`.
@@ -48,7 +59,7 @@ impl ConnectionPool {
                 .wrap("connection()")?
                 .payload(ctx, number)
                 .await
-                .wrap("payload()")?
+                .with_wrap(|| format!("payload({number})"))?
             {
                 return Ok(payload);
             }
@@ -78,17 +89,6 @@ impl<'a> Connection<'a> {
         Ok(ctx.wait(self.0.commit()).await?.context("sqlx")?)
     }
 
-    /// Wrapper for `consensus_dal().block_range()`.
-    pub async fn block_range(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<std::ops::Range<validator::BlockNumber>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().block_range())
-            .await?
-            .context("sqlx")?)
-    }
-
     /// Wrapper for `consensus_dal().block_payload()`.
     pub async fn payload(
         &mut self,
@@ -113,28 +113,6 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
-    /// Wrapper for `consensus_dal().first_certificate()`.
-    pub async fn first_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<validator::CommitQC>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().first_certificate())
-            .await?
-            .map_err(DalError::generalize)?)
-    }
-
-    /// Wrapper for `consensus_dal().last_certificate()`.
-    pub async fn last_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<validator::CommitQC>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().last_certificate())
-            .await?
-            .map_err(DalError::generalize)?)
-    }
-
     /// Wrapper for `consensus_dal().certificate()`.
     pub async fn certificate(
         &mut self,
@@ -143,8 +121,7 @@ impl<'a> Connection<'a> {
     ) -> ctx::Result<Option<validator::CommitQC>> {
         Ok(ctx
             .wait(self.0.consensus_dal().certificate(number))
-            .await?
-            .map_err(DalError::generalize)?)
+            .await??)
     }
 
     /// Wrapper for `consensus_dal().insert_certificate()`.
@@ -152,7 +129,7 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         cert: &validator::CommitQC,
-    ) -> ctx::Result<()> {
+    ) -> Result<(), InsertCertificateError> {
         Ok(ctx
             .wait(self.0.consensus_dal().insert_certificate(cert))
             .await??)
@@ -204,6 +181,7 @@ impl<'a> Connection<'a> {
         })
     }
 
+    /// Wrapper for `consensus_dal().genesis()`.
     pub async fn genesis(&mut self, ctx: &ctx::Ctx) -> ctx::Result<Option<validator::Genesis>> {
         Ok(ctx
             .wait(self.0.consensus_dal().genesis())
@@ -211,6 +189,7 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
+    /// Wrapper for `consensus_dal().try_update_genesis()`.
     pub async fn try_update_genesis(
         &mut self,
         ctx: &ctx::Ctx,
@@ -221,52 +200,19 @@ impl<'a> Connection<'a> {
             .await??)
     }
 
-    /// Fetches and verifies consistency of certificates in storage.
+    /// Wrapper for `consensus_dal().next_block()`.
+    async fn next_block(&mut self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
+        Ok(ctx.wait(self.0.consensus_dal().next_block()).await??)
+    }
+
+    /// Wrapper for `consensus_dal().certificates_range()`.
     async fn certificates_range(
         &mut self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<storage::BlockStoreState> {
-        // Fetch the range of L2 blocks in storage.
-        let block_range = self.block_range(ctx).await.context("block_range")?;
-
-        // Fetch the range of certificates in storage.
-        let genesis = self
-            .genesis(ctx)
-            .await
-            .wrap("genesis()")?
-            .context("genesis missing")?;
-        let first_expected_cert = genesis.first_block.max(block_range.start);
-        let last_cert = self
-            .last_certificate(ctx)
-            .await
-            .wrap("last_certificate()")?;
-        let next_expected_cert = last_cert
-            .as_ref()
-            .map_or(first_expected_cert, |cert| cert.header().number.next());
-
-        // Check that the first certificate in storage has the expected L2 block number.
-        if let Some(got) = self
-            .first_certificate(ctx)
-            .await
-            .wrap("first_certificate()")?
-        {
-            if got.header().number != first_expected_cert {
-                return Err(anyhow::format_err!(
-                    "inconsistent storage: certificates should start at {first_expected_cert}, while they start at {}",
-                    got.header().number,
-                ).into());
-            }
-        }
-
-        // Check that the node has all the blocks before the next expected certificate, because
-        // the node needs to know the state of the chain up to block `X` to process block `X+1`.
-        if block_range.end < next_expected_cert {
-            return Err(anyhow::format_err!("inconsistent storage: cannot start consensus for L2 block {next_expected_cert}, because earlier blocks are missing").into());
-        }
-        Ok(storage::BlockStoreState {
-            first: first_expected_cert,
-            last: last_cert,
-        })
+        Ok(ctx
+            .wait(self.0.consensus_dal().certificates_range())
+            .await??)
     }
 
     /// (Re)initializes consensus genesis to start at the last L2 block in storage.
@@ -276,7 +222,6 @@ impl<'a> Connection<'a> {
         ctx: &ctx::Ctx,
         spec: &config::GenesisSpec,
     ) -> ctx::Result<()> {
-        let block_range = self.block_range(ctx).await.wrap("block_range()")?;
         let mut txn = self
             .start_transaction(ctx)
             .await
@@ -294,10 +239,11 @@ impl<'a> Connection<'a> {
             fork_number: old
                 .as_ref()
                 .map_or(validator::ForkNumber(0), |old| old.fork_number.next()),
-            first_block: block_range.end,
+            first_block: txn.next_block(ctx).await.context("next_block()")?,
 
             protocol_version: spec.protocol_version,
-            committee: spec.validators.clone(),
+            validators: spec.validators.clone(),
+            attesters: None,
             leader_selection: spec.leader_selection.clone(),
         }
         .with_hash();
@@ -308,6 +254,7 @@ impl<'a> Connection<'a> {
         Ok(())
     }
 
+    /// Fetches a block from storage.
     pub(super) async fn block(
         &mut self,
         ctx: &ctx::Ctx,
@@ -400,10 +347,12 @@ pub(super) struct Store {
     persisted: sync::watch::Receiver<storage::BlockStoreState>,
 }
 
+struct PersistedState(sync::watch::Sender<storage::BlockStoreState>);
+
 /// Background task of the `Store`.
 pub struct StoreRunner {
     pool: ConnectionPool,
-    persisted: sync::watch::Sender<storage::BlockStoreState>,
+    persisted: PersistedState,
     certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
 }
 
@@ -431,32 +380,109 @@ impl Store {
             },
             StoreRunner {
                 pool,
-                persisted,
+                persisted: PersistedState(persisted),
                 certificates: certs_recv,
             },
         ))
     }
 }
 
+impl PersistedState {
+    /// Updates `persisted` to new.
+    /// Ends of the range can only be moved forward.
+    /// If `persisted.first` is moved forward, it means that blocks have been pruned.
+    /// If `persisted.last` is moved forward, it means that new blocks with certificates have been
+    /// persisted.
+    fn update(&self, new: storage::BlockStoreState) {
+        self.0.send_if_modified(|p| {
+            if &new == p {
+                return false;
+            }
+            p.first = p.first.max(new.first);
+            if p.next() < new.next() {
+                p.last = new.last;
+            }
+            true
+        });
+    }
+
+    /// Checks if the given certificate is exactly the next one that should
+    /// be persisted.
+    fn should_be_persisted(&self, cert: &validator::CommitQC) -> bool {
+        self.0.borrow().next() == cert.header().number
+    }
+
+    /// Appends the `cert` to `persisted` range.
+    fn advance(&self, cert: validator::CommitQC) {
+        self.0.send_if_modified(|p| {
+            if p.next() != cert.header().number {
+                return false;
+            }
+            p.last = Some(cert);
+            true
+        });
+    }
+}
+
 impl StoreRunner {
     pub async fn run(mut self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
-        let res = async {
+        let res = scope::run!(ctx, |ctx, s| async {
+            s.spawn::<()>(async {
+                // Loop updating `persisted` whenever blocks get pruned.
+                const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
+                loop {
+                    let range = self
+                        .pool
+                        .connection(ctx)
+                        .await
+                        .wrap("connection")?
+                        .certificates_range(ctx)
+                        .await
+                        .wrap("certificates_range()")?;
+                    self.persisted.update(range);
+                    ctx.sleep(POLL_INTERVAL).await?;
+                }
+            });
+
+            // Loop inserting certs to storage.
+            const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
             loop {
                 let cert = self.certificates.recv(ctx).await?;
-                self.pool
-                    .wait_for_payload(ctx, cert.header().number)
-                    .await
-                    .wrap("wait_for_payload()")?;
-                self.pool
-                    .connection(ctx)
-                    .await
-                    .wrap("connection()")?
-                    .insert_certificate(ctx, &cert)
-                    .await
-                    .wrap("insert_certificate()")?;
-                self.persisted.send_modify(|p| p.last = Some(cert));
+                // Wait for the block to be persisted, so that we can attach a cert to it.
+                // We may exit this loop without persisting the certificate in case the
+                // corresponding block has been pruned in the meantime.
+                while self.persisted.should_be_persisted(&cert) {
+                    use consensus_dal::InsertCertificateError as E;
+                    // Try to insert the cert.
+                    let res = self
+                        .pool
+                        .connection(ctx)
+                        .await
+                        .wrap("connection")?
+                        .insert_certificate(ctx, &cert)
+                        .await;
+                    match res {
+                        Ok(()) => {
+                            // Insertion succeeded: update persisted state
+                            // and wait for the next cert.
+                            self.persisted.advance(cert);
+                            break;
+                        }
+                        Err(InsertCertificateError::Inner(E::MissingPayload)) => {
+                            // the payload is not in storage, it's either not yet persisted
+                            // or already pruned. We will retry after a delay.
+                            ctx.sleep(POLL_INTERVAL).await?;
+                        }
+                        Err(InsertCertificateError::Canceled(err)) => {
+                            return Err(ctx::Error::Canceled(err))
+                        }
+                        Err(InsertCertificateError::Inner(err)) => {
+                            return Err(ctx::Error::Internal(anyhow::Error::from(err)))
+                        }
+                    }
+                }
             }
-        }
+        })
         .await;
         match res {
             Err(ctx::Error::Canceled(_)) | Ok(()) => Ok(()),
@@ -554,7 +580,11 @@ impl PayloadManager for Store {
         block_number: validator::BlockNumber,
     ) -> ctx::Result<validator::Payload> {
         const LARGE_PAYLOAD_SIZE: usize = 1 << 20;
-        let payload = self.pool.wait_for_payload(ctx, block_number).await?;
+        let payload = self
+            .pool
+            .wait_for_payload(ctx, block_number)
+            .await
+            .wrap("wait_for_payload")?;
         let encoded_payload = payload.encode();
         if encoded_payload.0.len() > LARGE_PAYLOAD_SIZE {
             tracing::warn!(
@@ -602,5 +632,39 @@ impl PayloadManager for Store {
             }
         }
         Ok(())
+    }
+}
+
+// Dummy implementation
+#[async_trait::async_trait]
+impl storage::PersistentBatchStore for Store {
+    async fn last_batch(&self) -> attester::BatchNumber {
+        unimplemented!()
+    }
+    async fn last_batch_qc(&self) -> attester::BatchQC {
+        unimplemented!()
+    }
+    async fn get_batch(&self, _number: attester::BatchNumber) -> Option<attester::SyncBatch> {
+        None
+    }
+    async fn get_batch_qc(&self, _number: attester::BatchNumber) -> Option<attester::BatchQC> {
+        None
+    }
+    async fn store_qc(&self, _qc: attester::BatchQC) {
+        unimplemented!()
+    }
+    fn persisted(&self) -> sync::watch::Receiver<storage::BatchStoreState> {
+        sync::watch::channel(storage::BatchStoreState {
+            first: attester::BatchNumber(0),
+            last: None,
+        })
+        .1
+    }
+    async fn queue_next_batch(
+        &self,
+        _ctx: &ctx::Ctx,
+        _batch: attester::SyncBatch,
+    ) -> ctx::Result<()> {
+        Err(anyhow::format_err!("unimplemented").into())
     }
 }

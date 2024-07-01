@@ -612,7 +612,7 @@ impl Delayer {
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct L1BatchWithLogs {
     pub header: L1BatchHeader,
-    pub storage_logs: Vec<TreeInstruction<StorageKey>>,
+    pub storage_logs: Vec<TreeInstruction>,
     mode: MerkleTreeMode,
 }
 
@@ -688,6 +688,7 @@ impl L1BatchWithLogs {
             writes
                 .chain(reads)
                 .sorted_by_key(|tree_instruction| tree_instruction.key())
+                .map(TreeInstruction::with_hashed_key)
                 .collect()
         } else {
             // Otherwise, load writes' data from other tables.
@@ -731,11 +732,11 @@ impl L1BatchWithLogs {
         connection: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
         protective_reads: HashSet<StorageKey>,
-    ) -> anyhow::Result<Vec<TreeInstruction<StorageKey>>> {
+    ) -> anyhow::Result<Vec<TreeInstruction>> {
         let touched_slots_latency = METRICS.start_load_stage(LoadChangesStage::LoadTouchedSlots);
         let mut touched_slots = connection
             .storage_logs_dal()
-            .get_touched_slots_for_l1_batch(l1_batch_number)
+            .get_touched_slots_for_executed_l1_batch(l1_batch_number)
             .await
             .context("cannot fetch touched slots")?;
         touched_slots_latency.observe_with_count(touched_slots.len());
@@ -758,7 +759,7 @@ impl L1BatchWithLogs {
             // their further processing. This is not a required step; the logic below works fine without it.
             // Indeed, extra no-op updates that could be added to `storage_logs` as a consequence of no filtering,
             // are removed on the Merkle tree level (see the tree domain wrapper).
-            let log = TreeInstruction::Read(storage_key);
+            let log = TreeInstruction::Read(storage_key.hashed_key_u256());
             storage_logs.insert(storage_key, log);
         }
         tracing::debug!(
@@ -774,7 +775,7 @@ impl L1BatchWithLogs {
                 if initial_write_batch_for_key <= l1_batch_number {
                     storage_logs.insert(
                         storage_key,
-                        TreeInstruction::write(storage_key, leaf_index, value),
+                        TreeInstruction::write(storage_key.hashed_key_u256(), leaf_index, value),
                     );
                 }
             }
@@ -786,11 +787,13 @@ impl L1BatchWithLogs {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use tempfile::TempDir;
     use zksync_dal::{ConnectionPool, Core};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
-    use zksync_types::{writes::TreeWrite, StorageKey, StorageLog};
+    use zksync_types::{writes::TreeWrite, StorageKey, StorageLog, U256};
 
     use super::*;
     use crate::tests::{extend_db_state, gen_storage_logs, mock_config, reset_db_state};
@@ -813,7 +816,7 @@ mod tests {
                 .unwrap();
             let touched_slots = storage
                 .storage_logs_dal()
-                .get_touched_slots_for_l1_batch(l1_batch_number)
+                .get_touched_slots_for_executed_l1_batch(l1_batch_number)
                 .await
                 .unwrap();
 
@@ -845,7 +848,10 @@ mod tests {
                     );
                 }
 
-                storage_logs.insert(storage_key, TreeInstruction::Read(storage_key));
+                storage_logs.insert(
+                    storage_key,
+                    TreeInstruction::Read(storage_key.hashed_key_u256()),
+                );
             }
 
             for (storage_key, value) in touched_slots {
@@ -854,7 +860,7 @@ mod tests {
                     let (_, leaf_index) = l1_batches_for_initial_writes[&storage_key.hashed_key()];
                     storage_logs.insert(
                         storage_key,
-                        TreeInstruction::write(storage_key, leaf_index, value),
+                        TreeInstruction::write(storage_key.hashed_key_u256(), leaf_index, value),
                     );
                 }
             }
@@ -881,6 +887,19 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         let mut tree_writes = Vec::new();
 
+        // Create a lookup table for storage key preimages
+        let all_storage_logs = storage
+            .storage_logs_dal()
+            .dump_all_storage_logs_for_tests()
+            .await;
+        let logs_by_hashed_key: HashMap<_, _> = all_storage_logs
+            .into_iter()
+            .map(|log| {
+                let tree_key = U256::from_little_endian(log.hashed_key.as_bytes());
+                (tree_key, log)
+            })
+            .collect();
+
         // Check equivalence in case `tree_writes` are not present in DB.
         for l1_batch_number in 0..=5 {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
@@ -899,8 +918,8 @@ mod tests {
                 .into_iter()
                 .filter_map(|instruction| match instruction {
                     TreeInstruction::Write(tree_entry) => Some(TreeWrite {
-                        address: *tree_entry.key.address(),
-                        key: *tree_entry.key.key(),
+                        address: logs_by_hashed_key[&tree_entry.key].address.unwrap(),
+                        key: logs_by_hashed_key[&tree_entry.key].key.unwrap(),
                         value: tree_entry.value,
                         leaf_index: tree_entry.leaf_index,
                     }),

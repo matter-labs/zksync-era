@@ -43,4 +43,9 @@ impl Spinner {
             self.time.elapsed().as_secs_f64()
         ));
     }
+
+    /// Freeze the spinner with current message.
+    pub fn freeze(self) {
+        self.pb.stop(self.msg);
+    }
 }
