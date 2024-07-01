@@ -82,7 +82,7 @@ fn download_setup_key(
         .clone();
     let url = compressor_config.universal_setup_download_url;
 
-    let mut cmd = Cmd::new(cmd!(shell, "wget {url} -P {path}"));
+    let cmd = Cmd::new(cmd!(shell, "wget {url} -P {path}"));
     cmd.run()?;
     spinner.finish();
     Ok(())

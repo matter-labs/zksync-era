@@ -48,7 +48,7 @@ impl RunExternalNode {
         if let Some(components) = self.components() {
             additional_args.push(format!("--components={}", components))
         }
-        let mut cmd = Cmd::new(
+        let cmd = Cmd::new(
             cmd!(
                 shell,
                 "cargo run --release --bin zksync_external_node --
