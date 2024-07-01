@@ -30,7 +30,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .get_zksync_general_config()
         .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
 
-    let setup_key_path = get_setup_key_path(&general_config, &ecosystem_config)?;
+    let setup_key_path = get_setup_key_path(&ecosystem_config)?;
 
     let args = args.fill_values_with_prompt(shell, &setup_key_path)?;
 
@@ -82,24 +82,15 @@ fn download_setup_key(
         .clone();
     let url = compressor_config.universal_setup_download_url;
 
-    let mut cmd = Cmd::new(cmd!(shell, "wget {url} -P {path}"));
+    let mut cmd = Cmd::new(cmd!(shell, "wget {url} -O {path}"));
     cmd.run()?;
     spinner.finish();
     Ok(())
 }
 
-fn get_setup_key_path(
-    general_config: &GeneralConfig,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<String> {
-    let setup_key_path = general_config
-        .proof_compressor_config
-        .as_ref()
-        .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
-        .universal_setup_path
-        .clone();
+fn get_setup_key_path(ecosystem_config: &EcosystemConfig) -> anyhow::Result<String> {
     let link_to_prover = get_link_to_prover(ecosystem_config);
-    let path = link_to_prover.join(setup_key_path);
+    let path = link_to_prover.join("keys/setup/setup_2^24.key");
     let string = path.to_str().unwrap();
 
     Ok(String::from(string))
