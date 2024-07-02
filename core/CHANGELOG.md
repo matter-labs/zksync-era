@@ -1,5 +1,45 @@
 # Changelog
 
+## [24.9.0](https://github.com/matter-labs/zksync-era/compare/core-v24.8.0...core-v24.9.0) (2024-07-02)
+
+
+### Features
+
+* add revert tests to zk_toolbox ([#2317](https://github.com/matter-labs/zksync-era/issues/2317)) ([c9ad002](https://github.com/matter-labs/zksync-era/commit/c9ad002d17ed91d1e5f225e19698c12cb3adc665))
+* Adding unstable RPC endpoint to return the execution_info ([#2332](https://github.com/matter-labs/zksync-era/issues/2332)) ([3d047ea](https://github.com/matter-labs/zksync-era/commit/3d047ea953d6fed4d0463fce60f743086f4a13b9))
+* consensus support for pruning (BFT-473) ([#2334](https://github.com/matter-labs/zksync-era/issues/2334)) ([abc4256](https://github.com/matter-labs/zksync-era/commit/abc4256570b899e2b47ed8362e69ae0150247490))
+* **en:** file based configs for en ([#2110](https://github.com/matter-labs/zksync-era/issues/2110)) ([7940fa3](https://github.com/matter-labs/zksync-era/commit/7940fa32a27ee4de43753c7083f92ca8c2ebe86b))
+* **en:** Unify snapshot recovery and recovery from L1 ([#2256](https://github.com/matter-labs/zksync-era/issues/2256)) ([e03a929](https://github.com/matter-labs/zksync-era/commit/e03a9293852288b36d23f5ccbc784876435dd18d))
+* **eth-sender:** Add transient ethereum gateway errors metric ([#2323](https://github.com/matter-labs/zksync-era/issues/2323)) ([287958d](https://github.com/matter-labs/zksync-era/commit/287958db6ca54959fd56c04d4a7a3cbfc9baa877))
+* **eth-sender:** handle transactions for different operators separately to increase throughtput ([#2341](https://github.com/matter-labs/zksync-era/issues/2341)) ([0619ecc](https://github.com/matter-labs/zksync-era/commit/0619eccc335311298bfc0c75f0a4bf8562db759e))
+* **eth-sender:** separate gas calculations for blobs transactions ([#2247](https://github.com/matter-labs/zksync-era/issues/2247)) ([627aab9](https://github.com/matter-labs/zksync-era/commit/627aab9703c47795247f8b6d21533520498ed025))
+* **gas_adjuster:** Use eth_feeHistory for both base fee and blobs ([#2322](https://github.com/matter-labs/zksync-era/issues/2322)) ([9985c26](https://github.com/matter-labs/zksync-era/commit/9985c2659177656788a1f6143120eafccfccdae9))
+* **metadata-calculator:** option to use VM runner for protective reads ([#2318](https://github.com/matter-labs/zksync-era/issues/2318)) ([c147b0c](https://github.com/matter-labs/zksync-era/commit/c147b0c68e6e1db5bd658c4f7a591bf3cddb9417))
+* **node_framework:** Document implementations ([#2319](https://github.com/matter-labs/zksync-era/issues/2319)) ([7b3877f](https://github.com/matter-labs/zksync-era/commit/7b3877fd35b5c894fbe18666953eace8910dba0c))
+* **node_framework:** Implement FromContext and IntoContext derive macro ([#2330](https://github.com/matter-labs/zksync-era/issues/2330)) ([34f2a45](https://github.com/matter-labs/zksync-era/commit/34f2a45e073052519697f41f264d05fa187ea678))
+* **node_framework:** Support shutdown hooks + more ([#2293](https://github.com/matter-labs/zksync-era/issues/2293)) ([2b2c790](https://github.com/matter-labs/zksync-era/commit/2b2c790b64beb59a885ce785ab01d5c1bd089c43))
+* **node_framework:** Unify Task types + misc improvements   ([#2325](https://github.com/matter-labs/zksync-era/issues/2325)) ([298a97e](https://github.com/matter-labs/zksync-era/commit/298a97e800b4c156628050789de7a490a7565d60))
+* **prover:** Add prover_cli stats command ([#2362](https://github.com/matter-labs/zksync-era/issues/2362)) ([fe65319](https://github.com/matter-labs/zksync-era/commit/fe65319da0f26ca45e95f067c1e8b97cf7874c45))
+* **snapshots_applier:** Add a method to check whether snapshot recovery is done ([#2338](https://github.com/matter-labs/zksync-era/issues/2338)) ([610a7cf](https://github.com/matter-labs/zksync-era/commit/610a7cf037c6c655564deffebbf5a3fe5533783b))
+* Validium with DA ([#2010](https://github.com/matter-labs/zksync-era/issues/2010)) ([fe03d0e](https://github.com/matter-labs/zksync-era/commit/fe03d0e254a98fea60ecb7485a7de9e7fdecaee1))
+* **zk toolbox:** External node support ([#2287](https://github.com/matter-labs/zksync-era/issues/2287)) ([6384cad](https://github.com/matter-labs/zksync-era/commit/6384cad26aead4d1bdbb606a97d623dacebf912c))
+* **zk_toolbox:** Add prover init command ([#2298](https://github.com/matter-labs/zksync-era/issues/2298)) ([159af3c](https://github.com/matter-labs/zksync-era/commit/159af3c54cc9beb742b2ab43ce3b89b14c8368b7))
+
+
+### Bug Fixes
+
+* **db:** Fix / extend transaction isolation levels ([#2350](https://github.com/matter-labs/zksync-era/issues/2350)) ([404ceb9](https://github.com/matter-labs/zksync-era/commit/404ceb91e9a179c269baed4d218261aae48a8061))
+* **eth-sender:** confirm eth-txs in order of their creation ([#2310](https://github.com/matter-labs/zksync-era/issues/2310)) ([31a1a04](https://github.com/matter-labs/zksync-era/commit/31a1a04183c213cf1270e1487e05d6f9548c0afd))
+* **eth-sender:** revert commit changing which type of txs we resend first ([#2327](https://github.com/matter-labs/zksync-era/issues/2327)) ([ef75292](https://github.com/matter-labs/zksync-era/commit/ef752926691d768ea412d0fdc78f43a62f16cd15))
+* **merkle-tree:** Change `LazyAsyncTreeReader::wait()` signature ([#2314](https://github.com/matter-labs/zksync-era/issues/2314)) ([408393c](https://github.com/matter-labs/zksync-era/commit/408393c7d8ceee0ae95cbc1f2b24a3375e345e97))
+* **merkle-tree:** Fix chunk recovery reporting during tree recovery ([#2348](https://github.com/matter-labs/zksync-era/issues/2348)) ([70b3a8a](https://github.com/matter-labs/zksync-era/commit/70b3a8aea33820d5bf932b608c9e68ecc2915d4c))
+* **object-store:** Consider some token source errors transient ([#2331](https://github.com/matter-labs/zksync-era/issues/2331)) ([85386d3](https://github.com/matter-labs/zksync-era/commit/85386d314a934b7eaa0bf2707f6d5af039e93340))
+
+
+### Reverts
+
+* "refactor: Rename consensus tasks and split storage (BFT-476)" ([#2364](https://github.com/matter-labs/zksync-era/issues/2364)) ([e67ec5d](https://github.com/matter-labs/zksync-era/commit/e67ec5de15d01a0edce741efd6f5fe126ce76290))
+
 ## [24.8.0](https://github.com/matter-labs/zksync-era/compare/core-v24.7.0...core-v24.8.0) (2024-06-24)
 
 

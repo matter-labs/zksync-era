@@ -1,6 +1,6 @@
 [package]
 name = "zksync_external_node"
-version = "24.8.0" # x-release-please-version
+version = "24.9.0" # x-release-please-version
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
