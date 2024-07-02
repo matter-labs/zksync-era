@@ -3881,6 +3881,7 @@ dependencies = [
  "zk_evm 1.4.1",
  "zk_evm 1.5.0",
  "zksync_contracts",
+ "zksync_mini_merkle_tree",
  "zksync_state",
  "zksync_system_constants",
  "zksync_types",

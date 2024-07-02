@@ -28,6 +28,8 @@ zksync_contracts.workspace = true
 zksync_utils.workspace = true
 zksync_system_constants.workspace = true
 
+zksync_mini_merkle_tree.workspace = true
+
 
 anyhow.workspace = true
 hex.workspace = true
