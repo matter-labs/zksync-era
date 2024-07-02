@@ -8367,6 +8367,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "futures 0.3.28",
  "rand 0.8.5",
  "tokio",
  "tracing",

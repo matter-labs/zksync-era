@@ -23,3 +23,4 @@ anyhow.workspace = true
 tracing.workspace = true
 chrono.workspace = true
 rand.workspace = true
+futures.workspace = true
