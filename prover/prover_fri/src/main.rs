@@ -94,7 +94,10 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let prover_config = general_config.prover_config.context("fri_prover config")?;
+    let mut prover_config = general_config.prover_config.context("fri_prover config")?;
+    if let Some(prometheus_port) = opt.prometheus_port {
+        prover_config.prometheus_port = prometheus_port;
+    }
     let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
@@ -317,4 +320,6 @@ pub(crate) struct Cli {
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
     pub(crate) secrets_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    pub(crate) prometheus_port: Option<u16>,
 }
