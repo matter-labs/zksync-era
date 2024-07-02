@@ -7,3 +7,4 @@ pub(crate) mod requeue;
 pub(crate) mod restart;
 pub(crate) mod stats;
 pub(crate) mod status;
+pub use status::StatusCommand;
