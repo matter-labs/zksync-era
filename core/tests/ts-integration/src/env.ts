@@ -121,9 +121,9 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     ).l2TokenAddress(weth.address);
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
-    const l2ChainId = genesisConfig.l2_chain_id;
+    const l2ChainId = BigInt(genesisConfig.l2_chain_id);
     const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
-    let minimalL2GasPrice = generalConfig.state_keeper.minimal_l2_gas_price;
+    const minimalL2GasPrice = BigInt(generalConfig.state_keeper.minimal_l2_gas_price);
 
     const validationComputationalGasLimit = parseInt(generalConfig.state_keeper.validation_computational_gas_limit);
     // TODO set it properly
