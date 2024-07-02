@@ -137,10 +137,11 @@ class MainNode {
         env.DATABASE_MERKLE_TREE_MODE = 'full';
         console.log(`DATABASE_URL = ${env.DATABASE_URL}`);
 
-        let components = 'api,tree,eth,state_keeper,commitment_generator';
+        let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
         if (enableConsensus) {
             components += ',consensus';
         }
+
         let proc = spawn('./target/release/zksync_server', ['--components', components], {
             cwd: env.ZKSYNC_HOME,
             stdio: [null, logs, logs],
