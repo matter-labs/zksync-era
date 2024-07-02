@@ -13,20 +13,30 @@ impl ActionQueueSender {
     /// Requires that the actions are in the correct order: starts with a new open L1 batch / L2 block,
     /// followed by 0 or more transactions, have mandatory `SealL2Block` and optional `SealBatch` at the end.
     /// Would panic if the order is incorrect.
-    pub async fn push_actions(&self, actions: Vec<SyncAction>) {
-        Self::check_action_sequence(&actions).unwrap();
+    ///
+    /// # Errors
+    ///
+    /// Errors correspond incorrect action order, or to `ExternalIO` instance that the queue is connected to shutting down.
+    /// Hence, returned errors must be treated as unrecoverable by the caller; it is unsound to continue
+    /// operating a node if some of the `actions` may be lost.
+    pub async fn push_actions(&self, actions: Vec<SyncAction>) -> anyhow::Result<()> {
+        Self::check_action_sequence(&actions)?;
         for action in actions {
-            self.0.send(action).await.expect("EN sync logic panicked");
+            self.0
+                .send(action)
+                .await
+                .map_err(|_| anyhow::anyhow!("node action processor stopped"))?;
             QUEUE_METRICS
                 .action_queue_size
                 .set(self.0.max_capacity() - self.0.capacity());
         }
+        Ok(())
     }
 
     /// Checks whether the action sequence is valid.
     /// Returned error is meant to be used as a panic message, since an invalid sequence represents an unrecoverable
     /// error. This function itself does not panic for the ease of testing.
-    fn check_action_sequence(actions: &[SyncAction]) -> Result<(), String> {
+    fn check_action_sequence(actions: &[SyncAction]) -> anyhow::Result<()> {
         // Rules for the sequence:
         // 1. Must start with either `OpenBatch` or `L2Block`, both of which may be met only once.
         // 2. Followed by a sequence of `Tx` actions which consists of 0 or more elements.
@@ -38,27 +48,22 @@ impl ActionQueueSender {
         for action in actions {
             match action {
                 SyncAction::OpenBatch { .. } | SyncAction::L2Block { .. } => {
-                    if opened {
-                        return Err(format!("Unexpected OpenBatch / L2Block: {actions:?}"));
-                    }
+                    anyhow::ensure!(!opened, "Unexpected OpenBatch / L2Block: {actions:?}");
                     opened = true;
                 }
                 SyncAction::Tx(_) => {
-                    if !opened || l2_block_sealed {
-                        return Err(format!("Unexpected Tx: {actions:?}"));
-                    }
+                    anyhow::ensure!(opened && !l2_block_sealed, "Unexpected Tx: {actions:?}");
                 }
                 SyncAction::SealL2Block | SyncAction::SealBatch => {
-                    if !opened || l2_block_sealed {
-                        return Err(format!("Unexpected SealL2Block / SealBatch: {actions:?}"));
-                    }
+                    anyhow::ensure!(
+                        opened && !l2_block_sealed,
+                        "Unexpected SealL2Block / SealBatch: {actions:?}"
+                    );
                     l2_block_sealed = true;
                 }
             }
         }
-        if !l2_block_sealed {
-            return Err(format!("Incomplete sequence: {actions:?}"));
-        }
+        anyhow::ensure!(l2_block_sealed, "Incomplete sequence: {actions:?}");
         Ok(())
     }
 }
@@ -287,7 +292,7 @@ mod tests {
                 panic!("Invalid sequence passed the test. Sequence #{idx}, expected error: {expected_err}");
             };
             assert!(
-                err.starts_with(expected_err),
+                err.to_string().contains(expected_err),
                 "Sequence #{idx} failed. Expected error: {expected_err}, got: {err}"
             );
         }
