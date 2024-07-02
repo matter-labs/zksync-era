@@ -327,6 +327,8 @@ pub struct Log {
     pub log_type: Option<String>,
     /// Removed
     pub removed: Option<bool>,
+    /// L2 block timestamp
+    pub block_timestamp: Option<i64>,
 }
 
 impl Log {
