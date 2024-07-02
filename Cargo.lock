@@ -1919,6 +1919,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "envs_to_files"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.4.6",
+ "futures 0.3.28",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_core_leftovers",
+ "zksync_env_config",
+ "zksync_protobuf",
+ "zksync_protobuf_config",
+]
+
+[[package]]
 name = "envy"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
