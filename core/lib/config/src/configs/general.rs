@@ -1,6 +1,7 @@
 use crate::{
     configs::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
+        da_dispatcher::DADispatcherConfig,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         pruning::PruningConfig,
@@ -36,6 +37,7 @@ pub struct GeneralConfig {
     pub eth: Option<EthConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub observability: Option<ObservabilityConfig>,
+    pub da_dispatcher_config: Option<DADispatcherConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub commitment_generator: Option<CommitmentGeneratorConfig>,
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,

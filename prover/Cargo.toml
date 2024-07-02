@@ -32,6 +32,7 @@ categories = ["cryptography"]
 anyhow = "1.0"
 async-trait = "0.1"
 bincode = "1"
+chrono = "0.4.38"
 circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
 circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
 clap = "4.4.6"

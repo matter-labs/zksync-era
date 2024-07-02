@@ -70,9 +70,9 @@ describe('Block reverting test', function () {
 
     const pathToHome = path.join(__dirname, '../../../..');
 
-    let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
-    let components = 'api,tree,eth,state_keeper,commitment_generator';
-    if (enable_consensus) {
+    const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
+    let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
+    if (enableConsensus) {
         components += ',consensus';
     }
 
