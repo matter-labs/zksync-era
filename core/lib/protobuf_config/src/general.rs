@@ -39,6 +39,10 @@ impl ProtoRepr for proto::GeneralConfig {
             observability: read_optional_repr(&self.observability).context("observability")?,
             protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer)
                 .context("protective_reads_writer")?,
+            basic_witness_input_producer_config: read_optional_repr(
+                &self.basic_witness_input_producer,
+            )
+            .context("basic_witness_input_producer")?,
             core_object_store: read_optional_repr(&self.core_object_store)
                 .context("core_object_store")?,
             commitment_generator: read_optional_repr(&self.commitment_generator)
@@ -79,6 +83,10 @@ impl ProtoRepr for proto::GeneralConfig {
             observability: this.observability.as_ref().map(ProtoRepr::build),
             protective_reads_writer: this
                 .protective_reads_writer_config
+                .as_ref()
+                .map(ProtoRepr::build),
+            basic_witness_input_producer: this
+                .basic_witness_input_producer_config
                 .as_ref()
                 .map(ProtoRepr::build),
             commitment_generator: this.commitment_generator.as_ref().map(ProtoRepr::build),

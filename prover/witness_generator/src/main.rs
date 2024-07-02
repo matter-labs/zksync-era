@@ -35,7 +35,6 @@ mod utils;
 
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
-use zksync_dal::Core;
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 
 #[cfg(not(target_env = "msvc"))]
@@ -125,14 +124,6 @@ async fn main() -> anyhow::Result<()> {
     let prometheus_config = general_config
         .prometheus_config
         .context("prometheus config")?;
-    let postgres_config = general_config.postgres_config.context("postgres config")?;
-    let connection_pool = ConnectionPool::<Core>::builder(
-        database_secrets.master_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a connection_pool")?;
     let prover_connection_pool =
         ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
             .build()
@@ -224,7 +215,6 @@ async fn main() -> anyhow::Result<()> {
                     config.clone(),
                     store_factory.create_store().await?,
                     public_blob_store,
-                    connection_pool.clone(),
                     prover_connection_pool.clone(),
                     protocol_version,
                 );

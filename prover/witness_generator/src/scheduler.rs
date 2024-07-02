@@ -6,9 +6,8 @@ use zkevm_test_harness::zkevm_circuits::recursion::{
     leaf_layer::input::RecursionLeafParametersWitness, NUM_BASE_LAYER_CIRCUITS,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{Prover, ProverDal};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{

@@ -15,7 +15,6 @@ use circuit_definitions::{
 use tracing::Instrument;
 use zkevm_test_harness::geometry_config::get_geometry_config;
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::{Core, CoreDal};
 use zksync_multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
@@ -36,16 +35,14 @@ use zksync_prover_fri_types::{
     AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_prover_interface::inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob};
+use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_state::{PostgresStorage, StorageView};
+use zksync_state::{StorageView, WitnessStorage};
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
-    block::StorageOracleInfo,
     protocol_version::ProtocolSemanticVersion,
-    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256,
+    Address, L1BatchNumber, BOOTLOADER_ADDRESS,
 };
-use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
@@ -78,7 +75,7 @@ struct BlobUrls {
 #[derive(Clone)]
 pub struct BasicWitnessGeneratorJob {
     block_number: L1BatchNumber,
-    job: PrepareBasicCircuitsJob,
+    job: WitnessInputData,
     eip_4844_blobs: Eip4844Blobs,
 }
 
@@ -87,7 +84,6 @@ pub struct BasicWitnessGenerator {
     config: Arc<FriWitnessGeneratorConfig>,
     object_store: Arc<dyn ObjectStore>,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
-    connection_pool: ConnectionPool<Core>,
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
 }
@@ -97,7 +93,6 @@ impl BasicWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         object_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
-        connection_pool: ConnectionPool<Core>,
         prover_connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
     ) -> Self {
@@ -105,7 +100,6 @@ impl BasicWitnessGenerator {
             config: Arc::new(config),
             object_store,
             public_blob_store,
-            connection_pool,
             prover_connection_pool,
             protocol_version,
         }
@@ -113,7 +107,6 @@ impl BasicWitnessGenerator {
 
     async fn process_job_impl(
         object_store: Arc<dyn ObjectStore>,
-        connection_pool: ConnectionPool<Core>,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> Option<BasicCircuitArtifacts> {
@@ -132,7 +125,6 @@ impl BasicWitnessGenerator {
         Some(
             process_basic_circuits_job(
                 &*object_store,
-                connection_pool,
                 started_at,
                 block_number,
                 job,
@@ -200,14 +192,11 @@ impl JobProcessor for BasicWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let object_store = Arc::clone(&self.object_store);
-        let connection_pool = self.connection_pool.clone();
         tokio::spawn(async move {
             let block_number = job.block_number;
-            Ok(
-                Self::process_job_impl(object_store, connection_pool, job, started_at)
-                    .instrument(tracing::info_span!("basic_circuit", %block_number))
-                    .await,
-            )
+            Ok(Self::process_job_impl(object_store, job, started_at)
+                .instrument(tracing::info_span!("basic_circuit", %block_number))
+                .await)
         })
     }
 
@@ -272,22 +261,13 @@ impl JobProcessor for BasicWitnessGenerator {
 #[allow(clippy::too_many_arguments)]
 async fn process_basic_circuits_job(
     object_store: &dyn ObjectStore,
-    connection_pool: ConnectionPool<Core>,
     started_at: Instant,
     block_number: L1BatchNumber,
-    job: PrepareBasicCircuitsJob,
+    job: WitnessInputData,
     eip_4844_blobs: Eip4844Blobs,
 ) -> BasicCircuitArtifacts {
-    let witness_gen_input =
-        build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
-    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
-        block_number,
-        object_store,
-        connection_pool,
-        witness_gen_input,
-        eip_4844_blobs,
-    )
-    .await;
+    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
+        generate_witness(block_number, object_store, job, eip_4844_blobs).await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
     tracing::info!(
@@ -403,54 +383,10 @@ async fn save_recursion_queue(
     (circuit_id, blob_url, basic_circuit_count)
 }
 
-// If making changes to this method, consider moving this logic to the DAL layer and make
-// `PrepareBasicCircuitsJob` have all fields of `BasicCircuitWitnessGeneratorInput`.
-async fn build_basic_circuits_witness_generator_input(
-    connection_pool: &ConnectionPool<Core>,
-    witness_merkle_input: PrepareBasicCircuitsJob,
-    l1_batch_number: L1BatchNumber,
-) -> BasicCircuitWitnessGeneratorInput {
-    let mut connection = connection_pool.connection().await.unwrap();
-    let block_header = connection
-        .blocks_dal()
-        .get_l1_batch_header(l1_batch_number)
-        .await
-        .unwrap()
-        .unwrap();
-    let initial_heap_content = connection
-        .blocks_dal()
-        .get_initial_bootloader_heap(l1_batch_number)
-        .await
-        .unwrap()
-        .unwrap();
-    let (_, previous_block_timestamp) = connection
-        .blocks_dal()
-        .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
-        .await
-        .unwrap()
-        .unwrap();
-    let previous_block_hash = connection
-        .blocks_dal()
-        .get_l1_batch_state_root(l1_batch_number - 1)
-        .await
-        .unwrap()
-        .expect("cannot generate witness before the root hash is computed");
-    BasicCircuitWitnessGeneratorInput {
-        block_number: l1_batch_number,
-        previous_block_timestamp,
-        previous_block_hash,
-        block_timestamp: block_header.timestamp,
-        used_bytecodes_hashes: block_header.used_contract_hashes,
-        initial_heap_content,
-        merkle_paths_input: witness_merkle_input,
-    }
-}
-
 async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
-    connection_pool: ConnectionPool<Core>,
-    input: BasicCircuitWitnessGeneratorInput,
+    input: WitnessInputData,
     eip_4844_blobs: Eip4844Blobs,
 ) -> (
     Vec<(u8, String)>,
@@ -462,119 +398,40 @@ async fn generate_witness(
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
 ) {
-    let mut connection = connection_pool.connection().await.unwrap();
-    let header = connection
-        .blocks_dal()
-        .get_l1_batch_header(input.block_number)
-        .await
-        .unwrap()
-        .unwrap();
-
-    let protocol_version = header
-        .protocol_version
-        .unwrap_or(ProtocolVersionId::last_potentially_undefined());
-
-    let previous_batch_with_metadata = connection
-        .blocks_dal()
-        .get_l1_batch_metadata(zksync_types::L1BatchNumber(
-            input.block_number.checked_sub(1).unwrap(),
-        ))
-        .await
-        .unwrap()
-        .unwrap();
-
-    let bootloader_code_bytes = connection
-        .factory_deps_dal()
-        .get_sealed_factory_dep(header.base_system_contracts_hashes.bootloader)
-        .await
-        .expect("Failed fetching bootloader bytecode from DB")
-        .expect("Bootloader bytecode should exist");
-    let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
-    let account_bytecode_bytes = connection
-        .factory_deps_dal()
-        .get_sealed_factory_dep(header.base_system_contracts_hashes.default_aa)
-        .await
-        .expect("Failed fetching default account bytecode from DB")
-        .expect("Default account bytecode should exist");
-    let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-    let bootloader_contents =
-        expand_bootloader_contents(&input.initial_heap_content, protocol_version);
-    let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
-
-    let hashes: HashSet<H256> = input
-        .used_bytecodes_hashes
-        .iter()
-        // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
-        .filter(|&&hash| hash != h256_to_u256(header.base_system_contracts_hashes.bootloader))
-        .map(|hash| u256_to_h256(*hash))
-        .collect();
-
-    let StorageOracleInfo {
-        storage_refunds,
-        pubdata_costs,
-    } = connection
-        .blocks_dal()
-        .get_storage_oracle_info(input.block_number)
-        .await
-        .unwrap()
-        .unwrap();
-
-    let mut used_bytecodes = connection
-        .factory_deps_dal()
-        .get_factory_deps(&hashes)
-        .await;
-    if input.used_bytecodes_hashes.contains(&account_code_hash) {
-        used_bytecodes.insert(account_code_hash, account_bytecode);
-    }
-
-    assert_eq!(
-        hashes.len(),
-        used_bytecodes.len(),
-        "{} factory deps are not found in DB",
-        hashes.len() - used_bytecodes.len()
+    let bootloader_contents = expand_bootloader_contents(
+        &input.vm_run_data.initial_heap_content,
+        input.vm_run_data.protocol_version,
     );
 
-    // `DbStorageProvider` was designed to be used in API, so it accepts miniblock numbers.
-    // Probably, we should make it work with L1 batch numbers too.
-    let (_, last_miniblock_number) = connection
-        .blocks_dal()
-        .get_l2_block_range_of_l1_batch(input.block_number - 1)
-        .await
-        .unwrap()
-        .expect("L1 batch should contain at least one miniblock");
-    drop(connection);
-
     let mut tree = PrecalculatedMerklePathsProvider::new(
-        input.merkle_paths_input,
-        input.previous_block_hash.0,
+        input.merkle_paths,
+        input.vm_run_data.previous_root_hash.0,
     );
     let geometry_config = get_geometry_config();
     let mut hasher = DefaultHasher::new();
     geometry_config.hash(&mut hasher);
     tracing::info!(
         "generating witness for block {} using geometry config hash: {}",
-        input.block_number.0,
+        input.vm_run_data.l1_batch_number.0,
         hasher.finish()
     );
-
-    // The following part is CPU-heavy, so we move it to a separate thread.
-    let rt_handle = tokio::runtime::Handle::current();
 
     let (circuit_sender, mut circuit_receiver) = tokio::sync::mpsc::channel(1);
     let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
 
     let make_circuits = tokio::task::spawn_blocking(move || {
-        let connection = rt_handle.block_on(connection_pool.connection()).unwrap();
+        let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state);
+        let storage_view = StorageView::new(witness_storage).to_rc_ptr();
 
-        let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
-        let storage_view = StorageView::new(storage).to_rc_ptr();
-
-        let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
+        let vm_storage_oracle: VmStorageOracle<StorageView<WitnessStorage<'_>>, HistoryDisabled> =
             VmStorageOracle::new(storage_view.clone());
         let storage_oracle = StorageOracle::new(
             vm_storage_oracle,
-            storage_refunds,
-            pubdata_costs.expect("pubdata costs should be present"),
+            input.vm_run_data.storage_refunds,
+            input
+                .vm_run_data
+                .pubdata_costs
+                .expect("pubdata costs should be present"),
         );
 
         let path = KZG_TRUSTED_SETUP_FILE
@@ -585,13 +442,13 @@ async fn generate_witness(
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
             Address::zero(),
             BOOTLOADER_ADDRESS,
-            bootloader_code,
+            input.vm_run_data.bootloader_code,
             bootloader_contents,
             false,
-            account_code_hash,
+            input.vm_run_data.default_account_code_hash,
             // NOTE: this will be evm_simulator_code_hash in future releases
-            account_code_hash,
-            used_bytecodes,
+            input.vm_run_data.default_account_code_hash,
+            input.vm_run_data.used_bytecodes,
             Vec::default(),
             MAX_CYCLES_FOR_TX as usize,
             geometry_config,
@@ -635,10 +492,8 @@ async fn generate_witness(
 
     recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
 
-    scheduler_witness.previous_block_meta_hash =
-        previous_batch_with_metadata.metadata.meta_parameters_hash.0;
-    scheduler_witness.previous_block_aux_hash =
-        previous_batch_with_metadata.metadata.aux_data_hash.0;
+    scheduler_witness.previous_block_meta_hash = input.vm_run_data.previous_meta_hash.0;
+    scheduler_witness.previous_block_aux_hash = input.vm_run_data.previous_aux_hash.0;
 
     (
         circuit_urls,

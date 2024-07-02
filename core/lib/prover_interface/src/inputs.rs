@@ -1,9 +1,12 @@
-use std::{convert::TryInto, fmt::Debug};
+use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
-use zksync_types::{L1BatchNumber, H256, U256};
+pub use zksync_state::WitnessStorage;
+use zksync_types::{
+    witness_block_state::WitnessBlockState, L1BatchNumber, ProtocolVersionId, H256, U256,
+};
 
 const HASH_LEN: usize = H256::len_bytes();
 
@@ -59,13 +62,13 @@ impl StorageLogMetadata {
 /// Merkle paths; if this is the case, the starting hashes are skipped and are the same
 /// as in the first path.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PrepareBasicCircuitsJob {
+pub struct WitnessInputMerklePaths {
     // Merkle paths and some auxiliary information for each read / write operation in a block.
     merkle_paths: Vec<StorageLogMetadata>,
     next_enumeration_index: u64,
 }
 
-impl StoredObject for PrepareBasicCircuitsJob {
+impl StoredObject for WitnessInputMerklePaths {
     const BUCKET: Bucket = Bucket::WitnessInput;
     type Key<'a> = L1BatchNumber;
 
@@ -76,7 +79,7 @@ impl StoredObject for PrepareBasicCircuitsJob {
     serialize_using_bincode!();
 }
 
-impl PrepareBasicCircuitsJob {
+impl WitnessInputMerklePaths {
     /// Creates a new job with the specified leaf index and no included paths.
     pub fn new(next_enumeration_index: u64) -> Self {
         Self {
@@ -132,16 +135,50 @@ impl PrepareBasicCircuitsJob {
     }
 }
 
-/// Enriched `PrepareBasicCircuitsJob`. All the other fields are taken from the `l1_batches` table.
-#[derive(Debug, Clone)]
-pub struct BasicCircuitWitnessGeneratorInput {
-    pub block_number: L1BatchNumber,
-    pub previous_block_hash: H256,
-    pub previous_block_timestamp: u64,
-    pub block_timestamp: u64,
-    pub used_bytecodes_hashes: Vec<U256>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VMRunWitnessInputData {
+    pub l1_batch_number: L1BatchNumber,
+    pub previous_root_hash: H256,
+    pub previous_meta_hash: H256,
+    pub previous_aux_hash: H256,
+    pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
     pub initial_heap_content: Vec<(usize, U256)>,
-    pub merkle_paths_input: PrepareBasicCircuitsJob,
+    pub protocol_version: ProtocolVersionId,
+    pub bootloader_code: Vec<[u8; 32]>,
+    pub default_account_code_hash: U256,
+    pub storage_refunds: Vec<u32>,
+    pub pubdata_costs: Option<Vec<i32>>,
+    pub witness_block_state: WitnessBlockState,
+}
+
+impl StoredObject for VMRunWitnessInputData {
+    const BUCKET: Bucket = Bucket::WitnessInput;
+
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("vm_run_data_{key}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WitnessInputData {
+    pub vm_run_data: VMRunWitnessInputData,
+    pub merkle_paths: WitnessInputMerklePaths,
+}
+
+impl StoredObject for WitnessInputData {
+    const BUCKET: Bucket = Bucket::WitnessInput;
+
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("witness_inputs_{key}.bin")
+    }
+
+    serialize_using_bincode!();
 }
 
 #[cfg(test)]
@@ -167,7 +204,7 @@ mod tests {
         });
         let logs: Vec<_> = logs.collect();
 
-        let mut job = PrepareBasicCircuitsJob::new(4);
+        let mut job = WitnessInputMerklePaths::new(4);
         job.reserve(logs.len());
         for log in &logs {
             job.push_merkle_path(log.clone());
