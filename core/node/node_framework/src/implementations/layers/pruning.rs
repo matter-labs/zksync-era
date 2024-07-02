@@ -12,6 +12,16 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for node pruning layer.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `DbPruner`
 #[derive(Debug)]
 pub struct PruningLayer {
     pruning_removal_delay: Duration,
@@ -40,7 +50,7 @@ impl WiringLayer for PruningLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let main_pool = pool_resource.get().await?;
 
         let db_pruner = DbPruner::new(
@@ -52,12 +62,12 @@ impl WiringLayer for PruningLayer {
             main_pool,
         );
 
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
         app_health
             .insert_component(db_pruner.health_check())
             .map_err(WiringError::internal)?;
 
-        context.add_task(Box::new(db_pruner));
+        context.add_task(db_pruner);
 
         Ok(())
     }

@@ -18,6 +18,19 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `ExternalIO`, an IO part of state keeper used by the external node.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `MainNodeClientResource`
+///
+/// ## Adds resources
+///
+/// - `SyncStateResource`
+/// - `ActionQueueSenderResource`
+/// - `StateKeeperIOResource`
+/// - `ConditionalSealerResource`
 #[derive(Debug)]
 pub struct ExternalIOLayer {
     chain_id: L2ChainId,
@@ -37,8 +50,8 @@ impl WiringLayer for ExternalIOLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Fetch required resources.
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let MainNodeClientResource(main_node_client) = context.get_resource().await?;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>()?;
+        let MainNodeClientResource(main_node_client) = context.get_resource()?;
 
         // Create `SyncState` resource.
         let sync_state = SyncState::default();

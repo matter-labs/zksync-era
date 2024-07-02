@@ -18,6 +18,7 @@ pub enum Bucket {
     ProofsFri,
     ProofsTee,
     StorageSnapshot,
+    DataAvailability,
     TeeVerifierInput,
 }
 
@@ -36,6 +37,7 @@ impl Bucket {
             Self::ProofsFri => "proofs_fri",
             Self::ProofsTee => "proofs_tee",
             Self::StorageSnapshot => "storage_logs_snapshots",
+            Self::DataAvailability => "data_availability",
             Self::TeeVerifierInput => "tee_verifier_inputs",
         }
     }

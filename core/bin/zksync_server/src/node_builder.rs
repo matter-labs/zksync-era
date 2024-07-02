@@ -3,10 +3,17 @@
 
 use anyhow::Context;
 use zksync_config::{
-    configs::{consensus::ConsensusConfig, wallets::Wallets, GeneralConfig, Secrets},
+    configs::{
+        consensus::ConsensusConfig, eth_sender::PubdataSendingMode, wallets::Wallets,
+        GeneralConfig, Secrets,
+    },
     ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
+use zksync_default_da_clients::{
+    no_da::wiring_layer::NoDAClientWiringLayer,
+    object_store::{config::DAObjectStoreConfig, wiring_layer::ObjectStorageClientWiringLayer},
+};
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::{ApiContracts, TxSenderConfig},
@@ -18,6 +25,7 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
+        da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
@@ -49,7 +57,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_prometheus_exporter::PrometheusExporterConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
@@ -175,9 +183,11 @@ impl MainNodeBuilder {
         let merkle_tree_env_config = try_load_config!(self.configs.db_config).merkle_tree;
         let operations_manager_env_config =
             try_load_config!(self.configs.operations_manager_config);
+        let state_keeper_env_config = try_load_config!(self.configs.state_keeper_config);
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
+            &state_keeper_env_config,
         );
         let mut layer = MetadataCalculatorLayer::new(metadata_calculator_config);
         if with_tree_api {
@@ -327,7 +337,14 @@ impl MainNodeBuilder {
         let circuit_breaker_config = try_load_config!(self.configs.circuit_breaker_config);
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
-        let mut namespaces = Namespace::DEFAULT.to_vec();
+        let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
+            namespaces
+                .iter()
+                .map(|a| a.parse())
+                .collect::<Result<_, _>>()?
+        } else {
+            Namespace::DEFAULT.to_vec()
+        };
         if with_debug_namespace {
             namespaces.push(Namespace::Debug)
         }
@@ -343,6 +360,7 @@ impl MainNodeBuilder {
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
             replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
+            with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::ws(
@@ -429,6 +447,38 @@ impl MainNodeBuilder {
     fn add_tee_verifier_input_producer_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(TeeVerifierInputProducerLayer::new(
             self.genesis_config.l2_chain_id,
+        ));
+
+        Ok(self)
+    }
+
+    fn add_no_da_client_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(NoDAClientWiringLayer);
+        Ok(self)
+    }
+
+    #[allow(dead_code)]
+    fn add_object_storage_da_client_layer(mut self) -> anyhow::Result<Self> {
+        let object_store_config = DAObjectStoreConfig::from_env()?;
+        self.node
+            .add_layer(ObjectStorageClientWiringLayer::new(object_store_config.0));
+        Ok(self)
+    }
+
+    fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
+        let eth_sender_config = try_load_config!(self.configs.eth);
+        if let Some(sender_config) = eth_sender_config.sender {
+            if sender_config.pubdata_sending_mode != PubdataSendingMode::Custom {
+                tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA dispatcher will not be started.");
+                return Ok(self);
+            }
+        }
+
+        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
+        let da_config = try_load_config!(self.configs.da_dispatcher_config);
+        self.node.add_layer(DataAvailabilityDispatcherLayer::new(
+            state_keeper_config,
+            da_config,
         ));
 
         Ok(self)
@@ -528,6 +578,9 @@ impl MainNodeBuilder {
                 }
                 Component::CommitmentGenerator => {
                     self = self.add_commitment_generator_layer()?;
+                }
+                Component::DADispatcher => {
+                    self = self.add_no_da_client_layer()?.add_da_dispatcher_layer()?;
                 }
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;

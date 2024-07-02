@@ -17,6 +17,21 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for the state keeper output handler.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `SyncStateResource` (optional)
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds resources
+///
+/// - `OutputHandlerResource`
+///
+/// ## Adds tasks
+///
+/// - `L2BlockSealerTask`
 #[derive(Debug)]
 pub struct OutputHandlerLayer {
     l2_shared_bridge_addr: Address,
@@ -63,9 +78,9 @@ impl WiringLayer for OutputHandlerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Fetch required resources.
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>()?;
         // Use `SyncState` if provided.
-        let sync_state = match context.get_resource::<SyncStateResource>().await {
+        let sync_state = match context.get_resource::<SyncStateResource>() {
             Ok(sync_state) => Some(sync_state.0),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
@@ -99,7 +114,7 @@ impl WiringLayer for OutputHandlerLayer {
             output_handler = output_handler.with_handler(Box::new(sync_state));
         }
         context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
-        context.add_task(Box::new(L2BlockSealerTask(l2_block_sealer)));
+        context.add_task(L2BlockSealerTask(l2_block_sealer));
 
         Ok(())
     }

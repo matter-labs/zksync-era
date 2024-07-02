@@ -199,7 +199,9 @@ pub(super) async fn insert_system_contracts(
 
     let written_storage_keys: Vec<_> = deduplicated_writes
         .iter()
-        .map(|log| StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)))
+        .map(|log| {
+            StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)).hashed_key()
+        })
         .collect();
     transaction
         .storage_logs_dedup_dal()

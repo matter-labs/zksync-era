@@ -41,7 +41,6 @@ use crate::{
         },
     },
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
-    forge_utils::{check_the_balance, fill_forge_private_key},
     messages::{
         msg_ecosystem_initialized, msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
         MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
@@ -49,6 +48,7 @@ use crate::{
         MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
         MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
     },
+    utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -59,7 +59,10 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let genesis_args = args.genesis_args.clone();
+    let mut genesis_args = args.genesis_args.clone();
+    if args.dev {
+        genesis_args.use_default = true;
+    }
     let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
@@ -108,13 +111,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             deploy_paymaster: final_ecosystem_args.deploy_paymaster,
             l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         };
-
-        distribute_eth(
-            &ecosystem_config,
-            &chain_config,
-            final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
-        )
-        .await?;
 
         chain::init::init(
             &mut chain_init_args,
@@ -195,8 +191,17 @@ async fn deploy_erc20(
     l1_rpc_url: String,
 ) -> anyhow::Result<DeployErc20Output> {
     let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
-    DeployErc20Config::new(erc20_deployment_config, contracts_config)
-        .save(shell, deploy_config_path)?;
+    let wallets = ecosystem_config.get_wallets()?;
+    DeployErc20Config::new(
+        erc20_deployment_config,
+        contracts_config,
+        vec![
+            wallets.governor.address,
+            wallets.operator.address,
+            wallets.blob_operator.address,
+        ],
+    )
+    .save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
@@ -349,10 +354,10 @@ async fn deploy_ecosystem_inner(
 
 fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code);
-    Cmd::new(cmd!(shell, "yarn install")).run()
+    Ok(Cmd::new(cmd!(shell, "yarn install")).run()?)
 }
 
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Cmd::new(cmd!(shell, "yarn sc build")).run()
+    Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
 }

@@ -13,6 +13,18 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for [`TreeDataFetcher`].
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `MainNodeClientResource`
+/// - `EthInterfaceResource`
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `TreeDataFetcher`
 #[derive(Debug)]
 pub struct TreeDataFetcherLayer {
     diamond_proxy_addr: Address,
@@ -31,9 +43,9 @@ impl WiringLayer for TreeDataFetcherLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let MainNodeClientResource(client) = context.get_resource().await?;
-        let EthInterfaceResource(eth_client) = context.get_resource().await?;
+        let pool = context.get_resource::<PoolResource<MasterPool>>()?;
+        let MainNodeClientResource(client) = context.get_resource()?;
+        let EthInterfaceResource(eth_client) = context.get_resource()?;
 
         tracing::warn!(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
@@ -43,13 +55,13 @@ impl WiringLayer for TreeDataFetcherLayer {
             .with_l1_data(eth_client, self.diamond_proxy_addr)?;
 
         // Insert healthcheck
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
         app_health
             .insert_component(fetcher.health_check())
             .map_err(WiringError::internal)?;
 
         // Insert task
-        context.add_task(Box::new(fetcher));
+        context.add_task(fetcher);
 
         Ok(())
     }

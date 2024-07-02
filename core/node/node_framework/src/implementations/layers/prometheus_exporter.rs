@@ -1,19 +1,22 @@
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_prometheus_exporter::PrometheusExporterConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
     service::{ServiceContext, StopReceiver},
-    task::{TaskId, UnconstrainedTask},
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Builder for a prometheus exporter.
+/// Wiring layer for Prometheus exporter server.
 ///
-/// ## Effects
+/// ## Requests resources
 ///
-/// - Adds prometheus health check to the `ResourceCollection<HealthCheckResource>`.
-/// - Adds `prometheus_exporter` to the node.
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `PrometheusExporterTask`
 #[derive(Debug)]
 pub struct PrometheusExporterLayer(pub PrometheusExporterConfig);
 
@@ -33,28 +36,32 @@ impl WiringLayer for PrometheusExporterLayer {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 
-        let AppHealthCheckResource(app_health) = node.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = node.get_resource_or_default();
         app_health
             .insert_component(prometheus_health_check)
             .map_err(WiringError::internal)?;
 
-        let task = Box::new(PrometheusExporterTask {
+        let task = PrometheusExporterTask {
             config: self.0,
             prometheus_health_updater,
-        });
+        };
 
-        node.add_unconstrained_task(task);
+        node.add_task(task);
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl UnconstrainedTask for PrometheusExporterTask {
+impl Task for PrometheusExporterTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::UnconstrainedTask
+    }
+
     fn id(&self) -> TaskId {
         "prometheus_exporter".into()
     }
 
-    async fn run_unconstrained(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let prometheus_task = self.config.run(stop_receiver.0);
         self.prometheus_health_updater
             .update(HealthStatus::Ready.into());

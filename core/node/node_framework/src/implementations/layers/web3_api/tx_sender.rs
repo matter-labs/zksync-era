@@ -33,6 +33,25 @@ pub struct PostgresStorageCachesConfig {
     pub latest_values_cache_size: u64,
 }
 
+/// Wiring layer for the `TxSender`.
+/// Prepares the `TxSender` itself, as well as the tasks required for its maintenance.
+///
+/// ## Requests resources
+///
+/// - `TxSinkResource`
+/// - `PoolResource<ReplicaPool>`
+/// - `ConditionalSealerResource` (optional)
+/// - `FeeInputResource`
+///
+/// ## Adds resources
+///
+/// - `TxSenderResource`
+///
+/// ## Adds tasks
+///
+/// - `PostgresStorageCachesTask`
+/// - `VmConcurrencyBarrierTask`
+/// - `WhitelistedTokensForAaUpdateTask` (optional)
 #[derive(Debug)]
 pub struct TxSenderLayer {
     tx_sender_config: TxSenderConfig,
@@ -76,15 +95,15 @@ impl WiringLayer for TxSenderLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get required resources.
-        let tx_sink = context.get_resource::<TxSinkResource>().await?.0;
-        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let tx_sink = context.get_resource::<TxSinkResource>()?.0;
+        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let replica_pool = pool_resource.get().await?;
-        let sealer = match context.get_resource::<ConditionalSealerResource>().await {
+        let sealer = match context.get_resource::<ConditionalSealerResource>() {
             Ok(sealer) => Some(sealer.0),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(other) => return Err(other),
         };
-        let fee_input = context.get_resource::<FeeInputResource>().await?.0;
+        let fee_input = context.get_resource::<FeeInputResource>()?.0;
 
         // Initialize Postgres caches.
         let factory_deps_capacity = self.postgres_storage_caches_config.factory_deps_cache_size;
@@ -98,17 +117,17 @@ impl WiringLayer for TxSenderLayer {
         if values_capacity > 0 {
             let values_cache_task = storage_caches
                 .configure_storage_values_cache(values_capacity, replica_pool.clone());
-            context.add_task(Box::new(PostgresStorageCachesTask {
+            context.add_task(PostgresStorageCachesTask {
                 task: values_cache_task,
-            }));
+            });
         }
 
         // Initialize `VmConcurrencyLimiter`.
         let (vm_concurrency_limiter, vm_concurrency_barrier) =
             VmConcurrencyLimiter::new(self.max_vm_concurrency);
-        context.add_task(Box::new(VmConcurrencyBarrierTask {
+        context.add_task(VmConcurrencyBarrierTask {
             barrier: vm_concurrency_barrier,
-        }));
+        });
 
         // Build `TxSender`.
         let mut tx_sender = TxSenderBuilder::new(self.tx_sender_config, replica_pool, tx_sink);
@@ -118,12 +137,12 @@ impl WiringLayer for TxSenderLayer {
 
         // Add the task for updating the whitelisted tokens for the AA cache.
         if self.whitelisted_tokens_for_aa_cache {
-            let MainNodeClientResource(main_node_client) = context.get_resource().await?;
+            let MainNodeClientResource(main_node_client) = context.get_resource()?;
             let whitelisted_tokens = Arc::new(RwLock::new(Default::default()));
-            context.add_task(Box::new(WhitelistedTokensForAaUpdateTask {
+            context.add_task(WhitelistedTokensForAaUpdateTask {
                 whitelisted_tokens: whitelisted_tokens.clone(),
                 main_node_client,
-            }));
+            });
             tx_sender = tx_sender.with_whitelisted_tokens_for_aa(whitelisted_tokens);
         }
 

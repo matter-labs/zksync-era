@@ -13,11 +13,13 @@ use crate::{
 /// Responsible for initialization of the contract verification server.
 ///
 /// ## Requests resources
-/// - [`PoolResource`] for [`MasterPool`]
-/// - [`PoolResource`] for [`ReplicaPool`]
+///
+/// - `PoolResource<MasterPool>`
+/// - `PoolResource<ReplicaPool>`
 ///
 /// ## Adds tasks
-/// - [`ContractVerificationApiTask`] (as [`Task`])
+///
+/// - `ContractVerificationApiTask`
 #[derive(Debug)]
 pub struct ContractVerificationApiLayer(pub ContractVerifierConfig);
 
@@ -29,20 +31,18 @@ impl WiringLayer for ContractVerificationApiLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let master_pool = context
-            .get_resource::<PoolResource<MasterPool>>()
-            .await?
+            .get_resource::<PoolResource<MasterPool>>()?
             .get()
             .await?;
         let replica_pool = context
-            .get_resource::<PoolResource<ReplicaPool>>()
-            .await?
+            .get_resource::<PoolResource<ReplicaPool>>()?
             .get()
             .await?;
-        context.add_task(Box::new(ContractVerificationApiTask {
+        context.add_task(ContractVerificationApiTask {
             master_pool,
             replica_pool,
             config: self.0,
-        }));
+        });
         Ok(())
     }
 }

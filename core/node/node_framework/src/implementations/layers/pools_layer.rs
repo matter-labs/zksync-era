@@ -13,6 +13,7 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Builder for the [`PoolsLayer`].
 #[derive(Debug)]
 pub struct PoolsLayerBuilder {
     config: PostgresConfig,
@@ -23,6 +24,8 @@ pub struct PoolsLayerBuilder {
 }
 
 impl PoolsLayerBuilder {
+    /// Creates a new builder with the provided configuration and secrets.
+    /// By default, no pulls are enabled.
     pub fn empty(config: PostgresConfig, database_secrets: DatabaseSecrets) -> Self {
         Self {
             config,
@@ -33,21 +36,25 @@ impl PoolsLayerBuilder {
         }
     }
 
+    /// Allows to enable the master pool.
     pub fn with_master(mut self, with_master: bool) -> Self {
         self.with_master = with_master;
         self
     }
 
+    /// Allows to enable the replica pool.
     pub fn with_replica(mut self, with_replica: bool) -> Self {
         self.with_replica = with_replica;
         self
     }
 
+    /// Allows to enable the prover pool.
     pub fn with_prover(mut self, with_prover: bool) -> Self {
         self.with_prover = with_prover;
         self
     }
 
+    /// Builds the [`PoolsLayer`] with the provided configuration.
     pub fn build(self) -> PoolsLayer {
         PoolsLayer {
             config: self.config,
@@ -59,6 +66,18 @@ impl PoolsLayerBuilder {
     }
 }
 
+/// Wiring layer for connection pools.
+/// During wiring, also prepares the global configuration for the connection pools.
+///
+/// ## Requests resources
+///
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds resources
+///
+/// - `PoolResource::<MasterPool>` (if master pool is enabled)
+/// - `PoolResource::<ReplicaPool>` (if replica pool is enabled)
+/// - `PoolResource::<ProverPool>` (if prover pool is enabled)
 #[derive(Debug)]
 pub struct PoolsLayer {
     config: PostgresConfig,
@@ -125,19 +144,17 @@ impl WiringLayer for PoolsLayer {
         // Insert health checks for the core pool.
         let connection_pool = if self.with_replica {
             context
-                .get_resource::<PoolResource<ReplicaPool>>()
-                .await?
+                .get_resource::<PoolResource<ReplicaPool>>()?
                 .get()
                 .await?
         } else {
             context
-                .get_resource::<PoolResource<MasterPool>>()
-                .await?
+                .get_resource::<PoolResource<MasterPool>>()?
                 .get()
                 .await?
         };
         let db_health_check = ConnectionPoolHealthCheck::new(connection_pool);
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
         app_health
             .insert_custom_component(Arc::new(db_health_check))
             .map_err(WiringError::internal)?;

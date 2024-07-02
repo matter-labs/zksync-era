@@ -11,11 +11,22 @@ use crate::{
         reverter::BlockReverterResource,
     },
     service::{ServiceContext, StopReceiver},
-    task::{TaskId, UnconstrainedOneshotTask},
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for [`ReorgDetector`] runner.
 /// Layer responsible for detecting reorg and reverting blocks in case it was found.
+///
+/// ## Requests resources
+///
+/// - `MainNodeClientResource`
+/// - `PoolResource<MasterPool>`
+/// - `BlockReverterResource`
+///
+/// ## Adds oneshot tasks
+///
+/// - `RunnerUnconstrainedOneshotTask`
 #[derive(Debug)]
 pub struct ReorgDetectorRunnerLayer;
 
@@ -27,18 +38,18 @@ impl WiringLayer for ReorgDetectorRunnerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let main_node_client = context.get_resource::<MainNodeClientResource>().await?.0;
+        let main_node_client = context.get_resource::<MainNodeClientResource>()?.0;
 
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let pool = pool_resource.get().await?;
 
-        let reverter = context.get_resource::<BlockReverterResource>().await?.0;
+        let reverter = context.get_resource::<BlockReverterResource>()?.0;
 
         // Create and insert task.
-        context.add_unconstrained_oneshot_task(Box::new(RunnerUnconstrainedOneshotTask {
+        context.add_task(RunnerUnconstrainedOneshotTask {
             reorg_detector: ReorgDetector::new(main_node_client, pool),
             reverter,
-        }));
+        });
 
         Ok(())
     }
@@ -50,15 +61,16 @@ pub struct RunnerUnconstrainedOneshotTask {
 }
 
 #[async_trait::async_trait]
-impl UnconstrainedOneshotTask for RunnerUnconstrainedOneshotTask {
+impl Task for RunnerUnconstrainedOneshotTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::UnconstrainedOneshotTask
+    }
+
     fn id(&self) -> TaskId {
         "reorg_detector_runner".into()
     }
 
-    async fn run_unconstrained_oneshot(
-        mut self: Box<Self>,
-        stop_receiver: StopReceiver,
-    ) -> anyhow::Result<()> {
+    async fn run(mut self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         match self.reorg_detector.run_once(stop_receiver.0.clone()).await {
             Ok(()) => {}
             Err(zksync_reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {

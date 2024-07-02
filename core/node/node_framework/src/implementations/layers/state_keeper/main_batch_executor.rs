@@ -7,6 +7,11 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `MainBatchExecutor`, part of the state keeper responsible for running the VM.
+///
+/// ## Adds resources
+///
+/// - `MainBatchExecutor`
 #[derive(Debug)]
 pub struct MainBatchExecutorLayer {
     save_call_traces: bool,

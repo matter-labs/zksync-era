@@ -6,7 +6,7 @@ use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
-    L1ChainId, L2ChainId,
+    L1BatchNumber, L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
 
@@ -97,6 +97,9 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             mempool_cache_update_interval: self.sample(rng),
             mempool_cache_size: self.sample(rng),
             whitelisted_tokens_for_aa: self.sample_range(rng).map(|_| rng.gen()).collect(),
+            api_namespaces: self
+                .sample_opt(|| self.sample_range(rng).map(|_| self.sample(rng)).collect()),
+            extended_api_tracing: self.sample(rng),
         }
     }
 }
@@ -281,6 +284,9 @@ impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
         configs::ExperimentalDBConfig {
             state_keeper_db_block_cache_capacity_mb: self.sample(rng),
             state_keeper_db_max_open_files: self.sample(rng),
+            protective_reads_persistence_enabled: self.sample(rng),
+            processing_delay_ms: self.sample(rng),
+            include_indices_and_filters_in_block_cache: self.sample(rng),
         }
     }
 }
@@ -344,9 +350,10 @@ impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
 impl Distribution<configs::eth_sender::PubdataSendingMode> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::PubdataSendingMode {
         type T = configs::eth_sender::PubdataSendingMode;
-        match rng.gen_range(0..2) {
+        match rng.gen_range(0..3) {
             0 => T::Calldata,
-            _ => T::Blobs,
+            1 => T::Blobs,
+            _ => T::Custom,
         }
     }
 }
@@ -635,6 +642,8 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
 impl Distribution<configs::SnapshotsCreatorConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SnapshotsCreatorConfig {
         configs::SnapshotsCreatorConfig {
+            l1_batch_number: self.sample_opt(|| L1BatchNumber(rng.gen())),
+            version: if rng.gen() { 0 } else { 1 },
             storage_logs_chunk_size: self.sample(rng),
             concurrent_queries_count: self.sample(rng),
             object_store: self.sample(rng),
@@ -743,6 +752,15 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
                 .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
                 .collect(),
             genesis_spec: self.sample(rng),
+            rpc: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::consensus::RpcConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::RpcConfig {
+        configs::consensus::RpcConfig {
+            get_block_rate: self.sample(rng),
         }
     }
 }

@@ -56,6 +56,7 @@ impl Web3ServerOptionalConfig {
             api_builder = api_builder
                 .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
         }
+        api_builder = api_builder.with_extended_tracing(self.with_extended_tracing);
         api_builder
     }
 }
@@ -67,6 +68,22 @@ enum Transport {
     Ws,
 }
 
+/// Wiring layer for Web3 JSON RPC server.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<ReplicaPool>`
+/// - `TxSenderResource`
+/// - `SyncStateResource` (optional)
+/// - `TreeApiClientResource` (optional)
+/// - `MempoolCacheResource`
+/// - `CircuitBreakersResource` (adds a circuit breaker)
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `Web3ApiTask` -- wrapper for all the tasks spawned by the API.
+/// - `ApiTaskGarbageCollector` -- maintenance task that manages API tasks.
 #[derive(Debug)]
 pub struct Web3ServerLayer {
     transport: Transport,
@@ -114,21 +131,21 @@ impl WiringLayer for Web3ServerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get required resources.
-        let replica_resource_pool = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_resource_pool = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let updaters_pool = replica_resource_pool.get_custom(2).await?;
         let replica_pool = replica_resource_pool.get().await?;
-        let tx_sender = context.get_resource::<TxSenderResource>().await?.0;
-        let sync_state = match context.get_resource::<SyncStateResource>().await {
+        let tx_sender = context.get_resource::<TxSenderResource>()?.0;
+        let sync_state = match context.get_resource::<SyncStateResource>() {
             Ok(sync_state) => Some(sync_state.0),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
-        let tree_api_client = match context.get_resource::<TreeApiClientResource>().await {
+        let tree_api_client = match context.get_resource::<TreeApiClientResource>() {
             Ok(client) => Some(client.0),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
-        let MempoolCacheResource(mempool_cache) = context.get_resource().await?;
+        let MempoolCacheResource(mempool_cache) = context.get_resource()?;
 
         // Build server.
         let mut api_builder =
@@ -163,15 +180,13 @@ impl WiringLayer for Web3ServerLayer {
 
         // Insert healthcheck.
         let api_health_check = server.health_check();
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
         app_health
             .insert_component(api_health_check)
             .map_err(WiringError::internal)?;
 
         // Insert circuit breaker.
-        let circuit_breaker_resource = context
-            .get_resource_or_default::<CircuitBreakersResource>()
-            .await;
+        let circuit_breaker_resource = context.get_resource_or_default::<CircuitBreakersResource>();
         circuit_breaker_resource
             .breakers
             .insert(Box::new(ReplicationLagChecker {
@@ -188,8 +203,8 @@ impl WiringLayer for Web3ServerLayer {
             task_sender,
         };
         let garbage_collector_task = ApiTaskGarbageCollector { task_receiver };
-        context.add_task(Box::new(web3_api_task));
-        context.add_task(Box::new(garbage_collector_task));
+        context.add_task(web3_api_task);
+        context.add_task(garbage_collector_task);
 
         Ok(())
     }
@@ -250,7 +265,10 @@ impl Task for ApiTaskGarbageCollector {
         // We can ignore the stop signal here, since we're tied to the main API task through the channel:
         // it'll either get dropped if API cannot be built or will send something through the channel.
         // The tasks it sends are aware of the stop receiver themselves.
-        let tasks = self.task_receiver.await?;
+        let Ok(tasks) = self.task_receiver.await else {
+            // API cannot be built, so there are no tasks to wait for.
+            return Ok(());
+        };
         let _ = futures::future::join_all(tasks).await;
         Ok(())
     }

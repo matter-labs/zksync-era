@@ -298,7 +298,7 @@ async function setInternalL1GasPrice(
     } catch (_) {}
 
     // Run server in background.
-    let command = 'zk server --components api,tree,eth,state_keeper';
+    let command = 'zk server --components api,tree,eth,state_keeper,da_dispatcher';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
 
     if (newPubdataPrice) {
@@ -316,7 +316,7 @@ async function setInternalL1GasPrice(
         command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ${command}`;
     }
 
-    const zkSyncServer = utils.background(command, [null, logs, logs]);
+    const zkSyncServer = utils.background({ command, stdio: [null, logs, logs] });
 
     if (disconnect) {
         zkSyncServer.unref();

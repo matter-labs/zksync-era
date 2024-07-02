@@ -18,11 +18,13 @@ use crate::{
 /// Responsible for initialization and running [`CommitmentGenerator`].
 ///
 /// ## Requests resources
-/// - [`PoolResource`] for [`MasterPool`]
-/// - [`AppHealthCheckResource`] (to add new health check)
+///
+/// - `PoolResource<MasterPool>`
+/// - `AppHealthCheckResource` (adds a health check)
 ///
 /// ## Adds tasks
-/// - [`CommitmentGeneratorTask`] (as [`Task`])
+///
+/// - `CommitmentGeneratorTask`
 #[derive(Debug)]
 pub struct CommitmentGeneratorLayer {
     mode: L1BatchCommitmentMode,
@@ -50,7 +52,7 @@ impl WiringLayer for CommitmentGeneratorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
 
         let pool_size = self
             .max_parallelism
@@ -63,14 +65,14 @@ impl WiringLayer for CommitmentGeneratorLayer {
             commitment_generator.set_max_parallelism(max_parallelism);
         }
 
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
         app_health
             .insert_component(commitment_generator.health_check())
             .map_err(WiringError::internal)?;
 
-        context.add_task(Box::new(CommitmentGeneratorTask {
+        context.add_task(CommitmentGeneratorTask {
             commitment_generator,
-        }));
+        });
 
         Ok(())
     }

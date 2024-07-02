@@ -8,6 +8,7 @@ use zksync_node_api_server::{
 
 use crate::resource::Resource;
 
+/// A resource that provides [`TxSender`] to the service.
 #[derive(Debug, Clone)]
 pub struct TxSenderResource(pub TxSender);
 
@@ -17,6 +18,7 @@ impl Resource for TxSenderResource {
     }
 }
 
+/// A resource that provides [`TxSink`] implementation to the service.
 #[derive(Debug, Clone)]
 pub struct TxSinkResource(pub Arc<dyn TxSink>);
 
@@ -26,6 +28,7 @@ impl Resource for TxSinkResource {
     }
 }
 
+/// A resource that provides [`TreeApiClient`] implementation to the service.
 #[derive(Debug, Clone)]
 pub struct TreeApiClientResource(pub Arc<dyn TreeApiClient>);
 
@@ -35,6 +38,7 @@ impl Resource for TreeApiClientResource {
     }
 }
 
+/// A resource that provides [`MempoolCache`] to the service.
 #[derive(Debug, Clone)]
 pub struct MempoolCacheResource(pub MempoolCache);
 

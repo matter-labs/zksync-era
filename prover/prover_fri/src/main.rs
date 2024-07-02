@@ -12,7 +12,6 @@ use tokio::{
 use zksync_config::configs::{DatabaseSecrets, FriProverConfig};
 use zksync_env_config::FromEnv;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prometheus_exporter::PrometheusExporterConfig;
 use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
@@ -23,6 +22,7 @@ use zksync_types::{
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
 };
 use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 mod gpu_prover_availability_checker;
 mod gpu_prover_job_processor;

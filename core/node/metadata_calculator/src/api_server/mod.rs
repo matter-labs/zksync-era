@@ -343,7 +343,7 @@ impl AsyncTreeReader {
         Ok(Json(response))
     }
 
-    fn create_api_server(
+    async fn create_api_server(
         self,
         bind_address: &SocketAddr,
         mut stop_receiver: watch::Receiver<bool>,
@@ -355,10 +355,11 @@ impl AsyncTreeReader {
             .route("/proofs", routing::post(Self::get_proofs_handler))
             .with_state(self);
 
-        let server = axum::Server::try_bind(bind_address)
-            .with_context(|| format!("Failed binding Merkle tree API server to {bind_address}"))?
-            .serve(app.into_make_service());
-        let local_addr = server.local_addr();
+        let listener = tokio::net::TcpListener::bind(bind_address)
+            .await
+            .with_context(|| format!("Failed binding Merkle tree API server to {bind_address}"))?;
+        let local_addr = listener.local_addr()?;
+        let server = axum::serve(listener, app);
         let server_future = async move {
             server.with_graceful_shutdown(async move {
                 if stop_receiver.changed().await.is_err() {
@@ -387,7 +388,8 @@ impl AsyncTreeReader {
         bind_address: SocketAddr,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
-        self.create_api_server(&bind_address, stop_receiver)?
+        self.create_api_server(&bind_address, stop_receiver)
+            .await?
             .run()
             .await
     }

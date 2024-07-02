@@ -4,7 +4,7 @@ use zksync_config::configs::chain::CircuitBreakerConfig;
 use crate::{
     implementations::resources::circuit_breakers::CircuitBreakersResource,
     service::{ServiceContext, StopReceiver},
-    task::{TaskId, UnconstrainedTask},
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -14,11 +14,13 @@ use crate::{
 /// [`zksync_circuit_breaker::CircuitBreakers`] collection using [`CircuitBreakersResource`].
 /// The added task periodically runs checks for all inserted circuit breakers.
 ///
-/// ## Adds resources
-/// - [`CircuitBreakersResource`]
+/// ## Requests resources
+///
+/// - `CircuitBreakersResource`
 ///
 /// ## Adds tasks
-/// - [`CircuitBreakerCheckerTask`] (as [`UnconstrainedTask`])
+///
+/// - `CircuitBreakerCheckerTask`
 #[derive(Debug)]
 pub struct CircuitBreakerCheckerLayer(pub CircuitBreakerConfig);
 
@@ -30,9 +32,7 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
 
     async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let circuit_breaker_resource = node
-            .get_resource_or_default::<CircuitBreakersResource>()
-            .await;
+        let circuit_breaker_resource = node.get_resource_or_default::<CircuitBreakersResource>();
 
         let circuit_breaker_checker =
             CircuitBreakerChecker::new(circuit_breaker_resource.breakers, self.0.sync_interval());
@@ -42,7 +42,7 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
             circuit_breaker_checker,
         };
 
-        node.add_unconstrained_task(Box::new(task));
+        node.add_task(task);
         Ok(())
     }
 }
@@ -53,15 +53,16 @@ struct CircuitBreakerCheckerTask {
 }
 
 #[async_trait::async_trait]
-impl UnconstrainedTask for CircuitBreakerCheckerTask {
+impl Task for CircuitBreakerCheckerTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::UnconstrainedTask
+    }
+
     fn id(&self) -> TaskId {
         "circuit_breaker_checker".into()
     }
 
-    async fn run_unconstrained(
-        mut self: Box<Self>,
-        stop_receiver: StopReceiver,
-    ) -> anyhow::Result<()> {
+    async fn run(mut self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         self.circuit_breaker_checker.run(stop_receiver.0).await
     }
 }

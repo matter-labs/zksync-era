@@ -30,6 +30,14 @@ impl DeployedContract {
     }
 }
 
+/// Holder for l1 batches data, used in eth sender metrics
+pub struct L1BatchStatistics {
+    pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub l2_tx_count: u32,
+    pub l1_tx_count: u32,
+}
+
 /// Holder for the block metadata that is not available from transactions themselves.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct L1BatchHeader {

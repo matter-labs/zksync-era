@@ -135,7 +135,7 @@ jobs:
         base_token: ["Eth", "Custom"]
         deployment_mode: ["Rollup", "Validium"]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}"
 
     runs-on: [matterlabs-ci-runner]
     steps:
@@ -230,9 +230,10 @@ jobs:
           fi
           ENABLE_CONSENSUS=${{ matrix.consensus }} \
           DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          SNAPSHOTS_CREATOR_VERSION=${{ matrix.deployment_mode == 'Validium' && '0' || '1' }} \
           DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
           ETH_CLIENT_WEB3_URL="http://reth:8545" \
-          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,ETH_CLIENT_WEB3_URL" \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,SNAPSHOTS_CREATOR_VERSION,ETH_CLIENT_WEB3_URL" \
             ci_run yarn recovery-test snapshot-recovery-test
 
       - name: Genesis recovery test
@@ -287,6 +288,10 @@ jobs:
         if: always()
         run: ci_run cat core/tests/upgrade-test/upgrade.log || true
 
+      - name: Show fee-projection.log logs
+        if: always()
+        run: ci_run cat core/tests/ts-integration/fees.log || true
+
       - name: Show sccache logs
         if: always()
         run: |
@@ -304,7 +309,7 @@ jobs:
     runs-on: [matterlabs-ci-runner]
 
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}"
       EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
 
     steps:

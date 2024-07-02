@@ -2,12 +2,16 @@ use tokio::sync::oneshot;
 
 use crate::{
     service::{ServiceContext, StopReceiver},
-    task::{TaskId, UnconstrainedTask},
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Layer that changes the handling of SIGINT signal, preventing an immediate shutdown.
+/// Wiring layer that changes the handling of SIGINT signal, preventing an immediate shutdown.
 /// Instead, it would propagate the signal to the rest of the node, allowing it to shut down gracefully.
+///
+/// ## Adds tasks
+///
+/// - `SigintHandlerTask`
 #[derive(Debug)]
 pub struct SigintHandlerLayer;
 
@@ -19,7 +23,7 @@ impl WiringLayer for SigintHandlerLayer {
 
     async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
         // SIGINT may happen at any time, so we must handle it as soon as it happens.
-        node.add_unconstrained_task(Box::new(SigintHandlerTask));
+        node.add_task(SigintHandlerTask);
         Ok(())
     }
 }
@@ -28,15 +32,16 @@ impl WiringLayer for SigintHandlerLayer {
 struct SigintHandlerTask;
 
 #[async_trait::async_trait]
-impl UnconstrainedTask for SigintHandlerTask {
+impl Task for SigintHandlerTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::UnconstrainedTask
+    }
+
     fn id(&self) -> TaskId {
         "sigint_handler".into()
     }
 
-    async fn run_unconstrained(
-        self: Box<Self>,
-        mut stop_receiver: StopReceiver,
-    ) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let (sigint_sender, sigint_receiver) = oneshot::channel();
         let mut sigint_sender = Some(sigint_sender); // Has to be done this way since `set_handler` requires `FnMut`.
         ctrlc::set_handler(move || {
@@ -51,7 +56,9 @@ impl UnconstrainedTask for SigintHandlerTask {
 
         // Wait for either SIGINT or stop signal.
         tokio::select! {
-            _ = sigint_receiver => {},
+            _ = sigint_receiver => {
+                tracing::info!("Received SIGINT signal");
+            },
             _ = stop_receiver.0.changed() => {},
         };
 

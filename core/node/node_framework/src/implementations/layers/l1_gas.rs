@@ -18,6 +18,21 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for sequencer L1 gas interfaces.
+/// Adds several resources that depend on L1 gas price.
+///
+/// ## Requests resources
+///
+/// - `EthInterfaceResource`
+///
+/// ## Adds resources
+///
+/// - `FeeInputResource`
+/// - `L1TxParamsResource`
+///
+/// ## Adds tasks
+///
+/// - `GasAdjusterTask` (only runs if someone uses the resourced listed above).
 #[derive(Debug)]
 pub struct SequencerL1GasLayer {
     gas_adjuster_config: GasAdjusterConfig,
@@ -49,7 +64,7 @@ impl WiringLayer for SequencerL1GasLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let client = context.get_resource::<EthInterfaceResource>().await?.0;
+        let client = context.get_resource::<EthInterfaceResource>()?.0;
         let adjuster = GasAdjuster::new(
             client,
             self.gas_adjuster_config,
@@ -68,7 +83,7 @@ impl WiringLayer for SequencerL1GasLayer {
 
         context.insert_resource(L1TxParamsResource(gas_adjuster.clone()))?;
 
-        context.add_task(Box::new(GasAdjusterTask { gas_adjuster }));
+        context.add_task(GasAdjusterTask { gas_adjuster });
         Ok(())
     }
 }

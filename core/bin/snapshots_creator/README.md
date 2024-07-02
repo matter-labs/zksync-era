@@ -51,9 +51,9 @@ Creating a snapshot is a part of the [snapshot recovery integration test]. You c
 
 Each snapshot consists of three types of data (see [`snapshots.rs`] for exact definitions):
 
-- **Header:** Includes basic information, such as the miniblock / L1 batch of the snapshot, miniblock / L1 batch
-  timestamps, miniblock hash and L1 batch root hash. Returned by the methods in the `snapshots` namespace of the
-  JSON-RPC API of the main node.
+- **Header:** Includes basic information, such as the L2 block / L1 batch of the snapshot, L2 block / L1 batch
+  timestamps, L2 block hash and L1 batch root hash. Returned by the methods in the `snapshots` namespace of the JSON-RPC
+  API of the main node.
 - **Storage log chunks:** Latest values for all VM storage slots ever written to at the time the snapshot is made.
   Besides key–value pairs, each storage log record also contains the L1 batch number of its initial write and its
   enumeration index; both are used to restore the contents of the `initial_writes` table. Chunking storage logs is
@@ -63,6 +63,16 @@ Each snapshot consists of three types of data (see [`snapshots.rs`] for exact de
   chunk is a separate object.
 - **Factory dependencies:** All bytecodes deployed on L2 at the time the snapshot is made. Stored as a single gzipped
   Protobuf message in an object store.
+
+### Versioning
+
+There are currently 2 versions of the snapshot format which differ in how keys are mentioned in storage logs.
+
+- Version 0 includes key preimages (EVM-compatible keys), i.e. address / contract slot tuples.
+- Version 1 includes only hashed keys as used in Era ZKP circuits and in the Merkle tree. Besides reducing the snapshot
+  size (with the change, keys occupy 32 bytes instead of 52), this allows to unify snapshot recovery with recovery from
+  L1 data. Having only hashed keys for snapshot storage logs is safe; key preimages are only required for a couple of
+  components to sort keys in a batch, but these cases only require preimages for L1 batches locally executed on a node.
 
 [`snapshots.rs`]: ../../lib/types/src/snapshots.rs
 [object store]: ../../lib/object_store
