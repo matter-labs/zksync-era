@@ -10,6 +10,7 @@ use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{
     implementations::resources::{
+        base_token_ratio_provider::BaseTokenRatioProviderResource,
         eth_interface::EthInterfaceResource, fee_input::FeeInputResource,
         l1_tx_params::L1TxParamsResource,
     },
@@ -75,8 +76,11 @@ impl WiringLayer for SequencerL1GasLayer {
         .context("GasAdjuster::new()")?;
         let gas_adjuster = Arc::new(adjuster);
 
+        let ratio_provider = context.get_resource_or_default::<BaseTokenRatioProviderResource>();
+
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             gas_adjuster.clone(),
+            ratio_provider.0.clone(),
             FeeModelConfig::from_state_keeper_config(&self.state_keeper_config),
         ));
         context.insert_resource(FeeInputResource(batch_fee_input_provider))?;

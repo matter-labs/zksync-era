@@ -1,5 +1,5 @@
 [package]
-name = "zksync_node_fee_model"
+name = "zksync_base_token_adjuster"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -9,22 +9,15 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+
 [dependencies]
-vise.workspace = true
-zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_config.workspace = true
-zksync_eth_client.workspace = true
-zksync_utils.workspace = true
-zksync_web3_decl.workspace = true
-zksync_base_token_adjuster.workspace = true
-bigdecimal.workspace = true
+zksync_types.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
-async-trait.workspace = true
 tracing.workspace = true
-
-[dev-dependencies]
-test-casing.workspace = true
-zksync_node_test_utils.workspace = true
+chrono.workspace = true
+rand.workspace = true
+async-trait.workspace = true

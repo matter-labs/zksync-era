@@ -1,0 +1,6 @@
+# Configuration for the Base Token Adjuster crate
+
+[base_token_adjuster]
+
+# How often to poll external price feeds for the base token price.
+price_polling_interval_ms = "30000"
