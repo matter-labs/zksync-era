@@ -1,5 +1,31 @@
 # Changelog
 
+## [15.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v15.0.0...prover-v15.1.0) (2024-07-02)
+
+
+### Features
+
+* change `zkSync` occurences to `ZKsync` ([#2227](https://github.com/matter-labs/zksync-era/issues/2227)) ([0b4104d](https://github.com/matter-labs/zksync-era/commit/0b4104dbb996ec6333619ea05f3a99e6d4f3b8fa))
+* consensus support for pruning (BFT-473) ([#2334](https://github.com/matter-labs/zksync-era/issues/2334)) ([abc4256](https://github.com/matter-labs/zksync-era/commit/abc4256570b899e2b47ed8362e69ae0150247490))
+* **en:** file based configs for en ([#2110](https://github.com/matter-labs/zksync-era/issues/2110)) ([7940fa3](https://github.com/matter-labs/zksync-era/commit/7940fa32a27ee4de43753c7083f92ca8c2ebe86b))
+* Make all core workspace crate names start with zksync_ ([#2294](https://github.com/matter-labs/zksync-era/issues/2294)) ([8861f29](https://github.com/matter-labs/zksync-era/commit/8861f2994b674be3c654511416452c0a555d0f73))
+* **prover:** Add file based config for compressor ([#2353](https://github.com/matter-labs/zksync-era/issues/2353)) ([1d6f87d](https://github.com/matter-labs/zksync-era/commit/1d6f87dde88ee1b09e42d57a8d285eb257068bae))
+* **prover:** Add file based config for prover fri ([#2184](https://github.com/matter-labs/zksync-era/issues/2184)) ([f851615](https://github.com/matter-labs/zksync-era/commit/f851615ab3753bb9353fd4456a6e49d55d67c626))
+* **prover:** Add file based config for witness vector generator ([#2337](https://github.com/matter-labs/zksync-era/issues/2337)) ([f86eb13](https://github.com/matter-labs/zksync-era/commit/f86eb132aa2f5b75c45a65189e9664d3d1e2682f))
+* **prover:** Add file based config support for vk-setup-data-generator-server-fri ([#2371](https://github.com/matter-labs/zksync-era/issues/2371)) ([b0e72c9](https://github.com/matter-labs/zksync-era/commit/b0e72c9ecbb659850f7dd27386984b99877e7a5c))
+* **prover:** Add prover_cli stats command ([#2362](https://github.com/matter-labs/zksync-era/issues/2362)) ([fe65319](https://github.com/matter-labs/zksync-era/commit/fe65319da0f26ca45e95f067c1e8b97cf7874c45))
+* Remove initialize_components function ([#2284](https://github.com/matter-labs/zksync-era/issues/2284)) ([0a38891](https://github.com/matter-labs/zksync-era/commit/0a388911914bfcf58785e394db9d5ddce3afdef0))
+* upgraded encoding of transactions in consensus Payload. ([#2245](https://github.com/matter-labs/zksync-era/issues/2245)) ([cb6a6c8](https://github.com/matter-labs/zksync-era/commit/cb6a6c88de54806d0f4ae4af7ea873a911605780))
+* Validium with DA ([#2010](https://github.com/matter-labs/zksync-era/issues/2010)) ([fe03d0e](https://github.com/matter-labs/zksync-era/commit/fe03d0e254a98fea60ecb7485a7de9e7fdecaee1))
+
+
+### Bug Fixes
+
+* **proof_compressor:** Fix backward compatibility ([#2356](https://github.com/matter-labs/zksync-era/issues/2356)) ([76508c4](https://github.com/matter-labs/zksync-era/commit/76508c42e83770ee50a0a9ced03b437687d383cd))
+* prover Cargo.lock ([#2280](https://github.com/matter-labs/zksync-era/issues/2280)) ([05c6f35](https://github.com/matter-labs/zksync-era/commit/05c6f357eee591262e3ddd870fcde0fe50ce05cc))
+* **prover_cli:** Fix Minor Bugs in Prover CLI ([#2264](https://github.com/matter-labs/zksync-era/issues/2264)) ([440f2a7](https://github.com/matter-labs/zksync-era/commit/440f2a7ae0def22bab65c4bb5c531b3234841b76))
+* **prover_cli:** Remove outdated fix for circuit id in node wg ([#2248](https://github.com/matter-labs/zksync-era/issues/2248)) ([db8e71b](https://github.com/matter-labs/zksync-era/commit/db8e71b55393b3d0e419886b62712b61305ac030))
+
 ## [15.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v14.5.0...prover-v15.0.0) (2024-06-14)
 
 
