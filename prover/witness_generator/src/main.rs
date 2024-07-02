@@ -6,7 +6,6 @@ use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zk_evm::k256::elliptic_curve::rand_core::le;
 use zksync_config::ObjectStoreConfig;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
