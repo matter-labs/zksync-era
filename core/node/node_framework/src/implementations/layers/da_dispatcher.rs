@@ -34,10 +34,10 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         // A pool with size 2 is used here because there are 2 functions within a task that execute in parallel
         let master_pool = master_pool_resource.get_custom(2).await?;
-        let da_client = context.get_resource::<DAClientResource>().await?.0;
+        let da_client = context.get_resource::<DAClientResource>()?.0;
 
         if let Some(limit) = da_client.blob_size_limit() {
             if self.state_keeper_config.max_pubdata_per_batch > limit as u64 {
@@ -48,11 +48,11 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
             }
         }
 
-        context.add_task(Box::new(DataAvailabilityDispatcher::new(
+        context.add_task(DataAvailabilityDispatcher::new(
             master_pool,
             self.da_config,
             da_client,
-        )));
+        ));
 
         Ok(())
     }
