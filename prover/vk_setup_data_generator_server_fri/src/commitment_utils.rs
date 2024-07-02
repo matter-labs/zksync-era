@@ -102,9 +102,9 @@ pub fn generate_commitments(keystore: &Keystore) -> anyhow::Result<VkCommitments
     Ok(result)
 }
 
-pub fn get_cached_commitments(setup_data_generator: Option<String>) -> L1VerifierConfig {
-    if let Some(setup_data_generator) = setup_data_generator {
-        let keystore = Keystore::new_with_setup_data_path(setup_data_generator);
+pub fn get_cached_commitments(setup_data_path: Option<String>) -> L1VerifierConfig {
+    if let Some(setup_data_path) = setup_data_path {
+        let keystore = Keystore::new_with_setup_data_path(setup_data_path);
         let mut keystore_lock = KEYSTORE.lock().unwrap();
         *keystore_lock = Some(keystore);
     }
