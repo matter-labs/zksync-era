@@ -8443,6 +8443,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "test-casing",
  "thiserror",
  "tokio",
  "tracing",
