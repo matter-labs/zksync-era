@@ -14,8 +14,8 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
-        base_token_adjuster::BaseTokenAdjusterLayer,
-        base_token_fetcher::BaseTokenFetcherLayer,
+        base_token_ratio_persister::BaseTokenRatioPersisterLayer,
+        base_token_ratio_provider::BaseTokenRatioProviderLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
@@ -143,9 +143,9 @@ impl MainNodeBuilder {
     }
 
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
-        // Ensure the BaseTokenFetcherResource is inserted if the base token is not ETH.
+        // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
         if self.contracts_config.base_token_addr != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS) {
-            self.node.add_layer(BaseTokenFetcherLayer {});
+            self.node.add_layer(BaseTokenRatioProviderLayer {});
         }
 
         let gas_adjuster_config = try_load_config!(self.configs.eth)
@@ -463,9 +463,10 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_base_token_adjuster_layer(mut self) -> anyhow::Result<Self> {
+    fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
-        self.node.add_layer(BaseTokenAdjusterLayer::new(config));
+        self.node
+            .add_layer(BaseTokenRatioPersisterLayer::new(config));
 
         Ok(self)
     }
@@ -557,8 +558,8 @@ impl MainNodeBuilder {
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;
                 }
-                Component::BaseTokenAdjuster => {
-                    self = self.add_base_token_adjuster_layer()?;
+                Component::BaseTokenRatioPersister => {
+                    self = self.add_base_token_ratio_persister_layer()?;
                 }
             }
         }

@@ -1,7 +1,9 @@
 pub use self::{
-    base_token_adjuster::BaseTokenAdjuster,
-    base_token_fetcher::{BaseTokenFetcher, DBBaseTokenFetcher, NoOpFetcher},
+    base_token_ratio_persister::BaseTokenRatioPersister,
+    base_token_ratio_provider::{
+        BaseTokenRatioProvider, DBBaseTokenRatioProvider, NoOpRatioProvider,
+    },
 };
 
-mod base_token_adjuster;
-mod base_token_fetcher;
+mod base_token_ratio_persister;
+mod base_token_ratio_provider;

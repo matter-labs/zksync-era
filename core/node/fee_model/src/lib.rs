@@ -2,7 +2,7 @@ use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_base_token_adjuster::BaseTokenFetcher;
+use zksync_base_token_adjuster::BaseTokenRatioProvider;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     fee_model::{
@@ -61,7 +61,7 @@ impl dyn BatchFeeModelInputProvider {
 #[derive(Debug)]
 pub struct MainNodeFeeInputProvider {
     provider: Arc<GasAdjuster>,
-    base_token_fetcher: Arc<dyn BaseTokenFetcher>,
+    base_token_ratio_provider: Arc<dyn BaseTokenRatioProvider>,
     config: FeeModelConfig,
 }
 
@@ -77,7 +77,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
                 config,
                 self.provider.estimate_effective_gas_price(),
                 self.provider.estimate_effective_pubdata_price(),
-                self.base_token_fetcher.get_conversion_ratio(),
+                self.base_token_ratio_provider.get_conversion_ratio(),
             )),
         }
     }
@@ -86,12 +86,12 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 impl MainNodeFeeInputProvider {
     pub fn new(
         provider: Arc<GasAdjuster>,
-        base_token_fetcher: Arc<dyn BaseTokenFetcher>,
+        base_token_ratio_provider: Arc<dyn BaseTokenRatioProvider>,
         config: FeeModelConfig,
     ) -> Self {
         Self {
             provider,
-            base_token_fetcher,
+            base_token_ratio_provider,
             config,
         }
     }
@@ -249,7 +249,7 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 mod tests {
     use std::num::NonZeroU64;
 
-    use zksync_base_token_adjuster::NoOpFetcher;
+    use zksync_base_token_adjuster::NoOpRatioProvider;
     use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
     use zksync_eth_client::{clients::MockEthereum, BaseFees};
     use zksync_types::{commitment::L1BatchCommitmentMode, fee_model::BaseTokenConversionRatio};
@@ -601,7 +601,7 @@ mod tests {
             let gas_adjuster =
                 setup_gas_adjuster(case.input_l1_gas_price, case.input_l1_pubdata_price).await;
 
-            let base_token_fetcher = NoOpFetcher::new(case.conversion_ratio);
+            let base_token_ratio_provider = NoOpRatioProvider::new(case.conversion_ratio);
 
             let config = FeeModelConfig::V2(FeeModelConfigV2 {
                 minimal_l2_gas_price: case.input_minimal_l2_gas_price,
@@ -614,7 +614,7 @@ mod tests {
 
             let fee_provider = MainNodeFeeInputProvider::new(
                 Arc::new(gas_adjuster),
-                Arc::new(base_token_fetcher),
+                Arc::new(base_token_ratio_provider),
                 config,
             );
 

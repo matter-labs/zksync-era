@@ -9,17 +9,17 @@ use zksync_types::fee_model::BaseTokenConversionRatio;
 const CACHE_UPDATE_INTERVAL: Duration = Duration::from_millis(500);
 
 #[async_trait]
-pub trait BaseTokenFetcher: Debug + Send + Sync {
+pub trait BaseTokenRatioProvider: Debug + Send + Sync {
     fn get_conversion_ratio(&self) -> BaseTokenConversionRatio;
 }
 
 #[derive(Debug, Clone)]
-pub struct DBBaseTokenFetcher {
+pub struct DBBaseTokenRatioProvider {
     pub pool: ConnectionPool<Core>,
     pub latest_ratio: BaseTokenConversionRatio,
 }
 
-impl DBBaseTokenFetcher {
+impl DBBaseTokenRatioProvider {
     pub async fn new(pool: ConnectionPool<Core>) -> anyhow::Result<Self> {
         let mut fetcher = Self {
             pool,
@@ -30,7 +30,7 @@ impl DBBaseTokenFetcher {
         // TODO(PE-129): Implement latest ratio usability logic.
 
         tracing::debug!(
-            "Starting the base token fetcher with conversion ratio: {:?}",
+            "Starting the base token ratio provider with conversion ratio: {:?}",
             fetcher.latest_ratio
         );
         Ok(fetcher)
@@ -54,14 +54,14 @@ impl DBBaseTokenFetcher {
             };
         }
 
-        tracing::info!("Stop signal received, base_token_fetcher is shutting down");
+        tracing::info!("Stop signal received, base_token_ratio_provider is shutting down");
         Ok(())
     }
 
     async fn get_latest_price(&self) -> anyhow::Result<BaseTokenConversionRatio> {
         let latest_storage_ratio = self
             .pool
-            .connection_tagged("db_base_token_fetcher")
+            .connection_tagged("db_base_token_ratio_provider")
             .await
             .context("Failed to obtain connection to the database")?
             .base_token_dal()
@@ -87,25 +87,25 @@ impl DBBaseTokenFetcher {
 }
 
 #[async_trait]
-impl BaseTokenFetcher for DBBaseTokenFetcher {
+impl BaseTokenRatioProvider for DBBaseTokenRatioProvider {
     fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
         self.latest_ratio
     }
 }
 
-// Struct for a no-op BaseTokenFetcher (conversion ratio is either always 1:1 or a forced ratio).
+// Struct for a no-op BaseTokenRatioProvider (conversion ratio is either always 1:1 or a forced ratio).
 #[derive(Debug, Clone)]
-pub struct NoOpFetcher {
+pub struct NoOpRatioProvider {
     pub latest_ratio: BaseTokenConversionRatio,
 }
 
-impl NoOpFetcher {
+impl NoOpRatioProvider {
     pub fn new(latest_ratio: BaseTokenConversionRatio) -> Self {
         Self { latest_ratio }
     }
 }
 
-impl Default for NoOpFetcher {
+impl Default for NoOpRatioProvider {
     fn default() -> Self {
         Self {
             latest_ratio: BaseTokenConversionRatio {
@@ -117,7 +117,7 @@ impl Default for NoOpFetcher {
 }
 
 #[async_trait]
-impl BaseTokenFetcher for NoOpFetcher {
+impl BaseTokenRatioProvider for NoOpRatioProvider {
     fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
         self.latest_ratio
     }

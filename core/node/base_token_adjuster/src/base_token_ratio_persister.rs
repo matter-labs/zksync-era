@@ -8,17 +8,17 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::base_token_ratio::BaseTokenAPIRatio;
 
 #[derive(Debug, Clone)]
-pub struct BaseTokenAdjuster {
+pub struct BaseTokenRatioPersister {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
 }
 
-impl BaseTokenAdjuster {
+impl BaseTokenRatioPersister {
     pub fn new(pool: ConnectionPool<Core>, config: BaseTokenAdjusterConfig) -> Self {
         Self { pool, config }
     }
 
-    /// Main loop for the base token adjuster.
+    /// Main loop for the base token ratio persister.
     /// Orchestrates fetching a new ratio, persisting it, and conditionally updating the L1 with it.
     pub async fn run(&mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut timer =
@@ -36,7 +36,7 @@ impl BaseTokenAdjuster {
             // TODO(PE-128): Update L1 ratio
         }
 
-        tracing::info!("Stop signal received, base_token_adjuster is shutting down");
+        tracing::info!("Stop signal received, base_token_ratio_persister is shutting down");
         Ok(())
     }
 
@@ -58,7 +58,7 @@ impl BaseTokenAdjuster {
         pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<usize> {
         let mut conn = pool
-            .connection_tagged("base_token_adjuster")
+            .connection_tagged("base_token_ratio_persister")
             .await
             .context("Failed to obtain connection to the database")?;
 
