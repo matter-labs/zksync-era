@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -111,10 +111,11 @@ impl VmRunnerIo for ProtectiveReadsIo {
         &self,
         conn: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
+        started_at: Instant,
     ) -> anyhow::Result<()> {
         Ok(conn
             .vm_runner_dal()
-            .mark_protective_reads_batch_as_completed(l1_batch_number)
+            .mark_protective_reads_batch_as_completed(l1_batch_number, started_at)
             .await?)
     }
 }

@@ -1,4 +1,9 @@
-use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
+use std::time::Instant;
+
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, instrument::InstrumentExt,
+    utils::duration_to_naive_time,
+};
 use zksync_types::L1BatchNumber;
 
 use crate::Core;
@@ -68,15 +73,17 @@ impl VmRunnerDal<'_, '_> {
     pub async fn mark_protective_reads_batch_as_completed(
         &mut self,
         l1_batch_number: L1BatchNumber,
+        started_at: Instant,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
-                vm_runner_protective_reads (l1_batch_number, created_at, updated_at)
+                vm_runner_protective_reads (l1_batch_number, created_at, updated_at, time_taken)
             VALUES
-                ($1, NOW(), NOW())
+                ($1, NOW(), NOW(), $2)
             "#,
             i64::from(l1_batch_number.0),
+            duration_to_naive_time(started_at.elapsed()),
         )
         .instrument("mark_protective_reads_batch_as_completed")
         .report_latency()

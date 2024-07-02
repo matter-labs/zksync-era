@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Instant};
 
 use async_trait::async_trait;
 use zksync_dal::{Connection, Core};
@@ -41,5 +41,6 @@ pub trait VmRunnerIo: Debug + Send + Sync + 'static {
         &self,
         conn: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
+        started_at: Instant,
     ) -> anyhow::Result<()>;
 }
