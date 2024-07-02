@@ -34,14 +34,14 @@ impl WiringLayer for HealthCheckLayer {
     }
 
     async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        let AppHealthCheckResource(app_health_check) = node.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health_check) = node.get_resource_or_default();
 
         let task = HealthCheckTask {
             config: self.0,
             app_health_check,
         };
 
-        node.add_task(Box::new(task));
+        node.add_task(task);
         Ok(())
     }
 }

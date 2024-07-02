@@ -74,20 +74,19 @@ impl WiringLayer for MetadataCalculatorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool = context.get_resource::<PoolResource<MasterPool>>()?;
         let main_pool = pool.get().await?;
         // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
         // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
         let recovery_pool = context
-            .get_resource::<PoolResource<ReplicaPool>>()
-            .await?
+            .get_resource::<PoolResource<ReplicaPool>>()?
             .get_custom(10)
             .await?;
 
         let object_store = match self.config.mode {
             MerkleTreeMode::Lightweight => None,
             MerkleTreeMode::Full => {
-                let store = context.get_resource::<ObjectStoreResource>().await?;
+                let store = context.get_resource::<ObjectStoreResource>()?;
                 Some(store)
             }
         };
@@ -100,7 +99,7 @@ impl WiringLayer for MetadataCalculatorLayer {
         .await?
         .with_recovery_pool(recovery_pool);
 
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
         app_health
             .insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))
             .map_err(WiringError::internal)?;
@@ -108,14 +107,14 @@ impl WiringLayer for MetadataCalculatorLayer {
         if let Some(tree_api_config) = self.tree_api_config {
             let bind_addr = (Ipv4Addr::UNSPECIFIED, tree_api_config.port).into();
             let tree_reader = metadata_calculator.tree_reader();
-            context.add_task(Box::new(TreeApiTask {
+            context.add_task(TreeApiTask {
                 bind_addr,
                 tree_reader,
-            }));
+            });
         }
 
         if let Some(pruning_removal_delay) = self.pruning_config {
-            let pruning_task = Box::new(metadata_calculator.pruning_task(pruning_removal_delay));
+            let pruning_task = metadata_calculator.pruning_task(pruning_removal_delay);
             app_health
                 .insert_component(pruning_task.health_check())
                 .map_err(|err| WiringError::Internal(err.into()))?;
@@ -126,7 +125,7 @@ impl WiringLayer for MetadataCalculatorLayer {
             metadata_calculator.tree_reader(),
         )))?;
 
-        context.add_task(Box::new(metadata_calculator));
+        context.add_task(metadata_calculator);
 
         context.add_shutdown_hook("rocksdb_terminaton", async {
             // Wait for all the instances of RocksDB to be destroyed.

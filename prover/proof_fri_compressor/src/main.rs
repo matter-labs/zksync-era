@@ -26,9 +26,9 @@ mod metrics;
 #[command(author = "Matter Labs", version)]
 struct Cli {
     /// Number of times proof fri compressor should be run.
-    #[arg(long)]
+    #[arg(long = "n_iterations")]
     #[arg(short)]
-    n_iterations: Option<usize>,
+    number_of_iterations: Option<usize>,
     #[arg(long)]
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
@@ -123,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
     );
     let tasks = vec![
         tokio::spawn(prometheus_config.run(stop_receiver.clone())),
-        tokio::spawn(proof_compressor.run(stop_receiver, opt.n_iterations)),
+        tokio::spawn(proof_compressor.run(stop_receiver, opt.number_of_iterations)),
     ];
 
     let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();

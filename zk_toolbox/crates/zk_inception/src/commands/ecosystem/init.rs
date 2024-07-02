@@ -354,10 +354,10 @@ async fn deploy_ecosystem_inner(
 
 fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code);
-    Cmd::new(cmd!(shell, "yarn install")).run()
+    Ok(Cmd::new(cmd!(shell, "yarn install")).run()?)
 }
 
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Cmd::new(cmd!(shell, "yarn sc build")).run()
+    Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
 }
