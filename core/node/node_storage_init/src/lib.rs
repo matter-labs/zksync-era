@@ -41,7 +41,7 @@ enum InitDecision {
 #[derive(Debug)]
 pub struct NodeStorageInitializer {
     pool: ConnectionPool<Core>,
-    node_role: Box<dyn NodeRole>,
+    node_role: Arc<dyn NodeRole>,
     app_health: Arc<AppHealthCheck>,
     recovery_config: Option<SnapshotRecoveryConfig>,
     block_reverter: Option<BlockReverter>,
@@ -49,7 +49,7 @@ pub struct NodeStorageInitializer {
 
 impl NodeStorageInitializer {
     pub fn new(
-        node_role: Box<dyn NodeRole>,
+        node_role: Arc<dyn NodeRole>,
         pool: ConnectionPool<Core>,
         app_health: Arc<AppHealthCheck>,
     ) -> Self {
@@ -103,7 +103,6 @@ impl NodeStorageInitializer {
             }
             (None, Some(snapshot_recovery)) => {
                 tracing::info!("Node has no genesis L1 batch and snapshot recovery information: {snapshot_recovery:?}");
-                // We don't know whether the recovery is completed or still in progress.
                 InitDecision::SnapshotRecovery
             }
             (None, None) => {

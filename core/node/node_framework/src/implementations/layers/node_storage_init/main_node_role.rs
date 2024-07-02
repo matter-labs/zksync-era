@@ -1,9 +1,10 @@
+use std::sync::Arc;
+
 use zksync_config::{ContractsConfig, GenesisConfig};
 use zksync_node_storage_init::MainNodeRole;
 
 use crate::{
     implementations::resources::eth_interface::EthInterfaceResource,
-    resource::Unique,
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -38,7 +39,7 @@ impl WiringLayer for MainNodeRoleLayer {
             contracts: self.contracts,
             l1_client: role,
         };
-        context.insert_resource(NodeRoleResource(Unique::new(Box::new(node_role))))?;
+        context.insert_resource(NodeRoleResource(Arc::new(node_role)))?;
         Ok(())
     }
 }

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use zksync_node_storage_init::{NodeRole, NodeStorageInitializer, SnapshotRecoveryConfig};
 
 use crate::{
@@ -6,7 +8,7 @@ use crate::{
         pools::{MasterPool, PoolResource},
         reverter::BlockReverterResource,
     },
-    resource::{Resource, Unique},
+    resource::Resource,
     service::{ServiceContext, StopReceiver},
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
@@ -39,11 +41,9 @@ impl NodeStorageInitializerLayer {
     }
 
     /// Changes the wiring logic to treat the initializer as a precondition.
-    pub fn as_precondition() -> Self {
-        Self {
-            as_precondition: true,
-            ..Default::default()
-        }
+    pub fn as_precondition(mut self) -> Self {
+        self.as_precondition = true;
+        self
     }
 
     pub fn with_snapshot_recovery_config(
@@ -58,6 +58,9 @@ impl NodeStorageInitializerLayer {
 #[async_trait::async_trait]
 impl WiringLayer for NodeStorageInitializerLayer {
     fn layer_name(&self) -> &'static str {
+        if self.as_precondition {
+            return "node_storage_initializer_precondition_layer";
+        }
         "node_storage_initializer_layer"
     }
 
@@ -68,9 +71,6 @@ impl WiringLayer for NodeStorageInitializerLayer {
             .get()
             .await?;
         let NodeRoleResource(role) = context.get_resource().await?;
-        let role = role.take().ok_or(WiringError::Configuration(
-            "NodeRoleResource is taken".into(),
-        ))?;
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
 
         let mut initializer = NodeStorageInitializer::new(role, pool, app_health)
@@ -115,7 +115,9 @@ impl Task for NodeStorageInitializer {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        tracing::info!("Starting the node storage initialization task");
         (*self).run(stop_receiver.0).await?;
+        tracing::info!("Node storage initialization task completed");
         Ok(())
     }
 }
@@ -134,7 +136,10 @@ impl Task for NodeStorageInitializerPrecondition {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.0.wait_for_initialized_storage(stop_receiver.0).await
+        tracing::info!("Waiting for node storage to be initialized");
+        let result = self.0.wait_for_initialized_storage(stop_receiver.0).await;
+        tracing::info!("Node storage initialization precondition completed");
+        result
     }
 }
 
@@ -143,7 +148,7 @@ impl Task for NodeStorageInitializerPrecondition {
 /// Resource representing the node role.
 /// Used for storage initialization.
 #[derive(Debug, Clone)]
-pub struct NodeRoleResource(Unique<Box<dyn NodeRole>>);
+pub struct NodeRoleResource(Arc<dyn NodeRole>);
 
 impl Resource for NodeRoleResource {
     fn name() -> String {

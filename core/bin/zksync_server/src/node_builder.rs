@@ -25,6 +25,7 @@ use zksync_node_framework::{
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
+        node_storage_init::{main_node_role::MainNodeRoleLayer, NodeStorageInitializerLayer},
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
@@ -455,6 +456,41 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    /// This layer will make sure that the database is initialized correctly,
+    /// e.g. genesis will be performed if it's required.
+    ///
+    /// Depending on the `kind` provided, either a task or a precondition will be added.
+    ///
+    /// *Important*: the task should be added by at most one component, because
+    /// it assumes unique control over the database. Multiple components adding this
+    /// layer in a distributed mode may result in the database corruption.
+    ///
+    /// This task works in pair with precondition, which must be present in every component:
+    /// the precondition will prevent node from starting until the database is initialized.
+    fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
+        self.node.add_layer(MainNodeRoleLayer {
+            genesis: self.genesis_config.clone(),
+            contracts: self.contracts_config.clone(),
+        });
+        let mut layer = NodeStorageInitializerLayer::new();
+        if matches!(kind, LayerKind::Precondition) {
+            layer = layer.as_precondition();
+        }
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
+    /// Builds the node with the genesis initialization task only.
+    pub fn only_genesis(mut self) -> anyhow::Result<ZkStackService> {
+        self = self
+            .add_pools_layer()?
+            .add_query_eth_client_layer()?
+            .add_storage_initialization_layer(LayerKind::Task)?;
+
+        Ok(self.node.build()?)
+    }
+
+    /// Builds the node with the specified components.
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
         self = self
@@ -466,7 +502,8 @@ impl MainNodeBuilder {
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
             .add_sequencer_l1_gas_layer()?
-            .add_l1_batch_commitment_mode_validation_layer()?;
+            .add_l1_batch_commitment_mode_validation_layer()?
+            .add_storage_initialization_layer(LayerKind::Precondition)?; // Precondition must be present on every component.
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
@@ -480,6 +517,13 @@ impl MainNodeBuilder {
         // Note that the layers are added only once, so it's fine to add the same layer multiple times.
         for component in &components {
             match component {
+                Component::StateKeeper => {
+                    // State keeper is the core component of the sequencer,
+                    // which is why we consider it to be responsible for the storage initialization.
+                    self = self
+                        .add_storage_initialization_layer(LayerKind::Task)?
+                        .add_state_keeper_layer()?;
+                }
                 Component::HttpApi => {
                     self = self
                         .add_tx_sender_layer()?
@@ -519,9 +563,6 @@ impl MainNodeBuilder {
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;
                 }
-                Component::StateKeeper => {
-                    self = self.add_state_keeper_layer()?;
-                }
                 Component::TeeVerifierInputProducer => {
                     self = self.add_tee_verifier_input_producer_layer()?;
                 }
@@ -546,4 +587,11 @@ impl MainNodeBuilder {
         }
         Ok(self.node.build()?)
     }
+}
+
+/// Marker for layers that can add either a task or a precondition.
+#[derive(Debug)]
+enum LayerKind {
+    Task,
+    Precondition,
 }
