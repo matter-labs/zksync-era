@@ -16,7 +16,7 @@ use crate::{
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
         MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR,
-        MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED,
+        MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
 };
 
@@ -81,8 +81,11 @@ fn download_setup_key(
         .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
         .clone();
     let url = compressor_config.universal_setup_download_url;
+    let parent = std::path::Path::new(path)
+        .parent()
+        .expect(MSG_SETUP_KEY_PATH_ERROR);
 
-    let mut cmd = Cmd::new(cmd!(shell, "wget {url} -O {path}"));
+    let mut cmd = Cmd::new(cmd!(shell, "wget {url} -P {parent}"));
     cmd.run()?;
     spinner.finish();
     Ok(())

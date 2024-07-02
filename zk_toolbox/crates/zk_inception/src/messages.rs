@@ -259,6 +259,7 @@ pub(super) const MSG_CREATING_GCS_BUCKET_SPINNER: &str = "Creating GCS bucket...
 pub(super) const MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT: &str = "Do you want to save to public bucket?";
 pub(super) const MSG_ROUND_SELECT_PROMPT: &str = "Select the round to run";
 pub(super) const MSG_WITNESS_GENERATOR_ROUND_ERR: &str = "Witness generator round not found";
+pub(super) const MSG_SETUP_KEY_PATH_ERROR: &str = "Failed to get setup key path";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")
