@@ -501,9 +501,12 @@ impl MainNodeBuilder {
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
-            .add_sequencer_l1_gas_layer()?
+            .add_sequencer_l1_gas_layer()?;
+
+        // Add preconditions for all the components.
+        self = self
             .add_l1_batch_commitment_mode_validation_layer()?
-            .add_storage_initialization_layer(LayerKind::Precondition)?; // Precondition must be present on every component.
+            .add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
