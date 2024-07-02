@@ -70,7 +70,7 @@ members = [
     "core/tests/test_account",
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
-    "core/tests/vm-benchmark/harness",
+    "core/tests/vm-benchmark/harness", "core/bin/envs_to_files",
 ]
 resolver = "2"
 

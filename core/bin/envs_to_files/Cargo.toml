@@ -1,0 +1,26 @@
+[package]
+name = "envs_to_files"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_config.workspace = true
+zksync_env_config.workspace = true
+zksync_protobuf_config.workspace = true
+zksync_core_leftovers.workspace = true
+
+
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+futures.workspace = true
+serde_yaml.workspace = true
+zksync_protobuf.workspace = true
