@@ -2,7 +2,7 @@ use std::{fmt::Debug, num::NonZeroU64, time::Duration};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use tokio::{sync::watch, time::sleep};
+use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_types::{base_token_ratio::BaseTokenRatio, fee_model::BaseTokenConversionRatio};
 
@@ -21,13 +21,24 @@ pub struct DBBaseTokenFetcher {
 
 impl DBBaseTokenFetcher {
     pub async fn new(pool: ConnectionPool<Core>) -> anyhow::Result<Self> {
-        let latest_storage_ratio = retry_get_latest_price(pool.clone()).await?;
+        let latest_ratio = match get_latest_price(pool.clone()).await {
+            Ok(Some(latest_storage_price)) => BaseTokenConversionRatio {
+                numerator: latest_storage_price.numerator,
+                denominator: latest_storage_price.denominator,
+            },
+            Ok(None) => {
+                // TODO(PE-136): Insert initial ratio from genesis.
+                // Though the DB should be populated very soon after the server starts, it is possible
+                // to have no ratios in the DB right after genesis. Having initial ratios in the DB
+                // from the genesis stage will eliminate this possibility.
+                tracing::error!("No latest price found in the database. Using default ratio.");
+                BaseTokenConversionRatio::default()
+            }
+            Err(err) => anyhow::bail!("Failed to get latest base token ratio: {:?}", err),
+        };
 
         // TODO(PE-129): Implement latest ratio usability logic.
-        let latest_ratio = BaseTokenConversionRatio {
-            numerator: latest_storage_ratio.numerator,
-            denominator: latest_storage_ratio.denominator,
-        };
+
         tracing::debug!(
             "Starting the base token fetcher with conversion ratio: {:?}",
             latest_ratio
@@ -68,42 +79,6 @@ async fn get_latest_price(pool: ConnectionPool<Core>) -> anyhow::Result<Option<B
         .get_latest_ratio()
         .await
         .map_err(DalError::generalize)
-}
-
-async fn retry_get_latest_price(pool: ConnectionPool<Core>) -> anyhow::Result<BaseTokenRatio> {
-    let sleep_duration = Duration::from_secs(1);
-    let max_retries = 6; // should be enough time to allow fetching from external APIs & updating the DB upon init
-    let mut attempts = 1;
-
-    loop {
-        match get_latest_price(pool.clone()).await {
-            Ok(Some(last_storage_price)) => {
-                return Ok(last_storage_price);
-            }
-            Ok(None) if attempts <= max_retries => {
-                tracing::warn!(
-                    "Attempt {}/{} found no latest base token ratio. Retrying in {} seconds...",
-                    attempts,
-                    max_retries,
-                    sleep_duration.as_secs()
-                );
-                sleep(sleep_duration).await;
-                attempts += 1;
-            }
-            Ok(None) => {
-                anyhow::bail!(
-                    "No latest base token ratio found after {} attempts",
-                    max_retries
-                );
-            }
-            Err(err) => {
-                anyhow::bail!(
-                    "Failed to get latest base token ratio with DAL error: {:?}",
-                    err
-                );
-            }
-        }
-    }
 }
 
 #[async_trait]

@@ -23,7 +23,7 @@ use crate::{
 
 /// ## Requests resources
 ///
-/// - `PoolResource<MasterPool>`
+/// - `PoolResource<ReplicaPool>`
 ///
 /// ## Adds tasks
 ///

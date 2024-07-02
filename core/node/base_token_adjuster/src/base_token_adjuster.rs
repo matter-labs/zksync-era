@@ -14,19 +14,8 @@ pub struct BaseTokenAdjuster {
 }
 
 impl BaseTokenAdjuster {
-    pub async fn new(
-        pool: ConnectionPool<Core>,
-        config: BaseTokenAdjusterConfig,
-    ) -> anyhow::Result<Self> {
-        let base_token_adjuster = Self {
-            pool: pool.clone(),
-            config,
-        };
-        let initial_ratio = base_token_adjuster.fetch_new_ratio().await?;
-        base_token_adjuster
-            .persist_ratio(&initial_ratio, &pool)
-            .await?;
-        Ok(base_token_adjuster)
+    pub fn new(pool: ConnectionPool<Core>, config: BaseTokenAdjusterConfig) -> Self {
+        Self { pool, config }
     }
 
     /// Main loop for the base token adjuster.

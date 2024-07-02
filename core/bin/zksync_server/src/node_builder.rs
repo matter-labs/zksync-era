@@ -145,8 +145,6 @@ impl MainNodeBuilder {
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         // Ensure the BaseTokenFetcherResource is inserted if the base token is not ETH.
         if self.contracts_config.base_token_addr != SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
-            let config = try_load_config!(self.configs.base_token_adjuster);
-            self.node.add_layer(BaseTokenAdjusterLayer::new(config));
             self.node.add_layer(BaseTokenFetcherLayer {});
         }
 
@@ -465,12 +463,12 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    // fn add_base_token_adjuster_layer(mut self) -> anyhow::Result<Self> {
-    //     let config = try_load_config!(self.configs.base_token_adjuster);
-    //     self.node.add_layer(BaseTokenAdjusterLayer::new(config));
-    //
-    //     Ok(self)
-    // }
+    fn add_base_token_adjuster_layer(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.configs.base_token_adjuster);
+        self.node.add_layer(BaseTokenAdjusterLayer::new(config));
+
+        Ok(self)
+    }
 
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
@@ -560,8 +558,7 @@ impl MainNodeBuilder {
                     self = self.add_vm_runner_protective_reads_layer()?;
                 }
                 Component::BaseTokenAdjuster => {
-                    // self = self.add_base_token_adjuster_layer()?;
-                    // Do nothing, will be handled by the `SequencerL1Gas` component.
+                    self = self.add_base_token_adjuster_layer()?;
                 }
             }
         }
