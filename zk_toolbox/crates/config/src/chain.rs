@@ -100,6 +100,14 @@ impl ChainConfig {
         SecretsConfig::read(self.get_shell(), self.configs.join(SECRETS_FILE))
     }
 
+    pub fn path_to_general_config(&self) -> PathBuf {
+        self.configs.join(GENERAL_FILE)
+    }
+
+    pub fn path_to_secrets_config(&self) -> PathBuf {
+        self.configs.join(SECRETS_FILE)
+    }
+
     pub fn get_zksync_general_config(&self) -> anyhow::Result<ZkSyncGeneralConfig> {
         decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
             &self.configs.join(GENERAL_FILE),

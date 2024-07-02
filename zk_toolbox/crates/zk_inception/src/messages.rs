@@ -215,6 +215,19 @@ pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
+pub(super) const MSG_MISSING_COMPONENT_ERR: &str = "Missing component";
+pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
+pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
+pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
+pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
+pub(super) const MSG_RUNNING_COMPRESSOR: &str = "Running compressor";
+pub(super) const MSG_RUN_COMPONENT_PROMPT: &str = "What component do you want to run?";
+pub(super) const MSG_RUNNING_PROVER_GATEWAY_ERR: &str = "Failed to run prover gateway";
+pub(super) const MSG_RUNNING_WITNESS_GENERATOR_ERR: &str = "Failed to run witness generator";
+pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR: &str =
+    "Failed to run witness vector generator";
+pub(super) const MSG_RUNNING_COMPRESSOR_ERR: &str = "Failed to run compressor";
+pub(super) const MSG_RUNNING_PROVER_ERR: &str = "Failed to run prover";
 pub(super) const MSG_PROOF_STORE_CONFIG_PROMPT: &str =
     "Select where you would like to store the proofs";
 pub(super) const MSG_PROOF_STORE_DIR_PROMPT: &str =
@@ -244,6 +257,9 @@ pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store con
 pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";
 pub(super) const MSG_CREATING_GCS_BUCKET_SPINNER: &str = "Creating GCS bucket...";
 pub(super) const MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT: &str = "Do you want to save to public bucket?";
+pub(super) const MSG_ROUND_SELECT_PROMPT: &str = "Select the round to run";
+pub(super) const MSG_WITNESS_GENERATOR_ROUND_ERR: &str = "Witness generator round not found";
+pub(super) const MSG_SETUP_KEY_PATH_ERROR: &str = "Failed to get setup key path";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")
