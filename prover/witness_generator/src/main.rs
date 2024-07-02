@@ -214,8 +214,9 @@ async fn main() -> anyhow::Result<()> {
                     false => None,
                     true => Some(
                         ObjectStoreFactory::new(
-                            ObjectStoreConfig::from_env()
-                                .context("ObjectStoreConfig::from_env()")?,
+                            prover_config
+                                .public_object_store
+                                .expect("public_object_store")?,
                         )
                         .create_store()
                         .await?,
