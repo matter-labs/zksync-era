@@ -1,4 +1,4 @@
-.github/release-please/** @RomanBrodetski @perekopskiy @Deniallugo @popzxc
-**/CHANGELOG.md @RomanBrodetski @perekopskiy @Deniallugo @popzxc
-CODEOWNERS @RomanBrodetski @perekopskiy @Deniallugo @popzxc
+.github/release-please/** @RomanBrodetski @perekopskiy @Deniallugo @popzxc @EmilLuta
+**/CHANGELOG.md @RomanBrodetski @perekopskiy @Deniallugo @popzxc @EmilLuta
+CODEOWNERS @RomanBrodetski @perekopskiy @Deniallugo @popzxc @EmilLuta
 .github/workflows/** @matter-labs/devops
