@@ -10,7 +10,7 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Wiring layer for `MainNodeRole`.
+/// Wiring layer for `ExternalNodeRole`.
 ///
 /// ## Requests resources
 ///
@@ -27,11 +27,11 @@ pub struct ExternalNodeRoleLayer {
 #[async_trait::async_trait]
 impl WiringLayer for ExternalNodeRoleLayer {
     fn layer_name(&self) -> &'static str {
-        "main_node_role_layer"
+        "external_node_role_layer"
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let MainNodeClientResource(client) = context.get_resource().await?;
+        let MainNodeClientResource(client) = context.get_resource()?;
         let node_role = ExternalNodeRole {
             l2_chain_id: self.l2_chain_id,
             client,

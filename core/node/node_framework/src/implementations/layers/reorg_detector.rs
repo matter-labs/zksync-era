@@ -2,6 +2,7 @@ use zksync_reorg_detector::{self, ReorgDetector};
 
 use crate::{
     implementations::resources::{
+        healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
     },
@@ -19,6 +20,7 @@ use crate::{
 ///
 /// - `MainNodeClientResource`
 /// - `PoolResource<MasterPool>`
+/// - `AppHealthCheckResource` (adds a health check)
 ///
 /// ## Adds preconditions
 ///
@@ -34,13 +36,19 @@ impl WiringLayer for ReorgDetectorLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let main_node_client = context.get_resource::<MainNodeClientResource>().await?.0;
+        let main_node_client = context.get_resource::<MainNodeClientResource>()?.0;
 
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let pool = pool_resource.get().await?;
 
-        // Create and insert precondition.
-        context.add_task(Box::new(ReorgDetector::new(main_node_client, pool)));
+        let reorg_detector = ReorgDetector::new(main_node_client, pool);
+
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
+        app_health
+            .insert_component(reorg_detector.health_check().clone())
+            .map_err(WiringError::internal)?;
+
+        context.add_task(reorg_detector);
 
         Ok(())
     }

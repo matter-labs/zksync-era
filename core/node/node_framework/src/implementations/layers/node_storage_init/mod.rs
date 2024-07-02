@@ -66,19 +66,18 @@ impl WiringLayer for NodeStorageInitializerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool = context
-            .get_resource::<PoolResource<MasterPool>>()
-            .await?
+            .get_resource::<PoolResource<MasterPool>>()?
             .get()
             .await?;
-        let NodeRoleResource(role) = context.get_resource().await?;
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let NodeRoleResource(role) = context.get_resource()?;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
 
         let mut initializer = NodeStorageInitializer::new(role, pool, app_health)
             .with_recovery_config(self.snapshot_recovery_config);
 
         // We don't want to give precondition access to the block reverter, just in case.
         if !self.as_precondition {
-            let block_reverter = match context.get_resource::<BlockReverterResource>().await {
+            let block_reverter = match context.get_resource::<BlockReverterResource>() {
                 Ok(reverter) => {
                     // If reverter was provided, we intend to be its sole consumer.
                     // We don't want multiple components to attempt reverting blocks.
@@ -95,9 +94,9 @@ impl WiringLayer for NodeStorageInitializerLayer {
 
         // Insert either task or precondition.
         if self.as_precondition {
-            context.add_task(Box::new(NodeStorageInitializerPrecondition(initializer)));
+            context.add_task(NodeStorageInitializerPrecondition(initializer));
         } else {
-            context.add_task(Box::new(initializer));
+            context.add_task(initializer);
         }
 
         Ok(())

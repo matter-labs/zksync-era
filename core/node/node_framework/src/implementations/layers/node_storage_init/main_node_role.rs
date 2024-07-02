@@ -32,7 +32,7 @@ impl WiringLayer for MainNodeRoleLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let EthInterfaceResource(role) = context.get_resource().await?;
+        let EthInterfaceResource(role) = context.get_resource()?;
         let node_role = MainNodeRole {
             genesis: self.genesis,
             contracts: self.contracts,
