@@ -2,7 +2,7 @@ use std::{
     fmt::{Debug, Formatter},
     mem,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::Context;
@@ -18,7 +18,7 @@ use zksync_types::L1BatchNumber;
 
 use crate::{metrics::METRICS, VmRunnerIo};
 
-type BatchReceiver = oneshot::Receiver<JoinHandle<anyhow::Result<()>>>;
+type BatchReceiver = oneshot::Receiver<JoinHandle<anyhow::Result<Instant>>>;
 
 /// Functionality to produce a [`StateKeeperOutputHandler`] implementation for a specific L1 batch.
 ///
@@ -131,7 +131,7 @@ impl<Io: VmRunnerIo, F: OutputHandlerFactory> OutputHandlerFactory
 enum AsyncOutputHandler {
     Running {
         handler: Box<dyn StateKeeperOutputHandler>,
-        sender: oneshot::Sender<JoinHandle<anyhow::Result<()>>>,
+        sender: oneshot::Sender<JoinHandle<anyhow::Result<Instant>>>,
     },
     Finished,
 }
@@ -173,10 +173,10 @@ impl StateKeeperOutputHandler for AsyncOutputHandler {
             } => {
                 sender
                     .send(tokio::task::spawn(async move {
-                        let latency = METRICS.output_handle_time.start();
+                        let started_at = Instant::now();
                         let result = handler.handle_l1_batch(updates_manager).await;
-                        latency.observe();
-                        result
+                        METRICS.output_handle_time.observe(started_at.elapsed());
+                        result.map(|_| started_at)
                     }))
                     .ok();
                 Ok(())
@@ -243,13 +243,13 @@ impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
                         .context("handler was dropped before the batch was fully processed")?;
                     // Wait until the handle is resolved, meaning that the `handle_l1_batch`
                     // computation has finished, and we can consider this batch to be completed
-                    handle
+                    let started_at = handle
                         .await
                         .context("failed to await for batch to be processed")??;
                     latest_processed_batch += 1;
                     let mut conn = self.pool.connection_tagged(self.io.name()).await?;
                     self.io
-                        .mark_l1_batch_as_completed(&mut conn, latest_processed_batch)
+                        .mark_l1_batch_as_completed(&mut conn, latest_processed_batch, started_at)
                         .await?;
                     METRICS
                         .last_processed_batch
