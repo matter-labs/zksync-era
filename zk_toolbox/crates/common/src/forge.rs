@@ -5,17 +5,20 @@ use std::{
 
 use clap::{Parser, ValueEnum};
 use ethers::{
+    core::types::Bytes,
     middleware::Middleware,
     prelude::{LocalWallet, Signer},
     types::{Address, H256, U256},
-    utils::hex::ToHex,
+    utils::{hex, hex::ToHex},
 };
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 use xshell::{cmd, Shell};
 
-use crate::cmd::CmdError;
-use crate::{cmd::Cmd, ethereum::create_ethers_client};
+use crate::{
+    cmd::{Cmd, CmdError},
+    ethereum::create_ethers_client,
+};
 
 /// Forge is a wrapper around the forge binary.
 pub struct Forge {
@@ -71,11 +74,18 @@ impl ForgeScript {
                 return Ok(());
             };
         }
-        Ok(Cmd::new(cmd!(
+        if let Err(err) = Cmd::new(cmd!(
             shell,
             "forge script {script_path} --legacy {args_no_resume...}"
         ))
-            .run()?)
+        .run()
+        {
+            if check_the_operation_proposal_error(&err) {
+                return Ok(());
+            }
+            return Err(err.into());
+        }
+        Ok(())
     }
 
     pub fn wallet_args_passed(&self) -> bool {
@@ -103,6 +113,13 @@ impl ForgeScript {
     pub fn with_signature(mut self, signature: &str) -> Self {
         self.args.add_arg(ForgeScriptArg::Sig {
             sig: signature.to_string(),
+        });
+        self
+    }
+
+    pub fn with_calldata(mut self, calldata: &Bytes) -> Self {
+        self.args.add_arg(ForgeScriptArg::Sig {
+            sig: hex::encode(calldata),
         });
         self
     }
@@ -375,6 +392,15 @@ pub enum ForgeVerifier {
 fn check_for_resume_not_successful_because_has_not_began(error: &CmdError) -> bool {
     if let Some(stderr) = &error.stderr {
         stderr.contains("Deployment not found for chain")
+    } else {
+        false
+    }
+}
+
+fn check_the_operation_proposal_error(error: &CmdError) -> bool {
+    let text = "script failed: revert: Operation with this proposal id already exists";
+    if let Some(stderr) = &error.stderr {
+        stderr.contains(text)
     } else {
         false
     }

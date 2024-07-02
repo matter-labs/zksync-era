@@ -1,6 +1,6 @@
-use std::fmt::{Display, Formatter};
 use std::{
     ffi::OsStr,
+    fmt::{Display, Formatter},
     io,
     process::{Command, Output, Stdio},
     string::FromUtf8Error,
