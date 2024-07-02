@@ -16,7 +16,7 @@ use strum_macros::Display;
 use xshell::{cmd, Shell};
 
 use crate::{
-    cmd::{Cmd, CmdError},
+    cmd::{Cmd, CmdResult},
     ethereum::create_ethers_client,
 };
 
@@ -59,33 +59,17 @@ impl ForgeScript {
         let _dir_guard = shell.push_dir(&self.base_path);
         let script_path = self.script_path.as_os_str();
         let args_no_resume = self.args.build();
+        let command = format!("forge script {script_path:?} --legacy");
         if self.args.resume {
-            // Resume doesn't work if the forge script has never been started on this chain before.
-            // So we want to catch it and try again without resume arg if it's the case
             let mut args = args_no_resume.clone();
             args.push(ForgeScriptArg::Resume.to_string());
-            if let Err(err) =
-                Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}")).run()
-            {
-                if !check_for_resume_not_successful_because_has_not_began(&err) {
-                    return Err(err.into());
-                }
-            } else {
-                return Ok(());
-            };
+            return Ok(Cmd::new(cmd!(shell, "{command} {args...}"))
+                .run()
+                .suppress_resume_not_successful_because_has_not_began()?);
         }
-        if let Err(err) = Cmd::new(cmd!(
-            shell,
-            "forge script {script_path} --legacy {args_no_resume...}"
-        ))
-        .run()
-        {
-            if check_the_operation_proposal_error(&err) {
-                return Ok(());
-            }
-            return Err(err.into());
-        }
-        Ok(())
+        Ok(Cmd::new(cmd!(shell, "{command}  {args_no_resume...}"))
+            .run()
+            .suppress_proposal_error()?)
     }
 
     pub fn wallet_args_passed(&self) -> bool {
@@ -389,19 +373,37 @@ pub enum ForgeVerifier {
     Oklink,
 }
 
-fn check_for_resume_not_successful_because_has_not_began(error: &CmdError) -> bool {
-    if let Some(stderr) = &error.stderr {
-        stderr.contains("Deployment not found for chain")
-    } else {
-        false
+// Trait for handling forge errors. Required for implementing method for CmdResult
+trait ForgeErrorHandler {
+    // Resume doesn't work if the forge script has never been started on this chain before.
+    // So we want to catch it and try again without resume arg if it's the case
+    fn suppress_resume_not_successful_because_has_not_began(self) -> Self;
+    // Catch the error if upgrade tx has already been processed. We do execute much of
+    // txs using upgrade mechanism and if this particular upgrade has already been processed we could assume
+    // it as a success
+    fn suppress_proposal_error(self) -> Self;
+}
+
+impl ForgeErrorHandler for CmdResult<()> {
+    fn suppress_resume_not_successful_because_has_not_began(self) -> Self {
+        let text = "Deployment not found for chain";
+        suppress_error(self, text)
+    }
+
+    fn suppress_proposal_error(self) -> Self {
+        let text = "revert: Operation with this proposal id already exists";
+        suppress_error(self, text)
     }
 }
 
-fn check_the_operation_proposal_error(error: &CmdError) -> bool {
-    let text = "script failed: revert: Operation with this proposal id already exists";
-    if let Some(stderr) = &error.stderr {
-        stderr.contains(text)
-    } else {
-        false
+fn suppress_error(cmd_result: CmdResult<()>, error_text: &str) -> CmdResult<()> {
+    if let Err(cmd_error) = &cmd_result {
+        if let Some(stderr) = &cmd_error.stderr {
+            if stderr.contains(error_text) {
+                return Ok(());
+            }
+        }
+        return cmd_result;
     }
+    return cmd_result;
 }
