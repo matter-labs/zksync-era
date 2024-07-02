@@ -454,7 +454,7 @@ impl storage::PersistentBatchStore for Store {
         let batch = attester::SyncBatch {
             number,
             payloads,
-            proof: Vec::new(), // TODO: What is the proof?
+            proof: Vec::new(), // TODO: Fill out the proof when we have the stateless L1 batch validation story finished.
         };
 
         Ok(Some(batch))
@@ -489,7 +489,8 @@ impl storage::PersistentBatchStore for Store {
         _ctx: &ctx::Ctx,
         _batch: attester::SyncBatch,
     ) -> ctx::Result<()> {
-        // TODO: Map SyncBatch to whatever the inner representation is.
-        todo!()
+        unimplemented!(
+            "This should not be called until we have the stateless L1 batch story completed."
+        )
     }
 }
