@@ -966,7 +966,7 @@ describe('web3 API compatibility tests', () => {
 
 export class MockMetamask {
     readonly isMetaMask: boolean = true;
-    readonly chainId: string = ethers.toBeHex(parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!, 10));
+    readonly chainId: string;
 
     constructor(readonly wallet: zksync.Wallet, readonly networkVersion: bigint) {
         this.chainId = ethers.toBeHex(networkVersion);
