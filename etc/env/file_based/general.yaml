@@ -19,7 +19,7 @@ db:
 
 api:
   prometheus:
-    listener_port: 3316
+    listener_port: 3116
     pushgateway_url: http://127.0.0.1:9091
     push_interval_ms: 100
   healthcheck:
@@ -313,7 +313,7 @@ house_keeper:
   fri_gpu_prover_archiver_archive_after_secs: 172800
 
 prometheus:
-  listener_port: 3316
+  listener_port: 3116
   pushgateway_url: http://127.0.0.1:9091
   push_interval_ms: 100
 
