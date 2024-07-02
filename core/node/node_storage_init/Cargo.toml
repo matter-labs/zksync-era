@@ -1,0 +1,29 @@
+[package]
+name = "zksync_node_storage_init"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_config.workspace = true
+zksync_dal.workspace = true
+zksync_health_check.workspace = true
+zksync_node_sync.workspace = true
+zksync_node_genesis.workspace = true
+zksync_object_store.workspace = true
+zksync_shared_metrics.workspace = true
+zksync_snapshots_applier.workspace = true
+zksync_types.workspace = true
+zksync_web3_decl.workspace = true
+zksync_reorg_detector.workspace = true
+zksync_block_reverter.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+tracing.workspace = true

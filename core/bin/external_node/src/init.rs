@@ -3,6 +3,7 @@
 use std::time::Instant;
 
 use anyhow::Context as _;
+use tokio::sync::watch;
 use zksync_config::ObjectStoreConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::AppHealthCheck;
@@ -30,6 +31,7 @@ enum InitDecision {
 }
 
 pub(crate) async fn ensure_storage_initialized(
+    stop_receiver: watch::Receiver<bool>,
     pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,
     app_health: &AppHealthCheck,
@@ -120,7 +122,7 @@ pub(crate) async fn ensure_storage_initialized(
 
             let recovery_started_at = Instant::now();
             let stats = snapshots_applier_task
-                .run()
+                .run(stop_receiver)
                 .await
                 .context("snapshot recovery failed")?;
             if stats.done_work {
@@ -129,6 +131,10 @@ pub(crate) async fn ensure_storage_initialized(
                     .set(latency);
                 tracing::info!("Recovered Postgres from snapshot in {latency:?}");
             }
+            assert!(
+                !stats.canceled,
+                "Snapshot recovery task cannot be canceled in the current implementation"
+            );
         }
     }
     Ok(())

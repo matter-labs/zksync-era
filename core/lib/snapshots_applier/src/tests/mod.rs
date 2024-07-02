@@ -84,7 +84,8 @@ async fn snapshots_creator_can_successfully_recover_db(
         object_store.clone(),
     );
     let task_health = task.health_check();
-    let stats = task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let stats = task.run(stop_receiver).await.unwrap();
     assert!(stats.done_work);
     assert_matches!(
         task_health.check_health().await.status(),
@@ -138,7 +139,9 @@ async fn snapshots_creator_can_successfully_recover_db(
         Box::new(client.clone()),
         object_store.clone(),
     );
-    task.run().await.unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap();
     // Here, stats would unfortunately have `done_work: true` because work detection isn't smart enough.
 
     // Emulate a node processing data after recovery.
@@ -161,7 +164,8 @@ async fn snapshots_creator_can_successfully_recover_db(
         Box::new(client),
         object_store,
     );
-    let stats = task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let stats = task.run(stop_receiver).await.unwrap();
     assert!(!stats.done_work);
 }
 
@@ -182,7 +186,8 @@ async fn applier_recovers_v0_snapshot(drop_storage_key_preimages: bool) {
     if drop_storage_key_preimages {
         task.drop_storage_key_preimages();
     }
-    let stats = task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let stats = task.run(stop_receiver).await.unwrap();
     assert!(stats.done_work);
 
     let mut storage = pool.connection().await.unwrap();
@@ -226,7 +231,8 @@ async fn applier_recovers_explicitly_specified_snapshot() {
         object_store,
     );
     task.set_snapshot_l1_batch(expected_status.l1_batch_number);
-    let stats = task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let stats = task.run(stop_receiver).await.unwrap();
     assert!(stats.done_work);
 
     let mut storage = pool.connection().await.unwrap();
@@ -252,7 +258,8 @@ async fn applier_error_for_missing_explicitly_specified_snapshot() {
     );
     task.set_snapshot_l1_batch(expected_status.l1_batch_number + 1);
 
-    let err = task.run().await.unwrap_err();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = task.run(stop_receiver).await.unwrap_err();
     assert!(
         format!("{err:#}").contains("not present on main node"),
         "{err:#}"
@@ -277,7 +284,8 @@ async fn snapshot_applier_recovers_after_stopping() {
         Box::new(client.clone()),
         Arc::new(stopping_object_store),
     );
-    let task_handle = tokio::spawn(task.run());
+    let (_stop_sender, task_stop_receiver) = watch::channel(false);
+    let task_handle = tokio::spawn(task.run(task_stop_receiver));
 
     // Wait until the first storage logs chunk is requested (the object store hangs up at this point)
     stop_receiver.wait_for(|&count| count > 1).await.unwrap();
@@ -313,7 +321,8 @@ async fn snapshot_applier_recovers_after_stopping() {
         Box::new(client.clone()),
         Arc::new(stopping_object_store),
     );
-    let task_handle = tokio::spawn(task.run());
+    let (_stop_sender, task_stop_receiver) = watch::channel(false);
+    let task_handle = tokio::spawn(task.run(task_stop_receiver));
 
     stop_receiver.wait_for(|&count| count > 3).await.unwrap();
     assert!(!task_handle.is_finished());
@@ -340,7 +349,8 @@ async fn snapshot_applier_recovers_after_stopping() {
         Arc::new(stopping_object_store),
     );
     task.set_snapshot_l1_batch(expected_status.l1_batch_number); // check that this works fine
-    task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap();
 
     assert_eq!(
         is_recovery_completed(&pool, &client).await,
@@ -411,7 +421,8 @@ async fn health_status_immediately_after_task_start() {
         object_store,
     );
     let task_health = task.health_check();
-    let task_handle = tokio::spawn(task.run());
+    let (_stop_sender, task_stop_receiver) = watch::channel(false);
+    let task_handle = tokio::spawn(task.run(task_stop_receiver));
 
     client.0.wait().await; // Wait for the first L2 client call (at which point, the task is certainly initialized)
     assert_matches!(
@@ -465,7 +476,8 @@ async fn applier_errors_after_genesis() {
         Box::new(client),
         object_store,
     );
-    task.run().await.unwrap_err();
+    let (_stop_sender, task_stop_receiver) = watch::channel(false);
+    task.run(task_stop_receiver).await.unwrap_err();
 }
 
 #[tokio::test]
@@ -480,7 +492,8 @@ async fn applier_errors_without_snapshots() {
         Box::new(client),
         object_store,
     );
-    task.run().await.unwrap_err();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap_err();
 }
 
 #[tokio::test]
@@ -499,7 +512,8 @@ async fn applier_errors_with_unrecognized_snapshot_version() {
         Box::new(client),
         object_store,
     );
-    task.run().await.unwrap_err();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap_err();
 }
 
 #[tokio::test]
@@ -518,7 +532,8 @@ async fn applier_returns_error_on_fatal_object_store_error() {
         Box::new(client),
         Arc::new(object_store),
     );
-    let err = task.run().await.unwrap_err();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = task.run(stop_receiver).await.unwrap_err();
     assert!(err.chain().any(|cause| {
         matches!(
             cause.downcast_ref::<ObjectStoreError>(),
@@ -546,7 +561,8 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
         Box::new(client),
         Arc::new(object_store),
     );
-    let err = task.run().await.unwrap_err();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = task.run(stop_receiver).await.unwrap_err();
     assert!(err.chain().any(|cause| {
         matches!(
             cause.downcast_ref::<ObjectStoreError>(),
@@ -585,7 +601,8 @@ async fn recovering_tokens() {
         Box::new(client.clone()),
         object_store.clone(),
     );
-    let task_result = task.run().await;
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let task_result = task.run(stop_receiver).await;
     assert!(task_result.is_err());
 
     assert_eq!(
@@ -601,7 +618,8 @@ async fn recovering_tokens() {
         Box::new(client.clone()),
         object_store.clone(),
     );
-    task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap();
 
     assert_eq!(
         is_recovery_completed(&pool, &client).await,
@@ -635,5 +653,41 @@ async fn recovering_tokens() {
         Box::new(client),
         object_store,
     );
-    task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap();
+}
+
+#[tokio::test]
+async fn snapshot_applier_can_be_canceled() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut expected_status = mock_recovery_status();
+    expected_status.storage_logs_chunks_processed = vec![true; 10];
+    let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 200);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (stopping_object_store, mut stop_receiver) =
+        HangingObjectStore::new(object_store.clone(), 1);
+
+    let mut config = SnapshotsApplierConfig::for_tests();
+    config.max_concurrency = NonZeroUsize::new(1).unwrap();
+    let task = SnapshotsApplierTask::new(
+        config.clone(),
+        pool.clone(),
+        Box::new(client.clone()),
+        Arc::new(stopping_object_store),
+    );
+    let (task_stop_sender, task_stop_receiver) = watch::channel(false);
+    let task_handle = tokio::spawn(task.run(task_stop_receiver));
+
+    // Wait until the first storage logs chunk is requested (the object store hangs up at this point)
+    stop_receiver.wait_for(|&count| count > 1).await.unwrap();
+    assert!(!task_handle.is_finished());
+
+    task_stop_sender.send(true).unwrap();
+    let result = tokio::time::timeout(Duration::from_secs(5), task_handle)
+        .await
+        .expect("Task wasn't canceled")
+        .unwrap()
+        .expect("Task erred");
+    assert!(result.canceled);
+    assert!(!result.done_work);
 }

@@ -8,6 +8,10 @@ use zksync_types::{
 
 use super::client::MainNodeClient;
 
+pub async fn is_genesis_needed(storage: &mut Connection<'_, Core>) -> anyhow::Result<bool> {
+    Ok(storage.blocks_dal().is_genesis_needed().await?)
+}
+
 pub async fn perform_genesis_if_needed(
     storage: &mut Connection<'_, Core>,
     zksync_chain_id: L2ChainId,

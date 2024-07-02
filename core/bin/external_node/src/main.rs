@@ -976,7 +976,10 @@ async fn run_node(
                     .snapshots_recovery_drop_storage_key_preimages,
                 object_store_config: config.optional.snapshots_recovery_object_store.clone(),
             });
+    // Note: while stop receiver is passed there, it won't be respected, since we wait this task
+    // to complete. Will be fixed after migration to the node framework.
     ensure_storage_initialized(
+        stop_receiver.clone(),
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,

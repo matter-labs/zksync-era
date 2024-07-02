@@ -23,11 +23,15 @@ use zksync_node_framework::{
         main_node_client::MainNodeClientLayer,
         main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
         metadata_calculator::MetadataCalculatorLayer,
+        node_storage_init::{
+            external_node_role::ExternalNodeRoleLayer, NodeStorageInitializerLayer,
+        },
         pools_layer::PoolsLayerBuilder,
         postgres_metrics::PostgresMetricsLayer,
         prometheus_exporter::PrometheusExporterLayer,
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
+        reorg_detector::ReorgDetectorLayer,
         sigint::SigintHandlerLayer,
         state_keeper::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
@@ -425,6 +429,36 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_reorg_detector_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(ReorgDetectorLayer);
+        Ok(self)
+    }
+
+    /// This layer will make sure that the database is initialized correctly,
+    /// e.g.:
+    /// - genesis or snapshot recovery will be performed if it's required.
+    /// - we perform the storage rollback if required (e.g. if reorg is detected).
+    ///
+    /// Depending on the `kind` provided, either a task or a precondition will be added.
+    ///
+    /// *Important*: the task should be added by at most one component, because
+    /// it assumes unique control over the database. Multiple components adding this
+    /// layer in a distributed mode may result in the database corruption.
+    ///
+    /// This task works in pair with precondition, which must be present in every component:
+    /// the precondition will prevent node from starting until the database is initialized.
+    fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
+        self.node.add_layer(ExternalNodeRoleLayer {
+            l2_chain_id: self.config.required.l2_chain_id,
+        });
+        let mut layer = NodeStorageInitializerLayer::new();
+        if matches!(kind, LayerKind::Precondition) {
+            layer = layer.as_precondition();
+        }
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
         self = self
@@ -433,12 +467,14 @@ impl ExternalNodeBuilder {
             .add_prometheus_exporter_layer()?
             .add_pools_layer()?
             .add_main_node_client_layer()?
-            .add_query_eth_client_layer()?;
+            .add_query_eth_client_layer()?
+            .add_reorg_detector_layer()?;
 
         // Add preconditions for all the components.
         self = self
             .add_l1_batch_commitment_mode_validation_layer()?
-            .add_validate_chain_ids_layer()?;
+            .add_validate_chain_ids_layer()?
+            .add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
@@ -503,10 +539,21 @@ impl ExternalNodeBuilder {
                         .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
                         .add_batch_status_updater_layer()?;
+
+                    // We assign the storage initialization to the core, as it's considered to be
+                    // the "main" component.
+                    self = self.add_storage_initialization_layer(LayerKind::Task)?;
                 }
             }
         }
 
         Ok(self.node.build()?)
     }
+}
+
+/// Marker for layers that can add either a task or a precondition.
+#[derive(Debug)]
+enum LayerKind {
+    Task,
+    Precondition,
 }
