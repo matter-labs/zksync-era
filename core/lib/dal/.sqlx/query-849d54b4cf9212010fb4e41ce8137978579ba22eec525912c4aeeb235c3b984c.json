@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                MAX(l1_batch_number) AS \"number\" \n            FROM\n                l1_batches_consensus\n            ",
+  "query": "\n            SELECT\n                MAX(l1_batch_number) AS \"number\"\n            FROM\n                l1_batches_consensus\n            ",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       null
     ]
   },
-  "hash": "d62baabe178b6f3ec4fbf0aa416553a09bb188abf0804a238b82e85ed384d19b"
+  "hash": "849d54b4cf9212010fb4e41ce8137978579ba22eec525912c4aeeb235c3b984c"
 }

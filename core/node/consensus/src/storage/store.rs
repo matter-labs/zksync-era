@@ -434,11 +434,30 @@ impl storage::PersistentBatchStore for Store {
     /// Returns the batch with the given number.
     async fn get_batch(
         &self,
-        _ctx: &ctx::Ctx,
-        _number: attester::BatchNumber,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
     ) -> ctx::Result<Option<attester::SyncBatch>> {
-        // TODO: Look up the batch in the store and map it to SyncBatch
-        todo!()
+        let mut conn = self.conn(ctx).await?;
+
+        let Some((min, max)) = conn
+            .get_l2_block_range_of_l1_batch(ctx, number)
+            .await
+            .wrap("get_last_batch_certificate_number")?
+        else {
+            return Ok(None);
+        };
+
+        let payloads = conn.payloads(ctx, min..max).await.wrap("payloads")?;
+
+        let payloads = payloads.into_iter().map(|p| p.encode()).collect();
+
+        let batch = attester::SyncBatch {
+            number,
+            payloads,
+            proof: Vec::new(), // TODO: What is the proof?
+        };
+
+        Ok(Some(batch))
     }
     /// Returns the QC of the batch with the given number.
     async fn get_batch_qc(

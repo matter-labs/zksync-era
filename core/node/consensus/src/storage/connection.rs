@@ -304,4 +304,26 @@ impl<'a> Connection<'a> {
             .await?
             .context("batch_certificate()")?)
     }
+
+    /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.
+    pub async fn get_l2_block_range_of_l1_batch(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<(validator::BlockNumber, validator::BlockNumber)>> {
+        let number = L1BatchNumber(number.0.try_into().context("number")?);
+
+        let range = ctx
+            .wait(self.0.blocks_dal().get_l2_block_range_of_l1_batch(number))
+            .await?
+            .context("get_l2_block_range_of_l1_batch()")?;
+
+        let Some((min, max)) = range else {
+            return Ok(None);
+        };
+
+        let min = validator::BlockNumber(min.0 as u64);
+        let max = validator::BlockNumber(max.0 as u64);
+        Ok(Some((min, max)))
+    }
 }
