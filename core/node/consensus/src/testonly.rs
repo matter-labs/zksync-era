@@ -49,8 +49,7 @@ use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::{
     batch::{L1BatchCommit, L1BatchWithWitness, LastBlockCommit},
-    en,
-    storage::ConnectionPool,
+    en, ConnectionPool,
 };
 
 /// Fake StateKeeper for tests.
