@@ -1,6 +1,10 @@
-use std::{ffi::OsStr, process::Output};
+use std::{
+    ffi::OsStr,
+    io,
+    process::{Command, Output, Stdio},
+    string::FromUtf8Error,
+};
 
-use anyhow::bail;
 use console::style;
 
 use crate::{
@@ -15,6 +19,42 @@ pub struct Cmd<'a> {
     inner: xshell::Cmd<'a>,
     force_run: bool,
 }
+
+#[derive(thiserror::Error, Debug)]
+#[error("Cmd error: {source} {stderr:?}")]
+pub struct CmdError {
+    stderr: Option<String>,
+    source: anyhow::Error,
+}
+
+impl From<xshell::Error> for CmdError {
+    fn from(value: xshell::Error) -> Self {
+        Self {
+            stderr: None,
+            source: value.into(),
+        }
+    }
+}
+
+impl From<io::Error> for CmdError {
+    fn from(value: io::Error) -> Self {
+        Self {
+            stderr: None,
+            source: value.into(),
+        }
+    }
+}
+
+impl From<FromUtf8Error> for CmdError {
+    fn from(value: FromUtf8Error) -> Self {
+        Self {
+            stderr: None,
+            source: value.into(),
+        }
+    }
+}
+
+pub type CmdResult<T> = Result<T, CmdError>;
 
 impl<'a> Cmd<'a> {
     /// Create a new `Cmd` instance.
@@ -38,31 +78,30 @@ impl<'a> Cmd<'a> {
     }
 
     /// Run the command without capturing its output.
-    pub fn run(&mut self) -> anyhow::Result<()> {
-        if global_config().verbose || self.force_run {
+    pub fn run(mut self) -> CmdResult<()> {
+        let command_txt = self.inner.to_string();
+        let output = if global_config().verbose || self.force_run {
             logger::debug(format!("Running: {}", self.inner));
             logger::new_empty_line();
-            self.inner.run()?;
-            logger::new_empty_line();
-            logger::new_line();
+            run_low_level_process_command(self.inner.into())?
         } else {
             // Command will be logged manually.
             self.inner.set_quiet(true);
             // Error will be handled manually.
             self.inner.set_ignore_status(true);
-            let output = self.inner.output()?;
-            self.check_output_status(&output)?;
-        }
+            self.inner.output()?
+        };
 
+        check_output_status(&command_txt, &output)?;
         if global_config().verbose {
-            logger::debug(format!("Command completed: {}", self.inner));
+            logger::debug(format!("Command completed: {}", command_txt));
         }
 
         Ok(())
     }
 
     /// Run the command and return its output.
-    pub fn run_with_output(&mut self) -> anyhow::Result<Output> {
+    pub fn run_with_output(&mut self) -> CmdResult<std::process::Output> {
         if global_config().verbose || self.force_run {
             logger::debug(format!("Running: {}", self.inner));
             logger::new_empty_line();
@@ -79,28 +118,53 @@ impl<'a> Cmd<'a> {
 
         Ok(output)
     }
+}
 
-    fn check_output_status(&self, output: &std::process::Output) -> anyhow::Result<()> {
-        if !output.status.success() {
-            logger::new_line();
-            logger::error_note(
-                &format!("Command failed to run: {}", self.inner),
-                &log_output(output),
-            );
-            bail!("Command failed to run: {}", self.inner);
-        }
-
-        Ok(())
+fn check_output_status(command_text: &str, output: &std::process::Output) -> CmdResult<()> {
+    if !output.status.success() {
+        logger::new_line();
+        logger::error_note(
+            &format!("Command failed to run: {}", command_text),
+            &log_output(output),
+        );
+        return Err(CmdError {
+            stderr: Some(String::from_utf8(output.stderr.clone())?),
+            source: anyhow::anyhow!("Command failed to run: {}", command_text),
+        });
     }
+
+    Ok(())
+}
+
+fn run_low_level_process_command(mut command: Command) -> io::Result<Output> {
+    command.stdout(Stdio::inherit());
+    command.stderr(Stdio::piped());
+    let child = command.spawn()?;
+    child.wait_with_output()
 }
 
 fn log_output(output: &std::process::Output) -> String {
     let (status, stdout, stderr) = get_indented_output(output, 4, 120);
-    let status_header = style("  Status:").bold();
-    let stdout_header = style("  Stdout:").bold();
-    let stderr_header = style("  Stderr:").bold();
+    log_output_int(status, Some(stdout), Some(stderr))
+}
 
-    format!("{status_header}\n{status}\n{stdout_header}\n{stdout}\n{stderr_header}\n{stderr}")
+fn log_output_int(status: String, stdout: Option<String>, stderr: Option<String>) -> String {
+    let status_header = style("  Status:").bold();
+    let stdout = if let Some(stdout) = stdout {
+        let stdout_header = style("  Stdout:").bold();
+        format!("{stdout_header}\n{stdout}\n")
+    } else {
+        String::new()
+    };
+
+    let stderr = if let Some(stderr) = stderr {
+        let stderr_header = style("  Stderr:").bold();
+        format!("{stderr_header}\n{stderr}\n")
+    } else {
+        String::new()
+    };
+
+    format!("{status_header}\n{status}\n{stdout}\n{stderr}")
 }
 
 // Indent output and wrap text.

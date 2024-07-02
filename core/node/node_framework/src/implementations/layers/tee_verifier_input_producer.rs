@@ -41,15 +41,14 @@ impl WiringLayer for TeeVerifierInputProducerLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
         let pool_resource = context
-            .get_resource::<PoolResource<MasterPool>>()
-            .await?
+            .get_resource::<PoolResource<MasterPool>>()?
             .get()
             .await?;
-        let object_store = context.get_resource::<ObjectStoreResource>().await?;
+        let object_store = context.get_resource::<ObjectStoreResource>()?;
         let tee =
             TeeVerifierInputProducer::new(pool_resource, object_store.0, self.l2_chain_id).await?;
 
-        context.add_task(Box::new(tee));
+        context.add_task(tee);
 
         Ok(())
     }

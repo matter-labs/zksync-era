@@ -43,8 +43,8 @@ impl WiringLayer for ValidateChainIdsLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let EthInterfaceResource(query_client) = context.get_resource().await?;
-        let MainNodeClientResource(main_node_client) = context.get_resource().await?;
+        let EthInterfaceResource(query_client) = context.get_resource()?;
+        let MainNodeClientResource(main_node_client) = context.get_resource()?;
 
         let task = ValidateChainIdsTask::new(
             self.l1_chain_id,
@@ -53,7 +53,7 @@ impl WiringLayer for ValidateChainIdsLayer {
             main_node_client,
         );
 
-        context.add_task(Box::new(task));
+        context.add_task(task);
 
         Ok(())
     }

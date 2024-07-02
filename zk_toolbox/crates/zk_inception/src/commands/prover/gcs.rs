@@ -17,7 +17,7 @@ pub(crate) fn create_gcs_bucket(
     let bucket_name = config.bucket_name;
     let location = config.location;
     let project_id = config.project_id;
-    let mut cmd = Cmd::new(cmd!(
+    let cmd = Cmd::new(cmd!(
         shell,
         "gcloud storage buckets create gs://{bucket_name} --location={location} --project={project_id}"
     ));
