@@ -546,8 +546,8 @@ impl ApiServer {
                         "Overriding max response size to {limit}B for sync method `{method_name}`"
                     );
                     let sync_method = sync_method.clone();
-                    MethodCallback::Sync(Arc::new(move |id, params, _max_response_size| {
-                        sync_method(id, params, limit)
+                    MethodCallback::Sync(Arc::new(move |id, params, _max_response_size, ext| {
+                        sync_method(id, params, limit, ext)
                     }))
                 }
                 (MethodCallback::Async(async_method), Some(limit)) => {
@@ -556,8 +556,8 @@ impl ApiServer {
                     );
                     let async_method = async_method.clone();
                     MethodCallback::Async(Arc::new(
-                        move |id, params, connection_id, _max_response_size| {
-                            async_method(id, params, connection_id, limit)
+                        move |id, params, connection_id, _max_response_size, ext| {
+                            async_method(id, params, connection_id, limit, ext)
                         },
                     ))
                 }
@@ -567,8 +567,8 @@ impl ApiServer {
                     );
                     let unsub_method = unsub_method.clone();
                     MethodCallback::Unsubscription(Arc::new(
-                        move |id, params, connection_id, _max_response_size| {
-                            unsub_method(id, params, connection_id, limit)
+                        move |id, params, connection_id, _max_response_size, ext| {
+                            unsub_method(id, params, connection_id, limit, ext)
                         },
                     ))
                 }

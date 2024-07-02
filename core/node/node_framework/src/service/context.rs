@@ -29,7 +29,7 @@ impl<'a> ServiceContext<'a> {
     /// Provides access to the runtime used by the service.
     ///
     /// Can be used to spawn additional tasks within the same runtime.
-    /// If some tasks stores the handle to spawn additional tasks, it is expected to do all the required
+    /// If some task stores the handle to spawn additional tasks, it is expected to do all the required
     /// cleanup.
     ///
     /// In most cases, however, it is recommended to use [`add_task`](ServiceContext::add_task) or its alternative
@@ -52,9 +52,9 @@ impl<'a> ServiceContext<'a> {
     ///
     /// Added tasks will be launched after the wiring process will be finished and all the preconditions
     /// are met.
-    pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
+    pub fn add_task<T: Task>(&mut self, task: T) -> &mut Self {
         tracing::info!("Layer {} has added a new task: {}", self.layer, task.id());
-        self.service.runnables.tasks.push(task);
+        self.service.runnables.tasks.push(Box::new(task));
         self
     }
 
@@ -85,7 +85,7 @@ impl<'a> ServiceContext<'a> {
     /// ## Panics
     ///
     /// Panics if the resource with the specified [`ResourceId`] exists, but is not of the requested type.
-    pub async fn get_resource<T: Resource + Clone>(&mut self) -> Result<T, WiringError> {
+    pub fn get_resource<T: Resource + Clone>(&mut self) -> Result<T, WiringError> {
         // Implementation details:
         // Internally the resources are stored as [`std::any::Any`], and this method does the downcasting
         // on behalf of the caller.
@@ -131,11 +131,11 @@ impl<'a> ServiceContext<'a> {
 
     /// Attempts to retrieve the resource of the specified type.
     /// If the resource is not available, it is created using the provided closure.
-    pub async fn get_resource_or_insert_with<T: Resource + Clone, F: FnOnce() -> T>(
+    pub fn get_resource_or_insert_with<T: Resource + Clone, F: FnOnce() -> T>(
         &mut self,
         f: F,
     ) -> T {
-        if let Ok(resource) = self.get_resource::<T>().await {
+        if let Ok(resource) = self.get_resource::<T>() {
             return resource;
         }
 
@@ -154,8 +154,8 @@ impl<'a> ServiceContext<'a> {
 
     /// Attempts to retrieve the resource of the specified type.
     /// If the resource is not available, it is created using `T::default()`.
-    pub async fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
-        self.get_resource_or_insert_with(T::default).await
+    pub fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
+        self.get_resource_or_insert_with(T::default)
     }
 
     /// Adds a resource to the service.

@@ -37,7 +37,7 @@ pub enum Mode {
 /// ## Adds tasks
 ///
 /// - `MainNodeConsensusTask` (if `Mode::Main`)
-/// - `FetcherTask` (if `Mode::External`)
+/// - `ExternalNodeTask` (if `Mode::External`)
 #[derive(Debug)]
 pub struct ConsensusLayer {
     pub mode: Mode,
@@ -53,8 +53,7 @@ impl WiringLayer for ConsensusLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool = context
-            .get_resource::<PoolResource<MasterPool>>()
-            .await?
+            .get_resource::<PoolResource<MasterPool>>()?
             .get()
             .await?;
 
@@ -71,14 +70,13 @@ impl WiringLayer for ConsensusLayer {
                     secrets,
                     pool,
                 };
-                context.add_task(Box::new(task));
+                context.add_task(task);
             }
             Mode::External => {
-                let main_node_client = context.get_resource::<MainNodeClientResource>().await?.0;
-                let sync_state = context.get_resource::<SyncStateResource>().await?.0;
+                let main_node_client = context.get_resource::<MainNodeClientResource>()?.0;
+                let sync_state = context.get_resource::<SyncStateResource>()?.0;
                 let action_queue_sender = context
-                    .get_resource::<ActionQueueSenderResource>()
-                    .await?
+                    .get_resource::<ActionQueueSenderResource>()?
                     .0
                     .take()
                     .ok_or_else(|| {
@@ -101,14 +99,14 @@ impl WiringLayer for ConsensusLayer {
                     }
                 };
 
-                let task = FetcherTask {
+                let task = ExternalNodeTask {
                     config,
                     pool,
                     main_node_client,
                     sync_state,
                     action_queue_sender,
                 };
-                context.add_task(Box::new(task));
+                context.add_task(task);
             }
         }
         Ok(())
@@ -130,7 +128,7 @@ impl Task for MainNodeConsensusTask {
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         // We instantiate the root context here, since the consensus task is the only user of the
-        // structured concurrency framework (`MainNodeConsensusTask` and `FetcherTask` are considered mutually
+        // structured concurrency framework (`MainNodeConsensusTask` and `ExternalNodeTask` are considered mutually
         // exclusive).
         // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
         // not the consensus task itself. There may have been any number of tasks running in the root context,
@@ -151,7 +149,7 @@ impl Task for MainNodeConsensusTask {
 }
 
 #[derive(Debug)]
-pub struct FetcherTask {
+pub struct ExternalNodeTask {
     config: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,
@@ -160,21 +158,21 @@ pub struct FetcherTask {
 }
 
 #[async_trait::async_trait]
-impl Task for FetcherTask {
+impl Task for ExternalNodeTask {
     fn id(&self) -> TaskId {
         "consensus_fetcher".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         // We instantiate the root context here, since the consensus task is the only user of the
-        // structured concurrency framework (`MainNodeConsensusTask` and `FetcherTask` are considered mutually
+        // structured concurrency framework (`MainNodeConsensusTask` and `ExternalNodeTask` are considered mutually
         // exclusive).
         // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
         // not the consensus task itself. There may have been any number of tasks running in the root context,
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async {
-            s.spawn_bg(consensus::era::run_en(
+            s.spawn_bg(consensus::era::run_external_node(
                 ctx,
                 self.config,
                 self.pool,
