@@ -48,8 +48,8 @@ async fn main() -> anyhow::Result<()> {
         .prover_gateway
         .context("prover gateway config")?;
 
-    if let Some(prometheus_listener_port) = opt.prometheus_listener_port {
-        config.prometheus_listener_port = prometheus_listener_port;
+    if let Some(prometheus_port) = opt.prometheus_port {
+        config.prometheus_listener_port = prometheus_port;
     }
 
     let postgres_config = general_config.postgres_config.context("postgres config")?;
@@ -128,5 +128,5 @@ pub(crate) struct Cli {
     #[arg(long)]
     pub(crate) secrets_path: Option<std::path::PathBuf>,
     #[arg(long)]
-    pub(crate) prometheus_listener_port: Option<u16>,
+    pub(crate) prometheus_port: Option<u16>,
 }
