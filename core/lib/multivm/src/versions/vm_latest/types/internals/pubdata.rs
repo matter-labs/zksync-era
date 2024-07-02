@@ -1,4 +1,5 @@
 use ethabi::Token;
+use zksync_contracts::load_sys_contract_interface;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     ethabi,
@@ -101,7 +102,11 @@ impl PubdataBuilder for RollupPubdataBuilder {
                 l1_messenger_pubdata.extend(state_diff.encode_padded());
             }
 
-            let func_selector = hex::decode("89f9a072").unwrap();
+            let func_selector = load_sys_contract_interface("IL2DAValidator")
+                .function("validatePubdata")
+                .expect("validatePubdata Function does not exist on IL2DAValidator")
+                .short_signature()
+                .to_vec();
 
             l2_da_header.push(ethabi::Token::Bytes(l1_messenger_pubdata));
 

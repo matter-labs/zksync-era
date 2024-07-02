@@ -113,6 +113,13 @@ pub fn load_sys_contract(contract_name: &str) -> Contract {
     ))
 }
 
+pub fn load_sys_contract_interface(contract_name: &str) -> Contract {
+    load_contract(format!(
+      "contracts/system-contracts/artifacts-zk/contracts-preprocessed/interfaces/{0}.sol/{0}.json",
+      contract_name
+  ))
+}
+
 pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> String {
     read_file_to_json_value(path)["abi"]
         .as_str()
