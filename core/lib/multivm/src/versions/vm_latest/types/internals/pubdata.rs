@@ -8,6 +8,7 @@ use zksync_types::{
     writes::{compress_state_diffs, StateDiffRecord},
     ProtocolVersionId,
 };
+use zksync_utils::bytecode::hash_bytecode;
 
 /// Struct based on which the pubdata blob is formed
 #[derive(Debug, Clone, Default)]
@@ -172,7 +173,7 @@ fn build_chained_bytecode_hash(published_bytecodes: Vec<Vec<u8>>) -> Vec<u8> {
     let mut chained_bytecode_hash = vec![0u8; 32];
 
     for bytecode in published_bytecodes {
-        let hash = keccak256(&bytecode);
+        let hash = hash_bytecode(&bytecode).to_fixed_bytes();
 
         chained_bytecode_hash =
             keccak256(&[chained_bytecode_hash, hash.to_vec()].concat()).to_vec();
