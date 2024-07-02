@@ -432,10 +432,7 @@ async fn generate_witness(
         let storage_oracle = StorageOracle::new(
             vm_storage_oracle,
             input.vm_run_data.storage_refunds,
-            input
-                .vm_run_data
-                .pubdata_costs
-                .expect("pubdata costs should be present"),
+            input.vm_run_data.pubdata_costs,
         );
 
         let path = KZG_TRUSTED_SETUP_FILE

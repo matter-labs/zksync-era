@@ -7,7 +7,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::VMRunWitnessInputData;
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{
-    block::StorageOracleInfo, witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId,
+    block::StorageOracleInfo, witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId,
     ProtocolVersionId, H256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
@@ -148,7 +148,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         let l1_batch_number = updates_manager.l1_batch.number;
 
         tracing::info!(
-            "Started saving VM run data for L1 batch {}",
+            "Started saving VM run data for L1 batch {:?}",
             l1_batch_number
         );
 
@@ -163,7 +163,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 
         compare_witness_input_data(&db_result, &result);
 
-        let block_state = WitnessBlockState {
+        let block_state = WitnessStorageState {
             read_storage_key: updates_manager.storage_view_cache.read_storage_keys(),
             is_write_initial: updates_manager.storage_view_cache.initial_writes(),
         };
@@ -172,7 +172,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 
         let blob_url = self.object_store.put(l1_batch_number, &result).await?;
 
-        tracing::info!("Saved VM run data for L1 batch {}", l1_batch_number.0);
+        tracing::info!("Saved VM run data for L1 batch {:?}", l1_batch_number);
 
         self.pool
             .connection()
@@ -260,8 +260,8 @@ async fn get_updates_manager_witness_input_data(
         bootloader_code,
         default_account_code_hash: account_code_hash,
         storage_refunds,
-        pubdata_costs,
-        witness_block_state: WitnessBlockState::default(),
+        pubdata_costs: pubdata_costs.unwrap(),
+        witness_block_state: WitnessStorageState::default(),
     }
 }
 
@@ -350,8 +350,8 @@ async fn get_database_witness_input_data(
         bootloader_code,
         default_account_code_hash: account_code_hash,
         storage_refunds,
-        pubdata_costs,
-        witness_block_state: WitnessBlockState::default(),
+        pubdata_costs: pubdata_costs.unwrap(),
+        witness_block_state: WitnessStorageState::default(),
     }
 }
 

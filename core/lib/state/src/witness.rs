@@ -1,56 +1,44 @@
-use vise::{Counter, Metrics};
-use zksync_types::{witness_block_state::WitnessBlockState, StorageKey, StorageValue, H256};
+use zksync_types::{witness_block_state::WitnessStorageState, StorageKey, StorageValue, H256};
 
 use crate::ReadStorage;
-
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "witness_storage")]
-struct WitnessStorageMetrics {
-    /// Number of unexpected calls when calling `get_enumeration_index` on a witness storage.
-    get_enumeration_index_unexpected_call: Counter,
-}
-
-#[vise::register]
-static METRICS: vise::Global<WitnessStorageMetrics> = vise::Global::new();
 
 /// [`ReadStorage`] implementation backed by binary serialized [`WitnessHashBlockState`].
 /// Note that `load_factory_deps` is not used.
 /// FactoryDeps data is used straight inside witness generator, loaded with the blob.
 #[derive(Debug)]
-pub struct WitnessStorage<'a> {
-    block_state: WitnessBlockState,
-    metrics: &'a WitnessStorageMetrics,
+pub struct WitnessStorage {
+    storage_state: WitnessStorageState,
 }
 
-impl WitnessStorage<'_> {
+impl WitnessStorage {
     /// Creates a new storage with the provided witness's block state.
-    pub fn new(block_state: WitnessBlockState) -> Self {
-        Self {
-            block_state,
-            metrics: &METRICS,
-        }
+    pub fn new(storage_state: WitnessStorageState) -> Self {
+        Self { storage_state }
     }
 }
 
-impl ReadStorage for WitnessStorage<'_> {
+impl ReadStorage for WitnessStorage {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        *self
-            .block_state
+        self.storage_state
             .read_storage_key
             .get(key)
-            .unwrap_or(&H256::default())
+            .copied()
+            .unwrap_or_default()
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        *self.block_state.is_write_initial.get(key).unwrap_or(&false)
+        self.storage_state
+            .is_write_initial
+            .get(key)
+            .copied()
+            .unwrap_or_default()
     }
 
     fn load_factory_dep(&mut self, _hash: H256) -> Option<Vec<u8>> {
-        None
+        unreachable!("Factory deps should not be used in the witness storage")
     }
 
     fn get_enumeration_index(&mut self, _key: &StorageKey) -> Option<u64> {
-        self.metrics.get_enumeration_index_unexpected_call.inc();
-        None
+        unreachable!("Enumeration index should not be used in the witness storage")
     }
 }

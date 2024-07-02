@@ -6,21 +6,21 @@ use crate::{StorageKey, StorageValue};
 
 /// Storage data used during Witness Generation.
 #[derive(Debug, Default, Clone)]
-pub struct WitnessBlockState {
+pub struct WitnessStorageState {
     pub read_storage_key: HashMap<StorageKey, StorageValue>,
     pub is_write_initial: HashMap<StorageKey, bool>,
 }
 
 /// A serde schema for serializing/deserializing `WitnessBlockState`
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-struct WitnessBlockStateSerde {
+struct WitnessStorageStateSerde {
     pub read_storage_key: Vec<(StorageKey, StorageValue)>,
     pub is_write_initial: Vec<(StorageKey, bool)>,
 }
 
-impl Serialize for WitnessBlockState {
+impl Serialize for WitnessStorageState {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        WitnessBlockStateSerde {
+        WitnessStorageStateSerde {
             read_storage_key: self
                 .read_storage_key
                 .iter()
@@ -36,9 +36,9 @@ impl Serialize for WitnessBlockState {
     }
 }
 
-impl<'de> serde::Deserialize<'de> for WitnessBlockState {
+impl<'de> serde::Deserialize<'de> for WitnessStorageState {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let x = WitnessBlockStateSerde::deserialize(d)?;
+        let x = WitnessStorageStateSerde::deserialize(d)?;
         Ok(Self {
             read_storage_key: x.read_storage_key.into_iter().collect(),
             is_write_initial: x.is_write_initial.into_iter().collect(),
