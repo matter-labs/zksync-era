@@ -155,7 +155,7 @@ where
         );
         self.wallet
             .provider
-            .estimate_fee(execute.into())
+            .estimate_fee(execute.into(), None)
             .await
             .map_err(Into::into)
     }

@@ -3,8 +3,8 @@ use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
-        TransactionVariant,
+        state_override::StateOverride, BlockId, BlockNumber, GetLogsFilter, Transaction,
+        TransactionId, TransactionReceipt, TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
@@ -55,6 +55,7 @@ impl EthNamespace {
         &self,
         mut request: CallRequest,
         block_id: Option<BlockId>,
+        state_override: Option<StateOverride>,
     ) -> Result<Bytes, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
@@ -88,7 +89,7 @@ impl EthNamespace {
         let call_result: Vec<u8> = self
             .state
             .tx_sender
-            .eth_call(block_args, call_overrides, tx)
+            .eth_call(block_args, call_overrides, tx, state_override)
             .await?;
         Ok(call_result.into())
     }
@@ -97,6 +98,7 @@ impl EthNamespace {
         &self,
         request: CallRequest,
         _block: Option<BlockNumber>,
+        state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
@@ -138,7 +140,12 @@ impl EthNamespace {
         let fee = self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation as u64)
+            .get_txs_fee_in_wei(
+                tx.into(),
+                scale_factor,
+                acceptable_overestimation as u64,
+                state_override,
+            )
             .await?;
         Ok(fee.gas_limit)
     }
