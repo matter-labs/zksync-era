@@ -73,7 +73,7 @@ impl MainNodeFeeParamsFetcher {
 
 #[async_trait::async_trait]
 impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
-    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
-        Ok(*self.main_node_fee_params.read().unwrap())
+    fn get_fee_model_params(&self) -> FeeParams {
+        *self.main_node_fee_params.read().unwrap()
     }
 }

@@ -450,14 +450,12 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_fee_params_impl(&self) -> Result<FeeParams, Web3Error> {
-        Ok(self
-            .state
+    pub fn get_fee_params_impl(&self) -> FeeParams {
+        self.state
             .tx_sender
             .0
             .batch_fee_input_provider
             .get_fee_model_params()
-            .await?)
     }
 
     pub async fn get_protocol_version_impl(
@@ -543,7 +541,10 @@ impl ZksNamespace {
     }
 
     pub fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
-        Ok(self.state.api_config.base_token_address)
+        self.state
+            .api_config
+            .base_token_address
+            .ok_or(Web3Error::MethodNotImplemented)
     }
 
     #[tracing::instrument(skip(self))]

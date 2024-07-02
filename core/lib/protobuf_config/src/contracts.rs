@@ -95,8 +95,11 @@ impl ProtoRepr for proto::Contracts {
             l1_multicall3_addr: required(&l1.multicall3_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_multicall3_addr")?,
-            base_token_addr: required(&l1.base_token_addr)
-                .and_then(|x| parse_h160(x))
+            base_token_addr: l1
+                .base_token_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
                 .context("base_token_addr")?,
         })
     }

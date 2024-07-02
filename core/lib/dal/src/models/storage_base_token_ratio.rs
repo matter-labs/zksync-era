@@ -19,7 +19,7 @@ pub struct StorageBaseTokenRatio {
 impl From<StorageBaseTokenRatio> for BaseTokenRatio {
     fn from(row: StorageBaseTokenRatio) -> BaseTokenRatio {
         BaseTokenRatio {
-            id: row.id,
+            id: row.id as u32,
             ratio_timestamp: row.ratio_timestamp.and_utc(),
             numerator: NonZeroU64::new(row.numerator.to_u64().expect("numerator is not u64"))
                 .unwrap(),

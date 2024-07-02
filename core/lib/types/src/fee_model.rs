@@ -294,10 +294,10 @@ impl FeeParamsV2 {
                         converted_price_bd
                     );
                 } else {
-                    tracing::error!(
-                    "Conversion to base token price failed: converted price is not a valid u64: {}. Using u64::MAX instead.",
-                    converted_price_bd
-                );
+                    panic!(
+                        "Conversion to base token price failed: converted price is not a valid u64: {}",
+                        converted_price_bd
+                    );
                 }
                 u64::MAX
             }
@@ -305,6 +305,7 @@ impl FeeParamsV2 {
     }
 }
 
+/// The struct that represents the BaseToken<->ETH conversion ratio.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct BaseTokenConversionRatio {
     pub numerator: NonZeroU64,

@@ -21,15 +21,19 @@ pub struct DBBaseTokenFetcher {
 
 impl DBBaseTokenFetcher {
     pub async fn new(pool: ConnectionPool<Core>) -> anyhow::Result<Self> {
-        let latest_ratio = get_latest_price(pool.clone()).await?;
+        let mut fetcher = Self {
+            pool,
+            latest_ratio: BaseTokenConversionRatio::default(),
+        };
+        fetcher.latest_ratio = fetcher.get_latest_price().await?;
 
         // TODO(PE-129): Implement latest ratio usability logic.
 
         tracing::debug!(
             "Starting the base token fetcher with conversion ratio: {:?}",
-            latest_ratio
+            fetcher.latest_ratio
         );
-        Ok(Self { pool, latest_ratio })
+        Ok(fetcher)
     }
 
     pub async fn run(&mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -41,7 +45,7 @@ impl DBBaseTokenFetcher {
                 _ = stop_receiver.changed() => break,
             }
 
-            let latest_storage_ratio = get_latest_price(self.pool.clone()).await?;
+            let latest_storage_ratio = self.get_latest_price().await?;
 
             // TODO(PE-129): Implement latest ratio usability logic.
             self.latest_ratio = BaseTokenConversionRatio {
@@ -53,31 +57,32 @@ impl DBBaseTokenFetcher {
         tracing::info!("Stop signal received, base_token_fetcher is shutting down");
         Ok(())
     }
-}
 
-async fn get_latest_price(pool: ConnectionPool<Core>) -> anyhow::Result<BaseTokenConversionRatio> {
-    let latest_storage_ratio = pool
-        .connection_tagged("db_base_token_fetcher")
-        .await
-        .context("Failed to obtain connection to the database")?
-        .base_token_dal()
-        .get_latest_ratio()
-        .await;
+    async fn get_latest_price(&self) -> anyhow::Result<BaseTokenConversionRatio> {
+        let latest_storage_ratio = self
+            .pool
+            .connection_tagged("db_base_token_fetcher")
+            .await
+            .context("Failed to obtain connection to the database")?
+            .base_token_dal()
+            .get_latest_ratio()
+            .await;
 
-    match latest_storage_ratio {
-        Ok(Some(latest_storage_price)) => Ok(BaseTokenConversionRatio {
-            numerator: latest_storage_price.numerator,
-            denominator: latest_storage_price.denominator,
-        }),
-        Ok(None) => {
-            // TODO(PE-136): Insert initial ratio from genesis.
-            // Though the DB should be populated very soon after the server starts, it is possible
-            // to have no ratios in the DB right after genesis. Having initial ratios in the DB
-            // from the genesis stage will eliminate this possibility.
-            tracing::error!("No latest price found in the database. Using default ratio.");
-            Ok(BaseTokenConversionRatio::default())
+        match latest_storage_ratio {
+            Ok(Some(latest_storage_price)) => Ok(BaseTokenConversionRatio {
+                numerator: latest_storage_price.numerator,
+                denominator: latest_storage_price.denominator,
+            }),
+            Ok(None) => {
+                // TODO(PE-136): Insert initial ratio from genesis.
+                // Though the DB should be populated very soon after the server starts, it is possible
+                // to have no ratios in the DB right after genesis. Having initial ratios in the DB
+                // from the genesis stage will eliminate this possibility.
+                tracing::error!("No latest price found in the database. Using default ratio.");
+                Ok(BaseTokenConversionRatio::default())
+            }
+            Err(err) => anyhow::bail!("Failed to get latest base token ratio: {:?}", err),
         }
-        Err(err) => anyhow::bail!("Failed to get latest base token ratio: {:?}", err),
     }
 }
 

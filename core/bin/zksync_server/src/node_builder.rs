@@ -144,7 +144,7 @@ impl MainNodeBuilder {
 
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         // Ensure the BaseTokenFetcherResource is inserted if the base token is not ETH.
-        if self.contracts_config.base_token_addr != SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
+        if self.contracts_config.base_token_addr != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS) {
             self.node.add_layer(BaseTokenFetcherLayer {});
         }
 

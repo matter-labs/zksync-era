@@ -70,7 +70,7 @@ mod tests {
                 state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
                 transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
             }),
-            base_token_addr: SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+            base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
         }
     }
 

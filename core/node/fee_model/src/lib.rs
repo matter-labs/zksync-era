@@ -27,7 +27,7 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
         l1_gas_price_scale_factor: f64,
         l1_pubdata_price_scale_factor: f64,
     ) -> anyhow::Result<BatchFeeInput> {
-        let params = self.get_fee_model_params().await?;
+        let params = self.get_fee_model_params();
 
         Ok(match params {
             FeeParams::V1(params) => BatchFeeInput::L1Pegged(compute_batch_fee_model_input_v1(
@@ -45,7 +45,7 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     }
 
     /// Returns the fee model parameters using the denomination of the base token used (WEI for ETH).
-    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams>;
+    fn get_fee_model_params(&self) -> FeeParams;
 }
 
 impl dyn BatchFeeModelInputProvider {
@@ -67,18 +67,18 @@ pub struct MainNodeFeeInputProvider {
 
 #[async_trait]
 impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
-    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
+    fn get_fee_model_params(&self) -> FeeParams {
         match self.config {
-            FeeModelConfig::V1(config) => Ok(FeeParams::V1(FeeParamsV1 {
+            FeeModelConfig::V1(config) => FeeParams::V1(FeeParamsV1 {
                 config,
                 l1_gas_price: self.provider.estimate_effective_gas_price(),
-            })),
-            FeeModelConfig::V2(config) => Ok(FeeParams::V2(FeeParamsV2::new(
+            }),
+            FeeModelConfig::V2(config) => FeeParams::V2(FeeParamsV2::new(
                 config,
                 self.provider.estimate_effective_gas_price(),
                 self.provider.estimate_effective_pubdata_price(),
                 self.base_token_fetcher.get_conversion_ratio(),
-            ))),
+            )),
         }
     }
 }
@@ -143,9 +143,8 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
     }
 
     /// Returns the fee model parameters.
-    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
-        self.inner.get_fee_model_params().await
-        // TODO(PE-137): impl APIBaseTokenAdjuster and use it in the ApiFeeInputProvider.
+    fn get_fee_model_params(&self) -> FeeParams {
+        self.inner.get_fee_model_params()
     }
 }
 
@@ -241,8 +240,8 @@ impl Default for MockBatchFeeParamsProvider {
 
 #[async_trait]
 impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
-    async fn get_fee_model_params(&self) -> anyhow::Result<FeeParams> {
-        Ok(self.0)
+    fn get_fee_model_params(&self) -> FeeParams {
+        self.0
     }
 }
 
@@ -619,10 +618,7 @@ mod tests {
                 config,
             );
 
-            let fee_params = fee_provider
-                .get_fee_model_params()
-                .await
-                .expect("Failed to get fee model params");
+            let fee_params = fee_provider.get_fee_model_params();
 
             if let FeeParams::V2(params) = fee_params {
                 assert_eq!(

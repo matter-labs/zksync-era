@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 /// Represents the base token to ETH conversion ratio at a given point in time.
 #[derive(Debug, Clone)]
 pub struct BaseTokenRatio {
-    pub id: i64,
+    pub id: u32,
     pub ratio_timestamp: DateTime<Utc>,
     pub numerator: NonZeroU64,
     pub denominator: NonZeroU64,
@@ -17,6 +17,6 @@ pub struct BaseTokenRatio {
 pub struct BaseTokenAPIRatio {
     pub numerator: NonZeroU64,
     pub denominator: NonZeroU64,
-    // Either the timestamp of the quote or the timestamp of the request.
+    /// Either the timestamp of the quote or the timestamp of the request.
     pub ratio_timestamp: DateTime<Utc>,
 }
