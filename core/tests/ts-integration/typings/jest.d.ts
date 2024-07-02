@@ -1,4 +1,3 @@
-import { BigNumberish } from 'ethers';
 import { MatcherModifier } from '../src/matchers/transaction-modifiers';
 
 export declare global {
@@ -16,44 +15,6 @@ export declare global {
              * @param message Message to be displayed in Jest output.
              */
             fail(message: string): R;
-
-            // BigNumber matchers
-
-            /**
-             * Checks if initial number is greater than the provided one.
-             *
-             * @param r Number to be checked against.
-             * @param additionalInfo Optional message to be included if test fails.
-             */
-            bnToBeGt(r: BigNumberish, additionalInfo?: string): R;
-            /**
-             * Checks if initial number is greater than or equal to the provided one.
-             *
-             * @param r Number to be checked against.
-             * @param additionalInfo Optional message to be included if test fails.
-             */
-            bnToBeGte(r: BigNumberish, additionalInfo?: string): R;
-            /**
-             * Checks if initial number is equals the provided one.
-             *
-             * @param r Number to be checked against.
-             * @param additionalInfo Optional message to be included if test fails.
-             */
-            bnToBeEq(r: BigNumberish, additionalInfo?: string): R;
-            /**
-             * Checks if initial number is less than the provided one.
-             *
-             * @param r Number to be checked against.
-             * @param additionalInfo Optional message to be included if test fails.
-             */
-            bnToBeLt(r: BigNumberish, additionalInfo?: string): R;
-            /**
-             * Checks if initial number is less than or equal to the provided one.
-             *
-             * @param r Number to be checked against.
-             * @param additionalInfo Optional message to be included if test fails.
-             */
-            bnToBeLte(r: BigNumberish, additionalInfo?: string): R;
 
             // Ethereum primitives matchers
 

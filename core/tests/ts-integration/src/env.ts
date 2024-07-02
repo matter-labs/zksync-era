@@ -47,7 +47,7 @@ function getMainWalletPk(pathToHome: string, network: string): string {
     if (network.toLowerCase() == 'localhost') {
         const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-        return ethers.Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/0").privateKey;
+        return ethers.Wallet.fromPhrase(ethTestConfig.test_mnemonic).privateKey;
     } else {
         return ensureVariable(process.env.MASTER_WALLET_PK, 'Main wallet private key');
     }
@@ -121,13 +121,13 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     ).l2TokenAddress(weth.address);
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
-    const l2ChainId = parseInt(genesisConfig.l2_chain_id);
+    const l2ChainId = BigInt(genesisConfig.l2_chain_id);
     const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
-    let minimalL2GasPrice = generalConfig.state_keeper.minimal_l2_gas_price;
+    const minimalL2GasPrice = BigInt(generalConfig.state_keeper.minimal_l2_gas_price);
 
     const validationComputationalGasLimit = parseInt(generalConfig.state_keeper.validation_computational_gas_limit);
     // TODO set it properly
-    const priorityTxMaxGasLimit = 72000000;
+    const priorityTxMaxGasLimit = 72000000n;
     const maxLogsLimit = parseInt(generalConfig.api.web3_json_rpc.req_entities_limit);
 
     return {
@@ -232,16 +232,16 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     ).l2TokenAddress(weth.address);
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
-    const l2ChainId = parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
+    const l2ChainId = BigInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
     // If the `CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE` is not set, the default value is `Rollup`.
     const l1BatchCommitDataGeneratorMode = (process.env.CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE ||
         process.env.EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE ||
         'Rollup') as DataAvailabityMode;
     let minimalL2GasPrice;
     if (process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE !== undefined) {
-        minimalL2GasPrice = ethers.BigNumber.from(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);
+        minimalL2GasPrice = BigInt(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);
     } else {
-        minimalL2GasPrice = ethers.BigNumber.from(0);
+        minimalL2GasPrice = 0n;
     }
     let nodeMode;
     if (process.env.EN_MAIN_NODE_URL !== undefined) {
@@ -253,7 +253,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const validationComputationalGasLimit = parseInt(
         process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT!
     );
-    const priorityTxMaxGasLimit = parseInt(process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!);
+    const priorityTxMaxGasLimit = BigInt(process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!);
     const maxLogsLimit = parseInt(
         process.env.EN_REQ_ENTITIES_LIMIT ?? process.env.API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT!
     );
@@ -318,7 +318,7 @@ type Tokens = {
 type L1Token = {
     name: string;
     symbol: string;
-    decimals: number;
+    decimals: bigint;
     address: string;
 };
 
@@ -327,11 +327,13 @@ function getTokens(pathToHome: string, network: string): L1Token[] {
     if (!fs.existsSync(configPath)) {
         return [];
     }
-    return JSON.parse(
+    const parsed = JSON.parse(
         fs.readFileSync(configPath, {
             encoding: 'utf-8'
-        })
+        }),
+        (key, value) => (key === 'decimals' ? BigInt(value) : value)
     );
+    return parsed;
 }
 
 function getTokensNew(pathToHome: string): Tokens {
@@ -340,7 +342,7 @@ function getTokensNew(pathToHome: string): Tokens {
         throw Error('Tokens config not found');
     }
 
-    return yaml.parse(
+    const parsedObject = yaml.parse(
         fs.readFileSync(configPath, {
             encoding: 'utf-8'
         }),
@@ -348,6 +350,11 @@ function getTokensNew(pathToHome: string): Tokens {
             customTags
         }
     );
+
+    for (const key in parsedObject.tokens) {
+        parsedObject.tokens[key].decimals = BigInt(parsedObject.tokens[key].decimals);
+    }
+    return parsedObject;
 }
 
 function customTags(tags: yaml.Tags): yaml.Tags {

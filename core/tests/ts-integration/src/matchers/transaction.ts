@@ -219,7 +219,8 @@ function checkReceiptFields(request: zksync.types.TransactionResponse, receipt: 
     if (receipt.status !== 0 && receipt.status !== 1) {
         return failWith(`Status field in the receipt has an unexpected value (expected 0 or 1): ${receipt.status}`);
     }
-    if (!receipt.effectiveGasPrice) {
+    const effectiveGasPrice = receipt.gasUsed * receipt.gasPrice;
+    if (effectiveGasPrice <= 0n) {
         return failWith(`Effective gas price expected to be greater than 0`);
     }
     if (!receipt.gasUsed) {

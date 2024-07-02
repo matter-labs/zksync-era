@@ -7,7 +7,7 @@ import fetch, { FetchError } from 'node-fetch';
 import { promisify } from 'node:util';
 import { ChildProcess, exec, spawn } from 'node:child_process';
 import * as zksync from 'zksync-ethers';
-import { ethers } from 'ethers';
+import * as ethers from 'ethers';
 import path from 'node:path';
 import { expect } from 'chai';
 
@@ -200,11 +200,13 @@ async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean
  * Funded wallet wrapper that can be used to generate L1 batches.
  */
 export class FundedWallet {
-    static async create(mainNode: zksync.Provider, eth: ethers.providers.Provider): Promise<FundedWallet> {
+    static async create(mainNode: zksync.Provider, eth: ethers.Provider): Promise<FundedWallet> {
         const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
         const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
-        const mnemonic = ethTestConfig.test_mnemonic as string;
-        const wallet = zksync.Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0").connect(mainNode).connectToL1(eth);
+        const mnemonic = ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic);
+        const walletHD = ethers.HDNodeWallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0");
+        const wallet = new zksync.Wallet(walletHD.privateKey, mainNode, eth);
+
         return new FundedWallet(wallet);
     }
 
@@ -213,14 +215,14 @@ export class FundedWallet {
     /** Ensure that this wallet is funded on L2, depositing funds from L1 if necessary. */
     async ensureIsFunded() {
         const balance = await this.wallet.getBalance();
-        const minExpectedBalance = ethers.utils.parseEther('0.001');
-        if (balance.gte(minExpectedBalance)) {
+        const minExpectedBalance = ethers.parseEther('0.001');
+        if (balance >= minExpectedBalance) {
             console.log('Wallet has acceptable balance on L2', balance);
             return;
         }
 
         const l1Balance = await this.wallet.getBalanceL1();
-        expect(l1Balance.gte(minExpectedBalance), 'L1 balance of funded wallet is too small').to.be.true;
+        expect(l1Balance >= minExpectedBalance, 'L1 balance of funded wallet is too small').to.be.true;
 
         const baseTokenAddress = await this.wallet.getBaseToken();
         const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;

@@ -7,7 +7,7 @@ import * as ethers from 'ethers';
 import { TestMessage } from '../matchers/matcher-helpers';
 import { MatcherModifier, MatcherMessage } from '.';
 import { Fee } from '../types';
-import { Ierc20Factory as IERC20Factory } from 'zksync-ethers/build/typechain/Ierc20Factory';
+import { IERC20__factory as IERC20Factory } from 'zksync-ethers/build/typechain';
 
 /**
  * Modifier that ensures that fee was taken from the wallet for a transaction.
@@ -19,7 +19,7 @@ import { Ierc20Factory as IERC20Factory } from 'zksync-ethers/build/typechain/Ie
  * @returns Matcher object
  */
 export async function shouldOnlyTakeFee(wallet: zksync.Wallet, isL1ToL2?: boolean): Promise<ShouldChangeBalance> {
-    return await ShouldChangeBalance.create(zksync.utils.ETH_ADDRESS, [{ wallet, change: 0 }], { l1ToL2: isL1ToL2 });
+    return await ShouldChangeBalance.create(zksync.utils.ETH_ADDRESS, [{ wallet, change: 0n }], { l1ToL2: isL1ToL2 });
 }
 
 /**
@@ -69,7 +69,7 @@ export async function shouldChangeTokenBalances(
  */
 export interface BalanceChange {
     wallet: zksync.Wallet;
-    change: ethers.BigNumberish;
+    change: bigint;
     addressToCheck?: string;
 }
 
@@ -87,7 +87,7 @@ export interface Params {
  * *before* the transaction was sent.
  */
 interface PopulatedBalanceChange extends BalanceChange {
-    initialBalance: ethers.BigNumber;
+    initialBalance: bigint;
 }
 
 /**
@@ -156,20 +156,19 @@ class ShouldChangeBalance extends MatcherModifier {
                 // To "ignore" subtracted fee, we just add it back to the account balance.
                 // For L1->L2 transactions the sender might be different from the refund recipient
                 if (this.l1ToL2) {
-                    newBalance = newBalance.sub(extractRefundForL1ToL2(receipt, address));
+                    newBalance = newBalance - extractRefundForL1ToL2(receipt, address);
                 } else if (address == receipt.from) {
-                    newBalance = newBalance.add(extractFee(receipt).feeAfterRefund);
+                    newBalance = newBalance + extractFee(receipt).feeAfterRefund;
                 }
             }
 
-            const diff = newBalance.sub(prevBalance);
-            const change = ethers.BigNumber.from(balanceChange.change);
-            if (!diff.eq(change)) {
+            const diff = newBalance - prevBalance;
+            if (diff != balanceChange.change) {
                 const message = new TestMessage()
                     .matcherHint(`ShouldChangeBalance modifier`)
                     .line(`Incorrect balance change for wallet ${balanceChange.wallet.address} (index ${id} in array)`)
                     .line(`Expected balance change to be:`)
-                    .expected(change)
+                    .expected(balanceChange.change)
                     .line(`But actual change is:`)
                     .received(diff)
                     .line(`Balance before: ${prevBalance}, balance after: ${newBalance}`)
@@ -201,7 +200,7 @@ export function extractFee(receipt: zksync.types.TransactionReceipt, from?: stri
 
     const systemAccountAddress = '0x0000000000000000000000000000000000000000000000000000000000008001';
     // We need to pad address to represent 256-bit value.
-    const fromAccountAddress = ethers.utils.hexZeroPad(ethers.utils.arrayify(from), 32);
+    const fromAccountAddress = ethers.zeroPadValue(ethers.getBytes(from), 32);
     // Fee log is one that sends money to the system contract account.
     const feeLog = receipt.logs.find((log) => {
         return log.topics.length == 3 && log.topics[1] == fromAccountAddress && log.topics[2] == systemAccountAddress;
@@ -213,7 +212,7 @@ export function extractFee(receipt: zksync.types.TransactionReceipt, from?: stri
         };
     }
 
-    const feeAmount = ethers.BigNumber.from(feeLog.data);
+    const feeAmount = BigInt(feeLog.data);
 
     // There may be more than one refund log for the user
     const feeRefund = receipt.logs
@@ -222,14 +221,14 @@ export function extractFee(receipt: zksync.types.TransactionReceipt, from?: stri
                 log.topics.length == 3 && log.topics[1] == systemAccountAddress && log.topics[2] == fromAccountAddress
             );
         })
-        .map((log) => ethers.BigNumber.from(log.data))
+        .map((log) => BigInt(log.data))
         .reduce((prev, cur) => {
-            return prev.add(cur);
-        }, ethers.BigNumber.from(0));
+            return prev + cur;
+        }, 0n);
 
     return {
         feeBeforeRefund: feeAmount,
-        feeAfterRefund: feeAmount.sub(feeRefund),
+        feeAfterRefund: feeAmount - feeRefund,
         refund: feeRefund
     };
 }
@@ -241,10 +240,10 @@ export function extractFee(receipt: zksync.types.TransactionReceipt, from?: stri
  * @param from Optional substitute to `receipt.from`.
  * @returns Extracted fee
  */
-function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refundRecipient?: string): ethers.BigNumber {
+function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refundRecipient?: string): bigint {
     refundRecipient = refundRecipient ?? receipt.from;
 
-    const mintTopic = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('Mint(address,uint256)'));
+    const mintTopic = ethers.keccak256(ethers.toUtf8Bytes('Mint(address,uint256)'));
 
     const refundLogs = receipt.logs.filter((log) => {
         return log.topics.length == 2 && log.topics[0] == mintTopic;
@@ -262,7 +261,7 @@ function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refund
     // final refund.
     const refundLog = refundLogs[refundLogs.length - 1];
 
-    const formattedRefundRecipient = ethers.utils.hexlify(ethers.utils.zeroPad(refundRecipient, 32));
+    const formattedRefundRecipient = ethers.hexlify(ethers.zeroPadValue(refundRecipient, 32));
 
     if (refundLog.topics[1].toLowerCase() !== formattedRefundRecipient.toLowerCase()) {
         throw {
@@ -271,7 +270,7 @@ function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refund
         };
     }
 
-    return ethers.BigNumber.from(refundLog.data);
+    return BigInt(refundLog.data);
 }
 
 /**
@@ -283,12 +282,7 @@ function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refund
  * @param token Address of the token
  * @returns Token balance
  */
-async function getBalance(
-    l1: boolean,
-    wallet: zksync.Wallet,
-    address: string,
-    token: string
-): Promise<ethers.BigNumber> {
+async function getBalance(l1: boolean, wallet: zksync.Wallet, address: string, token: string): Promise<bigint> {
     const provider = l1 ? wallet.providerL1! : wallet.provider;
     if (zksync.utils.isETH(token)) {
         return await provider.getBalance(address);

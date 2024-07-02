@@ -2,7 +2,7 @@
  * This suite contains tests checking the mempool behavior: how transactions are inserted,
  * scheduled, processed and/or postponed.
  */
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 
 describe('Tests for the mempool behavior', () => {
@@ -17,7 +17,7 @@ describe('Tests for the mempool behavior', () => {
     test('Should allow a nonce gap', async () => {
         // Here we check a basic case: first we send a transaction with nonce +1, then with valid nonce.
         // Both transactions should be processed.
-        const startNonce = await alice.getTransactionCount();
+        const startNonce = await alice.getNonce();
 
         const tx2 = await sendTxWithNonce(alice, startNonce + 1);
         const tx1 = await sendTxWithNonce(alice, startNonce);
@@ -29,7 +29,7 @@ describe('Tests for the mempool behavior', () => {
 
     test('Should process shuffled nonces', async () => {
         // More complex nonce mixup: we send 5 txs completely out of order.
-        const startNonce = await alice.getTransactionCount();
+        const startNonce = await alice.getNonce();
 
         const nonceOffsets = [4, 0, 3, 1, 2];
         const txs = nonceOffsets.map((offset) => sendTxWithNonce(alice, startNonce + offset).then((tx) => tx.wait()));
@@ -41,23 +41,23 @@ describe('Tests for the mempool behavior', () => {
     }, 600000);
 
     test('Should discard too low nonce', async () => {
-        const startNonce = await alice.getTransactionCount();
+        const startNonce = await alice.getNonce();
         await expect(sendTxWithNonce(alice, startNonce - 1)).toBeRejected('nonce too low.');
     });
 
     test('Should discard too big nonce', async () => {
         const maxNonceAhead = 450; // Matches the server config.
-        const startNonce = await alice.getTransactionCount();
+        const startNonce = await alice.getNonce();
         await expect(sendTxWithNonce(alice, startNonce + maxNonceAhead + 1)).toBeRejected('nonce too high.');
     });
 
     test('Should correctly show pending nonce', async () => {
-        const startNonce = await alice.getTransactionCount();
+        const startNonce = await alice.getNonce();
         // Send tx with nonce + 1
         const tx2 = await sendTxWithNonce(alice, startNonce + 1);
 
         // Nonce from API should not change (e.g. not become "nonce + 2").
-        const nonce = await alice.getTransactionCount();
+        const nonce = await alice.getNonce();
         expect(nonce).toEqual(startNonce);
 
         // Finish both transactions to not ruin the flow for other tests.
@@ -66,7 +66,7 @@ describe('Tests for the mempool behavior', () => {
     });
 
     test('Should replace the transaction', async () => {
-        const startNonce = await alice.getTransactionCount();
+        const startNonce = await alice.getNonce();
         // Send tx with nonce + 1
         const tx2 = await sendTxWithNonce(alice, startNonce + 1);
         await expect(alice.provider.getTransaction(tx2.hash)).resolves.toMatchObject({
@@ -102,7 +102,7 @@ describe('Tests for the mempool behavior', () => {
 
         const gasLimit = await alice.estimateGas({ to: alice.address });
         const gasPrice = await alice.provider.getGasPrice();
-        const fund = gasLimit.mul(gasPrice).mul(13).div(10);
+        const fund = (gasLimit * gasPrice * 13n) / 10n;
         await alice.sendTransaction({ to: poorBob.address, value: fund }).then((tx) => tx.wait());
 
         // delayedTx should pass API checks (if not then error will be thrown on the next lime)
@@ -146,7 +146,7 @@ describe('Tests for the mempool behavior', () => {
  *
  * @returns Transaction request object.
  */
-function sendTxWithNonce(wallet: zksync.Wallet, nonce: number, to?: string) {
+function sendTxWithNonce(wallet: zksync.Wallet, nonce: number, to?: string): Promise<zksync.types.TransactionResponse> {
     return wallet.sendTransaction({
         to: to ?? wallet.address,
         value: 1,
