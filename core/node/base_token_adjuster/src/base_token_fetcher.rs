@@ -3,8 +3,8 @@ use std::{fmt::Debug, num::NonZeroU64, time::Duration};
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
-use zksync_types::{base_token_ratio::BaseTokenRatio, fee_model::BaseTokenConversionRatio};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_types::fee_model::BaseTokenConversionRatio;
 
 const CACHE_UPDATE_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -21,21 +21,7 @@ pub struct DBBaseTokenFetcher {
 
 impl DBBaseTokenFetcher {
     pub async fn new(pool: ConnectionPool<Core>) -> anyhow::Result<Self> {
-        let latest_ratio = match get_latest_price(pool.clone()).await {
-            Ok(Some(latest_storage_price)) => BaseTokenConversionRatio {
-                numerator: latest_storage_price.numerator,
-                denominator: latest_storage_price.denominator,
-            },
-            Ok(None) => {
-                // TODO(PE-136): Insert initial ratio from genesis.
-                // Though the DB should be populated very soon after the server starts, it is possible
-                // to have no ratios in the DB right after genesis. Having initial ratios in the DB
-                // from the genesis stage will eliminate this possibility.
-                tracing::error!("No latest price found in the database. Using default ratio.");
-                BaseTokenConversionRatio::default()
-            }
-            Err(err) => anyhow::bail!("Failed to get latest base token ratio: {:?}", err),
-        };
+        let latest_ratio = get_latest_price(pool.clone()).await?;
 
         // TODO(PE-129): Implement latest ratio usability logic.
 
@@ -55,9 +41,7 @@ impl DBBaseTokenFetcher {
                 _ = stop_receiver.changed() => break,
             }
 
-            let latest_storage_ratio = get_latest_price(self.pool.clone())
-                .await?
-                .expect("No latest base token ratio found");
+            let latest_storage_ratio = get_latest_price(self.pool.clone()).await?;
 
             // TODO(PE-129): Implement latest ratio usability logic.
             self.latest_ratio = BaseTokenConversionRatio {
@@ -71,14 +55,30 @@ impl DBBaseTokenFetcher {
     }
 }
 
-async fn get_latest_price(pool: ConnectionPool<Core>) -> anyhow::Result<Option<BaseTokenRatio>> {
-    pool.connection_tagged("db_base_token_fetcher")
+async fn get_latest_price(pool: ConnectionPool<Core>) -> anyhow::Result<BaseTokenConversionRatio> {
+    let latest_storage_ratio = pool
+        .connection_tagged("db_base_token_fetcher")
         .await
         .context("Failed to obtain connection to the database")?
         .base_token_dal()
         .get_latest_ratio()
-        .await
-        .map_err(DalError::generalize)
+        .await;
+
+    match latest_storage_ratio {
+        Ok(Some(latest_storage_price)) => Ok(BaseTokenConversionRatio {
+            numerator: latest_storage_price.numerator,
+            denominator: latest_storage_price.denominator,
+        }),
+        Ok(None) => {
+            // TODO(PE-136): Insert initial ratio from genesis.
+            // Though the DB should be populated very soon after the server starts, it is possible
+            // to have no ratios in the DB right after genesis. Having initial ratios in the DB
+            // from the genesis stage will eliminate this possibility.
+            tracing::error!("No latest price found in the database. Using default ratio.");
+            Ok(BaseTokenConversionRatio::default())
+        }
+        Err(err) => anyhow::bail!("Failed to get latest base token ratio: {:?}", err),
+    }
 }
 
 #[async_trait]
