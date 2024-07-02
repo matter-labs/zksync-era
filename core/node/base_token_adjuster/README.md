@@ -6,7 +6,7 @@ This crate contains all the logic to handle ZK Chain with custom base tokens.
 
 ### The Base Token Ratio Persister
 
-Contains the building block for the `BaseTokenRatioPersisterLayer`.
+Contains the building blockss for the `BaseTokenRatioPersisterLayer`.
 
 - Connects with external APIs to get the current price of the base token and of ETH.
 - Persists the ETH<->BaseToken ratio in the database.
@@ -14,7 +14,7 @@ Contains the building block for the `BaseTokenRatioPersisterLayer`.
 
 ### The Base Token Ratio Provider
 
-Contains the building block for the `BaseTokenRatioProviderLayer`.
+Contains the building blocks for the `BaseTokenRatioProviderLayer`.
 
 - Periodically fetches from the DB and caches the latest ETH<->BaseToken conversion ratio.
 - Exposes this ratio upon request.

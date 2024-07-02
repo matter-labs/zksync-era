@@ -1,11 +1,11 @@
 use serde::Deserialize;
 
-// By default external APIs shall be polled every 30 seconds for a new price.
+/// By default the ratio persister will run every 30 seconds.
 pub const DEFAULT_INTERVAL_MS: u64 = 30_000;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct BaseTokenAdjusterConfig {
-    /// How often to fetch external APIs for a new ETH<->Base-Token price.
+    /// How often to spark a new cycle of the ratio persister to fetch external prices and persis ratios.
     #[serde(default = "BaseTokenAdjusterConfig::default_interval")]
     pub price_polling_interval_ms: u64,
 }
