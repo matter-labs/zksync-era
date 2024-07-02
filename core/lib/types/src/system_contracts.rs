@@ -6,7 +6,7 @@ use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContr
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
     EVENT_WRITER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS,
-    L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_AGGREGATOR_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
     P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
 };
 
@@ -184,8 +184,8 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 30] = [
     ),
     (
         "../../../l1-contracts/artifacts-zk/contracts/bridgehub/",
-        "MessageRoot",
-        L2_MESSAGE_ROOT_ADDRESS,
+        "MessageRootAggregator",
+        L2_MESSAGE_ROOT_AGGREGATOR_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
