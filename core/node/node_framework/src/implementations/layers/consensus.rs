@@ -37,7 +37,7 @@ pub enum Mode {
 /// ## Adds tasks
 ///
 /// - `MainNodeConsensusTask` (if `Mode::Main`)
-/// - `ExternalNodeTask` (if `Mode::External`)
+/// - `FetcherTask` (if `Mode::External`)
 #[derive(Debug)]
 pub struct ConsensusLayer {
     pub mode: Mode,
@@ -99,7 +99,7 @@ impl WiringLayer for ConsensusLayer {
                     }
                 };
 
-                let task = ExternalNodeTask {
+                let task = FetcherTask {
                     config,
                     pool,
                     main_node_client,
@@ -128,7 +128,7 @@ impl Task for MainNodeConsensusTask {
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         // We instantiate the root context here, since the consensus task is the only user of the
-        // structured concurrency framework (`MainNodeConsensusTask` and `ExternalNodeTask` are considered mutually
+        // structured concurrency framework (`MainNodeConsensusTask` and `FetcherTask` are considered mutually
         // exclusive).
         // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
         // not the consensus task itself. There may have been any number of tasks running in the root context,
@@ -149,7 +149,7 @@ impl Task for MainNodeConsensusTask {
 }
 
 #[derive(Debug)]
-pub struct ExternalNodeTask {
+pub struct FetcherTask {
     config: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,
@@ -158,21 +158,21 @@ pub struct ExternalNodeTask {
 }
 
 #[async_trait::async_trait]
-impl Task for ExternalNodeTask {
+impl Task for FetcherTask {
     fn id(&self) -> TaskId {
         "consensus_fetcher".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         // We instantiate the root context here, since the consensus task is the only user of the
-        // structured concurrency framework (`MainNodeConsensusTask` and `ExternalNodeTask` are considered mutually
+        // structured concurrency framework (`MainNodeConsensusTask` and `FetcherTask` are considered mutually
         // exclusive).
         // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
         // not the consensus task itself. There may have been any number of tasks running in the root context,
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async {
-            s.spawn_bg(consensus::era::run_external_node(
+            s.spawn_bg(consensus::era::run_en(
                 ctx,
                 self.config,
                 self.pool,
