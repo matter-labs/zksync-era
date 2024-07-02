@@ -51,15 +51,26 @@ services:
       - PGPORT=5430
   external-node:
     image: "matterlabs/external-node:2.0-v24.6.0"
+    # here we enable consensus. To disable it, just remove the flag.
+    entrypoint: ["/usr/bin/entrypoint.sh","--enable-consensus"]
+    # node should restart whenever regenesis happens
+    restart: always
     depends_on:
       postgres:
         condition: service_healthy
     ports:
+      # Here we expose the consensus port to the internet.
+      - "0.0.0.0:3054:3054"
       - "127.0.0.1:3060:3060"
       - "127.0.0.1:3061:3061"
       - "127.0.0.1:3081:3081"
     volumes:
       - testnet-rocksdb:/db
+      # here we bind a directory with consensus configs, so that EN can read them
+      # WARNING: remember to fill in the secrets.
+      - type: bind
+        source: ./configs/testnet
+        target: /configs
     expose:
       - 3322
     environment:
@@ -82,6 +93,9 @@ services:
       EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: "zksync-era-boojnet-external-node-snapshots"
       EN_SNAPSHOTS_OBJECT_STORE_MODE: "GCSAnonymousReadOnly"
       RUST_LOG: "warn,zksync=info,zksync_core::metadata_calculator=debug,zksync_state=debug,zksync_utils=debug,zksync_web3_decl::client=error"
+
+      EN_CONSENSUS_CONFIG_PATH: "./configs/consensus_config.yaml"
+      EN_CONSENSUS_SECRETS_PATH: "./configs/consensus_secrets.yaml"
 
 volumes:
   testnet-postgres: {}
