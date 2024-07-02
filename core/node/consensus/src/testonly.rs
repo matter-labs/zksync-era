@@ -99,6 +99,12 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                     key: config::ValidatorPublicKey(key.public().encode()),
                     weight: 1,
                 }],
+                // We only have access to the main node attester key in the `cfg`, which is fine
+                // for validators because at the moment there is only one leader. It doesn't
+                // allow us to form a full attester committee. However in the current tests
+                // the `new_configs` used to produce the array of `network::Config` doesn't
+                // assign an attester key, so it doesn't matter.
+                attesters: Vec::new(),
                 leader: config::ValidatorPublicKey(key.public().encode()),
             }),
             rpc: None,
@@ -109,6 +115,10 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                 .validator_key
                 .as_ref()
                 .map(|k| config::ValidatorSecretKey(k.encode().into())),
+            attester_key: cfg
+                .attester_key
+                .as_ref()
+                .map(|k| config::AttesterSecretKey(k.encode().into())),
         },
     )
 }

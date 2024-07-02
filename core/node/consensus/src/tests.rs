@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-use storage::Store;
 use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap, scope};
@@ -13,8 +12,11 @@ use zksync_consensus_roles::{
 use zksync_consensus_storage::BlockStore;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
-use super::*;
-use crate::{mn::run_main_node, storage::ConnectionPool};
+use crate::{
+    mn::run_main_node,
+    storage::{ConnectionPool, Store},
+    testonly,
+};
 
 const VERSIONS: [ProtocolVersionId; 2] = [ProtocolVersionId::latest(), ProtocolVersionId::next()];
 const FROM_SNAPSHOT: [bool; 2] = [true, false];
@@ -71,7 +73,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
                 .await
                 .unwrap();
             let got = pool
-                .wait_for_certificates(ctx, block.number())
+                .wait_for_block_certificates(ctx, block.number())
                 .await
                 .unwrap();
             assert_eq!(want[..=i], got);
@@ -119,24 +121,24 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
                 tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
                 sk.push_random_blocks(rng, 3).await;
                 pool
-                    .wait_for_certificate(ctx, sk.last_block())
+                    .wait_for_block_certificate(ctx, sk.last_block())
                     .await
-                    .context("wait_for_certificate(<2nd phase>)")?;
+                    .context("wait_for_block_certificate(<2nd phase>)")?;
 
                 tracing::info!("Synchronously produce blocks one by one, and wait for consensus.");
                 for _ in 0..2 {
                     sk.push_random_blocks(rng, 1).await;
                     pool
-                        .wait_for_certificate(ctx, sk.last_block())
+                        .wait_for_block_certificate(ctx, sk.last_block())
                         .await
-                        .context("wait_for_certificate(<3rd phase>)")?;
+                        .context("wait_for_block_certificate(<3rd phase>)")?;
                 }
 
                 tracing::info!("Verify all certificates");
                 pool
-                    .wait_for_certificates_and_verify(ctx, sk.last_block())
+                    .wait_for_block_certificates_and_verify(ctx, sk.last_block())
                     .await
-                    .context("wait_for_certificates_and_verify()")?;
+                    .context("wait_for_block_certificates_and_verify()")?;
                 Ok(())
             })
             .await
@@ -171,7 +173,7 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
         validator.push_random_blocks(rng, 5).await;
         validator.seal_batch().await;
         validator_pool
-            .wait_for_certificate(ctx, validator.last_block())
+            .wait_for_block_certificate(ctx, validator.last_block())
             .await?;
 
         tracing::info!("take snapshot and start a node from it");
@@ -189,7 +191,7 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
         validator.push_random_blocks(rng, 5).await;
         validator.seal_batch().await;
         node_pool
-            .wait_for_certificate(ctx, validator.last_block())
+            .wait_for_block_certificate(ctx, validator.last_block())
             .await?;
 
         tracing::info!("take another snapshot and start a node from it");
@@ -206,15 +208,15 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
         tracing::info!("produce more blocks and compare storages");
         validator.push_random_blocks(rng, 5).await;
         let want = validator_pool
-            .wait_for_certificates_and_verify(ctx, validator.last_block())
+            .wait_for_block_certificates_and_verify(ctx, validator.last_block())
             .await?;
         // node stores should be suffixes for validator store.
         for got in [
             node_pool
-                .wait_for_certificates_and_verify(ctx, validator.last_block())
+                .wait_for_block_certificates_and_verify(ctx, validator.last_block())
                 .await?,
             node_pool2
-                .wait_for_certificates_and_verify(ctx, validator.last_block())
+                .wait_for_block_certificates_and_verify(ctx, validator.last_block())
                 .await?,
         ] {
             assert_eq!(want[want.len() - got.len()..], got[..]);
@@ -296,12 +298,12 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
         validator.push_random_blocks(rng, 5).await;
         let want_last = validator.last_block();
         let want = validator_pool
-            .wait_for_certificates_and_verify(ctx, want_last)
+            .wait_for_block_certificates_and_verify(ctx, want_last)
             .await?;
         for pool in &node_pools {
             assert_eq!(
                 want,
-                pool.wait_for_certificates_and_verify(ctx, want_last)
+                pool.wait_for_block_certificates_and_verify(ctx, want_last)
                     .await?
             );
         }
@@ -382,12 +384,12 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
         main_node.push_random_blocks(rng, 5).await;
         let want_last = main_node.last_block();
         let want = main_node_pool
-            .wait_for_certificates_and_verify(ctx, want_last)
+            .wait_for_block_certificates_and_verify(ctx, want_last)
             .await?;
         for pool in &ext_node_pools {
             assert_eq!(
                 want,
-                pool.wait_for_certificates_and_verify(ctx, want_last)
+                pool.wait_for_block_certificates_and_verify(ctx, want_last)
                     .await?
             );
         }
@@ -429,7 +431,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
             s.spawn_bg(node.run_consensus(ctx, client.clone(), &node_cfg));
             validator.push_random_blocks(rng, 3).await;
             node_pool
-                .wait_for_certificate(ctx, validator.last_block())
+                .wait_for_block_certificate(ctx, validator.last_block())
                 .await?;
             Ok(())
         })
@@ -457,10 +459,10 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
             s.spawn_bg(node.run_consensus(ctx, client.clone(), &node_cfg));
             validator.push_random_blocks(rng, 3).await;
             let want = validator_pool
-                .wait_for_certificates_and_verify(ctx, validator.last_block())
+                .wait_for_block_certificates_and_verify(ctx, validator.last_block())
                 .await?;
             let got = node_pool
-                .wait_for_certificates_and_verify(ctx, validator.last_block())
+                .wait_for_block_certificates_and_verify(ctx, validator.last_block())
                 .await?;
             assert_eq!(want, got);
             Ok(())
@@ -549,9 +551,9 @@ async fn test_with_pruning(version: ProtocolVersionId) {
             .context("prune_batches")?;
         validator.push_random_blocks(rng, 5).await;
         node_pool
-            .wait_for_certificates(ctx, validator.last_block())
+            .wait_for_block_certificates(ctx, validator.last_block())
             .await
-            .context("wait_for_certificates()")?;
+            .context("wait_for_block_certificates()")?;
         Ok(())
     })
     .await

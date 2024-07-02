@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MAX(l1_batch_number) AS \"number\"\n            FROM\n                l1_batches_consensus\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "849d54b4cf9212010fb4e41ce8137978579ba22eec525912c4aeeb235c3b984c"
+}
