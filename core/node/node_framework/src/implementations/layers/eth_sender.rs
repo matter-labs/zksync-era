@@ -54,16 +54,13 @@ impl WiringLayer for EthTxManagerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let master_pool = master_pool_resource.get().await.unwrap();
-        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let replica_pool = replica_pool_resource.get().await.unwrap();
 
-        let eth_client = context.get_resource::<BoundEthInterfaceResource>().await?.0;
-        let eth_client_blobs = match context
-            .get_resource::<BoundEthInterfaceForBlobsResource>()
-            .await
-        {
+        let eth_client = context.get_resource::<BoundEthInterfaceResource>()?.0;
+        let eth_client_blobs = match context.get_resource::<BoundEthInterfaceForBlobsResource>() {
             Ok(BoundEthInterfaceForBlobsResource(client)) => Some(client),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
@@ -71,7 +68,7 @@ impl WiringLayer for EthTxManagerLayer {
 
         let config = self.eth_sender_config.sender.context("sender")?;
 
-        let gas_adjuster = context.get_resource::<L1TxParamsResource>().await?.0;
+        let gas_adjuster = context.get_resource::<L1TxParamsResource>()?.0;
 
         let eth_tx_manager_actor = EthTxManager::new(
             master_pool,
@@ -81,10 +78,10 @@ impl WiringLayer for EthTxManagerLayer {
             eth_client_blobs,
         );
 
-        context.add_task(Box::new(eth_tx_manager_actor));
+        context.add_task(eth_tx_manager_actor);
 
         // Insert circuit breaker.
-        let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
+        let CircuitBreakersResource { breakers } = context.get_resource_or_default();
         breakers
             .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;
@@ -143,21 +140,18 @@ impl WiringLayer for EthTxAggregatorLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let master_pool = master_pool_resource.get().await.unwrap();
-        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let replica_pool = replica_pool_resource.get().await.unwrap();
 
-        let eth_client = context.get_resource::<BoundEthInterfaceResource>().await?.0;
-        let eth_client_blobs = match context
-            .get_resource::<BoundEthInterfaceForBlobsResource>()
-            .await
-        {
+        let eth_client = context.get_resource::<BoundEthInterfaceResource>()?.0;
+        let eth_client_blobs = match context.get_resource::<BoundEthInterfaceForBlobsResource>() {
             Ok(BoundEthInterfaceForBlobsResource(client)) => Some(client),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
-        let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
+        let object_store = context.get_resource::<ObjectStoreResource>()?.0;
 
         // Create and add tasks.
         let eth_client_blobs_addr = eth_client_blobs
@@ -185,10 +179,10 @@ impl WiringLayer for EthTxAggregatorLayer {
         )
         .await;
 
-        context.add_task(Box::new(eth_tx_aggregator_actor));
+        context.add_task(eth_tx_aggregator_actor);
 
         // Insert circuit breaker.
-        let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
+        let CircuitBreakersResource { breakers } = context.get_resource_or_default();
         breakers
             .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;

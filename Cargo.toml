@@ -50,6 +50,7 @@ members = [
     "core/lib/mempool",
     "core/lib/merkle_tree",
     "core/lib/mini_merkle_tree",
+    "core/lib/node_framework_derive",
     "core/lib/object_store",
     "core/lib/prover_interface",
     "core/lib/queued_job_processor",
@@ -172,6 +173,12 @@ tracing-opentelemetry = "0.21.0"
 url = "2"
 web3 = "0.19.0"
 
+# Proc-macro
+syn = "2.0"
+quote = "1.0"
+proc-macro2 = "1.0"
+trybuild = "1.0"
+
 # "Internal" dependencies
 circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
 circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
@@ -239,6 +246,7 @@ zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
 
 # Framework and components
 zksync_node_framework = { path = "core/node/node_framework" }
+zksync_node_framework_derive = { path = "core/lib/node_framework_derive" }
 zksync_eth_watch = { path = "core/node/eth_watch" }
 zksync_shared_metrics = { path = "core/node/shared_metrics" }
 zksync_proof_data_handler = { path = "core/node/proof_data_handler" }

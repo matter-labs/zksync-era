@@ -35,6 +35,7 @@ jobs:
         run: |
           ci_run zk fmt --check
           ci_run zk lint rust --check
+          ci_run zk lint toolbox --check
           ci_run zk lint js --check
           ci_run zk lint ts --check
           ci_run zk lint md --check

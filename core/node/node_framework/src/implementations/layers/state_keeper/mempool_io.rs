@@ -27,8 +27,6 @@ use crate::{
 /// - `FeeInputResource`
 /// - `PoolResource<MasterPool>`
 ///
-/// - `AppHealthCheckResource` (adds a health check)
-///
 /// ## Adds resources
 ///
 /// - `StateKeeperIOResource`
@@ -37,7 +35,6 @@ use crate::{
 /// ## Adds tasks
 ///
 /// - `MempoolFetcherTask`
-/// - `TaskTypeName2`
 #[derive(Debug)]
 pub struct MempoolIOLayer {
     zksync_network_id: L2ChainId,
@@ -87,8 +84,8 @@ impl WiringLayer for MempoolIOLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Fetch required resources.
-        let batch_fee_input_provider = context.get_resource::<FeeInputResource>().await?.0;
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let batch_fee_input_provider = context.get_resource::<FeeInputResource>()?.0;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>()?;
 
         // Create mempool fetcher task.
         let mempool_guard = self.build_mempool_guard(&master_pool).await?;
@@ -102,7 +99,7 @@ impl WiringLayer for MempoolIOLayer {
             &self.mempool_config,
             mempool_fetcher_pool,
         );
-        context.add_task(Box::new(MempoolFetcherTask(mempool_fetcher)));
+        context.add_task(MempoolFetcherTask(mempool_fetcher));
 
         // Create mempool IO resource.
         let mempool_db_pool = master_pool
