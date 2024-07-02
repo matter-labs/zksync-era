@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
@@ -58,7 +58,7 @@ use crate::{
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
-pub struct Vm<S: ReadStorage> {
+pub struct Vm<S> {
     pub(crate) world: World<S>,
     pub(crate) inner: VirtualMachine,
     suspended_at: u16,
@@ -717,8 +717,8 @@ impl<S: ReadStorage> Vm<S> {
     }
 }
 
-impl<S: ReadStorage> std::fmt::Debug for Vm<S> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<S: fmt::Debug> fmt::Debug for Vm<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
             .field("suspended_at", &self.suspended_at)
             .field(
@@ -735,7 +735,7 @@ impl<S: ReadStorage> std::fmt::Debug for Vm<S> {
     }
 }
 
-pub(crate) struct World<S: ReadStorage> {
+pub(crate) struct World<S> {
     pub(crate) storage: StoragePtr<S>,
 
     // TODO: It would be nice to store an LRU cache elsewhere.

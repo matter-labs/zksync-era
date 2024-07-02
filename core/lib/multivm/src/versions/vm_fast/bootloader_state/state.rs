@@ -41,7 +41,7 @@ pub struct BootloaderState {
     execution_mode: TxExecutionMode,
     /// Current offset of the free space in the bootloader memory.
     free_tx_offset: usize,
-    /// Information about the the pubdata that will be needed to supply to the L1Messenger
+    /// Information about the pubdata that will be needed to supply to the L1Messenger
     pubdata_information: OnceCell<PubdataInput>,
 }
 
@@ -133,6 +133,7 @@ impl BootloaderState {
     pub(crate) fn last_l2_block(&self) -> &BootloaderL2Block {
         self.l2_blocks.last().unwrap()
     }
+
     pub(crate) fn get_pubdata_information(&self) -> &PubdataInput {
         self.pubdata_information
             .get()

@@ -13,7 +13,7 @@ use crate::{
     versions::shadow::ShadowVm,
 };
 
-pub type FastVm<S, H> = ShadowVm<crate::vm_latest::Vm<S, H>, crate::vm_fast::Vm<S>>;
+pub type FastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<S, H>>;
 
 #[derive(Debug)]
 pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
