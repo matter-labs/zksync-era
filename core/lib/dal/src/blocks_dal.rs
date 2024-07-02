@@ -1578,12 +1578,16 @@ impl BlocksDal<'_, '_> {
             .context("map_l1_batches()")
     }
 
+    /// When `with_da_inclusion_info` is true, only batches for which custom DA inclusion
+    /// information has already been provided will be included
     pub async fn get_ready_for_commit_l1_batches(
         &mut self,
         limit: usize,
         bootloader_hash: H256,
         default_aa_hash: H256,
         protocol_version_id: ProtocolVersionId,
+
+        with_da_inclusion_info: bool,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
@@ -1618,6 +1622,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
                 JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
             WHERE
                 eth_commit_tx_id IS NULL
@@ -1631,14 +1636,19 @@ impl BlocksDal<'_, '_> {
                 )
                 AND events_queue_commitment IS NOT NULL
                 AND bootloader_initial_content_commitment IS NOT NULL
+                AND (
+                    data_availability.inclusion_data IS NOT NULL
+                    OR $4 IS FALSE
+                )
             ORDER BY
                 number
             LIMIT
-                $4
+                $5
             "#,
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
             protocol_version_id as i32,
+            with_da_inclusion_info,
             limit as i64,
         )
         .instrument("get_ready_for_commit_l1_batches")
@@ -1646,6 +1656,7 @@ impl BlocksDal<'_, '_> {
         .with_arg("bootloader_hash", &bootloader_hash)
         .with_arg("default_aa_hash", &default_aa_hash)
         .with_arg("protocol_version_id", &protocol_version_id)
+        .with_arg("with_da_inclusion_info", &with_da_inclusion_info)
         .fetch_all(self.storage)
         .await?;
 
