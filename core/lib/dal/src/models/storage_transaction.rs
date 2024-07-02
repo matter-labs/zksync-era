@@ -337,6 +337,7 @@ pub(crate) struct StorageTransactionReceipt {
     pub effective_gas_price: Option<BigDecimal>,
     pub contract_address: Option<Vec<u8>>,
     pub initiator_address: Vec<u8>,
+    pub block_timestamp: Option<i64>,
 }
 
 impl From<StorageTransactionReceipt> for TransactionReceipt {
@@ -393,6 +394,7 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             // Even though the Rust SDK recommends us to supply "None" for legacy transactions
             // we always supply some number anyway to have the same behavior as most popular RPCs
             transaction_type: Some(tx_type),
+            block_timestamp: storage_receipt.block_timestamp,
         }
     }
 }

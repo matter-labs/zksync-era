@@ -382,6 +382,7 @@ fn l1_batch_commit_log(l1_batch: &L1BatchWithMetadata) -> Log {
         transaction_log_index: None,
         log_type: Some("mined".into()),
         removed: None,
+        block_timestamp: None,
     }
 }
 
