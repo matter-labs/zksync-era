@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                address,\n                topic1,\n                topic2,\n                topic3,\n                topic4,\n                value,\n                NULL::bytea AS \"block_hash\",\n                NULL::BIGINT AS \"l1_batch_number?\",\n                miniblock_number,\n                tx_hash,\n                tx_index_in_block,\n                event_index_in_block,\n                event_index_in_tx,\n                NULL::BIGINT as \"block_timestamp?\"\n            FROM\n                events\n            WHERE\n                tx_hash = ANY ($1)\n            ORDER BY\n                miniblock_number ASC,\n                event_index_in_block ASC\n            ",
+  "query": "\n            SELECT\n                address,\n                topic1,\n                topic2,\n                topic3,\n                topic4,\n                value,\n                NULL::bytea AS \"block_hash\",\n                NULL::BIGINT AS \"l1_batch_number?\",\n                miniblock_number,\n                tx_hash,\n                tx_index_in_block,\n                event_index_in_block,\n                event_index_in_tx,\n                NULL::BIGINT AS \"block_timestamp?\"\n            FROM\n                events\n            WHERE\n                tx_hash = ANY ($1)\n            ORDER BY\n                miniblock_number ASC,\n                event_index_in_block ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -96,5 +96,5 @@
       null
     ]
   },
-  "hash": "6d4af282db49df560339336a2d3697802ed50bcfd1353cb48855aa114facb57c"
+  "hash": "526a8e1c231e99faadd5dbbe9c49ed811faffcc108d04b59fdec5a0ab9d13fa3"
 }
