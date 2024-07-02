@@ -4,13 +4,12 @@ use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
 use zksync_prover_interface::{
     api::{
         ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
         SubmitProofRequest, SubmitProofResponse,
     },
-    inputs::WitnessInputData,
+    inputs::{VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths},
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
