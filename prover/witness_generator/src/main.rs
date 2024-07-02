@@ -65,6 +65,9 @@ struct Opt {
     /// Path to the secrets file.
     #[structopt(long)]
     secrets_path: Option<std::path::PathBuf>,
+    /// Prometheus listener port.
+    #[structopt(long)]
+    prometheus_port: Option<u16>,
 }
 
 #[tokio::main]
@@ -122,9 +125,13 @@ async fn main() -> anyhow::Result<()> {
     let config = general_config
         .witness_generator
         .context("witness generator config")?;
-    let prometheus_config = general_config
+    let mut prometheus_config = general_config
         .prometheus_config
         .context("prometheus config")?;
+    if let Some(prometheus_port) = opt.prometheus_port {
+        prometheus_config.listener_port = prometheus_port;
+    }
+
     let postgres_config = general_config.postgres_config.context("postgres config")?;
     let connection_pool = ConnectionPool::<Core>::builder(
         database_secrets.master_url()?,

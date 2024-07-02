@@ -33,6 +33,8 @@ struct Cli {
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
     pub(crate) secrets_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    pub(crate) prometheus_port: Option<u16>,
 }
 
 #[tokio::main]
@@ -69,9 +71,12 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let config = general_config
+    let mut config = general_config
         .proof_compressor_config
         .context("FriProofCompressorConfig")?;
+    if let Some(prometheus_port) = opt.prometheus_port {
+        config.prometheus_listener_port = prometheus_port;
+    }
     let pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
         .await
