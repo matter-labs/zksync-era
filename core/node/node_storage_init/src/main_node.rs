@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-
 use tokio::sync::watch;
 use zksync_block_reverter::BlockReverter;
 use zksync_config::{ContractsConfig, GenesisConfig};

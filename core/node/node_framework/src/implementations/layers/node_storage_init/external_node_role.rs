@@ -3,13 +3,12 @@ use std::sync::Arc;
 use zksync_node_storage_init::ExternalNodeRole;
 use zksync_types::L2ChainId;
 
+use super::NodeRoleResource;
 use crate::{
     implementations::resources::main_node_client::MainNodeClientResource,
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
-
-use super::NodeRoleResource;
 
 /// Wiring layer for `MainNodeRole`.
 ///

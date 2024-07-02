@@ -3,13 +3,12 @@ use std::sync::Arc;
 use zksync_config::{ContractsConfig, GenesisConfig};
 use zksync_node_storage_init::MainNodeRole;
 
+use super::NodeRoleResource;
 use crate::{
     implementations::resources::eth_interface::EthInterfaceResource,
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
-
-use super::NodeRoleResource;
 
 /// Wiring layer for `MainNodeRole`.
 ///
