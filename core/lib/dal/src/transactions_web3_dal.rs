@@ -75,7 +75,8 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.gas_limit AS gas_limit,
                 miniblocks.hash AS "block_hash",
                 miniblocks.l1_batch_number AS "l1_batch_number?",
-                events.topic4 AS "contract_address?"
+                events.topic4 AS "contract_address?",
+                miniblocks.timestamp AS "block_timestamp?"
             FROM
                 transactions
                 JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
@@ -119,6 +120,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     .map(|mut log| {
                         log.block_hash = Some(receipt.block_hash);
                         log.l1_batch_number = receipt.l1_batch_number;
+                        log.block_timestamp = receipt.block_timestamp;
                         log
                     })
                     .collect();

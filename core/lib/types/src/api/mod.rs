@@ -264,6 +264,9 @@ pub struct TransactionReceipt {
     /// Effective gas price
     #[serde(rename = "effectiveGasPrice")]
     pub effective_gas_price: Option<U256>,
+    /// L2 block timestamp
+    #[serde(rename = "blockTimestamp")]
+    pub block_timestamp: Option<i64>,
 }
 
 /// The block type returned from RPC calls.
