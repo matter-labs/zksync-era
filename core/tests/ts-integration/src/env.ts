@@ -342,14 +342,21 @@ function getTokensNew(pathToHome: string): Tokens {
         throw Error('Tokens config not found');
     }
 
-    return yaml.parse(
-        fs.readFileSync(configPath, {
-            encoding: 'utf-8'
-        }),
-        {
-            customTags
-        }
-    );
+    return yaml
+        .parse(
+            fs.readFileSync(configPath, {
+                encoding: 'utf-8'
+            }),
+            {
+                customTags
+            }
+        )
+        .map((token: any) => {
+            return {
+                ...token,
+                decimals: BigInt(token.decimals)
+            };
+        });
 }
 
 function customTags(tags: yaml.Tags): yaml.Tags {
