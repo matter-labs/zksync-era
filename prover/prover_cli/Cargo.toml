@@ -36,6 +36,7 @@ sqlx.workspace = true
 circuit_definitions.workspace = true
 serde_json.workspace = true
 zkevm_test_harness = { workspace = true, optional = true, features = ["verbose_circuits"] }
+chrono.workspace = true
 
 [features]
 # enable verbose circuits, if you want to use debug_circuit command (as it is quite heavy dependency).

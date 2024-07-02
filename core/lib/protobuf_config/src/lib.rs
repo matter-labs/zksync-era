@@ -11,6 +11,7 @@ mod commitment_generator;
 mod consensus;
 mod contract_verifier;
 mod contracts;
+mod da_dispatcher;
 mod database;
 mod en;
 mod eth;

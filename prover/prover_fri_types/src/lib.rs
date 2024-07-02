@@ -25,8 +25,6 @@ use crate::keys::FriCircuitKey;
 pub mod keys;
 pub mod queue;
 
-pub const EIP_4844_CIRCUIT_ID: u8 = 255;
-
 // THESE VALUES SHOULD BE UPDATED ON ANY PROTOCOL UPGRADE OF PROVERS
 pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version24;
 pub const PROVER_PROTOCOL_PATCH: VersionPatch = VersionPatch(1);

@@ -105,7 +105,12 @@ pub struct StateKeeperConfig {
     pub batch_overhead_l1_gas: u64,
     /// The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.
     pub max_gas_per_batch: u64,
-    /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
+    /// The maximum amount of pubdata that can be used by the batch.
+    /// This variable should not exceed:
+    /// - 128kb for calldata-based rollups
+    /// - 120kb * n, where `n` is a number of blobs for blob-based rollups
+    /// - the DA layer's blob size limit for the DA layer-based validiums
+    /// - 100 MB for the object store-based or no-da validiums
     pub max_pubdata_per_batch: u64,
 
     /// The version of the fee model to use.
