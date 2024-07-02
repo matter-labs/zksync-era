@@ -9,8 +9,8 @@ use zksync_node_sync::{
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::{DynClient, L2};
 
-use super::{config, storage::Store, ConsensusConfig, ConsensusSecrets};
-use crate::storage::{self, ConnectionPool};
+use super::{config, storage::Store, ConnectionPool, ConsensusConfig, ConsensusSecrets};
+use crate::storage;
 
 /// External node.
 pub(super) struct EN {
