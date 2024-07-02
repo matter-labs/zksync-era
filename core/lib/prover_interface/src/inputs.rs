@@ -155,9 +155,27 @@ pub struct V1TeeVerifierInput {
     pub used_contracts: Vec<(H256, Vec<u8>)>,
 }
 
+impl V1TeeVerifierInput {
+    pub fn new(
+        prepare_basic_circuits_job: PrepareBasicCircuitsJob,
+        l2_blocks_execution_data: Vec<L2BlockExecutionData>,
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        used_contracts: Vec<(H256, Vec<u8>)>,
+    ) -> Self {
+        V1TeeVerifierInput {
+            prepare_basic_circuits_job,
+            l2_blocks_execution_data,
+            l1_batch_env,
+            system_env,
+            used_contracts,
+        }
+    }
+}
+
 /// Data used as input for the TEE verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-// #[non_exhaustive]
+#[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
 pub enum TeeVerifierInput {
     /// `V0` suppresses warning about irrefutable `let...else` pattern
@@ -166,20 +184,8 @@ pub enum TeeVerifierInput {
 }
 
 impl TeeVerifierInput {
-    pub fn new(
-        prepare_basic_circuits_job: PrepareBasicCircuitsJob,
-        l2_blocks_execution_data: Vec<L2BlockExecutionData>,
-        l1_batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        used_contracts: Vec<(H256, Vec<u8>)>,
-    ) -> Self {
-        TeeVerifierInput::V1(V1TeeVerifierInput {
-            prepare_basic_circuits_job,
-            l2_blocks_execution_data,
-            l1_batch_env,
-            system_env,
-            used_contracts,
-        })
+    pub fn new(input: V1TeeVerifierInput) -> Self {
+        TeeVerifierInput::V1(input)
     }
 }
 

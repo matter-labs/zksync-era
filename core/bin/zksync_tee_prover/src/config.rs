@@ -5,21 +5,16 @@ use url::Url;
 use zksync_env_config::FromEnv;
 use zksync_types::tee_types::TeeType;
 
-/// Configuration of the TEE prover, which verifies
-/// [`zksync_prover_interface::inputs::TeeVerifierInput`]s using
-/// [`zksync_tee_verifier::Verifiable::verify()`]. It signs the correctly verified inputs with
-/// [`TeeProverConfig::signing_key`] and submits the proofs to the TEE prover API at
-/// [`TeeProverConfig::api_url`].
+/// Configuration for the TEE prover.
 #[derive(Debug)]
 pub(crate) struct TeeProverConfig {
     /// The private key used to sign the proofs.
     pub signing_key: SecretKey,
     /// The path to the file containing the TEE quote.
     pub attestation_quote_file_path: PathBuf,
-    /// The type of TEE attestation quote stored in the file specified by
-    /// [`Self::attestation_quote_file_path`].
+    /// Attestation quote file.
     pub tee_type: TeeType,
-    /// Base URL of the [`zksync_proof_data_handler`] API.
+    /// TEE proof data handler API.
     pub api_url: Url,
 }
 

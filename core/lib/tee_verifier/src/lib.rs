@@ -17,18 +17,27 @@ use zksync_multivm::{
     VmInstance,
 };
 use zksync_prover_interface::inputs::{
-    PrepareBasicCircuitsJob, StorageLogMetadata, TeeVerifierInput, V1TeeVerifierInput,
+    PrepareBasicCircuitsJob, StorageLogMetadata, V1TeeVerifierInput,
 };
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, H256};
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_utils::execute_tx;
 
-pub trait Verifiable {
-    fn verify(self) -> anyhow::Result<(ValueHash, L1BatchNumber)>;
+/// A structure to hold the result of verification.
+pub struct VerificationResult {
+    /// The root hash of the batch that was verified.
+    pub value_hash: ValueHash,
+    /// The batch number that was verified.
+    pub batch_number: L1BatchNumber,
 }
 
-impl Verifiable for TeeVerifierInput {
+/// A trait for the computations that can be verified in TEE.
+pub trait Verify {
+    fn verify(self) -> anyhow::Result<VerificationResult>;
+}
+
+impl Verify for V1TeeVerifierInput {
     /// Verify that the L1Batch produces the expected root hash
     /// by executing the VM and verifying the merkle paths of all
     /// touch storage slots.
@@ -37,22 +46,10 @@ impl Verifiable for TeeVerifierInput {
     ///
     /// Returns a verbose error of the failure, because any error is
     /// not actionable.
-    fn verify(self) -> anyhow::Result<(ValueHash, L1BatchNumber)> {
-        let TeeVerifierInput::V1(V1TeeVerifierInput {
-            prepare_basic_circuits_job,
-            l2_blocks_execution_data,
-            l1_batch_env,
-            system_env,
-            used_contracts,
-        }) = self
-        else {
-            tracing::error!("TeeVerifierInput variant not supported");
-            anyhow::bail!("TeeVerifierInput variant not supported");
-        };
-
-        let old_root_hash = l1_batch_env.previous_batch_hash.unwrap();
-        let l2_chain_id = system_env.chain_id;
-        let enumeration_index = prepare_basic_circuits_job.next_enumeration_index();
+    fn verify(self) -> anyhow::Result<VerificationResult> {
+        let old_root_hash = self.l1_batch_env.previous_batch_hash.unwrap();
+        let l2_chain_id = self.system_env.chain_id;
+        let enumeration_index = self.prepare_basic_circuits_job.next_enumeration_index();
 
         let mut raw_storage = InMemoryStorage::with_custom_system_contracts_and_chain_id(
             l2_chain_id,
@@ -60,20 +57,20 @@ impl Verifiable for TeeVerifierInput {
             Vec::with_capacity(0),
         );
 
-        for (hash, bytes) in used_contracts.into_iter() {
+        for (hash, bytes) in self.used_contracts.into_iter() {
             tracing::trace!("raw_storage.store_factory_dep({hash}, bytes)");
             raw_storage.store_factory_dep(hash, bytes)
         }
 
         let block_output_with_proofs =
-            get_bowp_and_set_initial_values(prepare_basic_circuits_job, &mut raw_storage);
+            get_bowp_and_set_initial_values(self.prepare_basic_circuits_job, &mut raw_storage);
 
         let storage_view = Rc::new(RefCell::new(StorageView::new(&raw_storage)));
 
-        let batch_number = l1_batch_env.number;
-        let vm = VmInstance::new(l1_batch_env, system_env, storage_view);
+        let batch_number = self.l1_batch_env.number;
+        let vm = VmInstance::new(self.l1_batch_env, self.system_env, storage_view);
 
-        let vm_out = execute_vm(l2_blocks_execution_data, vm)?;
+        let vm_out = execute_vm(self.l2_blocks_execution_data, vm)?;
 
         let instructions: Vec<TreeInstruction> =
             generate_tree_instructions(enumeration_index, &block_output_with_proofs, vm_out)?;
@@ -82,7 +79,10 @@ impl Verifiable for TeeVerifierInput {
             .verify_proofs(&Blake2Hasher, old_root_hash, &instructions)
             .context("Failed to verify_proofs {l1_batch_number} correctly!")?;
 
-        Ok((block_output_with_proofs.root_hash().unwrap(), batch_number))
+        Ok(VerificationResult {
+            value_hash: block_output_with_proofs.root_hash().unwrap(),
+            batch_number,
+        })
     }
 }
 

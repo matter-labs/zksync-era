@@ -14,9 +14,11 @@ use async_trait::async_trait;
 use tokio::task::JoinHandle;
 use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, TeeVerifierInput};
+use zksync_prover_interface::inputs::{
+    PrepareBasicCircuitsJob, TeeVerifierInput, V1TeeVerifierInput,
+};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_tee_verifier::Verifiable;
+use zksync_tee_verifier::Verify;
 use zksync_types::{L1BatchNumber, L2ChainId};
 use zksync_utils::u256_to_h256;
 use zksync_vm_utils::storage::L1BatchParamsProvider;
@@ -128,7 +130,7 @@ impl TeeVerifierInputProducer {
 
         tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
 
-        let tee_verifier_input = TeeVerifierInput::new(
+        let tee_verifier_input = V1TeeVerifierInput::new(
             prepare_basic_circuits_job,
             l2_blocks_execution_data,
             l1_batch_env,
@@ -149,7 +151,7 @@ impl TeeVerifierInputProducer {
             l1_batch_number.0
         );
 
-        Ok(tee_verifier_input)
+        Ok(TeeVerifierInput::new(tee_verifier_input))
     }
 }
 

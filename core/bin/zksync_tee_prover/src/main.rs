@@ -11,26 +11,16 @@ mod api_client;
 mod config;
 mod tee_prover;
 
-/// This application is a TEE verifier (a.k.a. a prover, or worker) that interacts with three
-/// endpoints of the TEE prover interface API:
-/// 1. `/tee/proof_inputs` - Fetches input data about a batch for the TEE verifier to process.
-/// 2. `/tee/submit_proofs/<l1_batch_number>` - Submits the TEE proof, which is a signature of the
-///    root hash.
-/// 3. `/tee/register_attestation` - Registers the TEE attestation that binds a key used to sign a
-///    root hash to the enclave where the signing process occurred. This effectively proves that the
-///    signature was produced in a trusted execution environment.
+/// This application serves as a TEE verifier, a.k.a. a TEE prover.
 ///
-/// Conceptually it works as follows:
-/// 1. Get the TEE_SIGNING_KEY private key from the environment variable.
-/// 2. Get the file path for the file containing the TEE quote from the TEE_QUOTE_FILE environment
-///    variable.
-/// 3. Register the attestation via the `/tee/register_attestation` endpoint.
-/// 4. Run a loop:
-///    a. Fetch the next batch data via the `/tee/proof_inputs` endpoint.
-///    b. Verify the batch data.
-///    c. If verification is successful, sign the root hash of the batch data with the private key.
-///    d. Submit the signature (a.k.a. proof) via the `/tee/submit_proofs/<l1_batch_number>`
-///       endpoint.
+/// - It's an application that retrieves data about batches executed by the sequencer and verifies
+///   them in the TEE.
+/// - It's a stateless application, e.g. it interacts with the sequencer via API and does not have
+///   any kind of persistent state.
+/// - It submits proofs for proven batches back to the sequencer.
+/// - When the application starts, it registers the attestation on the sequencer, and then runs in a
+///   loop, polling the sequencer for new jobs (batches), verifying them, and submitting generated
+///   proofs back.
 fn main() -> anyhow::Result<()> {
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;

@@ -54,7 +54,7 @@ impl TeeRequestProcessor {
             .map_err(RequestProcessorError::Dal)?;
         let l1_batch_number = match l1_batch_number_result {
             Some(number) => number,
-            None => return Ok(Json(TeeProofGenerationDataResponse::Success(None))),
+            None => return Ok(Json(TeeProofGenerationDataResponse(None))),
         };
 
         let tee_verifier_input: TeeVerifierInput = self
@@ -63,9 +63,9 @@ impl TeeRequestProcessor {
             .await
             .map_err(RequestProcessorError::ObjectStore)?;
 
-        Ok(Json(TeeProofGenerationDataResponse::Success(Some(
-            Box::new(tee_verifier_input),
-        ))))
+        Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(
+            tee_verifier_input,
+        )))))
     }
 
     pub(crate) async fn submit_proof(

@@ -12,7 +12,6 @@ categories.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
-clap = { workspace = true, features = ["derive"] }
 reqwest.workspace = true
 secp256k1.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -23,7 +22,6 @@ zksync_basic_types.workspace = true
 zksync_config.workspace = true
 zksync_env_config.workspace = true
 zksync_node_framework.workspace = true
-zksync_proof_data_handler.workspace = true
 zksync_prover_interface.workspace = true
 zksync_tee_verifier.workspace = true
 zksync_types.workspace = true

@@ -1,7 +1,6 @@
 use std::time::Duration;
 
-use reqwest::Client;
-use secp256k1::{ecdsa::Signature, Message, Secp256k1, SecretKey};
+use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
 use url::Url;
 use zksync_basic_types::H256;
 use zksync_node_framework::{
@@ -10,10 +9,10 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
 };
 use zksync_prover_interface::inputs::TeeVerifierInput;
-use zksync_tee_verifier::Verifiable;
+use zksync_tee_verifier::Verify;
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
-use crate::api_client::ApiClient;
+use crate::api_client::TeeApiClient;
 
 /// Wiring layer for [`TeeProver`]
 ///
@@ -23,7 +22,7 @@ use crate::api_client::ApiClient;
 ///
 /// ## Adds tasks
 ///
-/// - [`TeeProver`]
+/// - `TeeProver`
 #[derive(Debug)]
 pub struct TeeProverLayer {
     api_url: Url,
@@ -57,9 +56,10 @@ impl WiringLayer for TeeProverLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let tee_prover_task = TeeProver {
             signing_key: self.signing_key,
+            public_key: self.signing_key.public_key(&Secp256k1::new()),
             attestation_quote_bytes: self.attestation_quote_bytes,
             tee_type: self.tee_type,
-            api_client: ApiClient::new(self.api_url, Client::new()),
+            api_client: TeeApiClient::new(self.api_url),
         };
         context.add_task(Box::new(tee_prover_task));
         Ok(())
@@ -68,26 +68,26 @@ impl WiringLayer for TeeProverLayer {
 
 struct TeeProver {
     signing_key: SecretKey,
+    public_key: PublicKey,
     attestation_quote_bytes: Vec<u8>,
     tee_type: TeeType,
-    api_client: ApiClient,
+    api_client: TeeApiClient,
 }
 
 impl TeeProver {
     fn verify(&self, tvi: TeeVerifierInput) -> anyhow::Result<(Signature, L1BatchNumber, H256)> {
-        match tvi.verify() {
-            Err(e) => {
-                let err_msg = format!("L1 batch verification failed: {e}");
-                tracing::warn!(err_msg);
-                Err(anyhow::anyhow!(err_msg))
-            }
-            Ok(verification_result) => {
-                let root_hash_bytes = verification_result.0.as_bytes();
-                let batch_number = verification_result.1;
+        match tvi {
+            TeeVerifierInput::V1(tvi) => {
+                let verification_result = tvi.verify()?;
+                let root_hash_bytes = verification_result.value_hash.as_bytes();
+                let batch_number = verification_result.batch_number;
                 let msg_to_sign = Message::from_slice(root_hash_bytes)?;
                 let signature = self.signing_key.sign_ecdsa(msg_to_sign);
-                Ok((signature, batch_number, verification_result.0))
+                Ok((signature, batch_number, verification_result.value_hash))
             }
+            _ => Err(anyhow::anyhow!(
+                "Only TeeVerifierInput::V1 verification supported."
+            )),
         }
     }
 }
@@ -102,7 +102,7 @@ impl Task for TeeProver {
         tracing::info!("Starting the task {}", self.id());
 
         self.api_client
-            .register_attestation(self.attestation_quote_bytes.clone(), &self.signing_key)
+            .register_attestation(self.attestation_quote_bytes.clone(), &self.public_key)
             .await?;
 
         const POLLING_INTERVAL_MS: u64 = 1000;
@@ -113,7 +113,7 @@ impl Task for TeeProver {
 
         loop {
             if *stop_receiver.0.borrow() {
-                tracing::warn!("Stop signal received, shutting down TEE Prover component");
+                tracing::info!("Stop signal received, shutting down TEE Prover component");
                 return Ok(());
             }
             let job = match self.api_client.get_job().await {
@@ -132,10 +132,14 @@ impl Task for TeeProver {
                 Err(e) => return Err(e),
             };
             let (signature, batch_number, root_hash) = self.verify(*job)?;
-            let secp = Secp256k1::new();
-            let pubkey = self.signing_key.public_key(&secp);
             self.api_client
-                .submit_proof(batch_number, signature, &pubkey, root_hash, self.tee_type)
+                .submit_proof(
+                    batch_number,
+                    signature,
+                    &self.public_key,
+                    root_hash,
+                    self.tee_type,
+                )
                 .await?;
         }
     }

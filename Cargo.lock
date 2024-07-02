@@ -9160,7 +9160,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 4.4.6",
  "reqwest",
  "secp256k1",
  "serde",
@@ -9171,7 +9170,6 @@ dependencies = [
  "zksync_config",
  "zksync_env_config",
  "zksync_node_framework",
- "zksync_proof_data_handler",
  "zksync_prover_interface",
  "zksync_tee_verifier",
  "zksync_types",
