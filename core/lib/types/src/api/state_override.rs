@@ -5,7 +5,7 @@ use zksync_basic_types::{web3::Bytes, H256, U256};
 
 use crate::Address;
 
-/// Collection of overridden accounts, useful for `eth_estimateGas`.
+/// Collection of overridden accounts
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateOverride(HashMap<Address, OverrideAccount>);
 
