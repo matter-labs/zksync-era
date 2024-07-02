@@ -405,7 +405,11 @@ async fn generate_witness(
 
     let mut tree = PrecalculatedMerklePathsProvider::new(
         input.merkle_paths,
-        input.vm_run_data.previous_root_hash.0,
+        input
+            .vm_run_data
+            .previous_root_hash
+            .expect("Previous root hash should exist")
+            .0,
     );
     let geometry_config = get_geometry_config();
     let mut hasher = DefaultHasher::new();
@@ -492,8 +496,16 @@ async fn generate_witness(
 
     recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
 
-    scheduler_witness.previous_block_meta_hash = input.vm_run_data.previous_meta_hash.0;
-    scheduler_witness.previous_block_aux_hash = input.vm_run_data.previous_aux_hash.0;
+    scheduler_witness.previous_block_meta_hash = input
+        .vm_run_data
+        .previous_meta_hash
+        .expect("Previous metadata hash should exist")
+        .0;
+    scheduler_witness.previous_block_aux_hash = input
+        .vm_run_data
+        .previous_aux_hash
+        .expect("Previous aux data hash should exist")
+        .0;
 
     (
         circuit_urls,
