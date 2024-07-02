@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 use xshell::{cmd, Shell};
 
+use crate::cmd::CmdError;
 use crate::{cmd::Cmd, ethereum::create_ethers_client};
 
 /// Forge is a wrapper around the forge binary.
@@ -54,8 +55,27 @@ impl ForgeScript {
     pub fn run(mut self, shell: &Shell) -> anyhow::Result<()> {
         let _dir_guard = shell.push_dir(&self.base_path);
         let script_path = self.script_path.as_os_str();
-        let args = self.args.build();
-        Ok(Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}")).run()?)
+        let args_no_resume = self.args.build();
+        if self.args.resume {
+            // Resume doesn't work if the forge script has never been started on this chain before.
+            // So we want to catch it and try again without resume arg if it's the case
+            let mut args = args_no_resume.clone();
+            args.push(ForgeScriptArg::Resume.to_string());
+            if let Err(err) =
+                Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}")).run()
+            {
+                if !check_for_resume_not_successful_because_has_not_began(&err) {
+                    return Err(err.into());
+                }
+            } else {
+                return Ok(());
+            };
+        }
+        Ok(Cmd::new(cmd!(
+            shell,
+            "forge script {script_path} --legacy {args_no_resume...}"
+        ))
+            .run()?)
     }
 
     pub fn wallet_args_passed(&self) -> bool {
@@ -208,6 +228,7 @@ pub enum ForgeScriptArg {
         url: String,
     },
     Verify,
+    Resume,
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.
@@ -229,6 +250,8 @@ pub struct ForgeScriptArgs {
     /// Verifier API key
     #[clap(long)]
     pub verifier_api_key: Option<String>,
+    #[clap(long)]
+    pub resume: bool,
     /// List of additional arguments that can be passed through the CLI.
     ///
     /// e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
@@ -347,4 +370,12 @@ pub enum ForgeVerifier {
     Sourcify,
     Blockscout,
     Oklink,
+}
+
+fn check_for_resume_not_successful_because_has_not_began(error: &CmdError) -> bool {
+    if let Some(stderr) = &error.stderr {
+        stderr.contains("Deployment not found for chain")
+    } else {
+        false
+    }
 }

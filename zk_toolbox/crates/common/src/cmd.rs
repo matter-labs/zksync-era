@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use std::{
     ffi::OsStr,
     io,
@@ -21,10 +22,19 @@ pub struct Cmd<'a> {
 }
 
 #[derive(thiserror::Error, Debug)]
-#[error("Cmd error: {source} {stderr:?}")]
 pub struct CmdError {
-    stderr: Option<String>,
-    source: anyhow::Error,
+    pub stderr: Option<String>,
+    pub source: anyhow::Error,
+}
+
+impl Display for CmdError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut data = format!("{}", &self.source);
+        if let Some(stderr) = &self.stderr {
+            data = format!("{data}\n{stderr}");
+        }
+        write!(f, "{}", data)
+    }
 }
 
 impl From<xshell::Error> for CmdError {
