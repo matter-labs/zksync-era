@@ -9375,7 +9375,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "reqwest",
+ "reqwest 0.12.5",
  "secp256k1",
  "serde",
  "tokio",

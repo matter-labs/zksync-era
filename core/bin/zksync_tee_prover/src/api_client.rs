@@ -31,13 +31,13 @@ impl TeeApiClient {
 
     async fn post<Req, Resp, S>(&self, endpoint: S, request: Req) -> Result<Resp, reqwest::Error>
     where
-        Req: Serialize,
+        Req: Serialize + std::fmt::Debug,
         Resp: DeserializeOwned,
         S: AsRef<str>,
     {
         let url = self.api_base_url.join(endpoint.as_ref()).unwrap();
 
-        tracing::info!("Sending request to {}", url);
+        tracing::trace!("Sending POST request to {}: {:?}", url, request);
 
         self.http_client
             .post(url)

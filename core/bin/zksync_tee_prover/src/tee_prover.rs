@@ -14,7 +14,7 @@ use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
 use crate::api_client::TeeApiClient;
 
-/// Wiring layer for [`TeeProver`]
+/// Wiring layer for `TeeProver`
 ///
 /// ## Requests resources
 ///
@@ -61,7 +61,7 @@ impl WiringLayer for TeeProverLayer {
             tee_type: self.tee_type,
             api_client: TeeApiClient::new(self.api_url),
         };
-        context.add_task(Box::new(tee_prover_task));
+        context.add_task(tee_prover_task);
         Ok(())
     }
 }
