@@ -3,6 +3,7 @@ use std::{
     fmt,
 };
 
+use pretty_assertions::assert_eq;
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{StorageKey, StorageLogWithPreviousValue, Transaction, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
@@ -147,17 +148,10 @@ where
             &main_batch.final_execution_state,
             &shadow_batch.final_execution_state,
         );
-
-        let mut main_bootloader_memory = main_batch.final_bootloader_memory.clone();
-        if let Some(memory) = &mut main_bootloader_memory {
-            for (slot, value) in memory {
-                if *slot == 111 {
-                    // FIXME: this particular memory slot (`OPERATOR_REFUNDS_OFFSET`) differs and is always zero for the new VM
-                    *value = U256::zero();
-                }
-            }
-        }
-        assert_eq!(main_bootloader_memory, shadow_batch.final_bootloader_memory);
+        assert_eq!(
+            main_batch.final_bootloader_memory,
+            shadow_batch.final_bootloader_memory
+        );
         assert_eq!(main_batch.pubdata_input, shadow_batch.pubdata_input);
         assert_eq!(main_batch.state_diffs, shadow_batch.state_diffs);
         main_batch
