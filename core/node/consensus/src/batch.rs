@@ -14,7 +14,7 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-use crate::ConnectionPool;
+use crate::storage::ConnectionPool;
 
 /// Commitment to the last block of a batch.
 pub(crate) struct LastBlockCommit {
