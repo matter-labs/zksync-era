@@ -57,7 +57,7 @@ impl WiringLayer for TreeApiClientLayer {
             }
 
             // Only provide the health check if necessary.
-            let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+            let AppHealthCheckResource(app_health) = context.get_resource_or_default();
             app_health
                 .insert_custom_component(client)
                 .map_err(WiringError::internal)?;

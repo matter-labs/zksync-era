@@ -111,12 +111,12 @@ async fn main() -> anyhow::Result<()> {
     let started_at = Instant::now();
     let use_push_gateway = opt.batch_size.is_some();
 
+    let prover_config = general_config.prover_config.context("prover config")?;
     let object_store_config = ProverObjectStoreConfig(
-        general_config
-            .prover_config
-            .context("prover config")?
+        prover_config
             .prover_object_store
-            .context("object store")?,
+            .context("object store")?
+            .clone(),
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
     let config = general_config
@@ -202,7 +202,8 @@ async fn main() -> anyhow::Result<()> {
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
-                let vk_commitments = get_cached_commitments();
+                let setup_data_path = prover_config.setup_data_path.clone();
+                let vk_commitments = get_cached_commitments(Some(setup_data_path));
                 assert_eq!(
                     vk_commitments,
                     vk_commitments_in_db,

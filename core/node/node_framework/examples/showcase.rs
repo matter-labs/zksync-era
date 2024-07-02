@@ -192,12 +192,12 @@ impl WiringLayer for TasksLayer {
         // We fetch the database resource from the context.
         // Note that we don't really care where it comes from or what's the actual implementation is.
         // We only care whether it's available and bail out if not.
-        let db = context.get_resource::<DatabaseResource>().await?.0;
+        let db = context.get_resource::<DatabaseResource>()?.0;
         let put_task = PutTask { db: db.clone() };
         let check_task = CheckTask { db };
         // These tasks will be launched by the service once the wiring process is complete.
-        context.add_task(Box::new(put_task));
-        context.add_task(Box::new(check_task));
+        context.add_task(put_task);
+        context.add_task(check_task);
         Ok(())
     }
 }

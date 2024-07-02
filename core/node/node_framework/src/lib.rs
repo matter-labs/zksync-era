@@ -15,3 +15,15 @@ pub mod resource;
 pub mod service;
 pub mod task;
 pub mod wiring_layer;
+
+/// Derive macro for the `FromContext` trait.
+pub use zksync_node_framework_derive::FromContext;
+/// Derive macro for the `IntoContext` trait.
+pub use zksync_node_framework_derive::IntoContext;
+
+pub use self::{
+    resource::Resource,
+    service::{FromContext, IntoContext, StopReceiver},
+    task::{Task, TaskId},
+    wiring_layer::{WiringError, WiringLayer},
+};

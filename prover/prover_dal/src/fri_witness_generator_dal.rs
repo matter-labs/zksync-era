@@ -1,19 +1,22 @@
 #![doc = include_str!("../doc/FriWitnessGeneratorDal.md")]
+
 use std::{collections::HashMap, str::FromStr, time::Duration};
 
-use sqlx::Row;
+use sqlx::{types::chrono::NaiveDateTime, Row};
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
         BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafAggregationJobMetadata,
         LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo,
-        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, StuckJobs,
-        WitnessJobStatus,
+        ProofGenerationTime, RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo,
+        StuckJobs, WitnessJobStatus,
     },
     L1BatchNumber,
 };
-use zksync_db_connection::{connection::Connection, metrics::MethodLatency};
+use zksync_db_connection::{
+    connection::Connection, metrics::MethodLatency, utils::naive_time_from_pg_interval,
+};
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
@@ -556,34 +559,34 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn move_leaf_aggregation_jobs_from_waiting_to_queued(&mut self) -> Vec<(i64, u8)> {
         sqlx::query!(
-                r#"
-                UPDATE leaf_aggregation_witness_jobs_fri
-                SET
-                    status = 'queued'
-                WHERE
-                    (l1_batch_number, circuit_id) IN (
-                        SELECT
-                            prover_jobs_fri.l1_batch_number,
-                            prover_jobs_fri.circuit_id
-                        FROM
-                            prover_jobs_fri
-                            JOIN leaf_aggregation_witness_jobs_fri lawj ON prover_jobs_fri.l1_batch_number = lawj.l1_batch_number
-                            AND prover_jobs_fri.circuit_id = lawj.circuit_id
-                        WHERE
-                            lawj.status = 'waiting_for_proofs'
-                            AND prover_jobs_fri.status = 'successful'
-                            AND prover_jobs_fri.aggregation_round = 0
-                        GROUP BY
-                            prover_jobs_fri.l1_batch_number,
-                            prover_jobs_fri.circuit_id,
-                            lawj.number_of_basic_circuits
-                        HAVING
-                            COUNT(*) = lawj.number_of_basic_circuits
-                    )
-                RETURNING
-                    l1_batch_number,
-                    circuit_id;
-                "#,
+            r#"
+            UPDATE leaf_aggregation_witness_jobs_fri
+            SET
+                status = 'queued'
+            WHERE
+                (l1_batch_number, circuit_id) IN (
+                    SELECT
+                        prover_jobs_fri.l1_batch_number,
+                        prover_jobs_fri.circuit_id
+                    FROM
+                        prover_jobs_fri
+                        JOIN leaf_aggregation_witness_jobs_fri lawj ON prover_jobs_fri.l1_batch_number = lawj.l1_batch_number
+                        AND prover_jobs_fri.circuit_id = lawj.circuit_id
+                    WHERE
+                        lawj.status = 'waiting_for_proofs'
+                        AND prover_jobs_fri.status = 'successful'
+                        AND prover_jobs_fri.aggregation_round = 0
+                    GROUP BY
+                        prover_jobs_fri.l1_batch_number,
+                        prover_jobs_fri.circuit_id,
+                        lawj.number_of_basic_circuits
+                    HAVING
+                        COUNT(*) = lawj.number_of_basic_circuits
+                )
+            RETURNING
+                l1_batch_number,
+                circuit_id;
+            "#,
         )
         .fetch_all(self.storage.conn())
         .await
@@ -797,39 +800,39 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn move_depth_zero_node_aggregation_jobs(&mut self) -> Vec<(i64, u8, u16)> {
         sqlx::query!(
-                r#"
-                UPDATE node_aggregation_witness_jobs_fri
-                SET
-                    status = 'queued'
-                WHERE
-                    (l1_batch_number, circuit_id, depth) IN (
-                        SELECT
-                            prover_jobs_fri.l1_batch_number,
-                            prover_jobs_fri.circuit_id,
-                            prover_jobs_fri.depth
-                        FROM
-                            prover_jobs_fri
-                            JOIN node_aggregation_witness_jobs_fri nawj ON prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
-                            AND prover_jobs_fri.circuit_id = nawj.circuit_id
-                            AND prover_jobs_fri.depth = nawj.depth
-                        WHERE
-                            nawj.status = 'waiting_for_proofs'
-                            AND prover_jobs_fri.status = 'successful'
-                            AND prover_jobs_fri.aggregation_round = 1
-                            AND prover_jobs_fri.depth = 0
-                        GROUP BY
-                            prover_jobs_fri.l1_batch_number,
-                            prover_jobs_fri.circuit_id,
-                            prover_jobs_fri.depth,
-                            nawj.number_of_dependent_jobs
-                        HAVING
-                            COUNT(*) = nawj.number_of_dependent_jobs
-                    )
-                RETURNING
-                    l1_batch_number,
-                    circuit_id,
-                    depth;
-                "#,
+            r#"
+            UPDATE node_aggregation_witness_jobs_fri
+            SET
+                status = 'queued'
+            WHERE
+                (l1_batch_number, circuit_id, depth) IN (
+                    SELECT
+                        prover_jobs_fri.l1_batch_number,
+                        prover_jobs_fri.circuit_id,
+                        prover_jobs_fri.depth
+                    FROM
+                        prover_jobs_fri
+                        JOIN node_aggregation_witness_jobs_fri nawj ON prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
+                        AND prover_jobs_fri.circuit_id = nawj.circuit_id
+                        AND prover_jobs_fri.depth = nawj.depth
+                    WHERE
+                        nawj.status = 'waiting_for_proofs'
+                        AND prover_jobs_fri.status = 'successful'
+                        AND prover_jobs_fri.aggregation_round = 1
+                        AND prover_jobs_fri.depth = 0
+                    GROUP BY
+                        prover_jobs_fri.l1_batch_number,
+                        prover_jobs_fri.circuit_id,
+                        prover_jobs_fri.depth,
+                        nawj.number_of_dependent_jobs
+                    HAVING
+                        COUNT(*) = nawj.number_of_dependent_jobs
+                )
+            RETURNING
+                l1_batch_number,
+                circuit_id,
+                depth;
+            "#,
         )
         .fetch_all(self.storage.conn())
         .await
@@ -841,38 +844,38 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn move_depth_non_zero_node_aggregation_jobs(&mut self) -> Vec<(i64, u8, u16)> {
         sqlx::query!(
-                r#"
-                UPDATE node_aggregation_witness_jobs_fri
-                SET
-                    status = 'queued'
-                WHERE
-                    (l1_batch_number, circuit_id, depth) IN (
-                        SELECT
-                            prover_jobs_fri.l1_batch_number,
-                            prover_jobs_fri.circuit_id,
-                            prover_jobs_fri.depth
-                        FROM
-                            prover_jobs_fri
-                            JOIN node_aggregation_witness_jobs_fri nawj ON prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
-                            AND prover_jobs_fri.circuit_id = nawj.circuit_id
-                            AND prover_jobs_fri.depth = nawj.depth
-                        WHERE
-                            nawj.status = 'waiting_for_proofs'
-                            AND prover_jobs_fri.status = 'successful'
-                            AND prover_jobs_fri.aggregation_round = 2
-                        GROUP BY
-                            prover_jobs_fri.l1_batch_number,
-                            prover_jobs_fri.circuit_id,
-                            prover_jobs_fri.depth,
-                            nawj.number_of_dependent_jobs
-                        HAVING
-                            COUNT(*) = nawj.number_of_dependent_jobs
-                    )
-                RETURNING
-                    l1_batch_number,
-                    circuit_id,
-                    depth;
-                "#,
+            r#"
+            UPDATE node_aggregation_witness_jobs_fri
+            SET
+                status = 'queued'
+            WHERE
+                (l1_batch_number, circuit_id, depth) IN (
+                    SELECT
+                        prover_jobs_fri.l1_batch_number,
+                        prover_jobs_fri.circuit_id,
+                        prover_jobs_fri.depth
+                    FROM
+                        prover_jobs_fri
+                        JOIN node_aggregation_witness_jobs_fri nawj ON prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
+                        AND prover_jobs_fri.circuit_id = nawj.circuit_id
+                        AND prover_jobs_fri.depth = nawj.depth
+                    WHERE
+                        nawj.status = 'waiting_for_proofs'
+                        AND prover_jobs_fri.status = 'successful'
+                        AND prover_jobs_fri.aggregation_round = 2
+                    GROUP BY
+                        prover_jobs_fri.l1_batch_number,
+                        prover_jobs_fri.circuit_id,
+                        prover_jobs_fri.depth,
+                        nawj.number_of_dependent_jobs
+                    HAVING
+                        COUNT(*) = nawj.number_of_dependent_jobs
+                )
+            RETURNING
+                l1_batch_number,
+                circuit_id,
+                depth;
+            "#,
         )
         .fetch_all(self.storage.conn())
         .await
@@ -910,13 +913,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 l1_batch_number;
             "#,
             AggregationRound::NodeAggregation as i64,
-    )
-    .fetch_all(self.storage.conn())
-    .await
-    .unwrap()
-    .into_iter()
-    .map(|row| (row.l1_batch_number as u64))
-    .collect()
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number as u64))
+        .collect()
     }
 
     pub async fn move_scheduler_jobs_from_waiting_to_queued(&mut self) -> Vec<u64> {
@@ -1902,5 +1905,39 @@ impl FriWitnessGeneratorDal<'_, '_> {
             | AggregationRound::Scheduler => "l1_batch_number",
             AggregationRound::LeafAggregation | AggregationRound::NodeAggregation => "id",
         }
+    }
+
+    pub async fn get_proof_generation_times_for_time_frame(
+        &mut self,
+        time_frame: NaiveDateTime,
+    ) -> sqlx::Result<Vec<ProofGenerationTime>> {
+        let proof_generation_times = sqlx::query!(
+            r#"
+            SELECT
+                comp.l1_batch_number,
+                (comp.updated_at - wit.created_at) AS time_taken,
+                wit.created_at
+            FROM
+                proof_compression_jobs_fri AS comp
+                JOIN witness_inputs_fri AS wit ON comp.l1_batch_number = wit.l1_batch_number
+            WHERE
+                wit.created_at > $1
+            ORDER BY
+                time_taken DESC;
+            "#,
+            time_frame.into(),
+        )
+        .fetch_all(self.storage.conn())
+        .await?
+        .into_iter()
+        .map(|row| ProofGenerationTime {
+            l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
+            time_taken: naive_time_from_pg_interval(
+                row.time_taken.expect("time_taken must be present"),
+            ),
+            created_at: row.created_at,
+        })
+        .collect();
+        Ok(proof_generation_times)
     }
 }
