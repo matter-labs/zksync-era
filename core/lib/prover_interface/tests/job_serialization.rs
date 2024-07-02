@@ -8,7 +8,9 @@ use zksync_prover_interface::{
     inputs::{PrepareBasicCircuitsJob, StorageLogMetadata},
     outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
 };
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber, ProtocolVersionId};
+use zksync_types::{
+    protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber, ProtocolVersionId,
+};
 
 /// Tests compatibility of the `PrepareBasicCircuitsJob` serialization to the previously used
 /// one.
@@ -167,13 +169,15 @@ fn test_tee_proof_request_serialization() {
     let tee_proof_str = r#"{
         "signature": [ 0, 1, 2, 3, 4 ],
         "pubkey": [ 5, 6, 7, 8, 9 ],
-        "proof": [ 10, 11, 12, 13, 14 ]
+        "proof": [ 10, 11, 12, 13, 14 ],
+        "tee_type": "Sgx"
     }"#;
     let tee_proof_result = serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_str).unwrap();
     let tee_proof_expected = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
         signature: vec![0, 1, 2, 3, 4],
         pubkey: vec![5, 6, 7, 8, 9],
         proof: vec![10, 11, 12, 13, 14],
+        tee_type: TeeType::Sgx,
     }));
     assert_eq!(tee_proof_result, tee_proof_expected);
 }

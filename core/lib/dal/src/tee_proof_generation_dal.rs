@@ -7,7 +7,7 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
-use zksync_types::L1BatchNumber;
+use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
 use crate::Core;
 
@@ -26,12 +26,6 @@ enum TeeProofGenerationJobStatus {
     Generated,
     #[strum(serialize = "skipped")]
     Skipped,
-}
-
-#[derive(Debug, EnumString, Display)]
-pub enum TeeType {
-    #[strum(serialize = "sgx")]
-    Sgx,
 }
 
 impl TeeProofGenerationDal<'_, '_> {
